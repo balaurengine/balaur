@@ -517,3 +517,118 @@ fn a_shortcut_leaves_the_keys_of_a_field_being_typed_into() {
         assert_eq!(clicked(&app, button), fires, "{button:?}");
     }
 }
+
+/// A widget naming its neighbour that way wins over where the widgets were
+/// drawn, and an arrow from one naming none still goes by geometry.
+#[test]
+fn a_named_neighbour_wins_over_the_widget_drawn_nearer() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
+    );
+    let first = add_child_widget(
+        &app,
+        column,
+        "First",
+        &toml::toml! { kind = "button" text = "First" neighbour_down = "Third" }.into(),
+    );
+    let second = add_child_widget(
+        &app,
+        column,
+        "Second",
+        &toml::toml! { kind = "button" text = "Second" }.into(),
+    );
+    let third = add_child_widget(
+        &app,
+        column,
+        "Third",
+        &toml::toml! { kind = "button" text = "Third" }.into(),
+    );
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(first), "from nothing, the first stop");
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(third), "the neighbour First names");
+    pass(&app, &ctx, key(egui::Key::ArrowUp));
+    assert_eq!(focused(&app), Some(second), "Third names none: geometry");
+}
+
+/// What a stick or a d-pad's action calls moves focus as the arrow does, and
+/// a back button leaves it nowhere.
+#[test]
+fn a_pad_moves_focus_as_an_arrow_does_and_leaves_it() {
+    let (_dir, app) = app();
+    let (_, buttons) = menu(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let ask = |asked: balaur_ui::Move| {
+        app.engine
+            .resource::<balaur_ui::UiFocus>()
+            .borrow_mut()
+            .pending = Some(asked);
+        pass(&app, &ctx, vec![]);
+    };
+    ask(balaur_ui::Move::Down);
+    assert_eq!(focused(&app), Some(buttons[0]));
+    ask(balaur_ui::Move::Down);
+    assert_eq!(focused(&app), Some(buttons[1]));
+    ask(balaur_ui::Move::Up);
+    assert_eq!(focused(&app), Some(buttons[0]));
+    ask(balaur_ui::Move::Leave);
+    assert_eq!(focused(&app), None, "back leaves focus nowhere");
+}
+
+/// Focus an arrow moves past the bottom of a scroll is scrolled into view.
+#[test]
+fn focus_an_arrow_moves_is_scrolled_into_view() {
+    let (_dir, app) = app();
+    let scroll = add_widget(
+        &app,
+        &toml::toml! {
+            kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0
+            widget_scroll = { animated = false }
+        }
+        .into(),
+    );
+    let column = add_child_widget(
+        &app,
+        scroll,
+        "Column",
+        &toml::toml! { kind = "column" }.into(),
+    );
+    let rows: Vec<Entity> = (0..20)
+        .map(|n| {
+            let name = format!("Row{n}");
+            let params: toml::Value = toml::toml! { kind = "button" height = 30.0 }.into();
+            let row = add_child_widget(&app, column, &name, &params);
+            balaur::components::patch(
+                &app.engine,
+                row,
+                "widget",
+                &toml::Value::Table(toml::map::Map::from_iter([(
+                    "text".to_string(),
+                    toml::Value::String(name.clone()),
+                )])),
+            )
+            .unwrap();
+            row
+        })
+        .collect();
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    for _ in 0..10 {
+        pass(&app, &ctx, key(egui::Key::ArrowDown));
+    }
+    settle(&app, &ctx);
+    assert_eq!(focused(&app), Some(rows[9]));
+    let shown = balaur_ui::widget_rect(rows[9]).expect("the focused row was drawn");
+    let held = balaur_ui::widget_rect(scroll).expect("the scroll was drawn");
+    assert!(
+        held.contains_rect(shown.shrink(1.0)),
+        "the focused row {shown:?} lies outside the scroll {held:?}"
+    );
+}

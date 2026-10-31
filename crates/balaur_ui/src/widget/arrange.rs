@@ -322,6 +322,17 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
                 &room,
                 at.deep(index),
             );
+            // Focus moved under this scroll comes into view from where the
+            // layout put it: a row past the edge is never drawn to ask.
+            if let Some(focused) = at.arrived
+                && let Some(rect) = at
+                    .arena
+                    .iter()
+                    .position(|placed| placed.entity == focused)
+                    .and_then(|at| solved.get(&at))
+            {
+                ui.scroll_to_rect(*rect, None);
+            }
             let held = std::mem::replace(&mut at.rects, solved);
             lay_out(ui, at, index, Axis::Column);
             at.rects = held;

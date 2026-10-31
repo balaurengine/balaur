@@ -308,6 +308,36 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "()",
             "Activate the focused widget, exactly as a click on it would.",
         ),
+        (
+            "focus_up",
+            &[],
+            "()",
+            "Move focus to the nearest widget above, as the up arrow does: the one the focused widget names in `neighbour_up`, else by where the widgets were drawn, round to the bottom past the top. What a stick or a d-pad's action calls.",
+        ),
+        (
+            "focus_down",
+            &[],
+            "()",
+            "The same downwards, by `neighbour_down`.",
+        ),
+        (
+            "focus_left",
+            &[],
+            "()",
+            "The same to the left, by `neighbour_left`.",
+        ),
+        (
+            "focus_right",
+            &[],
+            "()",
+            "The same to the right, by `neighbour_right`.",
+        ),
+        (
+            "clear_focus",
+            &[],
+            "()",
+            "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
+        ),
     ]);
     m.function("focused_widget", |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
@@ -330,6 +360,11 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         ("focus_next", Move::Next),
         ("focus_previous", Move::Previous),
         ("activate_focused", Move::Accept),
+        ("focus_up", Move::Up),
+        ("focus_down", Move::Down),
+        ("focus_left", Move::Left),
+        ("focus_right", Move::Right),
+        ("clear_focus", Move::Leave),
     ] {
         m.function(name, move |eng: &Engine, ()| {
             eng.resource::<crate::UiFocus>().borrow_mut().pending = Some(asked);

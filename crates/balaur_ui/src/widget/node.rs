@@ -97,6 +97,9 @@ pub struct Widget {
     pub axis: SmolStr,
     /// Whether focus may land here, for a widget that could take it.
     pub focusable: bool,
+    /// The widgets focus goes to pointing up, down, left and right, by node
+    /// name; an empty one leaves it to where the widgets were drawn.
+    pub neighbours: [SmolStr; 4],
     /// Method on this node's script, called when focus arrives.
     pub on_focus: SmolStr,
     /// A `widget_theme` reference, or empty to take the one above.
@@ -529,13 +532,24 @@ pub struct UiFocus {
     /// The draw consumes it to put the caret in a field, which is what a
     /// command palette opening needs and what no property can say.
     pub taking: bool,
+    /// Whether focus moved to where it rests by a key, a pad or a script
+    /// this pass, which scrolls it into view; a click lands where the reader
+    /// can already see.
+    pub arrived: bool,
 }
 
-/// What a script or the keyboard asked focus to do.
+/// What a script, the keyboard or a pad asked focus to do.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Move {
     Next,
     Previous,
     /// Activate what is focused, as a click would.
     Accept,
+    /// To the nearest stop that way, as an arrow, a stick or a d-pad does.
+    Up,
+    Down,
+    Left,
+    Right,
+    /// Focus nothing, as a pad's back button leaves a menu.
+    Leave,
 }

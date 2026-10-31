@@ -115,13 +115,14 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let turned = turned_fold(&placed, accepted);
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
-    let (focused, taking) = focus_before(eng);
+    let (focused, taking, arriving) = focus_before(eng);
     let mut toasts = crate::widget::toast::Stack::default();
     let mut painting = Painting {
         eng,
         arena: &placed,
         focused,
         taking,
+        arrived: focused.filter(|_| arriving),
         theme: theme_root(eng),
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
@@ -457,6 +458,9 @@ pub(crate) struct Painting<'a> {
     pub(crate) focused: Option<Entity>,
     /// Whether focus was put on `focused` this pass rather than resting there.
     pub(crate) taking: bool,
+    /// The widget focus came to this pass by a key, a pad or a script, which
+    /// the scroll holding it brings into view.
+    pub(crate) arrived: Option<Entity>,
     /// The theme in force here, inherited unless a widget names its own.
     pub(crate) theme: Rc<WidgetTheme>,
     /// The box the parent container handed this widget, per axis; 0 on an

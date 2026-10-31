@@ -2538,7 +2538,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 120 properties
+`ui` · 124 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
 
@@ -2647,6 +2647,10 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>submitted</code></td><td>bool</td><td><code>false</code></td><td>True for the one frame a `text_field` was submitted, the way `clicked` reports a press</td></tr>
 <tr><td><code>interactive</code></td><td>bool</td><td><code>true</code></td><td>Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
+<tr><td><code>neighbour_up</code></td><td>string</td><td>—</td><td>The widget focus goes to when an arrow, a stick or a d-pad points up from this one, by node name; empty leaves it to where the widgets were drawn</td></tr>
+<tr><td><code>neighbour_down</code></td><td>string</td><td>—</td><td>The same pointing down</td></tr>
+<tr><td><code>neighbour_left</code></td><td>string</td><td>—</td><td>The same pointing left</td></tr>
+<tr><td><code>neighbour_right</code></td><td>string</td><td>—</td><td>The same pointing right</td></tr>
 <tr><td><code>sense</code></td><td>enum</td><td><code>click</code></td><td>What the pointer may do to a `button`: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui&#x27;s drag distance is a drag and no click; `drag` and `hover` never click One of <code>click</code>, <code>click_and_drag</code>, <code>drag</code>, <code>hover</code>.</td></tr>
 <tr><td><code>cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while it is over the widget: `hand` over anything that opens on a click, `none` to hide it; `arrow` is the platform&#x27;s own One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
 <tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>

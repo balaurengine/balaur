@@ -431,6 +431,10 @@ pub(crate) mod keys {
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const DASHED: &str = "dashed";
     pub(crate) const FILL: &str = "fill";
+    pub(crate) const NEIGHBOUR_UP: &str = "neighbour_up";
+    pub(crate) const NEIGHBOUR_DOWN: &str = "neighbour_down";
+    pub(crate) const NEIGHBOUR_LEFT: &str = "neighbour_left";
+    pub(crate) const NEIGHBOUR_RIGHT: &str = "neighbour_right";
     pub(crate) const FOCUSABLE: &str = "focusable";
     pub(crate) const FONT: &str = "font";
     /// A theme's table of fonts by name, as `[colors]` is of colours: the

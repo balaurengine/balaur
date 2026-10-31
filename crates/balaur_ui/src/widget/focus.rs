@@ -237,27 +237,51 @@ pub(super) fn advance(
     if focus.focused.is_some_and(|e| !stops.contains(&e)) {
         focus.focused = None;
     }
-    let pending = focus.pending.take().or(asked);
+    let mut pending = focus.pending.take().or(asked);
+    // A pad's direction is an arrow's.
+    let side = match pending {
+        Some(Move::Up) => Some(Side::Up),
+        Some(Move::Down) => Some(Side::Down),
+        Some(Move::Left) => Some(Side::Left),
+        Some(Move::Right) => Some(Side::Right),
+        _ => side,
+    };
+    if matches!(
+        pending,
+        Some(Move::Up | Move::Down | Move::Left | Move::Right)
+    ) {
+        pending = None;
+    }
+    if pending == Some(Move::Leave) {
+        focus.focused = None;
+        return None;
+    }
     if stops.is_empty() {
         return None;
     }
     let Some(asked) = pending else {
-        // An arrow goes across the screen from the stop it is on, by where
-        // each stop was drawn last, round to the far side past the last one;
-        // from nowhere it starts at an end.
+        // To the neighbour the focused widget names, else across the screen
+        // by where each stop was drawn last; from nowhere, an end.
         let side = side?;
-        let next = match focus.focused.and_then(crate::widget::arrange::drawn_at) {
-            Some(from) => {
-                let drawn: Vec<(Entity, egui::Rect)> = stops
-                    .iter()
-                    .filter_map(|&e| crate::widget::arrange::drawn_at(e).map(|r| (e, r)))
-                    .collect();
-                toward(from, side, &drawn).or_else(|| around(from, side, &drawn))
-            }
-            None if matches!(side, Side::Up | Side::Left) => stops.last().copied(),
-            None => stops.first().copied(),
-        };
+        let named = focus
+            .focused
+            .and_then(|from| neighbour(eng, from, side, stops));
+        let next =
+            named.or_else(
+                || match focus.focused.and_then(crate::widget::arrange::drawn_at) {
+                    Some(from) => {
+                        let drawn: Vec<(Entity, egui::Rect)> = stops
+                            .iter()
+                            .filter_map(|&e| crate::widget::arrange::drawn_at(e).map(|r| (e, r)))
+                            .collect();
+                        toward(from, side, &drawn).or_else(|| around(from, side, &drawn))
+                    }
+                    None if matches!(side, Side::Up | Side::Left) => stops.last().copied(),
+                    None => stops.first().copied(),
+                },
+            );
         if next.is_some() {
+            focus.arrived |= next != focus.focused;
             focus.focused = next;
         }
         return None;
@@ -265,6 +289,7 @@ pub(super) fn advance(
     let at = focus
         .focused
         .and_then(|e| stops.iter().position(|s| *s == e));
+    let was = focus.focused;
     match asked {
         Move::Accept => return focus.focused,
         // Wraps, because a menu is a ring: past the last entry is the first.
@@ -276,19 +301,48 @@ pub(super) fn advance(
             let previous = at.map_or(stops.len() - 1, |i| (i + stops.len() - 1) % stops.len());
             focus.focused = Some(stops[previous]);
         }
+        // Read into a side above.
+        Move::Up | Move::Down | Move::Left | Move::Right | Move::Leave => {}
     }
+    focus.arrived |= focus.focused != was;
     None
+}
+
+/// The stop `from` names as its neighbour on `side`, when it names one that
+/// is a stop now.
+fn neighbour(eng: &Engine, from: Entity, side: Side, stops: &[Entity]) -> Option<Entity> {
+    let world = eng.world();
+    let widget = world.get::<&Widget>(from).ok()?;
+    let named = &widget.neighbours[match side {
+        Side::Up => 0,
+        Side::Down => 1,
+        Side::Left => 2,
+        Side::Right => 3,
+    }];
+    if named.is_empty() {
+        return None;
+    }
+    stops.iter().copied().find(|&stop| {
+        world
+            .get::<&balaur_core::scene::Name>(stop)
+            .is_ok_and(|name| name.0 == named.as_str())
+    })
 }
 
 /// Where focus rests as the draw starts, and whether it was just put there.
 /// `taking` is consumed here, so a field takes the caret on the pass after the
 /// script asked and never steals it back from whatever the reader clicked.
-pub(super) fn focus_before(eng: &Engine) -> (Option<Entity>, bool) {
+///
+/// The third is whether it arrived there by a key, a pad or a script, which
+/// scrolls it into view; consumed the same way.
+pub(super) fn focus_before(eng: &Engine) -> (Option<Entity>, bool, bool) {
     let Some(focus) = eng.try_resource::<UiFocus>() else {
-        return (None, false);
+        return (None, false, false);
     };
     let mut focus = focus.borrow_mut();
-    (focus.focused, std::mem::take(&mut focus.taking))
+    let taking = std::mem::take(&mut focus.taking);
+    let arrived = std::mem::take(&mut focus.arrived);
+    (focus.focused, taking, arrived || taking)
 }
 
 /// Where focus went this pass: a blur for the widget it left, and the one it

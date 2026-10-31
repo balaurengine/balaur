@@ -2,8 +2,9 @@
 > (`balaur_text/src/edit.rs`), §4's arrows and §5, with §5's radial
 > gradients and stops past two on 2026-10-31. The `widget` split it waited
 > on is done (2026-10-31: `widget_field` holds the text kinds' rows), so
-> wiring §1 into the text kinds is next; §2 and §3 are step 12 of
-> PLAN-foundations, after the ECS work for the parts that read ticks.
+> wiring §1 into the text kinds is next, and §4 is built whole
+> (2026-10-31); §2 and §3 are step 12 of PLAN-foundations, after the ECS
+> work for the parts that read ticks.
 
 # Plan: the UI's gaps
 
@@ -104,9 +105,15 @@ The focus ring is the theme's `focus` table.
 Built 2026-10-30, in `widget/focus.rs`: an arrow goes to the focus stop
 whose centre lies that way, scored by the gap ahead plus twice the gap
 across, by where each stop was drawn last frame (`toward`); Tab keeps
-walking the scene's order. From no focus an arrow starts at an end. Not
-built: a pad's d-pad (`ui.focus_next` and friends still serve it), a
-widget naming its neighbour, scrolling a focused widget into view.
+walking the scene's order. From no focus an arrow starts at an end. The
+rest built 2026-10-31: `ui.focus_up`, `focus_down`, `focus_left` and
+`focus_right` move as the arrows do, for whoever wires a stick or a d-pad's
+actions to them, and `ui.clear_focus` is a back button, leaving focus
+nowhere (the widget hears `blur`); `neighbour_up`, `neighbour_down`,
+`neighbour_left` and `neighbour_right` on a widget name the node focus goes
+to that way, over geometry; and focus a key, a pad or a script moved under
+a `scroll` is scrolled into view from where the layout put it, so a row
+past the edge, which is never drawn, still gets there.
 
 The rest of the 0.8 controller row (an on-screen keyboard, safe-area insets,
 button glyphs) stays on that row.

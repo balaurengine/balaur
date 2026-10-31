@@ -6348,6 +6348,10 @@
         "least": 0,
         "signature": "()"
       },
+      "ui::clear_focus": {
+        "least": 0,
+        "signature": "()"
+      },
       "ui::click": {
         "least": 1,
         "signature": "(Node, any) -> bool"
@@ -6380,11 +6384,27 @@
         "least": 0,
         "signature": "()"
       },
+      "ui::focus_down": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::focus_left": {
+        "least": 0,
+        "signature": "()"
+      },
       "ui::focus_next": {
         "least": 0,
         "signature": "()"
       },
       "ui::focus_previous": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::focus_right": {
+        "least": 0,
+        "signature": "()"
+      },
+      "ui::focus_up": {
         "least": 0,
         "signature": "()"
       },
@@ -8293,6 +8313,10 @@
       "submitted",
       "interactive",
       "focusable",
+      "neighbour_up",
+      "neighbour_down",
+      "neighbour_left",
+      "neighbour_right",
       "sense",
       "cursor",
       "shortcut",
@@ -18568,6 +18592,30 @@
         "group": "value",
         "type": "bool"
       },
+      "neighbour_down": {
+        "default": "",
+        "description": "The same pointing down",
+        "group": "events",
+        "type": "string"
+      },
+      "neighbour_left": {
+        "default": "",
+        "description": "The same pointing left",
+        "group": "events",
+        "type": "string"
+      },
+      "neighbour_right": {
+        "default": "",
+        "description": "The same pointing right",
+        "group": "events",
+        "type": "string"
+      },
+      "neighbour_up": {
+        "default": "",
+        "description": "The widget focus goes to when an arrow, a stick or a d-pad points up from this one, by node name; empty leaves it to where the widgets were drawn",
+        "group": "events",
+        "type": "string"
+      },
       "on_change": {
         "default": "",
         "description": "Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
@@ -26709,6 +26757,7 @@
       "doc": "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
       "docs": {
         "activate_focused": "Activate the focused widget, exactly as a click on it would.",
+        "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
         "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
@@ -26717,8 +26766,12 @@
         "fill_rows": "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
+        "focus_down": "The same downwards, by `neighbour_down`.",
+        "focus_left": "The same to the left, by `neighbour_left`.",
         "focus_next": "Move focus to the next widget in scene order, wrapping past the last.",
         "focus_previous": "Move focus to the previous widget in scene order, wrapping past the first.",
+        "focus_right": "The same to the right, by `neighbour_right`.",
+        "focus_up": "Move focus to the nearest widget above, as the up arrow does: the one the focused widget names in `neighbour_up`, else by where the widgets were drawn, round to the bottom past the top. What a stick or a d-pad's action calls.",
         "focused_widget": "The widget node focus is on, or nil.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
@@ -26745,6 +26798,7 @@
       },
       "functions": [
         "activate_focused",
+        "clear_focus",
         "click",
         "complete_theme",
         "contrast",
@@ -26753,8 +26807,12 @@
         "fill_rows",
         "fill_strip",
         "finish_loading",
+        "focus_down",
+        "focus_left",
         "focus_next",
         "focus_previous",
+        "focus_right",
+        "focus_up",
         "focused_widget",
         "height_class",
         "pasted_text",
@@ -26782,6 +26840,7 @@
       "name": "ui",
       "signatures": {
         "activate_focused": "()",
+        "clear_focus": "()",
         "click": "(Node, any) -> bool",
         "complete_theme": "(any) -> any",
         "contrast": "(str, str) -> float",
@@ -26790,8 +26849,12 @@
         "fill_rows": "(str, any, any, bool) -> bool",
         "fill_strip": "(str, any) -> bool",
         "finish_loading": "()",
+        "focus_down": "()",
+        "focus_left": "()",
         "focus_next": "()",
         "focus_previous": "()",
+        "focus_right": "()",
+        "focus_up": "()",
         "focused_widget": "() -> Node",
         "height_class": "() -> str",
         "pasted_text": "() -> str",

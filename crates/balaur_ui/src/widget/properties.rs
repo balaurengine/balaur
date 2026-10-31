@@ -505,6 +505,18 @@ pub(crate) struct WidgetProperties {
     /// Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be
     #[property(default = true, group = "events")]
     pub(crate) focusable: bool,
+    /// The widget focus goes to when an arrow, a stick or a d-pad points up from this one, by node name; empty leaves it to where the widgets were drawn
+    #[property(group = "events")]
+    pub(crate) neighbour_up: SmolStr,
+    /// The same pointing down
+    #[property(group = "events")]
+    pub(crate) neighbour_down: SmolStr,
+    /// The same pointing left
+    #[property(group = "events")]
+    pub(crate) neighbour_left: SmolStr,
+    /// The same pointing right
+    #[property(group = "events")]
+    pub(crate) neighbour_right: SmolStr,
     /// What the pointer may do to a `button`: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui's drag distance is a drag and no click; `drag` and `hover` never click
     #[property(default = Sense::new(w::CLICK), group = "events")]
     pub(crate) sense: Sense,

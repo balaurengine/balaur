@@ -465,6 +465,10 @@ cache_fields! {
         k::SUBMITTED => widget.submitted = asked.submitted;
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
         k::FOCUSABLE => widget.focusable = asked.focusable;
+        k::NEIGHBOUR_UP => widget.neighbours[0] = asked.neighbour_up.clone();
+        k::NEIGHBOUR_DOWN => widget.neighbours[1] = asked.neighbour_down.clone();
+        k::NEIGHBOUR_LEFT => widget.neighbours[2] = asked.neighbour_left.clone();
+        k::NEIGHBOUR_RIGHT => widget.neighbours[3] = asked.neighbour_right.clone();
         k::SENSE => egui(widget).sense = asked.sense.0.clone();
         k::CURSOR => widget.cursor = asked.cursor.0.clone();
         k::SHORTCUT => widget.shortcut = asked.shortcut.clone();
