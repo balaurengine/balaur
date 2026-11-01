@@ -43,7 +43,7 @@ impl FnGen<'_> {
             owner: None,
             kind: Kind::Script,
         };
-        let places = self.script_args(&sig, args, pos, name, None)?;
+        let places = self.script_args(&sig, args, pos, name)?;
         self.get_raw(f);
         self.spill();
         let (p, r) = self.g.wasm_sig(&sig);
@@ -154,7 +154,7 @@ impl FnGen<'_> {
                 );
             }
             Kind::Script => {
-                let places = self.script_args(&sig, args, pos, name, None)?;
+                let places = self.script_args(&sig, args, pos, name)?;
                 self.spill();
                 self.e(I::Call(self.g.callee(name, &sig)));
                 if let Some(r) = self.store_back(places, &sig.ret) {
@@ -267,8 +267,7 @@ impl FnGen<'_> {
         }
     }
 
-    // `v.m(..)` on a script struct or class: `self` lent from where `v` is
-    // and handed back there.
+    // `v.m(..)` on a class: its pointer, which the call lends and never moves.
     fn script_method(
         &mut self,
         base: &Expr,
@@ -290,58 +289,27 @@ impl FnGen<'_> {
                 format!("`{key}` is async: `await self.{name}(..)` inside an `async fn`"),
             );
         }
-        // A class is shared, so any expression holding one will do;
-        // a value inside an object is lent and handed back there.
-        let mut held = None;
-        let mut lent = None;
-        let lv = match place {
-            Some(lv) => lv,
-            None if self.g.is_class(&bty).is_some() => {
+        // A class is shared, so any expression holding one will do.
+        let (lv, held) = match place {
+            Some(lv) => (lv, None),
+            None => {
                 self.expr(base)?;
                 let t = self.temp(&bty);
                 self.set_raw(&t);
-                held = Some(t.clone());
-                t
+                (t.clone(), Some(t))
             }
-            None => match self.mem_place(base)? {
-                Some(mp) if mp.stable => {
-                    let t = self.alloc(&bty);
-                    self.mem_get_raw(&mp);
-                    self.set_raw(&t);
-                    lent = Some(mp);
-                    t
-                }
-                _ => {
-                    return err(
-                        pos,
-                        "a method changes its value: call it on a variable or a field",
-                    );
-                }
-            },
         };
         self.get_raw(&lv);
-        let places = self.script_args(&sig, args, pos, &key, Some(&lv))?;
+        let places = self.script_args(&sig, args, pos, &key)?;
         self.spill();
         self.e(I::Call(sig.idx));
-        let ret = if let Some(r) = self.store_back(places, &sig.ret) {
-            r
-        } else {
-            let r = self.alloc(&sig.ret);
-            self.set_raw(&r);
-            r
-        };
-        self.set_raw(&lv);
-        if let Some(mp) = lent {
-            self.get_raw(&lv);
-            self.mem_set_raw(&mp);
-            if let Some(r) = &mp.release {
-                self.release(r);
-            }
-        }
+        let ret = self.store_back(places, &sig.ret);
         if let Some(t) = held {
             self.release(&t);
         }
-        self.get_raw(&ret);
+        if let Some(r) = ret {
+            self.get_raw(&r);
+        }
         Ok(sig.ret)
     }
 
@@ -354,7 +322,6 @@ impl FnGen<'_> {
         args: &[Expr],
         pos: Pos,
         name: &str,
-        receiver: Option<&super::func::LVal>,
     ) -> R<Vec<RefPlace>> {
         if !sig.has_refs() {
             self.args(&sig.params, args, pos, name)?;
@@ -407,11 +374,11 @@ impl FnGen<'_> {
                 RefPlace::Local(l) => Some(l),
                 RefPlace::Mem(_) => None,
             });
-            if locals.chain(receiver).any(overlaps) {
+            if locals.into_iter().any(overlaps) {
                 return err(
                     a.pos,
                     format!(
-                        "`{name}` would change this twice: it is part of another `&mut` argument or of what the method is called on"
+                        "`{name}` would change this twice: it is part of another `&mut` argument"
                     ),
                 );
             }
@@ -551,7 +518,7 @@ impl FnGen<'_> {
             refs: sig.refs[1..].to_vec(),
             ..sig.clone()
         };
-        self.script_args(&rest, args, pos, name, None)?;
+        self.script_args(&rest, args, pos, name)?;
         self.spill();
         self.e(I::Call(self.g.callee(&key, &sig)));
         Ok(sig.ret)

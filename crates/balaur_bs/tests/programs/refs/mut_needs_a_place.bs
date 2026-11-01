@@ -2,9 +2,6 @@
 
 pub struct I { n: int }
 fn bump(i: &mut I) { i.n += 1; }
-pub struct E { a: I }
-impl E {
-    pub fn f() { bump(I { n: 1 }); }
-}
+pub fn f() { bump(I { n: 1 }); }
 
-// error: 7:23: `bump` changes this argument: pass a variable or a field
+// error: 5:19: `bump` changes this argument: pass a variable or a field

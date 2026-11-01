@@ -40,7 +40,7 @@ pub fn picked(k: int) -> int {
 #[test]
 fn a_fn_never_set_traps() {
     let mut rt = run(SRC);
-    let mut p = rt.object("Picker", &[]).unwrap();
-    assert!(rt.call_method(&mut p, "run", &[Value::Int(1)]).is_err());
+    let p = rt.object("Picker", &[]).unwrap();
+    assert!(rt.call_method(&p, "run", &[Value::Int(1)]).is_err());
     assert_eq!(call(&mut rt, "picked", &[Value::Int(2)]), Value::Int(4));
 }

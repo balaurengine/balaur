@@ -576,7 +576,7 @@ impl Runtime {
     /// Calls `Struct.method` on `obj`, which comes back with whatever the method changed.
     pub fn call_method(
         &mut self,
-        obj: &mut Object,
+        obj: &Object,
         method: &str,
         args: &[Value],
     ) -> Result<Value, RunError> {
@@ -597,7 +597,7 @@ impl Runtime {
     /// already, in this module's [`Meta`].
     pub fn call_info(
         &mut self,
-        obj: &mut Object,
+        obj: &Object,
         info: &FnInfo,
         args: &[Value],
     ) -> Result<Value, RunError> {
@@ -606,11 +606,9 @@ impl Runtime {
             for (t, v) in info.params.iter().zip(args) {
                 a.extend(rt.encode(t, v)?);
             }
-            let nself = obj.raw.len();
             let ret = width(&rt.meta, &info.ret);
-            let out = rt.invoke(&info.key, &a, nself + ret)?;
-            obj.raw.copy_from_slice(&out[..nself]);
-            Ok(rt.take(&info.ret, &out[nself..]))
+            let out = rt.invoke(&info.key, &a, ret)?;
+            Ok(rt.take(&info.ret, &out))
         })
     }
 
@@ -643,14 +641,14 @@ impl Runtime {
     pub fn poll(
         &mut self,
         task: &mut Task,
-        obj: Option<&mut Object>,
+        obj: Option<&Object>,
     ) -> Result<Option<Value>, RunError> {
         self.in_unit(task.unit, |rt| {
-            let Some(call) = rt.poll_call(task, obj.as_deref())? else {
+            let Some(call) = rt.poll_call(task, obj)? else {
                 return Ok(None);
             };
             let out = rt.invoke(&call.name, &call.args, call.results)?;
-            rt.polled(task, obj, &call.ret, &out)
+            rt.polled(task, &call.ret, &out)
         })
     }
 
@@ -674,29 +672,24 @@ impl Runtime {
             line: None,
         })?;
         let mut args = vec![Raw::I32(task.frame as i32)];
-        let nself = obj.map_or(0, |o| o.raw.len());
         if let Some(o) = obj {
             args.extend(o.raw.iter().copied());
         }
         Ok(Some(stepping::Call {
             name: format!("{}{}", task.key, words::POLL),
             args,
-            results: 1 + nself,
+            results: 1,
             ret: info.ret.clone(),
         }))
     }
 
-    // A poll's results: the status, then `self` handed back.
+    // A poll's result: the status.
     fn polled(
         &mut self,
         task: &mut Task,
-        obj: Option<&mut Object>,
         ret: &Ty,
         out: &[Raw],
     ) -> Result<Option<Value>, RunError> {
-        if let Some(o) = obj {
-            o.raw = out[1..].to_vec();
-        }
         if let Some(h) = task.waiting.take() {
             self.host.borrow_mut().resolved.remove(&h);
         }

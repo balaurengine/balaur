@@ -118,14 +118,11 @@ pub(super) fn emit(
 
 /// `$start`'s parameters and results, then `$poll`'s.
 pub(super) fn signatures(g: &Gen, sig: &Sig) -> (super::Signature, super::Signature) {
-    let selfv = g.self_vts(sig.owner.as_ref());
     let mut sp = vec![ValType::I32];
     sp.extend(sig.params.iter().flat_map(|t| g.vts(t)));
     let mut pp = vec![ValType::I32];
-    pp.extend(selfv.clone());
-    let mut pr = vec![ValType::I64];
-    pr.extend(selfv);
-    ((sp, vec![]), (pp, pr))
+    pp.extend(g.self_vts(sig.owner.as_ref()));
+    ((sp, vec![]), (pp, vec![ValType::I64]))
 }
 
 // Suspending writes the state and every local to the frame; resuming reads them back.
@@ -151,9 +148,6 @@ fn save_and_restore(
     }
     fg.dbg_leave();
     fg.e(I::LocalGet(handle));
-    if let Some(s) = fg.self_lv.clone() {
-        fg.get_raw(&s);
-    }
     let mut prologue = vec![I::LocalGet(0), I::I32Load(mem(0, 2)), I::LocalSet(state)];
     for (k, (slot, vt)) in saved.iter().enumerate() {
         prologue.extend([
@@ -295,9 +289,6 @@ fn poll_child(
         fg.get_raw(s);
     }
     fg.e(I::Call(callee.idx + 1));
-    if let Some(s) = &own_self {
-        fg.set_raw(s);
-    }
     fg.emit([I::LocalTee(l.handle), I::I64Const(0), I::I64Ne]);
     fg.open(I::If(BlockType::Empty));
     goto(fg, l, here);

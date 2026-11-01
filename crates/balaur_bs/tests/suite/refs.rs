@@ -45,8 +45,8 @@ impl Editor {
 fn a_mut_parameter_is_the_callers_own_value() {
     let mut rt = run(EDITOR);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(
         rt.get(&e, "said"),
         Some(Value::Str("y 2 2 2 10 100 110 2 1 1".into())),
@@ -78,8 +78,8 @@ impl Editor {
 "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(rt.get(&e, "said"), Some(Value::Str("2 b.bs".into())));
     rt.drop_object(e);
     assert_eq!(rt.live(), base);
@@ -109,8 +109,8 @@ impl Editor {
 "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(rt.get(&e, "said"), Some(Value::Str("a=3;a=b;".into())));
     rt.drop_object(e);
     assert_eq!(rt.live(), base);

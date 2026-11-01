@@ -1,6 +1,6 @@
 // A method's batch entry: the method over many instances in one call.
 
-use super::rt::{load, store};
+use super::rt::load;
 use super::{FuncBody, Gen, Sig, Structs, has_heap};
 use crate::ast::FnDecl;
 use std::collections::BTreeSet;
@@ -33,9 +33,7 @@ pub(super) fn batch_fn(g: &Gen, sig: &Sig) -> (u32, FuncBody) {
     params.extend(argv.clone());
     let np = params.len() as u32;
     let (k, addr) = (np, np + 1);
-    let temps: Vec<u32> = (0..selfv.len() as u32).map(|i| np + 2 + i).collect();
-    let mut locals = vec![I32, I32];
-    locals.extend(selfv.iter().copied());
+    let locals = vec![I32, I32];
     let stride = 8 * selfv.len() as i32;
     let mut code = vec![
         I::Block(BlockType::Empty),
@@ -59,14 +57,6 @@ pub(super) fn batch_fn(g: &Gen, sig: &Sig) -> (u32, FuncBody) {
     code.extend((0..argv.len() as u32).map(|a| I::LocalGet(2 + a)));
     code.push(I::Call(sig.idx));
     code.extend((0..nret).map(|_| I::Drop));
-    code.extend(temps.iter().rev().map(|t| I::LocalSet(*t)));
-    for (j, vt) in selfv.iter().enumerate() {
-        code.extend([
-            I::LocalGet(addr),
-            I::LocalGet(temps[j]),
-            store(*vt, 8 * j as u64),
-        ]);
-    }
     code.extend([
         I::LocalGet(k),
         I::I32Const(1),

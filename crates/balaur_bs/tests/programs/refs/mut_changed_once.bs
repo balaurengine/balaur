@@ -3,11 +3,6 @@
 pub struct I { n: int }
 fn two(a: &mut I, b: &mut I) {}
 pub struct E { a: I }
-impl E {
-    fn m(i: &mut I) {}
-    pub fn f() { two(self.a, self.a); }
-    pub fn g() { self.m(self.a); }
-}
+pub fn f(e: E) { two(e.a, e.a); }
 
-// error: 8:34: `two` would change this twice: it is part of another `&mut` argument or of what the method is called on
-// error: 9:29: `E.m` would change this twice: it is part of another `&mut` argument or of what the method is called on
+// error: 6:28: `two` would change this twice: it is part of another `&mut` argument

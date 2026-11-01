@@ -60,9 +60,9 @@ fn host_objects_own_their_fields() {
         }
     "#);
     let base = rt.live();
-    let mut bag = rt.object("Bag", &[]).unwrap();
+    let bag = rt.object("Bag", &[]).unwrap();
     for w in ["a", "b", "c"] {
-        rt.call_method(&mut bag, "add", &[Value::Str(w.into())])
+        rt.call_method(&bag, "add", &[Value::Str(w.into())])
             .unwrap();
     }
     assert_eq!(rt.get(&bag, "label"), Some(Value::Str("3 items".into())));

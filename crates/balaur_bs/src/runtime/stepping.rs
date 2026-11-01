@@ -29,22 +29,21 @@ pub(super) struct Call {
 /// What finishing a parked call needs.
 pub(super) struct ParkedCall {
     ret: Ty,
-    nself: usize,
     poll: bool,
 }
 
 /// Who a parked call hands its results to.
 enum Owner<'a> {
-    Method(&'a mut Object),
-    Task(&'a mut Task, Option<&'a mut Object>),
+    Method,
+    Task(&'a mut Task),
 }
 
 impl Runtime {
-    /// [`Runtime::call_method`], but a stop parks the call. `obj` is handed
-    /// back only once the call is done, by this or by [`Runtime::resume`].
+    /// [`Runtime::call_method`], but a stop parks the call, and
+    /// [`Runtime::resume`] goes on with it.
     pub fn call_method_steppable(
         &mut self,
-        obj: &mut Object,
+        obj: &Object,
         method: &str,
         args: &[Value],
     ) -> Result<Step, RunError> {
@@ -57,61 +56,53 @@ impl Runtime {
         for (t, v) in info.params.iter().zip(args) {
             a.extend(self.encode(t, v)?);
         }
-        let nself = obj.raw.len();
-        let results = nself + width(&self.meta, &info.ret);
+        let results = width(&self.meta, &info.ret);
         if self.parked_call.is_some() {
             return fail("the script is stopped at a breakpoint");
         }
         self.parked_call = Some(ParkedCall {
             ret: info.ret,
-            nself,
             poll: false,
         });
         self.prepare();
         let outcome = self.wasm.call_resumable(&key, &a, results);
-        self.settle(outcome, Owner::Method(obj))
+        self.settle(outcome, Owner::Method)
     }
 
     /// [`Runtime::poll`], but a stop parks the poll; [`Runtime::resume_task`]
-    /// goes on with the same `task` and `obj`.
+    /// goes on with the same `task`.
     pub fn poll_steppable(
         &mut self,
         task: &mut Task,
-        obj: Option<&mut Object>,
+        obj: Option<&Object>,
     ) -> Result<Step, RunError> {
         if self.parked_call.is_some() {
             return fail("the script is stopped at a breakpoint");
         }
-        let Some(call) = self.poll_call(task, obj.as_deref())? else {
+        let Some(call) = self.poll_call(task, obj)? else {
             return Ok(Step::Waiting);
         };
         self.parked_call = Some(ParkedCall {
             ret: call.ret,
-            nself: call.results - 1,
             poll: true,
         });
         self.prepare();
         let outcome = self
             .wasm
             .call_resumable(&call.name, &call.args, call.results);
-        self.settle(outcome, Owner::Task(task, obj))
+        self.settle(outcome, Owner::Task(task))
     }
 
     /// Lets the parked method go on under `cmd`.
-    pub fn resume(&mut self, cmd: Command, obj: &mut Object) -> Result<Step, RunError> {
+    pub fn resume(&mut self, cmd: Command) -> Result<Step, RunError> {
         let outcome = self.go_on(cmd, false)?;
-        self.settle(outcome, Owner::Method(obj))
+        self.settle(outcome, Owner::Method)
     }
 
     /// Lets the parked poll of `task` go on under `cmd`.
-    pub fn resume_task(
-        &mut self,
-        cmd: Command,
-        task: &mut Task,
-        obj: Option<&mut Object>,
-    ) -> Result<Step, RunError> {
+    pub fn resume_task(&mut self, cmd: Command, task: &mut Task) -> Result<Step, RunError> {
         let outcome = self.go_on(cmd, true)?;
-        self.settle(outcome, Owner::Task(task, obj))
+        self.settle(outcome, Owner::Task(task))
     }
 
     /// The stop a parked call is held at.
@@ -163,12 +154,9 @@ impl Runtime {
             Err(msg) => return Err(self.trapped(msg)),
         };
         match owner {
-            Owner::Method(obj) => {
-                obj.raw = out[..call.nself].to_vec();
-                Ok(Step::Done(self.take(&call.ret, &out[call.nself..])))
-            }
-            Owner::Task(task, obj) => Ok(self
-                .polled(task, obj, &call.ret, &out)?
+            Owner::Method => Ok(Step::Done(self.take(&call.ret, &out))),
+            Owner::Task(task) => Ok(self
+                .polled(task, &call.ret, &out)?
                 .map_or(Step::Waiting, Step::Done)),
         }
     }

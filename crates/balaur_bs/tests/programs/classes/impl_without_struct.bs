@@ -4,4 +4,4 @@
 impl S { fn m() -> int { 1 } }
 pub fn f() -> int { 1 }
 
-// error: 4:10: `impl S` names no struct or class: declare `struct S`
+// error: 4:10: `impl S` names no class: declare `class S`

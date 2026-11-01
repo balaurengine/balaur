@@ -1042,13 +1042,13 @@ impl BsHost {
             drop(rt);
             return self.run_steppable(file, inst, method, &args);
         }
-        let Some(mut obj) = inst.obj.borrow_mut().take() else {
+        let Some(obj) = inst.obj.borrow_mut().take() else {
             drop(rt);
             return Self::nested(file, inst, method, &args);
         };
         *inst.lent.borrow_mut() = rt.share(&obj);
         let before = rt.steps();
-        let out = rt.call_info(&mut obj, info, &args);
+        let out = rt.call_info(&obj, info, &args);
         self.charge(&inst.path, before, rt.steps());
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {
@@ -1068,15 +1068,15 @@ impl BsHost {
                 inst.path
             )
         };
-        let mut copy = {
+        let copy = {
             let lent = inst.lent.borrow();
             let lent = lent.as_ref().ok_or_else(busy)?;
             file.either(|rt| rt.share(lent), |re| re.share(lent))
                 .ok_or_else(busy)?
         };
         let out = match file.home.rt.try_borrow_mut() {
-            Ok(mut rt) => rt.call_method(&mut copy, method, args),
-            Err(_) => file.home.reentry.call_method(&mut copy, method, args),
+            Ok(mut rt) => rt.call_method(&copy, method, args),
+            Err(_) => file.home.reentry.call_method(&copy, method, args),
         };
         file.drop_object(copy);
         let v = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
@@ -1120,10 +1120,7 @@ impl BsHost {
                     out
                 })
         } else {
-            file.home
-                .reentry
-                .call_method(&mut obj, method, args)
-                .map(Some)
+            file.home.reentry.call_method(&obj, method, args).map(Some)
         };
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {

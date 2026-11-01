@@ -116,7 +116,7 @@ fn runtime(c: &Compiled, engine: EngineKind) -> Runtime {
 
 const UTIL: &str = r##"
 use defs;
-pub struct Rect { w: float, h: float }
+pub class Rect { w: float, h: float }
 impl Rect {
     pub fn area() -> float { self.w * self.h }
 }
@@ -240,7 +240,7 @@ pub async fn slow(n: int) -> int {
     await wait(0.5);
     n * 2
 }
-pub struct Counter { n: int }
+pub class Counter { n: int }
 impl Counter {
     pub async fn count(to: int) -> int {
         while self.n < to {
@@ -344,7 +344,7 @@ fn a_unit_reads_a_deeper_module_only_for_the_types_it_meets() {
         ("scripts/main.bs", main),
         (
             "scripts/shapes.bs",
-            "use geo;\nuse unused;\npub struct Square { size: geo::Size }\n\
+            "use geo;\nuse unused;\npub class Square { size: geo::Size }\n\
              impl Square { pub fn area() -> float { geo::area(self.size) } }\n\
              pub fn square(w: float) -> Square { Square { size: geo::Size { w: w, h: w } } }\n\
              pub fn noise() -> int { unused::n() }",
@@ -488,7 +488,7 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
             })
             .unwrap();
         found.borrow_mut().push((1, Runtime::pointer(&editor)));
-        let mut panel = rt
+        let panel = rt
             .in_unit(panel_unit, |rt| {
                 rt.object(
                     "Panel",
@@ -496,8 +496,8 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
                 )
             })
             .unwrap();
-        assert_eq!(rt.call_method(&mut panel, "poke", &[]), Ok(Value::Int(1)));
-        assert_eq!(rt.call_method(&mut panel, "poke", &[]), Ok(Value::Int(2)));
+        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
+        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(2)));
         assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(2)), "{engine:?}");
         assert_eq!(
             rt.get(&editor, "names"),
@@ -507,7 +507,7 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
             ]))
         );
         assert_eq!(
-            rt.call_method(&mut panel, "mistaken", &[]),
+            rt.call_method(&panel, "mistaken", &[]),
             Ok(Value::Bool(true))
         );
         rt.drop_object(panel);

@@ -133,13 +133,13 @@ fn a_method_hands_its_fields_back_natively() {
     let c = compile(MIXED, &Options::default()).unwrap();
     build(&[&c]);
     let mut rt = on(EngineKind::Native, &c, HostFns::default());
-    let mut m = rt.object("Mover", &[]).unwrap();
-    rt.call_method(&mut m, "walk", &[Value::Int(3)]).unwrap();
-    let x = rt.call_method(&mut m, "walk", &[Value::Int(2)]).unwrap();
+    let m = rt.object("Mover", &[]).unwrap();
+    rt.call_method(&m, "walk", &[Value::Int(3)]).unwrap();
+    let x = rt.call_method(&m, "walk", &[Value::Int(2)]).unwrap();
     let mut wasmi = on(EngineKind::Wasmi, &c, HostFns::default());
-    let mut w = wasmi.object("Mover", &[]).unwrap();
-    wasmi.call_method(&mut w, "walk", &[Value::Int(3)]).unwrap();
-    assert_eq!(wasmi.call_method(&mut w, "walk", &[Value::Int(2)]), Ok(x));
+    let w = wasmi.object("Mover", &[]).unwrap();
+    wasmi.call_method(&w, "walk", &[Value::Int(3)]).unwrap();
+    assert_eq!(wasmi.call_method(&w, "walk", &[Value::Int(2)]), Ok(x));
     assert_eq!(rt.get(&m, "name"), Some(Value::Str("walked 5".into())));
 }
 
@@ -359,10 +359,10 @@ impl Counter {
             let mut s = r.borrow_mut();
             (s.0.clone(), s.1.take(), s.2)
         };
-        let (Some(way), Some(mut obj)) = (way, obj) else {
+        let (Some(way), Some(obj)) = (way, obj) else {
             return Err("nothing to reach".into());
         };
-        let out = way.call_method(&mut obj, method, args);
+        let out = way.call_method(&obj, method, args);
         r.borrow_mut().1 = Some(obj);
         out.map_err(|e| e.to_string())
     });

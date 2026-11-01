@@ -36,16 +36,14 @@ fn an_edit_keeps_every_field_that_kept_its_name() {
         )
         .unwrap();
     for _ in 0..4 {
-        rt.call_method(&mut s, "update", &[Value::Float(0.5)])
-            .unwrap();
+        rt.call_method(&s, "update", &[Value::Float(0.5)]).unwrap();
     }
     assert_eq!(rt.get(&s, "angle"), Some(Value::Float(6.0)));
 
     let v2 = compile(V2, &Options::default()).unwrap();
     let kept = rt.reload(&v2, HostFns::default(), &mut [&mut s]).unwrap();
     assert_eq!(kept[0], ["angle", "speed", "name", "history"]);
-    rt.call_method(&mut s, "update", &[Value::Float(0.5)])
-        .unwrap();
+    rt.call_method(&s, "update", &[Value::Float(0.5)]).unwrap();
     assert_eq!(rt.get(&s, "angle"), Some(Value::Float(3.0)));
     assert_eq!(rt.get(&s, "turns"), Some(Value::Int(1)));
     assert_eq!(rt.get(&s, "name"), Some(Value::Str("top+".into())));

@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 const UTIL: &str = r##"
 use defs;
-pub struct Rect { w: float, h: float }
+pub class Rect { w: float, h: float }
 impl Rect {
     pub fn area() -> float { self.w * self.h }
 }

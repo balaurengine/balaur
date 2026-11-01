@@ -54,9 +54,9 @@ impl Editor {
 fn a_class_is_one_object_every_holder_shares() {
     let mut rt = run(EDITOR);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "init", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "init", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(
         rt.get(&e, "said"),
         Some(Value::Str("y 2 2 2 7 true 2 42 6".into())),
@@ -115,7 +115,7 @@ fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     let c1 = compile(v1, &Options::default()).unwrap();
     let mut rt = Runtime::new(&c1, HostFns::default(), Limits::default()).unwrap();
     let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "edit", &[]).unwrap();
+    rt.call_method(&e, "edit", &[]).unwrap();
     let doc = |rev: i64, extra: Option<bool>| {
         let mut fields = vec![
             ("name".into(), Value::Str("a".into())),
@@ -130,7 +130,7 @@ fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     let c2 = compile(v2, &Options::default()).unwrap();
     let kept = rt.reload(&c2, HostFns::default(), &mut [&mut e]).unwrap();
     assert_eq!(kept[0], ["doc"]);
-    rt.call_method(&mut e, "edit", &[]).unwrap();
+    rt.call_method(&e, "edit", &[]).unwrap();
     assert_eq!(
         rt.get(&e, "doc"),
         doc(11, Some(true)),
@@ -172,8 +172,8 @@ fn a_class_boxes_as_its_fields_and_comes_back_a_new_object() {
     "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut packer = rt.object("Packer", &[]).unwrap();
-    rt.call_method(&mut packer, "go", &[]).unwrap();
+    let packer = rt.object("Packer", &[]).unwrap();
+    rt.call_method(&packer, "go", &[]).unwrap();
     assert_eq!(
         rt.get(&packer, "said"),
         Some(Value::Str(r#"3 4 13 true {"x": 4, "tags": ["a"]}"#.into()))
@@ -269,8 +269,8 @@ impl Ball {
         other => Err(format!("no {other}")),
     });
     let mut rt = Runtime::new(&compiled, host, Limits::default()).unwrap();
-    let mut ball = rt.object("Ball", &[("node", Value::Node(7))]).unwrap();
-    rt.call_method(&mut ball, "update", &[]).unwrap();
+    let ball = rt.object("Ball", &[("node", Value::Node(7))]).unwrap();
+    rt.call_method(&ball, "update", &[]).unwrap();
     assert_eq!(rt.get(&ball, "seen"), Some(Value::Float(2.5)));
     let Value::Struct(_, fields) = &set.borrow()[0] else {
         panic!("the position was not written");

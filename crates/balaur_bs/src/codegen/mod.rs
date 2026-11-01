@@ -315,12 +315,11 @@ impl Gen {
         v.len() as u32 - 1
     }
     fn wasm_sig(&self, s: &Sig) -> Signature {
-        let selfv = self.self_vts(s.owner.as_ref());
-        let mut p = selfv.clone();
+        let mut p = self.self_vts(s.owner.as_ref());
         for t in &s.params {
             p.extend(self.vts(t));
         }
-        let mut r = selfv;
+        let mut r = vec![];
         for t in s.ref_tys() {
             r.extend(self.vts(t));
         }

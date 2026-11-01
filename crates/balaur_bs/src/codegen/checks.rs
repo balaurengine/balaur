@@ -41,7 +41,17 @@ pub(crate) fn check_types(prog: &Program) -> R<()> {
         {
             return err(
                 f.pos,
-                format!("`impl {owner}` names no struct or class: declare `struct {owner}`"),
+                format!("`impl {owner}` names no class: declare `class {owner}`"),
+            );
+        }
+        if let Some(owner) = &f.owner
+            && !prog.classes.contains(owner)
+        {
+            return err(
+                f.pos,
+                format!(
+                    "`impl {owner}`: a struct has no methods; make it a `class`, or write a function that takes it"
+                ),
             );
         }
         for p in &f.params {

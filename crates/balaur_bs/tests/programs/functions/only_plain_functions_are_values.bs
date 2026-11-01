@@ -1,6 +1,6 @@
 // Only a plain function is a `fn` value, and its type must match.
 
-pub struct S { x: int }
+pub class S { x: int }
 impl S { fn m() -> int { 1 } }
 fn one() -> int { 1 }
 pub fn method() -> int { let g = S.m; 1 }

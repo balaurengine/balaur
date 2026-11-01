@@ -3,7 +3,7 @@
 use balaur_bs::analysis::{Kind, analyze};
 use balaur_bs::{HostApi, HostSignature, Literal, Ty};
 
-const SRC: &str = "pub struct Mover {
+const SRC: &str = "pub class Mover {
     pub speed: float = 2.0,
     node: Node,
     hits: [str],
@@ -179,7 +179,7 @@ fn signature_help_names_the_call_and_the_argument() {
 
 #[test]
 fn rename_reaches_every_use_and_leaves_text_alone() {
-    let src = "pub struct S { hp: int }\nimpl S {\n    fn update(dt: float) {\n        let msg = \"hp {self.hp}\";\n        self.hp += 1; // hp up\n    }\n}\n";
+    let src = "pub class S { hp: int }\nimpl S {\n    fn update(dt: float) {\n        let msg = \"hp {self.hp}\";\n        self.hp += 1; // hp up\n    }\n}\n";
     let a = analyze(src, &api());
     assert_eq!(
         a.references("hp").len(),
@@ -201,8 +201,8 @@ fn rename_reaches_every_use_and_leaves_text_alone() {
 
 #[test]
 fn format_reindents_and_keeps_comments() {
-    let messy = "pub struct S { hp: int }\nimpl S {\n  fn update(dt: float) {   \n      // grow\n self.hp += 1;\n\n\n\n        let v = vec3(1.0,\n2.0, 3.0);\n  }\n}\n\n\n";
-    let want = "pub struct S { hp: int }\nimpl S {\n    fn update(dt: float) {\n        // grow\n        self.hp += 1;\n\n        let v = vec3(1.0,\n            2.0, 3.0);\n    }\n}\n";
+    let messy = "pub class S { hp: int }\nimpl S {\n  fn update(dt: float) {   \n      // grow\n self.hp += 1;\n\n\n\n        let v = vec3(1.0,\n2.0, 3.0);\n  }\n}\n\n\n";
+    let want = "pub class S { hp: int }\nimpl S {\n    fn update(dt: float) {\n        // grow\n        self.hp += 1;\n\n        let v = vec3(1.0,\n            2.0, 3.0);\n    }\n}\n";
     let a = analyze(messy, &api());
     assert_eq!(a.format(), want);
     assert_eq!(

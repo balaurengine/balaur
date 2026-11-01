@@ -64,7 +64,7 @@ pub(crate) struct FnGen<'a> {
     pub depth: u32,
     pub loops: Vec<(u32, u32)>,
     pub self_lv: Option<LVal>,
-    /// The `&mut` parameters, handed back after `self` when the call ends.
+    /// The `&mut` parameters, handed back when the call ends.
     pub refs: Vec<LVal>,
     /// Each expression's type once worked out, by where it sits: a chain
     /// `a.f().g()` asks its receiver's type at every link. Cleared when a
@@ -1010,8 +1010,7 @@ impl<'a> FnGen<'a> {
         }
     }
 
-    /// Leaves the function with `v`: a method also hands `self` back; an async
-    /// fn writes its result into its frame.
+    /// Leaves the function with `v`; an async fn writes its result into its frame.
     pub(crate) fn ret(&mut self, v: Option<&Expr>, pos: Pos, explicit: bool) -> R<()> {
         let want = match &self.mode {
             Mode::Normal { ret } | Mode::Poll { ret, .. } => ret.clone(),
@@ -1042,13 +1041,7 @@ impl<'a> FnGen<'a> {
                 ]);
             }
             self.e(I::I64Const(0));
-            if let Some(s) = self.self_lv.clone() {
-                self.get_raw(&s);
-            }
         } else {
-            if let Some(s) = self.self_lv.clone() {
-                self.get_raw(&s);
-            }
             for r in self.refs.clone() {
                 self.get_raw(&r);
             }

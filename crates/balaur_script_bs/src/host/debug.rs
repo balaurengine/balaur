@@ -152,12 +152,12 @@ impl BsHost {
             .rt
             .try_borrow_mut()
             .map_err(|_| anyhow!("[{}] {method}: the file is busy", inst.path))?;
-        let mut obj = inst
+        let obj = inst
             .obj
             .borrow_mut()
             .take()
             .ok_or_else(|| anyhow!("[{}] {method}: the instance is busy", inst.path))?;
-        match rt.call_method_steppable(&mut obj, method, args) {
+        match rt.call_method_steppable(&obj, method, args) {
             Ok(Step::Paused(_)) => {
                 self.hold(inst.node, inst.path.clone(), obj, None);
                 Ok(None)
@@ -264,7 +264,7 @@ impl BsHost {
         let Some(Held { node, path, stop }) = self.inner.stopped.borrow_mut().take() else {
             return;
         };
-        let Stop::Parked { mut obj, mut task } = stop else {
+        let Stop::Parked { obj, mut task } = stop else {
             // A trap's stop is dismissed: its call is over.
             self.inner.engine.set_frozen(false);
             return;
@@ -275,8 +275,8 @@ impl BsHost {
         };
         let mut rt = file.home.rt.borrow_mut();
         let step = match &mut task {
-            Some(p) => rt.resume_task(command(mode), &mut p.task, Some(&mut obj)),
-            None => rt.resume(command(mode), &mut obj),
+            Some(p) => rt.resume_task(command(mode), &mut p.task),
+            None => rt.resume(command(mode)),
         };
         match step {
             Ok(Step::Paused(_)) => {

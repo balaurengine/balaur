@@ -31,7 +31,7 @@ impl Reentry {
     /// [`Runtime::call_method`] from inside the file's engine call.
     pub fn call_method(
         &self,
-        obj: &mut Object,
+        obj: &Object,
         method: &str,
         args: &[Value],
     ) -> Result<Value, RunError> {
@@ -44,7 +44,7 @@ impl Reentry {
         &self,
         key: &str,
         args: &[Value],
-        obj: &mut Object,
+        obj: &Object,
     ) -> Result<(Task, Option<Value>), RunError> {
         self.inside(|rt| {
             let mut task = rt.in_unit(obj.unit, |rt| rt.start(key, args))?;

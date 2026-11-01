@@ -57,8 +57,8 @@ fn handed_out(engine: EngineKind, c: &Compiled) -> Vec<u64> {
     ] {
         floats(&rt.call(f, &args).unwrap(), &mut out);
     }
-    let mut h = rt.object("Holder", &[]).unwrap();
-    rt.call_method(&mut h, "fill", &[odd]).unwrap();
+    let h = rt.object("Holder", &[]).unwrap();
+    rt.call_method(&h, "fill", &[odd]).unwrap();
     floats(&rt.get(&h, "x").unwrap(), &mut out);
     out.extend(taken.borrow().iter());
     rt.drop_object(h);

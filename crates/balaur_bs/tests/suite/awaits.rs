@@ -66,10 +66,10 @@ fn host(said: Rc<RefCell<Vec<String>>>) -> HostFns {
 fn drive(
     rt: &mut Runtime,
     task: &mut Task,
-    mut obj: Option<&mut balaur_bs::runtime::Object>,
+    obj: Option<&balaur_bs::runtime::Object>,
 ) -> (Value, f64, usize) {
     for polls in 0..1000 {
-        if let Some(v) = rt.poll(task, obj.as_deref_mut()).unwrap() {
+        if let Some(v) = rt.poll(task, obj).unwrap() {
             return (v, rt.now(), polls + 1);
         }
         rt.advance(1.0 / 60.0);
@@ -82,14 +82,14 @@ fn a_method_awaits_the_host_and_another_script_fn() {
     let said = Rc::new(RefCell::new(vec![]));
     let mut rt = run_with(SCRIPT, host(said.clone()), &Options::default());
     let base = rt.live();
-    let mut guard = rt
+    let guard = rt
         .object(
             "Guard",
             &[("name", Value::Str("Ana".into())), ("hp", Value::Int(50))],
         )
         .unwrap();
     let mut task = rt.start("Guard.patrol", &[Value::Int(2)]).unwrap();
-    let (v, t, _) = drive(&mut rt, &mut task, Some(&mut guard));
+    let (v, t, _) = drive(&mut rt, &mut task, Some(&guard));
     assert_eq!(v, Value::Void);
     assert!((t - 2.5).abs() < 0.05, "finished at {t}");
     assert_eq!(
