@@ -65,8 +65,8 @@ pub struct ExportConfig {
     /// reads and every other mode ignores.
     pub audio_quality: f32,
     /// Which of a target's runtimes the game is put on: `auto`, the smallest it
-    /// fits, or `full`, `2d` or `3d`, where a script builds a name the scan
-    /// cannot see.
+    /// fits (the full one where only that is on hand), or `full`, `2d` or `3d`,
+    /// where a script builds a name the scan cannot see.
     pub runtime: Runtime,
     /// Whether the scripts ship as native code built from their C.
     pub native_scripts: NativeScripts,

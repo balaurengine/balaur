@@ -146,7 +146,7 @@ fn targets(project: &std::path::Path) -> Value {
     let rows = balaur_export::TARGETS
         .iter()
         .map(|name| {
-            let runtime = balaur_export::runtime_of(project, name, &smallest)
+            let runtime = balaur_export::runtime_on_hand(project, name, &smallest, &roots)
                 .unwrap_or_else(|_| (*name).to_string());
             let installed = balaur_export::runtime_installed(&runtime, &roots);
             Value::Map(vec![

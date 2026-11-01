@@ -186,6 +186,25 @@ pub fn runtime_of(project: &Path, target: &str, smallest: &SmallestRuntime) -> R
     Ok(runtime_for(target, runtime))
 }
 
+/// [`runtime_of`] as an export that fetches nothing lands on it: `auto` takes
+/// the target's full runtime where only that one is on `roots`.
+///
+/// # Errors
+/// If `project.toml` does not parse.
+pub fn runtime_on_hand(
+    project: &Path,
+    target: &str,
+    smallest: &SmallestRuntime,
+    roots: &[PathBuf],
+) -> Result<String> {
+    let name = runtime_of(project, target, smallest)?;
+    let auto = ExportConfig::load(project, Some(target))?.runtime == Runtime::Auto;
+    if auto && !runtime_installed(&name, roots) && runtime_installed(target, roots) {
+        return Ok(target.to_string());
+    }
+    Ok(name)
+}
+
 /// A target and the variant it names, if any: `ios-2d` is `("ios", Some("2d"))`.
 #[must_use]
 pub fn split_variant(target: &str) -> (&str, Option<&str>) {
@@ -295,6 +314,26 @@ fn runtime_name(
     Ok(name)
 }
 
+/// `lookup` of `name`, or of `full`, the target's whole runtime, where `auto`
+/// chose a smaller one that is neither here nor fetched: the same game, larger,
+/// so an export still works with only the runtime the editor came with.
+fn smallest_on_hand<T>(
+    name: &str,
+    full: Option<&str>,
+    lookup: impl Fn(&str) -> Result<T>,
+) -> Result<T> {
+    let missing = match lookup(name) {
+        Ok(found) => return Ok(found),
+        Err(missing) => missing,
+    };
+    let Some(full) = full.filter(|full| *full != name) else {
+        return Err(missing);
+    };
+    let found = lookup(full).map_err(|_| missing)?;
+    tracing::warn!("no {name} runtime here, so this export goes on {full}, which is larger");
+    Ok(found)
+}
+
 /// A bundle's runtime directory off the roots, or fetched and unpacked.
 fn bundle_runtime(kind: Bundle, name: &str, opts: &Options<'_>) -> Result<PathBuf> {
     if let Some(explicit) = &opts.runtime {
@@ -307,6 +346,17 @@ fn bundle_runtime(kind: Bundle, name: &str, opts: &Options<'_>) -> Result<PathBu
                 let root = obtain(name).with_context(|| missing.to_string())?;
                 find_bundle_runtime(kind, name, std::slice::from_ref(&root))
             }
+            None => Err(missing),
+        },
+    }
+}
+
+/// A runtime executable off the roots, or fetched.
+fn flat_runtime(name: &str, opts: &Options<'_>) -> Result<PathBuf> {
+    match find_runtime(name, &opts.runtime_roots) {
+        Ok(found) => Ok(found),
+        Err(missing) => match opts.obtain {
+            Some(obtain) => obtain(name).with_context(|| missing.to_string()),
             None => Err(missing),
         },
     }
@@ -329,6 +379,7 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let runtime_name = target
         .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
         .transpose()?;
+    let full = target.filter(|_| config.runtime == Runtime::Auto);
     let (title, icons) = presented(opts, &manifest)?;
     fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
@@ -346,7 +397,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // inside it as a resource rather than onto the end of a binary.
     if let Some((kind, target)) = bundle {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
-        let runtime = bundle_runtime(kind, runtime_name.as_deref().unwrap_or(target), opts)?;
+        let wanted = runtime_name.as_deref().unwrap_or(target);
+        let runtime = smallest_on_hand(wanted, full, |name| bundle_runtime(kind, name, opts))?;
         let shell = web_shell(&opts.path)?.replace("{{title}}", &title);
         let web_assets = bundle::web_files(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
@@ -367,13 +419,9 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     }
     let runtime = match (opts.runtime.clone(), runtime_name.as_deref()) {
         (Some(explicit), _) => Some(explicit),
-        (None, Some(target)) => Some(match find_runtime(target, &opts.runtime_roots) {
-            Ok(found) => found,
-            Err(missing) => match opts.obtain {
-                Some(obtain) => obtain(target).with_context(|| missing.to_string())?,
-                None => return Err(missing),
-            },
-        }),
+        (None, Some(name)) => Some(smallest_on_hand(name, full, |name| {
+            flat_runtime(name, opts)
+        })?),
         (None, None) => None,
     };
     let windows = target.is_some_and(|t| t.contains("windows"))
