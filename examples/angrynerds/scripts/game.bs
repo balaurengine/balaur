@@ -44,7 +44,6 @@ impl Game {
         self.root = self.node.parent();
         physics2d::set_gravity(0.0, -9.81);
         render::set_background(0.55, 0.78, 0.92);
-        render::set_camera_2d(0.0, 3.0, 52.0);
         self.score = 0;
         self.birds_left = BIRDS;
         self.aiming = false;

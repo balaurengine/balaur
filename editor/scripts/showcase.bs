@@ -592,7 +592,7 @@ fn verb(state: &mut editor::State, data: any) {
     } else if name == "fit_level" {
         // The angrynerds level framed for the viewport: the game's own camera
         // is set for a whole window, and the editor's panels cover its edges.
-        render::set_camera_2d(1.0, 2.2, 30.0);
+        model::set_view_2d(1.0, 2.2, 30.0);
     } else if name == "fit_figure" {
         fit_figure(state);
     } else if name == "open_newest" {

@@ -15,6 +15,14 @@ pub(crate) fn function(name: &str) -> Option<String> {
             "`browser::stop_listening` is gone: `events::stop_listening(node, \"browser_event\")`"
                 .to_string()
         }
+        ("render", "set_camera") => {
+            "`render::set_camera` is gone: a `camera3d` node looks from its position at its `look_at`"
+                .to_string()
+        }
+        ("render", "set_camera_2d") => {
+            "`render::set_camera_2d` is gone: a `camera2d` node looks from its position, at its `pixels_per_unit`"
+                .to_string()
+        }
         _ => return None,
     })
 }

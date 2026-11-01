@@ -615,11 +615,11 @@ pub fn apply_camera(state: &mut editor::State) {
     if model::is_2d(state) {
         // Keep the current pan; zoom in logical px per world unit.
         let at = render::camera_2d();
-        render::set_camera_2d(at.x, at.y, 55.0 * state.zoom / 100.0);
+        model::set_view_2d(at.x, at.y, 55.0 * state.zoom / 100.0);
         return;
     }
     let scale = 100.0 / state.zoom;
-    render::set_camera(TARGET()[0] + (BASE_EYE()[0] - TARGET()[0]) * scale, TARGET()[1] + (BASE_EYE()[1] - TARGET()[1]) * scale, TARGET()[2] + (BASE_EYE()[2] - TARGET()[2]) * scale, TARGET()[0], TARGET()[1], TARGET()[2]);
+    model::set_view_3d(TARGET()[0] + (BASE_EYE()[0] - TARGET()[0]) * scale, TARGET()[1] + (BASE_EYE()[1] - TARGET()[1]) * scale, TARGET()[2] + (BASE_EYE()[2] - TARGET()[2]) * scale, TARGET()[0], TARGET()[1], TARGET()[2]);
 }
 
 // Draw what a shader's line computes, for every pixel that reaches it.

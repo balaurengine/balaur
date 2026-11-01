@@ -43,7 +43,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 71 | 45 |
+| [`render`](#render) | 69 | 45 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
@@ -1264,8 +1264,6 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `screenshot` | `(str)` |
 | `set_background` | `(float, float, float)` |
 | `set_buffer` | `(Node, any)` |
-| `set_camera` | `(float, float, float, float, float, float)` |
-| `set_camera_2d` | `(float, float, float)` |
 | `set_cell` | `(Node, int, int, int)` |
 | `set_debug_view` | `(str)` |
 | `set_grid` | `(bool, float?, int?, int?)` |

@@ -5708,14 +5708,6 @@
         "least": 1,
         "signature": "(Node, any)"
       },
-      "render::set_camera": {
-        "least": 6,
-        "signature": "(float, float, float, float, float, float)"
-      },
-      "render::set_camera_2d": {
-        "least": 3,
-        "signature": "(float, float, float)"
-      },
       "render::set_cell": {
         "least": 4,
         "signature": "(Node, int, int, int)"
@@ -25993,8 +25985,6 @@
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
         "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
-        "set_camera": "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units.",
-        "set_camera_2d": "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
         "set_debug_view": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
@@ -26066,8 +26056,6 @@
         "screenshot",
         "set_background",
         "set_buffer",
-        "set_camera",
-        "set_camera_2d",
         "set_cell",
         "set_debug_view",
         "set_grid",
@@ -26140,8 +26128,6 @@
         "screenshot": "(str)",
         "set_background": "(float, float, float)",
         "set_buffer": "(Node, any)",
-        "set_camera": "(float, float, float, float, float, float)",
-        "set_camera_2d": "(float, float, float)",
         "set_cell": "(Node, int, int, int)",
         "set_debug_view": "(str)",
         "set_grid": "(bool, float?, int?, int?)",

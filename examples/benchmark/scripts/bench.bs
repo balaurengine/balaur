@@ -570,15 +570,15 @@ fn release(w: world::World) {
 /// most of them.
 fn frame_view(dimensions: int, view: [float]) {
     if dimensions == 2 {
-        if view.len() == 3 {
-            render::set_camera_2d(view[0], view[1], view[2]);
-        } else {
-            render::set_camera_2d(0.0, 0.0, 0.16);
-        }
-    } else if view.len() == 6 {
-        render::set_camera(view[0], view[1], view[2], view[3], view[4], view[5]);
+        let picked = if view.len() == 3 { view } else { [0.0, 0.0, 0.16] };
+        let camera = scene::get_node("Bench/Camera2D");
+        camera.transform.position = vec3(picked[0], picked[1], 0.0);
+        camera.camera2d.pixels_per_unit = picked[2];
     } else {
-        render::set_camera(0.0, 40.0, 110.0, 0.0, 10.0, 0.0);
+        let picked = if view.len() == 6 { view } else { [0.0, 40.0, 110.0, 0.0, 10.0, 0.0] };
+        let camera = scene::get_node("Bench/Camera3D");
+        camera.transform.position = vec3(picked[0], picked[1], picked[2]);
+        camera.camera3d.look_at = vec3(picked[3], picked[4], picked[5]);
     }
 }
 

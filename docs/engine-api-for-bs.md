@@ -334,8 +334,6 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `draw_line_3d` | 15 | 0 | seam | `(float, float, float, float, float, float, float, float, float, float, bool, bool)` | 15 pass 10 of 12: every arg must be passed |
 | `camera_2d` | 9 | 9 | seam | absent | result `(f32, f32, f32)` has no `.bs` type |
 | `set_debug_view` | 6 | 5 | seam | `(str)` |  |
-| `set_camera` | 5 | 0 | seam | `(float, float, float, float, float, float)` |  |
-| `set_camera_2d` | 5 | 0 | seam | `(float, float, float)` |  |
 | `bounds` | 4 | 4 | seam | `(Node) -> any` | any in result `Value` |
 | `draw_lines` | 4 | 0 | seam | `(any)` | any in arg 1 `Value` |
 | `pick_ray` | 4 | 4 | seam | `(float, float, float, float, float, float) -> Node` |  |

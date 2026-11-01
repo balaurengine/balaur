@@ -10,9 +10,9 @@ use balaur_plugin::Registry;
 use balaur_script::{Bindings, BindingsExt, Value};
 
 use crate::{
-    AppIconConfig, CameraConfig2d, CameraConfig3d, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT,
-    DebugLineBuffer2d, DebugLineBuffer3d, DrawLineArgs, GridConfig, ScreenshotRequest,
-    ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
+    AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d,
+    DrawLineArgs, GridConfig, ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d,
+    WindowConfig,
 };
 
 /// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
@@ -56,30 +56,11 @@ fn push_text(
 /// it published this frame.
 pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
         ("hold_cameras", &[], "(root: node?)", "Let no camera under a node drive the view, whatever its `current` says, until it is called with nil: an editor looking at a game through its own camera. The cameras keep what the scene asked of them."),
         ("bounds", &[], "(node: node) -> [vec3]?", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built; a text, the lines it was last laid out in."),
     ]);
-    // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
-    // which reads what the renderer actually did with the request.
-    m.function(
-        "set_camera",
-        |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
-            let config = eng.resource::<CameraConfig3d>();
-            let mut config = config.borrow_mut();
-            config.eye = glamx::Vec3::new(ex, ey, ez);
-            config.target = glamx::Vec3::new(tx, ty, tz);
-            config.changed = true;
-            let right = (config.target - config.eye)
-                .cross(glamx::Vec3::Y)
-                .try_normalize()
-                .unwrap_or(glamx::Vec3::X);
-            balaur_core::viewpoint::set(eng, config.eye, right);
-            Ok(())
-        },
-    );
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
     m.function("camera_matrix", |eng: &Engine, ()| {
@@ -88,7 +69,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         Ok(view_proj.to_vec())
     });
     // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one
-    // with no windowed backend. Reads the published snapshot, not `set_camera`.
+    // with no windowed backend. Reads the published snapshot.
     m.function("camera_pose", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
@@ -204,26 +185,9 @@ fn install_pick_api(m: &mut dyn Bindings<Engine>) {
 /// frame, and the mouse unprojected through it.
 pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_camera_2d", &[], "", "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit."),
         ("camera_2d", &[], "", "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window."),
         ("mouse_world_2d", &[], "", "The mouse position in 2D world coordinates, for picking."),
     ]);
-    // World center + zoom in logical pixels per world unit. Not an accessor
-    // pair with `render.camera_2d`, which reads the published snapshot.
-    m.function(
-        "set_camera_2d",
-        |eng: &Engine, (cx, cy, zoom): (f32, f32, f32)| {
-            let config = eng.resource::<CameraConfig2d>();
-            let mut config = config.borrow_mut();
-            config.center = [cx, cy];
-            // The floor the `camera` component's schema states, so a script
-            // and a scene file cannot disagree about the same number.
-            config.zoom = zoom.max(crate::camera::MIN_ZOOM_2D);
-            config.changed = true;
-            balaur_core::viewpoint::set(eng, glamx::Vec3::new(cx, cy, 0.0), glamx::Vec3::X);
-            Ok(())
-        },
-    );
     // Center xy, zoom, from the published snapshot rather than the config —
     // so headless answers all zeros, zoom included, not the config's default.
     m.function("camera_2d", |eng: &Engine, ()| {

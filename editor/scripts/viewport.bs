@@ -131,9 +131,9 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
         let held = util::max(zoom, 0.01);
         let next = util::clamp(held * math::pow(dolly_step(), wheel), 0.02, 4000.0);
         if panning {
-            render::set_camera_2d((centre_x - delta_x / held), (centre_y + delta_y / held), next);
+            model::set_view_2d((centre_x - delta_x / held), (centre_y + delta_y / held), next);
         } else {
-            render::set_camera_2d(centre_x, centre_y, next);
+            model::set_view_2d(centre_x, centre_y, next);
         }
         return true;
     }
@@ -192,7 +192,7 @@ fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bo
         // drag there move the eye the same way.
         let yaw = math::atan2(offset_z, offset_x) + delta_x * ORBIT_PER_PIXEL;
         let pitch = util::clamp(math::acos(util::clamp(offset_y / distance, -1.0, 1.0)) + delta_y * ORBIT_PER_PIXEL, 0.02, 3.12);
-        render::set_camera(target_x + want * math::cos(yaw) * math::sin(pitch), target_y + want * math::cos(pitch), target_z + want * math::sin(yaw) * math::sin(pitch), target_x, target_y, target_z);
+        model::set_view_3d(target_x + want * math::cos(yaw) * math::sin(pitch), target_y + want * math::cos(pitch), target_z + want * math::sin(yaw) * math::sin(pitch), target_x, target_y, target_z);
         return;
     }
     let unit_x = offset_x / distance;
@@ -211,7 +211,7 @@ fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bo
     let new_target_x = moved[0];
     let new_target_y = moved[1];
     let new_target_z = moved[2];
-    render::set_camera(new_target_x + unit_x * want, new_target_y + unit_y * want, new_target_z + unit_z * want, new_target_x, new_target_y, new_target_z);
+    model::set_view_3d(new_target_x + unit_x * want, new_target_y + unit_y * want, new_target_z + unit_z * want, new_target_x, new_target_y, new_target_z);
 }
 
 // Screen right and up in world units, scaled to the world a design pixel
@@ -252,7 +252,7 @@ fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: floa
     let zoom = camera.z;
     let held = util::max(zoom, 0.01);
     let next = if scale > 0.0 { util::clamp(held * scale, 0.02, 4000.0) } else { held };
-    render::set_camera_2d(centre_x - delta_x / next, centre_y + delta_y / next, next);
+    model::set_view_2d(centre_x - delta_x / next, centre_y + delta_y / next, next);
 }
 
 // The 3D camera is an eye and a target, so a pinch walks the eye along the
@@ -295,7 +295,7 @@ fn orbit_3d(state: editor::State, scale: float, delta_x: float, delta_y: float) 
     let new_target_x = target_x + slide(delta_x, delta_y, right, up, step, 0);
     let new_target_y = target_y + slide(delta_x, delta_y, right, up, step, 1);
     let new_target_z = target_z + slide(delta_x, delta_y, right, up, step, 2);
-    render::set_camera(new_target_x + unit_x * want, new_target_y + unit_y * want, new_target_z + unit_z * want, new_target_x, new_target_y, new_target_z);
+    model::set_view_3d(new_target_x + unit_x * want, new_target_y + unit_y * want, new_target_z + unit_z * want, new_target_x, new_target_y, new_target_z);
 }
 
 // One `axis` of a pan: the drag along screen right and up, in world units.

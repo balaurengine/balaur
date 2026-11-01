@@ -8,6 +8,17 @@ name = "Tour"
 script = { source = "scripts/tour.bs" }
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_tour"
+
+[nodes.transform]
+position = [0.0, 0.9, 11.0]
+
+[nodes.camera3d]
+look_at = [0.0, 0.9, 0.0]
+
+[[nodes]]
 id = "title"
 name = "Title"
 parent = "n_tour"

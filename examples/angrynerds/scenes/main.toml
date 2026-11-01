@@ -15,6 +15,17 @@ id = "n_main"
 name = "Main"
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_main"
+
+[nodes.transform]
+position = [0.0, 3.0, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 52.0
+
+[[nodes]]
 id = "n_game"
 name = "Game"
 parent = "n_main"

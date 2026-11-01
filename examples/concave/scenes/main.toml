@@ -22,6 +22,17 @@ shot = ""
 frames = ""
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.0, 0.05, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 250.0
+
+[[nodes]]
 id = "n_plain"
 name = "Plain"
 parent = "n_scene"

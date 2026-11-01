@@ -131,14 +131,13 @@ fn a_colour_may_be_set_without_alpha() {
     );
 }
 
-/// `set_camera` asks; `camera_pose` reports where the camera actually is,
-/// which only a windowed backend knows. Headless the pose stays at its
-/// default, so this checks the call surface rather than a round trip.
+/// `camera_pose` reports where the camera actually is, which only a windowed
+/// backend knows. Headless the pose stays at its default, so this checks the
+/// call surface rather than a round trip.
 #[test]
-fn the_camera_can_be_aimed_and_its_pose_read() {
+fn the_cameras_pose_can_be_read() {
     run_clean(
         r#"
-        render::set_camera(1.0, 2.0, 3.0, 0.0, 0.0, 0.0);
         let pose = render::camera_pose();
         let count = pose.len();
         if count != 8 { log::error("camera_pose answered {count} numbers"); }
@@ -154,7 +153,6 @@ fn the_camera_can_be_aimed_and_its_pose_read() {
 fn the_2d_camera_reports_its_centre_and_zoom() {
     run_clean(
         r"
-        render::set_camera_2d(4.0, 5.0, 2.0);
         // Like camera_pose, this reports the viewport a backend writes each
         // frame, so headless it stays at its default rather than echoing back.
         let view: Vec3 = render::camera_2d();

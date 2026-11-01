@@ -526,7 +526,7 @@ fn bookmark(state: &mut editor::State, key: str) {
     }
     let pose = state.bookmarks[key];
     if pose != nil {
-        render::set_camera(pose[0].as_float(), pose[1].as_float(), pose[2].as_float(), pose[3].as_float(), pose[4].as_float(), pose[5].as_float());
+        model::set_view_3d(pose[0].as_float(), pose[1].as_float(), pose[2].as_float(), pose[3].as_float(), pose[4].as_float(), pose[5].as_float());
     }
 }
 

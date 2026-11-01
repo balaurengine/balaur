@@ -633,12 +633,58 @@ pub const CAMERA_2D: str = "camera2d";
 
 pub const CAMERA_CURRENT: str = "current";
 
+const VIEW_3D: str = "EditorView3D";
+
+const VIEW_2D: str = "EditorView2D";
+
 /// Hand the view to the game's own cameras, or take it back. While editing
 /// it is the editor's view to own: left to them, the scene's camera is
 /// written over the viewport's every frame, so an orbit or a zoom is undone
 /// as fast as it is made. The cameras keep what the scene asked of them.
 pub fn hold_game_cameras(state: editor::State, playing: bool) {
     render::hold_cameras(if playing { nil } else { state.mirror });
+    view_3d().camera3d.current = !playing;
+    view_2d().camera2d.current = !playing;
+}
+
+// The editor's own view: a camera of each kind beside what is edited, standing
+// where the engine's default view does until the viewport moves it.
+fn view_3d() -> Node {
+    let root = scene::root();
+    let found = root.get_node(VIEW_3D);
+    if found.is_valid() {
+        return found;
+    }
+    let made = root.add_child(VIEW_3D);
+    made.transform.position = vec3(8.0, 5.0, 12.0);
+    made.set_component(CAMERA_3D, { "look_at": [0.0, 1.0, 0.0] });
+    made
+}
+
+fn view_2d() -> Node {
+    let root = scene::root();
+    let found = root.get_node(VIEW_2D);
+    if found.is_valid() {
+        return found;
+    }
+    let made = root.add_child(VIEW_2D);
+    made.set_component(CAMERA_2D, nil());
+    made
+}
+
+/// Point the editor's 3D view: the eye, then the world point it looks at.
+pub fn set_view_3d(eye_x: float, eye_y: float, eye_z: float, target_x: float, target_y: float, target_z: float) {
+    let view = view_3d();
+    view.transform.position = vec3(eye_x, eye_y, eye_z);
+    view.camera3d.look_at = vec3(target_x, target_y, target_z);
+}
+
+/// Point the editor's 2D view: the world centre, then the zoom in logical
+/// pixels per world unit.
+pub fn set_view_2d(centre_x: float, centre_y: float, zoom: float) {
+    let view = view_2d();
+    view.transform.position = vec3(centre_x, centre_y, 0.0);
+    view.camera2d.pixels_per_unit = zoom;
 }
 
 /// The container the scene is built under, made the first time: what the

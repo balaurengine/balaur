@@ -15,7 +15,7 @@ use crate::{CameraConfig2d, CameraConfig3d};
 use balaur_core::layers::Layer;
 
 /// The smallest 2D zoom, in logical pixels per world unit. Mirrors the `min`
-/// the `camera2d` schema states, which `render.set_camera_2d` also takes.
+/// the `camera2d` schema states.
 /// A hundredth, not one: a pixel-scale level is thousands of units across,
 /// and a camera that cannot show it whole is a camera that cannot frame it.
 pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
@@ -81,8 +81,7 @@ pub struct Camera2d {
 
 /// Runs in `SceneSync` after transform propagation, so the view follows the
 /// node's global pose. Writes only when the pose actually differs: a still
-/// camera never re-asserts itself, which leaves `changed` alone and keeps a
-/// script's `render.set_camera` in force between moves.
+/// camera never re-asserts itself, which leaves `changed` alone.
 pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
     let (spatial, flat, post, winners, view) = {
         let world = eng.world();
@@ -109,7 +108,13 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 post = Some(cam.effects.clone());
                 spatial = Some((global.position, cam.look_at, Lens3d::clone(&lens)));
                 winners.0 = Some(entity);
-                view.0 = Some((global.position, global.rotation * glamx::Vec3::X));
+                let right = (cam.look_at - global.position)
+                    .cross(lens.up)
+                    .try_normalize();
+                view.0 = Some((
+                    global.position,
+                    right.unwrap_or(global.rotation * glamx::Vec3::X),
+                ));
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current

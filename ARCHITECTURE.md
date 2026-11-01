@@ -441,8 +441,8 @@ and remove hooks.
 A second set of components over the same tree, on the same `transform`.
 
 - `shape2d` (six kinds) and `sprite` render through a pan/zoom
-  orthographic camera: `render.set_camera_2d(cx, cy, zoom)` in logical px per
-  world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
+  orthographic camera: a `camera2d` node's position and `pixels_per_unit`, in
+  logical px per world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
 - `body2d`/`collider2d` run in a rapier2d world beside the 3D one — same
   determinism build, accumulator and ordered collections. Both carry joints,
   character controller, queries, contacts and closest-point queries; 3D adds
@@ -1347,7 +1347,7 @@ overlay, dark and light token sets.
 - Reusable bindings it is built on: `fs`, `toml`, `scene.instantiate`,
   `engine.args`, `engine.reload_script`, `require` with in-place module reload,
   `log.recent`, `physics.set_paused/clear/set_sleeping_allowed`,
-  `render.set_background/set_grid/set_grid_colors/draw_line/draw_box/draw_sphere`, `render.set_camera`,
+  `render.set_background/set_grid/set_grid_colors/draw_line/draw_box/draw_sphere`,
   `render.camera_pose`, `render.set_camera_input`.
 - The gizmo follows steadyum's: an orange bounding-box frame, a face drag
   translating in that face's plane, a rectangle at each face centre scaling
@@ -1501,7 +1501,7 @@ it at the head. Post-processing is an observer like the rest of rendering.
 
 ## Camera and screenshots
 
-`render.set_camera(ex, ey, ez, tx, ty, tz)` writes a `CameraConfig3d`; the backend
+A `camera3d` node's position and `look_at` write a `CameraConfig3d`; the backend
 applies it, and no mouse or key moves the camera between. `render.screenshot(path)`
 saves a frame to PNG.
 

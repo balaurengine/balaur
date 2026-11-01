@@ -26,7 +26,7 @@ impl Tour {
         let angle = math::sin(self.at) * (ARC / 8.0);
         let x = math::sin(angle) * RADIUS;
         let z = math::cos(angle) * RADIUS;
-        render::set_camera(x, HEIGHT, z, 0.0, HEIGHT, 0.0);
+        self.node.get_node("Camera").transform.position = vec3(x, HEIGHT, z);
         // A score on a sign: the node keeps its style, the script the number.
         self.score += 1;
         let node = scene::get_node("Tour/Nameplate");

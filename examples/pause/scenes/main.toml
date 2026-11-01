@@ -7,6 +7,17 @@ id = "n_scene"
 name = "Scene"
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.0, 0.4, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 147.0
+
+[[nodes]]
 id = "n_hud"
 name = "Hud"
 parent = "n_scene"

@@ -9,6 +9,17 @@ name = "Arena"
 source = "scripts/arena.bs"
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_arena"
+
+[nodes.transform]
+position = [0.0, 0.0, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 120.0
+
+[[nodes]]
 id = "n_ship0"
 name = "Ship0"
 parent = "n_arena"
