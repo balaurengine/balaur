@@ -17,6 +17,7 @@ edit this one.
 | [docs/PLAN-*.md](docs/) | one plan per subsystem: what is left, in order |
 | [docs/QUALITY.md](docs/QUALITY.md) | every check CI runs, and what enforces it |
 | [docs/DETERMINISM.md](docs/DETERMINISM.md) | keeping a game reproducible; record, replay, finding a desync |
+| [docs/LIFECYCLE.md](docs/LIFECYCLE.md) | how the app, nodes and scripts live and end, with every state defined; `LIFECYCLE-*.md` for the subsystems |
 | [docs/RELEASING.md](docs/RELEASING.md) | how a nightly, a version and a channel are cut |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | physics timings against Godot, written by `scripts/bench_compare.py` |
 | [docs/EDITOR-SCREENS.md](docs/EDITOR-SCREENS.md) | every editor surface: mockup, code, screenshot |
@@ -54,6 +55,7 @@ These land in the same commit as the code:
   words, names the crate or protocol, and carries its milestone: `0.1 done`
   once built, the version alone until then.
 - **The plan** it came from, so `docs/PLAN-*.md` says what is left.
+- **`docs/LIFECYCLE*.md`** when a state, or a way in or out of one, is added or removed.
 - **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
 - **`THIRD-PARTY-NOTICES.md`** when `Cargo.lock` moved:
   `python3 scripts/third_party_notices.py`.
