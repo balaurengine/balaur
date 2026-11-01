@@ -7,7 +7,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
     fn fixed_update(dt: float) {
-        if input::key_down(input::KEY_SPACE) { self.node.transform.translate(dt, 0.0, 0.0); }
+        if input::key_down(input::KEY_SPACE) { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }
     }
 }
 ";

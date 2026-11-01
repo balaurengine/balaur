@@ -185,11 +185,6 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     balaur::components::add(&app.engine, w, "widget", Some(&params.into())).unwrap();
     let got = balaur::components::get(&app.engine, w, "widget").unwrap();
     assert_eq!(floats(&got, "text_color"), vec![0.0, 0.0, 1.0, 1.0]);
-    assert_eq!(
-        got.get("clicked").and_then(toml::Value::as_bool),
-        Some(false),
-        "clicked is emitted, and now declared"
-    );
 }
 
 #[test]
@@ -432,8 +427,8 @@ fn a_keyed_read_answers_one_property() {
 
                 self.check(n.get_component("widget", "text").as_str() == "hi", "widget text");
                 self.check(n.get_component("widget", "kind").as_str() == "button", "widget kind");
-                let clicked = n.get_component("widget", "clicked");
-                self.check(clicked.kind() == "bool" && !clicked.as_bool(), "widget clicked");
+                let checked = n.get_component("widget", "checked");
+                self.check(checked.kind() == "bool" && !checked.as_bool(), "widget checked");
                 let table = n.get_component("widget");
                 self.check(n.get_component("widget", "value") == table.get("value"), "same as the table");
 

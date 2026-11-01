@@ -3,12 +3,11 @@
 
 use balaur::{App, AppConfig, standard_app};
 
-fn project(dir: &std::path::Path, language: Option<&str>, script: (&str, &str)) {
+fn project(dir: &std::path::Path, script: (&str, &str)) {
     std::fs::create_dir_all(dir.join("scripts")).unwrap();
-    let lang = language.map_or(String::new(), |l| format!("script_language = \"{l}\"\n"));
     std::fs::write(
         dir.join("project.toml"),
-        format!("[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n{lang}"),
+        "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
     std::fs::write(
@@ -40,9 +39,9 @@ fn field(app: &App, node: balaur::hecs::Entity, name: &str) -> Option<balaur_scr
 }
 
 #[test]
-fn a_project_without_a_language_runs_its_bs_scripts() {
+fn a_project_runs_its_bs_scripts() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     app.load_project().unwrap();
     assert!(balaur::script_bs::BsHost::of(&app.engine).is_some());
@@ -59,23 +58,9 @@ fn a_project_without_a_language_runs_its_bs_scripts() {
 }
 
 #[test]
-fn an_unknown_language_is_a_named_error() {
-    let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), Some("brainfuck"), SCRIPT);
-    let Err(err) = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())) else {
-        panic!("an unknown language was accepted");
-    };
-    let text = format!("{err:#}");
-    assert!(
-        text.contains("brainfuck"),
-        "does not name the language: {text}"
-    );
-}
-
-#[test]
 fn the_standard_app_records_every_plugin_it_loaded() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
     for expected in ["input", "physics", "animation", "render", "ui"] {
@@ -92,7 +77,7 @@ fn the_standard_app_records_every_plugin_it_loaded() {
 
 /// A project whose `project.toml` carries a `[plugins]` table.
 fn project_asking(dir: &std::path::Path, plugins: &str) {
-    project(dir, None, SCRIPT);
+    project(dir, SCRIPT);
     let manifest = std::fs::read_to_string(dir.join("project.toml")).unwrap();
     std::fs::write(
         dir.join("project.toml"),
@@ -147,7 +132,7 @@ fn a_module_the_project_asks_for_still_loads() {
 #[test]
 fn a_project_that_names_no_plugins_gets_every_module() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
 
     let named = booted(dir.path()).unwrap();
     let dir2 = tempfile::tempdir().unwrap();
@@ -185,7 +170,7 @@ fn turning_off_a_plugin_every_build_has_is_refused() {
 #[test]
 fn every_plugin_loads_in_name_order() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
 
@@ -199,7 +184,7 @@ fn every_plugin_loads_in_name_order() {
 #[test]
 fn the_engines_own_plugins_are_ordered_with_the_rest() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names: Vec<String> = app.plugins().into_iter().map(|p| p.name).collect();
 
@@ -214,7 +199,7 @@ fn the_engines_own_plugins_are_ordered_with_the_rest() {
 #[test]
 fn nothing_loads_before_what_it_requires() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let loaded = app.plugins();
 
@@ -234,7 +219,7 @@ fn nothing_loads_before_what_it_requires() {
 #[test]
 fn the_standard_app_has_every_plugin_registered() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
     let names = balaur_core::components::names(&app.engine);
     for expected in [
@@ -255,7 +240,7 @@ fn the_standard_app_has_every_plugin_registered() {
 #[test]
 fn build_pack_carries_the_scripts_and_scenes() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let pack = balaur::build_pack(dir.path()).unwrap();
     let key = format!("scripts/{}", SCRIPT.0);
     assert!(pack.scripts.contains_key(&key), "{key} is not in the pack");
@@ -283,7 +268,7 @@ fn a_pack_carries_every_shader_its_game_links() {
 #[test]
 fn a_packed_project_boots_without_its_sources() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     let bytes = balaur::build_pack(dir.path()).unwrap().encode();
     drop(dir);
 
@@ -306,7 +291,6 @@ fn a_project_whose_script_calls_the_engine_can_be_exported() {
     let dir = tempfile::tempdir().unwrap();
     project(
         dir.path(),
-        None,
         (
             "root.bs",
             "pub class Root { node: Node, ran: bool }\n\
@@ -324,9 +308,68 @@ fn a_project_whose_script_calls_the_engine_can_be_exported() {
 }
 
 #[test]
+fn a_packed_project_lists_and_reads_its_documents() {
+    let dir = tempfile::tempdir().unwrap();
+    project(
+        dir.path(),
+        (
+            "root.bs",
+            "pub class Root { node: Node, ran: bool }\n\
+             impl Root { fn init() { self.ran = fs::read(\"strings/ro.toml\").is_some(); } }\n",
+        ),
+    );
+    std::fs::create_dir(dir.path().join("strings")).unwrap();
+    for locale in ["en", "ro"] {
+        std::fs::write(
+            dir.path().join(format!("strings/{locale}.toml")),
+            "a = \"b\"\n",
+        )
+        .unwrap();
+    }
+    let pack = balaur::build_pack(dir.path()).unwrap();
+    let mut app = standard_app(AppConfig::packed(pack)).unwrap();
+    app.load_project().unwrap();
+    assert_eq!(
+        field(&app, root_node(&app), "ran"),
+        Some(balaur_script::Value::Bool(true)),
+        "`fs.read` found no document in the pack"
+    );
+    assert_eq!(balaur::strings::locales(&app.engine), ["en", "ro"]);
+}
+
+/// The keyboard moves focus until the game shows the keys are its own, and a
+/// menu's actions keep it moving focus.
+#[test]
+fn the_focus_keys_stay_the_widgets_until_the_game_takes_them() {
+    let keyboard_after = |manifest: &str, script: (&str, &str)| {
+        let dir = tempfile::tempdir().unwrap();
+        project(dir.path(), script);
+        let head = std::fs::read_to_string(dir.path().join("project.toml")).unwrap();
+        std::fs::write(dir.path().join("project.toml"), format!("{head}{manifest}")).unwrap();
+        let mut app = standard_app(AppConfig::dev(dir.path().to_string_lossy().as_ref())).unwrap();
+        app.load_project().unwrap();
+        app.tick(balaur::DEFAULT_FIXED_DT);
+        app.tick(balaur::DEFAULT_FIXED_DT);
+        let layer = app.engine.resource::<balaur::ui::WidgetLayerConfig>();
+        layer.borrow().keyboard
+    };
+    assert!(keyboard_after("", SCRIPT), "nobody took them");
+    let jump = "[input.actions]\njump = [\"Space\"]\n";
+    assert!(!keyboard_after(jump, SCRIPT), "an action binds Space");
+    let menu = "[input.actions]\njump = [\"Space\"]\nui_accept = [\"Enter\"]\n";
+    assert!(keyboard_after(menu, SCRIPT), "a menu's actions ask for it");
+    let polling = (
+        "root.bs",
+        "pub class Root { node: Node, on: bool }\n\
+         impl Root { fn update(dt: float) { self.on = input::key_down(input::KEY_UP); } }\n",
+    );
+    assert!(!keyboard_after("", polling), "a script reads an arrow");
+}
+
+#[test]
 fn a_script_can_attach_another_script() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     std::fs::write(
         dir.path().join("scripts/other.bs"),
         "pub class Other { node: Node, other_ran: int }\n\
@@ -366,7 +409,7 @@ fn a_script_can_attach_another_script() {
 #[test]
 fn script_path_names_the_script_a_node_was_given() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     std::fs::write(
         dir.path().join("scripts/other.bs"),
         "pub class Other { node: Node }\n",
@@ -409,7 +452,7 @@ fn script_path_names_the_script_a_node_was_given() {
 #[test]
 fn reload_script_picks_up_a_rewritten_file() {
     let dir = tempfile::tempdir().unwrap();
-    project(dir.path(), None, SCRIPT);
+    project(dir.path(), SCRIPT);
     // `reload` asks through the script API from a script of its own, the way
     // an editor would.
     std::fs::write(
@@ -476,7 +519,6 @@ fn mouse_position_is_readable_without_a_window() {
     let dir = tempfile::tempdir().unwrap();
     project(
         dir.path(),
-        None,
         (
             "root.bs",
             "pub class Root { node: Node, done: int }\n\

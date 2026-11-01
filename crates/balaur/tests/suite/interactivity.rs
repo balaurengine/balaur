@@ -536,7 +536,6 @@ parent = "n_scene"
 [nodes.collider3d]
 shape = { kind = "box", size = [4.0, 4.0, 4.0] }
 sensor = true
-events = ["collision"]
 
 [[nodes.bindings.rows]]
 event = "collision_enter"

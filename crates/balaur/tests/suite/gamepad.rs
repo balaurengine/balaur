@@ -287,14 +287,14 @@ pub class Runner { node: Node }
 
 impl Runner {
     fn fixed_update(dt: float) {
-        self.node.transform.translate(input::action_value("move_x") * dt, 0.0, 0.0);
+        let at = self.node.transform.position; self.node.transform.position = vec3(at.x + input::action_value("move_x") * dt, at.y + 0.0, at.z + 0.0);
         if input::action_just_pressed("jump") {
             input::gamepad_rumble(7, input::RumbleOptions { duration: 0.05 });
         }
     }
 
     pub fn on_gamepad_rumble_finished(pad: int) {
-        self.node.transform.translate(0.0, 1.0, 0.0);
+        let at = self.node.transform.position; self.node.transform.position = vec3(at.x + 0.0, at.y + 1.0, at.z + 0.0);
     }
 }
 "#;

@@ -597,6 +597,29 @@ fn heard(doing: &'static str, value: &toml::Value) {
 }
 
 #[test]
+fn a_pack_warms_the_scenes_it_ships_once_its_first_frame_is_out() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path(), "", "\n[nodes.warmed]\nnamed = \"shipped\"\n");
+    let pack = balaur::build_pack(dir.path()).unwrap();
+    let mut app = standard_app(AppConfig::packed(pack)).unwrap();
+    balaur_core::preload::on_component(
+        &app.engine,
+        "warmed",
+        balaur_core::preload::Warming {
+            preload: |_, value| heard("preload", value),
+            unload: |_, value| heard("unload", value),
+        },
+    );
+    app.load_project().unwrap();
+    assert_eq!(WARMED.with_borrow(Vec::len), 0, "nothing before a frame");
+    tick(&mut app, 5);
+    assert_eq!(
+        WARMED.with_borrow(Clone::clone),
+        [("preload", "shipped".to_string())]
+    );
+}
+
+#[test]
 fn unload_hands_what_preload_handed_to_the_same_plugin() {
     let dir = tempfile::tempdir().unwrap();
     let warmed = "\n[nodes.warmed]\nnamed = \"mine\"\n";

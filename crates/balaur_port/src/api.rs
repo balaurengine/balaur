@@ -48,7 +48,6 @@ const NODE_OPS: &[(&str, &str)] = &[
     ("effective_z_index", "int"),
     ("process", "string"),
     ("ticking", "bool"),
-    ("interpolate", "bool"),
     ("tags", "[string]"),
     ("has_tag", "bool"),
 ];

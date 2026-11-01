@@ -100,22 +100,6 @@ fn manifest_of(config: &AppConfig) -> Option<balaur_core::project::ProjectManife
     balaur_core::project::ProjectManifest::parse(&text).ok()
 }
 
-/// The script backend a project asks for in its `project.toml`: `bs`, the
-/// one language this build runs; the field stays so a project states it.
-fn backend_for(config: &AppConfig) -> Result<Option<balaur_core::ScriptHostFactory>> {
-    let language = manifest_of(config).map_or_else(|| BS.to_string(), |m| m.language);
-    if language != BS {
-        bail!("project.toml asks for script_language \"{language}\"; this build runs {BS}");
-    }
-    #[cfg(feature = "bs-backend")]
-    return Ok(Some(balaur_script_bs::factory()));
-    #[cfg(not(feature = "bs-backend"))]
-    Ok(None)
-}
-
-/// The `script_language` of a project written in Balaur Script.
-const BS: &str = "bs";
-
 /// Build an export pack with the script backend `standard_app` installs.
 ///
 /// A script compiles against the engine's modules, so an export boots the app
@@ -419,7 +403,10 @@ pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
-        config.script_backend = backend_for(&config)?;
+        #[cfg(feature = "bs-backend")]
+        {
+            config.script_backend = Some(balaur_script_bs::factory());
+        }
     }
     let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
     #[cfg(feature = "extensions")]
@@ -551,30 +538,33 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
 /// Here rather than in either plugin: `balaur_ui` reads its input from egui,
 /// which has keys but no pads, and `balaur_input` knows nothing about
 /// widgets. This crate is the one that knows about both, which is what
-/// assembling them means. A project that declares none of these three
-/// actions gets no menu system and no keyboard focus either — the keys stay
-/// the game's, which is what a game that moves with the arrows needs.
+/// assembling them means.
+///
+/// The keyboard drives focus too, until the game shows those keys are its own:
+/// an action binding one, or a script reading one. Declaring one of these
+/// three actions says a menu is wanted, which keeps the keyboard's focus on.
 fn drive_ui_focus(app: &mut App) {
     use balaur_ui::{Move, UiFocus};
-    // Turned on once, the first frame the actions are there: a project's
-    // table is loaded lazily, and the editor declares a played game's later
-    // still. Only ever on, so `ui.set_keyboard_focus(false)` is not undone.
-    let mut armed = false;
     app.add_system(
         balaur_core::Stage::First,
         move |eng: &balaur_core::Engine, _| {
             let Some(actions) = eng.try_resource::<balaur_input::InputActions>() else {
                 return;
             };
-            if !armed
-                && ["ui_accept", "ui_next", "ui_previous"]
+            let keyboard = {
+                let actions = actions.borrow();
+                ["ui_accept", "ui_next", "ui_previous"]
                     .iter()
-                    .any(|name| actions.borrow().is_declared(name))
-            {
-                armed = true;
-                eng.resource::<balaur_ui::WidgetLayerConfig>()
-                    .borrow_mut()
-                    .keyboard = true;
+                    .any(|name| actions.is_declared(name))
+                    || !(actions.binds_any_key(&balaur_input::FOCUS_KEYS)
+                        || eng
+                            .resource::<balaur_input::InputSnapshot>()
+                            .borrow()
+                            .focus_key_read())
+            };
+            let layer = eng.resource::<balaur_ui::WidgetLayerConfig>();
+            if layer.borrow().keyboard != keyboard {
+                layer.borrow_mut().keyboard = keyboard;
             }
             let asked = {
                 let actions = actions.borrow();
@@ -702,7 +692,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> Resu
     {
         Err(anyhow::anyhow!(
             "this build has no renderer, so it cannot render offscreen; \
-             build with --features window"
+             build balaur_cli with its default features"
         ))
     }
 }

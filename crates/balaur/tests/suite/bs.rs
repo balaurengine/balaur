@@ -552,8 +552,8 @@ impl Mover {
     }
 
     fn update(dt: float) {
-        self.node.transform.translate(dt, 0.0, 0.0);
-        self.arm.transform.translate(0.0, dt, 0.0);
+        let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0);
+        let arm = self.arm.transform.position; self.arm.transform.position = vec3(arm.x + 0.0, arm.y + dt, arm.z + 0.0);
     }
 }
 ";

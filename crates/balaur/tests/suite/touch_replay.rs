@@ -11,7 +11,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
     fn fixed_update(dt: float) {
-        self.node.transform.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
+        let at = self.node.transform.position; self.node.transform.position = vec3(at.x + input::action_value(\"move_x\") * dt, at.y + 0.0, at.z + 0.0);
     }
 }
 ";
@@ -160,7 +160,7 @@ impl Runner {
         input::feed_action(\"reached\", 1.0);
     }
     fn fixed_update(dt: float) {
-        if input::action_down(\"jump\") { self.node.transform.translate(dt, 0.0, 0.0); }
+        if input::action_down(\"jump\") { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }
     }
 }
 ";
