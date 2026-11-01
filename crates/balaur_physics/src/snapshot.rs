@@ -115,7 +115,7 @@ pub(crate) type NodeKey = (String, u64);
 
 pub(crate) fn key_of(world: &balaur_core::hecs::World, entity: Entity) -> NodeKey {
     (
-        balaur_core::ids::of(world, entity).unwrap_or_default(),
+        balaur_core::ids::key_of(world, entity).unwrap_or_default(),
         entity.to_bits().get(),
     )
 }
@@ -135,7 +135,7 @@ pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
     let root = eng.root();
     let world = eng.world();
     if !key.0.is_empty()
-        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0)
+        && let Some(entity) = balaur_core::ids::find_key(&world, root, &key.0)
     {
         return Some(entity);
     }

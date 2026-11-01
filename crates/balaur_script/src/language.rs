@@ -90,6 +90,15 @@ pub trait ScriptHost<C: ?Sized> {
         }
     }
 
+    /// Take these nodes' instances out of every pass and call, or put them
+    /// back: a parked scene's. Nothing reaches a parked instance, `update`,
+    /// a hook, a method call, or a task it awaits, which holds until it comes
+    /// back with what it was woken with. Its state stays in
+    /// [`Self::save_state`], and freeing its node detaches it as usual.
+    fn set_parked(&self, nodes: &[NodeId], parked: bool) {
+        let _ = (nodes, parked);
+    }
+
     /// Per-frame tick of every live instance, at the measured frame time.
     /// Presentation: anything a dropped or doubled frame may safely skip.
     fn update(&self, dt: f32);

@@ -392,6 +392,7 @@ pub fn register_scene_content(app: &mut App) {
         .insert_resource(crate::bindings::Runners::default());
     app.engine
         .insert_resource(crate::scene_switch::Pending::default());
+    app.engine.insert_resource(crate::parked::Parked::default());
 }
 
 impl App {
@@ -902,13 +903,14 @@ impl App {
         self.apply_time_settings();
         let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
         let main_scene = self.main_scene.as_ref().unwrap_or(&manifest.main_scene);
+        let main_scene = main_scene.clone();
         let scene_src = if let Some(pack) = &self.pack {
             pack.scenes
-                .get(main_scene)
+                .get(&main_scene)
                 .cloned()
                 .with_context(|| format!("scene {main_scene} missing from pack"))?
         } else {
-            let scene_path = self.project_root.join(main_scene);
+            let scene_path = self.project_root.join(&main_scene);
             fs.read(&scene_path)
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())
@@ -924,7 +926,7 @@ impl App {
             .insert_resource(project::ManifestSource(manifest_src.clone()));
         self.load_project_presets()?;
         let root = self.engine.root();
-        project::instantiate_scene(&self.engine, &scene_src, root, true)?;
+        project::instantiate_main_scene(&self.engine, &main_scene, &scene_src, root)?;
         Ok(self)
     }
 

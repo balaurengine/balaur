@@ -154,6 +154,10 @@ struct Inner {
     /// The instance every file built as units shares, made with the first.
     project: RefCell<Option<Rc<Home>>>,
     instances: RefCell<Vec<Rc<Instance>>>,
+    /// Instances of a parked scene, and what they await: no pass or call
+    /// finds them, and a wake waits in the runtime until they come back.
+    parked: RefCell<Vec<Rc<Instance>>>,
+    parked_tasks: RefCell<Vec<Pending>>,
     held: RefCell<Vec<u64>>,
     holds: Cell<u32>,
     /// What the file watcher heard, and the watcher itself; `None` in a
@@ -271,6 +275,8 @@ impl BsHost {
                 files: RefCell::default(),
                 project: RefCell::default(),
                 instances: RefCell::default(),
+                parked: RefCell::default(),
+                parked_tasks: RefCell::default(),
                 held: RefCell::default(),
                 holds: Cell::new(0),
                 events,
@@ -710,11 +716,13 @@ impl BsHost {
         into: &mut Runtime,
         unit_of: impl Fn(&str) -> Option<usize>,
     ) -> Result<()> {
+        let parked = self.inner.parked.borrow();
         let insts: Vec<(Rc<Instance>, usize)> = self
             .inner
             .instances
             .borrow()
             .iter()
+            .chain(parked.iter())
             .filter(|inst| inst.obj.borrow().is_some())
             .filter_map(|inst| unit_of(&inst.path).map(|unit| (inst.clone(), unit)))
             .collect();
@@ -829,6 +837,19 @@ impl BsHost {
         let inst = self
             .inner
             .instances
+            .borrow()
+            .iter()
+            .find(|i| i.node == node.0)
+            .cloned()?;
+        let file = self.inner.files.borrow().get(&inst.path).cloned()?;
+        Some((file, inst))
+    }
+
+    // A parked scene's: what freeing its node and a snapshot still reach.
+    fn parked_instance(&self, node: NodeId) -> Option<(Rc<File>, Rc<Instance>)> {
+        let inst = self
+            .inner
+            .parked
             .borrow()
             .iter()
             .find(|i| i.node == node.0)

@@ -3,7 +3,42 @@
 //! pointed forwards.
 
 macro_rules! functions {
-    (state = $State:ty, component = $component:expr, prune = $prune:ident) => {
+    (state = $State:ty, component = $component:expr, prune = $prune:ident, body = $Body:ty, soft = $Soft:ty) => {
+        /// A parked scene's bodies, soft bodies and colliders leave the
+        /// simulation with their state, and come back to what they ask for.
+        pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
+            use crate::shared::softbody::Family;
+            let state = eng.resource::<$State>();
+            let mut state = state.borrow_mut();
+            let state = &mut *state;
+            let world = eng.world();
+            for node in nodes {
+                for &handle in state.colliders.get(node).into_iter().flatten() {
+                    if let Some(collider) = state.world.colliders.get_mut(handle) {
+                        collider.set_enabled(!parked);
+                    }
+                }
+                if let Some(body) = state
+                    .bodies
+                    .get(node)
+                    .and_then(|&handle| state.world.bodies.get_mut(handle))
+                {
+                    let asked = world.get::<&$Body>(*node).map_or(true, |body| body.enabled);
+                    body.set_enabled(!parked && asked);
+                }
+                if let Some(&handle) = state.soft_bodies.get(node) {
+                    let asked = world.get::<&$Soft>(*node).map_or(true, |soft| soft.enabled);
+                    for piece in state.world.soft_bodies.family(handle) {
+                        if let Some(soft) = state.world.soft_bodies.get_mut(piece) {
+                            soft.set_enabled(!parked && asked);
+                        }
+                    }
+                }
+            }
+            // The next query refreshes what a disabled collider is still in.
+            state.queries_ready = false;
+        }
+
         /// Point every restored collider and soft body at the entity its node
         /// has *now*.
         ///

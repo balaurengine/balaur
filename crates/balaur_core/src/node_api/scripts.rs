@@ -154,6 +154,7 @@ pub(super) fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
+    crate::parked::refuse_if_parked(eng, e, "node.attach_script")?;
     let path = rooted(eng, e, text(args, 1)?);
     crate::changes::scripted(eng, e);
     scene::name_script(eng, e, Some((&path, &props)));

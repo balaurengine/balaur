@@ -683,6 +683,7 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
         .query::<(Entity, &Ragdoll)>()
         .iter()
         .filter(|(_, r)| r.blend() > 0.0 && !r.bodies.is_empty())
+        .filter(|(e, _)| !balaur_core::parked::is_parked(eng, *e))
         .map(|(e, r)| (e, r.clone()))
         .collect();
     for (rig, ragdoll) in rigs {

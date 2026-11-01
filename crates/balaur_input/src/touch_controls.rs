@@ -339,7 +339,10 @@ pub(crate) fn tick(eng: &Engine) {
     let mut actions = actions.borrow_mut();
     let world = eng.world();
 
-    for (_, button) in &mut world.query::<(Entity, &mut TouchButton)>() {
+    for (entity, button) in &mut world.query::<(Entity, &mut TouchButton)>() {
+        if balaur_core::parked::is_parked(eng, entity) {
+            continue;
+        }
         press(
             button,
             &touches,
@@ -350,7 +353,10 @@ pub(crate) fn tick(eng: &Engine) {
             &mut actions,
         );
     }
-    for (_, stick) in &mut world.query::<(Entity, &mut TouchStick)>() {
+    for (entity, stick) in &mut world.query::<(Entity, &mut TouchStick)>() {
+        if balaur_core::parked::is_parked(eng, entity) {
+            continue;
+        }
         push(
             stick,
             &touches,

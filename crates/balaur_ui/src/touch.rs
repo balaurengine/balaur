@@ -35,7 +35,10 @@ pub fn draw_touch_controls(eng: &Engine, ctx: &egui::Context) {
     let mut buttons = world.query::<(Entity, &TouchButton)>();
     let mut sticks = world.query::<(Entity, &TouchStick)>();
     let mut painter = None;
-    for (_, button) in &mut buttons {
+    for (entity, button) in &mut buttons {
+        if balaur_core::parked::is_parked(eng, entity) {
+            continue;
+        }
         let Some((center, half)) = button.placement(eng) else {
             continue;
         };
@@ -53,7 +56,10 @@ pub fn draw_touch_controls(eng: &Engine, ctx: &egui::Context) {
             painter.fill(egui::Rect::from_center_size(at, size), 8.0, fill);
         }
     }
-    for (_, stick) in &mut sticks {
+    for (entity, stick) in &mut sticks {
+        if balaur_core::parked::is_parked(eng, entity) {
+            continue;
+        }
         let Some((base, knob)) = stick.placement(eng) else {
             continue;
         };

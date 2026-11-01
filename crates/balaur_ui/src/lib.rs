@@ -326,7 +326,10 @@ impl balaur_plugin::Plugin for UiPlugin {
         balaur_core::preload::on_component(
             reg.engine(),
             <widget::properties::WidgetProperties as balaur_core::components::derived::Component>::NAME,
-            images::preload_widget,
+            balaur_core::preload::Warming {
+                preload: images::preload_widget,
+                unload: images::unload_widget,
+            },
         );
         Ok(())
     }

@@ -126,7 +126,11 @@ fn follow_system(eng: &Engine, _dt: f32) {
     let followers: Vec<(Entity, Follow2d)> = {
         let world = eng.world();
         let mut query = world.query::<(Entity, &Follow2d)>();
-        query.iter().map(|(e, f)| (e, f.clone())).collect()
+        query
+            .iter()
+            .filter(|(e, _)| !balaur_core::parked::is_parked(eng, *e))
+            .map(|(e, f)| (e, f.clone()))
+            .collect()
     };
     let dt: Real = fixed_dt();
     for (entity, follow) in followers {

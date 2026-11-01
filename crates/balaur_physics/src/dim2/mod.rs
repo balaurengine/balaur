@@ -140,7 +140,9 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
 crate::shared::world::functions!(
     state = PhysicsState2d,
     component = c::JOINT_2D,
-    prune = prune_freed_nodes_except_tiles
+    prune = prune_freed_nodes_except_tiles,
+    body = body::Body2d,
+    soft = softbody::Softbody2d
 );
 
 pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {

@@ -53,6 +53,19 @@ pub(crate) fn preload_widget(eng: &Engine, widget: &toml::Value) {
     }
 }
 
+/// [`balaur_core::preload`]'s other half for a `widget`: its picture let go.
+/// A draw still naming it reads it again.
+pub(crate) fn unload_widget(eng: &Engine, widget: &toml::Value) {
+    let Some(path) = widget.get("image").and_then(toml::Value::as_str) else {
+        return;
+    };
+    if let Some(state) = eng.try_resource::<UiState>() {
+        let mut state = state.borrow_mut();
+        state.textures.remove(path);
+        state.decoding.remove(path);
+    }
+}
+
 /// Start decoding `path` on a worker thread, unless it is up or on its way.
 /// A file that does not read is left for the draw to report.
 pub(crate) fn prefetch(eng: &Engine, path: &str) {
@@ -209,4 +222,24 @@ pub(crate) fn region_uv(native: egui::Vec2, [x, y, w, h]: [f32; 4]) -> (egui::Re
         ((y + h) / native.y).clamp(0.0, 1.0),
     );
     (egui::Rect::from_min_max(min, max), vec2(w, h))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unloading_a_widget_lets_its_picture_go_and_no_other() {
+        let eng = Engine::default();
+        eng.insert_resource(UiState::default());
+        let ctx = egui::Context::default();
+        let state = eng.resource::<UiState>();
+        let pixel = || egui::ColorImage::filled([1, 1], egui::Color32::WHITE);
+        let _ = upload(&state, &ctx, "a.png", pixel(), egui::TextureOptions::LINEAR);
+        let _ = upload(&state, &ctx, "b.png", pixel(), egui::TextureOptions::LINEAR);
+        let widget = toml::toml! { image = "a.png" };
+        unload_widget(&eng, &toml::Value::Table(widget));
+        assert!(!state.borrow().textures.contains_key("a.png"));
+        assert!(state.borrow().textures.contains_key("b.png"));
+    }
 }

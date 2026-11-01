@@ -35,6 +35,7 @@ in [components.md](./components.md).
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
+<tr><td><code>on_parked_changed(parked)</code></td><td>A <code>scene.switch</code> parked the script&#x27;s scene, or brought it back; nothing else reaches it between the two, and <code>init</code> does not run again, so coming back is where it catches up.</td></tr>
 <tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
 <tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>

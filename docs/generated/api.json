@@ -6124,6 +6124,10 @@
         "least": 1,
         "signature": "(str, Node?) -> Node"
       },
+      "scene::parked": {
+        "least": 0,
+        "signature": "() -> [str]"
+      },
       "scene::preload": {
         "least": 1,
         "signature": "(str)"
@@ -6167,6 +6171,10 @@
       "scene::to_toml": {
         "least": 1,
         "signature": "(Node, scene::ToTomlOptions?) -> str"
+      },
+      "scene::unload": {
+        "least": 1,
+        "signature": "(str)"
       },
       "scene::variable": {
         "least": 1,
@@ -20265,6 +20273,11 @@
       "The game paused or resumed, told to every script, a paused one too."
     ],
     [
+      "on_parked_changed",
+      "(parked)",
+      "A `scene.switch` parked the script's scene, or brought it back; nothing else reaches it between the two, and `init` does not run again, so coming back is where it catches up."
+    ],
+    [
       "on_focused_changed",
       "(focused)",
       "The window came to the front or left it, told to every script."
@@ -26689,17 +26702,19 @@
         "instantiate": "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it.",
         "keep_changes": "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged.",
         "node_by_id": "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree.",
-        "preload": "Ready a scene file before anything switches to it: the file and every prefab it instances read and parsed, and what their components name started off the frame, the pictures a screen draws decoded on worker threads. Builds no node: a switch to it, a frame or a minute later, finds it all warm. An app calls it at boot for each screen, or a screen ahead.",
+        "parked": "Every scene `switch` kept built, by the path it was asked for, oldest first.",
+        "preload": "Ready a scene file before anything switches to it: the file and every prefab it instances read and parsed, and what their components name started off the frame, the pictures a screen draws decoded on worker threads. Builds no node: a switch to it, a frame or a minute later, finds it all warm. An app calls it at boot for each screen, or a screen ahead; `unload` lets it go.",
         "preset_info": "A preset's `description`, `tags`, the `components` it adds, and `parts`: each component's own properties by name. Nil for a name nothing registered.",
         "presets": "The names of every registered preset.",
         "removed_since": "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear.",
         "root": "The tree's root node.",
         "set_variable": "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing.",
         "source": "A scene file's raw TOML text, project-relative and found inside the pack in a packed run; nil when missing.",
-        "switch": "Replace the scene with another one at the end of this tick, so a script asking inside `update` is not freeing the tree it runs in. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second; reset is a switch to the same file.",
+        "switch": "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first.",
         "tagged": "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed.",
         "take_changes": "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names.",
         "to_toml": "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it.",
+        "unload": "`preload`'s inverse: frees the scene if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks.",
         "variable": "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`.",
         "variables": "Every declared variable as `{ name, type, value, persist }`, in name order.",
         "warnings": "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only.",
@@ -26722,6 +26737,7 @@
         "instantiate",
         "keep_changes",
         "node_by_id",
+        "parked",
         "preload",
         "preset_info",
         "presets",
@@ -26733,6 +26749,7 @@
         "tagged",
         "take_changes",
         "to_toml",
+        "unload",
         "variable",
         "variables",
         "warnings",
@@ -26756,6 +26773,7 @@
         "instantiate": "(str, Node?, scene::InstantiateOptions?)",
         "keep_changes": "(Node?)",
         "node_by_id": "(str, Node?) -> Node",
+        "parked": "() -> [str]",
         "preload": "(str)",
         "preset_info": "(str) -> scene::Preset?",
         "presets": "() -> [str]",
@@ -26767,6 +26785,7 @@
         "tagged": "(str) -> [Node]",
         "take_changes": "() -> [scene::Change]",
         "to_toml": "(Node, scene::ToTomlOptions?) -> str",
+        "unload": "(str)",
         "variable": "(str) -> any",
         "variables": "() -> [scene::Variable]",
         "warnings": "(Node) -> [scene::Warning]",

@@ -179,6 +179,20 @@ fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
 }
 
 /// What a removed `TileCollision` leaves behind, taken with it.
+/// A parked tile map's colliders leave the simulation with the rest of it.
+pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    for node in nodes {
+        for &handle in state.tile_colliders.get(node).into_iter().flatten() {
+            if let Some(collider) = state.world.colliders.get_mut(handle) {
+                collider.set_enabled(!parked);
+            }
+        }
+    }
+}
+
 fn tile_collision_removed(eng: &Engine, entity: Entity) {
     clear(eng, entity);
     let state = eng.resource::<PhysicsState2d>();

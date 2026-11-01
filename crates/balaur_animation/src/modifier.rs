@@ -572,6 +572,7 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
                     .map(|(e, m)| (e, Arc::clone(&m.0), true)),
             )
             .filter(|(_, m, _)| m.enabled && !(m.kind.wants_target() && m.target.is_empty()))
+            .filter(|(e, _, _)| !balaur_core::parked::is_parked(eng, *e))
             .map(|(e, m, dim3)| (scene_order(&world, e), e, m, dim3))
             .collect();
         // Two modifiers on one bone have to land the same way twice, and the

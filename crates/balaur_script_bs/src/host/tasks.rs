@@ -185,10 +185,15 @@ impl BsHost {
     }
 
     fn take_where(&self, pick: impl Fn(&Pending) -> bool) -> Vec<Pending> {
-        let mut tasks = self.inner.tasks.borrow_mut();
-        let (taken, kept) = std::mem::take(&mut *tasks).into_iter().partition(pick);
-        *tasks = kept;
-        taken
+        let mut all = Vec::new();
+        for list in [&self.inner.tasks, &self.inner.parked_tasks] {
+            let mut tasks = list.borrow_mut();
+            let (taken, kept): (Vec<_>, _) =
+                std::mem::take(&mut *tasks).into_iter().partition(&pick);
+            *tasks = kept;
+            all.extend(taken);
+        }
+        all
     }
 }
 

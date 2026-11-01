@@ -385,6 +385,14 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
     let Some(device) = eng.try_resource::<Device>() else {
         return;
     };
+    let warned = {
+        let device = device.borrow();
+        device.now.memory_warnings > device.was.memory_warnings
+    };
+    // A warning is recorded, so a replay frees them on the same frame.
+    if warned {
+        crate::parked::free_all(eng);
+    }
     let said = {
         let mut device = device.borrow_mut();
         let Device { now, was, notices } = &mut *device;

@@ -16,6 +16,10 @@ pub const STATE_CHANGED: &str = "state_changed";
 /// Called on every script when the game pauses or resumes, the nodes the
 /// pause just stopped included.
 pub const ON_PAUSED_CHANGED: &str = "on_paused_changed";
+/// Called on a script when `scene.switch` parks its scene, and when it comes
+/// back: `init` does not run again, so this is where a script catches up on
+/// what moved while nothing reached it.
+pub const ON_PARKED_CHANGED: &str = "on_parked_changed";
 /// Called on every script, a paused one too, when the window comes to the
 /// front or leaves it, with whether it is in front now.
 pub const ON_FOCUSED_CHANGED: &str = "on_focused_changed";
@@ -151,6 +155,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
     (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),
+    (ON_PARKED_CHANGED, "(parked)", "A `scene.switch` parked the script's scene, or brought it back; nothing else reaches it between the two, and `init` does not run again, so coming back is where it catches up."),
     (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
     (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),

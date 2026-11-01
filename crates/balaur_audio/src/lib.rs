@@ -1125,6 +1125,23 @@ fn announce_finished(eng: &Engine, ended: &[u64]) {
     }
 }
 
+/// A parked scene's sounds hold where they are, and come back to what each
+/// asks for.
+fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
+    let Some(state) = eng.try_resource::<AudioState>() else {
+        return;
+    };
+    let mut state = state.borrow_mut();
+    let world = eng.world();
+    for node in nodes {
+        let Some(handle) = state.nodes.get(node).and_then(|voice| voice.handle) else {
+            continue;
+        };
+        let asked = world.get::<&Sound>(*node).is_ok_and(|sound| sound.paused);
+        state.set_paused(handle, parked || asked);
+    }
+}
+
 impl balaur_plugin::Plugin for AudioPlugin {
     fn manifest(&self) -> &balaur_plugin::Manifest {
         &self.manifest
@@ -1132,6 +1149,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         output::declare_settings(reg.engine());
+        balaur_core::parked::on_change(reg.engine(), parked_changed);
         reg.insert_resource(AudioState {
             device: None,
             opened: false,

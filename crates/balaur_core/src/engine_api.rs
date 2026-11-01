@@ -198,7 +198,7 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         EngineOp {
             module: "scene",
             name: "preload",
-            call: preload,
+            call: crate::scene_api::scene_preload,
         },
         EngineOp {
             module: "scene",
@@ -279,6 +279,16 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: "scene",
             name: "switch",
             call: crate::scene_api::scene_switch,
+        },
+        EngineOp {
+            module: "scene",
+            name: "parked",
+            call: crate::scene_api::scene_parked,
+        },
+        EngineOp {
+            module: "scene",
+            name: "unload",
+            call: crate::scene_api::scene_unload,
         },
         EngineOp {
             module: "scene",
@@ -966,6 +976,7 @@ fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let base = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
+    crate::parked::refuse_if_parked(eng, base, "scene.instantiate")?;
     let attach = !matches!(option(args, 2, "scripts"), Some(Value::Bool(false)));
     let before = scene::child_count(&eng.world(), base);
     match option(args, 2, "root") {
@@ -979,13 +990,6 @@ fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
         _ => crate::project::instantiate_scene(eng, text(args, 0)?, base, attach)?,
     }
     scene::announce_added_since(eng, base, before);
-    Ok(Value::Nil)
-}
-
-/// `scene.preload(path)`: the scene and its prefabs read and parsed, and
-/// what their components name started, before anything switches to it.
-fn preload(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::preload::scene(eng, text(args, 0)?)?;
     Ok(Value::Nil)
 }
 

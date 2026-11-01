@@ -219,6 +219,9 @@ fn queue(eng: &Engine, name: &str, from: Option<Entity>, payload: Value) {
 /// then the hook, as they do for a pointer event, so each sees the world the
 /// one before left.
 pub fn announce(eng: &Engine, entity: Entity, name: &str, payload: Value) {
+    if crate::parked::is_parked(eng, entity) {
+        return;
+    }
     observers::run(eng, entity, name, &payload);
     // Most nodes carry no rows, and spelling the row's event costs an allocation.
     if eng

@@ -78,6 +78,29 @@ pub(crate) fn scene_switch(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// `scene.parked()` — every scene kept built by `switch`, oldest first.
+pub(crate) fn scene_parked(eng: &Engine, _args: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::parked::scenes(eng)
+            .into_iter()
+            .map(Value::Str)
+            .collect(),
+    ))
+}
+
+/// `scene.preload(path)` — the scene and its prefabs read and parsed, and
+/// what their components name started, before anything switches to it.
+pub(crate) fn scene_preload(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::preload::scene(eng, text(args, 0)?)?;
+    Ok(Value::Nil)
+}
+
+/// `scene.unload(path)` — what `preload` warmed and `switch` kept, let go.
+pub(crate) fn scene_unload(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::preload::unload(eng, text(args, 0)?);
+    Ok(Value::Nil)
+}
+
 /// `scene.variable(name)` — a declared value, or `()` for a name nothing
 /// declared. Reading a typo answers nothing rather than failing: a condition
 /// asking about a variable a level does not have is false, not an error.

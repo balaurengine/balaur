@@ -305,6 +305,39 @@ the node's own, and the root's children become the node's.
   generation moves and each consumer re-derives. Textures are keyed by path and
   mtime, so saving one image re-decodes that image alone.
 
+### Scene switches
+
+`scene.switch(path)` parks the scene it leaves and returns a scene already
+parked, with no node built and no `init` run. `crates/balaur_core/src/parked.rs`
+holds it. On a phone-sized screen of 55 cards, in release, the first visit takes
+9.2 ms and a park with a return 0.23 ms.
+
+- **Parked means out of the tree.** The scene's roots hang from a holder outside
+  it, hidden and `process = disabled`. Whatever walks from the root passes it by:
+  transforms, the widget arena, input, cameras, lights, `scene.find`. Whatever
+  asks the process mode stops, and whatever queries a component reads it as
+  hidden.
+- **Nothing reaches a parked script.** The host takes the instance out of every
+  pass and call, and a task it awaits holds with its wake kept in the runtime.
+  `on_parked_changed(false)` is where a script catches up on a theme, a locale or
+  a variable that moved meanwhile.
+- **State beside a node hears through `parked::on_change`.** Physics disables
+  bodies and colliders, and audio holds the sounds.
+- **A switch to the file already there is a reset:** freed and built again. A
+  file edited since a parked scene was built is built again on the way back, so
+  an edit still shows on a revisit.
+- **What stays is bounded by itself.** `parked::MAX_PARKED_NODES` nodes, 20,000,
+  the scene left longest ago freed first and a scene past it alone never parked.
+  A system memory warning frees them all. The budget is a node count rather than
+  a share of the machine's memory: a parked tree is in the digest, and two
+  machines must park alike. A scene freed is built again on the next visit.
+- **`scene.unload(path)` is `scene.preload`'s inverse.** It frees the parked scene
+  and drops its parsed files and pictures, for a scene a game wants new.
+- **A multiplayer session starts with none.** Each peer visited its own screens
+  on the way there, and a rollback would carry them every tick.
+
+`docs/DETERMINISM.md` has how a parked scene counts as world state.
+
 ### Debugger
 
 Breakpoints, stepping and a call stack with locals, for scripts in the editor.
@@ -945,8 +978,9 @@ call; `audio.set_listener_position` covers a game whose ears are not a node.
 ## Save games
 
 `save.write(slot, data)` and `save.read(slot)`, per user, under
-`user_data_dir()`. A save is whatever the game puts in the table; the engine
-decides three things.
+`user_data_dir()`. A save is whatever the game puts in the table, so a parked
+scene reaches one only if a script writes it there; the engine decides three
+things.
 
 - **Where it lives.** A slot name is letters, digits, `-` and `_`, so
   `../../id_rsa` is refused.

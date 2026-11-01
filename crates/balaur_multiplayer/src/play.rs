@@ -99,6 +99,9 @@ fn begin(app: &mut App, state: &Rc<RefCell<MultiplayerState>>) {
         state.borrow_mut().phase = phase;
         return;
     };
+    // A session's world is the one its peers share: the screens each visited
+    // on the way here are not in it, and a rollback would carry them every tick.
+    balaur_core::parked::free_all(&app.engine);
     if !scene.is_empty() {
         balaur_core::scene_switch::request(&app.engine, &scene);
         balaur_core::scene_switch::apply_system(&app.engine, 0.0);

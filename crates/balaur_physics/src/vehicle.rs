@@ -112,7 +112,11 @@ fn drive_system(eng: &Engine, _dt: f32) {
     let vehicles: Vec<Entity> = {
         let world = eng.world();
         let mut query = world.query::<(Entity, &Vehicle3d)>();
-        query.iter().map(|(entity, _)| entity).collect()
+        query
+            .iter()
+            .map(|(entity, _)| entity)
+            .filter(|entity| !balaur_core::parked::is_parked(eng, *entity))
+            .collect()
     };
     for chassis in vehicles {
         if let Err(why) = drive_one(eng, chassis) {

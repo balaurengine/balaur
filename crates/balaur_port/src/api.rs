@@ -74,6 +74,7 @@ const HOOKS: &[(&str, &[&str])] = &[
     ("on_variable_changed", &["string", "any"]),
     ("on_state_changed", &["string", "string"]),
     ("on_paused_changed", &["bool"]),
+    ("on_parked_changed", &["bool"]),
     ("on_focused_changed", &["bool"]),
     ("on_dark_mode_changed", &["bool"]),
     ("on_suspended_changed", &["bool"]),

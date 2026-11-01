@@ -587,6 +587,20 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
     entity
 }
 
+/// What a parked scene's roots hang from: a node outside the tree, hidden and
+/// never ticking, which everything under it inherits.
+pub(crate) fn spawn_holder(world: &mut World, held: crate::parked::Held) -> Entity {
+    let holder = world.spawn(node_bundle!(
+        "Parked",
+        crate::process::ProcessMode::Disabled,
+        held
+    ));
+    if let Ok(mut look) = world.get::<&mut Appearance>(holder) {
+        look.visible = false;
+    }
+    holder
+}
+
 /// Spawn a node as `parent`'s child number `index`, clamped to the end.
 ///
 /// Where a snapshot puts a freed node back: the digest walks the tree in
@@ -649,7 +663,7 @@ pub fn rename(world: &World, entity: Entity, name: &str) {
 }
 
 /// Append `child`, named `name`, to `parent`'s children and index it.
-fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
+pub(crate) fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
     shape_changed();
     crate::relationships::link::<Parent>(world, child, parent, None);
     if let Ok(mut index) = world.get::<&mut NameIndex>(parent) {
@@ -668,7 +682,7 @@ fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
 }
 
 /// Take `child` out of `parent`'s children and its name out of the index.
-fn detach(world: &World, parent: Entity, child: Entity) {
+pub(crate) fn detach(world: &World, parent: Entity, child: Entity) {
     shape_changed();
     if crate::relationships::target_of::<Parent>(world, child) == Some(parent) {
         crate::relationships::unlink::<Parent>(world, child);

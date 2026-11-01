@@ -251,6 +251,9 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // build with one dimension registers nothing that fills the other.
         reg.insert_resource(PhysicsState3d::new());
         reg.insert_resource(PhysicsState2d::new());
+        balaur_core::parked::on_change(reg.engine(), parked_changed);
+        balaur_core::parked::on_change(reg.engine(), dim2::parked_changed);
+        balaur_core::parked::on_change(reg.engine(), dim2::tiles::parked_changed);
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
         reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
@@ -441,7 +444,9 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
 crate::shared::world::functions!(
     state = PhysicsState3d,
     component = c::JOINT_3D,
-    prune = prune_freed_nodes_except_wheels
+    prune = prune_freed_nodes_except_wheels,
+    body = body::Body3d,
+    soft = softbody::Softbody3d
 );
 
 pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {

@@ -91,6 +91,28 @@ plain fields are captured. Restore puts the node *set* back too: core's `nodes`
 source frees what was spawned and respawns what was freed, before any other
 source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 
+## Parked scenes
+
+`scene.switch` keeps the scene it leaves built, and that tree is world state.
+
+- **Digest:** every parked node is hashed after the running tree, labelled
+  `<path>|<id>`, so a run that parts while a scene sits parked names it then and
+  not at its return.
+- **Snapshot:** parked nodes are in every frame under the same key, with the list
+  of what is parked and the file running. A restore that crosses a park or a
+  return frees a node where it stands and respawns it where the frame has it, as
+  it does any node freed or spawned since.
+- **Replay:** a switch happens on the tick a script asked for it, so a replay parks
+  and returns on the same ticks. A wake that came in while a scene was parked is
+  kept in the script runtime and read when it returns.
+- **Freeing:** the budget that frees old scenes counts nodes, so it decides alike
+  on every machine, and the memory warning that frees them all is recorded.
+- **Saves:** a save holds what a game writes, so nothing parked reaches one.
+- **Change log:** a park or a return is not an edit, so neither enters it, as a
+  switch does not. A script writing a parked node's component logs it as any write.
+- **Multiplayer:** a session frees every parked scene as it starts. The screens
+  each peer visited on the way there are not the world they share.
+
 ## What breaks determinism
 
 | Hazard | Status |

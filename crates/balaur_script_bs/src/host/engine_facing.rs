@@ -109,7 +109,7 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn detach(&self, node: NodeId) {
-        let Some((file, inst)) = self.instance(node) else {
+        let Some((file, inst)) = self.instance(node).or_else(|| self.parked_instance(node)) else {
             return;
         };
         if file.method("on_free").is_some() {
@@ -121,10 +121,44 @@ impl ScriptHost<Engine> for BsHost {
             .instances
             .borrow_mut()
             .retain(|i| i.node != node.0);
+        self.inner.parked.borrow_mut().retain(|i| i.node != node.0);
         inst.gone.set(true);
         if let Some(obj) = inst.obj.borrow_mut().take() {
             file.drop_object(obj);
         }
+    }
+
+    fn set_parked(&self, nodes: &[NodeId], parked: bool) {
+        let named: balaur_core::collections::DetHashSet<u64> =
+            nodes.iter().map(|node| node.0).collect();
+        let inner = &self.inner;
+        let (from, to, tasks_from, tasks_to) = if parked {
+            (
+                &inner.instances,
+                &inner.parked,
+                &inner.tasks,
+                &inner.parked_tasks,
+            )
+        } else {
+            (
+                &inner.parked,
+                &inner.instances,
+                &inner.parked_tasks,
+                &inner.tasks,
+            )
+        };
+        let (moved, stayed): (Vec<_>, Vec<_>) = from
+            .take()
+            .into_iter()
+            .partition(|inst| named.contains(&inst.node));
+        *from.borrow_mut() = stayed;
+        to.borrow_mut().extend(moved);
+        let (moved, stayed): (Vec<_>, Vec<_>) = tasks_from
+            .take()
+            .into_iter()
+            .partition(|task| named.contains(&task.node));
+        *tasks_from.borrow_mut() = stayed;
+        tasks_to.borrow_mut().extend(moved);
     }
 
     fn update(&self, dt: f32) {
@@ -146,7 +180,8 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn save_state(&self) -> Vec<(NodeId, Value)> {
-        let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+        let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+        all.extend(self.inner.parked.borrow().iter().cloned());
         let mut out = vec![];
         for inst in all {
             let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
@@ -173,7 +208,8 @@ impl ScriptHost<Engine> for BsHost {
 
     fn load_state(&self, states: &[(NodeId, Value)]) {
         for (node, state) in states {
-            let (Some((file, inst)), Value::Map(fields)) = (self.instance(*node), state) else {
+            let found = self.instance(*node).or_else(|| self.parked_instance(*node));
+            let (Some((file, inst)), Value::Map(fields)) = (found, state) else {
                 continue;
             };
             let mut guard = inst.obj.borrow_mut();

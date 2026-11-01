@@ -304,7 +304,7 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
     let current = listeners
         .iter()
         .rev()
-        .find(|(_, node)| node.current)
+        .find(|(entity, node)| node.current && !balaur_core::parked::is_parked(eng, **entity))
         .map(|(entity, _)| *entity);
     if let Some(entity) = current
         && let Ok(global) = world.get::<&GlobalTransform>(entity)

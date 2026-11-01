@@ -18,6 +18,11 @@
 //! than by entity index, because a respawned node is a new entity. The
 //! recorded index is kept beside it for a node with no id, which no spawn
 //! makes: every node is given one when it is spawned.
+//!
+//! A parked scene is simulation state, kept like the tree under the root and
+//! keyed `<path>|<id>` ([`crate::ids::key_of`]). A restore that crosses a park
+//! or a return frees the node where it stands and respawns it where the frame
+//! has it, as it does any node freed or spawned since.
 
 use anyhow::{Context, Result};
 use hecs::Entity;
@@ -26,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use balaur_script::{NodeId, Value};
 
 use crate::engine::Engine;
-use crate::scene::{Children, Name, NodeScript, Parent, collect_subtree};
+use crate::scene::{Children, Name, NodeScript, Parent};
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.
@@ -189,7 +194,7 @@ pub fn build_core_sources(app: &mut crate::app::App) {
                 .map(|(node, value)| ScriptFrame {
                     id: crate::entity_of(node)
                         .ok()
-                        .and_then(|e| crate::ids::of(&world, e)),
+                        .and_then(|e| crate::ids::key_of(&world, e)),
                     entity: node.0,
                     value: portable(&world, value),
                 })
@@ -205,7 +210,7 @@ pub fn build_core_sources(app: &mut crate::app::App) {
             };
             let world = eng.world();
             let root = eng.root();
-            let index = id_index(&world, root);
+            let index = id_index(eng, &world);
             let states: Vec<_> = frames
                 .into_iter()
                 .filter_map(|frame| {
@@ -237,7 +242,7 @@ fn portable(world: &hecs::World, value: Value) -> Value {
     match value {
         Value::Node(bits) => crate::entity_of(NodeId(bits))
             .ok()
-            .and_then(|entity| crate::ids::of(world, entity))
+            .and_then(|entity| crate::ids::key_of(world, entity))
             .map_or(Value::Node(bits), |id| {
                 Value::Map(vec![(String::from(NODE_REF), Value::Str(id))])
             }),
@@ -277,12 +282,12 @@ fn resolved(index: &crate::DetHashMap<String, Entity>, value: Value) -> Value {
     }
 }
 
-/// Every node under `root` by stable id; the first in tree order wins a
-/// duplicate, as `crate::ids::find` would.
-fn id_index(world: &hecs::World, root: Entity) -> crate::DetHashMap<String, Entity> {
+/// Every node by its key; the first in tree order wins a duplicate, as
+/// `crate::ids::find` would.
+fn id_index(eng: &Engine, world: &hecs::World) -> crate::DetHashMap<String, Entity> {
     let mut index = crate::DetHashMap::default();
-    for entity in collect_subtree(world, root) {
-        if let Some(id) = crate::ids::of(world, entity) {
+    for entity in crate::parked::every_node(eng, world) {
+        if let Some(id) = crate::ids::key_of(world, entity) {
             index.entry(id).or_insert(entity);
         }
     }
@@ -303,12 +308,12 @@ struct TransformFrame {
 
 fn save_transforms(eng: &Engine) -> serde_json::Value {
     let world = eng.world();
-    let frames: Vec<TransformFrame> = crate::scene::collect_subtree(&world, eng.root())
+    let frames: Vec<TransformFrame> = crate::parked::every_node(eng, &world)
         .into_iter()
         .filter_map(|entity| {
             let t = world.get::<&crate::scene::Transform>(entity).ok()?;
             Some(TransformFrame {
-                id: crate::ids::of(&world, entity),
+                id: crate::ids::key_of(&world, entity),
                 entity: entity.to_bits().get(),
                 trs: t.trs(),
                 skew: t.skew,
@@ -363,12 +368,12 @@ struct ProcessFrame {
 
 fn save_process(eng: &Engine) -> serde_json::Value {
     let world = eng.world();
-    let frames: Vec<ProcessFrame> = crate::scene::collect_subtree(&world, eng.root())
+    let frames: Vec<ProcessFrame> = crate::parked::every_node(eng, &world)
         .into_iter()
         .filter_map(|entity| {
             let mode = crate::process::own(&world, entity);
             (mode != crate::process::ProcessMode::Inherit).then(|| ProcessFrame {
-                id: crate::ids::of(&world, entity),
+                id: crate::ids::key_of(&world, entity),
                 entity: entity.to_bits().get(),
                 mode: mode.name().to_string(),
             })
@@ -396,7 +401,7 @@ fn load_process(eng: &Engine, value: &serde_json::Value) {
         .collect();
     // A mode the snapshot does not list is one the node did not carry, so a
     // mode set during the tick being re-run has to come back off.
-    let stale: Vec<hecs::Entity> = crate::scene::collect_subtree(&world, root)
+    let stale: Vec<hecs::Entity> = crate::parked::every_node(eng, &world)
         .into_iter()
         .filter(|e| !listed.iter().any(|(listed, _)| listed == e))
         .collect();
@@ -430,12 +435,12 @@ const fn untinted() -> [f32; 4] {
 
 fn save_appearance(eng: &Engine) -> serde_json::Value {
     let world = eng.world();
-    let frames: Vec<AppearanceFrame> = crate::scene::collect_subtree(&world, eng.root())
+    let frames: Vec<AppearanceFrame> = crate::parked::every_node(eng, &world)
         .into_iter()
         .filter_map(|entity| {
             let a = world.get::<&crate::scene::Appearance>(entity).ok()?;
             Some(AppearanceFrame {
-                id: crate::ids::of(&world, entity),
+                id: crate::ids::key_of(&world, entity),
                 entity: entity.to_bits().get(),
                 visible: a.visible,
                 tint: a.tint.into(),
@@ -482,12 +487,12 @@ struct TagsFrame {
 
 fn save_tags(eng: &Engine) -> serde_json::Value {
     let world = eng.world();
-    let frames: Vec<TagsFrame> = crate::scene::collect_subtree(&world, eng.root())
+    let frames: Vec<TagsFrame> = crate::parked::every_node(eng, &world)
         .into_iter()
         .filter_map(|entity| {
             let tags = world.get::<&crate::scene::Tags>(entity).ok()?;
             Some(TagsFrame {
-                id: crate::ids::of(&world, entity),
+                id: crate::ids::key_of(&world, entity),
                 entity: entity.to_bits().get(),
                 tags: tags.0.clone(),
             })
@@ -502,7 +507,7 @@ fn load_tags(eng: &Engine, value: &serde_json::Value) {
     };
     let root = eng.root();
     // Every node's tags are replaced: a tag added after the snapshot goes.
-    let all: Vec<Entity> = crate::scene::collect_subtree(&eng.world(), root);
+    let all: Vec<Entity> = crate::parked::every_node(eng, &eng.world());
     let mut world = eng.world_mut();
     for entity in all {
         let _ = world.remove_one::<crate::scene::Tags>(entity);
@@ -519,7 +524,7 @@ fn load_tags(eng: &Engine, value: &serde_json::Value) {
 /// recorded index otherwise.
 fn resolve(world: &hecs::World, root: Entity, id: Option<&str>, entity: u64) -> Option<Entity> {
     match id {
-        Some(id) => crate::ids::find(world, root, id),
+        Some(id) => crate::ids::find_key(world, root, id),
         None => hecs::Entity::from_bits(entity),
     }
 }
@@ -539,9 +544,10 @@ struct ScriptFrame {
 /// door a scene file uses.
 #[derive(Serialize, Deserialize)]
 struct NodeFrame {
+    /// Its key: the stable id, with the scene's path in front in a parked one.
     id: String,
     name: String,
-    /// The parent's stable id; absent when the parent is the root.
+    /// The parent's key; absent when the parent is the root or a holder.
     parent: Option<String>,
     /// Where among the parent's children it sat. The digest walks the tree in
     /// order, so a node put back at the end is a divergence of its own.
@@ -560,11 +566,17 @@ struct NodeFrame {
 struct NodesFrame {
     next_id: u64,
     nodes: Vec<NodeFrame>,
+    /// The file the tree under the root was built from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    scene: Option<String>,
+    /// Every scene parked, oldest first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    parked: Vec<String>,
 }
 
 fn save_nodes(eng: &Engine) -> serde_json::Value {
     let root = eng.root();
-    let entities = collect_subtree(&eng.world(), root);
+    let entities = crate::parked::every_node(eng, &eng.world());
     let mut nodes = Vec::new();
     for entity in entities {
         if entity == root {
@@ -574,7 +586,7 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
         // before they are called.
         let Some((id, name, parent, index, script, props)) = ({
             let world = eng.world();
-            crate::ids::of(&world, entity).map(|id| {
+            crate::ids::key_of(&world, entity).map(|id| {
                 let name = world
                     .get::<&Name>(entity)
                     .map_or_else(|_| String::new(), |n| n.0.clone());
@@ -585,7 +597,7 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
                     .unwrap_or(0);
                 let parent = above
                     .filter(|&p| p != root)
-                    .and_then(|p| crate::ids::of(&world, p));
+                    .and_then(|p| crate::ids::key_of(&world, p));
                 let (script, props) = world
                     .get::<&NodeScript>(entity)
                     .map_or((None, Vec::new()), |s| {
@@ -614,7 +626,13 @@ fn save_nodes(eng: &Engine) -> serde_json::Value {
         });
     }
     let next_id = crate::ids::next(eng);
-    serde_json::to_value(NodesFrame { next_id, nodes }).unwrap_or(serde_json::Value::Null)
+    serde_json::to_value(NodesFrame {
+        next_id,
+        nodes,
+        scene: crate::parked::current(eng),
+        parked: crate::parked::scenes(eng),
+    })
+    .unwrap_or(serde_json::Value::Null)
 }
 
 fn load_nodes(eng: &Engine, value: &serde_json::Value) {
@@ -627,11 +645,14 @@ fn load_nodes(eng: &Engine, value: &serde_json::Value) {
     };
     let root = eng.root();
     let wanted: crate::DetHashSet<&str> = frame.nodes.iter().map(|n| n.id.as_str()).collect();
+    let parked_before = crate::parked::scenes(eng);
+    crate::parked::hold_restored(eng, &frame.parked);
     free_spawned_since(eng, root, &wanted);
     for node in respawn_order(&frame.nodes) {
         respawn(eng, root, node);
     }
     crate::ids::set_next(eng, frame.next_id);
+    crate::parked::settle_restored(eng, &parked_before, frame.scene.as_deref(), &frame.parked);
 }
 
 /// Frame order for a respawn: parents first, then siblings by index.
@@ -668,10 +689,12 @@ fn respawn_order(nodes: &[NodeFrame]) -> Vec<&NodeFrame> {
 fn free_spawned_since(eng: &Engine, root: Entity, wanted: &crate::DetHashSet<&str>) {
     let extra: Vec<Entity> = {
         let world = eng.world();
-        collect_subtree(&world, root)
+        crate::parked::every_node(eng, &world)
             .into_iter()
             .filter(|&e| e != root)
-            .filter(|&e| crate::ids::of(&world, e).is_some_and(|id| !wanted.contains(id.as_str())))
+            .filter(|&e| {
+                crate::ids::key_of(&world, e).is_some_and(|id| !wanted.contains(id.as_str()))
+            })
             .collect()
     };
     for entity in extra {
@@ -706,11 +729,11 @@ fn restore_placement(eng: &Engine, entity: Entity, parent: Entity, node: &NodeFr
 fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     let (existing, parent) = {
         let world = eng.world();
-        let existing = crate::ids::find(&world, root, &node.id);
+        let existing = crate::ids::find_key(&world, root, &node.id);
         let parent = match &node.parent {
-            None => root,
+            None => crate::ids::parked_part(&world, &node.id).map_or(root, |(holder, _)| holder),
             Some(parent) => {
-                let Some(entity) = crate::ids::find(&world, root, parent) else {
+                let Some(entity) = crate::ids::find_key(&world, root, parent) else {
                     tracing::error!(node = %node.id, parent = %parent, "respawning under a parent that is gone");
                     return;
                 };
@@ -725,7 +748,9 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
     }
     let entity = {
         let mut world = eng.world_mut();
-        crate::scene::spawn_node_at(&mut world, &node.name, parent, node.index, node.id.clone())
+        let id = crate::ids::parked_part(&world, &node.id).map_or(node.id.as_str(), |(_, id)| id);
+        let id = id.to_string();
+        crate::scene::spawn_node_at(&mut world, &node.name, parent, node.index, id)
     };
     for (name, text) in &node.components {
         let Ok(params) = toml::from_str::<toml::Value>(text) else {
