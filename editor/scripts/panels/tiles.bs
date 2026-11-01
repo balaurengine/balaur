@@ -50,11 +50,11 @@ impl Tiles {
         if !(view.kind() == "map") {
             return;
         }
-        let cards = view.get("items").len() > 0;
+        let cards = view["items"].len() > 0;
         let list = self.node.get_node("Cards");
-        list.patch_component("widget", Parameters { visible: cards, options: view.get("items"), text: view.get("picked") });
+        list.patch_component("widget", Parameters { visible: cards, options: view["items"], text: view["picked"] });
         if cards {
-            list.patch_component("widget_list", { "sheet": view.get("sheet") });
+            list.patch_component("widget_list", { "sheet": view["sheet"] });
         }
     }
 }

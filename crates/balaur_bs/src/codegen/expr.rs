@@ -44,19 +44,17 @@ impl FnGen<'_> {
             }
             ExprKind::Index(arr, idx) if self.type_of(arr).ok() == Some(Ty::Any) => {
                 let by = if self.type_of(idx)? == Ty::Str {
-                    "get"
+                    "#get"
                 } else {
-                    "at"
+                    "#at"
                 };
-                self.any_method(arr, by, std::slice::from_ref(&**idx), e.pos)?
+                self.prelude_method("any", arr, by, std::slice::from_ref(&**idx), e.pos)?
             }
-            // `a.name` on an `any` is `a.get("name")`.
             ExprKind::Field(base, f) if self.type_of(base).ok() == Some(Ty::Any) => {
-                let key = Expr {
-                    kind: ExprKind::Str(f.clone()),
-                    pos: e.pos,
-                };
-                self.any_method(base, "get", std::slice::from_ref(&key), e.pos)?
+                return err(
+                    e.pos,
+                    format!("an `any` has no fields: read the key as `[\"{f}\"]`"),
+                );
             }
             ExprKind::Var(_) | ExprKind::SelfRef | ExprKind::Field(..) | ExprKind::Index(..) => {
                 self.read(e)?
@@ -64,7 +62,10 @@ impl FnGen<'_> {
             ExprKind::Bin(op, a, b) => self.binary(*op, a, b, e.pos)?,
             ExprKind::Unary(op, a) => self.unary(*op, a, e.pos)?,
             ExprKind::Call(name, args) => self.call(name, args, e.pos)?,
-            ExprKind::Method(base, name, args) => self.method(base, name, args, e.pos)?,
+            ExprKind::Method(base, name, args) => {
+                self.dropped_form(base, name, e.pos)?;
+                self.method(base, name, args, e.pos)?
+            }
             ExprKind::StructLit(s, fields) => self.struct_lit(s, fields, e.pos)?,
             ExprKind::ArrayLit(items) => self.array_lit(items, None, e.pos)?,
             ExprKind::MapLit(_) => {
@@ -409,7 +410,10 @@ impl FnGen<'_> {
     // The type `e` would have, with nothing emitted.
     pub(crate) fn type_of(&mut self, e: &Expr) -> R<Ty> {
         let at = (std::ptr::from_ref(e) as usize, e.pos.line, e.pos.col);
-        if let Some(t) = self.typed.get(&at) {
+        // Generated code has no line, and its clones reuse each other's
+        // addresses, so only a position tells two expressions apart.
+        let known = e.pos.line > 0;
+        if known && let Some(t) = self.typed.get(&at) {
             return Ok(t.clone());
         }
         let marks = (
@@ -423,7 +427,7 @@ impl FnGen<'_> {
         self.locals.truncate(marks.1);
         self.owned.truncate(marks.2);
         self.patches.truncate(marks.3);
-        if let Ok(t) = &t {
+        if known && let Ok(t) = &t {
             self.typed.insert(at, t.clone());
         }
         t

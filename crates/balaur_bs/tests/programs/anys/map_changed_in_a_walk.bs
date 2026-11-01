@@ -3,8 +3,8 @@
 pub fn walked() -> str {
     let doc: any = { "assets": [{ "id": "a", "n": 1 }, { "id": "b", "n": 1 }] };
     let seen = 0;
-    for block in doc.assets {
-        if block.id.as_str() == "a" {
+    for block in doc["assets"] {
+        if block["id"].as_str() == "a" {
             block.set("n", 6);
             continue;
         }

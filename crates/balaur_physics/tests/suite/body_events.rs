@@ -216,7 +216,7 @@ impl Scenario {
             "soft_material": { "tear_strain": 0.05, "tear_force": 2.0, "edge_hz": 4.0 },
         });
     }
-    pub fn on_tear(tear: any) { bump("edges", tear.get("edges").len()); }
+    pub fn on_tear(tear: any) { bump("edges", tear["edges"].len()); }
     pub fn on_collision_enter(collision: any) { bump("hit", 1); }
     fn fixed_update(dt: float) { bump("ticks", 1); }
 }
@@ -257,8 +257,8 @@ impl Scenario {
         for key in ["pieces", "edges", "cells", "removed_edges", "split_particles", "inserted_particles", "piece_particles", "clusters", "moved_joints"] {
             if tear.has(key) { bump("fields", 1); }
         }
-        if tear.get("piece_particles").len() == tear.get("pieces").as_int() { bump("whole", 1); }
-        bump("edges", tear.get("edges").len());
+        if tear["piece_particles"].len() == tear["pieces"].as_int() { bump("whole", 1); }
+        bump("edges", tear["edges"].len());
     }
 }
 "#,

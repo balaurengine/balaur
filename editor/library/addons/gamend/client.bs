@@ -100,7 +100,7 @@ pub fn connect(node: Node) -> int {
 /// `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
 /// took the event.
 pub fn route(node: Node, e: any) -> bool {
-    let kind = e.get("kind").text();
+    let kind = e["kind"].text();
     let socket = e.has("socket");
     if socket {
         note_socket(kind);
@@ -108,8 +108,8 @@ pub fn route(node: Node, e: any) -> bool {
     let event = e;
     let method = if socket { "on_socket_" + kind } else { "on_" + kind };
     if kind == "message" {
-        event = events::decode(e.get("topic").text(), e.get("event").text(), e.get("payload"));
-        method = "on_" + event.get("kind").text();
+        event = events::decode(e["topic"].text(), e["event"].text(), e["payload"]);
+        method = "on_" + event["kind"].text();
     }
     if !node.has_method(method) {
         return false;
@@ -171,13 +171,13 @@ pub fn unpack_hook(name: str, reply: any) -> HookReply {
     if reply.is_nil() {
         return HookReply { ok: false, data: nil(), error: "gamend: {name} sent no reply" };
     }
-    let response = reply.get("response");
+    let response = reply["response"];
     if response.has("error") {
-        let message = response.get("error").text();
+        let message = response["error"].text();
         log::warn("gamend: hook {name}: {message}");
         return HookReply { ok: false, data: nil(), error: message };
     }
-    HookReply { ok: true, data: response.get("data"), error: "" }
+    HookReply { ok: true, data: response["data"], error: "" }
 }
 
 /// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
@@ -227,23 +227,23 @@ pub fn refresh_keys(socket: int, keys: [str]) -> [str] {
 /// File a decoded `kv_updated` or `kv_deleted` into the cache. Give it what
 /// `events::decode` returned and it takes the rows it knows.
 pub fn absorb(event: any) -> bool {
-    let kind = event.get("kind").text();
+    let kind = event["kind"].text();
     if kind != user::KV_UPDATED && kind != user::KV_DELETED {
         return false;
     }
-    let payload = event.get("payload");
-    let key = payload.get("key").text();
+    let payload = event["payload"];
+    let key = payload["key"].text();
     if kind == user::KV_DELETED {
         clear_row(key);
     } else {
-        keep_row(key, payload.get("value"));
+        keep_row(key, payload["value"]);
     }
     true
 }
 
 /// The row this client last saw for a key, or nil.
 pub fn row(key: str) -> any {
-    rows().get(key)
+    rows()[key]
 }
 
 pub fn has_row(key: str) -> bool {
@@ -260,7 +260,7 @@ pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
     }
     let reply = await task::wait(kv::get_kv(node, key, nil()).as_int());
     if !core::ok(reply) {
-        if reply.get("status").as_int() == 404 {
+        if reply["status"].as_int() == 404 {
             keep_row(key, {});
             return {};
         }
@@ -288,14 +288,14 @@ pub async fn fetch_lobby(node: Node, lobby_id: any) -> any {
 /// on its way.
 pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: any) -> Write {
     let sent = json::encode(value);
-    if writes().get(key).text() == sent {
+    if writes()[key].text() == sent {
         return Write { skipped: true, reply: HookReply { ok: true, data: nil(), error: "" } };
     }
     let held = writes();
     held.set(key, sent);
     script::store(WRITES_KEY, held);
     let reply = await call(socket, hook, args);
-    if writes().get(key).text() == sent {
+    if writes()[key].text() == sent {
         script::store(WRITES_KEY, dropped(writes(), key));
     }
     Write { skipped: false, reply: reply }
@@ -380,7 +380,7 @@ fn stored_list(key: str) -> [str] {
     let held = script::stored(key);
     let out: [str] = [];
     for i in 0..held.len() {
-        out.push(held.at(i).text());
+        out.push(held[i].text());
     }
     out
 }
@@ -409,7 +409,7 @@ fn dropped(table: any, key: str) -> any {
     let out: any = {};
     for name in table.keys() {
         if name != key {
-            out.set(name, table.get(name));
+            out.set(name, table[name]);
         }
     }
     out

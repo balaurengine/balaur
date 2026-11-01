@@ -174,8 +174,8 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                     self.check(info.description != "", "a preset needs a description");
                     // Each part's own properties, which is what makes the preset mean
                     // something: a rigid body is a dynamic one.
-                    self.check(info.parts.get("body2d").get("kind").as_str() == "dynamic", "the body part carries its kind");
-                    self.check(info.parts.get("collider2d").len() == 0, "a part with no properties is an empty table");
+                    self.check(info.parts["body2d"]["kind"].as_str() == "dynamic", "the body part carries its kind");
+                    self.check(info.parts["collider2d"].len() == 0, "a part with no properties is an empty table");
                 }
 
                 // Applying one puts the components on the node, and nothing records

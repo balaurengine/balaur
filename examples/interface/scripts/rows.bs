@@ -53,9 +53,9 @@ impl Rows {
     /// acts on: the view draws the rows a script hands it, so moving one is
     /// moving it here.
     pub fn on_move(what: any) {
-        let moved = what.at(0).as_str();
-        let onto = what.at(1).as_str();
-        let side = what.at(2).as_str();
+        let moved = what[0].as_str();
+        let onto = what[1].as_str();
+        let side = what[2].as_str();
         let out: [str] = [];
         for row in self.cards {
             if row == moved {

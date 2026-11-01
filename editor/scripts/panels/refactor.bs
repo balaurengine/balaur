@@ -34,23 +34,23 @@ impl Refactor {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view.get("open") });
-        if !view.get("open").as_bool() {
+        self.node.patch_component("widget", { "visible": view["open"] });
+        if !view["open"].as_bool() {
             self.open = false;
             return;
         }
-        self.node.get_node("Title").patch_component("widget", { "text": view.get("title") });
+        self.node.get_node("Title").patch_component("widget", { "text": view["title"] });
         // The fields' text only as the sheet opens: after that it is what is typed.
         if !self.open {
-            self.node.get_node("From").patch_component("widget", { "text": view.get("from") });
-            self.node.get_node("From").patch_component("widget_field", { "placeholder": view.get("from_hint") });
-            self.node.get_node("To").patch_component("widget", { "text": view.get("to") });
-            self.node.get_node("To").patch_component("widget_field", { "placeholder": view.get("to_hint") });
-            ui::set_focus(self.node.get_node(if view.get("from").as_str() == "" { "From" } else { "To" }));
+            self.node.get_node("From").patch_component("widget", { "text": view["from"] });
+            self.node.get_node("From").patch_component("widget_field", { "placeholder": view["from_hint"] });
+            self.node.get_node("To").patch_component("widget", { "text": view["to"] });
+            self.node.get_node("To").patch_component("widget_field", { "placeholder": view["to_hint"] });
+            ui::set_focus(self.node.get_node(if view["from"].as_str() == "" { "From" } else { "To" }));
         }
         self.open = true;
-        self.node.get_node("Count").patch_component("widget", { "text": view.get("count") });
-        self.node.get_node("Hits").patch_component("widget", { "options": view.get("hits") });
-        self.node.get_node("Verbs/Apply").patch_component("widget", { "enabled": view.get("ready") });
+        self.node.get_node("Count").patch_component("widget", { "text": view["count"] });
+        self.node.get_node("Hits").patch_component("widget", { "options": view["hits"] });
+        self.node.get_node("Verbs/Apply").patch_component("widget", { "enabled": view["ready"] });
     }
 }

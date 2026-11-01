@@ -73,27 +73,27 @@ impl Code {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view.get("shown"), "inset": view.get("inset") });
-        if !view.get("shown").as_bool() {
+        self.node.patch_component("widget", { "visible": view["shown"], "inset": view["inset"] });
+        if !view["shown"].as_bool() {
             return;
         }
-        self.node.get_node("Note").patch_component("widget", { "visible": view.get("note").as_str() != "", "text": view.get("note") });
+        self.node.get_node("Note").patch_component("widget", { "visible": view["note"].as_str() != "", "text": view["note"] });
         let scroll = self.node.get_node("Scroll");
-        scroll.patch_component("widget", { "visible": view.get("note").as_str() == "" });
-        if view.get("note").as_str() != "" {
+        scroll.patch_component("widget", { "visible": view["note"].as_str() == "" });
+        if view["note"].as_str() != "" {
             return;
         }
         let editor = scroll.get_node("Editor");
         // The text only when the buffer moved under the editor: what is typed is
         // the widget's own, and writing it back would put the caret at the end.
-        if view.get("path").as_str() != self.path || view.get("rev").as_int() != self.rev {
-            editor.patch_component("widget", { "text": view.get("text") });
-            self.path = view.get("path").as_str();
-            self.rev = view.get("rev").as_int();
+        if view["path"].as_str() != self.path || view["rev"].as_int() != self.rev {
+            editor.patch_component("widget", { "text": view["text"] });
+            self.path = view["path"].as_str();
+            self.rev = view["rev"].as_int();
         }
-        editor.patch_component("widget_code", view.get("look"));
-        if view.get("scroll_to").as_float() >= 0.0 {
-            scroll.patch_component("widget_scroll", { "scroll_offset": [0.0, view.get("scroll_to")] });
+        editor.patch_component("widget_code", view["look"]);
+        if view["scroll_to"].as_float() >= 0.0 {
+            scroll.patch_component("widget_scroll", { "scroll_offset": [0.0, view["scroll_to"]] });
         }
     }
 }

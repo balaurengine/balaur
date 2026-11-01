@@ -68,7 +68,7 @@ fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
         struct_name.to_string(),
         fields
             .iter()
-            .map(|(name, _)| (name.clone(), method(var("cell"), "get", vec![text(name)])))
+            .map(|(name, _)| (name.clone(), index(var("cell"), text(name))))
             .collect(),
     ));
     if !matches!(struct_name, "Vec2" | "Vec3" | "Color") {
@@ -79,10 +79,7 @@ fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
         fields
             .iter()
             .zip(0i64..)
-            .map(|((name, _), at)| {
-                let index = expr(ExprKind::Int(at));
-                (name.clone(), method(var("cell"), "at", vec![index]))
-            })
+            .map(|((name, _), at)| (name.clone(), index(var("cell"), expr(ExprKind::Int(at)))))
             .collect(),
     ));
     let listed = expr(ExprKind::Bin(
@@ -177,7 +174,7 @@ fn map_body(class: &str, into: bool, fields: &[(String, Ty)]) -> Block {
                 stmts: vec![stmt(StmtKind::Expr(method(
                     var("values"),
                     "push",
-                    vec![method(var("cell"), "get", vec![var("key")])],
+                    vec![index(var("cell"), var("key"))],
                 )))],
                 tail: None,
             },
@@ -246,6 +243,10 @@ fn text(value: &str) -> Expr {
 
 fn field(base: Expr, name: &str) -> Expr {
     expr(ExprKind::Field(Box::new(base), name.into()))
+}
+
+fn index(base: Expr, key: Expr) -> Expr {
+    expr(ExprKind::Index(Box::new(base), Box::new(key)))
 }
 
 fn method(base: Expr, name: &str, args: Vec<Expr>) -> Expr {

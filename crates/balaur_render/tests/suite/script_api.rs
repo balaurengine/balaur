@@ -94,12 +94,12 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
         r#"
         self.node.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.5 } });
         self.node.set_component("shape3d", { "shape": { "kind": "box", "size": [2.0, 4.0, 6.0] } });
-        let kind = self.node.shape3d.shape.kind;
+        let kind = self.node.shape3d.shape["kind"];
         if kind != "box" { log::error("the last shape set should win, got {kind}"); }
 
         self.node.set_component("shape2d", { "shape": { "kind": "circle", "radius": 0.25 } });
         self.node.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [2.0, 4.0] } });
-        let kind_2d = self.node.shape2d.shape.kind;
+        let kind_2d = self.node.shape2d.shape["kind"];
         if kind_2d != "rectangle" { log::error("the last 2D shape set should win, got {kind_2d}"); }
         "#,
     );

@@ -280,7 +280,7 @@ fn a_pasted_image_is_said_and_written_out() {
                   pub fn on_pasted_image(size: any) {\n\
                   let saved = ui::save_pasted_image(\"pasted.png\");\n\
                   let again = ui::save_pasted_image(\"again.png\");\n\
-                  self.got = \"{size.width}x{size.height} {saved} {again}\";\n\
+                  self.got = \"{size[\"width\"]}x{size[\"height\"]} {saved} {again}\";\n\
                   }",
         ..Script::default()
     });

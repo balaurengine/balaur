@@ -50,13 +50,13 @@ impl Docs {
             return;
         }
         self.node.get_node("Tools/Module").patch_component("widget", {
-            "options": view.get("modules"),
-            "text": view.get("pick"),
+            "options": view["modules"],
+            "text": view["pick"],
         });
-        self.node.get_node("List").patch_component("widget", { "options": view.get("items") });
+        self.node.get_node("List").patch_component("widget", { "options": view["items"] });
         self.node.get_node("Nothing").patch_component("widget", {
-            "visible": view.get("says").as_str() != "",
-            "text": view.get("says"),
+            "visible": view["says"].as_str() != "",
+            "text": view["says"],
         });
     }
 }

@@ -15,6 +15,6 @@ impl Userdata {
     /// while the editor watches is one of them, so it shows without a click.
     pub fn draw(payload: any) {
         let editor = scene::get_node("Editor");
-        editor.call("kit_rows", payload.host, "body", editor.call("kit_files", "userdata", {}));
+        editor.call("kit_rows", payload["host"], "body", editor.call("kit_files", "userdata", {}));
     }
 }

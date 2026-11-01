@@ -42,8 +42,8 @@ fn refresh(state: &mut editor::State) {
 // One event from the exporter, delivered on the tick it arrived.
 pub fn report(state: &mut editor::State, event: any) {
     let export_event = util::map_or_empty(event);
-    let target = export_event.get("target").as_str();
-    let kind = export_event.get("kind").as_str();
+    let target = export_event["target"].as_str();
+    let kind = export_event["kind"].as_str();
     if target == "" {
         return;
     }
@@ -51,14 +51,14 @@ pub fn report(state: &mut editor::State, event: any) {
     status.set(target, kind);
     let said: any = state.exporter.said;
     if kind == "done" {
-        let exported_path = export_event.get("path").as_str();
+        let exported_path = export_event["path"].as_str();
         said.set(target, exported_path);
         state.exporter.landed = exported_path;
         log::info("exported {target} -> {exported_path}");
         // A runtime that was downloaded on the way is installed now.
         refresh(state);
     } else if kind == "failed" {
-        let why = export_event.get("message").as_str();
+        let why = export_event["message"].as_str();
         said.set(target, why);
         log::warn("{target}: {why}");
     } else {
@@ -75,7 +75,7 @@ pub fn fill(state: &mut editor::State) {
     }
     // No sidebar: the sheet is one list of targets, and `sheet_form` left it
     // shut for us.
-    pool::sync(state, hosts.get("form"), specs(state), 0.0, false);
+    pool::sync(state, hosts["form"], specs(state), 0.0, false);
 }
 
 /// Every row the sheet shows: what it builds, the link to the settings it
@@ -123,7 +123,7 @@ fn runtime_spec(state: editor::State) -> any {
     let options = util::list_or_empty(nil);
     for setting in settings::all() {
         if setting.path == RUNTIME_SETTING {
-            options = util::list_or_empty(setting.spec.options);
+            options = util::list_or_empty(setting.spec["options"]);
         }
     }
     if options.len() == 0 {
@@ -140,7 +140,7 @@ fn runtime_spec(state: editor::State) -> any {
                 "kind": "dropdown",
                 "role": "choice_form",
                 "width": 120,
-                "text": if now.kind() == "str" { now } else { options.at(0) },
+                "text": if now.kind() == "str" { now } else { options[0] },
                 "options": options,
                 "on": "handle",
                 "data": { "fn": on_runtime_picked },
@@ -210,14 +210,14 @@ fn readiness(installed: bool, fetchable: bool) -> str {
 }
 
 fn target_specs(state: editor::State, row: any, out: [any]) {
-    let name = row.get("name").as_str();
-    let own_runtime = row.get("runtime");
+    let name = row["name"].as_str();
+    let own_runtime = row["runtime"];
     let runtime = if own_runtime.is_nil() { name } else { own_runtime.as_str() };
-    let installed = row.get("installed").as_bool();
-    let fetchable = row.get("fetchable").as_bool();
-    let note_text = row.get("note").as_str();
-    let status = state.exporter.status.get(name).as_str();
-    let said = state.exporter.said.get(name).as_str();
+    let installed = row["installed"].as_bool();
+    let fetchable = row["fetchable"].as_bool();
+    let note_text = row["note"].as_str();
+    let status = state.exporter.status[name].as_str();
+    let said = state.exporter.said[name].as_str();
     let controls: [any] = [{ "kind": "label", "role": "text_code", "text": name }];
     if runtime != name {
         controls.push({ "kind": "label", "role": "text_caption", "text": "→ " + runtime });
@@ -262,7 +262,7 @@ fn export_button(state: editor::State, name: str, installed: bool, fetchable: bo
 }
 
 fn on_export_clicked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data.name;
+    let name: str = data["name"];
     // `download` is the consent this click just gave: the engine
     // never fetches a runtime without being told it may.
     if !export::start(name, export::StartOptions { download: true }) {

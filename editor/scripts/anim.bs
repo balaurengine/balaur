@@ -115,7 +115,7 @@ pub fn clip_name(state: editor::State, found: Node) -> str {
     if animation_component.is_nil() {
         return "";
     }
-    let name = animation_component.autoplay;
+    let name = animation_component["autoplay"];
     if name.kind() == "str" { name.as_str() } else { "" }
 }
 
@@ -125,7 +125,7 @@ pub fn library_path(state: editor::State, found: Node) -> str? {
     if animation_component.is_nil() {
         return nil;
     }
-    let library = animation_component.library;
+    let library = animation_component["library"];
     if library.kind() == "str" && library.as_str() != "" { library.as_str() } else { nil }
 }
 
@@ -135,14 +135,14 @@ fn entry_of(doc: any, name: str) -> any {
     if name == "" {
         return doc;
     }
-    let entry = doc.get(name);
+    let entry = doc[name];
     if entry.kind() == "map" {
         return entry;
     }
     for key in doc.keys() {
-        let group = doc.get(key);
-        if group.kind() == "map" && group.get(name).kind() == "map" {
-            return group.get(name);
+        let group = doc[key];
+        if group.kind() == "map" && group[name].kind() == "map" {
+            return group[name];
         }
     }
     nil
@@ -153,7 +153,7 @@ fn same(first: any, second: any) -> bool {
 }
 
 fn library_of(animation_component: any) -> any {
-    let library = animation_component.library;
+    let library = animation_component["library"];
     if library.is_nil() { "" } else { library }
 }
 
@@ -216,12 +216,12 @@ pub fn clip_names(state: &mut editor::State) -> [str] {
         return out;
     }
     for key in doc.keys() {
-        let group = doc.get(key);
+        let group = doc[key];
         if group.kind() != "map" {
             continue;
         }
         for name in group.keys() {
-            if group.get(name).kind() == "map" {
+            if group[name].kind() == "map" {
                 out.push(name);
             }
         }
@@ -236,38 +236,38 @@ pub fn definition(state: &mut editor::State) -> any {
 }
 
 pub fn tracks(clip_definition: any) -> any {
-    let tracks = clip_definition.tracks;
+    let tracks = clip_definition["tracks"];
     if tracks.kind() == "list" { tracks } else { [] }
 }
 
 /// A lane's name: the property, prefixed by the node it drives when that is
 /// not the player itself.
 pub fn track_label(track: any) -> str {
-    let property = if track.property.is_nil() { "call" } else { track.property.as_str() };
-    let target = track.target.as_str();
+    let property = if track["property"].is_nil() { "call" } else { track["property"].as_str() };
+    let target = track["target"].as_str();
     if target == "" { property } else { "{target} · {property}" }
 }
 
 pub fn length(clip_definition: any) -> float {
-    let held = clip_definition.length;
+    let held = clip_definition["length"];
     util::max(if held.is_nil() { 2.0 } else { held.as_float() }, 0.001)
 }
 
 pub fn key_count(clip_definition: any) -> int {
     let count = 0;
     for track in tracks(clip_definition) {
-        count += util::list_or_empty(track.keys).len();
+        count += util::list_or_empty(track["keys"]).len();
     }
     count
 }
 
 fn component_parameters(animation_component: any, library: any) -> any {
-    let speed = animation_component.speed_scale;
+    let speed = animation_component["speed_scale"];
     {
         "library": library,
-        "autoplay": animation_component.autoplay.as_str(),
+        "autoplay": animation_component["autoplay"].as_str(),
         "speed_scale": if speed.is_nil() { 1.0 } else { speed.as_float() },
-        "root_node": animation_component.root_node.as_str(),
+        "root_node": animation_component["root_node"].as_str(),
     }
 }
 
@@ -348,7 +348,7 @@ pub fn ensure_clip(state: &mut editor::State) -> any {
 
 fn track_for(clip_definition: any, property: str, target: str) -> any {
     for track in tracks(clip_definition) {
-        if track.target.as_str() == target && track.property.as_str() == property {
+        if track["target"].as_str() == target && track["property"].as_str() == property {
             return track;
         }
     }
@@ -356,21 +356,21 @@ fn track_for(clip_definition: any, property: str, target: str) -> any {
     if target != "" {
         track.set("target", target);
     }
-    if clip_definition.tracks.kind() != "list" {
+    if clip_definition["tracks"].kind() != "list" {
         clip_definition.set("tracks", []);
     }
-    clip_definition.tracks.push(track);
+    clip_definition["tracks"].push(track);
     track
 }
 
 fn put_key(track: any, time: float, value: any) {
     let key: any = { "time": time, "value": value };
-    let keys = util::list_or_empty(track.keys);
+    let keys = util::list_or_empty(track["keys"]);
     let out: [any] = [];
     let placed = false;
     for index in 0..keys.len() {
-        let old = keys.at(index);
-        let key_time = old.time.as_float();
+        let old = keys[index];
+        let key_time = old["time"].as_float();
         if !placed && util::abs(key_time - time) < SAME_TIME {
             out.push(key);
             placed = true;
@@ -452,8 +452,8 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
     let kept: [any] = [];
     for track in tracks(clip_definition) {
         let keys: [any] = [];
-        for key in util::list_or_empty(track.keys) {
-            if track.target.as_str() != target || util::abs(key.time.as_float() - time) >= 0.05 {
+        for key in util::list_or_empty(track["keys"]) {
+            if track["target"].as_str() != target || util::abs(key["time"].as_float() - time) >= 0.05 {
                 keys.push(key);
             }
         }

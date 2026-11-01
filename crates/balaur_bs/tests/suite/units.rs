@@ -159,7 +159,7 @@ pub fn bag() -> int {
     b.total + b.items.len()
 }
 pub fn bumped() -> int { let n = 1; util::bump(n); util::bump(n); n }
-pub fn table() -> int { let t = util::table(); t.get("a").as_int() + t.get("b").len() }
+pub fn table() -> int { let t = util::table(); t["a"].as_int() + t["b"].len() }
 pub fn halved() -> int { let f = util::halve(); f(10) }
 "#;
 

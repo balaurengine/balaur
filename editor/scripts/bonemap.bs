@@ -166,7 +166,7 @@ pub fn save(state: &mut editor::State) {
     let mapped: any = {};
     let bones = state.bonemap.bones;
     for name in bones.keys() {
-        let path = bones.get(name);
+        let path = bones[name];
         if path.as_str() != "" {
             mapped.set(name, path);
         }
@@ -200,7 +200,7 @@ pub fn fill(state: editor::State) {
     let filled = 0;
     let bones = state.bonemap.bones;
     for name in bones.keys() {
-        if bones.get(name).as_str() != "" {
+        if bones[name].as_str() != "" {
             filled += 1;
         }
     }
@@ -231,7 +231,7 @@ pub fn verb(state: &mut editor::State, name: str) {
 // being picked for: a dock this narrow has nowhere to put a floating list,
 // and the row it belongs to is the one thing a reader has to keep track of.
 fn row(state: editor::State, paths: [str], name: str) -> [any] {
-    let picked = state.bonemap.bones.get(name).as_str();
+    let picked = state.bonemap.bones[name].as_str();
     let open = state.bonemap.picking == name;
     let controls: [any] = [
         {
@@ -294,21 +294,21 @@ fn row(state: editor::State, paths: [str], name: str) -> [any] {
 }
 
 fn toggle_picker(state: &mut editor::State, data: any, _value: any) {
-    let open: bool = data.open;
-    let name: str = data.name;
+    let open: bool = data["open"];
+    let name: str = data["name"];
     state.bonemap.picking = if open { nil } else { name };
     signals::changed(state, "bonemap");
 }
 
 fn leave_row_empty(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data.name;
+    let name: str = data["name"];
     state.bonemap.bones.set(name, "");
     signals::changed(state, "bonemap");
 }
 
 fn pick_bone_path(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data.name;
-    let path: str = data.path;
+    let name: str = data["name"];
+    let path: str = data["path"];
     state.bonemap.bones.set(name, path);
     state.bonemap.picking = nil;
     signals::changed(state, "bonemap");

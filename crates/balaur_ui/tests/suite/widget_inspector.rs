@@ -36,9 +36,9 @@ impl Root {
     fn init() { self.depth = -1.0; }
     pub fn edited(edit: any) {
         self.edits += 1.0;
-        self.depth = edit.get(\"path\").len() as float;
-        let property = edit.get(\"property\");
-        let value = edit.get(\"value\");
+        self.depth = edit[\"path\"].len() as float;
+        let property = edit[\"property\"];
+        let value = edit[\"value\"];
         self.seen = \"{property} {value}\";
     }
 }

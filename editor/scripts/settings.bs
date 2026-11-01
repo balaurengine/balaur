@@ -120,7 +120,7 @@ fn scopes() -> any {
 }
 
 fn scope_of(category: str) -> str {
-    let found = scopes().get(category);
+    let found = scopes()[category];
     if found.is_nil() { "project" } else { found.as_str() }
 }
 
@@ -148,7 +148,7 @@ fn showing(state: editor::State) -> [settings::Setting] {
         } else {
             // The path and the help both, so "packet" finds `multiplayer/loss`
             // by its sentence when its name does not say it.
-            setting.path.to_lower().contains(query) || setting.spec.help.as_str().to_lower().contains(query)
+            setting.path.to_lower().contains(query) || setting.spec["help"].as_str().to_lower().contains(query)
         };
         if matches {
             // Slid in after every row that ranks the same or before, so equal
@@ -170,7 +170,7 @@ fn rank_of(setting: settings::Setting) -> float {
 }
 
 fn order_of(setting: settings::Setting) -> float {
-    let order = setting.spec.order;
+    let order = setting.spec["order"];
     if order.is_nil() { 1000.0 } else { order.as_float() }
 }
 
@@ -315,7 +315,7 @@ fn side_controls(state: editor::State, tokens: any) -> [any] {
     for name in categories() {
         // Bound afresh: a closure made in a loop captures the binding.
         let category = name;
-        let held = scopes.get(category);
+        let held = scopes[category];
         let here = if held.is_nil() { "project" } else { held.as_str() };
         if here != scope {
             scope = here;
@@ -339,7 +339,7 @@ fn side_controls(state: editor::State, tokens: any) -> [any] {
 }
 
 fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
-    let category: any = data.category;
+    let category: any = data["category"];
     set_query(state, "");
     state.settings.at = category.as_str();
 }
@@ -412,7 +412,7 @@ fn form_specs(state: editor::State, tokens: any) -> [any] {
             "slot_role": "layout_actions",
             "label": if searching { path } else { key_of(setting) },
         });
-        let help = setting.spec.help.as_str();
+        let help = setting.spec["help"].as_str();
         if help != "" {
             let tail = if setting.applies_now { "" } else { "  ·  takes effect on the next run" };
             out.push(note_spec(help + tail));
@@ -446,7 +446,7 @@ fn on_theme_edit_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    settings::clear(data.at.as_str());
+    settings::clear(data["at"].as_str());
     state.settings.dirty = true;
 }
 
@@ -515,7 +515,7 @@ fn override_path(tag: str, path: str) -> str {
 /// The control one setting's row carries, by the schema's datatype.
 fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> any {
     let spec = util::map_or_empty(setting.spec);
-    let datatype = if spec.type.is_nil() { "string" } else { spec.type.as_str() };
+    let datatype = if spec["type"].is_nil() { "string" } else { spec["type"].as_str() };
     let value = settings::base(path);
     if datatype == "bool" {
         return {
@@ -534,14 +534,14 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             "role": "choice_form",
             "grow": 1,
             "text": if value.kind() == "str" { value.as_str() } else { "" },
-            "options": if named { theme::names() } else { util::list_or_empty(spec.options) },
+            "options": if named { theme::names() } else { util::list_or_empty(spec["options"]) },
             "on": "handle",
             "data": { "fn": on_choice_picked, "path": path },
         };
     }
     if datatype == "int" || datatype == "float" {
-        let low = spec.min.as_float();
-        let high = if !spec.max.is_nil() { spec.max.as_float() } else if datatype == "int" { 1000000.0 } else { 1.0 };
+        let low = spec["min"].as_float();
+        let high = if !spec["max"].is_nil() { spec["max"].as_float() } else if datatype == "int" { 1000000.0 } else { 1.0 };
         // A setting declared with no default reads as nil; the control starts
         // at its floor instead.
         let now = if value.is_nil() { low } else { value.as_float() };
@@ -574,33 +574,33 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
         "role": "input_form",
         "grow": 1,
         "text": shown,
-        "secret": spec.secret.as_bool(),
+        "secret": spec["secret"].as_bool(),
         "on_submit": "handle_submit",
         "data": { "submit": on_text_submitted, "path": path, "datatype": datatype },
     }
 }
 
 fn on_switch_toggled(state: &mut editor::State, data: any, on: any) {
-    write(state, data.path.as_str(), on);
+    write(state, data["path"].as_str(), on);
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
-    write(state, data.path.as_str(), picked);
+    write(state, data["path"].as_str(), picked);
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    if data.whole.as_bool() {
-        write(state, data.path.as_str(), math::round(value.as_float()) as int);
+    if data["whole"].as_bool() {
+        write(state, data["path"].as_str(), math::round(value.as_float()) as int);
     } else {
-        write(state, data.path.as_str(), value);
+        write(state, data["path"].as_str(), value);
     }
 }
 
 fn on_text_submitted(state: &mut editor::State, data: any, text: any) {
-    if data.datatype.as_str() == "list" {
-        write(state, data.path.as_str(), split_commas(text.as_str()));
+    if data["datatype"].as_str() == "list" {
+        write(state, data["path"].as_str(), split_commas(text.as_str()));
     } else {
-        write(state, data.path.as_str(), text);
+        write(state, data["path"].as_str(), text);
     }
 }
 

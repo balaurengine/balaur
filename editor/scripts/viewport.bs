@@ -103,13 +103,13 @@ pub fn camera_gesture(state: editor::State) -> bool {
 pub fn mouse_camera(state: &mut editor::State) -> bool {
     // `mouse_position` counts physical pixels, `dpi` of them to a logical one.
     let pose = render::camera_pose();
-    let dpi = pose.at(7);
+    let dpi = pose[7];
     let dpi = util::max(dpi, 0.01);
     let at = pointer(state);
     let over = owns_pointer(state, at.x, at.y);
     let button = camera_drag(state, over);
     let scroll = input::scroll_delta();
-    let wheel = scroll.at(1);
+    let wheel = scroll.y;
     let wheel = if over { wheel } else { 0.0 };
     let orbiting = button == input::MOUSE_BUTTON_MIDDLE.as_int();
     let panning = button == input::MOUSE_BUTTON_RIGHT.as_int();
@@ -117,17 +117,17 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
         return false;
     }
     let motion = input::mouse_delta();
-    let motion_x = motion.at(0);
-    let motion_y = motion.at(1);
+    let motion_x = motion.x;
+    let motion_y = motion.y;
     // A pan keeps the ground under the pointer, so it moves by the logical
     // pixel the stage is laid out in; an orbit turns by the physical one.
     let delta_x = if panning { motion_x / dpi } else { motion_x };
     let delta_y = if panning { motion_y / dpi } else { motion_y };
     if state.mode2d {
         let camera = render::camera_2d();
-        let centre_x = camera.at(0);
-        let centre_y = camera.at(1);
-        let zoom = camera.at(2);
+        let centre_x = camera.x;
+        let centre_y = camera.y;
+        let zoom = camera.z;
         let held = util::max(zoom, 0.01);
         let next = util::clamp(held.as_float() * math::pow(dolly_step(), wheel.as_float()), 0.02, 4000.0);
         if panning {
@@ -172,13 +172,13 @@ pub fn dolly_step() -> float {
 
 fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bool, delta_x: float, delta_y: float) {
     let pose = render::camera_pose();
-    let eye_x = pose.at(0);
-    let eye_y = pose.at(1);
-    let eye_z = pose.at(2);
-    let target_x = pose.at(3);
-    let target_y = pose.at(4);
-    let target_z = pose.at(5);
-    let fov = pose.at(6);
+    let eye_x = pose[0];
+    let eye_y = pose[1];
+    let eye_z = pose[2];
+    let target_x = pose[3];
+    let target_y = pose[4];
+    let target_z = pose[5];
+    let fov = pose[6];
     let offset_x = eye_x - target_x;
     let offset_y = eye_y - target_y;
     let offset_z = eye_z - target_z;
@@ -247,9 +247,9 @@ fn slide_axes(state: editor::State, unit: [float], distance: float, fov: any) ->
 // the centre, both in the world units the centre is kept in.
 fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: float) {
     let camera = render::camera_2d();
-    let centre_x = camera.at(0);
-    let centre_y = camera.at(1);
-    let zoom = camera.at(2);
+    let centre_x = camera.x;
+    let centre_y = camera.y;
+    let zoom = camera.z;
     let held = util::max(zoom, 0.01);
     let next = if scale > 0.0 { util::clamp(held.as_float() * scale, 0.02, 4000.0) } else { held };
     render::set_camera_2d(centre_x.as_float() - delta_x / next.as_float(), centre_y.as_float() + delta_y / next.as_float(), next.as_float());
@@ -259,13 +259,13 @@ fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: floa
 // line between them and a drag slides both across it.
 fn orbit_3d(state: editor::State, scale: float, delta_x: float, delta_y: float) {
     let pose = render::camera_pose();
-    let eye_x = pose.at(0);
-    let eye_y = pose.at(1);
-    let eye_z = pose.at(2);
-    let target_x = pose.at(3);
-    let target_y = pose.at(4);
-    let target_z = pose.at(5);
-    let fov = pose.at(6);
+    let eye_x = pose[0];
+    let eye_y = pose[1];
+    let eye_z = pose[2];
+    let target_x = pose[3];
+    let target_y = pose[4];
+    let target_z = pose[5];
+    let fov = pose[6];
     let offset_x = eye_x - target_x;
     let offset_y = eye_y - target_y;
     let offset_z = eye_z - target_z;
@@ -316,7 +316,7 @@ pub fn hover_color() -> [float] {
 /// World units per design pixel (design px = logical px / ui scale).
 pub fn world_per_pixel(state: editor::State) -> float {
     let camera = render::camera_2d();
-    let zoom = camera.at(2);
+    let zoom = camera.z;
     state.ui_scale / util::max(zoom, 0.01).as_float()
 }
 

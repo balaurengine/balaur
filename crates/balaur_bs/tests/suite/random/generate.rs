@@ -239,20 +239,11 @@ impl Gen {
             0 | 1 => {
                 let r = Box::new(self.any_expr(s, d));
                 let k = self.pick(&ANY_KEYS);
-                match self.rng.below(3) {
-                    0 => E::Method(r, "get", vec![E::Str(k.into())]),
-                    1 => E::Index(r, Box::new(E::Str(k.into()))),
-                    _ => E::Dot(r, k),
-                }
+                E::Index(r, Box::new(E::Str(k.into())))
             }
             2 => {
                 let r = Box::new(self.any_expr(s, d));
-                let at = self.small(s, d);
-                if self.rng.chance(2) {
-                    E::Method(r, "at", vec![at])
-                } else {
-                    E::Index(r, Box::new(at))
-                }
+                E::Index(r, Box::new(self.small(s, d)))
             }
             3 => E::MapAny,
             4 => {
@@ -315,10 +306,10 @@ impl Gen {
     fn any_place(&mut self, s: &Scope) -> Option<E> {
         let v = Box::new(E::Var(self.some(&s.of(T::Any))?));
         let k = self.pick(&ANY_KEYS);
-        Some(match self.rng.below(5) {
-            0 => E::Method(v, "get", vec![E::Str(k.into())]),
-            1 => E::Dot(v, k),
-            _ => *v,
+        Some(if self.rng.chance(3) {
+            E::Index(v, Box::new(E::Str(k.into())))
+        } else {
+            *v
         })
     }
 

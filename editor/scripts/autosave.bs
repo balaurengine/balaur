@@ -51,7 +51,7 @@ pub fn step(state: &mut editor::State) {
 pub fn write_typed(state: &mut editor::State, now: float) -> int {
     let rested: [str] = [];
     for path in state.script_dirty.keys() {
-        if now - state.script_dirty.get(path).as_float() >= TYPING_SETTLE {
+        if now - state.script_dirty[path].as_float() >= TYPING_SETTLE {
             rested.push(path.as_str());
         }
     }

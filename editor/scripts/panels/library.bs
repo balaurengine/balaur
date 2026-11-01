@@ -56,18 +56,18 @@ impl Library {
         }
         let kinds = self.node.get_node("Kinds");
         for kind in KINDS() {
-            kinds.get_node(kind).patch_component("widget", { "checked": kind == view.get("kind").as_str() });
+            kinds.get_node(kind).patch_component("widget", { "checked": kind == view["kind"].as_str() });
         }
-        self.node.get_node("Note").patch_component("widget", { "visible": view.get("says").as_str() != "", "text": view.get("says") });
-        let cards = !view.get("templates").as_bool() && view.get("items").len() > 0;
-        let table = view.get("templates") && view.get("items").len() > 0;
+        self.node.get_node("Note").patch_component("widget", { "visible": view["says"].as_str() != "", "text": view["says"] });
+        let cards = !view["templates"].as_bool() && view["items"].len() > 0;
+        let table = view["templates"] && view["items"].len() > 0;
         self.node.get_node("Cards").patch_component("widget", {
             "visible": cards,
-            "options": if cards { view.get("items") } else { [] },
+            "options": if cards { view["items"] } else { [] },
         });
         self.node.get_node("Table").patch_component("widget", {
             "visible": table,
-            "options": if table { view.get("items") } else { [] },
+            "options": if table { view["items"] } else { [] },
         });
     }
 }

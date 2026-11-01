@@ -544,7 +544,7 @@ impl Scenario {
     fn init() {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "particle_radius": 0.0 });
         let read = self.node.get_component("softbody3d");
-        if read.get("particle_radius").as_float() != 0.0 || read.get("particle_radius").kind() == "nil" { log::error("the automatic radius read back as a number"); }
+        if read["particle_radius"].as_float() != 0.0 || read["particle_radius"].kind() == "nil" { log::error("the automatic radius read back as a number"); }
     }
 }
 "#,
@@ -586,7 +586,7 @@ impl Scenario {
     fn init() {
         self.node.set_component("soft_grid3d", { "cells": [2.0, 2.0, 2.0] }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "solver": physics3d::SOFT_SOLVER_FEM, "soft_material": { "cell_model": physics3d::CELL_COROTATIONAL } });
         let read = self.node.get_component("softbody3d");
-        if read.get("solver").as_str() != physics3d::SOFT_SOLVER_FEM { log::error("the body runs on the constraint solver"); }
+        if read["solver"].as_str() != physics3d::SOFT_SOLVER_FEM { log::error("the body runs on the constraint solver"); }
         self.first = self.node.softbody3d.softbody_position(0);
     }
 
@@ -883,7 +883,7 @@ impl Scenario {
         }
         if self.ticks == 7 {
             let made = assets::load(n.softbody3d.soft_material);
-            if made.edge_hz.as_float() != 20.0 { log::error("the stiffness did not take"); }
+            if made["edge_hz"].as_float() != 20.0 { log::error("the stiffness did not take"); }
             if n.softbody3d.softbody_position(0).y > self.before + 0.0001 { log::error("the change snapped the body back to rest"); }
             log::error("checked: tuned in place");
         }

@@ -9,10 +9,10 @@ pub fn run(a: any) -> str {
     let v = vec3(1.0, 2.0, 3.0);
     a.name = "elf";
     a["hp"] = 7;
-    let o: str? = if a.has("name") { a.name } else { nil };
+    let o: str? = if a.has("name") { a["name"] } else { nil };
     let log = 0;
     if log > 1 { log = 2; } else { nil };
-    "{pick("a").len()} {pick("b").len()} {b.size.or([]).len()} {v.at(1)} {v.get("z")} {a.name} {a["hp"].as_int()} {o == "elf"} {[1, 2] == [1, 2]} {["q"]} {none(a).is_nil()} {nothing(a).as_int()}"
+    "{pick("a").len()} {pick("b").len()} {b.size.or([]).len()} {v.y} {v.z} {a["name"]} {a["hp"].as_int()} {o == "elf"} {[1, 2] == [1, 2]} {["q"]} {none(a).is_nil()} {nothing(a).as_int()}"
 }
 
 // expect: run({ "name": "orc" }) == "2 0 0 2.0 3.0 elf 7 true true [\"q\"] true 0"

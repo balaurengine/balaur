@@ -31,13 +31,13 @@ impl Imports {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view.get("shown") });
+        self.node.patch_component("widget", { "visible": view["shown"] });
         let bar = self.node.get_node("Bar");
-        bar.patch_component("widget", { "visible": view.get("bar") });
-        bar.patch_component("widget_range", { "value": view.get("value") });
-        self.until = view.get("until").as_float();
-        if view.get("until").as_float() > 0.0 {
-            ui::request_repaint(ui::RepaintOptions { after: view.get("until").as_float() - engine::unix_time() + 0.05 });
+        bar.patch_component("widget", { "visible": view["bar"] });
+        bar.patch_component("widget_range", { "value": view["value"] });
+        self.until = view["until"].as_float();
+        if view["until"].as_float() > 0.0 {
+            ui::request_repaint(ui::RepaintOptions { after: view["until"].as_float() - engine::unix_time() + 0.05 });
         }
     }
 }

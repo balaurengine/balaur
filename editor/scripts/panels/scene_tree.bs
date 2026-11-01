@@ -81,19 +81,19 @@ impl SceneTree {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Find/Add").patch_component("widget", { "icon": view.get("add_icon") });
+        self.node.get_node("Find/Add").patch_component("widget", { "icon": view["add_icon"] });
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
-        if view.get("filtering") && view.get("items").len() == 0 {
+        if view["filtering"] && view["items"].len() == 0 {
             tree.patch_component("widget", { "visible": false });
-            nothing.patch_component("widget", { "visible": true, "text": view.get("nothing") });
+            nothing.patch_component("widget", { "visible": true, "text": view["nothing"] });
             return;
         }
         nothing.patch_component("widget", { "visible": false });
         tree.patch_component("widget", {
             "visible": true,
-            "options": view.get("items"),
-            "selection": view.get("chosen"),
+            "options": view["items"],
+            "selection": view["chosen"],
         });
     }
 }

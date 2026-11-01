@@ -252,7 +252,7 @@ fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::St
 }
 
 fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
-    let write: fn(&mut editor::State, int) = data.write;
+    let write: fn(&mut editor::State, int) = data["write"];
     write(state, util::max(math::round(value.as_float()), 0.0) as int);
 }
 
@@ -275,7 +275,7 @@ fn number(state: editor::State, label: str, value: float, step: float, write: fn
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    let write: fn(&mut editor::State, float) = data.write;
+    let write: fn(&mut editor::State, float) = data["write"];
     write(state, value.as_float());
 }
 
@@ -302,7 +302,7 @@ fn fraction(state: editor::State, label: str, value: float, write: fn(&mut edito
 }
 
 fn on_fraction_changed(state: &mut editor::State, data: any, value: any) {
-    let write: fn(&mut editor::State, float) = data.write;
+    let write: fn(&mut editor::State, float) = data["write"];
     write(state, util::clamp(value.as_float(), 0.0, 1.0));
 }
 
@@ -314,7 +314,7 @@ fn drawn(found: Node) -> bool {
 /// What the node asks of its multimesh's `source`: an inline table, a `#id`
 /// of the scene's blocks, or a file.
 fn source_of(found: Node, name: str) -> any {
-    if found.is_valid() && found.has_component(name) { found.authored(name).source } else { nil }
+    if found.is_valid() && found.has_component(name) { found.authored(name)["source"] } else { nil }
 }
 
 // Where the list lands, in words: the asset itself when it is inline, the
@@ -401,18 +401,18 @@ fn surface_node(state: editor::State) -> Node {
 // it is one history step; a file has no place in the document's history.
 fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> str {
     let asked = util::map_or_empty(node.authored(name));
-    if asked.source.kind() == "map" {
+    if asked["source"].kind() == "map" {
         history::record(state, "Populate", nil);
-        asked.source.set("instances", instances);
+        asked["source"].set("instances", instances);
         node.set_component(name, asked);
         return "this node's asset";
     }
-    let source = asked.source.as_str();
+    let source = asked["source"].as_str();
     if source.starts_with("#") {
         let id = source.slice(1, source.len());
         history::record(state, "Populate", nil);
-        for block in util::list_or_empty(state.scene_doc.assets) {
-            if block.id.as_str() == id {
+        for block in util::list_or_empty(state.scene_doc["assets"]) {
+            if block["id"].as_str() == id {
                 block.set("instances", instances);
             }
         }

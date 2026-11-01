@@ -47,11 +47,11 @@ impl Scenario {{
     }}
 
     pub fn on_websocket_event(e: any) {{
-        let kind = e.get("kind").as_str();
+        let kind = e["kind"].as_str();
         if kind == "open" {{
             websocket::send(self.socket, "ping");
         }} else if kind == "message" {{
-            let text = e.get("text");
+            let text = e["text"];
             log::info("echoed {{text}}");
             websocket::close(self.socket);
         }} else if kind == "closed" {{
@@ -80,12 +80,12 @@ impl Scenario {{
     }}
 
     pub fn on_websocket_event(e: any) {{
-        let kind = e.get("kind").as_str();
+        let kind = e["kind"].as_str();
         if kind == "open" {{
             // 0, 255, 16, 254
             websocket::send(self.socket, encoding::from_base64("AP8Q/g=="));
         }} else if kind == "binary" {{
-            let count = e.get("bytes").len();
+            let count = e["bytes"].len();
             log::info("binary {{count}}");
             websocket::close(self.socket);
         }} else if kind == "closed" {{
@@ -117,11 +117,11 @@ impl Scenario {{
     async fn init() {{
         let socket = websocket::connect(self.node, "{echo}").as_int();
         let opened = await task::wait(socket);
-        let kind = opened.get("kind");
+        let kind = opened["kind"];
         log::info("awaited {{kind}}");
         websocket::close(socket);
         let refused = await task::wait(websocket::connect(self.node, "{nothing}").as_int());
-        let why = refused.get("kind");
+        let why = refused["kind"];
         log::info("refused {{why}}");
     }}
 

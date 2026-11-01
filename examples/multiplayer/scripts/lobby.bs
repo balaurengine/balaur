@@ -46,14 +46,14 @@ impl Lobby {
     }
 
     pub fn on_multiplayer_event(e: any) {
-        let kind = e.get("kind");
+        let kind = e["kind"];
         if kind == multiplayer::EVENT_JOINED {
-            let name = e.get("name");
+            let name = e["name"];
             self.say("{name} joined; starting.");
         } else if kind == multiplayer::EVENT_CONNECTED && self.joining {
             self.say("In the lobby; waiting for the host to start.");
         } else if kind == multiplayer::EVENT_ERROR && self.joining {
-            let reason = e.get("reason");
+            let reason = e["reason"];
             self.say("No host yet ({reason}); trying again.");
             self.retry_in = RETRY_FRAMES;
         }

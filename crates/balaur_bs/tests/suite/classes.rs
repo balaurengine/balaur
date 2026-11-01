@@ -166,7 +166,7 @@ fn a_class_boxes_as_its_fields_and_comes_back_a_new_object() {
                 let back: P = held;
                 back.x += 10;
                 let q = P { x: 4, tags: ["a"] };
-                self.said = "{held.x} {p.x} {back.x} {p == q} {p}";
+                self.said = "{held["x"]} {p.x} {back.x} {p == q} {p}";
             }
         }
     "#;

@@ -186,8 +186,8 @@ fn filtered(state: &mut editor::State) -> Built {
     let rows: [any] = [];
     let hidden = 0;
     for entry in entries {
-        let matches = query == "" || entry.message.as_str().to_lower().contains(query) || entry.tag.as_str().to_lower().contains(query);
-        if severity(entry.level) < floor || !matches {
+        let matches = query == "" || entry["message"].as_str().to_lower().contains(query) || entry["tag"].as_str().to_lower().contains(query);
+        if severity(entry["level"]) < floor || !matches {
             hidden += 1;
             continue;
         }
@@ -231,23 +231,23 @@ pub fn output_clear(state: &mut editor::State) {
 fn log_lines(rows: [any], tokens: any) -> [str] {
     let items: [str] = [];
     for entry in rows {
-        let level = entry.level.as_str();
-        let tag = entry.tag.as_str();
-        let tint = tokens.text_muted.as_str();
+        let level = entry["level"].as_str();
+        let tag = entry["tag"].as_str();
+        let tint = tokens["text_muted"].as_str();
         let marker = " ";
         if level == "error" {
-            tint = tokens.danger_text.as_str();
+            tint = tokens["danger_text"].as_str();
             marker = "×";
         } else if level == "warn" {
-            tint = tokens.warning_text.as_str();
+            tint = tokens["warning_text"].as_str();
             marker = "!";
         } else if tag == "env" {
-            tint = tokens.secondary_text.as_str();
+            tint = tokens["secondary_text"].as_str();
         }
         let short = if tag.len() > 9 { tag.slice(0, 9) } else { tag };
-        let time = util::fixed(entry.time.as_float(), 1);
+        let time = util::fixed(entry["time"].as_float(), 1);
         let line = util::repeat(" ", util::int_max(0, 6 - time.len())) + time;
-        items.push(util::row(marker, "{line}s  {short}  {entry.message.as_str()}", "", tint));
+        items.push(util::row(marker, "{line}s  {short}  {entry["message"].as_str()}", "", tint));
     }
     items
 }
@@ -369,7 +369,7 @@ fn dependency_at(state: editor::State, relative_path: str) -> any {
         return nil;
     }
     for dependency_entry in dependency::list() {
-        if dependency_entry.get("alias").as_str() == alias.unwrap() && dependency_entry.get("game").as_str() == state.game_root {
+        if dependency_entry["alias"].as_str() == alias.unwrap() && dependency_entry["game"].as_str() == state.game_root {
             return dependency_entry;
         }
     }
@@ -390,8 +390,8 @@ fn shown_folder(state: editor::State, relative_path: str) -> bool {
 /// The game's first `path` dependency, where Move to project puts files.
 fn shelf(state: editor::State) -> str {
     for dependency_entry in dependency::list() {
-        if dependency_entry.get("kind").as_str() == "path" && dependency_entry.get("game").as_str() == state.game_root {
-            return dependency_entry.get("alias").as_str();
+        if dependency_entry["kind"].as_str() == "path" && dependency_entry["game"].as_str() == state.game_root {
+            return dependency_entry["alias"].as_str();
         }
     }
     ""
@@ -399,10 +399,10 @@ fn shelf(state: editor::State) -> str {
 
 /// What Edit dependency opens for `dependency_entry`: its folder or its page.
 fn source_of(dependency_entry: any) -> str {
-    if dependency_entry.get("kind").as_str() == "path" {
-        return "Open {dependency_entry.get("path").as_str()} in a second editor";
+    if dependency_entry["kind"].as_str() == "path" {
+        return "Open {dependency_entry["path"].as_str()} in a second editor";
     }
-    "Open {dependency_entry.get("project").as_str()} on Forge"
+    "Open {dependency_entry["project"].as_str()} on Forge"
 }
 
 /// Say why a dependency's file is not changed here, and what does change it.
@@ -411,7 +411,7 @@ fn refuse_in_dependency(state: editor::State, relative_path: str) -> bool {
     if dependency_entry.is_nil() {
         return false;
     }
-    log::warn("res://{relative_path} is in the dependency {dependency_entry.get("alias").as_str()}, which is read-only here: make it local to change it, or edit the dependency");
+    log::warn("res://{relative_path} is in the dependency {dependency_entry["alias"].as_str()}, which is read-only here: make it local to change it, or edit the dependency");
     true
 }
 
@@ -423,7 +423,7 @@ fn make_local(state: &mut editor::State) {
     if dependency_entry.is_nil() {
         return;
     }
-    let inside = relative_path.slice("deps/{dependency_entry.get("alias").as_str()}/".len(), relative_path.len());
+    let inside = relative_path.slice("deps/{dependency_entry["alias"].as_str()}/".len(), relative_path.len());
     let target = inside;
     let copy_number = 2;
     while fs::exists(asset_path(state, target)) {
@@ -437,7 +437,7 @@ fn make_local(state: &mut editor::State) {
     model::forget(state, nil);
     state.assets.selected = target;
     state.assets.directory = parent_directory(target);
-    log::info("made res://{target} from {dependency_entry.get("alias").as_str()}; {rewritten.len()} file(s) now name it");
+    log::info("made res://{target} from {dependency_entry["alias"].as_str()}; {rewritten.len()} file(s) now name it");
 }
 
 /// Move the selected game file into the game's `path` dependency.
@@ -461,14 +461,14 @@ fn edit_dependency(state: editor::State) {
     if dependency_entry.is_nil() {
         return;
     }
-    if dependency_entry.get("kind").as_str() == "path" {
-        let opened = util::map_or_empty(project::open_beside(state.game_root + "/" + dependency_entry.get("path").as_str()));
-        if !opened.get("error").is_nil() {
-            log::warn(opened.get("error").as_str());
+    if dependency_entry["kind"].as_str() == "path" {
+        let opened = util::map_or_empty(project::open_beside(state.game_root + "/" + dependency_entry["path"].as_str()));
+        if !opened["error"].is_nil() {
+            log::warn(opened["error"].as_str());
         }
         return;
     }
-    engine::open_url("{forge::url()}/projects/{dependency_entry.get("project").as_str()}");
+    engine::open_url("{forge::url()}/projects/{dependency_entry["project"].as_str()}");
 }
 
 /// What the Assets panel shows for a search: where the browser is, its cards
@@ -478,7 +478,7 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let directory = state.assets.directory;
     let files: [any] = [];
     for entry in model::list(state, directory) {
-        if search::matches(query, entry.name.as_str()) {
+        if search::matches(query, entry["name"].as_str()) {
             files.push(entry);
         }
     }
@@ -489,14 +489,14 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let cards: any = {};
     let picked = "";
     for entry in files {
-        let name = entry.name.as_str();
-        let is_directory = entry.is_dir.as_bool();
+        let name = entry["name"].as_str();
+        let is_directory = entry["is_dir"].as_bool();
         let relative_path = if directory == "" { name } else { "{directory}/{name}" };
         let look = asset_look(name, is_directory);
         // A dependency's files are one shade quieter, as a prefab's rows are:
         // there to use, not to change.
         let ink = if relative_path.starts_with("deps/") { "text_subtle" } else { look.ink };
-        let item = util::row(look.icon, name, relative_path, tokens.get(ink).as_str());
+        let item = util::row(look.icon, name, relative_path, tokens[ink].as_str());
         if relative_path == state.assets.selected {
             picked = item;
         }
@@ -514,10 +514,10 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let in_dependency = dependency_at(state, directory);
     let pinned = if in_dependency.is_nil() {
         ""
-    } else if in_dependency.get("rev").as_str() != "" {
-        " · {in_dependency.get("rev").as_str().slice(0, 7)}"
+    } else if in_dependency["rev"].as_str() != "" {
+        " · {in_dependency["rev"].as_str().slice(0, 7)}"
     } else {
-        " · {in_dependency.get("path").as_str()}"
+        " · {in_dependency["path"].as_str()}"
     };
     let selected_own = state.assets.selected != "" && !state.assets.selected.starts_with("deps/");
     AssetsView {
@@ -542,7 +542,7 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         local: !here.is_nil() && state.assets.selected != "" && !shown_folder(state, state.assets.selected),
         move_to: if selected_own { shelf(state) } else { "" },
         source_tip: if here.is_nil() { "" } else { source_of(here) },
-        update: !here.is_nil() && here.get("kind").as_str() == "forge",
+        update: !here.is_nil() && here["kind"].as_str() == "forge",
     }
 }
 
@@ -616,7 +616,7 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
 /// A card dragged out of the Assets panel and let go: over the viewport, the
 /// file is placed where the pointer is; anywhere else, nothing happens.
 pub fn drop_card(state: &mut editor::State, card: any) -> bool {
-    let relative_path = state.assets.cards.get(card.as_str());
+    let relative_path = state.assets.cards[card.as_str()];
     if relative_path.is_nil() {
         return false;
     }
@@ -669,7 +669,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     util::fill(TIMELINE + "/Body/Head/Time", { "text": "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s" });
     // The engine's own vocabulary, not a boolean: pingpong is a third answer
     // and a toggle cannot say it.
-    let loop_mode = definition.loop_mode;
+    let loop_mode = definition["loop_mode"];
     util::fill_beside(TIMELINE + "/Body/Head/Length", "widget_range", { "value": anim::length(definition) });
     util::fill(TIMELINE + "/Body/Head/Loop", {
         "text": if loop_mode.is_nil() { animation::LOOP_NONE } else { loop_mode.as_str() },
@@ -709,10 +709,10 @@ pub fn timeline_fill(state: &mut editor::State) {
     let rows: [any] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
-        let color = (if index % 2 == 0 { tokens.primary_text } else { tokens.secondary_text }).as_str();
+        let color = (if index % 2 == 0 { tokens["primary_text"] } else { tokens["secondary_text"] }).as_str();
         let keys: [any] = [];
-        for key in util::list_or_empty(track.keys) {
-            let when = key.time.as_float();
+        for key in util::list_or_empty(track["keys"]) {
+            let when = key["time"].as_float();
             let before = when <= state.anim.time + 1e-4;
             // A key is its mark: filled once the playhead has passed it.
             keys.push({
@@ -778,7 +778,7 @@ fn width_of(path: str) -> float {
 }
 
 fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
-    anim::seek(state, data.when.as_float());
+    anim::seek(state, data["when"].as_float());
 }
 
 /// The Timeline tab's verbs, by the name of the button pressed.
@@ -863,15 +863,15 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
     // tree's own, so nothing here folds.
     let items: [str] = [];
     let owners: [int] = [];
-    let frames = util::list_or_empty(paused.frames);
+    let frames = util::list_or_empty(paused["frames"]);
     for index in 0..frames.len() {
         let frame = frames[index];
-        let site = "{shell::script_rel(state, frame.path.as_str())}:{frame.line}";
+        let site = "{shell::script_rel(state, frame["path"].as_str())}:{frame["line"]}";
         // A recursion stacks frames that read alike; the depth keeps them apart.
-        items.push(util::cells([icons::ui("step-into"), frame.function.as_str(), site, tokens.text_default.as_str(), "{index}"]));
+        items.push(util::cells([icons::ui("step-into"), frame["function"].as_str(), site, tokens["text_default"].as_str(), "{index}"]));
         owners.push(index);
-        for name in util::keys_sorted(frame.locals) {
-            items.push("\t" + util::cells(["", name, value_text(frame.locals.get(name)), tokens.text_muted.as_str(), "{index}/{name}"]));
+        for name in util::keys_sorted(frame["locals"]) {
+            items.push("\t" + util::cells(["", name, value_text(frame["locals"][name]), tokens["text_muted"].as_str(), "{index}/{name}"]));
             owners.push(index);
         }
     }
@@ -893,8 +893,8 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
             icons::ui("step-into") + " Into",
             icons::ui("step-out") + " Out",
         ],
-        where: "{paused.reason.as_str()} · {state.debug.paused_rel}:{paused.line}",
-        threw: paused.message.as_str(),
+        where: "{paused["reason"].as_str()} · {state.debug.paused_rel}:{paused["line"]}",
+        threw: paused["message"].as_str(),
         break_on_error: on,
         frames: items,
         picked: picked,
@@ -933,12 +933,12 @@ pub fn debugger_frame(state: &mut editor::State, row: str) {
 fn problem_rows(state: editor::State) -> [any] {
     let rows: [any] = [];
     for finding in state.lint.found {
-        if finding.severity.as_str() == "error" {
+        if finding["severity"].as_str() == "error" {
             rows.push(finding);
         }
     }
     for finding in state.lint.found {
-        if finding.severity.as_str() != "error" {
+        if finding["severity"].as_str() != "error" {
             rows.push(finding);
         }
     }
@@ -946,11 +946,11 @@ fn problem_rows(state: editor::State) -> [any] {
 }
 
 fn problem_line(finding: any, tokens: any) -> str {
-    let bad = finding.severity.as_str() == "error";
-    let file = finding.file.as_str();
-    let at = if finding.line.as_int() > 0 { "{file}:{finding.line.as_int()}" } else { file };
-    let tint = if bad { tokens.danger_text } else { tokens.warning_text };
-    util::row(if bad { "×" } else { "!" }, "{at}  {finding.message.as_str()}", "", tint.as_str())
+    let bad = finding["severity"].as_str() == "error";
+    let file = finding["file"].as_str();
+    let at = if finding["line"].as_int() > 0 { "{file}:{finding["line"].as_int()}" } else { file };
+    let tint = if bad { tokens["danger_text"] } else { tokens["warning_text"] };
+    util::row(if bad { "×" } else { "!" }, "{at}  {finding["message"].as_str()}", "", tint.as_str())
 }
 
 /// What the Problems panel shows: a line a finding, and what to say when
@@ -984,7 +984,7 @@ pub fn problems_pick(state: &mut editor::State, picked: str) {
 // code rather than on a file name.
 fn open_at(state: &mut editor::State, finding: any) {
     for index in 0..state.nodes.len() {
-        if model::script_rel(state.nodes[index]).as_str() == finding.file.as_str() {
+        if model::script_rel(state.nodes[index]).as_str() == finding["file"].as_str() {
             shell::choose(state, index);
             shell::set_workspace(state, defs::WORKSPACE_SCRIPT);
             return;
@@ -1034,7 +1034,7 @@ pub fn lanes_fill(state: editor::State) {
                 "padding": 0,
                 "absolute": true,
                 "inset": [mark_x, -1.0, -1.0, -1.0],
-                "text_color": if tick <= replay::position() { tokens.primary_text } else { tokens.border_default },
+                "text_color": if tick <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
                 "tooltip": "{tick}: {mark.label}",
                 "on": "handle",
                 "data": { "fn": on_mark_pressed, "tick": tick },
@@ -1094,7 +1094,7 @@ pub fn lanes_fill(state: editor::State) {
 }
 
 fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
-    session::seek(state, data.tick.as_int());
+    session::seek(state, data["tick"].as_int());
 }
 
 /// The lanes' transport, by the name of the button pressed.
@@ -1194,22 +1194,22 @@ fn session_row(state: editor::State, recording: session::Row) -> [any] {
 }
 
 fn on_replay_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data.recording;
+    let recording: session::Row = data["recording"];
     session::open(state, recording.name);
 }
 
 fn on_delete_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data.recording;
+    let recording: session::Row = data["recording"];
     session::remove(state, recording.name);
 }
 
 fn on_copy_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data.recording;
+    let recording: session::Row = data["recording"];
     session::export(state, recording.name);
 }
 
 fn on_keep_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data.recording;
+    let recording: session::Row = data["recording"];
     session::keep(state, recording.name);
 }
 
@@ -1267,7 +1267,7 @@ fn script_rows(items: [str], tokens: any) {
     for row in costs {
         let count = row.instructions as float;
         let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
-        items.push(util::cells([row.path, "{row.instructions} st", bar(share), tokens.secondary_text.as_str()]));
+        items.push(util::cells([row.path, "{row.instructions} st", bar(share), tokens["secondary_text"].as_str()]));
     }
     // Each function's own statements under its file's rows, a handler the
     // pool calls by name among them.
@@ -1280,7 +1280,7 @@ fn script_rows(items: [str], tokens: any) {
             row.function,
             "{row.instructions} st · {row.calls} calls",
             bar(share),
-            tokens.text_muted.as_str(),
+            tokens["text_muted"].as_str(),
         ]));
     }
     engine::set_script_profiling(true);
@@ -1303,7 +1303,7 @@ fn bar(share: float) -> str {
 fn by_cost(table: any) -> [Cost] {
     let left: [Cost] = [];
     for name in table.keys() {
-        left.push(Cost { name: name, milliseconds: table.get(name).as_float() * 1000.0 });
+        left.push(Cost { name: name, milliseconds: table[name].as_float() * 1000.0 });
     }
     let out: [Cost] = [];
     while left.len() > 0 {
@@ -1325,11 +1325,11 @@ fn by_cost(table: any) -> [Cost] {
 fn cost_rows(items: [str], tokens: any, table: any, kind: str) {
     for row in by_cost(table) {
         let tint = (if row.milliseconds > BUDGET_MILLISECONDS * 0.5 {
-            tokens.primary_text
+            tokens["primary_text"]
         } else if kind == "span" {
-            tokens.secondary_text
+            tokens["secondary_text"]
         } else {
-            tokens.text_muted
+            tokens["text_muted"]
         }).as_str();
         items.push(util::cells([
             row.name,
@@ -1392,7 +1392,7 @@ fn cost_view(state: editor::State, tokens: any) -> MeterView {
             bytes(row.texture_bytes),
             if copies > 1 { "x{copies}" } else { "" },
             bar(util::clamp(row.triangles / worst, 0.0, 1.0)),
-            tokens.text_muted.as_str(),
+            tokens["text_muted"].as_str(),
         ]));
     }
     MeterView { titles: titles, widths: widths, items: items, says: "", headline: headline, scripts: false }
@@ -1407,7 +1407,7 @@ fn pack_size(state: editor::State) -> str {
     }
     let total = 0;
     for entry in util::list_or_empty(fs::list(out)) {
-        if !entry.is_dir.as_bool() {
+        if !entry["is_dir"].as_bool() {
             total += 1;
         }
     }

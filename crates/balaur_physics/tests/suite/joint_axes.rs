@@ -360,9 +360,9 @@ impl Scenario {
         self.node.joint3d.collide_connected = true;
         let axes = self.node.joint3d.axes;
         if axes.len() != 1 { log::error("the two calls wrote other than one record"); }
-        if axes[0].get("axis").as_str() != physics3d::AXIS_ROTATION_X { log::error("the record names another axis"); }
-        if axes[0].get("motor").as_str() != physics3d::MOTOR_VELOCITY { log::error("the motor call wrote no motor"); }
-        if math::abs(axes[0].get("limits").at(1).as_float() - 0.2) >= 0.0001 { log::error("the motor call dropped the limit"); }
+        if axes[0]["axis"].as_str() != physics3d::AXIS_ROTATION_X { log::error("the record names another axis"); }
+        if axes[0]["motor"].as_str() != physics3d::MOTOR_VELOCITY { log::error("the motor call wrote no motor"); }
+        if math::abs(axes[0]["limits"][1].as_float() - 0.2) >= 0.0001 { log::error("the motor call dropped the limit"); }
     }
 
     fn fixed_update(dt: float) {

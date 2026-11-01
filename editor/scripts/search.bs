@@ -26,7 +26,7 @@ pub fn typed(state: &mut editor::State, id: str, text: str) {
 
 /// The query a dock is filtering by, "" when it is not.
 pub fn query(state: editor::State, id: str) -> str {
-    let held = state.search.get(id);
+    let held = state.search[id];
     if held.is_nil() { "" } else { held.as_str() }
 }
 

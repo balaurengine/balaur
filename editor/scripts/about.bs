@@ -56,16 +56,16 @@ fn specs(state: editor::State) -> [any] {
                     "kind": "column",
                     "role": "layout_about",
                     "controls": [
-                        { "kind": "label", "role": "text_title", "text": "Balaur " + mine.get("version").as_str() },
+                        { "kind": "label", "role": "text_title", "text": "Balaur " + mine["version"].as_str() },
                         { "kind": "label", "role": "text_caption", "text": manager::build_line(mine) },
                     ],
                 },
             ],
         },
     ];
-    fact(out, "Version", mine.get("version").as_str());
-    fact(out, "Build", (if mine.get("source").as_bool() == true { "from a checkout" } else { mine.get("id") }).as_str());
-    fact(out, "Channel", (if mine.get("channel").as_str() == "" { "none" } else { mine.get("channel") }).as_str());
+    fact(out, "Version", mine["version"].as_str());
+    fact(out, "Build", (if mine["source"].as_bool() == true { "from a checkout" } else { mine["id"] }).as_str());
+    fact(out, "Channel", (if mine["channel"].as_str() == "" { "none" } else { mine["channel"] }).as_str());
     fact(out, "Platform", engine::target().os.as_str());
     fact(out, "License", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
@@ -113,7 +113,7 @@ fn link(text: str, url: str) -> any {
 }
 
 fn on_link_clicked(state: any, data: any, _value: any) {
-    let url: str = data.url;
+    let url: str = data["url"];
     engine::open_url(url);
 }
 
@@ -123,9 +123,9 @@ fn on_link_clicked(state: any, data: any, _value: any) {
 fn update_rows(state: editor::State, mine: any, out: [any]) {
     let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
-    let line = if mine.get("channel").as_str() == "" { "nightly" } else { mine.get("channel") };
+    let line = if mine["channel"].as_str() == "" { "nightly" } else { mine["channel"] };
     let newest = manager::newest_on(state, line.as_str());
-    let fresh = newest.get("order").as_str() == "newer";
+    let fresh = newest["order"].as_str() == "newer";
     let controls: [any] = [
         {
             "kind": "label",
@@ -133,11 +133,11 @@ fn update_rows(state: editor::State, mine: any, out: [any]) {
             "font_size": 11,
             "grow": 1,
             "text": line.as_str() + ": " + manager::standing(state, line.as_str()),
-            "text_color": (if fresh { tokens.get("success_text") } else { tokens.get("text_subtle") }).as_str(),
+            "text_color": (if fresh { tokens["success_text"] } else { tokens["text_subtle"] }).as_str(),
         },
     ];
     // Up to date already says it; only a release to move to gets a press.
-    if newest.get("id").as_str() != "" && newest.get("order").as_str() != "same" {
+    if newest["id"].as_str() != "" && newest["order"].as_str() != "same" {
         let press = manager::press_spec(state, newest, mine);
         if press.kind() == "map" {
             controls.push(press);
@@ -151,12 +151,12 @@ fn update_rows(state: editor::State, mine: any, out: [any]) {
         "data": { "fn": on_check_clicked },
     });
     out.push({ "full": true, "height": 30, "slot_role": "layout_actions", "controls": controls });
-    if mine.get("held").as_str() != "" {
-        out.push(say(mine.get("held").as_str(), tokens.get("text_subtle").as_str()));
+    if mine["held"].as_str() != "" {
+        out.push(say(mine["held"].as_str(), tokens["text_subtle"].as_str()));
     }
     let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
     if said != "" {
-        out.push(say(said, (if state.manager.failed != "" { tokens.get("warning_text") } else { tokens.get("text_subtle") }).as_str()));
+        out.push(say(said, (if state.manager.failed != "" { tokens["warning_text"] } else { tokens["text_subtle"] }).as_str()));
     }
     if manager::installing(state) {
         out.push({

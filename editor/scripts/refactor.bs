@@ -64,7 +64,7 @@ fn active_rel(state: editor::State) -> str {
 }
 
 fn source_of(state: &mut editor::State, rel: str) -> str {
-    let buffer = state.script_buffers.get(state.game_root + "/" + rel);
+    let buffer = state.script_buffers[state.game_root + "/" + rel];
     if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 

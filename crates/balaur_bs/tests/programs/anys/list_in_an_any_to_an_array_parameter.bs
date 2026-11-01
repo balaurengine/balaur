@@ -10,7 +10,7 @@ pub fn marked() -> str {
     mark(list);
     let none: any = nil;
     mark(none);
-    "{list[0].get("id").as_str()} {list.len()}"
+    "{list[0]["id"].as_str()} {list.len()}"
 }
 
 // expect: marked() == "x 1"

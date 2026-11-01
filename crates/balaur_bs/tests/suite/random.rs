@@ -119,7 +119,7 @@ enum E {
     Method(Box<E>, &'static str, Vec<E>),
     /// `r[k]` of an `any`: `get` for a str key, `at` for an int.
     Index(Box<E>, Box<E>),
-    /// `r.k` of an `any`, which is `r.get("k")`.
+    /// `r.k` of an `any`, written.
     Dot(Box<E>, &'static str),
     /// `nil()`: an `any` holding nothing.
     NilAny,

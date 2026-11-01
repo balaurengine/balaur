@@ -34,9 +34,9 @@ impl Keys {
             return;
         }
         for name in STOPPED() {
-            self.node.get_node(name).patch_component("widget", { "enabled": state.get("stopped") });
+            self.node.get_node(name).patch_component("widget", { "enabled": state["stopped"] });
         }
-        self.node.get_node("play").patch_component("widget", { "enabled": !state.get("stopped").as_bool() });
-        self.node.get_node("break").patch_component("widget", { "enabled": state.get("playing") && !state.get("stopped").as_bool() });
+        self.node.get_node("play").patch_component("widget", { "enabled": !state["stopped"].as_bool() });
+        self.node.get_node("break").patch_component("widget", { "enabled": state["playing"] && !state["stopped"].as_bool() });
     }
 }

@@ -228,8 +228,8 @@ fn glide(sequence: Sequence, from: int, to: int, place: any) {
 }
 
 fn gliding(state: &mut editor::State, segment: any, progress: float) {
-    if !segment.ready.as_bool() {
-        let target = place_of(state, segment.place);
+    if !segment["ready"].as_bool() {
+        let target = place_of(state, segment["place"]);
         let was = state.showcase.unwrap().pointer;
         // Nothing has placed the pointer yet: start at the target rather
         // than sweeping in from the window's corner.
@@ -239,7 +239,7 @@ fn gliding(state: &mut editor::State, segment: any, progress: float) {
         segment.set("to", target);
     }
     let eased = ease(progress);
-    feed_pointer(state, lerp(segment.from[0].as_float(), segment.to[0].as_float(), eased), lerp(segment.from[1].as_float(), segment.to[1].as_float(), eased));
+    feed_pointer(state, lerp(segment["from"][0].as_float(), segment["to"][0].as_float(), eased), lerp(segment["from"][1].as_float(), segment["to"][1].as_float(), eased));
 }
 
 // A 2D world point in design px, as a list the glides read.
@@ -269,8 +269,8 @@ fn release(state: &mut editor::State, data: any) {
 
 // Each of `data.keys` down, or up.
 fn keys(state: &mut editor::State, data: any) {
-    for key in util::list_or_empty(data.keys) {
-        input::feed_key(key.as_str(), data.down.as_bool());
+    for key in util::list_or_empty(data["keys"]) {
+        input::feed_key(key.as_str(), data["down"].as_bool());
     }
 }
 
@@ -297,8 +297,8 @@ fn chord(sequence: Sequence, frame: int, held: [str], name: str) {
 /// snapshot and the widgets read the window, so a click here is drawn rather
 /// than delivered: the sequence calls the verb itself.
 fn spot(state: editor::State, name: str) -> [float] {
-    let bottom = state.layout.bottom;
-    let right = state.layout.right;
+    let bottom = state.layout["bottom"];
+    let right = state.layout["right"];
     if name.ends_with("_tab") {
         return of(chrome::workspace_spot(state, name.slice(0, name.len() - 4)));
     }
@@ -310,10 +310,10 @@ fn spot(state: editor::State, name: str) -> [float] {
     }
     if name == "recordings" {
         // The newest recording's play button in the session list.
-        return [bottom.x.as_float() + 21.0, bottom.y.as_float() + 94.0];
+        return [bottom["x"].as_float() + 21.0, bottom["y"].as_float() + 94.0];
     }
     if name == "key" {
-        return [bottom.x.as_float() + 32.0, bottom.y.as_float() + 68.0];
+        return [bottom["x"].as_float() + 32.0, bottom["y"].as_float() + 68.0];
     }
     if name == "bone_tool" {
         return tool_spot(state, "bone");
@@ -324,14 +324,14 @@ fn spot(state: editor::State, name: str) -> [float] {
     if name == "shader_field" {
         // Two rows deep in the inspector, whose sections are the scene's; the
         // column is the published one, the offset down it is the clip's.
-        return [right.x.as_float() + right.width.as_float() * 0.53, right.y.as_float() + 539.0];
+        return [right["x"].as_float() + right["width"].as_float() * 0.53, right["y"].as_float() + 539.0];
     }
     if name == "scale_x" {
         let found = form_spot(state, "Scale");
         if found.len() == 2 {
             return found;
         }
-        return [right.x.as_float() + 127.0, right.y.as_float() + 169.0];
+        return [right["x"].as_float() + 127.0, right["y"].as_float() + 169.0];
     }
     return [state.screen_width / 2.0, state.screen_height / 2.0];
 }
@@ -342,10 +342,10 @@ fn of(at: chrome::Spot) -> [float] {
 
 // A tool in the rail, by the id `defs::tools` gives it in this workspace.
 fn tool_spot(state: editor::State, tool: str) -> [float] {
-    let rail = state.layout.rail;
+    let rail = state.layout["rail"];
     let slot = util::position(defs::tools(state.workspace), tool);
     let index = if slot.is_some() { slot.unwrap() } else { 0 };
-    return [rail.x.as_float() + rail.width.as_float() / 2.0, rail.y.as_float() + TOOL_TOP + (index as float) * TOOL_PITCH];
+    return [rail["x"].as_float() + rail["width"].as_float() / 2.0, rail["y"].as_float() + TOOL_TOP + (index as float) * TOOL_PITCH];
 }
 
 // The centre of the node at `path`, or nothing before it has drawn.
@@ -364,7 +364,7 @@ fn centre_of(path: str) -> [float] {
 // the pointer off it. Nothing before the form has drawn.
 fn form_spot(state: editor::State, label: str) -> [float] {
     for index in 0..state.form.len() {
-        if state.form[index].label.as_str() == label {
+        if state.form[index]["label"].as_str() == label {
             return centre_of("Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form/R{index}/C/C0");
         }
     }
@@ -378,34 +378,34 @@ fn row_spot(state: &mut editor::State, index: int) -> [float] {
     if found.is_some() {
         return [found.unwrap().x, found.unwrap().y];
     }
-    let box = state.layout.left;
-    return [box.x.as_float() + box.width.as_float() * 0.4, box.y.as_float() + box.height.as_float() / 2.0];
+    let box = state.layout["left"];
+    return [box["x"].as_float() + box["width"].as_float() * 0.4, box["y"].as_float() + box["height"].as_float() / 2.0];
 }
 
 // The gutter of the code editor, by line: the pane's own padding, then one
 // row per line at the editor's line height.
 fn gutter_spot(state: editor::State, line: int) -> [float] {
-    let doc = state.layout.doc;
+    let doc = state.layout["doc"];
     // The pane does not scroll, so a line past its foot answers with the last
     // one it shows rather than a pointer drawn below the pane.
-    let last = ((doc.height.as_float() - CODE_TOP - LINE_HEIGHT) / LINE_HEIGHT) as int + 1;
+    let last = ((doc["height"].as_float() - CODE_TOP - LINE_HEIGHT) / LINE_HEIGHT) as int + 1;
     let shown = util::int_min(line, last);
-    return [doc.x.as_float() + 17.0, doc.y.as_float() + CODE_TOP + ((shown - 1) as float) * LINE_HEIGHT];
+    return [doc["x"].as_float() + 17.0, doc["y"].as_float() + CODE_TOP + ((shown - 1) as float) * LINE_HEIGHT];
 }
 
 // Scroll the code pane so `line` sits `row` lines down it, and answer where its
 // gutter mark then is. Offscreen the pane takes no wheel from a fed pointer, so
 // the clip asks for the offset outright.
 fn scrolled_gutter_spot(state: &mut editor::State, rel: str, line: int, row: int) -> [float] {
-    let doc = state.layout.doc;
+    let doc = state.layout["doc"];
     let lines = model::source(state, rel).as_str().split("\n").len();
     // The pane stops scrolling at its last line, and the cursor has to stop
     // with it: past that the mark is drawn where the line is not.
-    let last = util::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_HEIGHT - doc.height.as_float());
+    let last = util::max(0.0, CODE_TOP + ((lines + 2) as float) * LINE_HEIGHT - doc["height"].as_float());
     let want = if line > row { ((line - row) as float) * LINE_HEIGHT } else { 0.0 };
     let off = util::min(want, last);
     state.code_scroll = off;
-    return [doc.x.as_float() + 17.0, doc.y.as_float() + CODE_TOP + ((line - 1) as float) * LINE_HEIGHT - off];
+    return [doc["x"].as_float() + 17.0, doc["y"].as_float() + CODE_TOP + ((line - 1) as float) * LINE_HEIGHT - off];
 }
 
 // Where the start screen's control `name` sits; the middle of the window
@@ -427,31 +427,31 @@ fn manager_spot(state: editor::State, name: str) -> [float] {
 fn place_of(state: &mut editor::State, place: any) -> [float] {
     let found: [float] = [];
     if place.has("spot") {
-        found = spot(state, place.spot.as_str());
+        found = spot(state, place["spot"].as_str());
     } else if place.has("row") {
-        let index = index_of(state, place.row.as_str());
+        let index = index_of(state, place["row"].as_str());
         found = row_spot(state, if index.is_some() { index.unwrap() } else { 0 });
     } else if place.has("selection") {
         found = selection_spot(state);
     } else if place.has("world") {
-        found = design_of_world(state, place.world[0].as_float(), place.world[1].as_float());
+        found = design_of_world(state, place["world"][0].as_float(), place["world"][1].as_float());
     } else if place.has("viewport") {
         let rect = state.viewport;
-        found = [rect.x + rect.width * place.viewport[0].as_float(), rect.y + rect.height * place.viewport[1].as_float()];
+        found = [rect.x + rect.width * place["viewport"][0].as_float(), rect.y + rect.height * place["viewport"][1].as_float()];
     } else if place.has("gutter") {
-        let at = gutter_spot(state, line_of(state, place.rel.as_str(), place.gutter.as_str()));
-        found = [at[0] + place.dx.as_float(), at[1]];
+        let at = gutter_spot(state, line_of(state, place["rel"].as_str(), place["gutter"].as_str()));
+        found = [at[0] + place["dx"].as_float(), at[1]];
     } else if place.has("scrolled") {
-        let rel = place.rel.as_str();
-        found = scrolled_gutter_spot(state, rel, line_of(state, rel, place.scrolled.as_str()), place.row.as_int());
+        let rel = place["rel"].as_str();
+        found = scrolled_gutter_spot(state, rel, line_of(state, rel, place["scrolled"].as_str()), place["row"].as_int());
     } else if place.has("manager") {
-        found = manager_spot(state, place.manager.as_str());
+        found = manager_spot(state, place["manager"].as_str());
     } else if place.has("centre") {
-        found = centre_of(place.centre.as_str());
+        found = centre_of(place["centre"].as_str());
     } else if place.has("head") {
-        found = head_control(place.head.as_str());
+        found = head_control(place["head"].as_str());
     } else if place.has("form") {
-        found = form_control(place.form.as_str(), place.at.as_int());
+        found = form_control(place["form"].as_str(), place["at"].as_int());
     }
     if found.len() < 2 {
         return [0.0, 0.0];
@@ -474,7 +474,7 @@ fn click(sequence: Sequence, frame: int, place: any, name: str, data: any) {
 }
 
 fn pressed_at(state: &mut editor::State, data: any) {
-    let at = place_of(state, data.place);
+    let at = place_of(state, data["place"]);
     feed_pointer(state, at[0], at[1]);
     press(state, nil);
 }
@@ -494,7 +494,7 @@ fn index_of(state: editor::State, name: str) -> int? {
 
 // The script at `rel` as it is open: its unsaved buffer, or the file.
 fn source_of(state: &mut editor::State, rel: str) -> str {
-    let buffer = state.script_buffers.get(state.game_root + "/" + rel);
+    let buffer = state.script_buffers[state.game_root + "/" + rel];
     if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
@@ -519,7 +519,7 @@ fn edit_source(state: &mut editor::State, rel: str, from: str, to: str) {
 }
 
 fn restore_source(state: &mut editor::State, rel: str) {
-    let original = state.showcase.unwrap().kept.get(rel).as_str();
+    let original = state.showcase.unwrap().kept[rel].as_str();
     if original == "" {
         return;
     }
@@ -530,11 +530,11 @@ fn restore_source(state: &mut editor::State, rel: str) {
 
 // What the clips do, by the name a step carries, with what else it carries.
 fn verb(state: &mut editor::State, data: any) {
-    let name = data.verb.as_str();
+    let name = data["verb"].as_str();
     if name == "workspace" {
-        shell::set_workspace(state, data.id.as_str());
+        shell::set_workspace(state, data["id"].as_str());
     } else if name == "choose" {
-        let index = index_of(state, data.name.as_str());
+        let index = index_of(state, data["name"].as_str());
         if index.is_some() {
             shell::choose(state, index.unwrap());
         }
@@ -551,27 +551,27 @@ fn verb(state: &mut editor::State, data: any) {
     } else if name == "palette" {
         shell::open_palette(state, "");
     } else if name == "dock" {
-        docks::show(state, data.id.as_str());
+        docks::show(state, data["id"].as_str());
     } else if name == "doctab" {
-        state.doctab = data.id.as_str();
+        state.doctab = data["id"].as_str();
         signals::inspector(state);
     } else if name == "shader" {
-        state.shader_rel = data.rel.as_str();
+        state.shader_rel = data["rel"].as_str();
         state.doctab = "script";
         signals::inspector(state);
     } else if name == "debug_view" {
-        render::set_debug_view(data.id.as_str());
+        render::set_debug_view(data["id"].as_str());
     } else if name == "zoom" {
-        shell::set_zoom(state, data.to.as_float());
+        shell::set_zoom(state, data["to"].as_float());
     } else if name == "keep" {
-        state.showcase.unwrap().kept.set(data.rel.as_str(), model::source(state, data.rel.as_str()).as_str());
+        state.showcase.unwrap().kept.set(data["rel"].as_str(), model::source(state, data["rel"].as_str()).as_str());
     } else if name == "edit" {
-        edit_source(state, data.rel.as_str(), data.from.as_str(), data.to.as_str());
+        edit_source(state, data["rel"].as_str(), data["from"].as_str(), data["to"].as_str());
     } else if name == "restore" {
-        restore_source(state, data.rel.as_str());
+        restore_source(state, data["rel"].as_str());
     } else if name == "breakpoint" {
-        let rel = data.rel.as_str();
-        shell::toggle_breakpoint(state, rel, line_of(state, rel, data.needle.as_str()));
+        let rel = data["rel"].as_str();
+        shell::toggle_breakpoint(state, rel, line_of(state, rel, data["needle"].as_str()));
     } else if name == "step_over" {
         if state.debug.paused.kind() == "map" {
             shell::resume(state, debugger::STEP_OVER);
@@ -581,9 +581,9 @@ fn verb(state: &mut editor::State, data: any) {
             shell::resume(state, debugger::CONTINUE);
         }
     } else if name == "record" {
-        history::record(state, data.label.as_str(), nil);
+        history::record(state, data["label"].as_str(), nil);
     } else if name == "seek" {
-        anim::seek(state, data.time.as_float());
+        anim::seek(state, data["time"].as_float());
     } else if name == "key" {
         anim::add_key(state, state.anim.time);
     } else if name == "bone_tool" {
@@ -606,7 +606,7 @@ fn verb(state: &mut editor::State, data: any) {
     } else if name == "manager" {
         manager::open(state);
     } else if name == "manager_tab" {
-        state.manager.tab = data.id.as_str();
+        state.manager.tab = data["id"].as_str();
     } else if name == "manager_new" {
         manager::open_new(state);
     } else if name == "drip_off" {
@@ -622,9 +622,9 @@ fn verb(state: &mut editor::State, data: any) {
     } else if name == "theme_duplicate" {
         themewin::duplicate(state);
     } else if name == "theme_page" {
-        state.themewin.page = data.id.as_str();
+        state.themewin.page = data["id"].as_str();
     } else if name == "theme_role" {
-        themewin::show_role(state, data.id.as_str(), "");
+        themewin::show_role(state, data["id"].as_str(), "");
     } else if name == "theme_save" {
         themewin::save(state);
     } else if name == "window_hide" {
@@ -632,11 +632,11 @@ fn verb(state: &mut editor::State, data: any) {
     } else if name == "theme_put_back" {
         // Put back what the take changed on disk, with the editor still
         // wearing the copy for the frames already written.
-        fs::remove(theme::path_of(state.theme.name.as_str(), state.theme.half.as_str()));
-        if data.kept.kind() == "str" {
-            fs::write(data.prefs.as_str(), data.kept.as_str());
+        fs::remove(theme::path_of(state.theme["name"].as_str(), state.theme["half"].as_str()));
+        if data["kept"].kind() == "str" {
+            fs::write(data["prefs"].as_str(), data["kept"].as_str());
         } else {
-            fs::remove(data.prefs.as_str());
+            fs::remove(data["prefs"].as_str());
         }
     }
 }
@@ -657,8 +657,8 @@ fn fit_figure(state: &mut editor::State) {
 // The pointer follows a place every frame of a span, `dx` right of it by
 // the end.
 fn follow(state: &mut editor::State, data: any, progress: float) {
-    let at = place_of(state, data.place);
-    feed_pointer(state, at[0] + data.dx.as_float() * ease(progress), at[1]);
+    let at = place_of(state, data["place"]);
+    feed_pointer(state, at[0] + data["dx"].as_float() * ease(progress), at[1]);
 }
 
 fn following(place: any, offset_x: float) -> any {
@@ -776,8 +776,8 @@ fn completion(state: &mut editor::State, sequence: Sequence, text: str) {
 // (it does not scroll to a placed caret), and open the popup at its end, at
 // the gutter's own geometry, as the code pane hands it.
 fn completing(state: &mut editor::State, data: any, _progress: float) {
-    let rel = data.rel.as_str();
-    let text = data.text.as_str();
+    let rel = data["rel"].as_str();
+    let text = data["text"].as_str();
     let line = line_of(state, rel, "fn init");
     let lines = model::source(state, rel).as_str().split("\n");
     let out: [str] = [];
@@ -988,7 +988,7 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
 
 // The palette's query typed a letter at a time.
 fn typing(state: &mut editor::State, data: any, progress: float) {
-    let word = data.word.as_str();
+    let word = data["word"].as_str();
     let last = word.len() as float;
     state.palette_query = word.slice(0, util::min(last, progress * (last + 1.0)) as int);
 }

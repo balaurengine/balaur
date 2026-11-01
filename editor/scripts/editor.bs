@@ -656,13 +656,13 @@ impl Editor {
     /// A pooled control's edit, for the function its spec's data names: see
     /// `pool::on`.
     pub fn handle(data: any, value: any) {
-        let handler: fn(&mut State, any, any) = data.fn;
+        let handler: fn(&mut State, any, any) = data["fn"];
         handler(self.state, data, value);
     }
 
     /// The same for Enter in a field: see `pool::on_submit`.
     pub fn handle_submit(data: any, value: any) {
-        let handler: fn(&mut State, any, any) = data.submit;
+        let handler: fn(&mut State, any, any) = data["submit"];
         handler(self.state, data, value);
     }
 
@@ -873,9 +873,9 @@ fn report_view(state: &mut State) {
     if side.is_none() {
         return;
     }
-    let rect = state.layout.get(side.unwrap());
+    let rect = state.layout[side.unwrap()];
     let scale = state.ui_scale;
-    let line = "viewrect {state.view_shot} {rect.x.as_float() * scale} {rect.y.as_float() * scale} {rect.width.as_float() * scale} {rect.height.as_float() * scale}";
+    let line = "viewrect {state.view_shot} {rect["x"].as_float() * scale} {rect["y"].as_float() * scale} {rect["width"].as_float() * scale} {rect["height"].as_float() * scale}";
     if line != state.view_logged {
         state.view_logged = line;
         log::info(line);
@@ -1200,7 +1200,7 @@ impl Editor {
     /// A plugin property editor's control writing its value: `data.at` is
     /// the `at` its `controls` method was handed.
     pub fn inspector_write(data: any, value: any) {
-        let at: inspector::AtTop = data.at;
+        let at: inspector::AtTop = data["at"];
         inspector::write_at(self.state, at, value);
     }
 
@@ -1725,7 +1725,7 @@ impl Editor {
     }
 
     pub fn tree_mark(event: any) {
-        left::mark_clicked(self.state, event.row.as_str(), event.mark.as_str());
+        left::mark_clicked(self.state, event["row"].as_str(), event["mark"].as_str());
     }
 
     pub fn tree_delete() {

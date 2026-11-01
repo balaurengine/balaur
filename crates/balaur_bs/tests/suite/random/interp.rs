@@ -121,7 +121,7 @@ fn method_type(name: &str) -> Option<T> {
         "as_float" => T::Float,
         "as_bool" | "is_nil" | "has" | "equals" | "set" | "push" | "put" | "insert" => T::Bool,
         "as_str" | "kind" | "text" => T::Str,
-        "get" | "at" | "remove" | "sorted" => T::Any,
+        "remove" | "sorted" => T::Any,
         _ => return None,
     })
 }
@@ -436,7 +436,7 @@ impl Interp<'_> {
     /// worked out in order, each converted to what the method takes.
     fn method(&mut self, r: &E, name: &str, args: &[E]) -> Run<V> {
         let arity = match name {
-            "get" | "at" | "has" | "push" | "remove" | "equals" => 1,
+            "has" | "push" | "remove" | "equals" => 1,
             "set" | "put" | "insert" => 2,
             _ => 0,
         };
@@ -454,8 +454,6 @@ impl Interp<'_> {
             "is_nil" => V::Bool(matches!(a, A::Nil)),
             "text" => V::Str(anys::text(&a)),
             "sorted" => V::Any(anys::sorted(&a)),
-            "get" => V::Any(anys::get(&a, &self.text_arg(&args[0])?)),
-            "at" => V::Any(anys::at(&a, self.int_arg(&args[0])?)),
             "has" => V::Bool(anys::has(&a, &self.text_arg(&args[0])?)),
             "set" => {
                 let key = self.text_arg(&args[0])?;

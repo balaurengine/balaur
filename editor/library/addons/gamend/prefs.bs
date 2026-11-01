@@ -20,7 +20,7 @@ pub fn all() -> any {
 
 /// One pref, or `fallback` when it was never set.
 pub fn get(key: str, fallback: any) -> any {
-    let got = all().get(key);
+    let got = all()[key];
     if got.is_nil() { fallback } else { got }
 }
 
@@ -37,7 +37,7 @@ pub fn remove(key: str) {
     let left: any = {};
     for name in kept.keys() {
         if name != key {
-            left.set(name, kept.get(name));
+            left.set(name, kept[name]);
         }
     }
     save::write(SLOT, left);

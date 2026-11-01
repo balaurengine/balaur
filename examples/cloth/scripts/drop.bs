@@ -36,7 +36,7 @@ impl Drop {
     pub fn update(dt: float) {
         // Read off the sheet's material rather than written twice: the number
         // under the label is the one the solver is actually using.
-        let strain = assets::load(self.node.get_node("Tears").softbody3d.soft_material).tear_strain;
+        let strain = assets::load(self.node.get_node("Tears").softbody3d.soft_material)["tear_strain"];
         label(-1.5, 2.15, "no tear strain", 28.0, INK());
         label(1.5, 2.15, "tear_strain = {strain}", 28.0, INK());
         label(-1.5, 1.8, "the cloth folds over the block", 18.0, FAINT());

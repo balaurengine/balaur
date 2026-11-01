@@ -21,16 +21,16 @@ impl Scenario {{
     async fn init() {{
         gamend::configure("{url}");
         let boards = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards?page=1").as_int());
-        let listed = boards.get("body").get("data");
+        let listed = boards["body"]["data"];
         let records = 200;
         if listed.len() > 0 {{
-            let id = listed.at(0).get("id");
+            let id = listed[0]["id"];
             let got = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards/{{id}}/records").as_int());
-            records = got.get("status").as_int();
+            records = got["status"].as_int();
         }}
         let stats = await task::wait(gamend::rest(nil(), "GET", "/api/v1/lobbies/stats").as_int());
-        let a = boards.get("status");
-        let c = stats.get("status");
+        let a = boards["status"];
+        let c = stats["status"];
         log::info("rest {{a}} {{records}} {{c}}");
     }}
 }}
@@ -58,7 +58,7 @@ impl Scenario {{
         gamend::configure("{url}");
         // A stock Gamend takes ten sign-ins a minute from one address.
         let login = await task::wait(gamend::login(nil(), gamend::Credentials {{ device_id: "{device}" }}));
-        while login.has("error") && login.get("error").as_str().contains("(429)") {{
+        while login.has("error") && login["error"].as_str().contains("(429)") {{
             let until = engine::unix_time() + 15.0;
             while engine::unix_time() < until {{
                 await task::frames(1);
@@ -67,7 +67,7 @@ impl Scenario {{
             login = again;
         }}
         if login.has("error") {{
-            let error = login.get("error");
+            let error = login["error"];
             log::info("gamend-live login failed: {{error}}");
             return;
         }}
@@ -75,16 +75,16 @@ impl Scenario {{
     }}
 
     async fn on_gamend_event(e: any) {{
-        if e.get("kind").as_str() != "open" {{
+        if e["kind"].as_str() != "open" {{
             return;
         }}
         let me = await task::wait(gamend::rest(nil(), "GET", "/api/v1/me").as_int());
         let hook = await task::wait(gamend::call_hook(self.socket, "sdk_probe", "echo", ["hi"]));
         gamend::close(self.socket);
         let gone = await task::wait(gamend::rest(nil(), "DELETE", "/api/v1/me").as_int());
-        let a = me.get("status");
-        let b = hook.get("status");
-        let c = gone.get("status");
+        let a = me["status"];
+        let b = hook["status"];
+        let c = gone["status"];
         log::info("gamend-live {{a}} {{b}} {{c}}");
     }}
 }}

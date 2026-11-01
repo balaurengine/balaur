@@ -49,7 +49,7 @@ pub fn reference(state: editor::State) -> str {
     if !found.is_valid() || !found.has_component("line2d") {
         return "";
     }
-    found.authored("line2d").mesh.as_str()
+    found.authored("line2d")["mesh"].as_str()
 }
 
 /// Whether the Pen has something to edit.
@@ -71,7 +71,7 @@ fn asset_path(state: editor::State, found: str) -> str {
 
 fn is_path(state: editor::State, found: str) -> bool {
     let definition = assets::load(asset_path(state, found));
-    definition.kind() == "map" && definition.type.as_str() == "path2d"
+    definition.kind() == "map" && definition["type"].as_str() == "path2d"
 }
 
 /// The path the selection strokes, cached on `state` for the frames between
@@ -91,10 +91,10 @@ pub fn current(state: &mut editor::State) -> Loaded? {
         return nil;
     }
     let points: [[float]] = [];
-    for point in util::list_or_empty(definition.points) {
+    for point in util::list_or_empty(definition["points"]) {
         points.push(util::vec2(point, [0.0, 0.0]));
     }
-    let loaded = Loaded { points: points, closed: definition.closed.as_bool() };
+    let loaded = Loaded { points: points, closed: definition["closed"].as_bool() };
     state.pen.reference = found;
     state.pen.path = loaded;
     loaded
@@ -386,8 +386,8 @@ pub fn draw(state: &mut editor::State) {
     }
     let node_frame = frame_or.unwrap();
     let tokens = state.theme;
-    let accent = util::rgb(tokens.primary_text.as_str());
-    let dim = util::rgb(tokens.text_muted.as_str());
+    let accent = util::rgb(tokens["primary_text"].as_str());
+    let dim = util::rgb(tokens["text_muted"].as_str());
     let mark = MARK_PIXELS * viewport::world_per_pixel(state);
     for index in 0..path.points.len() {
         let point = path.points[index];

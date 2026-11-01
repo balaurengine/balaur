@@ -121,7 +121,7 @@ pub fn state() -> any {
 /// The shell's boxes, by the name `state.layout` publishes them under.
 fn node(state: editor::State, id: any) -> any {
     let layout_state: any = state.layout;
-    let found = layout_state.get("nodes").get(id);
+    let found = layout_state["nodes"][id.as_str()];
     if !found.is_nil() {
         return found;
     }
@@ -176,7 +176,7 @@ fn node(state: editor::State, id: any) -> any {
     // A miss is not remembered: one transient failure would leave the box
     // inert for the rest of the session.
     if !util::is_nil(found) {
-        layout_state.get("nodes").set(id, found);
+        layout_state["nodes"].set(id, found);
     }
     found
 }
@@ -193,12 +193,12 @@ fn widget_of(state: editor::State, id: str) -> any {
 /// The shell's own gutter: the scene's number, a step tighter in a small
 /// window. Read by whoever needs the body's edge, so no two callers disagree.
 pub fn gutter(state: editor::State) -> any {
-    if state.compact { TIGHT_GUTTER } else { state.layout.gutter }
+    if state.compact { TIGHT_GUTTER } else { state.layout["gutter"] }
 }
 
 /// The seam between two sheets, the gutter's own step.
 pub fn seam(state: editor::State) -> any {
-    if state.compact { TIGHT_GAP } else { state.layout.gap }
+    if state.compact { TIGHT_GAP } else { state.layout["gap"] }
 }
 
 /// What the shell spends on itself before a sheet gets anything: the gutter
@@ -207,23 +207,23 @@ pub fn seam(state: editor::State) -> any {
 /// the layout has already spent.
 pub fn chrome(state: editor::State) -> Chrome {
     let edges = 2.0 * gutter(state).as_float() + 2.0 * seam(state).as_float();
-    Chrome { width: edges, height: edges + state.layout.status_height }
+    Chrome { width: edges, height: edges + state.layout["status_height"] }
 }
 
 /// What the scene states for one of a box's sizes. A `padding` is four sides
 /// in the component whatever the scene spelled, so take the first.
 fn stated(state: editor::State, id: str, key: str) -> float {
-    let value = widget_of(state, id).get(key);
-    if value.kind() == "list" { value.at(0).as_float() } else { value.as_float() }
+    let value = widget_of(state, id)[key];
+    if value.kind() == "list" { value[0].as_float() } else { value.as_float() }
 }
 
 /// One number off a theme role, or `fallback` where the role says nothing.
 fn role_number(state: editor::State, role: str, key: str, fallback: float) -> float {
-    let roles = state.theme.get("roles");
-    let found = roles.get(role);
+    let roles = state.theme["roles"];
+    let found = roles[role];
     if !found.is_nil() {
         let entry = found;
-        let value = entry.get(key);
+        let value = entry[key];
         if !value.is_nil() {
             let number = value;
             let pixels = style::size_in_pixels(state, number);
@@ -237,7 +237,7 @@ fn role_number(state: editor::State, role: str, key: str, fallback: float) -> fl
 /// Nothing outside `scenes/main.toml` may spell a resting shell size.
 fn adopt(state: editor::State) {
     let layout_state: any = state.layout;
-    if layout_state.get("asked").as_bool() {
+    if layout_state["asked"].as_bool() {
         return;
     }
     let shell = widget_of(state, "shell");
@@ -252,7 +252,7 @@ fn adopt(state: editor::State) {
     layout_state.set("tree_width", stated(state, "left", "width"));
     layout_state.set("inspector_width", stated(state, "right", "width"));
     layout_state.set("status_height", stated(state, "status", "height"));
-    layout_state.set("dock_height", stated(state, "bottom", "height") - layout_state.get("status_height").as_float());
+    layout_state.set("dock_height", stated(state, "bottom", "height") - layout_state["status_height"].as_float());
     layout_state.set("hooks_width", stated(state, "hooks", "width"));
     layout_state.set("asked", true);
 }
@@ -279,7 +279,7 @@ fn is_among(mark: str, items: [str]) -> bool {
 /// one quiet layout is the shell at rest.
 pub fn settled(state: editor::State) -> bool {
     let layout_state: any = state.layout;
-    if !layout_state.get("asked").as_bool() || layout_state.get("quiet").as_int() < 1 {
+    if !layout_state["asked"].as_bool() || layout_state["quiet"].as_int() < 1 {
         return false;
     }
     !animating(state)
@@ -320,9 +320,9 @@ pub fn box_node(state: editor::State, id: str) -> any {
 /// Whether an eased box is still travelling. A tween moves the widget from
 /// the animation stage, which no UI pass follows: the shell asks for one.
 pub fn animating(state: editor::State) -> bool {
-    let tweens = state.layout.tweens;
+    let tweens = state.layout["tweens"];
     for mark in tweens.keys() {
-        let handle = tweens.get(mark);
+        let handle = tweens[mark];
         if animation::is_tween_running(handle) {
             return true;
         }
@@ -334,7 +334,7 @@ pub fn animating(state: editor::State) -> bool {
 fn dragged(state: editor::State, id: str, key: str, into: str) {
     let layout_state: any = state.layout;
     let mark = id + ":" + key;
-    let running = layout_state.get("tweens").get(mark);
+    let running = layout_state["tweens"][mark];
     if !running.is_nil() {
         let handle = running;
         if animation::is_tween_running(handle) {
@@ -342,9 +342,9 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
         }
     }
     let now = stated(state, id, key);
-    if now > 0.0 && layout_state.get("sent").get(mark) != now {
+    if now > 0.0 && layout_state["sent"][mark] != now {
         layout_state.set(into, now);
-        layout_state.get("sent").set(mark, now);
+        layout_state["sent"].set(mark, now);
     }
 }
 
@@ -353,14 +353,14 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
 // on from where this one stopped instead of from where the pointer went.
 fn held(state: editor::State, key: str, floor: float, ceiling: float) -> any {
     let layout_state: any = state.layout;
-    layout_state.set(key, util::clamp(layout_state.get(key).as_float(), floor, util::max(floor, ceiling)));
-    layout_state.get(key)
+    layout_state.set(key, util::clamp(layout_state[key].as_float(), floor, util::max(floor, ceiling)));
+    layout_state[key]
 }
 
 fn size(state: editor::State, id: str, key: str, value: any) {
     let layout_state: any = state.layout;
     let mark = id + ":" + key;
-    if layout_state.get("sent").get(mark) == value {
+    if layout_state["sent"][mark] == value {
         return;
     }
     let found = node(state, id);
@@ -370,16 +370,16 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     // The first write places the box; a later one moves it. Easing the first
     // would mean watching the shell assemble itself on every start, and so
     // would easing the corrections it takes before the shell is formed.
-    let settled = layout_state.get("sent").has(mark) && state.formed;
-    layout_state.get("sent").set(mark, value);
+    let settled = layout_state["sent"].has(mark) && state.formed;
+    layout_state["sent"].set(mark, value);
     layout_state.set("quiet", 0);
     if settled && eased(mark) {
-        let running = layout_state.get("tweens").get(mark);
+        let running = layout_state["tweens"][mark];
         if !running.is_nil() {
             let handle = running;
             animation::stop(handle);
         }
-        layout_state.get("tweens").set(mark, animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] }));
+        layout_state["tweens"].set(mark, animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] }));
         return;
     }
     let parameters = util::map_or_empty(found.get_component("widget"));
@@ -393,14 +393,14 @@ fn show(state: editor::State, id: str, on: bool) {
     let layout_state: any = state.layout;
     let mark = id + ":visible";
     let want = if on { 1.0 } else { 0.0 };
-    if layout_state.get("sent").get(mark) == want {
+    if layout_state["sent"][mark] == want {
         return;
     }
     let found = node(state, id);
     if util::is_nil(found) {
         return;
     }
-    layout_state.get("sent").set(mark, want);
+    layout_state["sent"].set(mark, want);
     layout_state.set("quiet", 0);
     found.patch_component("widget", { "visible": on });
 }
@@ -425,19 +425,19 @@ pub fn sheets(state: editor::State) -> [any] {
     let layout_state: any = state.layout;
     // The status strip is inside the bottom dock, not a sheet of its own: the
     // dock already owns that rect and the pointer with it.
-    let all = [layout_state.get("bar"), layout_state.get("left"), layout_state.get("right"), layout_state.get("bottom")];
+    let all = [layout_state["bar"], layout_state["left"], layout_state["right"], layout_state["bottom"]];
     if state.rail_visible {
-        all.push(layout_state.get("rail"));
+        all.push(layout_state["rail"]);
     }
     // Over the stage rather than beside it, and each zero on a frame it did
     // not draw.
-    all.push(layout_state.get("chips"));
-    all.push(layout_state.get("hud"));
+    all.push(layout_state["chips"]);
+    all.push(layout_state["hud"]);
     if state.doc_open {
-        all.push(layout_state.get("doc"));
+        all.push(layout_state["doc"]);
     }
     if state.hooks_open {
-        all.push(layout_state.get("hooks"));
+        all.push(layout_state["hooks"]);
     }
     all
 }
@@ -451,11 +451,11 @@ pub fn compute(state: &mut editor::State) {
     adopt(state);
     // Before the shell tree resolves there is no size to state and no rect to
     // read; every surface guards on a zero rect and draws nothing.
-    if !layout_state.get("asked").as_bool() {
+    if !layout_state["asked"].as_bool() {
         return;
     }
     // Counted before the writes below, each of which puts it back to zero.
-    layout_state.set("quiet", layout_state.get("quiet").as_float() + 1);
+    layout_state.set("quiet", layout_state["quiet"].as_float() + 1);
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.
@@ -468,22 +468,22 @@ pub fn compute(state: &mut editor::State) {
     let tree_width = side_width(state, "left", screen_width, held(state, "tree_width", LEFT_MIN, screen_width - STAGE_MIN - RIGHT_MIN).as_float());
     let inspector_width = side_width(state, "right", screen_width, held(state, "inspector_width", RIGHT_MIN, screen_width - STAGE_MIN - tree_width).as_float());
     let tall = if docks::bottom_tall(state).as_bool() { TALL_EXTRA } else { 0.0 };
-    let body_height = held(state, "dock_height", BOTTOM_MIN, state.screen_height - layout_state.get("bar").get("height").as_float() - STAGE_MIN - tall - layout_state.get("status_height").as_float());
+    let body_height = held(state, "dock_height", BOTTOM_MIN, state.screen_height - layout_state["bar"]["height"].as_float() - STAGE_MIN - tall - layout_state["status_height"].as_float());
     // Minimised, the dock is gone: its handle sits beside the zoom reading,
     // the way each side dock's sits at the edge it folded towards.
     let dock_height = if docks::folded(state, "bottom") {
         0.0
     } else {
-        body_height.as_float() + tall + layout_state.get("status_height").as_float()
+        body_height.as_float() + tall + layout_state["status_height"].as_float()
     };
-    let grid = center::rail_grid(state, layout_state.get("rail_room").as_float());
+    let grid = center::rail_grid(state, layout_state["rail_room"].as_float());
     let rail_width = if state.rail_visible { center::rail_span(grid, grid.columns) } else { 0.0 };
-    let hooks_width = if state.hooks_open { layout_state.get("hooks_width") } else { 0.0 };
+    let hooks_width = if state.hooks_open { layout_state["hooks_width"] } else { 0.0 };
     // The gutter round the shell and the seams between its sheets: a step
     // tighter in a small window, where they are most of what is on screen.
     let tight = state.compact;
     size(state, "shell", "padding", gutter(state));
-    let gap = if tight { TIGHT_GAP } else { layout_state.get("gap") };
+    let gap = if tight { TIGHT_GAP } else { layout_state["gap"] };
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
         size(state, id, "gap", [gap, gap]);
     }
@@ -544,7 +544,7 @@ pub fn compute(state: &mut editor::State) {
     layout_state.set("railtop", boxes.railtop);
     // The column the rail is in, not the whole centre: the dock below takes
     // its share of the centre, and a rail measured against that overran it.
-    let column: float = if boxes.railslot.height > 0.0 { boxes.railslot.height } else { boxes.centre.height };
+    let column: float = if boxes.railslot["height"] > 0.0 { boxes.railslot["height"] } else { boxes.centre["height"] };
     // Less the folded dock's handle above it and the HUD strip under its foot.
     let hud = if state.stage_chrome && !state.chrome_off { center::hud_height(state) } else { 0.0 };
     layout_state.set("rail_room", util::max(120.0, column - docks::rail_top_height(state) - hud));
@@ -554,26 +554,26 @@ pub fn compute(state: &mut editor::State) {
     let box: Box = boxes.stage;
     layout_state.set("stage_box", box);
     if state.doc_open && state.viewport_live {
-        let code_width = util::clamp(layout_state.get("split_width").as_float(), 260.0, util::max(260.0, box.width - 260.0));
+        let code_width = util::clamp(layout_state["split_width"].as_float(), 260.0, util::max(260.0, box.width - 260.0));
         layout_state.set("doc", rect(box.x + box.width - code_width, box.y, code_width, box.height));
-        layout_state.set("stage", rect(box.x, box.y, box.width - code_width - layout_state.get("gap").as_float(), box.height));
+        layout_state.set("stage", rect(box.x, box.y, box.width - code_width - layout_state["gap"].as_float(), box.height));
     } else if state.doc_open {
         layout_state.set("doc", box);
         layout_state.set("stage", box);
     } else {
         // Nothing to read, so the scene takes the hooks list's width too.
         layout_state.set("stage", boxes.canvas);
-        layout_state.set("doc", layout_state.get("stage"));
+        layout_state.set("doc", layout_state["stage"]);
     }
     // The scene's rect under its old name; `at` is the frame it was set on, so
     // a self-test can tell a headless run from a drawn one. An unplaced stage
     // is not published: a played game's HUD would blink out for that frame.
-    if layout_state.get("stage").get("width").as_float() > 0.0 && layout_state.get("stage").get("height").as_float() > 0.0 {
+    if layout_state["stage"]["width"].as_float() > 0.0 && layout_state["stage"]["height"].as_float() > 0.0 {
         state.viewport = editor::Viewport {
-            x: layout_state.get("stage").get("x").as_float(),
-            y: layout_state.get("stage").get("y").as_float(),
-            width: layout_state.get("stage").get("width").as_float(),
-            height: layout_state.get("stage").get("height").as_float(),
+            x: layout_state["stage"]["x"].as_float(),
+            y: layout_state["stage"]["y"].as_float(),
+            width: layout_state["stage"]["width"].as_float(),
+            height: layout_state["stage"]["height"].as_float(),
             at: state.frame,
         };
     }
@@ -621,17 +621,17 @@ const BAR_HEIGHT_GUESS: float = 43.0;
 pub fn stage_room(state: editor::State) -> Room {
     let layout_state: any = state.layout;
     let screen_width = state.screen_width;
-    let tree_width = side_width(state, "left", screen_width, util::max(layout_state.get("tree_width"), LEFT_MIN).as_float());
-    let inspector_width = side_width(state, "right", screen_width, util::max(layout_state.get("inspector_width"), RIGHT_MIN).as_float());
+    let tree_width = side_width(state, "left", screen_width, util::max(layout_state["tree_width"], LEFT_MIN).as_float());
+    let inspector_width = side_width(state, "right", screen_width, util::max(layout_state["inspector_width"], RIGHT_MIN).as_float());
     let dock_height = if docks::folded(state, "bottom") {
         0.0
     } else {
-        util::max(layout_state.get("dock_height"), BOTTOM_MIN) + layout_state.get("status_height")
+        util::max(layout_state["dock_height"], BOTTOM_MIN) + layout_state["status_height"]
     };
     // Less what the shell spends on itself: the room a rail or a chip strip
     // is offered is the room it will actually be drawn in.
     let spent = chrome(state);
-    Room { width: screen_width - tree_width - inspector_width - spent.width, height: state.screen_height - layout_state.get("bar").get("height").as_float() - dock_height.as_float() - spent.height }
+    Room { width: screen_width - tree_width - inspector_width - spent.width, height: state.screen_height - layout_state["bar"]["height"].as_float() - dock_height.as_float() - spent.height }
 }
 
 /// How wide an open side dock is: what the seam was dragged to on a screen
@@ -641,7 +641,7 @@ pub fn stage_room(state: editor::State) -> Room {
 /// 220 px column of it on a phone is a list of truncated words. The stage
 /// keeps a strip, so it is still there to go back to.
 fn side_width(state: editor::State, side: str, room: float, open_width: float) -> float {
-    if state.docks.get(side).tabs.len() == 0 || state.docks.get(side).shut {
+    if state.docks[side]["tabs"].len() == 0 || state.docks[side]["shut"] {
         return 0.0;
     }
     // One sheet at a time takes the whole body: its own fold is the way back,
@@ -674,7 +674,7 @@ pub fn workspace_width(state: editor::State) -> float {
 /// against a hole in the chrome.
 pub fn over_sheet(state: editor::State, point_x: float, point_y: float) -> bool {
     for sheet in sheets(state) {
-        if sheet.get("width").as_float() > 0.0 && sheet.get("height").as_float() > 0.0 && point_x >= sheet.get("x").as_float() && point_x <= (sheet.get("x") + sheet.get("width")).as_float() && point_y >= sheet.get("y").as_float() && point_y <= (sheet.get("y") + sheet.get("height")).as_float() {
+        if sheet["width"].as_float() > 0.0 && sheet["height"].as_float() > 0.0 && point_x >= sheet["x"].as_float() && point_x <= (sheet["x"] + sheet["width"]).as_float() && point_y >= sheet["y"].as_float() && point_y <= (sheet["y"] + sheet["height"]).as_float() {
             return true;
         }
     }

@@ -35,7 +35,7 @@ const COALESCE: float = 0.4;
 // The scene's `[[assets]]` travel with the step: a tool writes a block there,
 // and undoing it has to put the block back.
 fn step(state: editor::State, label: str, changes: [any]) -> Step {
-    let assets = state.scene_doc.assets;
+    let assets = state.scene_doc["assets"];
     let kept = if assets.is_nil() { assets } else { util::deep(assets) };
     Step { changes: changes, selected: model::selected_ids(state), assets: kept, label: label }
 }
@@ -105,7 +105,7 @@ fn restore(state: &mut editor::State, into: [Step], from: [Step]) -> str? {
     }
     held.changes = scene::take_changes();
     into.push(held);
-    if !top.assets.is_nil() && blocks_text(top.assets) != blocks_text(state.scene_doc.assets) {
+    if !top.assets.is_nil() && blocks_text(top.assets) != blocks_text(state.scene_doc["assets"]) {
         state.scene_doc.assets = top.assets;
         // A scene's blocks are read when it is built, so it is built again.
         model::build(state, model::scene_text(state));

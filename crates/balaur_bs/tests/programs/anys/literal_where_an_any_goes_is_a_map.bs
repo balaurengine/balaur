@@ -12,7 +12,7 @@ pub fn built() -> str {
     let rows: [any] = [spec("one"), { "name": "two", "open": true }];
     rows.push({ "nested": { "deep": 1 } });
     empty.set("late", 3);
-    "{rows} {empty} {rows[0].tags.len()} {rows[2].nested.deep}"
+    "{rows} {empty} {rows[0]["tags"].len()} {rows[2]["nested"]["deep"]}"
 }
 
 // expect: built() == "[{\"name\": \"one\", \"size\": 2.5, \"tags\": [\"a\", \"b\"], \"at\": {\"x\": 1, \"y\": 2}}, {\"name\": \"two\", \"open\": true}, {\"nested\": {\"deep\": 1}}] {\"late\": 3} 2 1"

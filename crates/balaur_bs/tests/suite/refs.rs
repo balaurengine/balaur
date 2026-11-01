@@ -90,10 +90,10 @@ fn a_fn_value_rides_in_an_any_and_comes_back_typed() {
     let src = r#"
 pub class State { log: str }
 fn picked(s: &mut State, data: any, value: any) {
-    s.log = "{s.log}{data.row}={value};";
+    s.log = "{s.log}{data["row"]}={value};";
 }
 fn handle(s: &mut State, data: any, value: any) {
-    let f: fn(&mut State, any, any) = data.fn;
+    let f: fn(&mut State, any, any) = data["fn"];
     f(s, data, value);
 }
 pub class Editor { s: State, said: str }
@@ -101,8 +101,8 @@ impl Editor {
     pub fn click() {
         self.s = State { log: "" };
         let spec: any = { "on": "handle", "data": { "fn": picked, "row": "a" } };
-        handle(self.s, spec.data, 3);
-        handle(self.s, spec.data, "b");
+        handle(self.s, spec["data"], 3);
+        handle(self.s, spec["data"], "b");
         self.said = self.s.log;
     }
 }

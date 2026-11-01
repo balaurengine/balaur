@@ -186,12 +186,12 @@ fn commands(state: &mut editor::State) -> [Command] {
         list.push(command_with("View: " + channel, "◐", run_view, channel));
     }
     for entry in state.registry.commands {
-        let plugin_command = command_with(entry.title.as_str(), entry.icon.as_str(), run_plugin, entry);
-        plugin_command.key = entry.shortcut.as_str();
+        let plugin_command = command_with(entry["title"].as_str(), entry["icon"].as_str(), run_plugin, entry);
+        plugin_command.key = entry["shortcut"].as_str();
         list.push(plugin_command);
     }
     for entry in state.registry.dialogs {
-        list.push(command_with("Open {entry.title}", "▭", run_dialog, entry.id));
+        list.push(command_with("Open {entry["title"]}", "▭", run_dialog, entry["id"]));
     }
     // Presets first: they are the shortcut most edits actually want, and
     // each is just the components it names.
@@ -271,11 +271,11 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
 }
 
 fn run_collide(state: &mut editor::State, data: any) {
-    physics::make_collider(state, data.two_d.as_bool(), data.props, data.beside);
+    physics::make_collider(state, data["two_d"].as_bool(), data["props"], data["beside"]);
 }
 
 fn run_deform(state: &mut editor::State, data: any) {
-    physics::make_soft_body(state, data.two_d.as_bool(), data.props, data.beside);
+    physics::make_soft_body(state, data["two_d"].as_bool(), data["props"], data["beside"]);
 }
 
 // The built-in verbs, by the name each command carries.
@@ -525,7 +525,7 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
-    let run: fn(&mut editor::State, any) = data.run;
-    run(state, data.arg);
+    let run: fn(&mut editor::State, any) = data["run"];
+    run(state, data["arg"]);
     shell::close_palette(state);
 }

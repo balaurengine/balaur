@@ -178,7 +178,7 @@ pub fn flush(sink: &mut Sink, node: Node) -> bool {
 
 /// A reply to one of the sink's requests; false when it was someone else's.
 pub fn settle(sink: &mut Sink, reply: any) -> bool {
-    let request = reply.get("request").as_int();
+    let request = reply["request"].as_int();
     if sink.policy != 0 && request == sink.policy {
         sink.policy = 0;
         policy_came(sink, reply);
@@ -190,17 +190,17 @@ pub fn settle(sink: &mut Sink, reply: any) -> bool {
     sink.in_flight = 0;
     let batch = sink.sending;
     sink.sending = [];
-    let status = reply.get("status").as_int();
+    let status = reply["status"].as_int();
     if status >= 200 && status < 300 {
         // Written now, not on the next second: a run that quits after this
         // reply must not leave delivered lines to be sent again.
         spool(sink);
         sink.registered = true;
-        let counts = unwrap(parsed(reply.get("body")));
-        let accepted = if counts.has("accepted") { counts.get("accepted").as_int() } else { batch.len() };
+        let counts = unwrap(parsed(reply["body"]));
+        let accepted = if counts.has("accepted") { counts["accepted"].as_int() } else { batch.len() };
         sink.accepted += accepted;
         if counts.has("dropped") {
-            sink.dropped = counts.get("dropped").as_int();
+            sink.dropped = counts["dropped"].as_int();
         }
         sink.last_flush = "{status} · {accepted} lines";
         return true;
@@ -254,8 +254,8 @@ fn ask_policy(sink: &mut Sink, node: Node) {
 }
 
 fn policy_came(sink: &mut Sink, reply: any) {
-    let status = reply.get("status").as_int();
-    let policy = if status == 200 { parsed(reply.get("body")) } else { nil() };
+    let status = reply["status"].as_int();
+    let policy = if status == 200 { parsed(reply["body"]) } else { nil() };
     if policy.kind() != "map" {
         sink.state = "no policy ({describe(reply)}): asking again";
         return;
@@ -271,20 +271,20 @@ fn parsed(body: any) -> any {
 /// Every API answer carries its payload under `data`; a server from before
 /// that change sent it bare, so take either.
 fn unwrap(body: any) -> any {
-    if body.get("data").kind() == "map" { body.get("data") } else { body }
+    if body["data"].kind() == "map" { body["data"] } else { body }
 }
 
 /// What the server asked for: on or off, a level floor, per-category floors.
 pub fn apply_policy(sink: &mut Sink, policy: any) {
-    sink.enabled = policy.get("enabled").as_bool();
-    let level = policy.get("level");
+    sink.enabled = policy["enabled"].as_bool();
+    let level = policy["level"];
     sink.level = if level.kind() == "str" { level.as_str() } else { "info" };
-    let most = policy.get("batch_max");
+    let most = policy["batch_max"];
     sink.batch_max = if most.kind() == "int" && most.as_int() > 0 { most.as_int() } else { 200 };
     let floors: any = {};
-    let categories = policy.get("categories");
+    let categories = policy["categories"];
     for name in categories.keys() {
-        floors.set(name, categories.get(name).text());
+        floors.set(name, categories[name].text());
     }
     sink.categories = floors;
     if !sink.enabled {
@@ -329,7 +329,7 @@ fn take(sink: &mut Sink) -> bool {
 }
 
 fn wanted(sink: Sink, line: Line) -> bool {
-    let floor = sink.categories.get(line.category);
+    let floor = sink.categories[line.category];
     let at = if floor.kind() == "str" { floor.as_str() } else { sink.level };
     rank(line.level) >= rank(at)
 }
@@ -496,17 +496,17 @@ fn recovered() -> [Line] {
     let out: [Line] = [];
     for slot in save::slots() {
         if slot == SPOOL {
-            let entries = save::read(SPOOL).get("entries");
+            let entries = save::read(SPOOL)["entries"];
             for i in 0..entries.len() {
-                let kept = entries.at(i);
+                let kept = entries[i];
                 out.push(Line {
-                    seq: kept.get("seq").as_int(),
-                    at: kept.get("at").as_float(),
-                    level: kept.get("level").text(),
+                    seq: kept["seq"].as_int(),
+                    at: kept["at"].as_float(),
+                    level: kept["level"].text(),
                     category: "recovered",
-                    message: kept.get("message").text(),
-                    lobby_id: kept.get("lobby_id").text(),
-                    screen: kept.get("screen").text(),
+                    message: kept["message"].text(),
+                    lobby_id: kept["lobby_id"].text(),
+                    screen: kept["screen"].text(),
                     repeat: 1,
                 });
             }
@@ -598,6 +598,6 @@ fn trimmed(url: str) -> str {
 }
 
 fn describe(reply: any) -> str {
-    let error = reply.get("error");
-    if error.kind() == "str" { error.as_str() } else { reply.get("status").text() }
+    let error = reply["error"];
+    if error.kind() == "str" { error.as_str() } else { reply["status"].text() }
 }

@@ -199,26 +199,26 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
-    let width = util::min(options.width.as_float(), util::max(screen.x - 32.0, 240.0));
+    let width = util::min(options["width"].as_float(), util::max(screen.x - 32.0, 240.0));
     util::fill(PICKER, { "open": true, "width": width });
     let field: any = {
         "kind": "text_field",
         "role": "input_picker",
-        "text": options.query.as_str(),
+        "text": options["query"].as_str(),
         "grow": 1,
-        "placeholder": options.placeholder,
-        "on": options.on,
-        "on_submit": options.on_submit,
-        "data": options.data,
+        "placeholder": options["placeholder"],
+        "on": options["on"],
+        "on_submit": options["on_submit"],
+        "data": options["data"],
     };
     pool::strip(state, PICKER + "/PickerHead", [
-        { "kind": "label", "role": "text_mark_picker", "text": options.mark.as_str() },
+        { "kind": "label", "role": "text_mark_picker", "text": options["mark"].as_str() },
         field,
         { "kind": "label", "role": "chip", "text": "esc" },
     ]);
     util::fill(PICKER + "/PickerScroll", {
         "visible": true,
-        "height": util::min(util::max(screen.y * 0.5, 160.0), options.rows_h.as_float()),
+        "height": util::min(util::max(screen.y * 0.5, 160.0), options["rows_h"].as_float()),
     });
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.

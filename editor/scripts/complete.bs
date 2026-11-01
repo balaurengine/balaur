@@ -221,7 +221,7 @@ fn glyph(kind: str) -> str {
 /// sheet, not two: a second overlay beside this one runs off the pane.
 // A row each completion, its mark, its label and its detail.
 fn rows(state: editor::State) -> [str] {
-    let tint = state.theme.text_muted.as_str();
+    let tint = state.theme["text_muted"].as_str();
     let out: [str] = [];
     for one in state.complete.items {
         out.push(util::row(glyph(one.kind), one.label, one.detail, tint));

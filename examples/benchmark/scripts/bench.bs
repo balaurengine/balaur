@@ -168,7 +168,7 @@ impl Bench {
             // work lands in.
             let total = 0.0;
             for name in c.stages {
-                total += ms(stages.get(name));
+                total += ms(stages[name]);
             }
             self.push("loop_ms", total);
             return;
@@ -182,9 +182,9 @@ impl Bench {
         }
         let per = 1000.0 / (t.fixed_steps as float);
         let span = if c.dimensions == 2 { "physics2d/step" } else { "physics3d/step" };
-        self.push("step_ms", secs(stages.get("fixed_update")) * per);
-        self.push("physics_ms", secs(spans.get(span)) * per);
-        self.push("script_ms", secs(spans.get("scripts/fixed_update")) * per);
+        self.push("step_ms", secs(stages["fixed_update"]) * per);
+        self.push("physics_ms", secs(spans[span]) * per);
+        self.push("script_ms", secs(spans["scripts/fixed_update"]) * per);
         self.push("frame_ms", t.frame * 1000.0);
     }
 
@@ -194,13 +194,13 @@ impl Bench {
     /// the GPU was asked for.
     fn sample_load(frame: float, wall: float, stages: any, spans: any) {
         self.push("frame_ms", frame * 1000.0);
-        self.push("update_ms", ms(stages.get("update")));
-        self.push("sync_ms", ms(stages.get("scene_sync")));
-        self.push("script_ms", ms(spans.get("scripts/update")));
-        self.push("mirror_ms", ms(spans.get("scene mirror")));
-        self.push("ui_ms", ms(spans.get("ui")));
-        self.push("render_cpu_ms", ms(spans.get("render cpu")));
-        self.push("render_gpu_ms", ms(spans.get("render gpu")));
+        self.push("update_ms", ms(stages["update"]));
+        self.push("sync_ms", ms(stages["scene_sync"]));
+        self.push("script_ms", ms(spans["scripts/update"]));
+        self.push("mirror_ms", ms(spans["scene mirror"]));
+        self.push("ui_ms", ms(spans["ui"]));
+        self.push("render_cpu_ms", ms(spans["render cpu"]));
+        self.push("render_gpu_ms", ms(spans["render gpu"]));
         self.push("wall_ms", wall * 1000.0);
         // Statements run rather than milliseconds: the same frame runs the
         // same statements on every machine, so this is the half a baseline
@@ -215,14 +215,14 @@ impl Bench {
 
     fn push(key: str, value: float) {
         if self.samples.has(key) {
-            self.samples.get(key).push(value);
+            self.samples[key].push(value);
         } else {
             self.samples.set(key, [value]);
         }
     }
 
     fn taken(key: str) -> int {
-        if self.samples.has(key) { self.samples.get(key).len() } else { 0 }
+        if self.samples.has(key) { self.samples[key].len() } else { 0 }
     }
 
     /// The state machine: build, settle, measure, report, tear down.
@@ -439,7 +439,7 @@ impl Bench {
     fn summary(key: str) -> any {
         let list: [float] = [];
         if self.samples.has(key) {
-            for v in self.samples.get(key) {
+            for v in self.samples[key] {
                 list.push(v.as_float());
             }
         }
@@ -602,20 +602,20 @@ fn tune(c: load::Case) {
 /// One finished case as a line: the median tick, what rapier took inside it,
 /// and its share of a 60 Hz frame.
 fn line_of(row: any) -> str {
-    let case = row.get("case").as_str();
-    let dimensions = row.get("dimensions").as_str();
+    let case = row["case"].as_str();
+    let dimensions = row["dimensions"].as_str();
     if dimensions == "nodes" {
-        let p50 = row.get("loop_ms").get("p50_ms").as_float();
-        return "{case}  {fixed(p50, 1)} ms  over {row.get("iterations").as_int()} iterations";
+        let p50 = row["loop_ms"]["p50_ms"].as_float();
+        return "{case}  {fixed(p50, 1)} ms  over {row["iterations"].as_int()} iterations";
     }
     if dimensions == "load" {
-        let p50 = row.get("frame_ms").get("p50_ms").as_float();
-        return "load/{case}  frame {fixed(p50, 2)} ms  of {row.get("count").as_int()}";
+        let p50 = row["frame_ms"]["p50_ms"].as_float();
+        return "load/{case}  frame {fixed(p50, 2)} ms  of {row["count"].as_int()}";
     }
-    let step = row.get("step_ms").get("p50_ms").as_float();
-    let rapier = row.get("physics_ms").get("p50_ms").as_float();
+    let step = row["step_ms"]["p50_ms"].as_float();
+    let rapier = row["physics_ms"]["p50_ms"].as_float();
     let share = fixed(100.0 * step / FRAME_BUDGET_MS, 0);
-    "{dimensions}/{case}  step {fixed(step, 2)} ms  rapier {fixed(rapier, 2)} ms  {share}% of a frame  fp {row.get("fingerprint").as_str()}"
+    "{dimensions}/{case}  step {fixed(step, 2)} ms  rapier {fixed(rapier, 2)} ms  {share}% of a frame  fp {row["fingerprint"].as_str()}"
 }
 
 /// `x` with `places` decimals, rounded half away from zero.

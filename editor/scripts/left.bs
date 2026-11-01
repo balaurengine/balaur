@@ -95,7 +95,7 @@ fn open_rows(state: &mut editor::State) -> [any] {
         folded = nil;
         let id = found.stable_id();
         let parent = model::parent_id(state, found);
-        let depth = if parent == "" { 0 } else { depth_of.get(parent).as_int() + 1 };
+        let depth = if parent == "" { 0 } else { depth_of[parent].as_int() + 1 };
         depth_of.set(id, depth);
         let has_kids = found.children().len() > 0;
         let is_last = model::is_scene_root(state, found) || found.sibling_index() == found.parent().children().len() - 1;
@@ -125,8 +125,8 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
     let rows: [Item] = [];
     if state.workspace == defs::WORKSPACE_SCRIPT {
         for file in model::list(state, "scripts") {
-            let name = file.name.as_str();
-            if !file.is_dir.as_bool() && name.ends_with(".bs") {
+            let name = file["name"].as_str();
+            if !file["is_dir"].as_bool() && name.ends_with(".bs") {
                 let rel = "scripts/" + name;
                 rows.push(item("‹›", name, "{model::line_count(state, rel)} L", rel, "script", -1, rel));
             }
@@ -174,7 +174,7 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
             let found = state.nodes[index];
             if found.has_component("widget") {
                 let widget = found.authored("widget");
-                let kind = if widget.kind.is_nil() { "widget" } else { widget.kind.as_str() };
+                let kind = if widget["kind"].is_nil() { "widget" } else { widget["kind"].as_str() };
                 rows.push(item("▤", found.name(), kind, found.stable_id(), "choose", index, ""));
             }
         }
@@ -184,8 +184,8 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
         return Secondary { title: "Widgets", rows: rows };
     }
     for file in model::list(state, "scenes") {
-        if !file.is_dir.as_bool() {
-            let name = file.name.as_str();
+        if !file["is_dir"].as_bool() {
+            let name = file["name"].as_str();
             let rel = "scenes/" + name;
             rows.push(item("◇", name, if state.scene_rel == rel { "open" } else { "" }, rel, "scene", -1, rel));
         }
@@ -265,7 +265,7 @@ pub fn outline_pick(state: &mut editor::State, row: str) {
 fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
     let items: [str] = [];
     for row in rows {
-        let index = row.index.as_int();
+        let index = row["index"].as_int();
         let node = state.nodes[index];
         let id = node.stable_id();
         let icon = model::node_icon(node);
@@ -273,8 +273,8 @@ fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
         let note = if lint::warned(state, id).len() > 0 { "⚠" } else { "" };
-        let tint = if tokens.get(icon.role).is_nil() { tokens.text_default.as_str() } else { tokens.get(icon.role).as_str() };
-        let line = util::repeat("\t", row.depth.as_int());
+        let tint = if tokens[icon.role].is_nil() { tokens["text_default"].as_str() } else { tokens[icon.role].as_str() };
+        let line = util::repeat("\t", row["depth"].as_int());
         items.push(line + util::cells([icon.glyph, node.name(), note, tint, id, row_marks(state, index)]));
     }
     // Every selected node lit, not only the active one: the document holds a
@@ -282,7 +282,7 @@ fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
     let chosen: [str] = [];
     for position in 0..rows.len() {
         let row = rows[position];
-        if selection::contains(state, row.index.as_int()) {
+        if selection::contains(state, row["index"].as_int()) {
             chosen.push(items[position]);
         }
     }
@@ -341,7 +341,7 @@ pub fn row_spot(state: &mut editor::State, index: int) -> RowSpot? {
 // Which drawn row is the selection, so the node can mark it.
 fn selected_row(rows: [any], selected_index: int) -> int {
     for position in 0..rows.len() {
-        if rows[position].index.as_int() == selected_index {
+        if rows[position]["index"].as_int() == selected_index {
             return position;
         }
     }

@@ -95,7 +95,7 @@ impl Inputview {
         if !self.shown {
             return;
         }
-        let design_point = self.design(spot.at(0), spot.at(1));
+        let design_point = self.design(spot[0], spot[1]);
         let design_x = design_point.x;
         let design_y = design_point.y;
         self.at = At { x: design_x.as_float(), y: design_y.as_float() };
@@ -106,15 +106,15 @@ impl Inputview {
     }
 
     pub fn on_pointer_pressed(event: any) {
-        self.hold(button_label(event.get("button")).as_str());
+        self.hold(button_label(event["button"]).as_str());
         if !self.shown {
             return;
         }
-        let design_point = self.design(event.get("x"), event.get("y"));
+        let design_point = self.design(event["x"], event["y"]);
         let design_x = design_point.x;
         let design_y = design_point.y;
         self.ripple(design_x, design_y);
-        if event.get("button").as_str() == "left" {
+        if event["button"].as_str() == "left" {
             self.node.get_node("Press").patch_component("widget", {
                 "visible": true,
                 "inset": [design_x.as_float() - PRESS / 2.0, design_y.as_float() - PRESS / 2.0, -1.0, -1.0],
@@ -123,8 +123,8 @@ impl Inputview {
     }
 
     pub fn on_pointer_released(event: any) {
-        self.let_go(button_label(event.get("button")).as_str());
-        if event.get("button").as_str() == "left" {
+        self.let_go(button_label(event["button"]).as_str());
+        if event["button"].as_str() == "left" {
             self.node.get_node("Press").patch_component("widget", { "visible": false });
         }
     }
@@ -135,7 +135,7 @@ impl Inputview {
         let now = engine::unix_time();
         let gone: [str] = [];
         for name in self.chips.keys() {
-            let until = self.chips.get(name);
+            let until = self.chips[name];
             if until.as_float() > 0.0 && now >= until.as_float() {
                 gone.push(name);
             }
@@ -167,10 +167,10 @@ impl Inputview {
         if !(view.kind() == "map") {
             return;
         }
-        self.shown = view.get("shown").as_bool();
-        self.factor = view.get("factor").as_float();
-        self.node.patch_component("widget", { "visible": view.get("shown") });
-        self.node.get_node("Chips").patch_component("widget", { "inset": [view.get("chips_x"), view.get("chips_y"), -1.0, -1.0] });
+        self.shown = view["shown"].as_bool();
+        self.factor = view["factor"].as_float();
+        self.node.patch_component("widget", { "visible": view["shown"] });
+        self.node.get_node("Chips").patch_component("widget", { "inset": [view["chips_x"], view["chips_y"], -1.0, -1.0] });
     }
 
     // Window pixels as the overlay's design pixels.

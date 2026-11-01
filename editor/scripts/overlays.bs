@@ -22,9 +22,9 @@ pub struct Marked {
 pub fn grid2d(state: editor::State) {
     let tokens = state.theme;
     let camera = render::camera_2d();
-    let center_x = camera.at(0);
-    let center_y = camera.at(1);
-    let zoom = camera.at(2);
+    let center_x = camera.x;
+    let center_y = camera.y;
+    let zoom = camera.z;
     let screen_width = state.screen_width * state.ui_scale;
     let screen_height = state.screen_height * state.ui_scale;
     let half_width = screen_width / zoom.as_float() / 2.0 + 1.0;
@@ -32,8 +32,8 @@ pub fn grid2d(state: editor::State) {
     if half_width > 200.0 || half_height > 200.0 {
         return;
     }
-    let minor = util::rgb(tokens.get("grid_minor").as_str());
-    let major = util::rgb(tokens.get("grid_major").as_str());
+    let minor = util::rgb(tokens["grid_minor"].as_str());
+    let major = util::rgb(tokens["grid_major"].as_str());
     let first_x = math::floor(center_x.as_float() - half_width) as int;
     let last_x = math::ceil(center_x.as_float() + half_width) as int;
     for column in first_x..last_x + 1 {
@@ -57,17 +57,17 @@ pub fn guides(state: &mut editor::State) {
     }
     let position = found.transform.global_position();
     let tokens = state.theme;
-    let x_color = util::rgb(tokens.get("axis_x").as_str());
-    let y_color = util::rgb(tokens.get("axis_y").as_str());
+    let x_color = util::rgb(tokens["axis_x"].as_str());
+    let y_color = util::rgb(tokens["axis_y"].as_str());
     if model::is_2d(state) {
-        render::draw_line_2d(position.get("x").as_float() - 4.0, position.get("y").as_float(), position.get("x").as_float() + 4.0, position.get("y").as_float(), x_color[0], x_color[1], x_color[2], 1.0);
-        render::draw_line_2d(position.get("x").as_float(), position.get("y").as_float() - 4.0, position.get("x").as_float(), position.get("y").as_float() + 4.0, y_color[0], y_color[1], y_color[2], 1.0);
+        render::draw_line_2d(position.x.as_float() - 4.0, position.y.as_float(), position.x.as_float() + 4.0, position.y.as_float(), x_color[0], x_color[1], x_color[2], 1.0);
+        render::draw_line_2d(position.x.as_float(), position.y.as_float() - 4.0, position.x.as_float(), position.y.as_float() + 4.0, y_color[0], y_color[1], y_color[2], 1.0);
         return;
     }
-    let z_color = util::rgb(tokens.get("axis_z").as_str());
-    render::draw_line_3d(position.get("x").as_float() - 4.0, position.get("y").as_float(), position.get("z").as_float(), position.get("x").as_float() + 4.0, position.get("y").as_float(), position.get("z").as_float(), x_color[0], x_color[1], x_color[2], 1.0);
-    render::draw_line_3d(position.get("x").as_float(), position.get("y").as_float() - 4.0, position.get("z").as_float(), position.get("x").as_float(), position.get("y").as_float() + 4.0, position.get("z").as_float(), y_color[0], y_color[1], y_color[2], 1.0);
-    render::draw_line_3d(position.get("x").as_float(), position.get("y").as_float(), position.get("z").as_float() - 4.0, position.get("x").as_float(), position.get("y").as_float(), position.get("z").as_float() + 4.0, z_color[0], z_color[1], z_color[2], 1.0);
+    let z_color = util::rgb(tokens["axis_z"].as_str());
+    render::draw_line_3d(position.x.as_float() - 4.0, position.y.as_float(), position.z.as_float(), position.x.as_float() + 4.0, position.y.as_float(), position.z.as_float(), x_color[0], x_color[1], x_color[2], 1.0);
+    render::draw_line_3d(position.x.as_float(), position.y.as_float() - 4.0, position.z.as_float(), position.x.as_float(), position.y.as_float() + 4.0, position.z.as_float(), y_color[0], y_color[1], y_color[2], 1.0);
+    render::draw_line_3d(position.x.as_float(), position.y.as_float(), position.z.as_float() - 4.0, position.x.as_float(), position.y.as_float(), position.z.as_float() + 4.0, z_color[0], z_color[1], z_color[2], 1.0);
 }
 
 // The selected clip's position keys, joined in order, with a marker on each
@@ -79,8 +79,8 @@ pub fn motion_path(state: &mut editor::State) {
     }
     let keys: any = nil;
     for track in anim::tracks(clip_definition) {
-        if track.get("target").as_str() == "" && track.get("property") == animation::PROPERTY_POSITION {
-            let held_keys = track.get("keys");
+        if track["target"].as_str() == "" && track["property"] == animation::PROPERTY_POSITION {
+            let held_keys = track["keys"];
             keys = util::list_or_empty(if held_keys.is_nil() { [] } else { held_keys });
         }
     }
@@ -92,11 +92,11 @@ pub fn motion_path(state: &mut editor::State) {
         return;
     }
     let tokens = state.theme;
-    let color = util::rgb(tokens.get("primary_text").as_str());
+    let color = util::rgb(tokens["primary_text"].as_str());
     let is2d = model::is_2d(state);
     let previous: [float]? = nil;
     for key in keys {
-        let held_value = key.get("value");
+        let held_value = key["value"];
         let position = util::vec3(if held_value.is_nil() { nil } else { held_value }.as_float(), [0.0, 0.0, 0.0]);
         let key_x = position[0];
         let key_y = position[1];
@@ -123,19 +123,19 @@ pub fn motion_path(state: &mut editor::State) {
 
 pub fn colliders2d(state: editor::State) {
     let tokens = state.theme;
-    let color = util::rgb(tokens.node_physics.as_str());
+    let color = util::rgb(tokens["node_physics"].as_str());
     for found in state.nodes {
         if !found.is_valid() || !found.has_component("collider2d") {
             continue;
         }
-        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider2d")).shape);
+        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider2d"))["shape"]);
         let position = found.transform.global_position();
         let angle = found.transform.global_rotation_euler().z;
         let scale = found.transform.global_scale();
         let cosine = math::cos(angle);
         let sine = math::sin(angle);
-        if collider.kind.as_str() == physics2d::SHAPE_CIRCLE {
-            let held = collider.radius;
+        if collider["kind"].as_str() == physics2d::SHAPE_CIRCLE {
+            let held = collider["radius"];
             let radius = (if held.is_nil() { 0.5 } else { held.as_float() }) * scale.x;
             let from = turned(position, cosine, sine, radius, 0.0);
             for step in 1..33 {
@@ -145,7 +145,7 @@ pub fn colliders2d(state: editor::State) {
                 from = to;
             }
         } else {
-            let size = util::vec2(collider.size, [1.0, 1.0]);
+            let size = util::vec2(collider["size"], [1.0, 1.0]);
             let half_x = size[0] / 2.0 * scale.x;
             let half_y = size[1] / 2.0 * scale.y;
             let first_corner = turned(position, cosine, sine, -half_x, -half_y);
@@ -196,34 +196,34 @@ pub fn lights2d(state: editor::State) {
 // One light: a point's reach as a circle, a directional one's aim as a comb
 // of strokes through the node, both in the light's own colour.
 fn light_gizmo(found: Node, light: any) {
-    let held_color = light.get("color");
+    let held_color = light["color"];
     let color = component_rgb(if held_color.is_nil() { nil } else { held_color }, [1.0, 1.0, 1.0]);
     let position = found.transform.global_position();
-    let angle = found.transform.global_rotation_euler().get("z");
+    let angle = found.transform.global_rotation_euler().z;
     let cosine = math::cos(angle.as_float());
     let sine = math::sin(angle.as_float());
     // At rest a light2d shines along -y; the node's z rotation turns it.
     let direction_x = sine;
     let direction_y = -cosine;
-    render::draw_line_2d(position.get("x").as_float() - 0.2, position.get("y").as_float(), position.get("x").as_float() + 0.2, position.get("y").as_float(), color[0], color[1], color[2], 2.0);
-    render::draw_line_2d(position.get("x").as_float(), position.get("y").as_float() - 0.2, position.get("x").as_float(), position.get("y").as_float() + 0.2, color[0], color[1], color[2], 2.0);
-    let held_kind = light.get("kind");
+    render::draw_line_2d(position.x.as_float() - 0.2, position.y.as_float(), position.x.as_float() + 0.2, position.y.as_float(), color[0], color[1], color[2], 2.0);
+    render::draw_line_2d(position.x.as_float(), position.y.as_float() - 0.2, position.x.as_float(), position.y.as_float() + 0.2, color[0], color[1], color[2], 2.0);
+    let held_kind = light["kind"];
     if if held_kind.is_nil() { render::LIGHT_POINT } else { held_kind } == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let offset_x = -direction_y * (step as float) * 0.4;
             let offset_y = direction_x * (step as float) * 0.4;
-            render::draw_line_2d(position.get("x").as_float() + offset_x, position.get("y").as_float() + offset_y, position.get("x").as_float() + offset_x + direction_x, position.get("y").as_float() + offset_y + direction_y, color[0], color[1], color[2], 1.0);
+            render::draw_line_2d(position.x.as_float() + offset_x, position.y.as_float() + offset_y, position.x.as_float() + offset_x + direction_x, position.y.as_float() + offset_y + direction_y, color[0], color[1], color[2], 1.0);
         }
         return;
     }
-    let held_radius = light.get("radius");
+    let held_radius = light["radius"];
     let radius = if held_radius.is_nil() { 6.0 } else { held_radius.as_float() };
-    let previous_x: any = position.get("x").as_float() + radius;
-    let previous_y = position.get("y");
+    let previous_x: any = position.x.as_float() + radius;
+    let previous_y = position.y;
     for step in 1..33 {
         let step_angle = (step as float) / 32.0 * math::PI.as_float() * 2.0;
-        let next_x = position.get("x").as_float() + math::cos(step_angle) * radius;
-        let next_y = position.get("y").as_float() + math::sin(step_angle) * radius;
+        let next_x = position.x.as_float() + math::cos(step_angle) * radius;
+        let next_y = position.y.as_float() + math::sin(step_angle) * radius;
         render::draw_line_2d(previous_x.as_float(), previous_y.as_float(), next_x, next_y, color[0], color[1], color[2], 1.0);
         previous_x = next_x;
         previous_y = next_y;
@@ -234,7 +234,7 @@ fn light_gizmo(found: Node, light: any) {
 // derived one (from `collider2d`, or the node's shape) draws too.
 fn occluder_outline(state: editor::State, found: Node) {
     let tokens = state.theme;
-    let color = util::rgb(tokens.get("primary_text").as_str());
+    let color = util::rgb(tokens["primary_text"].as_str());
     // Flat x, y pairs, already closed when the occluder is.
     let flat = found.occluder2d.outline();
     let count = flat.len() / 2;
@@ -242,40 +242,40 @@ fn occluder_outline(state: editor::State, found: Node) {
         return;
     }
     for index in 0..count - 1 {
-        render::draw_line_2d(flat.at(index * 2).as_float(), flat.at(index * 2 + 1).as_float(), flat.at(index * 2 + 2).as_float(), flat.at(index * 2 + 3).as_float(), color[0], color[1], color[2], 1.0);
+        render::draw_line_2d(flat[index * 2].as_float(), flat[index * 2 + 1].as_float(), flat[index * 2 + 2].as_float(), flat[index * 2 + 3].as_float(), color[0], color[1], color[2], 1.0);
     }
 }
 
 pub fn colliders(state: editor::State) {
     let tokens = state.theme;
-    let color = util::rgb(tokens.get("node_physics").as_str());
+    let color = util::rgb(tokens["node_physics"].as_str());
     for found in state.nodes {
         if !found.is_valid() || !found.has_component("collider3d") {
             continue;
         }
-        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider3d")).shape);
+        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider3d"))["shape"]);
         let position = found.transform.global_position();
         let half_x = 0.5;
         let half_y = 0.5;
         let half_z = 0.5;
-        let held_radius = collider.get("radius");
+        let held_radius = collider["radius"];
         if !held_radius.is_nil() {
             let radius = held_radius.as_float();
             half_x = radius;
             half_y = radius;
             half_z = radius;
         } else {
-            let size = collider.get("size");
+            let size = collider["size"];
             if !size.is_nil() {
                 let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
-                half_x = size.at(0).as_float() / 2.0;
-                half_y = size.at(1).as_float() / 2.0;
-                half_z = size.at(2).as_float() / 2.0;
+                half_x = size[0].as_float() / 2.0;
+                half_y = size[1].as_float() / 2.0;
+                half_z = size[2].as_float() / 2.0;
             }
         }
-        let x_bounds = [position.get("x").as_float() - half_x, position.get("x").as_float() + half_x];
-        let y_bounds = [position.get("y").as_float() - half_y, position.get("y").as_float() + half_y];
-        let z_bounds = [position.get("z").as_float() - half_z, position.get("z").as_float() + half_z];
+        let x_bounds = [position.x.as_float() - half_x, position.x.as_float() + half_x];
+        let y_bounds = [position.y.as_float() - half_y, position.y.as_float() + half_y];
+        let z_bounds = [position.z.as_float() - half_z, position.z.as_float() + half_z];
         for bound_y in y_bounds {
             for bound_z in z_bounds {
                 render::draw_line_3d(x_bounds[0], bound_y, bound_z, x_bounds[1], bound_y, bound_z, color[0], color[1], color[2], 1.0);
@@ -292,16 +292,16 @@ pub fn colliders(state: editor::State) {
             }
         }
         // Center of mass.
-        render::draw_line_3d(position.get("x").as_float() - 0.15, position.get("y").as_float(), position.get("z").as_float(), position.get("x").as_float() + 0.15, position.get("y").as_float(), position.get("z").as_float(), color[0], color[1], color[2], 3.0);
-        render::draw_line_3d(position.get("x").as_float(), position.get("y").as_float() - 0.15, position.get("z").as_float(), position.get("x").as_float(), position.get("y").as_float() + 0.15, position.get("z").as_float(), color[0], color[1], color[2], 3.0);
+        render::draw_line_3d(position.x.as_float() - 0.15, position.y.as_float(), position.z.as_float(), position.x.as_float() + 0.15, position.y.as_float(), position.z.as_float(), color[0], color[1], color[2], 3.0);
+        render::draw_line_3d(position.x.as_float(), position.y.as_float() - 0.15, position.z.as_float(), position.x.as_float(), position.y.as_float() + 0.15, position.z.as_float(), color[0], color[1], color[2], 3.0);
     }
 }
 
 /// Where a node aims in 3D: -z turned by its rotation, the direction a
 /// `light3d` shines and a `camera` looks.
 fn forward_of(found: any) -> [float] {
-    let rotation = found.get("transform").global_rotation_euler();
-    let basis = util::basis_from_euler([rotation.get("x"), rotation.get("y"), rotation.get("z")]);
+    let rotation = found.transform.global_rotation_euler();
+    let basis = util::basis_from_euler([rotation.x, rotation.y, rotation.z]);
     // The basis holds the local axes as columns; -z is the third, negated.
     [-basis[2][0], -basis[2][1], -basis[2][2]]
 }
@@ -338,7 +338,7 @@ pub fn lights3d(state: &mut editor::State) {
     let tokens = state.theme;
     // The lines follow from each light's and camera's pose, its table and
     // whether it is selected; a frame where none moved replays the list.
-    let key: [any] = [tokens.primary_text, tokens.text_muted];
+    let key: [any] = [tokens["primary_text"], tokens["text_muted"]];
     let marked: [Marked] = [];
     for index in 0..state.nodes.len() {
         let found = state.nodes[index];
@@ -385,14 +385,14 @@ pub fn lights3d(state: &mut editor::State) {
 
 fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: any) {
     let color = if selected {
-        util::rgb(tokens.get("primary_text").as_str())
+        util::rgb(tokens["primary_text"].as_str())
     } else {
-        let held_color = light.get("color");
+        let held_color = light["color"];
         component_rgb(if held_color.is_nil() { nil } else { held_color }, [1.0, 0.9, 0.7])
     };
     let position = util::xyz(found.transform.global_position());
     let direction = forward_of(found);
-    let held_kind = light.get("kind");
+    let held_kind = light["kind"];
     let kind = if held_kind.is_nil() { render::LIGHT_DIRECTIONAL } else { held_kind };
     let width = if selected { 2.0 } else { 1.0 };
     // The body every kind shares: a small star at the node.
@@ -414,12 +414,12 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
         }
         return;
     }
-    let held_radius = light.get("radius");
+    let held_radius = light["radius"];
     let radius = if held_radius.is_nil() { 30.0 } else { held_radius.as_float() };
     if kind == render::LIGHT_SPOT {
-        let held_outer = light.get("outer");
+        let held_outer = light["outer"];
         let outer = (if held_outer.is_nil() { 35.0 } else { held_outer.as_float() }) * math::PI.as_float() / 180.0;
-        let held_inner = light.get("inner");
+        let held_inner = light["inner"];
         let inner = (if held_inner.is_nil() { 20.0 } else { held_inner.as_float() }) * math::PI.as_float() / 180.0;
         let axes = across(direction);
         let first_axis = axes.first_axis;
@@ -450,9 +450,9 @@ const FRUSTUM_REACH: float = 4.0;
 
 fn camera_gizmo(out: [any], state: editor::State, found: Node, selected: bool, tokens: any) {
     let color = if selected {
-        util::rgb(tokens.get("primary_text").as_str())
+        util::rgb(tokens["primary_text"].as_str())
     } else {
-        util::rgb(tokens.get("text_muted").as_str())
+        util::rgb(tokens["text_muted"].as_str())
     };
     let width = if selected { 2.0 } else { 1.0 };
     let position = util::xyz(found.transform.global_position());
@@ -461,7 +461,7 @@ fn camera_gizmo(out: [any], state: editor::State, found: Node, selected: bool, t
     let first_axis = axes.first_axis;
     let second_axis = axes.second_axis;
     let camera = util::map_or_empty(found.get_component("camera3d"));
-    let held_fov = camera.get("fov");
+    let held_fov = camera["fov"];
     let fov = (if held_fov.is_nil() { 60.0 } else { held_fov.as_float() }) * math::PI.as_float() / 180.0;
     let half = FRUSTUM_REACH * math::tan(fov / 2.0);
     let centre = util::vector_add(position, util::vector_scale(direction, FRUSTUM_REACH));

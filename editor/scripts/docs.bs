@@ -55,7 +55,7 @@ pub fn pick(state: &mut editor::State, module: str) {
 // The module the dock is showing; nil when none is.
 fn current(state: editor::State, list: any) -> any {
     for module in list {
-        if module.name.as_str() == state.docs.pick {
+        if module["name"].as_str() == state.docs.pick {
             return module;
         }
     }
@@ -68,7 +68,7 @@ pub fn view(state: &mut editor::State, query: str) -> View {
     let list = util::list_or_empty(modules(state));
     let names: [str] = [];
     for module in list {
-        names.push(module.name.as_str());
+        names.push(module["name"].as_str());
     }
     let module = current(state, list);
     if module.is_nil() {
@@ -76,26 +76,26 @@ pub fn view(state: &mut editor::State, query: str) -> View {
         return View { modules: names, pick: state.docs.pick, items: [], says: says };
     }
     let items: [str] = [];
-    if module.doc.as_str() != "" {
-        items.push(util::row("", module.doc.as_str(), "", tokens.text_muted.as_str()));
+    if module["doc"].as_str() != "" {
+        items.push(util::row("", module["doc"].as_str(), "", tokens["text_muted"].as_str()));
     }
     let shown = 0;
-    for function in util::list_or_empty(module.functions) {
+    for function in util::list_or_empty(module["functions"]) {
         let name = function.as_str();
         if !search::matches(query, name) {
             continue;
         }
         shown += 1;
-        let tint = if name == state.docs.function_pick { tokens.primary_text } else { tokens.text_default };
-        items.push(util::row("", name + module.signatures.get(name).as_str(), "", tint.as_str()));
-        let doc = module.docs.get(name).as_str();
+        let tint = if name == state.docs.function_pick { tokens["primary_text"] } else { tokens["text_default"] };
+        items.push(util::row("", name + module["signatures"][name].as_str(), "", tint.as_str()));
+        let doc = module["docs"][name].as_str();
         if doc != "" {
-            items.push(util::row("", "\t  " + doc, "", tokens.text_subtle.as_str()));
+            items.push(util::row("", "\t  " + doc, "", tokens["text_subtle"].as_str()));
         }
     }
     if query == "" {
-        for constant in util::list_or_empty(module.constants) {
-            items.push(util::row("", "{constant.name.as_str()}  {constant.value.as_str()}", "", tokens.text_subtle.as_str()));
+        for constant in util::list_or_empty(module["constants"]) {
+            items.push(util::row("", "{constant["name"].as_str()}  {constant["value"].as_str()}", "", tokens["text_subtle"].as_str()));
         }
     }
     let says = if shown == 0 && query != "" { search::nothing_says(query) } else { "" };

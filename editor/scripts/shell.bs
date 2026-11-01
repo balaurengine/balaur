@@ -204,8 +204,8 @@ pub fn toggle_focus(state: &mut editor::State) {
     }
     let was: any = { "split": state.split };
     for side in docks::sides() {
-        was.set(side, state.docks.get(side).shut);
-        state.docks.get(side).shut = true;
+        was.set(side, state.docks[side]["shut"]);
+        state.docks[side].shut = true;
         signals::docks(state);
     }
     state.focus_was = was;
@@ -226,10 +226,10 @@ pub fn leave_focus(state: &mut editor::State) {
         return;
     }
     for side in docks::sides() {
-        state.docks.get(side).shut = was.get(side).as_bool();
+        state.docks[side].shut = was[side].as_bool();
         signals::docks(state);
     }
-    state.split = was.split.as_bool();
+    state.split = was["split"].as_bool();
     signals::bars(state);
 }
 
@@ -399,7 +399,7 @@ pub fn chip_value(state: editor::State, workspace: str, key: str) -> bool? {
 // same file by the absolute path play attaches it under.
 pub fn breakpoint_lines(state: editor::State, rel: str) -> [int] {
     let lines: [int] = [];
-    for line in util::list_or_empty(state.debug.breakpoints.get(rel)) {
+    for line in util::list_or_empty(state.debug.breakpoints[rel]) {
         lines.push(line.as_int());
     }
     lines.sort();
@@ -460,9 +460,9 @@ pub fn stopped(state: &mut editor::State, stop: any) {
 
 // A fresh pause: show the script and the frame it stopped in.
 pub fn on_pause(state: &mut editor::State, pause: any) {
-    state.debug.paused_rel = script_rel(state, pause.path.as_str());
+    state.debug.paused_rel = script_rel(state, pause["path"].as_str());
     state.debug.frame = 0;
-    let stopped = pause.node.as_node();
+    let stopped = pause["node"].as_node();
     for row in 0..state.nodes.len() {
         let found = state.nodes[row];
         if found == stopped || model::script_rel(found).as_str() == state.debug.paused_rel {
@@ -472,7 +472,7 @@ pub fn on_pause(state: &mut editor::State, pause: any) {
     }
     set_workspace(state, defs::WORKSPACE_SCRIPT);
     docks::show(state, "debugger");
-    log::info("paused at {state.debug.paused_rel}:{pause.line} ({pause.reason})");
+    log::info("paused at {state.debug.paused_rel}:{pause["line"]} ({pause["reason"]})");
 }
 
 /// A new `.bs` script: a class named after the file, `door_bell.bs` a
@@ -497,8 +497,8 @@ pub fn attach_script(state: &mut editor::State) {
 pub fn script_files(state: &mut editor::State) -> [str] {
     let files: [str] = [];
     for file in model::list(state, "scripts") {
-        if !file.is_dir.as_bool() && file.name.as_str().ends_with(".bs") {
-            files.push("scripts/" + file.name.as_str());
+        if !file["is_dir"].as_bool() && file["name"].as_str().ends_with(".bs") {
+            files.push("scripts/" + file["name"].as_str());
         }
     }
     files.sort();
@@ -547,7 +547,7 @@ pub fn set_script_path(state: &mut editor::State, path: str) {
         let old_absolute_path = state.game_root + "/" + old;
         if fs::exists(old_absolute_path) && !fs::exists(absolute_path) {
             // What is typed but unsaved goes with the file.
-            let buffer = state.script_buffers.get(old_absolute_path);
+            let buffer = state.script_buffers[old_absolute_path];
             if !buffer.is_nil() {
                 fs::write(old_absolute_path, buffer.as_str());
             }
@@ -587,7 +587,7 @@ fn make_parent(state: editor::State, rel: str) {
 fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
     let old_absolute_path = state.game_root + "/" + old;
     let absolute_path = state.game_root + "/" + rel;
-    let buffer = state.script_buffers.get(old_absolute_path);
+    let buffer = state.script_buffers[old_absolute_path];
     if !buffer.is_nil() {
         state.script_buffers.set(absolute_path, buffer);
         state.script_buffers.remove(old_absolute_path);
@@ -673,7 +673,7 @@ pub fn goto_definition(state: &mut editor::State) {
 
 /// The script at `rel` as it is open: its unsaved buffer, or the file.
 fn buffer_of(state: &mut editor::State, rel: str) -> str {
-    let buffer = state.script_buffers.get(state.game_root + "/" + rel);
+    let buffer = state.script_buffers[state.game_root + "/" + rel];
     if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
@@ -742,7 +742,7 @@ pub fn save_active(state: &mut editor::State) {
 /// does for the code in the centre, and what the autosave does once typing
 /// stops.
 pub fn save_buffer(state: &mut editor::State, absolute_path: str) {
-    let buffer = state.script_buffers.get(absolute_path);
+    let buffer = state.script_buffers[absolute_path];
     if buffer.is_nil() {
         return;
     }
@@ -792,10 +792,10 @@ pub fn write_picture(state: &mut editor::State) {
 
 /// A picture the second run finished, or why it could not.
 pub fn picture_done(event: any) {
-    if event.kind == "written" {
-        log::info("wrote " + event.path.as_str());
+    if event["kind"] == "written" {
+        log::info("wrote " + event["path"].as_str());
     } else {
-        log::warn("no picture: " + event.message.as_str());
+        log::warn("no picture: " + event["message"].as_str());
     }
 }
 
@@ -1017,7 +1017,7 @@ pub fn apply_start_state(state: &mut editor::State, start: str) {
         }
     }
     let ran = false;
-    let found = states().get(start);
+    let found = states()[start];
     if !found.is_nil() {
         let run: fn(&mut editor::State) = found;
         run(state);
@@ -1139,7 +1139,7 @@ fn state_shut(state: &mut editor::State, side: str) {
         state.chrome_off = true;
         return;
     }
-    state.docks.get(side).shut = true;
+    state.docks[side].shut = true;
     signals::docks(state);
 }
 
@@ -1282,8 +1282,8 @@ pub fn break_demo(state: &mut editor::State) {
         if !script.is_nil() {
             selection::only(state, row);
             for hook in model::hooks(state, script.as_str()) {
-                if hook.name.as_str() == "update" {
-                    toggle_breakpoint(state, script.as_str(), hook.line.as_int() + 1);
+                if hook["name"].as_str() == "update" {
+                    toggle_breakpoint(state, script.as_str(), hook["line"].as_int() + 1);
                 }
             }
             break;

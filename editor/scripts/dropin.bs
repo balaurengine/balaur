@@ -137,7 +137,7 @@ fn drop_point(state: &mut editor::State) -> [float] {
 fn place(state: &mut editor::State, name: str, parts: any) -> Node {
     let entry: any = { "transform": { "position": drop_point(state) } };
     for key in parts.keys() {
-        entry.set(key, parts.get(key));
+        entry.set(key, parts[key]);
     }
     model::spawn(state, state.scene_root.unwrap(), name, entry)
 }
@@ -256,9 +256,9 @@ pub fn job_totals(state: editor::State) -> JobTotals {
     let done = 0;
     let files = 0;
     for source in state.jobs.keys() {
-        let job = state.jobs.get(source);
-        done += job.done.as_int();
-        files += job.files.as_int();
+        let job = state.jobs[source];
+        done += job["done"].as_int();
+        files += job["files"].as_int();
     }
     JobTotals { done: done, files: files }
 }
@@ -268,7 +268,7 @@ pub fn job_totals(state: editor::State) -> JobTotals {
 pub fn in_flight(state: editor::State) -> int {
     let count = 0;
     for source in state.jobs.keys() {
-        if state.jobs.get(source).over.as_str() == "" {
+        if state.jobs[source]["over"].as_str() == "" {
             count += 1;
         }
     }
@@ -293,7 +293,7 @@ pub fn kept_until(state: editor::State) -> float {
     }
     let last = 0.0;
     for source in state.jobs.keys() {
-        last = util::max(last, state.jobs.get(source).at.as_float());
+        last = util::max(last, state.jobs[source]["at"].as_float());
     }
     last + KEPT_FOR
 }
@@ -301,7 +301,7 @@ pub fn kept_until(state: editor::State) -> float {
 /// How many files the import of `source` has written, for the line that says
 /// so when it ends.
 fn written_by(state: editor::State, source: str) -> int {
-    state.jobs.get(source).done.as_int()
+    state.jobs[source]["done"].as_int()
 }
 
 /// Mark one import as ended, leaving it in the list for a while: a batch of
@@ -310,7 +310,7 @@ fn written_by(state: editor::State, source: str) -> int {
 fn ended(state: &mut editor::State, source: str, over: str) {
     // Made here where there is none: a cancel is read at the top of a slice,
     // so one pressed early ends an import that never said it had started.
-    let job = state.jobs.get(source);
+    let job = state.jobs[source];
     if job.is_nil() {
         job = new_job(source, 0);
     }
@@ -328,40 +328,40 @@ fn new_job(source: str, files: int) -> any {
 /// it lands, then the end.
 pub fn report(state: &mut editor::State, event: any) {
     let import_event = util::map_or_empty(event);
-    let kind = import_event.kind.as_str();
-    let source = import_event.source.as_str();
+    let kind = import_event["kind"].as_str();
+    let source = import_event["source"].as_str();
     if kind == "started" {
         // Keyed by the source, because several can run at once and each
         // reports its own steps.
-        state.jobs.set(source, new_job(source, import_event.files.as_int()));
+        state.jobs.set(source, new_job(source, import_event["files"].as_int()));
     } else if kind == "wrote" {
-        let job = state.jobs.get(source);
+        let job = state.jobs[source];
         if !job.is_nil() {
-            job.set("done", import_event.done.as_int());
-            job.set("files", import_event.files.as_int());
+            job.set("done", import_event["done"].as_int());
+            job.set("files", import_event["files"].as_int());
         }
     } else if kind == "done" {
         let written = written_by(state, source);
         ended(state, source, "imported");
         model::forget(state, nil);
         log::info("imported {file_name(source)} ({written} files)");
-        let note = import_event.note.as_str();
+        let note = import_event["note"].as_str();
         if note != "" {
             log::info(note);
         }
-        if import_event.scene.kind() == "str" {
-            model::instance_scene(state, import_event.scene.as_str());
+        if import_event["scene"].kind() == "str" {
+            model::instance_scene(state, import_event["scene"].as_str());
         }
     } else if kind == "cancelled" {
-        let written = import_event.done.as_int();
+        let written = import_event["done"].as_int();
         ended(state, source, "stopped");
         // This run's count, not one an earlier import of the same file left.
-        state.jobs.get(source).set("done", written);
+        state.jobs[source].set("done", written);
         model::forget(state, nil);
         log::info("stopped importing {file_name(source)} after {written} files");
     } else if kind == "failed" {
         ended(state, source, "failed");
-        log::error("importing {file_name(source)} failed: {import_event.message.as_str()}");
+        log::error("importing {file_name(source)} failed: {import_event["message"].as_str()}");
         // A line in a dock nobody has open is not a report, so open it.
         docks::show(state, "output");
     }

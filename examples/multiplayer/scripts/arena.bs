@@ -51,8 +51,8 @@ impl Arena {
             if pressed.kind() == "map" {
                 let ship = self.node.get_node("Ship{slot}");
                 let at = ship.transform.position;
-                let x = at.x + pressed.x.as_float() * SPEED * dt;
-                let y = at.y + pressed.y.as_float() * SPEED * dt;
+                let x = at.x + pressed["x"].as_float() * SPEED * dt;
+                let y = at.y + pressed["y"].as_float() * SPEED * dt;
                 ship.transform.position = [x, y, 0.0];
             }
         }
@@ -65,15 +65,15 @@ impl Arena {
     }
 
     pub fn on_multiplayer_event(e: any) {
-        let kind = e.get("kind");
+        let kind = e["kind"];
         if kind == multiplayer::EVENT_DESYNC {
-            let tick = e.get("tick");
+            let tick = e["tick"];
             log::error("the machines disagree from tick {tick}");
         } else if kind == multiplayer::EVENT_LEFT {
-            let name = e.get("name");
+            let name = e["name"];
             log::info("{name} left; their square stays where it is");
         } else if kind == multiplayer::EVENT_CLOSED {
-            let reason = e.get("reason");
+            let reason = e["reason"];
             log::info("the match ended: {reason}");
             if self.auto {
                 engine::quit(0);

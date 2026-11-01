@@ -755,7 +755,7 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
 fn a_dragged_row_reports_where_it_was_let_go() {
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
-    pub fn on_move(what: any) { self.said = \"{what.at(0)}|{what.at(1)}|{what.at(2)}\"; }
+    pub fn on_move(what: any) { self.said = \"{what[0]}|{what[1]}|{what[2]}\"; }
     pub fn said() -> str { self.said }
 }
 ";
@@ -818,7 +818,7 @@ impl Owner {
 fn a_list_that_does_not_reorder_reports_no_drop() {
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
-    pub fn on_move(what: any) { self.said = \"{what.at(0)}\"; }
+    pub fn on_move(what: any) { self.said = \"{what[0]}\"; }
     pub fn said() -> str { self.said }
 }
 ";
@@ -959,8 +959,8 @@ fn marked_tree() -> (
     let script = "pub class Owner { node: Node, said: str }
 impl Owner {
     pub fn on_mark(what: any) {
-        let row = what.get(\"row\");
-        let mark = what.get(\"mark\");
+        let row = what[\"row\"];
+        let mark = what[\"mark\"];
         self.said = \"{row}|{mark}\";
     }
     pub fn said() -> str { self.said }

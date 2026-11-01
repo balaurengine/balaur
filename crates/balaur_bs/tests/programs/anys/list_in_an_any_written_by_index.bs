@@ -1,6 +1,6 @@
 pub fn edited() -> str {
     let doc: any = { "xs": [1, 2, 3] };
-    let l = doc.xs;
+    let l = doc["xs"];
     let held = l;
     l[1] = "two";
     let put = l.put(0, 10);
@@ -9,7 +9,7 @@ pub fn edited() -> str {
     let end = l.insert(4, "end");
     let beyond = l.insert(9, 0);
     let cell: any = { "n": 0 };
-    let first = cell.n.insert(0, 1);
+    let first = cell["n"].insert(0, 1);
     "{held} {put} {past} {mid} {end} {beyond} {first}"
 }
 

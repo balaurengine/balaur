@@ -20,15 +20,15 @@ impl Scenario {
     async fn init() {
         let store = platform::backend();
         let r = await task::wait(platform::sign_in().as_int());
-        let kind = r.get("kind");
+        let kind = r["kind"];
         log::info("platform-await {store} {kind}");
         self.request = platform::unlock(self.node, "first_blood", { "on_event": "on_store" }).as_int();
     }
 
     pub fn on_store(e: any) {
-        if e.get("request").as_int() == self.request {
-            let kind = e.get("kind");
-            let call = e.get("call");
+        if e["request"].as_int() == self.request {
+            let kind = e["kind"];
+            let call = e["call"];
             log::info("platform-handler {kind} {call}");
         }
     }

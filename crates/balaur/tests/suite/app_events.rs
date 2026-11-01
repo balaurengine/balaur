@@ -103,7 +103,7 @@ fn an_action_let_go_is_heard_as_one_pressed_is() {
 fn the_device_s_changes_reach_every_script() {
     let script = ear(r#"
     pub fn on_suspended_changed(suspended: bool) { tell("suspended {suspended}"); }
-    pub fn on_safe_area_changed(insets: any) { tell("insets {insets.at(1)}"); }
+    pub fn on_safe_area_changed(insets: any) { tell("insets {insets[1]}"); }
     pub fn on_orientation_changed(way: str) { tell(way); }
     pub fn on_low_memory() { tell("low memory"); }
 "#);
@@ -134,7 +134,7 @@ fn a_setting_and_a_language_a_script_changes_are_heard_the_next_frame() {
             strings::set_locale("fr");
         }
     }
-    pub fn on_setting_changed(change: any) { tell(change.get("path").as_str()); }
+    pub fn on_setting_changed(change: any) { tell(change["path"].as_str()); }
     pub fn on_locale_changed(locale: str) { tell(locale); }
 "#);
     let (_dir, mut app) = app_with(&script);
@@ -236,10 +236,10 @@ fn a_script_listening_for_changed_hears_what_the_writes_changed() {
     pub fn on_changed(entries: any) {
         let index = 0;
         while index < entries.len() {
-            let entry = entries.at(index);
-            let kind = entry.get("kind").as_str();
+            let entry = entries[index];
+            let kind = entry["kind"].as_str();
             if kind == "component" {
-                tell(kind + " " + entry.get("component").as_str() + " " + entry.get("properties").text());
+                tell(kind + " " + entry["component"].as_str() + " " + entry["properties"].text());
             } else {
                 tell(kind);
             }
@@ -277,8 +277,8 @@ fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
     pub fn on_changed(entries: any) {
         let index = 0;
         while index < entries.len() {
-            let entry = entries.at(index);
-            tell(entry.get("kind").as_str() + " " + entry.get("node").as_node().name());
+            let entry = entries[index];
+            tell(entry["kind"].as_str() + " " + entry["node"].as_node().name());
             index += 1;
         }
     }
@@ -296,7 +296,7 @@ fn a_script_listening_for_changed_under_a_node_hears_that_subtree() {
 fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
     let script = ear(r#"
     fn init() { events::listen(self.node, "pointer_scrolled"); }
-    pub fn on_pointer_scrolled(turn: any) { tell("scrolled {turn.at(1)}"); }
+    pub fn on_pointer_scrolled(turn: any) { tell("scrolled {turn[1]}"); }
 "#);
     let (_dir, mut app) = app_with(&script);
     app.tick(1.0 / 60.0);
@@ -316,7 +316,7 @@ fn a_script_listening_for_pointer_scrolled_hears_the_wheel() {
 fn a_script_listening_for_files_dropped_hears_the_paths() {
     let script = ear(r#"
     fn init() { events::listen(self.node, "files_dropped"); }
-    pub fn on_files_dropped(paths: any) { tell("dropped {paths.at(0).as_str()}"); }
+    pub fn on_files_dropped(paths: any) { tell("dropped {paths[0].as_str()}"); }
 "#);
     let (_dir, mut app) = app_with(&script);
     app.tick(1.0 / 60.0);

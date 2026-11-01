@@ -1,0 +1,3 @@
+fn f(m: { str: int }) -> int? { m.get("k") }
+
+// error: 1:34: a map reads a key as `m[k]`, not `m.get(k)`

@@ -150,7 +150,7 @@ pub fn finish(state: &mut editor::State, reason: str?) {
 fn prune(state: editor::State) {
     let names: [str] = [];
     for entry in util::list_or_empty(fs::list(directory(state))) {
-        let name = util::map_or_empty(entry).get("name").as_str();
+        let name = util::map_or_empty(entry)["name"].as_str();
         if name.ends_with(".blr") && !name.starts_with("kept-") {
             names.push(name);
         }
@@ -178,7 +178,7 @@ pub fn listing(state: &mut editor::State) -> [Row] {
     state.session.listed_at = now;
     let names: [str] = [];
     for entry in util::list_or_empty(fs::list(directory(state))) {
-        let name = util::map_or_empty(entry).get("name").as_str();
+        let name = util::map_or_empty(entry)["name"].as_str();
         if name.ends_with(".blr") {
             names.push(name);
         }
@@ -204,14 +204,14 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
         return Row { name: name, started: "", ticks: 0, seconds: 0.0, reason: "unreadable", stale: false };
     }
     let head = util::map_or_empty(head);
-    let first = head.get("first").as_int();
-    let last = head.get("last").as_int();
-    let recorded = head.get("scripts").as_str();
-    let recorded_reason = head.get("reason");
+    let first = head["first"].as_int();
+    let last = head["last"].as_int();
+    let recorded = head["scripts"].as_str();
+    let recorded_reason = head["reason"];
     Row {
         name: name,
-        started: head.get("started").as_str(),
-        ticks: head.get("frames").as_int(),
+        started: head["started"].as_str(),
+        ticks: head["frames"].as_int(),
         // Ticks are the fixed 60 Hz step, so seconds follow from the count.
         seconds: (last - first + 1).as_float() / 60.0,
         reason: (if !recorded_reason.is_nil() {
@@ -258,8 +258,8 @@ pub fn open(state: &mut editor::State, name: str) {
     state.session.loaded = path;
     state.session.header = replay::header();
     let span = util::map_or_empty(replay::length());
-    state.session.first = span.get("first").as_int();
-    state.session.last = span.get("last").as_int();
+    state.session.first = span["first"].as_int();
+    state.session.last = span["last"].as_int();
     state.session.at = state.session.first;
     state.session.lanes = build_lanes();
     // Loading puts the clock back to where the session started, so every
@@ -292,7 +292,7 @@ pub fn open(state: &mut editor::State, name: str) {
 // A replay whose scripts have been edited since still plays; it just cannot
 // promise to reproduce what was seen.
 fn warn_if_stale(state: editor::State, name: str) {
-    let recorded = util::map_or_empty(state.session.header).get("scripts").as_str();
+    let recorded = util::map_or_empty(state.session.header)["scripts"].as_str();
     if recorded != "" && recorded != fingerprint(state) {
         log::warn("{name}: the scripts have changed since this was recorded");
     }
@@ -318,7 +318,7 @@ fn build_lanes() -> [Lane] {
 fn named_marks(source: str, key: str) -> [Mark] {
     let out: [Mark] = [];
     for mark in util::list_or_empty(replay::marks(source, key)) {
-        out.push(Mark { tick: mark.get("tick"), label: util::join(util::list_or_empty(mark.get("values")), " ") });
+        out.push(Mark { tick: mark["tick"], label: util::join(util::list_or_empty(mark["values"]), " ") });
     }
     out
 }
@@ -329,7 +329,7 @@ fn index_marks(source: str, key: str) -> [Mark] {
     let out: [Mark] = [];
     for mark in util::list_or_empty(replay::marks(source, key)) {
         let names: [str] = [];
-        let values = util::list_or_empty(mark.get("values"));
+        let values = util::list_or_empty(mark["values"]);
         for button in 0..values.len() {
             let down = values[button];
             if down.as_bool() == true {
@@ -337,7 +337,7 @@ fn index_marks(source: str, key: str) -> [Mark] {
             }
         }
         if names.len() > 0 {
-            out.push(Mark { tick: mark.get("tick"), label: util::join(names, " ") });
+            out.push(Mark { tick: mark["tick"], label: util::join(names, " ") });
         }
     }
     out
@@ -348,13 +348,13 @@ fn index_marks(source: str, key: str) -> [Mark] {
 fn log_marks(levels: [str]) -> [Mark] {
     let out: [Mark] = [];
     for event in util::list_or_empty(replay::events(0, 1000000000)) {
-        if event.get("kind").as_str() != "log" {
+        if event["kind"].as_str() != "log" {
             continue;
         }
         let level = level_of(event);
         for want in levels {
             if want == level {
-                out.push(Mark { tick: event.get("tick"), label: event.get("label").as_str() });
+                out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
             }
         }
     }
@@ -362,7 +362,7 @@ fn log_marks(levels: [str]) -> [Mark] {
 }
 
 fn level_of(event: any) -> str {
-    let level = util::map_or_empty(event.get("data")).get("level");
+    let level = util::map_or_empty(event["data"])["level"];
     if level.is_nil() { "info" } else { level.as_str() }
 }
 
@@ -371,8 +371,8 @@ fn level_of(event: any) -> str {
 fn error_marks() -> [Mark] {
     let out: [Mark] = [];
     for event in util::list_or_empty(replay::events(0, 1000000000)) {
-        if event.get("kind").as_str() == "debug.pause" || (event.get("kind").as_str() == "log" && level_of(event) == "error") {
-            out.push(Mark { tick: event.get("tick"), label: event.get("label").as_str() });
+        if event["kind"].as_str() == "debug.pause" || (event["kind"].as_str() == "log" && level_of(event) == "error") {
+            out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
         }
     }
     out
@@ -382,8 +382,8 @@ fn event_marks(kinds: [str]) -> [Mark] {
     let out: [Mark] = [];
     for event in util::list_or_empty(replay::events(0, 1000000000)) {
         for kind in kinds {
-            if kind == event.get("kind").as_str() {
-                out.push(Mark { tick: event.get("tick"), label: event.get("label").as_str() });
+            if kind == event["kind"].as_str() {
+                out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
             }
         }
     }

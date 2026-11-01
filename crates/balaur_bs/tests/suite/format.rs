@@ -38,7 +38,7 @@ fn comments_stay_and_blank_lines_shrink() {
 
 #[test]
 fn strings_are_left_as_written() {
-    let src = "fn f() -> str {\n    \"{a.get(\"x\")}  spaced  \\u{1f}\"\n}\n";
+    let src = "fn f() -> str {\n    \"{a[\"x\"]}  spaced  \\u{1f}\"\n}\n";
     assert_eq!(laid(src), src);
 }
 

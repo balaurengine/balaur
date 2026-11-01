@@ -1,0 +1,3 @@
+fn f(v: Vec3) -> float { v.at(0) }
+
+// error: 1:27: a Vec3 reads a field by its name, as `v.x`

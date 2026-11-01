@@ -53,27 +53,27 @@ impl Meter {
             return;
         }
         let table = self.node.get_node("Table");
-        let titled = "{view.get("titles")}";
+        let titled = "{view["titles"]}";
         if titled != self.titled {
             // Widths only when the columns change: stating them every time would
             // snap the reader's own drag away.
             self.titled = titled;
             table.patch_component("widget_table", {
-                "titles": view.get("titles"),
-                "widths": view.get("widths"),
+                "titles": view["titles"],
+                "widths": view["widths"],
                 "sort": "",
             });
             table.patch_component("widget", { "reverse": false });
         }
-        table.patch_component("widget", { "options": view.get("items"), "visible": view.get("items").len() > 0 });
+        table.patch_component("widget", { "options": view["items"], "visible": view["items"].len() > 0 });
         self.node.get_node("Nothing").patch_component("widget", {
-            "visible": view.get("says").as_str() != "",
-            "text": view.get("says"),
+            "visible": view["says"].as_str() != "",
+            "text": view["says"],
         });
         let tools = self.node.get_node("Tools");
-        tools.get_node("Headline").patch_component("widget", { "text": view.get("headline") });
+        tools.get_node("Headline").patch_component("widget", { "text": view["headline"] });
         if self.what == "profiler" {
-            tools.get_node("Scripts").patch_component("widget", { "checked": view.get("scripts") });
+            tools.get_node("Scripts").patch_component("widget", { "checked": view["scripts"] });
         }
     }
 }

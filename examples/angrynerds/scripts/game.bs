@@ -139,7 +139,7 @@ impl Game {
     fn pigs_alive() -> int {
         let n = 0;
         for name in self.pigs.keys() {
-            if self.pigs.get(name).as_bool() {
+            if self.pigs[name].as_bool() {
                 n += 1;
             }
         }
@@ -210,7 +210,7 @@ impl Game {
         }
         // Pigs pop when anything hits them hard enough.
         for name in self.pigs.keys() {
-            if !self.pigs.get(name).as_bool() {
+            if !self.pigs[name].as_bool() {
                 continue;
             }
             let pig = self.root.get_node(name);

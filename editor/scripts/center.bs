@@ -227,14 +227,14 @@ const RAIL: str = "Editor/Shell/Body/Centre/UpperRow/RailSlot/Rail";
 
 /// What the rail is built from, which `signals::bars` compares.
 pub fn rail_key(state: editor::State) -> [any] {
-    let grid = rail_grid(state, state.layout.rail_room);
+    let grid = rail_grid(state, state.layout["rail_room"]);
     [state.workspace, state.tool, state.rail_shut, state.rail_visible, state.compact, state.touchscreen, grid.rows, grid.columns, state.theme_revision]
 }
 
 /// Fill the rail: the marks in as many columns as its height leaves room
 /// for, each a node a click on which runs its tool. What its script asks for.
 pub fn fill_rail(state: editor::State) {
-    let grid = rail_grid(state, state.layout.rail_room);
+    let grid = rail_grid(state, state.layout["rail_room"]);
     let columns: [any] = [];
     let column: [any] = [];
     for mark in rail_marks(state) {
@@ -269,7 +269,7 @@ fn rail_mark(state: editor::State, mark: str, diameter: float) -> any {
 }
 
 fn rail_marked(state: &mut editor::State, data: any, _value: any) {
-    let mark = data.mark.as_str();
+    let mark = data["mark"].as_str();
     if mark == "restore" || mark == "collapse" {
         state.rail_shut = mark == "collapse";
         signals::bars(state);
@@ -294,7 +294,7 @@ pub fn stage_key(state: editor::State) -> [any] {
         state.workspace,
         state.tool,
         state.mode2d,
-        "{state.chip_state.get(state.workspace)}",
+        "{state.chip_state[state.workspace]}",
         shell::chip_value(state, state.workspace, defs::CHIP_SLEEP),
         "{state.polygon.mode}",
         render::debug_view(),
@@ -307,8 +307,8 @@ pub fn stage_key(state: editor::State) -> [any] {
         handles.left.shown,
         handles.right.shown,
         handles.bottom.shown,
-        state.layout.stage.width,
-        state.layout.stage.height,
+        state.layout["stage"]["width"],
+        state.layout["stage"]["height"],
         hud_inset(state),
         docks::fold_inset(state),
     ]
@@ -326,7 +326,7 @@ pub fn stage_view(state: editor::State) -> StageView {
     StageView {
         safe: ui_frames && defs::chip_on(state.chip_state, defs::WORKSPACE_UI, defs::CHIP_SAFE),
         resolution: ui_frames && defs::chip_on(state.chip_state, defs::WORKSPACE_UI, defs::CHIP_RESOLUTION),
-        res_inset: frame_16_9(state.layout.stage),
+        res_inset: frame_16_9(state.layout["stage"]),
         left: SheetHandle {
             shown: state.viewport_live && handles.left.shown && !over_rail,
             icon: handles.left.icon,
@@ -346,14 +346,14 @@ pub fn stage_view(state: editor::State) -> StageView {
 // The 16:9 frame inside the stage, as the inset an `absolute` child keeps.
 fn frame_16_9(viewport_rect: any) -> [float] {
     let target = 16.0 / 9.0;
-    let width = viewport_rect.get("width");
-    let height: any = viewport_rect.get("width").as_float() / target;
-    if height > viewport_rect.get("height") {
-        height = viewport_rect.get("height");
-        width = viewport_rect.get("height").as_float() * target;
+    let width = viewport_rect["width"];
+    let height: any = viewport_rect["width"].as_float() / target;
+    if height > viewport_rect["height"] {
+        height = viewport_rect["height"];
+        width = viewport_rect["height"].as_float() * target;
     }
-    let margin_x = util::max(0.0, (viewport_rect.get("width") - width).as_float() / 2.0);
-    let margin_y = util::max(0.0, (viewport_rect.get("height") - height).as_float() / 2.0);
+    let margin_x = util::max(0.0, (viewport_rect["width"] - width).as_float() / 2.0);
+    let margin_y = util::max(0.0, (viewport_rect["height"] - height).as_float() / 2.0);
     [margin_x, margin_y, margin_x, margin_y]
 }
 
@@ -402,14 +402,14 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
     if !state.chip_state.has(state.workspace) {
         state.chip_state.set(state.workspace, {});
     }
-    let chips = state.chip_state.get(state.workspace);
+    let chips = state.chip_state[state.workspace];
     // Engine-backed chips (no declared default, see defs::chips) read their
     // value back from the engine; the rest live in `chip_state`.
     let live = shell::chip_value(state, state.workspace, key);
     if live.is_none() && !chips.has(key) {
         chips.set(key, default_on.is_some() && default_on.unwrap());
     }
-    let on = if live.is_some() { live.unwrap() } else { chips.get(key).as_bool() };
+    let on = if live.is_some() { live.unwrap() } else { chips[key].as_bool() };
     let button: any = {
         "kind": "button",
         "text": label,
@@ -420,11 +420,11 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
 }
 
 fn chip_pressed(state: &mut editor::State, data: any, _value: any) {
-    let workspace = data.workspace.as_str();
-    let key = data.key.as_str();
-    let now = !data.on.as_bool();
-    if !data.live.as_bool() {
-        state.chip_state.get(workspace).set(key, now);
+    let workspace = data["workspace"].as_str();
+    let key = data["key"].as_str();
+    let now = !data["on"].as_bool();
+    if !data["live"].as_bool() {
+        state.chip_state[workspace].set(key, now);
     }
     shell::on_chip(state, workspace, key, now);
     signals::bars(state);
@@ -457,7 +457,7 @@ fn view_chip(state: editor::State) -> ViewChip {
             "kind": "button",
             "role": "item_menu",
             "text": mode[1],
-            "text_color": if name == current { tokens.get("primary_text") } else { tokens.get("text_default") },
+            "text_color": if name == current { tokens["primary_text"] } else { tokens["text_default"] },
             "on": "handle",
             "data": { "fn": on_view_mode_picked, "name": name },
         });
@@ -472,7 +472,7 @@ fn view_chip(state: editor::State) -> ViewChip {
 }
 
 fn on_view_mode_picked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data.name;
+    let name: str = data["name"];
     render::set_debug_view(name);
     signals::bars(state);
 }
@@ -484,7 +484,7 @@ fn bookmark_chips(state: editor::State) -> [any] {
     let out: [any] = [];
     for slot in 1..5 {
         let key = "{slot}";
-        let held = !state.bookmarks.get(key).is_nil();
+        let held = !state.bookmarks[key].is_nil();
         out.push({
             "kind": "button",
             "text": key,
@@ -492,8 +492,8 @@ fn bookmark_chips(state: editor::State) -> [any] {
             "font_size": style::SMALL,
             "min_width": 20,
             "corner_radius": 4,
-            "fill": if held { tokens.get("primary_bg") } else { tokens.get("bg_control") },
-            "text_color": if held { tokens.get("primary_text") } else { tokens.get("text_subtle") },
+            "fill": if held { tokens["primary_bg"] } else { tokens["bg_control"] },
+            "text_color": if held { tokens["primary_text"] } else { tokens["text_subtle"] },
             "tooltip": if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
             "on": "handle",
             "data": { "fn": on_bookmark_pressed, "key": key },
@@ -503,36 +503,36 @@ fn bookmark_chips(state: editor::State) -> [any] {
 }
 
 fn on_bookmark_pressed(state: &mut editor::State, data: any, _value: any) {
-    let key: str = data.key;
+    let key: str = data["key"];
     bookmark(state, key);
 }
 
 fn bookmark(state: &mut editor::State, key: str) {
     if input::key_down(input::KEY_SHIFT.as_str()) {
         let camera = render::camera_pose();
-        let eye_x = camera.at(0);
-        let eye_y = camera.at(1);
-        let eye_z = camera.at(2);
-        let target_x = camera.at(3);
-        let target_y = camera.at(4);
-        let target_z = camera.at(5);
+        let eye_x = camera[0];
+        let eye_y = camera[1];
+        let eye_z = camera[2];
+        let target_x = camera[3];
+        let target_y = camera[4];
+        let target_z = camera[5];
         state.bookmarks.set(key, [eye_x, eye_y, eye_z, target_x, target_y, target_z]);
         log::info("stored view " + key);
         signals::bars(state);
         return;
     }
-    let pose = state.bookmarks.get(key);
+    let pose = state.bookmarks[key];
     if !pose.is_nil() {
-        render::set_camera(pose.at(0).as_float(), pose.at(1).as_float(), pose.at(2).as_float(), pose.at(3).as_float(), pose.at(4).as_float(), pose.at(5).as_float());
+        render::set_camera(pose[0].as_float(), pose[1].as_float(), pose[2].as_float(), pose[3].as_float(), pose[4].as_float(), pose[5].as_float());
     }
 }
 
 // How far the HUD stops short of the row's right edge: the code beside a
 // split, which the foot does not run under.
 fn hud_inset(state: editor::State) -> any {
-    let row: any = state.layout.upper;
-    let viewport_rect: any = state.layout.stage;
-    util::max(0.0, (row.get("x") + row.get("width") - viewport_rect.get("x") - viewport_rect.get("width")).as_float())
+    let row: any = state.layout["upper"];
+    let viewport_rect: any = state.layout["stage"];
+    util::max(0.0, (row["x"] + row["width"] - viewport_rect["x"] - viewport_rect["width"]).as_float())
 }
 
 /// What the HUD shows along the scene's foot.
@@ -544,9 +544,9 @@ pub fn hud_view(state: editor::State) -> HudView {
         inset: [0.0, -1.0, hud_inset(state), 0.0],
         height: hud_height(state),
         step: hud_step(state),
-        x_ink: tokens.get("axis_x").as_str(),
-        y_ink: tokens.get("axis_y").as_str(),
-        quiet_ink: tokens.get("text_muted").as_str(),
+        x_ink: tokens["axis_x"].as_str(),
+        y_ink: tokens["axis_y"].as_str(),
+        quiet_ink: tokens["text_muted"].as_str(),
         zoom: "{state.zoom as int} %",
         add_icon: icons::ui("add"),
         bottom: handles.bottom.shown,
@@ -610,13 +610,13 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
         };
     }
     let tokens = state.theme;
-    let box: any = state.layout.stage_box;
-    let doc_rect: any = state.layout.doc;
+    let box: any = state.layout["stage_box"];
+    let doc_rect: any = state.layout["doc"];
     let inset = [
-        util::max(0.0, (doc_rect.get("x") - box.get("x")).as_float()),
-        util::max(0.0, (doc_rect.get("y") - box.get("y")).as_float()),
-        util::max(0.0, (box.get("x") + box.get("width") - doc_rect.get("x") - doc_rect.get("width")).as_float()),
-        util::max(0.0, (box.get("y") + box.get("height") - doc_rect.get("y") - doc_rect.get("height")).as_float()),
+        util::max(0.0, (doc_rect["x"] - box["x"]).as_float()),
+        util::max(0.0, (doc_rect["y"] - box["y"]).as_float()),
+        util::max(0.0, (box["x"] + box["width"] - doc_rect["x"] - doc_rect["width"]).as_float()),
+        util::max(0.0, (box["y"] + box["height"] - doc_rect["y"] - doc_rect["height"]).as_float()),
     ];
     let file = open_file(state);
     if file.relative_path == "" {
@@ -647,7 +647,7 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
         };
     }
     let source = on_disk;
-    let buffered = state.script_buffers.get(path);
+    let buffered = state.script_buffers[path];
     let text = if buffered.is_nil() { source } else { buffered };
     let stopped_here = !file.shading && state.debug.paused.kind() == "map" && state.debug.paused_rel == relative_path;
     // An offset asked for is taken once.
@@ -670,7 +670,7 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
             },
             problems: lint::lines(state, relative_path, "error"),
             warnings: lint::lines(state, relative_path, "warning"),
-            current_line: if stopped_here { state.debug.paused.line.as_int() } else { 0 },
+            current_line: if stopped_here { state.debug.paused["line"].as_int() } else { 0 },
         },
     }
 }
@@ -722,7 +722,7 @@ pub fn code_caret(state: &mut editor::State, caret: complete::Caret) {
         return;
     }
     let path = state.game_root + "/" + file.relative_path;
-    let buffered = state.script_buffers.get(path);
+    let buffered = state.script_buffers[path];
     let text = if buffered.is_nil() { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
     complete::update(state, file.relative_path, text, caret);
     signals::changed(state, "complete");
@@ -757,14 +757,14 @@ pub fn fill_hooks(state: &mut editor::State) {
         // The file as it is open, buffer or disk: what the list was read off
         // may be the last file's.
         let path = state.game_root + "/" + file.relative_path;
-        let buffered = state.script_buffers.get(path);
+        let buffered = state.script_buffers[path];
         let text = if buffered.is_nil() { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
         read_hooks(state, file.relative_path, text);
         for hook in state.hooks_live {
             let lifecycle = hook.name == "init" || hook.name == "update";
             pills.push({
                 "kind": "panel",
-                "fill": tokens.get("bg_control"),
+                "fill": tokens["bg_control"],
                 "corner_radius": 15,
                 "padding": [11, 6, 11, 6],
                 "controls": [
@@ -773,7 +773,7 @@ pub fn fill_hooks(state: &mut editor::State) {
                         "gap": [4, 4],
                         "align_items": "center",
                         "controls": [
-                            { "kind": "row", "width": 6, "height": 6, "corner_radius": 3, "fill": if lifecycle { tokens.get("primary_text") } else { tokens.get("secondary_text") } },
+                            { "kind": "row", "width": 6, "height": 6, "corner_radius": 3, "fill": if lifecycle { tokens["primary_text"] } else { tokens["secondary_text"] } },
                             { "kind": "label", "role": "text_code", "text": hook.name },
                         ],
                     },

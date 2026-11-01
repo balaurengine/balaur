@@ -215,7 +215,7 @@ impl Scenario {
         if plain.len() != 2 { log::error("an L should cut into two pieces"); }
         let grown = geometry2d::convex_decomposition(l);
         if grown.len() != 2 { log::error("the overlap changed the piece count"); }
-        if geometry2d::area(grown.at(0)) <= geometry2d::area(plain.at(0)) { log::error("no piece grew"); }
+        if geometry2d::area(grown[0]) <= geometry2d::area(plain[0]) { log::error("no piece grew"); }
         let hull = geometry2d::convex_hull(l);
         if hull.len() != 5 { log::error("core's own geometry2d verbs are still there"); }
     }

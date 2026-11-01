@@ -1,8 +1,9 @@
 //! The methods of an `any`, compiled into a program that calls them. An `any`
 //! is a counted cell holding its kind, then the value or the arrays it points
-//! at (`crate::anys`); nil is no cell. `set`, `push`, `put`, `insert` and
-//! `remove` change a map or a list in place, so every holder of it sees the
-//! change; `sorted` makes a new one.
+//! at (`crate::anys`); nil is no cell. `a["k"]` and `a[i]` compile to `get` and
+//! `at`, private here so a script has the one spelling. `set`, `push`, `put`,
+//! `insert` and `remove` change a map or a list in place, so every holder of it
+//! sees the change; `sorted` makes a new one.
 
 const BOOL: int = 1;
 const INT: int = 2;
@@ -94,7 +95,7 @@ pub fn len(value: any) -> int {
     }
 }
 
-pub fn get(map: any, key: str) -> any {
+fn get(map: any, key: str) -> any {
     if __tag(map) != MAP {
         return nil;
     }
@@ -106,7 +107,7 @@ pub fn get(map: any, key: str) -> any {
     }
 }
 
-pub fn at(list: any, index: int) -> any {
+fn at(list: any, index: int) -> any {
     if __tag(list) != LIST {
         return nil;
     }

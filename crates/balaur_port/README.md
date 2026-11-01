@@ -75,7 +75,7 @@ What is flagged in the editor: 1,581 flags on its 1,315 flagged lines.
 | any other closure | a named function, its captures as leading parameters, flagged |
 | `format!("{} x", a)`, `` `${a} x` `` | `"{a} x"`; literal braces doubled |
 | `for (i, x) in xs.iter().enumerate()` | `for i in 0..xs.len() { let x = xs[i]; .. }` |
-| `for (k, v) in map` | `for k in m.keys() { let v = m.get(k); .. }` |
+| `for (k, v) in map` | `for k in m.keys() { let v = m[k]; .. }` |
 | `s[a..b]`, `s.chars()` | `s.slice(a, b)`; an index loop over one-byte slices, flagged |
 | `use crate::util;`, `crate::util::f()` | `use util;`, `util::f()` |
 | `x is Tuple` | `x.is_none()` (`x.is_nil()` on an `any`) |

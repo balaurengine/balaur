@@ -174,7 +174,7 @@ fn draw(w: World, node: Node, shape: any) {
         return;
     }
     let kind = if shape.has("kind") {
-        shape.get("kind").as_str()
+        shape["kind"].as_str()
     } else if w.dimensions == 2 {
         "rectangle"
     } else {
@@ -207,7 +207,7 @@ fn copy(shape: any) -> any {
     let out: any = {};
     for key in ["kind", "radius", "height", "size"] {
         if shape.has(key) {
-            out.set(key, shape.get(key));
+            out.set(key, shape[key]);
         }
     }
     out

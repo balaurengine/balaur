@@ -782,9 +782,9 @@ impl Cx<'_> {
                     );
                 }
                 if name.starts_with('_') && name[1..].chars().all(|c| c.is_ascii_digit()) {
-                    return Ex::atom(format!("{b}.at({})", &name[1..]), Ty::Any);
+                    return Ex::atom(format!("{b}[{}]", &name[1..]), Ty::Any);
                 }
-                Ex::atom(format!("{b}.get(\"{name}\")"), Ty::Any)
+                Ex::atom(format!("{b}[\"{name}\"]"), Ty::Any)
             }
             other => {
                 self.flag(
@@ -870,13 +870,7 @@ impl Cx<'_> {
             }
             _ => {
                 let rt = if base.t.known() { Ty::Any } else { Ty::Unknown };
-                if i.t == Ty::Str {
-                    Ex::atom(format!("{}.get({})", base.at(ATOM), i.s), rt)
-                } else if i.t == Ty::Int {
-                    Ex::atom(format!("{}.at({})", base.at(ATOM), i.s), rt)
-                } else {
-                    Ex::atom(format!("{}[{}]", base.at(ATOM), i.s), rt)
-                }
+                Ex::atom(format!("{}[{}]", base.at(ATOM), i.s), rt)
             }
         }
     }
@@ -911,15 +905,6 @@ impl Cx<'_> {
                     0,
                 );
             }
-        }
-        if l.s.ends_with("\")") && l.s.contains(".get(\"") {
-            // `x.f = v` on an `any`: `set`.
-            let (recv, key) = l.s.rsplit_once(".get(").unwrap_or((&l.s, ""));
-            return Ex::new(
-                format!("{recv}.set({}, {})", key.trim_end_matches(')'), r.s),
-                Ty::Void,
-                0,
-            );
         }
         let rhs = self.coerce_at(&r, &l.t, a.span());
         Ex::new(format!("{} = {rhs}", l.s), Ty::Void, 0)

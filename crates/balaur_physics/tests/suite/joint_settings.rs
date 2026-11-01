@@ -385,17 +385,17 @@ impl Scenario {
         self.ticks += 1;
         if self.ticks == 20 {
             let swing = self.node.joint3d.joint_state();
-            let status = swing.get("status").as_str();
+            let status = swing["status"].as_str();
             if status != physics3d::JOINT_ENABLED { log::error("status {status}"); }
-            let angle = swing.get("angle").as_float();
-            let coordinate = swing.get("coordinates").get("rotation_x").as_float();
+            let angle = swing["angle"].as_float();
+            let coordinate = swing["coordinates"]["rotation_x"].as_float();
             if math::abs(angle) <= 0.1 { log::error("the pendulum never swung: {angle}"); }
             if math::abs(angle - coordinate) >= 0.02 { log::error("angle {angle} against coordinate {coordinate}"); }
-            if math::abs(swing.get("velocities").get("rotation_x").as_float()) <= 0.1 { log::error("no joint velocity"); }
+            if math::abs(swing["velocities"]["rotation_x"].as_float()) <= 0.1 { log::error("no joint velocity"); }
             let held = scene::get_node("World/Impulse").joint3d.joint_state();
-            let held_angle = held.get("angle").as_float();
+            let held_angle = held["angle"].as_float();
             if math::abs(held_angle) >= 0.35 { log::error("the limit did not hold: {held_angle}"); }
-            if math::abs(held.get("limit_impulses").get("rotation_x").as_float()) <= 0.0 { log::error("the limit carried no impulse"); }
+            if math::abs(held["limit_impulses"]["rotation_x"].as_float()) <= 0.0 { log::error("the limit carried no impulse"); }
             log::error("checked: joint state");
         }
     }
@@ -468,8 +468,8 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
-            let upper = self.node.joint3d.joint_state().get("coordinates").get("rotation_x").as_float();
-            let lower = scene::get_node("World/Lower").joint3d.joint_state().get("coordinates").get("rotation_x").as_float();
+            let upper = self.node.joint3d.joint_state()["coordinates"]["rotation_x"].as_float();
+            let lower = scene::get_node("World/Lower").joint3d.joint_state()["coordinates"]["rotation_x"].as_float();
             if math::abs(upper) <= 0.1 { log::error("the chain never swung: {upper}"); }
             if math::abs(lower - (0.2 - upper)) >= 0.05 { log::error("upper {upper} lower {lower}"); }
             log::error("checked: geared");

@@ -51,7 +51,7 @@ impl Inspector {
         }
         let head = self.node.get_node("Head");
         let nothing = self.node.get_node("Nothing");
-        if !view.get("selected").as_bool() {
+        if !view["selected"].as_bool() {
             for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
                 one.patch_component("widget", { "visible": false });
             }
@@ -63,12 +63,12 @@ impl Inspector {
             one.patch_component("widget", { "visible": true });
         }
         head.get_node("Name").patch_component("widget", {
-            "text": view.get("name"),
-            "icon": view.get("icon"),
-            "icon_color": view.get("icon_color"),
+            "text": view["name"],
+            "icon": view["icon"],
+            "icon_color": view["icon_color"],
         });
-        head.get_node("Type").patch_component("widget", { "text": view.get("kind") });
-        self.node.get_node("Foot").get_node("Add").patch_component("widget", { "icon": view.get("add_icon") });
+        head.get_node("Type").patch_component("widget", { "text": view["kind"] });
+        self.node.get_node("Foot").get_node("Add").patch_component("widget", { "icon": view["add_icon"] });
         self.editor.call("inspector_fill", self.query);
     }
 }

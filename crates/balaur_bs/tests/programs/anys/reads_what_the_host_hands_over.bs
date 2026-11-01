@@ -3,7 +3,7 @@
 // place for every holder.
 
 pub fn damage(hit: any) -> int {
-    hit["damage"].as_int() + hit.get("bonus").as_int()
+    hit["damage"].as_int() + hit["bonus"].as_int()
 }
 
 pub fn first_tag(hit: any) -> str {

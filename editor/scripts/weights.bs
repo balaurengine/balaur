@@ -51,15 +51,15 @@ fn table(state: editor::State) -> Table? {
 }
 
 fn weight_of(bone: any, at: int) -> float {
-    (util::list_or_empty(bone.weights).at(at)).as_float()
+    (util::list_or_empty(bone["weights"])[at]).as_float()
 }
 
 fn set_weight(bone: any, at: int, value: float) {
-    if bone.weights.kind() != "list" {
+    if bone["weights"].kind() != "list" {
         let none: [float] = [];
         bone.set("weights", none);
     }
-    let weights = bone.weights;
+    let weights = bone["weights"];
     while weights.len() <= at {
         weights.push(0.0);
     }
@@ -104,7 +104,7 @@ pub fn bind(state: &mut editor::State) {
         }
     }
     done(state);
-    log::info("{listing.at.len()} vertices bound to {listing.bones.at(active).path}");
+    log::info("{listing.at.len()} vertices bound to {listing.bones[active]["path"]}");
 }
 
 // Unbind: take the listed vertices off every bone, so they ride the node.
@@ -206,7 +206,7 @@ pub fn smooth(state: &mut editor::State) {
     }
     // Read the whole table first: smoothing in place would feed each
     // vertex the neighbour that was already smoothed.
-    let count = listing.mesh.positions.len();
+    let count = listing.mesh["positions"].len();
     let was: [[float]] = [];
     for bone in listing.bones {
         let row: [float] = [];
@@ -216,7 +216,7 @@ pub fn smooth(state: &mut editor::State) {
         was.push(row);
     }
     for at in listing.at {
-        let ring = util::list_or_empty(neighbours.get("{at}"));
+        let ring = util::list_or_empty(neighbours["{at}"]);
         for bone_index in 0..listing.bones.len() {
             let total = was[bone_index][at];
             for neighbour in ring {
@@ -233,11 +233,11 @@ pub fn smooth(state: &mut editor::State) {
 // hundreds of vertices, not hundreds of thousands.
 fn edges(mesh: any) -> any {
     let out: any = {};
-    let outline = mesh.positions.len() - polygon::internal_count(mesh);
+    let outline = mesh["positions"].len() - polygon::internal_count(mesh);
     for vertex in 0..outline {
         join(out, vertex, if vertex == outline - 1 { 0 } else { vertex + 1 });
     }
-    for ring in util::list_or_empty(mesh.polygons) {
+    for ring in util::list_or_empty(mesh["polygons"]) {
         for corner in 0..ring.len() {
             join(out, ring[corner].as_int(), ring[if corner == ring.len() - 1 { 0 } else { corner + 1 }].as_int());
         }
@@ -249,11 +249,11 @@ fn edges(mesh: any) -> any {
 fn join(out: any, first: int, second: int) {
     for pair in [[first, second], [second, first]] {
         let key = "{pair[0]}";
-        if out.get(key).kind() != "list" {
+        if out[key].kind() != "list" {
             let none: [int] = [];
             out.set(key, none);
         }
-        let ring = out.get(key);
+        let ring = out[key];
         let seen = false;
         for neighbour in ring {
             if neighbour.as_int() == pair[1] {
@@ -275,7 +275,7 @@ fn bone_segments(state: editor::State, bones: any) -> [rig::Geometry?] {
     }
     let out: [rig::Geometry?] = [];
     for bone in bones {
-        let found = root.get_node(bone.path.as_str());
+        let found = root.get_node(bone["path"].as_str());
         let doc_index = model::index_of_node(state, found);
         out.push(if doc_index.is_some() { rig::geometry(state, doc_index.unwrap()) } else { nil });
     }
@@ -335,7 +335,7 @@ fn header(state: editor::State, listing: Table) -> [any] {
     let out = [label("vertex", NAME_WIDTH, "text_code_quiet")];
     let active = if state.polygon.bone.is_some() { state.polygon.bone.unwrap() } else { -1 };
     for bone_index in 0..listing.bones.len() {
-        let path = listing.bones.at(bone_index).path.as_str();
+        let path = listing.bones[bone_index]["path"].as_str();
         // The bone's own last segment: a full path is wider than the column
         // and the tooltip carries the rest.
         out.push({
@@ -355,7 +355,7 @@ fn header(state: editor::State, listing: Table) -> [any] {
 }
 
 fn pick_bone(state: &mut editor::State, data: any, _value: any) {
-    state.polygon.bone = data.at.as_int();
+    state.polygon.bone = data["at"].as_int();
     signals::inspector(state);
 }
 
@@ -376,7 +376,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> any {
     ];
     let total = 0.0;
     for bone_at in 0..listing.bones.len() {
-        let was = weight_of(listing.bones.at(bone_at), at);
+        let was = weight_of(listing.bones[bone_at], at);
         total += was;
         controls.push({
             "kind": "number_field",
@@ -399,13 +399,13 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> any {
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {
-    polygon::pick_vertex(state, data.at.as_int(), false);
+    polygon::pick_vertex(state, data["at"].as_int(), false);
 }
 
 fn type_weight(state: &mut editor::State, data: any, now: any) {
     if begin(state, "set weight") {
         // By its place: the table this row was filled from is a frame old.
-        set_weight(polygon::bones(state).at(data.bone.as_int()), data.at.as_int(), now.as_float());
+        set_weight(polygon::bones(state)[data["bone"].as_int()], data["at"].as_int(), now.as_float());
         done(state);
     }
 }

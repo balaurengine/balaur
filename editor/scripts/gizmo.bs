@@ -184,14 +184,14 @@ pub fn viewport_rect(state: editor::State) -> editor::Viewport {
 // maps NDC to the full screen, not the visible viewport region.
 fn camera_frame(state: editor::State) -> Camera {
     let pose = render::camera_pose();
-    let eye_x = pose.at(0);
-    let eye_y = pose.at(1);
-    let eye_z = pose.at(2);
-    let target_x = pose.at(3);
-    let target_y = pose.at(4);
-    let target_z = pose.at(5);
-    let fov = pose.at(6);
-    let dpi = pose.at(7);
+    let eye_x = pose[0];
+    let eye_y = pose[1];
+    let eye_z = pose[2];
+    let target_x = pose[3];
+    let target_y = pose[4];
+    let target_z = pose[5];
+    let fov = pose[6];
+    let dpi = pose[7];
     let eye = [eye_x, eye_y, eye_z];
     let heading = util::vector_normalise(util::vector_subtract([target_x, target_y, target_z], eye));
     let forward = heading.direction;
@@ -203,12 +203,12 @@ fn camera_frame(state: editor::State) -> Camera {
     let screen_height = state.screen_height;
     let world_per_pixel = 2.0 * distance.as_float() * math::tan(fov.as_float() / 2.0) / util::max(screen_height, 1.0);
     let ray = render::mouse_ray();
-    let ray_origin_x = ray.at(0);
-    let ray_origin_y = ray.at(1);
-    let ray_origin_z = ray.at(2);
-    let ray_direction_x = ray.at(3);
-    let ray_direction_y = ray.at(4);
-    let ray_direction_z = ray.at(5);
+    let ray_origin_x = ray[0];
+    let ray_origin_y = ray[1];
+    let ray_origin_z = ray[2];
+    let ray_direction_x = ray[3];
+    let ray_direction_y = ray[4];
+    let ray_direction_z = ray[5];
     Camera {
         eye: eye,
         forward: forward,
@@ -278,18 +278,18 @@ fn shape_half_extents(found: Node) -> [float] {
     };
     if !shape.is_nil() {
         if shape.kind() == "map" {
-            if shape.has("radius") && shape.get("kind") == render::SHAPE_SPHERE {
-                let radius = shape.get("radius").as_float();
+            if shape.has("radius") && shape["kind"] == render::SHAPE_SPHERE {
+                let radius = shape["radius"].as_float();
                 half_x = radius;
                 half_y = radius;
                 half_z = radius;
             } else {
-                let size = shape.get("size");
+                let size = shape["size"];
                 if !size.is_nil() {
                     let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
-                    half_x = size.at(0).as_float() / 2.0;
-                    half_y = size.at(1).as_float() / 2.0;
-                    half_z = size.at(2).as_float() / 2.0;
+                    half_x = size[0].as_float() / 2.0;
+                    half_y = size[1].as_float() / 2.0;
+                    half_z = size[2].as_float() / 2.0;
                 }
             }
         }
@@ -368,9 +368,9 @@ fn set_geometry(state: editor::State) -> Geometry3d? {
     let center = util::vector_scale(util::vector_add(lowest, highest), 0.5);
     let half_extents: [float] = util::vector_scale(util::vector_subtract(highest, lowest), 0.5);
     let pose = render::camera_pose();
-    let eye_x = pose.at(0);
-    let eye_y = pose.at(1);
-    let eye_z = pose.at(2);
+    let eye_x = pose[0];
+    let eye_y = pose[1];
+    let eye_z = pose[2];
     let distance = util::distance(center, [eye_x, eye_y, eye_z]);
     let marker = 0.6 * distance * 0.0144;
     let min_half_extent = util::min(half_extents[0].as_float() + 0.06, util::min(half_extents[1].as_float() + 0.06, half_extents[2].as_float() + 0.06));
@@ -402,9 +402,9 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
     // steadyum: handle size scales with camera distance (constant on
     // screen), rings sit at 75% of the smallest extent.
     let pose = render::camera_pose();
-    let eye_x = pose.at(0);
-    let eye_y = pose.at(1);
-    let eye_z = pose.at(2);
+    let eye_x = pose[0];
+    let eye_y = pose[1];
+    let eye_z = pose[2];
     let distance = math::sqrt(((centre[0] - eye_x) * (centre[0] - eye_x) + (centre[1] - eye_y) * (centre[1] - eye_y) + (centre[2] - eye_z) * (centre[2] - eye_z)).as_float());
     let marker = 0.6 * distance * 0.0144;
     Geometry3d {
@@ -1086,8 +1086,8 @@ pub fn update(state: &mut editor::State) {
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;
-            if util::abs(box_drag.end_x - box_drag.start_x) > 3.0 || util::abs(box_drag.end_y - box_drag.start_y) > 3.0 {
-                let rows = rows_in_box(state, camera, box_drag.start_x, box_drag.start_y, box_drag.end_x, box_drag.end_y);
+            if util::abs(box_drag["end_x"] - box_drag["start_x"]) > 3.0 || util::abs(box_drag["end_y"] - box_drag["start_y"]) > 3.0 {
+                let rows = rows_in_box(state, camera, box_drag["start_x"], box_drag["start_y"], box_drag["end_x"], box_drag["end_y"]);
                 if rows.len() > 0 {
                     history::commit(state);
                     selection::set(state, rows);

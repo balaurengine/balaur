@@ -39,13 +39,13 @@ impl Rail {
             return;
         }
         let sheet = self.node.get_node("RailTop/Handle");
-        sheet.patch_component("widget", { "visible": view.get("rail_handle"), "padding": view.get("pad") });
+        sheet.patch_component("widget", { "visible": view["rail_handle"], "padding": view["pad"] });
         sheet.get_node("Open").patch_component("widget", {
-            "icon": view.get("left").get("icon"),
-            "tooltip": view.get("left").get("tooltip"),
-            "width": view.get("diameter"),
-            "height": view.get("diameter"),
-            "corner_radius": view.get("diameter").as_float() / 2.0,
+            "icon": view["left"]["icon"],
+            "tooltip": view["left"]["tooltip"],
+            "width": view["diameter"],
+            "height": view["diameter"],
+            "corner_radius": view["diameter"].as_float() / 2.0,
         });
     }
 }

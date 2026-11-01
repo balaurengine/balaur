@@ -34,7 +34,7 @@ pub async fn sign_in(node: Node, provider: str) -> any {
     }
     // The tokens ride under `session`, once; signing in from them is what
     // `restore` does for a kept session, so a fresh one goes the same way.
-    let session = status.get("session");
+    let session = status["session"];
     if session.kind() != "map" {
         log::warn("gamend: {provider} sign-in completed without a session");
         return nil();
@@ -80,8 +80,8 @@ async fn provider_page(node: Node, provider: str, start: fn(Node, str) -> any, s
     if opened.kind() != "map" {
         return nil();
     }
-    let session = opened.get("session_id").text();
-    engine::open_url(opened.get("authorization_url").text());
+    let session = opened["session_id"].text();
+    engine::open_url(opened["authorization_url"].text());
     let waited = 0.0;
     while waited < SIGN_IN_TIMEOUT {
         await task::seconds(ASK_EVERY);
@@ -94,12 +94,12 @@ async fn provider_page(node: Node, provider: str, start: fn(Node, str) -> any, s
         if now.kind() != "map" {
             continue;
         }
-        let state = now.get("status").text();
+        let state = now["status"].text();
         if state == "completed" {
             return now;
         }
         if state != "pending" {
-            log::warn("gamend: {provider} {now.get("error").text()}: {now.get("message").text()}");
+            log::warn("gamend: {provider} {now["error"].text()}: {now["message"].text()}");
             return nil();
         }
     }
@@ -131,7 +131,7 @@ pub async fn confirm_registration(node: Node, email: str, code: str, password: s
 
 /// What `{"data": ...}` carries, or nil for any other body.
 fn data_of(body: any) -> any {
-    if body.has("data") { body.get("data") } else { nil() }
+    if body.has("data") { body["data"] } else { nil() }
 }
 
 /// Keep a session for the next run. Not `save`: a function of that name

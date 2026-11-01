@@ -106,11 +106,11 @@ pub fn geometry(state: editor::State, row: int) -> Geometry? {
         util::xyz(child_ref.transform.global_position())
     } else {
         let bone = bone_data(found);
-        let length = bone.length.as_float();
+        let length = bone["length"].as_float();
         if length <= 0.0 {
             length = TIP_LENGTH;
         }
-        let angle = found.transform.global_rotation_euler().z + bone.angle.as_float();
+        let angle = found.transform.global_rotation_euler().z + bone["angle"].as_float();
         let scale_x = found.transform.global_scale().x;
         // A 3D tip bone points along its own y, the way an imported joint
         // chain grows; a 2D one along `angle`.
@@ -260,8 +260,8 @@ pub fn draw(state: editor::State) {
         return;
     }
     let tokens = state.theme;
-    let bone_ink = util::rgb(tokens.get("node_bone").as_str());
-    let accent = util::rgb(tokens.get("primary_text").as_str());
+    let bone_ink = util::rgb(tokens["node_bone"].as_str());
+    let accent = util::rgb(tokens["primary_text"].as_str());
     for row in 0..state.nodes.len() {
         let node = state.nodes[row];
         if is_bone(node) {
@@ -308,27 +308,27 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
         return nil;
     }
     let modifier_component = modifier_or;
-    if modifier_component.get("enabled") == false {
+    if modifier_component["enabled"] == false {
         return nil;
     }
     let found = model::node(state, row);
     if !found.is_valid() {
         return nil;
     }
-    let bone_path = modifier_component.get("bone").as_str();
+    let bone_path = modifier_component["bone"].as_str();
     let driven = if bone_path == "" { found } else { found.get_node(bone_path) };
     if !driven.is_valid() {
         return nil;
     }
-    let target_path = modifier_component.get("target").as_str();
+    let target_path = modifier_component["target"].as_str();
     let target: Node = nil;
     if target_path != "" {
         target = found.get_node(target_path);
     }
     let chain: [int] = [];
     let at = model::index_of_node(state, driven);
-    let limit = util::max(1, (modifier_component.get("chain_count").as_float() as int));
-    let authored_kind = modifier_component.get("kind");
+    let limit = util::max(1, (modifier_component["chain_count"].as_float() as int));
+    let authored_kind = modifier_component["kind"];
     let kind = if authored_kind.is_nil() { animation::MODIFIER_LOOK_AT } else { authored_kind };
     // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
     // three by definition. The rest walk as far as `chain` allows.
@@ -337,7 +337,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     } else if kind == animation::MODIFIER_TWO_BONE_IK {
         3
     } else {
-        if modifier_component.get("chain_count").as_float() > 0.0 {
+        if modifier_component["chain_count"].as_float() > 0.0 {
             limit
         } else {
             64
@@ -360,7 +360,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
 // handle at the target itself.
 fn draw_modifiers(state: editor::State) {
     let tokens = state.theme;
-    let color = util::rgb(tokens.get("node_modifier").as_str());
+    let color = util::rgb(tokens["node_modifier"].as_str());
     for row in 0..state.nodes.len() {
         let reach_or = modifier_reach(state, row);
         if reach_or.is_none() {
@@ -467,7 +467,7 @@ pub fn drag_handle(state: &mut editor::State, row: int, world_x: float, world_y:
     if modifier_component.is_nil() || !found.is_valid() {
         return;
     }
-    let target = found.get_node(modifier_component.target.as_str());
+    let target = found.get_node(modifier_component["target"].as_str());
     if !target.is_valid() {
         return;
     }
@@ -534,7 +534,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
     }
     let moved = 0;
     for bone in bones {
-        let mine_or = was.get(bone.path());
+        let mine_or = was[bone.path()];
         if mine_or.is_nil() {
             continue;
         }
@@ -546,16 +546,16 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         // no side in its name.
         let source = if other.is_some() {
             let twin = other.unwrap();
-            let twin_was = was.get(base.as_str() + "/" + twin);
+            let twin_was = was[base.as_str() + "/" + twin];
             if twin_was.is_nil() { mine } else { twin_was }
         } else {
             mine
         };
-        let rest = reflect_rest(util::map_or_empty(source.get("data")), axis);
+        let rest = reflect_rest(util::map_or_empty(source["data"]), axis);
         moved += 1;
-        let live = model::node(state, mine.get("index").as_int());
+        let live = model::node(state, mine["index"].as_int());
         if live.is_valid() {
-            live.set_component(mine.get("key"), rest);
+            live.set_component(mine["key"], rest);
         }
     }
     apply_rest(state);
@@ -567,7 +567,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
 // left-handed one.
 fn reflect_rest(data: any, axis: str) -> any {
     let out = util::map_or_empty(util::copy(data));
-    let authored_position = out.get("rest_position");
+    let authored_position = out["rest_position"];
     let position = util::list_or_empty(if authored_position.is_nil() { [] } else { authored_position });
     if position.len() >= 2 {
         let flipped: [float] = [];
@@ -578,7 +578,7 @@ fn reflect_rest(data: any, axis: str) -> any {
         }
         out.set("rest_position", flipped);
     }
-    let rotation = out.rest_rotation;
+    let rotation = out["rest_rotation"];
     if rotation.kind() == "list" {
         let turned = util::vec3(rotation, [0.0, 0.0, 0.0]);
         out.set("rest_rotation", [turned[0], turned[1], -turned[2]]);
@@ -587,7 +587,7 @@ fn reflect_rest(data: any, axis: str) -> any {
     }
     // The gizmo angle is measured from +x; a mirror over y leaves it negated,
     // and one over x reflects it about the vertical instead.
-    let was = out.get("angle");
+    let was = out["angle"];
     if !was.is_nil() {
         let angle = -was.as_float();
         out.set("angle", if axis == "x" { math::PI.as_float() + angle } else { angle });

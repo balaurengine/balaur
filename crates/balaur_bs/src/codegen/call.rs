@@ -165,12 +165,39 @@ impl FnGen<'_> {
         Ok(sig.ret)
     }
 
+    /// A spelling a value has no more, refused by name with the one it keeps.
+    /// A prelude function may call what its own code needs by any name.
+    pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
+        if self.prelude || !matches!(name, "get" | "at") {
+            return Ok(());
+        }
+        let msg = match (&self.type_of(base)?, name) {
+            (Ty::Any, "get") => {
+                "an `any` reads a key as `a[\"k\"]`, not `a.get(\"k\")`".to_string()
+            }
+            (Ty::Any, "at") => {
+                "an `any` list reads an element as `a[i]`, not `a.at(i)`".to_string()
+            }
+            (Ty::Array(_), "at") => {
+                "a list reads an element as `xs[i]`, not `xs.at(i)`".to_string()
+            }
+            (Ty::Struct(s), "at" | "get") if matches!(s.as_str(), "Vec2" | "Vec3" | "Color") => {
+                format!(
+                    "a {s} reads a field by its name, as `v.{}`",
+                    if s == "Color" { "r" } else { "x" }
+                )
+            }
+            (Ty::Struct(s), "get") if crate::maps::is_map(s) => {
+                "a map reads a key as `m[k]`, not `m.get(k)`".to_string()
+            }
+            _ => return Ok(()),
+        };
+        err(pos, msg)
+    }
+
     pub(crate) fn method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         // `node.transform.translate(..)`: an operation a component drives is
         // called on that component, as Rune calls it.
-        if let Some(field) = self.component_get(base, name) {
-            return self.method(&field, name, args, pos);
-        }
         if let ExprKind::Field(node, comp) = &base.kind
             && let Some(sig) = self.g.sigs.get(&format!("node.{comp}.{name}")).cloned()
             && sig.kind == Kind::Host
@@ -409,26 +436,7 @@ impl FnGen<'_> {
         Some(r)
     }
 
-    // `n.get("transform")` before a method the component drives is
-    // `n.transform`: the key-reading spelling of the same thing.
-    fn component_get(&self, base: &Expr, name: &str) -> Option<Expr> {
-        let ExprKind::Method(n, get, key) = &base.kind else {
-            return None;
-        };
-        let [arg] = key.as_slice() else { return None };
-        let ExprKind::Str(comp) = &arg.kind else {
-            return None;
-        };
-        let drives = get == "get" && self.g.sigs.contains_key(&format!("node.{comp}.{name}"));
-        drives.then(|| Expr {
-            kind: ExprKind::Field(n.clone(), comp.clone()),
-            pos: base.pos,
-        })
-    }
-
-    // What a value answers before its own kind's methods: a vector's field
-    // by `at`/`get`, `as_` conversions, and the `T?` methods on a value that
-    // is always there.
+    // What a value answers before its own kind's methods: `as_` conversions.
     fn method_sugar(
         &mut self,
         base: &Expr,
@@ -437,30 +445,6 @@ impl FnGen<'_> {
         args: &[Expr],
         pos: Pos,
     ) -> R<Option<Ty>> {
-        let bty = bty.clone();
-        // `v.at(0)` or `v.get("y")` on a vector is its field.
-        if let Ty::Struct(s) = &bty
-            && matches!(s.as_str(), "Vec2" | "Vec3" | "Color")
-            && let [arg] = args
-        {
-            let fields: &[&str] = match s.as_str() {
-                "Vec2" => &["x", "y"],
-                "Vec3" => &["x", "y", "z"],
-                _ => &["r", "g", "b", "a"],
-            };
-            let field = match (name, &arg.kind) {
-                ("at", ExprKind::Int(i)) => usize::try_from(*i).ok().and_then(|i| fields.get(i)),
-                ("get", ExprKind::Str(k)) => fields.iter().find(|f| **f == k.as_str()),
-                _ => None,
-            };
-            if let Some(f) = field {
-                let read = Expr {
-                    kind: ExprKind::Field(Box::new(base.clone()), (*f).to_string()),
-                    pos,
-                };
-                return self.expr(&read).map(Some);
-            }
-        }
         let plain = matches!(bty, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
         if plain && args.is_empty() && name.starts_with("as_") {
             return self.plain_as(base, name, pos).map(Some);
@@ -513,13 +497,11 @@ impl FnGen<'_> {
         Ok(sig.ret.clone())
     }
 
-    // `a.get("k")` is the host's `get(a, "k")`; `a["k"]` and `a[0]` are the
-    // same calls.
     pub(crate) fn any_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         if name == "with" {
             return err(
                 pos,
-                "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or `set` the key on the map",
+                "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or write the key, `a[\"k\"] = v`",
             );
         }
         if !self.g.sigs.contains_key(&format!("any::{name}")) {
@@ -532,7 +514,7 @@ impl FnGen<'_> {
     /// `str::method(value, ..)`. The receiver is compiled where it is, not
     /// cloned into a call: a clone is a tree `type_of` has not seen, so each
     /// link of a chain would type the whole chain under it again.
-    fn prelude_method(
+    pub(crate) fn prelude_method(
         &mut self,
         ty: &str,
         base: &Expr,
@@ -680,17 +662,9 @@ impl FnGen<'_> {
         self.prelude_method("str", base, name, args, pos)
     }
 
-    // `at`, `extend` and `sort`, written with what a list has already.
+    // `extend` and `sort`, written with what a list has already.
     fn list_sugar(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Option<Ty>> {
         match (name, args) {
-            // `xs.at(i)` is `xs[i]`.
-            ("at", [i]) => {
-                let read = Expr {
-                    kind: ExprKind::Index(Box::new(base.clone()), Box::new(i.clone())),
-                    pos,
-                };
-                return self.expr(&read).map(Some);
-            }
             // `xs.extend(ys)` pushes each of `ys`.
             ("extend", [other]) => {
                 let var = format!("#each{}", self.locals.len());

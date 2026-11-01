@@ -132,8 +132,8 @@ fn texture_source(state: editor::State, rel: str) -> str {
     let found = "";
     if rel.to_lower().ends_with(".toml") {
         let table = table_at(full(state, rel));
-        if table.type.as_str() == "texture" {
-            found = table.source.as_str();
+        if table["type"].as_str() == "texture" {
+            found = table["source"].as_str();
         }
     }
     state.import_texture = Held { rel: rel, source: found };
@@ -163,7 +163,7 @@ fn project_default(state: editor::State, kind: str, key: str) -> any {
     if text.is_none() {
         return nil;
     }
-    toml::parse(text.unwrap()).get("import").get(kind).get(key)
+    toml::parse(text.unwrap())["import"][kind][key]
 }
 
 // Write one key, or drop it when `value` is nil. An empty sidecar is removed
@@ -194,15 +194,15 @@ pub fn write(state: editor::State, rel: str, key: str, value: any) {
 
 // One row: the label, the control, and where the value came from.
 fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
-    let key = spec.key.as_str();
-    let own = table_at(full(state, settings_file(state, rel))).get(key);
+    let key = spec["key"].as_str();
+    let own = table_at(full(state, settings_file(state, rel)))[key];
     let inherited = project_default(state, kind, key);
     // A texture asset reads its image's sidecar first, and overrides it.
     let image = image_of(state, rel);
-    let beside = if image == rel { nil } else { sidecar(state, image).get(key) };
+    let beside = if image == rel { nil } else { sidecar(state, image)[key] };
     let has_own = !own.is_nil();
     let source = if !beside.is_nil() { "image" } else if !inherited.is_nil() { "project" } else { "default" };
-    let effective = spec.fallback;
+    let effective = spec["fallback"];
     if !inherited.is_nil() {
         effective = inherited;
     }
@@ -212,21 +212,21 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     if has_own {
         effective = own;
     }
-    let shown = spec.fallback;
+    let shown = spec["fallback"];
     if effective.kind() == "float" || effective.kind() == "int" {
         shown = effective.as_float();
     }
-    let whole = spec.whole.as_bool();
-    let kind_of_row = spec.kind.as_str();
+    let whole = spec["whole"].as_bool();
+    let kind_of_row = spec["kind"].as_str();
     let control: any = if kind_of_row == "number" {
         {
             "kind": "number_field",
             "grow": 1,
-            "tooltip": spec.help,
+            "tooltip": spec["help"],
             "arrows": true,
             "value": shown,
-            "step": spec.step,
-            "drag_speed": spec.step,
+            "step": spec["step"],
+            "drag_speed": spec["step"],
             "on": "handle",
             "data": { "fn": on_number_changed, "rel": rel, "key": key, "whole": whole },
         }
@@ -234,19 +234,19 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
         {
             "kind": "checkbox",
             "text": "",
-            "tooltip": spec.help,
+            "tooltip": spec["help"],
             "checked": effective.as_bool(),
             "on": "handle",
             "data": { "fn": on_flag_toggled, "rel": rel, "key": key },
         }
     } else if kind_of_row == "count" {
-        let count = if effective.kind() == "int" { effective } else { spec.fallback };
+        let count = if effective.kind() == "int" { effective } else { spec["fallback"] };
         {
             "kind": "dropdown",
             "grow": 1,
-            "tooltip": spec.help,
+            "tooltip": spec["help"],
             "text": "{count.as_int()}",
-            "options": spec.options,
+            "options": spec["options"],
             "on": "handle",
             "data": { "fn": on_count_picked, "rel": rel, "key": key, "spec": spec },
         }
@@ -254,9 +254,9 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
         {
             "kind": "dropdown",
             "grow": 1,
-            "tooltip": spec.help,
-            "text": if effective.kind() == "str" { effective.as_str() } else { spec.fallback.as_str() },
-            "options": spec.options,
+            "tooltip": spec["help"],
+            "text": if effective.kind() == "str" { effective.as_str() } else { spec["fallback"].as_str() },
+            "options": spec["options"],
             "on": "handle",
             "data": { "fn": on_choice_picked, "rel": rel, "key": key },
         }
@@ -279,28 +279,28 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    if data.whole.as_bool() {
-        write(state, data.rel.as_str(), data.key.as_str(), math::round(value.as_float()) as int);
+    if data["whole"].as_bool() {
+        write(state, data["rel"].as_str(), data["key"].as_str(), math::round(value.as_float()) as int);
     } else {
-        write(state, data.rel.as_str(), data.key.as_str(), value);
+        write(state, data["rel"].as_str(), data["key"].as_str(), value);
     }
 }
 
 fn on_flag_toggled(state: &mut editor::State, data: any, on: any) {
-    write(state, data.rel.as_str(), data.key.as_str(), on);
+    write(state, data["rel"].as_str(), data["key"].as_str(), on);
 }
 
 fn on_count_picked(state: &mut editor::State, data: any, picked: any) {
-    let count = COUNTS().get(picked.as_str());
-    write(state, data.rel.as_str(), data.key.as_str(), if count.is_nil() { data.spec.fallback } else { count });
+    let count = COUNTS()[picked.as_str()];
+    write(state, data["rel"].as_str(), data["key"].as_str(), if count.is_nil() { data["spec"]["fallback"] } else { count });
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
-    write(state, data.rel.as_str(), data.key.as_str(), picked);
+    write(state, data["rel"].as_str(), data["key"].as_str(), picked);
 }
 
 fn on_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    write(state, data.rel.as_str(), data.key.as_str(), nil);
+    write(state, data["rel"].as_str(), data["key"].as_str(), nil);
 }
 
 // The rows the selected file offers, empty when nothing is selected or the
@@ -316,8 +316,8 @@ fn specs_for(state: editor::State) -> [any] {
     }
     let lower = image_of(state, rel).to_lower();
     let out: [any] = [];
-    for spec in util::list_or_empty(ROWS().get(kind)) {
-        let only = spec.only.as_str();
+    for spec in util::list_or_empty(ROWS()[kind]) {
+        let only = spec["only"].as_str();
         if only == "" || lower.ends_with("." + only) {
             out.push(spec);
         }

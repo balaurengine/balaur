@@ -163,7 +163,7 @@ pub fn chips(workspace: str) -> [Chip] {
 /// `chip_state` by workspace, holds for it, or what `chips` starts it as
 /// before the chip is first drawn.
 pub fn chip_on(chip_states: any, workspace: str, key: str) -> bool {
-    let held = chip_states.get(workspace).get(key);
+    let held = chip_states[workspace][key];
     if !held.is_nil() {
         return held.as_bool();
     }

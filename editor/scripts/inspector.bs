@@ -60,7 +60,7 @@ pub fn section(state: &mut editor::State, tokens: any, title: str) -> bool {
 
 // A theme token's colour, or the muted ink where the theme has none.
 fn ink(tokens: any, token: str) -> str {
-    if tokens.get(token).is_nil() { tokens.text_muted.as_str() } else { tokens.get(token).as_str() }
+    if tokens[token].is_nil() { tokens["text_muted"].as_str() } else { tokens[token].as_str() }
 }
 
 /// A fold's heading, as a full-width row of two nodes: the caret, then the
@@ -99,10 +99,10 @@ fn fold_row_with(state: &mut editor::State, role: str, open: bool, text: str, ic
 }
 
 fn folded(state: &mut editor::State, data: any, _value: any) {
-    let key = data.key.as_str();
-    let held = if data.store.as_str() == "opened" { state.opened } else { state.collapsed };
+    let key = data["key"].as_str();
+    let held = if data["store"].as_str() == "opened" { state.opened } else { state.collapsed };
     // Shutting writes the key into `collapsed` and out of `opened`.
-    let mark = data.open.as_bool() == (data.store.as_str() == "collapsed");
+    let mark = data["open"].as_bool() == (data["store"].as_str() == "collapsed");
     if mark {
         held.set(key, true);
     } else {
@@ -178,7 +178,7 @@ fn push(state: &mut editor::State, spec: any) {
     let extra = state.row_after;
     if extra.kind() == "map" {
         state.row_after = nil;
-        spec.controls.push(extra);
+        spec["controls"].push(extra);
     }
     state.form.push(spec);
 }
@@ -210,18 +210,18 @@ pub fn form_row(state: &mut editor::State, label: str, controls: [any]) {
 /// component, the scene file and a script all hold what the schema declares,
 /// and `min`, `max` and `step` are written in the unit shown.
 fn shown_as(spec: any, value: float) -> float {
-    if spec.get("unit").as_str() == "degrees" { math::to_degrees(value) } else { value }
+    if spec["unit"].as_str() == "degrees" { math::to_degrees(value) } else { value }
 }
 
 /// The inverse of `shown_as`, for the value a row writes back.
 fn stored_as(spec: any, value: float) -> float {
-    if spec.get("unit").as_str() == "degrees" { math::to_radians(value) } else { value }
+    if spec["unit"].as_str() == "degrees" { math::to_radians(value) } else { value }
 }
 
 /// A property's full label, and what its schema says it is under it.
 fn property_tip(property: str, spec: any) -> str {
     let label = util::property_label(property);
-    let description = spec.description.as_str();
+    let description = spec["description"].as_str();
     if description == "" { label } else { label + "\n" + description }
 }
 
@@ -255,7 +255,7 @@ fn form_width(state: editor::State) -> float {
             return rect_or.unwrap().width;
         }
     }
-    state.layout.right.width.as_float() - 16.0
+    state.layout["right"]["width"].as_float() - 16.0
 }
 
 // The control width the rows were drawn at. Under it the label goes above the
@@ -438,9 +438,9 @@ fn script_properties_rows(state: &mut editor::State, tokens: any, node: Node) {
     let properties = model::script_props(node);
     note_row(state, 20.0, "text_heading", "PROPERTIES");
     for export in declared {
-        let name = export.name.as_str();
+        let name = export["name"].as_str();
         let overridden = properties.has(name);
-        let value = if overridden { properties.get(name) } else { export.default };
+        let value = if overridden { properties[name] } else { export["default"] };
         // The export row *is* a spec, in the schema's own vocabulary, so the
         // rows a script declares reach the same editors a component's do:
         // an enum gets the dropdown, a node the picker, an asset the row.
@@ -449,7 +449,7 @@ fn script_properties_rows(state: &mut editor::State, tokens: any, node: Node) {
         // `property_value_row` reads the value out of a table by name.
         property_value_row(state, tokens, SCRIPT_PROPERTIES, name, spec, { name: value });
         if overridden {
-            let back = export.default;
+            let back = export["default"];
             push(state, {
                 "full": false,
                 "height": 22,
@@ -471,7 +471,7 @@ fn script_properties_rows(state: &mut editor::State, tokens: any, node: Node) {
 }
 
 fn on_script_property_reset(state: &mut editor::State, data: any, _value: any) {
-    model::set_script_property(state, data.name.as_str(), data.back);
+    model::set_script_property(state, data["name"].as_str(), data["back"]);
 }
 
 // Write an inline definition to its type's directory and point the property at
@@ -533,7 +533,7 @@ pub fn at_step(at: AtTop, step: any, label: str) -> AtTop {
 
 /// A row's label, and what its spec says it is under it.
 fn row_tip(at: AtTop, spec: any) -> str {
-    let description = spec.description.as_str();
+    let description = spec["description"].as_str();
     if description == "" { at.label } else { at.label + "\n" + description }
 }
 
@@ -541,7 +541,7 @@ fn row_tip(at: AtTop, spec: any) -> str {
 /// rest: the row was built before the edit and holds what it started from.
 fn current_whole(state: editor::State, at: AtTop) -> any {
     if at.component == SCRIPT_PROPERTIES {
-        let found = model::script_props(model::selected_node(state)).get(at.property);
+        let found = model::script_props(model::selected_node(state))[at.property];
         return if found.is_nil() { at.whole } else { found };
     }
     let now = read_now(state, at.component, at.property, at.whole);
@@ -562,11 +562,11 @@ fn record_named(state: editor::State, at: AtTop) -> str {
         return "";
     }
     // The cached schema where the Inspector drew it, else the engine's.
-    let cached = state.schemas.get(at.component);
+    let cached = state.schemas[at.component];
     let schema = if cached.is_nil() { scene::component_schema(at.component) } else { cached };
-    let spec = util::map_or_empty(util::map_or_empty(schema).get(at.property));
-    let asset_type = spec.asset.as_str();
-    if spec.type.as_str() != "asset" || assets::schema(asset_type).is_none() {
+    let spec = util::map_or_empty(util::map_or_empty(schema)[at.property]);
+    let asset_type = spec["asset"].as_str();
+    if spec["type"].as_str() != "asset" || assets::schema(asset_type).is_none() {
         return "";
     }
     asset_type
@@ -604,9 +604,9 @@ fn inner_at(holder: any, path: [any], depth: int) -> any {
             if step.kind() != "int" || step.as_int() < 0 || step.as_int() >= found.len() {
                 return nil;
             }
-            found = found.at(step.as_int());
+            found = found[step.as_int()];
         } else if found.kind() == "map" && found.has(step.as_str()) {
-            found = found.get(step.as_str());
+            found = found[step.as_str()];
         } else {
             return nil;
         }
@@ -649,7 +649,7 @@ pub fn drop_entry(state: &mut editor::State, at: AtTop, step: any) {
 /// Add one entry to the list or map the cursor names, at the spec's own
 /// default: `complete_property` wrote one in for every nested spec.
 pub fn add_entry(state: &mut editor::State, at: AtTop, of: any, key: str) {
-    let fresh = util::deep(of.default);
+    let fresh = util::deep(of["default"]);
     let whole = util::deep(current_whole(state, at));
     let holder = inner_at(whole, at.path, at.path.len());
     if holder.is_nil() {
@@ -694,8 +694,8 @@ fn with_remove(state: &mut editor::State, at: AtTop, step: any) -> any {
 }
 
 fn on_entry_removed(state: &mut editor::State, data: any, _value: any) {
-    let at: AtTop = data.at;
-    drop_entry(state, at, data.step);
+    let at: AtTop = data["at"];
+    drop_entry(state, at, data["step"]);
 }
 
 // The `component` an editor is given when it is editing a script's exported
@@ -725,7 +725,7 @@ fn write(state: &mut editor::State, component: str, property: str, value: any) {
 fn edit_flags(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let held = util::list_or_empty(value);
     let controls: [any] = [];
-    for option in util::list_or_empty(spec.options) {
+    for option in util::list_or_empty(spec["options"]) {
         let name = option.as_str();
         let on = false;
         for one in held {
@@ -751,15 +751,15 @@ fn edit_flags(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
 }
 
 fn on_flag_toggled(state: &mut editor::State, data: any, _value: any) {
-    let at: AtTop = data.at;
-    let name = data.name.as_str();
+    let at: AtTop = data["at"];
+    let name = data["name"].as_str();
     let next: [any] = [];
-    for other in util::list_or_empty(data.held) {
+    for other in util::list_or_empty(data["held"]) {
         if other.as_str() != name {
             next.push(other);
         }
     }
-    if !data.on.as_bool() {
+    if !data["on"].as_bool() {
         next.push(name);
     }
     write_at(state, at, next);
@@ -801,12 +801,12 @@ fn edit_node(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
 }
 
 fn on_node_path_submitted(state: &mut editor::State, data: any, text: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, text);
 }
 
 fn on_node_picked(state: &mut editor::State, data: any, picked: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, if picked.as_str() == "— none —" { "" } else { picked.as_str() });
 }
 
@@ -836,12 +836,12 @@ fn editors() -> any {
 // editor its `of` spec asks for and each removable.
 fn edit_list(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let held = util::list_or_empty(value);
-    let of = util::map_or_empty(spec.of);
-    let what = if of.type.is_nil() { "?" } else { of.type.as_str() };
+    let of = util::map_or_empty(spec["of"]);
+    let what = if of["type"].is_nil() { "?" } else { of["type"].as_str() };
     holder_row(state, tokens, at, spec, "{what} · {held.len()}", { "of": of, "key": "" });
     for index in 0..held.len() {
         let was = with_remove(state, at, index);
-        draw_value(state, tokens, at_step(at, index, "{index}"), of, held.at(index));
+        draw_value(state, tokens, at_step(at, index, "{index}"), of, held[index]);
         state.row_after = was;
     }
 }
@@ -851,14 +851,14 @@ fn edit_list(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
 // control wide.
 fn edit_map(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let held = util::map_or_empty(value);
-    let of = util::map_or_empty(spec.of);
-    let numbered = spec.key.as_str() == "int";
+    let of = util::map_or_empty(spec["of"]);
+    let numbered = spec["key"].as_str() == "int";
     let keys = util::keys_sorted(held);
-    let what = if of.type.is_nil() { "?" } else { of.type.as_str() };
+    let what = if of["type"].is_nil() { "?" } else { of["type"].as_str() };
     holder_row(state, tokens, at, spec, "{what} · {keys.len()}", { "of": of, "key": fresh_key(held, numbered) });
     for key in keys {
         let was = with_remove(state, at, key);
-        draw_value(state, tokens, at_step(at, key, key), of, held.get(key));
+        draw_value(state, tokens, at_step(at, key, key), of, held[key]);
         state.row_after = was;
     }
 }
@@ -867,15 +867,15 @@ fn edit_map(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value:
 // the schema's, so there is nothing to add or take away.
 fn edit_record(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let held = util::map_or_empty(value);
-    let fields = util::map_or_empty(spec.fields);
+    let fields = util::map_or_empty(spec["fields"]);
     let names = util::keys_sorted(fields);
     // A record naming a class says which: the rows are its fields, and the
     // script is handed that class back.
-    let note = if spec.class.is_nil() { "{names.len()} fields" } else { "{spec.class.as_str()} · {names.len()}" };
+    let note = if spec["class"].is_nil() { "{names.len()} fields" } else { "{spec["class"].as_str()} · {names.len()}" };
     holder_row(state, tokens, at, spec, note, nil);
     for field in names {
-        let of = util::map_or_empty(fields.get(field));
-        let now = if held.has(field) { held.get(field) } else { of.default };
+        let of = util::map_or_empty(fields[field]);
+        let now = if held.has(field) { held[field] } else { of["default"] };
         draw_value(state, tokens, at_step(at, field, util::property_label(field)), of, now);
     }
 }
@@ -885,14 +885,14 @@ fn edit_record(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
 // the engine keeps the ones the new kind reads and fills in the rest.
 fn edit_variant(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     let held = util::map_or_empty(value);
-    let variants = util::map_or_empty(spec.variants);
-    let kind = if held.kind.is_nil() { util::map_or_empty(spec.default).kind.as_str() } else { held.kind.as_str() };
-    let picker: any = { "type": "enum", "options": util::keys_sorted(variants), "description": spec.description };
+    let variants = util::map_or_empty(spec["variants"]);
+    let kind = if held["kind"].is_nil() { util::map_or_empty(spec["default"])["kind"].as_str() } else { held["kind"].as_str() };
+    let picker: any = { "type": "enum", "options": util::keys_sorted(variants), "description": spec["description"] };
     edit_enum(state, tokens, at_step(at, "kind", at.label), picker, kind);
-    let fields = util::map_or_empty(util::map_or_empty(variants.get(kind)).fields);
+    let fields = util::map_or_empty(util::map_or_empty(variants[kind])["fields"]);
     for field in util::keys_sorted(fields) {
-        let of = util::map_or_empty(fields.get(field));
-        let now = if held.has(field) { held.get(field) } else { of.default };
+        let of = util::map_or_empty(fields[field]);
+        let now = if held.has(field) { held[field] } else { of["default"] };
         draw_value(state, tokens, at_step(at, field, util::property_label(field)), of, now);
     }
 }
@@ -918,19 +918,19 @@ fn holder_row(state: &mut editor::State, tokens: any, at: AtTop, spec: any, note
 }
 
 fn on_entry_added(state: &mut editor::State, data: any, _value: any) {
-    let at: AtTop = data.at;
-    add_entry(state, at, data.add.of, data.add.key.as_str());
+    let at: AtTop = data["at"];
+    add_entry(state, at, data["add"]["of"], data["add"]["key"].as_str());
 }
 
 /// One property, in whichever of the two rows its spec asks for, with what
 /// the engine says is off about it underneath.
 fn property_row(state: &mut editor::State, tokens: any, component: str, property: str, spec: any, data: any) {
-    if spec.readonly.as_bool() {
+    if spec["readonly"].as_bool() {
         readonly_row(state, property, spec, data);
     } else {
         property_value_row(state, tokens, component, property, spec, data);
     }
-    for note in util::list_or_empty(state.inspect_warned.get("{component}.{property}")) {
+    for note in util::list_or_empty(state.inspect_warned["{component}.{property}"]) {
         warn_note(state, note.as_str());
     }
 }
@@ -975,7 +975,7 @@ fn subsection(state: &mut editor::State, component: str, group: str, count: any)
 }
 
 fn property_value_row(state: &mut editor::State, tokens: any, component: str, property: str, spec: any, data: any) {
-    let value = if data.has(property) { data.get(property) } else { spec.default };
+    let value = if data.has(property) { data[property] } else { spec["default"] };
     draw_value(state, tokens, at_top(component, property, value), spec, value);
 }
 
@@ -985,7 +985,7 @@ fn property_value_row(state: &mut editor::State, tokens: any, component: str, pr
 fn draw_value(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
     // A plugin's editor for this datatype wins over the built-in; its controls
     // write with `on: "inspector_write"` and `data: { at }`, the `at` it got.
-    let datatype = spec.type.as_str();
+    let datatype = spec["type"].as_str();
     let controls = plugins::property_controls(state, datatype, spec, value, at);
     if !controls.is_nil() {
         push(state, {
@@ -996,7 +996,7 @@ fn draw_value(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
         });
         return;
     }
-    let found = editors().get(datatype);
+    let found = editors()[datatype];
     let editor: fn(&mut editor::State, any, AtTop, any, any) = edit_text;
     if !found.is_nil() {
         editor = found;
@@ -1009,11 +1009,11 @@ fn draw_value(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
 // typing, which is how a range is escaped when a scene wants one.
 fn clamped(spec: any, value: float) -> float {
     let out = value;
-    if !spec.min.is_nil() {
-        out = util::max(spec.min.as_float(), out);
+    if !spec["min"].is_nil() {
+        out = util::max(spec["min"].as_float(), out);
     }
-    if !spec.max.is_nil() {
-        out = util::min(spec.max.as_float(), out);
+    if !spec["max"].is_nil() {
+        out = util::min(spec["max"].as_float(), out);
     }
     out
 }
@@ -1030,7 +1030,7 @@ fn edit_float(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
                 "kind": "number_field",
                 "grow": 1,
                 "value": shown_as(spec, number_of(value)),
-                "drag_speed": if spec.step.is_nil() { 0.02 } else { spec.step.as_float() },
+                "drag_speed": if spec["step"].is_nil() { 0.02 } else { spec["step"].as_float() },
                 "on": "handle",
                 "data": { "fn": on_float_edited, "at": at, "spec": spec },
             },
@@ -1041,8 +1041,8 @@ fn edit_float(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
 }
 
 fn on_float_edited(state: &mut editor::State, data: any, value: any) {
-    let at: AtTop = data.at;
-    write_at(state, at, stored_as(data.spec, clamped(data.spec, value.as_float())));
+    let at: AtTop = data["at"];
+    write_at(state, at, stored_as(data["spec"], clamped(data["spec"], value.as_float())));
 }
 
 fn edit_int(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
@@ -1053,7 +1053,7 @@ fn edit_int(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value:
                 "kind": "number_field",
                 "grow": 1,
                 "value": number_of(value),
-                "drag_speed": if spec.step.is_nil() { 1.0 } else { spec.step.as_float() },
+                "drag_speed": if spec["step"].is_nil() { 1.0 } else { spec["step"].as_float() },
                 "on": "handle",
                 "data": { "fn": on_int_edited, "at": at, "spec": spec },
             },
@@ -1064,8 +1064,8 @@ fn edit_int(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value:
 }
 
 fn on_int_edited(state: &mut editor::State, data: any, value: any) {
-    let at: AtTop = data.at;
-    write_at(state, at, math::round(clamped(data.spec, value.as_float())) as int);
+    let at: AtTop = data["at"];
+    write_at(state, at, math::round(clamped(data["spec"], value.as_float())) as int);
 }
 
 fn edit_bool(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
@@ -1086,7 +1086,7 @@ fn edit_bool(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
 }
 
 fn on_bool_toggled(state: &mut editor::State, data: any, on: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, on);
 }
 
@@ -1098,7 +1098,7 @@ fn edit_enum(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
                 "kind": "dropdown",
                 "grow": 1,
                 "text": as_text(value),
-                "options": util::list_or_empty(spec.options),
+                "options": util::list_or_empty(spec["options"]),
                 "on": "handle",
                 "data": { "fn": on_enum_picked, "at": at },
             },
@@ -1109,7 +1109,7 @@ fn edit_enum(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
 }
 
 fn on_enum_picked(state: &mut editor::State, data: any, picked: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, picked);
 }
 
@@ -1130,19 +1130,19 @@ fn edit_color(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
 }
 
 fn on_color_picked(state: &mut editor::State, data: any, rgba: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, rgba);
 }
 
 fn channel(values: any, index: int, fallback: float) -> float {
-    let entry = values.at(index);
+    let entry = values[index];
     if entry.is_nil() { fallback } else { entry.as_float() }
 }
 
 // vec2 and vec3 are one editor: a drag value a component, differing only in
 // how many and what they are lettered.
 fn edit_vector(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let datatype = spec.get("type");
+    let datatype = spec["type"];
     let held = util::list_or_empty(value);
     let wide = datatype.as_str() == "color" || datatype.as_str() == "vec4";
     let count = if wide { 4 } else if datatype.as_str() == "vec2" { 2 } else { 3 };
@@ -1150,7 +1150,7 @@ fn edit_vector(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
     let fallback = if datatype.as_str() == "color" { 1.0 } else { 0.0 };
     let controls: [any] = [];
     for slot in 0..count {
-        let step = spec.get("step");
+        let step = spec["step"];
         controls.push({
             "kind": "number_field",
             "grow": 1,
@@ -1165,13 +1165,13 @@ fn edit_vector(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
 }
 
 fn on_vector_edited(state: &mut editor::State, data: any, value: any) {
-    let count: int = data.count;
-    let at: AtTop = data.at;
-    let held: any = data.held;
-    let fallback: float = data.fallback;
-    let slot: int = data.slot;
-    let datatype: any = data.datatype;
-    let spec: any = data.spec;
+    let count: int = data["count"];
+    let at: AtTop = data["at"];
+    let held: any = data["held"];
+    let fallback: float = data["fallback"];
+    let slot: int = data["slot"];
+    let datatype: any = data["datatype"];
+    let spec: any = data["spec"];
     let out: [float] = [];
     for index in 0..count {
         out.push(channel(util::list_or_empty(held_now(state, at, held)), index, fallback));
@@ -1198,7 +1198,7 @@ fn read_now(state: editor::State, component: str, property: str, fallback: any) 
 // A reference, or an inline definition the engine reports as a `#!` digest. A
 // type that declares no directory cannot be promoted, so it gets no button.
 fn edit_asset(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value: any) {
-    let asset_type = spec.asset.as_str();
+    let asset_type = spec["asset"].as_str();
     // An empty material draws with the nearest one up, so the field says which
     // and where from: `red ← Rig`.
     let own = as_text(value);
@@ -1266,21 +1266,21 @@ fn edit_asset(state: &mut editor::State, tokens: any, at: AtTop, spec: any, valu
 
 /// A pick under a font row: the font, or a face to fetch first.
 fn edit_asset_on_font(state: &mut editor::State, data: any, picked: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     fonts::pick(state, at, picked.as_str());
 }
 
 fn on_asset_path_submitted(state: &mut editor::State, data: any, text: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, text);
 }
 
 fn on_asset_embed_or_save(state: &mut editor::State, data: any, _value: any) {
-    let at: AtTop = data.at;
-    if data.inline.as_bool() {
-        promote_asset(state, at, data.asset_type.as_str(), data.dir.as_str(), data.reference.as_str());
+    let at: AtTop = data["at"];
+    if data["inline"].as_bool() {
+        promote_asset(state, at, data["asset_type"].as_str(), data["dir"].as_str(), data["reference"].as_str());
     } else {
-        inline_asset(state, at, data.reference.as_str());
+        inline_asset(state, at, data["reference"].as_str());
     }
 }
 
@@ -1320,10 +1320,10 @@ fn material_rows(state: &mut editor::State, tokens: any, reference: str) {
         return;
     }
     let definition = assets::load(reference);
-    let shader = if definition.kind() == "map" { definition.shader.as_str() } else { "" };
+    let shader = if definition.kind() == "map" { definition["shader"].as_str() } else { "" };
     if shader != "" {
         shader_row(state, tokens, reference, shader);
-        feature_rows(state, tokens, reference, util::map_or_empty(definition.features));
+        feature_rows(state, tokens, reference, util::map_or_empty(definition["features"]));
     }
     for parameter in render::material_params(reference) {
         material_row(state, tokens, reference, parameter.name, parameter.type, parameter.value);
@@ -1337,8 +1337,8 @@ fn shader_row(state: &mut editor::State, tokens: any, reference: str, shader: st
     // resolved, and what a person picks from is the file's name.
     let choices: [str] = [];
     for file in model::list(state, "shaders") {
-        if !file.is_dir.as_bool() && file.name.as_str().ends_with(".wesl") {
-            choices.push(file.name.as_str());
+        if !file["is_dir"].as_bool() && file["name"].as_str().ends_with(".wesl") {
+            choices.push(file["name"].as_str());
         }
     }
     let current = util::last_segment(shader);
@@ -1372,14 +1372,14 @@ fn shader_row(state: &mut editor::State, tokens: any, reference: str, shader: st
 }
 
 fn on_shader_opened(state: &mut editor::State, data: any, _value: any) {
-    state.shader_rel = model::relative_file(state, data.shader.as_str()).as_str();
+    state.shader_rel = model::relative_file(state, data["shader"].as_str()).as_str();
     state.doctab = "script";
     signals::inspector(state);
 }
 
 fn on_shader_picked(state: &mut editor::State, data: any, picked: any) {
-    if picked.as_str() != data.current.as_str() {
-        write_material_key(state, data.reference.as_str(), "shader", "shaders/" + picked.as_str());
+    if picked.as_str() != data["current"].as_str() {
+        write_material_key(state, data["reference"].as_str(), "shader", "shaders/" + picked.as_str());
     }
 }
 
@@ -1395,7 +1395,7 @@ fn feature_rows(state: &mut editor::State, tokens: any, reference: str, features
                 {
                     "kind": "switch",
                     "role": "switch_form",
-                    "checked": features.get(name).as_bool(),
+                    "checked": features[name].as_bool(),
                     "on": "handle",
                     "data": { "fn": on_feature_toggled, "reference": reference, "name": name },
                 },
@@ -1406,7 +1406,7 @@ fn feature_rows(state: &mut editor::State, tokens: any, reference: str, features
 }
 
 fn on_feature_toggled(state: &mut editor::State, data: any, on: any) {
-    write_material_feature(state, data.reference.as_str(), data.name.as_str(), on);
+    write_material_feature(state, data["reference"].as_str(), data["name"].as_str(), on);
 }
 
 /// Write one top-level key of a `material` asset.
@@ -1425,7 +1425,7 @@ fn write_material_feature(state: editor::State, reference: str, name: str, on: a
     if definition.kind() != "map" {
         return;
     }
-    let features = util::map_or_empty(definition.features);
+    let features = util::map_or_empty(definition["features"]);
     features.set(name, on);
     definition.set("features", features);
     assets::save(reference, definition);
@@ -1437,7 +1437,7 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
         // `material_params` hands a colour back as its four channels.
         let channels = util::list_or_empty(value);
         if value.kind() == "map" {
-            channels = [value.r.as_float(), value.g.as_float(), value.b.as_float(), value.a.as_float()];
+            channels = [value["r"].as_float(), value["g"].as_float(), value["b"].as_float(), value["a"].as_float()];
         }
         {
             "kind": "color_picker",
@@ -1461,8 +1461,8 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
         let current = if value.kind() == "str" { value.as_str() } else { "" };
         let choices = ["none"];
         for file in model::list(state, "art") {
-            if !file.is_dir.as_bool() {
-                choices.push("art/" + file.name.as_str());
+            if !file["is_dir"].as_bool() {
+                choices.push("art/" + file["name"].as_str());
             }
         }
         {
@@ -1502,24 +1502,24 @@ fn material_row(state: &mut editor::State, tokens: any, reference: str, name: st
 }
 
 fn on_material_color_picked(state: &mut editor::State, data: any, rgba: any) {
-    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), rgba);
+    write_material_parameter(state, data["reference"].as_str(), data["name"].as_str(), rgba);
 }
 
 fn on_material_float_edited(state: &mut editor::State, data: any, value: any) {
-    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), value);
+    write_material_parameter(state, data["reference"].as_str(), data["name"].as_str(), value);
 }
 
 fn on_material_texture_picked(state: &mut editor::State, data: any, picked: any) {
-    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), if picked.as_str() == "none" { "" } else { picked.as_str() });
+    write_material_parameter(state, data["reference"].as_str(), data["name"].as_str(), if picked.as_str() == "none" { "" } else { picked.as_str() });
 }
 
 fn on_material_vector_edited(state: &mut editor::State, data: any, value: any) {
-    let slot = data.slot.as_int();
+    let slot = data["slot"].as_int();
     let out: [float] = [];
-    for index in 0..data.count.as_int() {
-        out.push(if index == slot { value.as_float() } else { channel(data.held, index, 0.0) });
+    for index in 0..data["count"].as_int() {
+        out.push(if index == slot { value.as_float() } else { channel(data["held"], index, 0.0) });
     }
-    write_material_parameter(state, data.reference.as_str(), data.name.as_str(), out);
+    write_material_parameter(state, data["reference"].as_str(), data["name"].as_str(), out);
 }
 
 // Write one value into the material's `[params]` table. Saving is what
@@ -1530,7 +1530,7 @@ fn write_material_parameter(state: editor::State, reference: str, name: str, val
         log::warn("cannot read the material {reference}: {definition}");
         return;
     }
-    let parameters: any = if definition.params.kind() == "map" { definition.params } else { {} };
+    let parameters: any = if definition["params"].kind() == "map" { definition["params"] } else { {} };
     // An empty texture slot is cleared rather than written as "": a param
     // naming no file is not a param.
     if value.kind() == "str" && value.as_str() == "" {
@@ -1563,7 +1563,7 @@ fn edit_text(state: &mut editor::State, tokens: any, at: AtTop, spec: any, value
 }
 
 fn on_text_edited(state: &mut editor::State, data: any, text: any) {
-    let at: AtTop = data.at;
+    let at: AtTop = data["at"];
     write_at(state, at, text);
 }
 
@@ -1571,9 +1571,9 @@ fn on_text_edited(state: &mut editor::State, data: any, text: any) {
 // be overwritten next frame, so it renders as a plain value with nothing to
 // focus.
 fn readonly_text(spec: any, value: any) -> str {
-    let datatype = spec.type.as_str();
+    let datatype = spec["type"].as_str();
     if datatype == "float" {
-        let decimals = if spec.decimals.is_nil() { 2 } else { spec.decimals.as_int() };
+        let decimals = if spec["decimals"].is_nil() { 2 } else { spec["decimals"].as_int() };
         util::fixed(shown_as(spec, number_of(value)), decimals)
     } else if datatype == "bool" {
         if value.as_bool() { "true" } else { "false" }
@@ -1592,7 +1592,7 @@ fn readonly_text(spec: any, value: any) -> str {
 }
 
 fn readonly_row(state: &mut editor::State, property: str, spec: any, data: any) {
-    let value = if data.has(property) { data.get(property) } else { spec.default };
+    let value = if data.has(property) { data[property] } else { spec["default"] };
     // A read-only value is whatever the component reports, a joined list
     // included: it gets the column, and is cut off at its end.
     push(state, {
@@ -1662,7 +1662,7 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
         for need in util::list_or_empty(model::expects(state, name)) {
             let key = need.as_str();
             if waiting.has(key) {
-                waiting.set(key, waiting.get(key).as_int() + 1);
+                waiting.set(key, waiting[key].as_int() + 1);
             }
         }
     }
@@ -1675,7 +1675,7 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
         let ready: [str] = [];
         let held: [str] = [];
         for name in left {
-            if waiting.get(name).as_int() == 0 {
+            if waiting[name].as_int() == 0 {
                 ready.push(name);
             } else {
                 held.push(name);
@@ -1692,7 +1692,7 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
             for need in util::list_or_empty(model::expects(state, name)) {
                 let key = need.as_str();
                 if waiting.has(key) {
-                    waiting.set(key, waiting.get(key).as_int() - 1);
+                    waiting.set(key, waiting[key].as_int() - 1);
                 }
             }
         }
@@ -1713,21 +1713,21 @@ fn component_sections(state: &mut editor::State, tokens: any) {
     let whole: any = {};
     let by_property: any = {};
     for warning in warned {
-        let component = warning.component.as_str();
-        let key = if warning.property.is_nil() { component } else { "{component}.{warning.property.as_str()}" };
-        let into = if warning.property.is_nil() { whole } else { by_property };
+        let component = warning["component"].as_str();
+        let key = if warning["property"].is_nil() { component } else { "{component}.{warning["property"].as_str()}" };
+        let into = if warning["property"].is_nil() { whole } else { by_property };
         if !into.has(key) {
             let none: [any] = [];
             into.set(key, none);
         }
-        into.get(key).push(warning.message);
+        into[key].push(warning["message"]);
     }
     state.inspect_warned = by_property;
     let query = search::query(state, "inspector");
     // A component the node went without because its write was refused still
     // says what is off, at the top.
     for warning in warned {
-        if !util::contains(all, warning.component.as_str()) {
+        if !util::contains(all, warning["component"].as_str()) {
             warn_note(state, lint::describe(warning));
         }
     }
@@ -1743,7 +1743,7 @@ fn component_sections(state: &mut editor::State, tokens: any) {
         }
         // The component's name and every property it has, so a query for a
         // property finds the section that holds it.
-        let properties = util::join(util::keys_sorted(state.schemas.get(component)), " ");
+        let properties = util::join(util::keys_sorted(state.schemas[component]), " ");
         if !search::matches(query, "{component} {properties}") {
             continue;
         }
@@ -1766,20 +1766,20 @@ fn component_sections(state: &mut editor::State, tokens: any) {
         if !open {
             continue;
         }
-        for note in util::list_or_empty(whole.get(component)) {
+        for note in util::list_or_empty(whole[component]) {
             warn_note(state, note.as_str());
         }
         let laid = layout_of(state, component, editors);
         let warned_here = has_property_warning(by_property, component);
         let data: any = nil;
-        for part in util::list_or_empty(laid.loose) {
+        for part in util::list_or_empty(laid["loose"]) {
             data = part_rows(state, tokens, found, component, part, warned_here, data);
         }
-        for group in util::list_or_empty(laid.groups) {
-            if !subsection(state, component, group.name.as_str(), group.count) {
+        for group in util::list_or_empty(laid["groups"]) {
+            if !subsection(state, component, group["name"].as_str(), group["count"]) {
                 continue;
             }
-            for part in util::list_or_empty(group.parts) {
+            for part in util::list_or_empty(group["parts"]) {
                 data = part_rows(state, tokens, found, component, part, warned_here, data);
             }
         }
@@ -1790,7 +1790,7 @@ fn component_sections(state: &mut editor::State, tokens: any) {
 }
 
 fn on_component_removed(state: &mut editor::State, data: any, _value: any) {
-    model::remove_component(state, data.comp.as_str());
+    model::remove_component(state, data["comp"].as_str());
 }
 
 /// A component's rows as the form draws them, worked out once a session: the
@@ -1799,8 +1799,8 @@ fn on_component_removed(state: &mut editor::State, data: any, _value: any) {
 /// draws natively and, between them, one property a script editor still
 /// draws.
 fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
-    let cached = state.inspect_layout.get(component);
-    if !cached.is_nil() && cached.editors.as_str() == editors {
+    let cached = state.inspect_layout[component];
+    if !cached.is_nil() && cached["editors"].as_str() == editors {
         return cached;
     }
     let schema = model::schema(state, component);
@@ -1809,7 +1809,7 @@ fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
     // Groups in the order the schema first names them.
     let order: [str] = [];
     for property in schema.keys() {
-        let group = schema.get(property).group.as_str();
+        let group = schema[property]["group"].as_str();
         if group == "" {
             loose.push(property);
             continue;
@@ -1819,12 +1819,12 @@ fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
             grouped.set(group, none);
             order.push(group);
         }
-        grouped.get(group).push(property);
+        grouped[group].push(property);
     }
     let groups: [any] = [];
     for group in order {
         let properties: [str] = [];
-        for property in util::list_or_empty(grouped.get(group)) {
+        for property in util::list_or_empty(grouped[group]) {
             properties.push(property.as_str());
         }
         groups.push({ "name": group, "count": properties.len(), "parts": parts_of(state, schema, properties) });
@@ -1841,7 +1841,7 @@ fn parts_of(state: editor::State, schema: any, properties: [str]) -> [any] {
     let parts: [any] = [];
     let run: [str] = [];
     for property in properties {
-        if drawn_natively(state, schema.get(property)) {
+        if drawn_natively(state, schema[property]) {
             run.push(property);
             continue;
         }
@@ -1858,19 +1858,19 @@ fn parts_of(state: editor::State, schema: any, properties: [str]) -> [any] {
 }
 
 fn drawn_natively(state: editor::State, spec: any) -> bool {
-    let datatype = spec.type.as_str();
+    let datatype = spec["type"].as_str();
     if state.registry.property_editors.has(datatype) || datatype == "node" {
         return false;
     }
-    if datatype == "asset" && spec.asset.as_str() == "material" {
+    if datatype == "asset" && spec["asset"].as_str() == "material" {
         return false;
     }
-    if !spec.of.is_nil() && !drawn_natively(state, util::map_or_empty(spec.of)) {
+    if !spec["of"].is_nil() && !drawn_natively(state, util::map_or_empty(spec["of"])) {
         return false;
     }
-    let fields = util::map_or_empty(spec.fields);
+    let fields = util::map_or_empty(spec["fields"]);
     for name in fields.keys() {
-        if !drawn_natively(state, util::map_or_empty(fields.get(name))) {
+        if !drawn_natively(state, util::map_or_empty(fields[name])) {
             return false;
         }
     }
@@ -1883,19 +1883,19 @@ fn drawn_natively(state: editor::State, spec: any) -> bool {
 /// once a script row has read it, so a section reads it at most once.
 fn part_rows(state: &mut editor::State, tokens: any, found: Node, component: str, part: any, warned_here: bool, data: any) -> any {
     if part.has("prop") {
-        let property = part.prop.as_str();
+        let property = part["prop"].as_str();
         let read = if data.is_nil() { util::map_or_empty(found.get_component(component, nil)) } else { data };
-        property_row(state, tokens, component, property, model::schema(state, component).get(property), read);
+        property_row(state, tokens, component, property, model::schema(state, component)[property], read);
         return read;
     }
     if !warned_here {
-        native_row(state, found, component, part.run);
+        native_row(state, found, component, part["run"]);
         return data;
     }
     let run: [any] = [];
-    for property in util::list_or_empty(part.run) {
+    for property in util::list_or_empty(part["run"]) {
         run.push(property);
-        let notes = state.inspect_warned.get("{component}.{property.as_str()}");
+        let notes = state.inspect_warned["{component}.{property.as_str()}"];
         if !notes.is_nil() {
             native_row(state, found, component, run);
             run = [];
@@ -1936,24 +1936,24 @@ fn native_row(state: &mut editor::State, found: Node, component: str, properties
 }
 
 fn on_native_row_edited(state: &mut editor::State, data: any, edit: any) {
-    inspected(state, data.comp.as_str(), edit);
+    inspected(state, data["comp"].as_str(), edit);
 }
 
 /// An edit a native row heard: the value now at its cursor, or an asset to
 /// embed or save.
 fn inspected(state: &mut editor::State, component: str, edit: any) {
-    let at = at_top(component, edit.property.as_str(), nil);
-    for step in util::list_or_empty(edit.path) {
+    let at = at_top(component, edit["property"].as_str(), nil);
+    for step in util::list_or_empty(edit["path"]) {
         at = at_step(at, step, "");
     }
-    let verb = edit.verb.as_str();
+    let verb = edit["verb"].as_str();
     if verb == "embed" {
-        inline_asset(state, at, edit.value.as_str());
+        inline_asset(state, at, edit["value"].as_str());
     } else if verb == "save" {
-        let asset = edit.asset.as_str();
-        promote_asset(state, at, asset, assets::directory(asset), edit.value.as_str());
+        let asset = edit["asset"].as_str();
+        promote_asset(state, at, asset, assets::directory(asset), edit["value"].as_str());
     } else {
-        write_at(state, at, edit.value);
+        write_at(state, at, edit["value"]);
     }
 }
 
@@ -1976,7 +1976,7 @@ pub fn view(state: editor::State) -> View {
     View {
         selected: true,
         icon: icon.glyph,
-        icon_color: if tokens.get(icon.role).is_nil() { tokens.primary_text.as_str() } else { tokens.get(icon.role).as_str() },
+        icon_color: if tokens[icon.role].is_nil() { tokens["primary_text"].as_str() } else { tokens[icon.role].as_str() },
         name: node.name(),
         kind: model::node_type(node),
         add_icon: icons::ui("add"),

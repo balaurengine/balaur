@@ -40,30 +40,30 @@ impl Hud {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view.get("shown"), "inset": view.get("inset"), "height": view.get("height") });
-        if !view.get("shown").as_bool() {
+        self.node.patch_component("widget", { "visible": view["shown"], "inset": view["inset"], "height": view["height"] });
+        if !view["shown"].as_bool() {
             return;
         }
         let axes = self.node.get_node("Axes/Row");
-        axes.get_node("X").patch_component("widget", { "text_color": view.get("x_ink") });
-        axes.get_node("Y").patch_component("widget", { "text_color": view.get("y_ink") });
+        axes.get_node("X").patch_component("widget", { "text_color": view["x_ink"] });
+        axes.get_node("Y").patch_component("widget", { "text_color": view["y_ink"] });
         let zoom = self.node.get_node("Zoom/Row");
         for name in ["Out", "In"] {
             zoom.get_node(name).patch_component("widget", {
-                "width": view.get("step"),
-                "height": view.get("step"),
-                "text_color": view.get("quiet_ink"),
+                "width": view["step"],
+                "height": view["step"],
+                "text_color": view["quiet_ink"],
             });
         }
-        zoom.get_node("In").patch_component("widget", { "icon": view.get("add_icon") });
-        zoom.get_node("Reading").patch_component("widget", { "text": view.get("zoom") });
+        zoom.get_node("In").patch_component("widget", { "icon": view["add_icon"] });
+        zoom.get_node("Reading").patch_component("widget", { "text": view["zoom"] });
         let bottom = self.node.get_node("Bottom");
-        bottom.patch_component("widget", { "visible": view.get("bottom") });
+        bottom.patch_component("widget", { "visible": view["bottom"] });
         bottom.get_node("Open").patch_component("widget", {
-            "icon": view.get("bottom_icon"),
-            "width": view.get("step").as_float() + 6.0,
-            "height": view.get("step").as_float() + 6.0,
-            "text_color": view.get("quiet_ink"),
+            "icon": view["bottom_icon"],
+            "width": view["step"].as_float() + 6.0,
+            "height": view["step"].as_float() + 6.0,
+            "text_color": view["quiet_ink"],
         });
     }
 }

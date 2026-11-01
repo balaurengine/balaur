@@ -1,7 +1,7 @@
 pub fn compared() -> str {
     let row: any = { "n": 3, "half": 1.5, "on": false, "name": "" };
-    let missing = "{row.get("x") == false} {row.get("x") == ""} {row.get("x") == 0} {row.get("x") != false}";
-    let held = "{row.get("on") == false} {row.get("name") == ""} {row.n == 3} {row.n == 3.0} {row.half == 1.5}";
+    let missing = "{row["x"] == false} {row["x"] == ""} {row["x"] == 0} {row["x"] != false}";
+    let held = "{row["on"] == false} {row["name"] == ""} {row["n"] == 3} {row["n"] == 3.0} {row["half"] == 1.5}";
     let ints: any = { "a": 1, "b": 2 };
     let floats: any = { "b": 2.0, "a": 1 };
     let maps = ints == floats;

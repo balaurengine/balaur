@@ -10,13 +10,13 @@ pub fn cache(user: any) {
         return;
     }
     let roster = all();
-    roster.set(user.get("id").text(), user);
+    roster.set(user["id"].text(), user);
     script::store(ROSTER_KEY, roster);
 }
 
 /// The user this client last saw under that id, or nil.
 pub fn user(id: any) -> any {
-    all().get(id.text())
+    all()[id.text()]
 }
 
 /// Everyone cached, by id.

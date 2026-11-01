@@ -171,7 +171,7 @@ shape = { kind = "sphere", radius = 0.5 }
         r#"pub class Scenario { node: Node, hits: int, ticks: int }
 impl Scenario {
     pub fn on_contact_force(contact: any) {
-        if contact.get("force").as_float() > 0.0 && contact.get("other").as_node().name() == "Crate" {
+        if contact["force"].as_float() > 0.0 && contact["other"].as_node().name() == "Crate" {
             self.hits += 1;
         }
     }
@@ -229,9 +229,9 @@ break_force = 0.001
         r#"pub class Scenario { node: Node, broke: int, ticks: int }
 impl Scenario {
     pub fn on_joint_break(broke: any) {
-        let a = broke.get("a").as_node().name();
-        let b = broke.get("b").as_node().name();
-        if broke.get("force").as_float() > 0.001 && (a == "Anchor" || b == "Anchor") {
+        let a = broke["a"].as_node().name();
+        let b = broke["b"].as_node().name();
+        if broke["force"].as_float() > 0.001 && (a == "Anchor" || b == "Anchor") {
             self.broke += 1;
         }
     }
@@ -692,7 +692,7 @@ impl Scenario {
         if self.ticks == 110 {
             for contact in self.node.collider3d.contacts() {
                 self.seen += 1;
-                let y = contact.get("point").at(1).as_float();
+                let y = contact["point"][1].as_float();
                 if y >= -8.0 { log::error("the contact point is in local space: y is {y}"); }
             }
             if self.seen <= 0 { log::error("the body never landed, so nothing was checked"); }

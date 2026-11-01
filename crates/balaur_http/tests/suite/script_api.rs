@@ -75,8 +75,8 @@ pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{url}", {{ "method": "DELETE", "body": "ids=7" }}));
-        let status = r.get("status");
-        let body = r.get("body");
+        let status = r["status"];
+        let body = r["body"];
         log::info("delete-echo {{status}} {{body}}");
     }}
 }}
@@ -102,16 +102,16 @@ pub class Scenario {{ node: Node, request: int }}
 impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{awaited}"));
-        let status = r.get("status");
-        let body = r.get("body");
+        let status = r["status"];
+        let body = r["body"];
         log::info("named-await {{status}} {{body}}");
         self.request = http::request(self.node, "{handled}", http::RequestOptions {{ on_response: "on_login" }});
     }}
 
     pub fn on_login(r: any) {{
-        if r.get("request").as_int() == self.request {{
-            let status = r.get("status");
-            let body = r.get("body");
+        if r["request"].as_int() == self.request {{
+            let status = r["status"];
+            let body = r["body"];
             log::info("named-http {{status}} {{body}}");
         }}
     }}
@@ -137,16 +137,16 @@ pub class Scenario {{ node: Node, request: int }}
 impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{awaited}"));
-        let status = r.get("status");
-        let body = r.get("body");
+        let status = r["status"];
+        let body = r["body"];
         log::info("default-await {{status}} {{body}}");
         self.request = http::request(self.node, "{handled}");
     }}
 
     pub fn on_response(r: any) {{
-        if r.get("request").as_int() == self.request {{
-            let status = r.get("status");
-            let body = r.get("body");
+        if r["request"].as_int() == self.request {{
+            let status = r["status"];
+            let body = r["body"];
             log::info("default-http {{status}} {{body}}");
         }}
     }}

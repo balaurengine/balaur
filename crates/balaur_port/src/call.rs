@@ -528,7 +528,7 @@ impl Cx<'_> {
                     Ex::new(f.s, Ty::opt(f.t), ATOM)
                 } else {
                     self.dynamic_use(id, span, "read under a computed key");
-                    same(format!("{r}.get({joined})"), Ty::Any)
+                    same(format!("{r}[{joined}]"), Ty::Any)
                 }
             }
             ("get", Ty::Array(e)) => {
@@ -544,11 +544,7 @@ impl Cx<'_> {
             }
             ("get", _) => {
                 let rt = if t.known() { Ty::Any } else { Ty::Unknown };
-                if args.first().is_some_and(|a| a.t == Ty::Int) {
-                    same(format!("{r}.at({joined})"), rt)
-                } else {
-                    same(format!("{r}.get({joined})"), rt)
-                }
+                same(format!("{r}[{joined}]"), rt)
             }
             ("keys", Ty::Shape(id)) => {
                 let id = *id;
@@ -560,7 +556,7 @@ impl Cx<'_> {
                 self.flag(
                     span,
                     "map",
-                    "`values()`: `any` has `keys()`; read each with `get`",
+                    "`values()`: `any` has `keys()`; read each with `m[k]`",
                 );
                 same(format!("{r}.values()"), Ty::Array(Box::new(Ty::Any)))
             }

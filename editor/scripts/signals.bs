@@ -73,7 +73,7 @@ pub fn heard(state: &mut editor::State, name: str) {
 }
 
 fn tell(state: &mut editor::State, name: str) {
-    let held = state.told.get(name);
+    let held = state.told[name];
     if !held.is_nil() && held.as_bool() {
         return;
     }
@@ -131,7 +131,7 @@ pub fn docks(state: &mut editor::State) {
     // The text, not the map: a key holding `state.docks` itself is the map it is
     // compared against, and never differs from it.
     let key: any = [
-        "{state.docks}", state.layout.left.width, state.layout.right.width, state.layout.bottom.width,
+        "{state.docks}", state.layout["left"]["width"], state.layout["right"]["width"], state.layout["bottom"]["width"],
         state.workspace, state.compact, counts.errors + counts.warnings, state.registry.panels.len(),
         session::loaded(state),
     ];

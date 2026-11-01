@@ -41,12 +41,12 @@ impl Problems {
             return;
         }
         self.node.get_node("List").patch_component("widget", {
-            "options": view.get("items"),
-            "visible": view.get("items").len() > 0,
+            "options": view["items"],
+            "visible": view["items"].len() > 0,
         });
         self.node.get_node("Nothing").patch_component("widget", {
-            "visible": view.get("says").as_str() != "",
-            "text": view.get("says"),
+            "visible": view["says"].as_str() != "",
+            "text": view["says"],
         });
     }
 }

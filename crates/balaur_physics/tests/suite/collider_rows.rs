@@ -824,9 +824,9 @@ transform = { position = [0.0, 1.0, 0.0] }
         r#"pub class Scenario { node: Node }
 impl Scenario {
     pub fn on_contact_force(contact: any) {
-        scene::set_variable("max_force", contact.get("max_force"));
-        scene::set_variable("total_y", contact.get("total_force").at(1));
-        if contact.get("started").as_bool() {
+        scene::set_variable("max_force", contact["max_force"]);
+        scene::set_variable("total_y", contact["total_force"][1]);
+        if contact["started"].as_bool() {
             scene::set_variable("started", scene::variable("started").as_int() + 1);
         }
     }

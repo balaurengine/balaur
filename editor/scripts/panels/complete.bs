@@ -38,16 +38,16 @@ impl Complete {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view.get("open"), "x": view.get("x"), "y": view.get("y") });
-        if !view.get("open").as_bool() {
+        self.node.patch_component("widget", { "visible": view["open"], "x": view["x"], "y": view["y"] });
+        if !view["open"].as_bool() {
             return;
         }
         self.node.get_node("List").patch_component("widget", {
-            "options": view.get("items"),
-            "text": view.get("picked"),
-            "height": view.get("list_h"),
+            "options": view["items"],
+            "text": view["picked"],
+            "height": view["list_h"],
         });
-        self.node.get_node("Doc").patch_component("widget", { "visible": view.get("doc").as_str() != "", "text": view.get("doc") });
+        self.node.get_node("Doc").patch_component("widget", { "visible": view["doc"].as_str() != "", "text": view["doc"] });
     }
 }
 

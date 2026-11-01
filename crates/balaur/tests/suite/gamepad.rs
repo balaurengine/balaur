@@ -99,7 +99,7 @@ impl Runner {
             });
         } else if self.tick == 2 {
             let pads = input::gamepads();
-            self.check(pads.len() == 1 && pads.at(0).as_int() == pad, "the fed pad is listed by its id");
+            self.check(pads.len() == 1 && pads[0].as_int() == pad, "the fed pad is listed by its id");
             self.check(input::gamepad_name(pad) == "Fed Pad", "its name");
             let south = input::GAMEPAD_BUTTON_SOUTH;
             self.check(input::gamepad_down(pad, south) && input::gamepad_just_pressed(pad, south), "south down");
@@ -110,11 +110,11 @@ impl Runner {
             self.check(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_LEFT_X), 0.0), "inside the deadzone");
             self.check(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_RIGHT_X), 1.0), "right x");
             let info = input::gamepad_info(pad);
-            self.check(info.get("guid").as_str() == "0300aabb" && info.get("vendor").as_int() == 1 && info.get("product").as_int() == 2, "info ids");
-            self.check(info.get("os_name").as_str() == "Fed OS" && info.get("mapping").as_str() == "sdl", "info names");
+            self.check(info["guid"].as_str() == "0300aabb" && info["vendor"].as_int() == 1 && info["product"].as_int() == 2, "info ids");
+            self.check(info["os_name"].as_str() == "Fed OS" && info["mapping"].as_str() == "sdl", "info names");
             let power = input::gamepad_power(pad);
-            self.check(power.get("state").as_str() == "on_battery" && near(power.get("level").as_float(), 0.5), "power");
-            self.check(near(input::gamepad_touches(pad).at(0).get("x").as_float(), 0.25), "touch x");
+            self.check(power["state"].as_str() == "on_battery" && near(power["level"].as_float(), 0.5), "power");
+            self.check(near(input::gamepad_touches(pad)[0]["x"].as_float(), 0.25), "touch x");
             self.check(input::gamepad_can_rumble(pad), "can rumble");
             input::feed_gamepad(pad, { "buttons": { "south": false } });
         } else if self.tick == 3 {
@@ -132,7 +132,7 @@ impl Runner {
             self.check(input::gamepads().len() == 0, "unplugged");
             self.check(input::gamepad_name(pad) == "" && !input::gamepad_can_rumble(pad), "no name, no rumble");
             let power = input::gamepad_power(pad);
-            self.check(power.get("state").as_str() == "unknown" && near(power.get("level").as_float(), -1.0), "neutral");
+            self.check(power["state"].as_str() == "unknown" && near(power["level"].as_float(), -1.0), "neutral");
             if !self.failed {
                 self.done = 1;
             }

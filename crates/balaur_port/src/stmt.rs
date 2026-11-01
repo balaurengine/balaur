@@ -225,7 +225,7 @@ impl Cx<'_> {
                                 .unwrap_or(Ty::Unknown);
                             (format!("{tmp}._{i}"), self.p.norm(&t))
                         }
-                        _ => (format!("{tmp}.at({i})"), Ty::Any),
+                        _ => (format!("{tmp}[{i}]"), Ty::Any),
                     };
                     self.learn_local(n, &t);
                     let out = self.bind(n, false);
@@ -547,7 +547,7 @@ impl Cx<'_> {
                         .unwrap_or(Ty::Unknown);
                     Ex::atom(format!("{}._{i}", s.at(ATOM)), self.p.norm(&ft))
                 }
-                _ => Ex::atom(format!("{}.at({i})", s.at(ATOM)), Ty::Any),
+                _ => Ex::atom(format!("{}[{i}]", s.at(ATOM)), Ty::Any),
             };
             let (c, b) = self.pattern(p, &sub)?;
             if let Some(c) = c {
@@ -1077,7 +1077,7 @@ impl Cx<'_> {
         let v = self.elem_binding(vp, &Ty::Any);
         let (b, _) = self.block(&f.body, false);
         self.pop_scope();
-        let first = v.map(|v| format!("let {v} = {}.get({k});", items.at(ATOM)));
+        let first = v.map(|v| format!("let {v} = {}[{k}];", items.at(ATOM)));
         Ex::new(
             format!(
                 "for {k} in {}.keys() {}",

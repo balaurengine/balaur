@@ -41,7 +41,7 @@ pub fn rows(state: &mut editor::State) -> [any] {
 
 // One of the menu's verbs, by the name its row carries.
 fn act(state: &mut editor::State, data: any, _value: any) {
-    let verb = data.verb.as_str();
+    let verb = data["verb"].as_str();
     if verb == "palette" {
         shell::open_palette(state, "");
     } else if verb == "settings" {
@@ -105,5 +105,5 @@ fn cell(state: &mut editor::State, id: str) -> any {
 }
 
 fn toggled(state: &mut editor::State, data: any, _value: any) {
-    docks::toggle(state, data.id.as_str());
+    docks::toggle(state, data["id"].as_str());
 }

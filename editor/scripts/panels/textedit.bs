@@ -21,14 +21,14 @@ impl Textedit {
             return;
         }
         let field = self.node.get_node("Field");
-        if view.get("open") && !self.open {
-            self.node.patch_component("widget", { "visible": true, "x": view.get("x"), "y": view.get("y") });
-            field.patch_component("widget", { "text": view.get("text"), "width": view.get("width").as_float() - 20.0, "font_size": view.get("size") });
+        if view["open"] && !self.open {
+            self.node.patch_component("widget", { "visible": true, "x": view["x"], "y": view["y"] });
+            field.patch_component("widget", { "text": view["text"], "width": view["width"].as_float() - 20.0, "font_size": view["size"] });
             ui::set_focus(field);
-        } else if !view.get("open").as_bool() {
+        } else if !view["open"].as_bool() {
             self.node.patch_component("widget", { "visible": false });
         }
-        self.open = view.get("open").as_bool();
+        self.open = view["open"].as_bool();
     }
 
     pub fn on_widget_event(event: str, node: Node, value: any) {

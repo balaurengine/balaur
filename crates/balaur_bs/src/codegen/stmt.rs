@@ -85,8 +85,8 @@ impl FnGen<'_> {
         Ok(())
     }
 
-    // The `any` a target sets a key or an index of, the key, and the method
-    // that sets it.
+    // The `any` a target sets a key or an index of, the key, and the
+    // prelude's function that sets it.
     fn any_slot(&mut self, target: &Expr) -> R<Option<(Expr, Expr, &'static str)>> {
         let (base, key) = match &target.kind {
             ExprKind::Field(b, f) => (
@@ -97,7 +97,10 @@ impl FnGen<'_> {
                 },
             ),
             ExprKind::Index(b, k) => (b, (**k).clone()),
-            ExprKind::Method(b, m, args) if m == "get" && args.len() == 1 => (b, args[0].clone()),
+            ExprKind::Method(b, m, _) => {
+                self.dropped_form(b, m, target.pos)?;
+                return Ok(None);
+            }
             _ => return Ok(None),
         };
         if self.type_of(base)? != Ty::Any {
@@ -166,7 +169,7 @@ impl FnGen<'_> {
             self.method(base, "set", &[(**key).clone(), value], pos)?;
             return Ok(());
         }
-        // `a.key = v`, `a[k] = v` or `a.get(k) = v` on an `any`: set in place.
+        // `a[k] = v` on an `any`: set in place.
         if let Some((base, key, method)) = self.any_slot(target)? {
             let v = match op {
                 Some(op) => Expr {
@@ -175,7 +178,7 @@ impl FnGen<'_> {
                 },
                 None => value.clone(),
             };
-            self.any_method(&base, method, &[key, v], pos)?;
+            self.prelude_method("any", &base, method, &[key, v], pos)?;
             self.e(I::Drop);
             return Ok(());
         }
@@ -353,7 +356,7 @@ impl FnGen<'_> {
         Ok(())
     }
 
-    // An `any` list walked as `xs.at(i)` for each `i`: the elements the list
+    // An `any` list walked as `xs[i]` for each `i`: the elements the list
     // holds, where reading it out as a `[any]` copied each.
     fn for_each_any(&mut self, var: &str, items: &Expr, body: &Block) -> R<()> {
         let pos = items.pos;
@@ -371,7 +374,10 @@ impl FnGen<'_> {
             kind: StmtKind::Let {
                 name: var.to_string(),
                 ty: Some(Ty::Any),
-                init: method("at", vec![named(&at)]),
+                init: Expr {
+                    kind: ExprKind::Index(Box::new(named(&list)), Box::new(named(&at))),
+                    pos,
+                },
             },
             pos,
         }];

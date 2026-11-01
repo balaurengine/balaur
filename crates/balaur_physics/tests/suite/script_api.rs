@@ -175,7 +175,7 @@ fn a_component_call_binds_the_node_for_the_module_driving_it() {
             log::error("the node should carry the body2d it was given");
         }
         let table = self.node.get_component("body2d");
-        if table.get("kind").as_str() != "dynamic" {
+        if table["kind"].as_str() != "dynamic" {
             log::error("get_component should hand back the component table");
         }
         "#,
@@ -206,14 +206,14 @@ fn every_tuning_key_that_can_be_written_reads_back() {
             "static_contact_frequency_hz": 41.0,
             "static_contact_damping": 3.5,
         });
-        let back = physics::tuning().get("2d");
-        if !back.get("friction_in_bias_pass").as_bool() { log::error("friction_in_bias_pass is write-only"); }
-        if back.get("allowed_linear_error").as_float() - 0.004 >= 0.0001 { log::error("allowed_linear_error"); }
-        if back.get("max_corrective_velocity").as_float() - 12.5 >= 0.0001 { log::error("max_corrective_velocity"); }
-        if back.get("prediction_distance").as_float() - 0.006 >= 0.0001 { log::error("prediction_distance"); }
-        if back.get("max_linear_velocity").as_float() - 77.0 >= 0.0001 { log::error("max_linear_velocity"); }
-        if back.get("static_contact_frequency_hz").as_float() - 41.0 >= 0.0001 { log::error("static_contact_frequency"); }
-        if back.get("static_contact_damping").as_float() - 3.5 >= 0.0001 { log::error("static_contact_damping"); }
+        let back = physics::tuning()["2d"];
+        if !back["friction_in_bias_pass"].as_bool() { log::error("friction_in_bias_pass is write-only"); }
+        if back["allowed_linear_error"].as_float() - 0.004 >= 0.0001 { log::error("allowed_linear_error"); }
+        if back["max_corrective_velocity"].as_float() - 12.5 >= 0.0001 { log::error("max_corrective_velocity"); }
+        if back["prediction_distance"].as_float() - 0.006 >= 0.0001 { log::error("prediction_distance"); }
+        if back["max_linear_velocity"].as_float() - 77.0 >= 0.0001 { log::error("max_linear_velocity"); }
+        if back["static_contact_frequency_hz"].as_float() - 41.0 >= 0.0001 { log::error("static_contact_frequency"); }
+        if back["static_contact_damping"].as_float() - 3.5 >= 0.0001 { log::error("static_contact_damping"); }
         "#,
     );
 }
@@ -282,7 +282,7 @@ fn writing_one_property_field_leaves_the_others() {
         r#"
         self.node.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.75 }, "density": 2.5 });
         self.node.collider3d.density = 0.9;
-        let radius = self.node.collider3d.shape.radius;
+        let radius = self.node.collider3d.shape["radius"];
         if math::abs(radius - 0.75) >= 0.0001 { log::error("radius became {radius}"); }
         let density = self.node.collider3d.density;
         if math::abs(density - 0.9) >= 0.0001 { log::error("density became {density}"); }
@@ -331,17 +331,17 @@ fn each_world_takes_its_own_tuning_over_the_shared_keys() {
             "2d": { "length_unit": 64.0, "soft_recovery": { "overlap_split": 2 } },
         });
         let both = physics::tuning();
-        let unit3 = both.get("3d").get("length_unit").as_float();
+        let unit3 = both["3d"]["length_unit"].as_float();
         if unit3 != 2.0 { log::error("the shared key missed the 3D world: {unit3}"); }
-        let unit2 = both.get("2d").get("length_unit").as_float();
+        let unit2 = both["2d"]["length_unit"].as_float();
         if unit2 != 64.0 { log::error("the 2D table lost to the shared key: {unit2}"); }
-        if both.get("2d").get("soft_resweep_strain").as_float() != 0.5 { log::error("a shared soft row missed the 2D world"); }
-        if both.get("3d").get("soft_recovery").get("overlap_split").as_int() != 5 { log::error("the shared recovery row missed 3D"); }
-        if both.get("2d").get("soft_recovery").get("overlap_split").as_int() != 2 { log::error("the 2D recovery row lost"); }
-        if both.get("2d").get("soft_recovery").get("overlap_patch_constraints").as_str() != "keep" { log::error("a recovery word was dropped"); }
-        if both.get("3d").get("friction_model").as_str() != "simplified" { log::error("the 3D world lost its friction model"); }
+        if both["2d"]["soft_resweep_strain"].as_float() != 0.5 { log::error("a shared soft row missed the 2D world"); }
+        if both["3d"]["soft_recovery"]["overlap_split"].as_int() != 5 { log::error("the shared recovery row missed 3D"); }
+        if both["2d"]["soft_recovery"]["overlap_split"].as_int() != 2 { log::error("the 2D recovery row lost"); }
+        if both["2d"]["soft_recovery"]["overlap_patch_constraints"].as_str() != "keep" { log::error("a recovery word was dropped"); }
+        if both["3d"]["friction_model"].as_str() != "simplified" { log::error("the 3D world lost its friction model"); }
         let counted = physics::counters();
-        if !(counted.get("physics3d").has("solver_ms") && counted.get("physics2d").has("ccd_substep_count")) { log::error("a counter is missing"); }
+        if !(counted["physics3d"].has("solver_ms") && counted["physics2d"].has("ccd_substep_count")) { log::error("a counter is missing"); }
         log::error("checked: tuning");
     "#);
     assert!(

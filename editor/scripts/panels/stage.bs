@@ -32,21 +32,21 @@ impl Stage {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Safe").patch_component("widget", { "visible": view.get("safe") });
+        self.node.get_node("Safe").patch_component("widget", { "visible": view["safe"] });
         self.node.get_node("Resolution").patch_component("widget", {
-            "visible": view.get("resolution"),
-            "inset": view.get("res_inset"),
+            "visible": view["resolution"],
+            "inset": view["res_inset"],
         });
         for side in ["Left", "Right"] {
-            let handle = if side == "Left" { view.get("left") } else { view.get("right") };
+            let handle = if side == "Left" { view["left"] } else { view["right"] };
             let sheet = self.node.get_node(side);
-            sheet.patch_component("widget", { "visible": handle.get("shown"), "padding": view.get("pad") });
+            sheet.patch_component("widget", { "visible": handle["shown"], "padding": view["pad"] });
             sheet.get_node("Open").patch_component("widget", {
-                "icon": handle.get("icon"),
-                "tooltip": handle.get("tooltip"),
-                "width": view.get("diameter"),
-                "height": view.get("diameter"),
-                "corner_radius": view.get("diameter").as_float() / 2.0,
+                "icon": handle["icon"],
+                "tooltip": handle["tooltip"],
+                "width": view["diameter"],
+                "height": view["diameter"],
+                "corner_radius": view["diameter"].as_float() / 2.0,
             });
         }
     }

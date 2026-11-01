@@ -45,8 +45,8 @@ pub struct Waiting {
 pub fn choices(state: &mut editor::State) -> [str] {
     let out: [str] = [];
     for entry in util::list_or_empty(model::list(state, "fonts")) {
-        let name = entry.name.as_str();
-        if !entry.is_dir.as_bool() && (assets::kind_of(name) == "font" || name.ends_with(".toml")) {
+        let name = entry["name"].as_str();
+        if !entry["is_dir"].as_bool() && (assets::kind_of(name) == "font" || name.ends_with(".toml")) {
             out.push("fonts/" + name);
         }
     }
@@ -86,7 +86,7 @@ pub fn pick(state: &mut editor::State, at: inspector::AtTop, label: str) {
         open(state, at);
         return;
     }
-    let installed = installed_faces(state).get(label);
+    let installed = installed_faces(state)[label];
     if installed.is_nil() {
         inspector::write_at(state, at, label);
         return;
@@ -119,7 +119,7 @@ pub fn finding(state: editor::State) -> bool {
 
 fn waiting_on(state: editor::State, purpose: str) -> bool {
     for id in state.font_requests.keys() {
-        if state.font_requests.get(id).purpose.as_str() == purpose {
+        if state.font_requests[id]["purpose"].as_str() == purpose {
             return true;
         }
     }
@@ -165,8 +165,8 @@ fn rows(state: &mut editor::State, row_height: float) -> [any] {
         if out.len() >= SHOWN {
             break;
         }
-        let name = family.family.as_str();
-        let category = family.category.as_str();
+        let name = family["family"].as_str();
+        let category = family["category"].as_str();
         if query != "" && !(name + " " + category).to_lower().contains(query) {
             continue;
         }
@@ -190,15 +190,15 @@ fn caption_row(text: str) -> any {
 }
 
 fn take_family(state: &mut editor::State, data: any, _value: any) {
-    take(state, data.family);
+    take(state, data["family"]);
 }
 
 /// A family picked: its faces are asked for, then its upright regular one
 /// and its licence fetched into the project.
 pub fn take(state: &mut editor::State, family: any) {
     let at = state.font_finding.unwrap().at;
-    ask(state, CATALOGUE + "/" + family.id.as_str(), Waiting { purpose: "faces", family: family, at: at }, {});
-    log::info("fetching {family.family}…");
+    ask(state, CATALOGUE + "/" + family["id"].as_str(), Waiting { purpose: "faces", family: family, at: at }, {});
+    log::info("fetching {family["family"]}…");
     close(state);
 }
 
@@ -206,7 +206,7 @@ pub fn take(state: &mut editor::State, family: any) {
 /// none is.
 pub fn request_for(state: editor::State, purpose: str) -> any {
     for id in state.font_requests.keys() {
-        if state.font_requests.get(id).purpose.as_str() == purpose {
+        if state.font_requests[id]["purpose"].as_str() == purpose {
             return id;
         }
     }
@@ -215,31 +215,31 @@ pub fn request_for(state: editor::State, purpose: str) -> any {
 
 /// An answer from Forge, by what it was asked for.
 pub fn on_response(state: &mut editor::State, reply: any) {
-    let key = "{reply.request}";
-    let waiting = state.font_requests.get(key);
+    let key = "{reply["request"]}";
+    let waiting = state.font_requests[key];
     if waiting.is_nil() {
         return;
     }
     state.font_requests.remove(key);
-    let ok = reply.kind.as_str() == http::EVENT_RESPONSE && reply.status.as_int() == 200;
-    let purpose = waiting.purpose.as_str();
+    let ok = reply["kind"].as_str() == http::EVENT_RESPONSE && reply["status"].as_int() == 200;
+    let purpose = waiting["purpose"].as_str();
     if !ok {
         if purpose == "families" {
             state.font_families = nil;
             window::picker_changed(state);
         }
-        log::warn("the font catalogue did not answer ({purpose}): {reply.status}");
+        log::warn("the font catalogue did not answer ({purpose}): {reply["status"]}");
         return;
     }
     if purpose == "families" {
-        state.font_families = json::parse(reply.body.as_str());
+        state.font_families = json::parse(reply["body"].as_str());
         window::picker_changed(state);
     } else if purpose == "faces" {
-        fetch_face(state, waiting, json::parse(reply.body.as_str()));
+        fetch_face(state, waiting, json::parse(reply["body"].as_str()));
     } else if purpose == "face" {
-        take_face(state, waiting, reply.path.as_str());
+        take_face(state, waiting, reply["path"].as_str());
     } else if purpose == "licence" {
-        fs::write(state.game_root + "/" + waiting.at.as_str(), reply.body.as_str());
+        fs::write(state.game_root + "/" + waiting["at"].as_str(), reply["body"].as_str());
         model::forget(state, nil);
     }
 }
@@ -247,23 +247,23 @@ pub fn on_response(state: &mut editor::State, reply: any) {
 /// The family's upright regular face, else its first, downloaded under the
 /// user directory and copied in as a dropped file is; its licence beside it.
 fn fetch_face(state: &mut editor::State, waiting: Waiting, faces: any) {
-    let files = util::list_or_empty(faces.files);
+    let files = util::list_or_empty(faces["files"]);
     if files.len() == 0 {
-        log::warn("{waiting.family.family} names no face");
+        log::warn("{waiting.family["family"]} names no face");
         return;
     }
     let face = files[0];
     for file in files {
-        if file.style.as_str() == "normal" && file.weight.as_int() == 400 {
+        if file["style"].as_str() == "normal" && file["weight"].as_int() == 400 {
             face = file;
         }
     }
-    let base = CATALOGUE + "/" + waiting.family.id.as_str() + "/";
-    let name = face.file.as_str();
+    let base = CATALOGUE + "/" + waiting.family["id"].as_str() + "/";
+    let name = face["file"].as_str();
     ask(state, base + name, Waiting { purpose: "face", family: waiting.family, at: waiting.at }, { "save_to": "fonts/" + name });
     // Beside the face and named for it, the licence's own name after it:
     // `Inter-Regular.OFL.txt`. An export ships it with the face.
-    let licence = faces.licence.as_str();
+    let licence = faces["licence"].as_str();
     let halves = name.split_once(".");
     let stem = if halves.len() == 2 { halves[0] } else { name };
     ask(state, base + licence, Waiting { purpose: "licence", family: waiting.family, at: "fonts/{stem}.{licence}" }, {});
@@ -278,5 +278,5 @@ fn take_face(state: &mut editor::State, waiting: Waiting, saved: str) {
     }
     let rel = copied.unwrap();
     inspector::write_at(state, waiting.at, rel);
-    log::info("added {waiting.family.family} as {rel}");
+    log::info("added {waiting.family["family"]} as {rel}");
 }

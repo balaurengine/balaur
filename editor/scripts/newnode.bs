@@ -200,7 +200,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any]
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
-        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens.text_subtle.as_str(), add_empty, {}));
+        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens["text_subtle"].as_str(), add_empty, {}));
     }
     for group in groups() {
         let title = group[1];
@@ -238,8 +238,8 @@ fn caption_row(text: str, height: float, wrap: bool) -> any {
 
 // A component's own colour token, or the plain text colour.
 fn tint_of(tokens: any, token: str) -> str {
-    let tint = tokens.get(token);
-    if tint.is_nil() { tokens.primary_text.as_str() } else { tint.as_str() }
+    let tint = tokens[token];
+    if tint.is_nil() { tokens["primary_text"].as_str() } else { tint.as_str() }
 }
 
 fn add_empty(state: &mut editor::State, _data: any, _value: any) {
@@ -248,7 +248,7 @@ fn add_empty(state: &mut editor::State, _data: any, _value: any) {
 }
 
 fn place_row(state: &mut editor::State, data: any, _value: any) {
-    let row: Entry = data.row;
+    let row: Entry = data["row"];
     place(state, row);
 }
 
@@ -270,7 +270,7 @@ fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [a
 }
 
 fn place_source_row(state: &mut editor::State, data: any, _value: any) {
-    let source: Entry = data.source;
+    let source: Entry = data["source"];
     place_source(state, source);
 }
 

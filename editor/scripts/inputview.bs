@@ -174,13 +174,13 @@ fn key_label(key: str) -> str {
 pub fn view(state: editor::State) -> View {
     let viewport_rect = state.viewport;
     let window_size = ui::window_size();
-    let window_height = window_size.at(1);
+    let window_height = window_size.y;
     let staged = !manager::showing(state) && !state.focus && viewport_rect.width.as_float() > 0.0;
     let viewport_x = if staged { viewport_rect.x.as_float() } else { 0.0 };
     let viewport_y = if staged { viewport_rect.y.as_float() } else { 0.0 };
     let viewport_height = if staged { viewport_rect.height.as_float() } else { window_height };
     let pose = render::camera_pose();
-    let dpi = pose.at(7);
+    let dpi = pose[7];
     View { shown: state.show_input, factor: dpi.as_float() * state.ui_scale, chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height.as_float() - 46.0 }
 }
 
@@ -213,9 +213,9 @@ pub fn fill_chips(state: editor::State, names: [any]) {
             "font_size": style::MEDIUM,
             "font_weight": 700,
             "interactive": false,
-            "fill": (if action { tokens.get("bg_control") } else { tokens.get("primary_fill") }).as_str(),
-            "stroke": (if action { tokens.get("primary_text") } else { "" }).as_str(),
-            "text_color": (if action { tokens.get("primary_text") } else { tokens.get("text_on_primary") }).as_str(),
+            "fill": (if action { tokens["bg_control"] } else { tokens["primary_fill"] }).as_str(),
+            "stroke": (if action { tokens["primary_text"] } else { "" }).as_str(),
+            "text_color": (if action { tokens["primary_text"] } else { tokens["text_on_primary"] }).as_str(),
         });
     }
     pool::strip(state, "Editor/InputView/Chips", out);

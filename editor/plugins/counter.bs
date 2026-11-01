@@ -55,7 +55,7 @@ impl Counter {
         } else {
             specs.push(editor_node.call("kit_field", "nodes", "{self.shown}", { "copy": true }));
         }
-        editor_node.call("kit_rows", payload.host, "body", specs);
+        editor_node.call("kit_rows", payload["host"], "body", specs);
     }
 
     /// The floating window's rows: the editor makes the window, its title and

@@ -4,7 +4,7 @@ pub fn run() -> str {
     xs.sort();
     let names = ["b", "a"];
     names.sort();
-    "{xs.at(0)} {xs.len()} {xs[4]} {names[0]}"
+    "{xs[0]} {xs.len()} {xs[4]} {names[0]}"
 }
 
 // expect: run() == "1 5 5 a"

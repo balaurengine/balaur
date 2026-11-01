@@ -1175,7 +1175,7 @@ const EXPORTER_BS: &str =
 impl Tuned {
     fn init() {
         let rows = script::exports(\"scripts/tuned.bs\");
-        self.seen = \"{rows.len()} {rows[0].name}={rows[0].default} {rows[1].name}:{rows[1].type}\";
+        self.seen = \"{rows.len()} {rows[0][\"name\"]}={rows[0][\"default\"]} {rows[1][\"name\"]}:{rows[1][\"type\"]}\";
     }
 }
 ";

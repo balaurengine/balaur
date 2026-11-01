@@ -120,7 +120,7 @@ fn declared_icon(state: editor::State) -> str {
     if text.is_none() {
         return "";
     }
-    toml::parse(text.unwrap()).get("application").get("icon").as_str()
+    toml::parse(text.unwrap())["application"]["icon"].as_str()
 }
 
 // Answered once per session: whether the project ships a mark is up to five disk
@@ -146,13 +146,13 @@ fn plural(count: int, word: str) -> str {
 // Where the first workspace pill starts, after the brand.
 fn workspaces_x(state: editor::State) -> float {
     let name = if state.compact { 0.0 } else { 3.0 + NAME_WIDTH };
-    state.layout.bar.x + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
+    state.layout["bar"]["x"] + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
 }
 
 /// Where one workspace pill's centre lands in the bar, in design px, so the
 /// showcase's drawn cursor can be put on the pill its verb presses.
 pub fn workspace_spot(state: editor::State, id: str) -> Spot {
-    let bar: any = state.layout.bar;
+    let bar: any = state.layout["bar"];
     let per = layout::workspace_width(state);
     let slot = 0;
     let workspaces = defs::workspaces();
@@ -168,12 +168,12 @@ pub fn workspace_spot(state: editor::State, id: str) -> Spot {
         return spot;
     }
     // `return`: a bare tuple after a block parses as a call on the block.
-    return Spot { x: workspaces_x(state) + ((slot as float) + 0.5) * per, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
+    return Spot { x: workspaces_x(state) + ((slot as float) + 0.5) * per, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
 }
 
 /// Where a document tab's centre lands: the scene's, then the script's.
 pub fn doc_spot(state: editor::State, id: str) -> Spot {
-    let bar: any = state.layout.bar;
+    let bar: any = state.layout["bar"];
     let per = layout::workspace_width(state);
     let first = workspaces_x(state) + (defs::workspaces().len() as float) * per + 12.0;
     let slot = if id == "script" { 1.0 } else { 0.0 };
@@ -182,33 +182,33 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
         let spot = found.unwrap();
         return spot;
     }
-    return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
+    return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
 }
 
 /// Where the Focus chip sits, so the showcase's drawn cursor lands on the
 /// control its verb presses. The strip runs workspaces, documents, split,
 /// focus, the spring, then the transport, so it is two slots back.
 pub fn focus_spot(state: editor::State) -> Spot {
-    let bar: any = state.layout.bar;
+    let bar: any = state.layout["bar"];
     let found = strip_spot(state, transport_slot(state) - 2);
     if found.is_some() {
         let spot = found.unwrap();
         return spot;
     }
-    return Spot { x: bar.get("x").as_float() + bar.get("width").as_float() / 2.0, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
+    return Spot { x: bar["x"].as_float() + bar["width"].as_float() / 2.0, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
 }
 
 /// Where one of the transport's three buttons sits: play, pause, stop.
 pub fn transport_spot(state: editor::State, index: int) -> Spot {
-    let bar: any = state.layout.bar;
+    let bar: any = state.layout["bar"];
     let found = strip_spot(state, transport_slot(state) + index);
     if found.is_some() {
         let spot = found.unwrap();
         return spot;
     }
     let command_width = if state.compact { COMMAND_WIDTH_COMPACT } else { COMMAND_WIDTH };
-    let block = (bar.get("x") + bar.get("width")).as_float() - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
-    return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar.get("y").as_float() + bar.get("height").as_float() / 2.0 };
+    let block = (bar["x"] + bar["width"]).as_float() - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
+    return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
 }
 
 // The transport comes after the workspaces, the open documents, the split, the
@@ -386,7 +386,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [any] {
         "padding": 0,
         "role": "item_bar",
         "text": "",
-        "icon": if tokens.get("dark").as_bool() { icons::ui("dark") } else { icons::ui("light") },
+        "icon": if tokens["dark"].as_bool() { icons::ui("dark") } else { icons::ui("light") },
         "tooltip": "Toggle theme",
         "on": "handle",
         "data": { "fn": on_theme_pressed },
@@ -408,7 +408,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [any] {
 }
 
 fn on_workspace_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data.id;
+    let id: str = data["id"];
     shell::set_workspace(state, id);
 }
 
@@ -508,12 +508,12 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
 }
 
 fn on_doc_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data.id;
+    let id: str = data["id"];
     shell::open_doc(state, id);
 }
 
 fn on_doc_close_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data.id;
+    let id: str = data["id"];
     shell::close_doc(state, id);
 }
 
@@ -584,7 +584,7 @@ fn on_play_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data.replaying;
+    let replaying: bool = data["replaying"];
     if replaying {
         session::toggle_pause(state);
     } else {
@@ -593,7 +593,7 @@ fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_stop_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data.replaying;
+    let replaying: bool = data["replaying"];
     if replaying {
         session::close(state);
     } else {
@@ -619,16 +619,16 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
     let tokens = state.theme;
     let lines: [any] = [];
     for source in state.jobs.keys() {
-        let job = state.jobs.get(source);
-        let name = job.name.as_str();
-        let done = job.done.as_int();
-        let files = job.files.as_int();
-        let line = if job.over.as_str() == "" {
+        let job = state.jobs[source];
+        let name = job["name"].as_str();
+        let done = job["done"].as_int();
+        let files = job["files"].as_int();
+        let line = if job["over"].as_str() == "" {
             if files > 0 { "{name} {done}/{files}" } else { name }
         } else {
-            "{name} {job.over.as_str()} · {done} {plural(done, "file")}"
+            "{name} {job["over"].as_str()} · {done} {plural(done, "file")}"
         };
-        lines.push({ "kind": "label", "role": "text_note", "text": line, "text_color": tokens.text_muted });
+        lines.push({ "kind": "label", "role": "text_note", "text": line, "text_color": tokens["text_muted"] });
     }
     pool::strip(state, IMPORTS + "/Lines", lines);
     let totals = dropin::job_totals(state);
@@ -644,7 +644,7 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
 pub fn fill_status(state: &mut editor::State) {
     let at = status_key(state);
     if pool::strip_due(state, STATUS_NODE, at) {
-        pool::strip_keyed(state, STATUS_NODE, at, status_controls(state, state.theme, state.layout.bottom.width.as_float()));
+        pool::strip_keyed(state, STATUS_NODE, at, status_controls(state, state.theme, state.layout["bottom"]["width"].as_float()));
     }
 }
 
@@ -652,12 +652,12 @@ pub fn fill_status(state: &mut editor::State) {
 /// the frame rate while playing and an import in flight; the rows and the
 /// steps taken stand for the node and script counts.
 pub fn status_key(state: editor::State) -> [any] {
-    [status_mode(state), state.playing, state.theme_revision, state.layout.bottom.width, state.nodes.len(), state.history.past.len(), state.workspace, state.tool]
+    [status_mode(state), state.playing, state.theme_revision, state.layout["bottom"]["width"], state.nodes.len(), state.history.past.len(), state.workspace, state.tool]
 }
 
 fn status_mode(state: editor::State) -> str {
     if state.debug.paused.kind() == "map" {
-        return "paused · {state.debug.paused_rel}:{state.debug.paused.line}";
+        return "paused · {state.debug.paused_rel}:{state.debug.paused["line"]}";
     }
     if state.playing {
         let recording = if state.session.recording != "" { "recording · " } else { "" };
@@ -674,11 +674,11 @@ fn status_mode(state: editor::State) -> str {
 fn status_controls(state: editor::State, tokens: any, room: float) -> [any] {
     let stopped = state.debug.paused.kind() == "map";
     let lamp = (if stopped {
-        tokens.get("primary_text")
+        tokens["primary_text"]
     } else if state.playing {
-        tokens.get("success_text")
+        tokens["success_text"]
     } else {
-        tokens.get("text_subtle")
+        tokens["text_subtle"]
     }).as_str();
     let out: [any] = [
         { "kind": "row", "width": 6, "corner_radius": 0 },
@@ -688,7 +688,7 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [any] {
             "corner_radius": 0,
             "text": status_mode(state),
             "role": "text_caption",
-            "text_color": tokens.get("text_muted").as_str(),
+            "text_color": tokens["text_muted"].as_str(),
         },
     ];
     // Narrow: the columns go one at a time rather than running together.
@@ -701,7 +701,7 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [any] {
             "corner_radius": 0,
             "text": "{nodes} {plural(nodes.as_int(), "node")} · {scripts} {plural(scripts.as_int(), "script")}",
             "role": "text_caption",
-            "text_color": tokens.get("text_subtle").as_str(),
+            "text_color": tokens["text_subtle"].as_str(),
         });
     }
     if room > 560.0 {
@@ -710,7 +710,7 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [any] {
             "corner_radius": 0,
             "text": "kiss3d · wgpu",
             "role": "text_caption",
-            "text_color": tokens.get("text_subtle").as_str(),
+            "text_color": tokens["text_subtle"].as_str(),
         });
     }
     out.push({ "kind": "row", "corner_radius": 0, "grow": 1 });
@@ -720,7 +720,7 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [any] {
             "corner_radius": 0,
             "text": "{defs::workspace_name(state.workspace)} · {defs::tool_name(state.tool)}",
             "role": "text_caption",
-            "text_color": tokens.get("text_subtle").as_str(),
+            "text_color": tokens["text_subtle"].as_str(),
         });
     }
     out.push({ "kind": "row", "width": 6, "corner_radius": 0 });

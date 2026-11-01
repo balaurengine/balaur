@@ -125,21 +125,21 @@ fn shape_box(found: Node) -> LocalBox? {
     if !(shape.kind() == "map") {
         return nil;
     }
-    let kind = shape.get("kind");
+    let kind = shape["kind"];
     if kind == render::SHAPE_CIRCLE {
-        let radius = shape.get("radius");
+        let radius = shape["radius"];
         let reach = if radius.is_nil() { 0.5 } else { radius.as_float() };
         return LocalBox { centre: [0.0, 0.0], half: [reach, reach] };
     }
     if kind == render::SHAPE_CAPSULE {
-        let radius = shape.get("radius");
+        let radius = shape["radius"];
         let reach = if radius.is_nil() { 0.5 } else { radius.as_float() };
-        let height = shape.get("height");
+        let height = shape["height"];
         return LocalBox { centre: [0.0, 0.0], half: [reach, (if height.is_nil() { 2.0 } else { height.as_float() }) / 2.0] };
     }
-    let asked = shape.get("size");
+    let asked = shape["size"];
     let size = util::vec2(if asked.is_nil() { nil } else { asked }, [1.0, 1.0]);
-    LocalBox { centre: [0.0, 0.0], half: [size.at(0).as_float() / 2.0, size.at(1).as_float() / 2.0] }
+    LocalBox { centre: [0.0, 0.0], half: [size[0].as_float() / 2.0, size[1].as_float() / 2.0] }
 }
 
 // What a row covers before its scale: the box the engine draws first, so a
@@ -166,15 +166,15 @@ fn placed_box(found: Node, fallback: LocalBox?) -> PlacedBox? {
     let held = covered.unwrap();
     let scale = found.transform.global_scale();
     let origin = found.transform.global_position();
-    let angle = found.transform.global_rotation_euler().get("z").as_float();
-    let off_x = held.centre[0] * scale.get("x").as_float();
-    let off_y = held.centre[1] * scale.get("y").as_float();
+    let angle = found.transform.global_rotation_euler().z.as_float();
+    let off_x = held.centre[0] * scale.x.as_float();
+    let off_y = held.centre[1] * scale.y.as_float();
     let cosine = math::cos(angle);
     let sine = math::sin(angle);
     PlacedBox {
-        centre: [origin.get("x").as_float() + cosine * off_x - sine * off_y, origin.get("y").as_float() + sine * off_x + cosine * off_y],
+        centre: [origin.x.as_float() + cosine * off_x - sine * off_y, origin.y.as_float() + sine * off_x + cosine * off_y],
         angle: angle,
-        half: [held.half[0] * scale.get("x").as_float(), held.half[1] * scale.get("y").as_float()],
+        half: [held.half[0] * scale.x.as_float(), held.half[1] * scale.y.as_float()],
     }
 }
 
@@ -641,8 +641,8 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;
-            if util::abs(box_drag.end_x - box_drag.start_x) > 3.0 || util::abs(box_drag.end_y - box_drag.start_y) > 3.0 {
-                let rows = rows_in_box(state, box_drag.world_start_x, box_drag.world_start_y, box_drag.world_end_x, box_drag.world_end_y);
+            if util::abs(box_drag["end_x"] - box_drag["start_x"]) > 3.0 || util::abs(box_drag["end_y"] - box_drag["start_y"]) > 3.0 {
+                let rows = rows_in_box(state, box_drag["world_start_x"], box_drag["world_start_y"], box_drag["world_end_x"], box_drag["world_end_y"]);
                 if rows.len() > 0 {
                     history::commit(state);
                     selection::set(state, rows);

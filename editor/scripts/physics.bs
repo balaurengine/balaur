@@ -36,14 +36,14 @@ pub fn drawn_mesh(node: Node, two_d: bool) -> any {
     if two_d {
         let key = polygon::target(node);
         let found = if key.is_some() { node.authored(key.unwrap()) } else { nil };
-        if !found.is_nil() && named(found.mesh) {
-            return found.mesh;
+        if !found.is_nil() && named(found["mesh"]) {
+            return found["mesh"];
         }
         return nil;
     }
     // A table names its `source`; a plain string is the source itself.
     let mesh = if node.has_component("mesh") { node.authored("mesh") } else { nil };
-    let source = if mesh.kind() == "map" { mesh.source } else { mesh };
+    let source = if mesh.kind() == "map" { mesh["source"] } else { mesh };
     if named(source) { source } else { nil }
 }
 
@@ -107,13 +107,13 @@ fn patch_beside(state: &mut editor::State, two_d: bool, beside: any) {
             continue;
         }
         for component in beside.keys() {
-            found.try_patch_component(component, beside.get(component));
+            found.try_patch_component(component, beside[component]);
         }
     }
 }
 
 fn with_mesh_of(node: Node, data: any) -> any {
-    with_mesh(node, data.two_d.as_bool(), data.props)
+    with_mesh(node, data["two_d"].as_bool(), data["props"])
 }
 
 // A collider's: the shape a kind and the node's own mesh make.
@@ -131,7 +131,7 @@ fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
     }
     let parameters: any = { "mesh": source };
     for key in properties.keys() {
-        parameters.set(key, properties.get(key));
+        parameters.set(key, properties[key]);
     }
     parameters
 }

@@ -39,16 +39,16 @@ fn plugin_components_roundtrip_through_the_registry() {
                 n.set_component("widget", { "text": "hi" });
 
                 let body = n.get_component("body3d");
-                self.check(body.get("kind").as_str() == "dynamic", "default body kind");
+                self.check(body["kind"].as_str() == "dynamic", "default body kind");
                 n.set_component("body3d", { "kind": "static" });
                 self.check(n.get_component("body3d", "kind").as_str() == "static", "edited body kind");
 
                 let col = n.get_component("collider3d");
-                self.check(math::abs(col.get("shape").get("radius").as_float() - 0.7) < 1e-5, "collider radius roundtrip");
+                self.check(math::abs(col["shape"]["radius"].as_float() - 0.7) < 1e-5, "collider radius roundtrip");
 
                 let schema = scene::component_schema("collider3d");
-                self.check(schema.get("shape").get("type").as_str() == "variant", "shape is a variant");
-                self.check(schema.get("shape").get("variants").get("sphere").get("fields").get("radius").get("default").as_float() == 0.5, "radius default");
+                self.check(schema["shape"]["type"].as_str() == "variant", "shape is a variant");
+                self.check(schema["shape"]["variants"]["sphere"]["fields"]["radius"]["default"].as_float() == 0.5, "radius default");
 
                 n.remove_component("body3d");
                 self.check(n.get_component("body3d").is_nil(), "body removed");
@@ -355,9 +355,9 @@ fn a_one_property_write_leaves_the_rest() {
                 n.patch_component("transform", { "position": [9.0, 0.0, 0.0] });
 
                 let at = n.get_component("transform", "position");
-                self.check(at.at(0).as_float() == 9.0, "position moved");
+                self.check(at[0].as_float() == 9.0, "position moved");
                 let size = n.get_component("transform", "scale");
-                self.check(size.at(0).as_float() == 4.0, "scale survived the write");
+                self.check(size[0].as_float() == 4.0, "scale survived the write");
                 self.check(n.transform.position.x == 9.0, "the handle reads it back");
 
                 if !self.failed {
@@ -430,10 +430,10 @@ fn a_keyed_read_answers_one_property() {
                 let checked = n.get_component("widget", "checked");
                 self.check(checked.kind() == "bool" && !checked.as_bool(), "widget checked");
                 let table = n.get_component("widget");
-                self.check(n.get_component("widget", "value") == table.get("value"), "same as the table");
+                self.check(n.get_component("widget", "value") == table["value"], "same as the table");
 
                 // No fast path: the table is read and indexed.
-                self.check(n.get_component("collider3d", "shape").get("kind").as_str() == "sphere", "collider kind");
+                self.check(n.get_component("collider3d", "shape")["kind"].as_str() == "sphere", "collider kind");
 
                 self.check(n.get_component("widget", "no_such_property").is_nil(), "unknown property");
                 self.check(n.get_component("body3d", "kind").is_nil(), "component the node lacks");
