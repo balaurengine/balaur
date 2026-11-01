@@ -31,7 +31,7 @@ use balaur_core::task::{self, Progress, Stepped};
 use balaur_script::{Bindings, BindingsExt, Value};
 use serde::{Deserialize, Serialize};
 
-use crate::jobs::{Reported, Reporting, install_listen, pump};
+use crate::jobs::{Reported, Reporting, pump};
 
 /// How many files one slice of an import writes before giving the frame back.
 ///
@@ -102,6 +102,8 @@ fn count(n: usize) -> Value {
 }
 
 impl Reported for ImportEvent {
+    const EVENT: &'static str = "import_event";
+
     fn value(&self) -> Value {
         let mut pairs = vec![
             ("kind".into(), Value::Str(self.kind().into())),
@@ -214,7 +216,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "start",
             &[],
             "(path: string, project: string?) -> bool",
-            "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
+            "Import one file into the edited project, or into `project` when one is named, a few files per frame, each reported as the `import_event` event: `events::listen(node, \"import_event\")`, heard as `on_import_event`, as an import starts, writes each file, finishes or fails. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
             "running_count",
@@ -222,7 +224,6 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "() -> int",
             "How many imports are in flight.",
         ),
-        ("listen", &[], "(node: node, options: events::ListenOptions?)", LISTEN_DOC),
         (
             "choose",
             &[],
@@ -271,11 +272,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             .load(Ordering::Relaxed);
         Ok(count(running))
     });
-    install_listen::<ImportState, ImportEvent>(m, "on_import_event");
 }
-
-/// What `listen` is documented as.
-const LISTEN_DOC: &str = "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.";
 
 /// Ask for a file and import it. A desktop dialog answers with a path, so
 /// this is the picker and `start`; a tab's chooser answers on an event, so

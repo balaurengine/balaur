@@ -11,7 +11,7 @@ use crate::{MultiplayerState, Phase, lobby, slot_value};
 
 pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.",
+        "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events are the `multiplayer_event` event: `events::listen(node, \"multiplayer_event\")`, heard as `on_multiplayer_event`, a map with a `kind`.",
     );
     m.records(RECORDS);
     m.describe(DOCS);

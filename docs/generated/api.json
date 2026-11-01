@@ -1804,10 +1804,6 @@
         "least": 0,
         "signature": "(any, any) -> any"
       },
-      "apple::listen": {
-        "least": 0,
-        "signature": "(any, events::ListenOptions?) -> any"
-      },
       "apple::listen_for_cloud_changes": {
         "least": 0,
         "signature": "() -> any"
@@ -2000,25 +1996,13 @@
         "least": 0,
         "signature": "() -> int?"
       },
-      "browser::listen": {
-        "least": 1,
-        "signature": "(Node, events::ListenOptions?)"
-      },
       "browser::location": {
         "least": 0,
         "signature": "() -> str?"
       },
-      "browser::messages": {
-        "least": 0,
-        "signature": "() -> [any]"
-      },
       "browser::post_message": {
         "least": 0,
         "signature": "(any) -> bool"
-      },
-      "browser::stop_listening": {
-        "least": 1,
-        "signature": "(Node)"
       },
       "browser::user_agent": {
         "least": 0,
@@ -2232,10 +2216,6 @@
         "least": 2,
         "signature": "(Node, str, Node?)"
       },
-      "export::listen": {
-        "least": 1,
-        "signature": "(Node, events::ListenOptions?)"
-      },
       "export::output": {
         "least": 1,
         "signature": "(str) -> str"
@@ -2267,10 +2247,6 @@
       "forge::fetch": {
         "least": 2,
         "signature": "(str, bool) -> bool"
-      },
-      "forge::listen": {
-        "least": 1,
-        "signature": "(Node, events::ListenOptions?)"
       },
       "forge::search": {
         "least": 2,
@@ -2495,10 +2471,6 @@
       "import::handles": {
         "least": 1,
         "signature": "(str) -> bool"
-      },
-      "import::listen": {
-        "least": 1,
-        "signature": "(Node, events::ListenOptions?)"
       },
       "import::running_count": {
         "least": 0,
@@ -5384,10 +5356,6 @@
         "least": 0,
         "signature": "() -> any"
       },
-      "picture::listen": {
-        "least": 1,
-        "signature": "(Node, events::ListenOptions?)"
-      },
       "picture::write": {
         "least": 2,
         "signature": "(str, str) -> str?"
@@ -5559,10 +5527,6 @@
       "release::installed": {
         "least": 0,
         "signature": "() -> release::Build"
-      },
-      "release::listen": {
-        "least": 1,
-        "signature": "(Node, events::ListenOptions?)"
       },
       "render::begin_retained": {
         "least": 1,
@@ -20664,7 +20628,7 @@
           "value": "\"url\""
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing; `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         "authenticated": "Whether Game Center has a signed-in player right now.",
@@ -20674,14 +20638,13 @@
         "entitlements": "What this player currently owns, each with the signed transaction a server checks.",
         "finish_purchase": "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
         "identity": "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
-        "listen": "Subscribe a node's method to everything that arrives unasked: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
         "listen_for_cloud_changes": "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         "listen_for_invites": "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         "listen_for_urls": "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         "notify": "Schedule a local notification. The options take `title`, `after` in seconds and an `id` to cancel or recognise it by.",
         "products": "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
         "purchase": "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
-        "register_for_push": "Ask the OS for a push token. It arrives at everything listening, not at the caller, because the OS hands it over whenever it likes.",
+        "register_for_push": "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
         "request_notifications": "Ask the player to allow notifications, and answer with what they said.",
         "restore_purchases": "Ask the App Store to hand this device's purchases back: the button a review expects a game to have.",
         "show_dashboard": "Open Game Center's dashboard over the game; `state` picks the page : default, leaderboards, achievements, challenges, profile, dashboard or friends.",
@@ -20696,7 +20659,6 @@
         "entitlements",
         "finish_purchase",
         "identity",
-        "listen",
         "listen_for_cloud_changes",
         "listen_for_invites",
         "listen_for_urls",
@@ -20719,7 +20681,6 @@
         "entitlements": "(any, any) -> any",
         "finish_purchase": "(any, any, any) -> any",
         "identity": "(any, any) -> any",
-        "listen": "(any, events::ListenOptions?) -> any",
         "listen_for_cloud_changes": "() -> any",
         "listen_for_invites": "() -> any",
         "listen_for_urls": "() -> any",
@@ -20891,35 +20852,26 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.",
+      "doc": "The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, \"browser_event\")`, heard as `on_browser_event(payload)`.",
       "docs": {
         "hardware_concurrency": "How many threads the browser reports, or nil off the web.",
-        "listen": "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts.",
         "location": "The page's URL, or nil off the web.",
-        "messages": "Every message the parent frame posted this tick, for a script that would rather ask than declare a method.",
         "post_message": "Post a value to the page that embeds this one. False off the web, and false while a recording plays.",
-        "stop_listening": "Stop the node hearing the parent frame's messages. Not an error when it never listened.",
         "user_agent": "The browser's user agent string, or nil off the web.",
         "visible": "Whether the tab is in front of the player; true off the web."
       },
       "functions": [
         "hardware_concurrency",
-        "listen",
         "location",
-        "messages",
         "post_message",
-        "stop_listening",
         "user_agent",
         "visible"
       ],
       "name": "browser",
       "signatures": {
         "hardware_concurrency": "() -> int?",
-        "listen": "(Node, events::ListenOptions?)",
         "location": "() -> str?",
-        "messages": "() -> [any]",
         "post_message": "(any) -> bool",
-        "stop_listening": "(Node)",
         "user_agent": "() -> str?",
         "visible": "() -> bool"
       }
@@ -21163,9 +21115,8 @@
       "acts_on": {},
       "components": [],
       "constants": [],
-      "doc": "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
+      "doc": "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports as the `export_event` event: `events::listen(node, \"export_event\")`, heard as `on_export_event`, as each export starts, finishes or fails.",
       "docs": {
-        "listen": "Have the node's `on_export_event(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.",
         "output": "Where an export for this target will be written, as the project's `[export] output` decides.",
         "preview": "What one file becomes in a target's pack, as the Import tab shows it: `{ source, before, after, width, height, drawn_width, drawn_height, gpu_bytes }`, where `source` is the file or the variant that ships and `drawn_*` is zero unless a smaller copy does. Nil when the file does not ship there. An empty target is this machine's own.",
         "running_count": "How many exports are in flight.",
@@ -21173,7 +21124,6 @@
         "targets": "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."
       },
       "functions": [
-        "listen",
         "output",
         "preview",
         "running_count",
@@ -21182,7 +21132,6 @@
       ],
       "name": "export",
       "signatures": {
-        "listen": "(Node, events::ListenOptions?)",
         "output": "(str) -> str",
         "preview": "(str, str) -> export::Preview?",
         "running_count": "() -> int",
@@ -21196,18 +21145,16 @@
       "constants": [],
       "doc": "Projects kept on Forge, for the editor's pickers, and adding one to a game as a dependency. `balaur add` and `balaur fetch` are the same code. `BALAUR_FORGE` names the Forge and `BALAUR_FORGE_TOKEN` reads private projects.",
       "docs": {
-        "add": "Add `owner/name` to the game's `[dependencies]` and fetch it into `deps/<alias>/`, on a thread. `listen` hears `{ kind: \"fetched\", alias }` or `failed` with `job: \"add\"`.",
-        "copy": "Copy `owner/name` at its default branch into a new folder under `parent`, with its dependencies fetched, on a thread: the project manager's Open a copy. `listen` hears `{ kind: \"copied\", path }` or `failed` with `job: \"copy\"`.",
-        "fetch": "Fill the game's `deps/` from `project.lock`, or with `update` move each dependency to its newest commit, on a thread. `listen` hears `{ kind: \"fetched\", alias: \"\" }` or `failed` with `job: \"fetch\"`.",
-        "listen": "Call a method on `node` with every report: `on_forge_event` unless `opts.on_event` names another.",
-        "search": "List public projects on a thread, either filter empty for none. `listen` hears `{ kind: \"listed\", rows }`, each `{ project, description, tags, license }` with `project` as `owner/name`, or `{ kind: \"failed\", job: \"search\", message }`. False while a recording plays.",
+        "add": "Add `owner/name` to the game's `[dependencies]` and fetch it into `deps/<alias>/`, on a thread. `forge_event` hears `{ kind: \"fetched\", alias }` or `failed` with `job: \"add\"`.",
+        "copy": "Copy `owner/name` at its default branch into a new folder under `parent`, with its dependencies fetched, on a thread: the project manager's Open a copy. `forge_event` hears `{ kind: \"copied\", path }` or `failed` with `job: \"copy\"`.",
+        "fetch": "Fill the game's `deps/` from `project.lock`, or with `update` move each dependency to its newest commit, on a thread. `forge_event` hears `{ kind: \"fetched\", alias: \"\" }` or `failed` with `job: \"fetch\"`.",
+        "search": "List public projects on a thread, either filter empty for none. `forge_event` hears `{ kind: \"listed\", rows }`, each `{ project, description, tags, license }` with `project` as `owner/name`, or `{ kind: \"failed\", job: \"search\", message }`. False while a recording plays.",
         "url": "The Forge this machine asks, without a trailing slash."
       },
       "functions": [
         "add",
         "copy",
         "fetch",
-        "listen",
         "search",
         "url"
       ],
@@ -21216,7 +21163,6 @@
         "add": "(str, str) -> bool",
         "copy": "(str, str) -> bool",
         "fetch": "(str, bool) -> bool",
-        "listen": "(Node, events::ListenOptions?)",
         "search": "(str, str) -> bool",
         "url": "() -> str"
       }
@@ -21517,16 +21463,14 @@
         "choose": "Ask the reader for a file and import what they pick, reporting as `start` does. On a desktop that is the OS dialog; in a tab it is the page's own chooser, which takes several files at once so a `.gltf` can be picked with the images it names. Answers whether the asking began.",
         "file": "Import one file into the edited project, in one call. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
         "handles": "Whether an importer claims this file, by extension.",
-        "listen": "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.",
         "running_count": "How many imports are in flight.",
-        "start": "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`."
+        "start": "Import one file into the edited project, or into `project` when one is named, a few files per frame, each reported as the `import_event` event: `events::listen(node, \"import_event\")`, heard as `on_import_event`, as an import starts, writes each file, finishes or fails. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`."
       },
       "functions": [
         "cancel",
         "choose",
         "file",
         "handles",
-        "listen",
         "running_count",
         "start"
       ],
@@ -21536,7 +21480,6 @@
         "choose": "() -> bool",
         "file": "(str) -> any",
         "handles": "(str) -> bool",
-        "listen": "(Node, events::ListenOptions?)",
         "running_count": "() -> int",
         "start": "(str, str?) -> bool"
       }
@@ -22697,7 +22640,7 @@
           "value": "\"webtransport\""
         }
       ],
-      "doc": "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.",
+      "doc": "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events are the `multiplayer_event` event: `events::listen(node, \"multiplayer_event\")`, heard as `on_multiplayer_event`, a map with a `kind`.",
       "docs": {
         "add_bot": "On a host, a slot its own script plays with `set_input_for`; answers the slot, or nil when the lobby is full.",
         "host": "Listen and take slot 0; answers `{ url, cert_hash, transport }`, what a joiner needs. Options over `[multiplayer]`: `transport`, `address`, `players`, `scene`, `depth`, `timeout_seconds`, `name`, `token`.",
@@ -25492,16 +25435,13 @@
       "constants": [],
       "doc": "A picture of a project: its scene through its current camera, at its `[window]` size, written to a PNG by a second process running `balaur run --offscreen --shot`.",
       "docs": {
-        "listen": "Have the node's `on_picture_event(event)`, or the `on_event` method the options name, called when a picture is written, `{ kind: \"written\", path }`, or fails, `{ kind: \"failed\", path, message }`.",
-        "write": "Write a picture of the project at `project`, of `scene` (project-relative; its main scene when empty), as the files on disk say. Answers where the PNG will be: `[export] output`'s `picture` folder, or beside the project's manifest. Nil where no second process can run, as in a browser tab."
+        "write": "Write a picture of the project at `project`, of `scene` (project-relative; its main scene when empty), as the files on disk say. Answers where the PNG will be: `[export] output`'s `picture` folder, or beside the project's manifest. The `picture_event` event reports it, `{ kind: \"written\", path }` or `{ kind: \"failed\", path, message }`. Nil where no second process can run, as in a browser tab."
       },
       "functions": [
-        "listen",
         "write"
       ],
       "name": "picture",
       "signatures": {
-        "listen": "(Node, events::ListenOptions?)",
         "write": "(str, str) -> str?"
       }
     },
@@ -25707,25 +25647,22 @@
       "doc": "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's Engine tab and About sheet; `balaur update` is the same code.",
       "docs": {
         "channels": "Every release line a build may follow, in the order a version moves through them.",
-        "check": "Read the release feed on a thread. `listen` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the zipped app a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
-        "install": "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
-        "installed": "This build: `{ version, id, channel, tag, source, held }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, `source` is true for a build from a checkout, and `held` says why this install cannot replace itself, empty when it can.",
-        "listen": "Call a method on `node` with every report a check or an install makes: `on_release_event` unless `opts.on_event` names another."
+        "check": "Read the release feed on a thread. `release_event` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the zipped app a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
+        "install": "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `release_event` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
+        "installed": "This build: `{ version, id, channel, tag, source, held }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, `source` is true for a build from a checkout, and `held` says why this install cannot replace itself, empty when it can."
       },
       "functions": [
         "channels",
         "check",
         "install",
-        "installed",
-        "listen"
+        "installed"
       ],
       "name": "release",
       "signatures": {
         "channels": "() -> [str]",
         "check": "() -> bool",
         "install": "(str, str, release::InstallOptions?) -> bool",
-        "installed": "() -> release::Build",
-        "listen": "(Node, events::ListenOptions?)"
+        "installed": "() -> release::Build"
       }
     },
     {

@@ -8,7 +8,7 @@
 > import that takes seconds has a count that climbs rather than one long slice.
 >
 > `import.start` runs an import a few files per frame and reports each to
-> whatever `import.listen` named,
+> whoever listens for `import_event`,
 > `import.running_count` counts what is in flight, and `import.file` stays as the one
 > call a command and a test want. A drop starts a job, the status strip says
 > what is in flight, `chrome::toast` lists the batch with a bar under it, and a
@@ -114,7 +114,7 @@ spawns a task and awaits Fetch. Different code, not a different spawn. A
 generic that took both would need the native half rewritten against an async
 HTTP stack, for a wrapper around one line. So the `mod backend` per target is
 the right shape there, and there is nothing to collapse: what those
-subsystems share is the event, the listeners and the pump, and that is
+subsystems share is the event and the pump, and that is
 [`crate::jobs`] already.
 
 For the same reason there is no lint on `thread::spawn` and `spawn_local`
@@ -126,7 +126,7 @@ matters is the one `ARCHITECTURE.md` names -- a channel outside `ExternalIo`
 
 ### 2.1 Three verbs, one event
 
-`import::start(path, options)`, `import::running_count()` and `import::listen(node)`,
+`import::start(path, options)`, `import::running_count()` and the `import_event` event,
 named and shaped as the export trio is. One event, `on_import_event`:
 
 | kind | carries |
@@ -287,7 +287,7 @@ rather than itself.
    *reporting* half is what was duplicated, and that is gone -- step 5 says
    how.
 5. **The job.** Built. `Reporting<ImportEvent>` in `crates/balaur_cli/jobs.rs`
-   is the generic seam -- the event, the listeners, the pump -- and the job is
+   is the generic seam -- the event and the pump -- and the job is
    a `Stepped` that reads on its first slice and writes up to
    `FILES_PER_SLICE` after it, reporting `wrote` per file.
 
@@ -307,10 +307,10 @@ rather than itself.
 
    `export_shared.rs` moved onto `jobs.rs` with it: `ExportCore` is
    `Reporting<ExportEvent>`, the event implements `Reported`, and that file is
-   the event and the line documenting `listen` and nothing else. The change is
+   the event and nothing else. The change is
    type-identical, so the compiler checked the wiring; nothing but the editor
    drives an export's events, so what was checked beyond that is that the
-   editor boots and registers `export::listen`, and that an export pack still
+   editor boots and listens for `export_event`, and that an export pack still
    exports.
 6. **The editor.** Built, bar the toast. `dropin::take` starts a job and
    `dropin::report` is where every step lands: the status strip says

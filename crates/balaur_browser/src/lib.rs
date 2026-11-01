@@ -4,24 +4,24 @@
 //! Facts about it (the tab's visibility, the user agent, the location) are
 //! read once per tick at [`Stage::First`], recorded, and answered from the
 //! recording on replay. A message from the parent frame arrives the same
-//! way, dispatched to `on_browser_event` on the nodes that asked. Posting a
+//! way, sent as the `browser_event` event. Posting a
 //! message is an effect on the world and goes out through [`ExternalIo`],
 //! which never fires while a recording plays.
 //!
 //! Named verbs rather than `eval`: an arbitrary string run now, returning
 //! anything, is both a determinism hole and a security one. A vendor SDK
-//! that speaks `postMessage` is a Rune `mod` over `post_message` and
+//! that speaks `postMessage` is a module over `post_message` and
 //! `on_browser_event`; the engine carries the bridge, not the protocol.
 //!
 //! Off the web every query answers nil, `visible` answers true and
 //! `post_message` answers false, so a script written for a page still runs
 //! on a desktop.
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use balaur_core::engine_api::{from_json, to_json};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Bindings, BindingsExt, Value};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
@@ -43,17 +43,13 @@ pub struct PageFacts {
     pub hardware_concurrency: Option<u32>,
 }
 
-/// Where messages go: `on_browser_event` on one node's script.
-#[derive(Clone)]
-pub struct Handler {
-    pub node: NodeId,
-    pub method: String,
-}
+/// The event a message from the parent frame arrives as, heard with
+/// `events::listen` as `on_browser_event`.
+pub const MESSAGE_EVENT: &str = "browser_event";
 
-/// The channel the page reports on, who listens, and what it last said.
+/// The channel the page reports on, and what it last said.
 pub struct BrowserState {
     io: ExternalIo<WebEvent>,
-    listeners: Vec<Handler>,
     facts: PageFacts,
     visible: bool,
 }
@@ -75,17 +71,10 @@ impl Default for BrowserState {
     fn default() -> Self {
         Self {
             io: ExternalIo::default(),
-            listeners: Vec::new(),
             facts: PageFacts::default(),
             visible: true,
         }
     }
-}
-
-/// This tick's messages, as the values handlers received.
-#[derive(Default)]
-pub struct BrowserSnapshot {
-    pub messages: Vec<Value>,
 }
 
 /// The facts and the visibility, alongside the channel's arrivals, so a
@@ -119,24 +108,18 @@ fn restore_browser(eng: &Engine, value: &Json) {
     state.visible = captured.visible;
 }
 
-/// Drain the page's reports, record them, then dispatch, in arrival
-/// order, after the borrows are released so a handler may post back.
+/// Drain the page's reports, sending each message as its event, in arrival
+/// order.
 fn pump_web_system(eng: &Engine, _: f32) {
-    let mut dispatches: Vec<(Handler, Value)> = Vec::new();
+    let mut messages = Vec::new();
     {
         let state = eng.resource::<BrowserState>();
-        let snapshot = eng.resource::<BrowserSnapshot>();
         let mut state = state.borrow_mut();
-        let mut snapshot = snapshot.borrow_mut();
-        snapshot.messages.clear();
         for event in state.io.drain() {
             match event {
                 WebEvent::Message { payload } => {
                     let value = from_json(&payload).unwrap_or(Value::Nil);
-                    snapshot.messages.push(value.clone());
-                    for listener in &state.listeners {
-                        dispatches.push((listener.clone(), value.clone()));
-                    }
+                    messages.push(value);
                 }
                 WebEvent::Visibility { visible } => {
                     state.visible = visible;
@@ -146,10 +129,8 @@ fn pump_web_system(eng: &Engine, _: f32) {
             }
         }
     }
-    if let Some(host) = eng.script_host() {
-        for (handler, value) in dispatches {
-            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-        }
+    for message in messages {
+        balaur_core::events::emit(eng, MESSAGE_EVENT, message);
     }
 }
 
@@ -165,59 +146,17 @@ pub fn post_message(eng: &Engine, payload: &Value) -> Result<bool> {
     Ok(state.io.start(eng, |_| backend::post_message(&json)))
 }
 
-fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
-    match opts? {
-        Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
-        _ => None,
-    }
-}
-
 fn install_web_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.",
+        "The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, \"browser_event\")`, heard as `on_browser_event(payload)`.",
     );
     m.describe(&[
-        ("listen", &[], "(node: node, options: events::ListenOptions?)", "Have the node's `on_browser_event(payload)`, or the `on_event` method the options name, called for every message the parent frame posts."),
-        ("stop_listening", &[], "(node: node)", "Stop the node hearing the parent frame's messages. Not an error when it never listened."),
-        ("messages", &[], "() -> [any]", "Every message the parent frame posted this tick, for a script that would rather ask than declare a method."),
         ("post_message", &[], "(payload: map) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
         ("visible", &[], "() -> bool", "Whether the tab is in front of the player; true off the web."),
         ("user_agent", &[], "() -> string?", "The browser's user agent string, or nil off the web."),
         ("location", &[], "() -> string?", "The page's URL, or nil off the web."),
         ("hardware_concurrency", &[], "() -> int?", "How many threads the browser reports, or nil off the web."),
     ]);
-    m.function(
-        "listen",
-        |eng: &Engine, (node, opts): (NodeId, Option<Value>)| {
-            let method = match opt(opts.as_ref(), "on_event") {
-                Some(Value::Str(name)) => name.clone(),
-                Some(other) => {
-                    return Err(anyhow!("`on_event` should be a method name, got {other:?}"));
-                }
-                None => "on_browser_event".to_string(),
-            };
-            eng.resource::<BrowserState>()
-                .borrow_mut()
-                .listeners
-                .push(Handler {
-                    node,
-                    method: method.clone(),
-                });
-            Ok(())
-        },
-    );
-    m.function("stop_listening", |eng: &Engine, node: NodeId| {
-        eng.resource::<BrowserState>()
-            .borrow_mut()
-            .listeners
-            .retain(|listener| listener.node != node);
-        Ok(())
-    });
-    m.function("messages", |eng: &Engine, ()| {
-        Ok(Value::List(
-            eng.resource::<BrowserSnapshot>().borrow().messages.clone(),
-        ))
-    });
     m.function("post_message", |eng: &Engine, payload: Value| {
         post_message(eng, &payload)
     });
@@ -270,7 +209,6 @@ impl balaur_plugin::Plugin for BrowserPlugin {
             .io
             .start(reg.engine(), |report| backend::listen(report.clone()));
         reg.insert_resource(state);
-        reg.insert_resource(BrowserSnapshot::default());
         reg.add_system(Stage::First, pump_web_system);
         reg.add_replay_source("browser", capture_browser, restore_browser);
         let mut m = reg.script_module("browser")?;

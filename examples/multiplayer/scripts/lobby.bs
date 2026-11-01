@@ -12,6 +12,7 @@ const RETRY_FRAMES: int = 60;
 
 impl Lobby {
     pub fn init() {
+        events::listen(self.node, "multiplayer_event");
         self.retry_in = 0;
         self.joining = false;
         for arg in engine::args() {

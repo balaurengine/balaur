@@ -10,24 +10,24 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | Module | Functions | Constants |
 | --- | ---: | ---: |
 | [`animation`](#animation) | 19 | 80 |
-| [`apple`](#apple) | 20 | 25 |
+| [`apple`](#apple) | 19 | 25 |
 | [`assets`](#assets) | 13 | 0 |
 | [`audio`](#audio) | 23 | 1 |
-| [`browser`](#browser) | 8 | 0 |
+| [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 2 | 0 |
 | [`engine`](#engine) | 30 | 0 |
 | [`events`](#events) | 4 | 0 |
-| [`export`](#export) | 6 | 0 |
-| [`forge`](#forge) | 6 | 0 |
+| [`export`](#export) | 5 | 0 |
+| [`forge`](#forge) | 5 | 0 |
 | [`fs`](#fs) | 9 | 0 |
 | [`gamend`](#gamend) | 19 | 9 |
 | [`geometry2d`](#geometry2d) | 12 | 0 |
 | [`geometry3d`](#geometry3d) | 6 | 0 |
 | [`hash`](#hash) | 2 | 0 |
 | [`http`](#http) | 2 | 5 |
-| [`import`](#import) | 7 | 0 |
+| [`import`](#import) | 6 | 0 |
 | [`input`](#input) | 53 | 188 |
 | [`json`](#json) | 2 | 0 |
 | [`log`](#log) | 8 | 0 |
@@ -37,12 +37,12 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`physics`](#physics) | 13 | 0 |
 | [`physics2d`](#physics2d) | 130 | 111 |
 | [`physics3d`](#physics3d) | 139 | 118 |
-| [`picture`](#picture) | 2 | 0 |
+| [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
 | [`project`](#project) | 16 | 0 |
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
-| [`release`](#release) | 5 | 0 |
+| [`release`](#release) | 4 | 0 |
 | [`render`](#render) | 71 | 45 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
@@ -117,7 +117,7 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 
 ## `apple`
 
-Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.
+Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.
 
 | Function | Signature |
 | --- | --- |
@@ -129,7 +129,6 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | `entitlements` | `(any, any) -> any` |
 | `finish_purchase` | `(any, any, any) -> any` |
 | `identity` | `(any, any) -> any` |
-| `listen` | `(any, events::ListenOptions?) -> any` |
 | `listen_for_cloud_changes` | `() -> any` |
 | `listen_for_invites` | `() -> any` |
 | `listen_for_urls` | `() -> any` |
@@ -231,16 +230,13 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 
 ## `browser`
 
-The page a browser build runs in; off the web every query answers nil. A parent-frame message reaches `on_browser_event` on every node that called `listen`.
+The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, "browser_event")`, heard as `on_browser_event(payload)`.
 
 | Function | Signature |
 | --- | --- |
 | `hardware_concurrency` | `() -> int?` |
-| `listen` | `(Node, events::ListenOptions?)` |
 | `location` | `() -> str?` |
-| `messages` | `() -> [any]` |
 | `post_message` | `(any) -> bool` |
-| `stop_listening` | `(Node)` |
 | `user_agent` | `() -> str?` |
 | `visible` | `() -> bool` |
 
@@ -341,11 +337,10 @@ Named events between scripts. A node listens for a name and hears it as its `on_
 
 ## `export`
 
-Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.
+Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports as the `export_event` event: `events::listen(node, "export_event")`, heard as `on_export_event`, as each export starts, finishes or fails.
 
 | Function | Signature |
 | --- | --- |
-| `listen` | `(Node, events::ListenOptions?)` |
 | `output` | `(str) -> str` |
 | `preview` | `(str, str) -> export::Preview?` |
 | `running_count` | `() -> int` |
@@ -361,7 +356,6 @@ Projects kept on Forge, for the editor's pickers, and adding one to a game as a 
 | `add` | `(str, str) -> bool` |
 | `copy` | `(str, str) -> bool` |
 | `fetch` | `(str, bool) -> bool` |
-| `listen` | `(Node, events::ListenOptions?)` |
 | `search` | `(str, str) -> bool` |
 | `url` | `() -> str` |
 
@@ -491,7 +485,6 @@ Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk`
 | `choose` | `() -> bool` |
 | `file` | `(str) -> any` |
 | `handles` | `(str) -> bool` |
-| `listen` | `(Node, events::ListenOptions?)` |
 | `running_count` | `() -> int` |
 | `start` | `(str, str?) -> bool` |
 
@@ -651,7 +644,7 @@ Deterministic float maths backed by pure-Rust `libm`: the same inputs give the s
 
 ## `multiplayer`
 
-Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events reach every script's `on_multiplayer_event` as a map with a `kind`.
+Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events are the `multiplayer_event` event: `events::listen(node, "multiplayer_event")`, heard as `on_multiplayer_event`, a map with a `kind`.
 
 | Function | Signature |
 | --- | --- |
@@ -1129,7 +1122,6 @@ A picture of a project: its scene through its current camera, at its `[window]` 
 
 | Function | Signature |
 | --- | --- |
-| `listen` | `(Node, events::ListenOptions?)` |
 | `write` | `(str, str) -> str?` |
 
 ## `platform`
@@ -1220,7 +1212,6 @@ Which build of the engine this is, what the channels are publishing, and replaci
 | `check` | `() -> bool` |
 | `install` | `(str, str, release::InstallOptions?) -> bool` |
 | `installed` | `() -> release::Build` |
-| `listen` | `(Node, events::ListenOptions?)` |
 
 ## `render`
 

@@ -37,6 +37,8 @@ impl ExportEvent {
 }
 
 impl crate::jobs::Reported for ExportEvent {
+    const EVENT: &'static str = "export_event";
+
     /// The table a handler is called with. One shape for every kind, so a
     /// script reads `kind` and then the field that kind carries.
     fn value(&self) -> Value {
@@ -55,11 +57,8 @@ impl crate::jobs::Reported for ExportEvent {
     }
 }
 
-/// The project being edited, the channel exports report on, and who listens.
+/// The project being edited, and the channel exports report on.
 pub(crate) type ExportCore = crate::jobs::Reporting<ExportEvent>;
-
-/// What `listen` is documented as, so both modules describe it the same way.
-pub(crate) const LISTEN_DOC: &str = "Have the node's `on_export_event(event)`, or the `on_event` method the options name, called as each export starts, finishes or fails.";
 
 /// `export.preview`, the same on a desktop and in a tab.
 pub(crate) const PREVIEW_DOC: &str = "What one file becomes in a target's pack, as the Import tab shows it: `{ source, before, after, width, height, drawn_width, drawn_height, gpu_bytes }`, where `source` is the file or the variant that ships and `drawn_*` is zero unless a smaller copy does. Nil when the file does not ship there. An empty target is this machine's own.";

@@ -95,8 +95,8 @@ or a label saying which player you are, is meant to differ. A node tagged
 `local`, and everything under it, is left out of the digest, so it cannot
 read as a desync. It is still rolled back with the rest.
 
-**Events report; they do not simulate.** Every script's
-`on_multiplayer_event` hears each event once, at the top of a live tick. A
+**Events report; they do not simulate.** A node listening for
+`multiplayer_event` hears each event once, at the top of a live tick. A
 change to the world made from one is made on this machine only. What a
 tick decides from belongs to the tick: `rollback::input`, and
 `multiplayer::players()`, whose `status` is as of the tick being simulated.
@@ -108,7 +108,7 @@ tick decides from belongs to the tick: `rollback::input`, and
 | The script module | `multiplayer::host`, `join`, `leave`, ... |
 | The project table | `[multiplayer]` in `project.toml` |
 | The editor's fault settings | `multiplayer/faults`, `delay`, `jitter`, `loss`, moved from `netcode/*`; a setting's scope is its own, so one category holds the project's keys and the person's |
-| The script hook | `on_multiplayer_event`, on every script |
+| The script event | `multiplayer_event`, heard as `on_multiplayer_event` |
 | The recording source | `multiplayer`, renamed from `session` |
 | The dock | Multiplayer |
 | The thing itself, in prose, docs and the editor | a *match* |

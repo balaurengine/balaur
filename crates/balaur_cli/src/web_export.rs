@@ -21,8 +21,8 @@ use anyhow::{Context as _, Result, anyhow};
 use balaur::{Engine, Stage};
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
-use crate::jobs::{install_listen, pump};
+use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
+use crate::jobs::pump;
 
 /// The file a web bundle keeps its pack under, as the shell page loads it.
 use balaur::standalone::BUNDLED_PACK;
@@ -108,7 +108,6 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     ]);
     m.describe(&[
         ("targets", &[], "() -> [Target]", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
-        ("listen", &[], "(node: node, options: events::ListenOptions?)", LISTEN_DOC),
         ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string) -> string", "The file name an export for this target produces."),
         ("running_count", &[], "() -> int", "How many exports are in flight."),
@@ -118,7 +117,6 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         let project = eng.resource::<ExportState>().borrow().core.project.clone();
         Ok(targets(&project))
     });
-    install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {

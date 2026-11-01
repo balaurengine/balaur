@@ -28,6 +28,7 @@ impl Arena {
                 self.auto = true;
             }
         }
+        events::listen(self.node, "multiplayer_event");
         render::set_background(0.06, 0.07, 0.09);
         render::set_camera_2d(0.0, 0.0, 120.0);
         let me = multiplayer::local_player().or(0);

@@ -30,7 +30,7 @@ mod vocabulary;
 mod wire;
 
 pub use options::Options;
-pub use vocabulary::{EventKind, HOOK, Role, State, Status, TransportKind};
+pub use vocabulary::{EVENT, EventKind, Role, State, Status, TransportKind};
 pub use wire::{Member, PROTOCOL};
 
 /// Where this machine is, and everything it holds in that phase.
@@ -128,7 +128,7 @@ impl MultiplayerState {
         self.local
     }
 
-    /// Queue an event for every script's `on_multiplayer_event`.
+    /// Queue a `multiplayer_event` for the next live tick.
     pub(crate) fn tell(&mut self, kind: EventKind, fields: Vec<(&str, Value)>) {
         let mut map = vec![("kind".to_string(), Value::Str(kind.name().into()))];
         map.extend(
@@ -213,18 +213,13 @@ fn poll_system(eng: &Engine, _dt: f32) {
     }
 }
 
-/// Hand queued events to every script, once, outside a re-run tick.
+/// Send queued events to whoever listens, once, outside a re-run tick.
 fn deliver_system(eng: &Engine, _dt: f32) {
     if balaur_core::rollback::is_resimulating(eng) {
         return;
     }
     let events = std::mem::take(&mut eng.resource::<MultiplayerState>().borrow_mut().events);
-    let Some(host) = eng.script_host() else {
-        return;
-    };
-    // Told once, so a script a pause holds hears it too: a peer gone while the
-    // game was paused is still gone.
     for event in events {
-        host.announce(HOOK, &[event]);
+        balaur_core::events::emit(eng, EVENT, event);
     }
 }

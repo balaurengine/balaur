@@ -556,11 +556,9 @@ pub fn boot(state: &mut State, editor: Node, listen: bool) {
     plugins::load(state);
     if listen {
         // Exports and imports run off the frame and report back here as they go.
-        export::listen(editor, nil);
-        import::listen(editor, nil);
-        release::listen(editor, nil);
-        forge::listen(editor, nil);
-        picture::listen(editor, nil);
+        for name in ["export_event", "import_event", "release_event", "forge_event", "picture_event"] {
+            events::listen(editor, name);
+        }
         signals::hear_own(editor);
         signals::hear_engine(editor);
         signals::hear_boxes(state, editor);

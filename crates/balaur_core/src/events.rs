@@ -632,7 +632,7 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
     m.records(&[(
         "ListenOptions",
         "{ on_event: string? }",
-        "How a module's `listen` calls its node: the method `on_event` names, else `on_<module>_event`.",
+        "How a socket calls its node: the method `on_event` names, else `on_<module>_event`.",
     )]);
     m.describe(&[
         (

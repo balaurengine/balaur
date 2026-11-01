@@ -18,8 +18,8 @@ use balaur::{Engine, Stage};
 use balaur_core::handler::opt;
 use balaur_script::{Bindings, BindingsExt, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
-use crate::jobs::{install_listen, pump};
+use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
+use crate::jobs::pump;
 
 /// The project being edited plus what only a desktop install has: the
 /// per-user runtime cache the roots are read from.
@@ -73,7 +73,7 @@ impl balaur_plugin::Plugin for ExportPlugin {
 
 fn install_export_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
+        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports as the `export_event` event: `events::listen(node, \"export_event\")`, heard as `on_export_event`, as each export starts, finishes or fails.",
     );
     m.records(&[
         (
@@ -94,7 +94,6 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
     ]);
     m.describe(&[
         ("targets", &[], "() -> [Target]", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
-        ("listen", &[], "(node: node, options: events::ListenOptions?)", LISTEN_DOC),
         ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string) -> string", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running_count", &[], "() -> int", "How many exports are in flight."),
@@ -104,7 +103,6 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         let project = eng.resource::<ExportState>().borrow().0.project.clone();
         Ok(targets(&project))
     });
-    install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {

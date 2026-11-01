@@ -352,15 +352,16 @@ impl PlatformBackend for AppleBackend {
     }
 }
 
+/// What nobody asked for, carrying request 0: a notification tapped, a URL
+/// opened, a push token, a transaction that landed on another device. Heard
+/// with `events::listen` as `on_apple_event`.
+pub const ARRIVAL_EVENT: &str = "apple_event";
+
 /// The `apple.*` calls in flight, and the channel the frameworks report into.
 #[derive(Default)]
 pub struct AppleState {
     io: ExternalIo<AppleEvent>,
     handlers: DetHashMap<u64, Handler>,
-    /// Handlers that stay subscribed. What nobody asked for: a notification
-    /// tapped, a URL opened, a push token, a transaction that landed on
-    /// another device: carries request 0 and reaches every one of them.
-    watchers: Vec<Handler>,
 }
 
 impl AppleState {
@@ -379,18 +380,6 @@ impl AppleState {
         self.io
             .start(eng, |report| backend::apple_call(id, call, report));
     }
-
-    /// Subscribe `handler` to everything that arrives unasked. The same node
-    /// and method twice is one watcher.
-    pub fn watch(&mut self, handler: Handler) {
-        if !self
-            .watchers
-            .iter()
-            .any(|w| w.node == handler.node && w.method == handler.method)
-        {
-            self.watchers.push(handler);
-        }
-    }
 }
 
 /// This tick's `apple.*` arrivals, as the handlers received them.
@@ -401,6 +390,7 @@ pub struct AppleSnapshot {
 
 fn pump_apple_system(eng: &Engine, _: f32) {
     let mut dispatches: Vec<(Vec<Handler>, u64, Value)> = Vec::new();
+    let mut arrivals = Vec::new();
     {
         let state = eng.resource::<AppleState>();
         let snapshot = eng.resource::<AppleSnapshot>();
@@ -416,15 +406,18 @@ fn pump_apple_system(eng: &Engine, _: f32) {
             let request = event.request();
             let mut targets: Vec<Handler> =
                 state.handlers.shift_remove(&request).into_iter().collect();
-            if request == 0 {
-                targets.extend(state.watchers.iter().cloned());
-            }
             let value = event_value(event);
             snapshot.events.push(value.clone());
+            if request == 0 {
+                arrivals.push(value.clone());
+            }
             dispatches.push((targets, request, value));
         }
     }
     balaur_core::handler::dispatch(eng, dispatches);
+    for arrival in arrivals {
+        balaur_core::events::emit(eng, ARRIVAL_EVENT, arrival);
+    }
 }
 
 /// The `kind` each event map carries, and the `EVENT_*` constants of it.
@@ -579,8 +572,8 @@ fn event_value(event: AppleEvent) -> Value {
 ///
 /// The window layer holds it, because the application delegate is handed it
 /// before this crate exists. A game reads it as an ordinary URL arrival:
-/// being opened with a link and being handed one mid-run are the same event
-/// to whoever is listening.
+/// being opened with a link and being handed one mid-run are one
+/// [`ARRIVAL_EVENT`].
 ///
 /// Does nothing off Apple, so a caller needs no target of its own.
 #[cfg(target_vendor = "apple")]
@@ -634,7 +627,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 /// has it.
 fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -801,12 +794,6 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
 fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         (
-            "listen",
-            &[],
-            "(node: any, opts: events::ListenOptions?) -> any",
-            "Subscribe a node's method to everything that arrives unasked: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
-        ),
-        (
             "request_notifications",
             &[],
             "",
@@ -828,22 +815,9 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             "register_for_push",
             &[],
             "",
-            "Ask the OS for a push token. It arrives at everything listening, not at the caller, because the OS hands it over whenever it likes.",
+            "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
         ),
     ]);
-    m.function(
-        "listen",
-        |eng: &Engine, (node, opts): (Value, Option<Value>)| {
-            let Some(handler) = handler_of(&node, opts.as_ref(), "on_event", "on_apple_event")?
-            else {
-                return Err(anyhow!(
-                    "listening takes a node whose method hears about it"
-                ));
-            };
-            eng.resource::<AppleState>().borrow_mut().watch(handler);
-            Ok(Value::Bool(true))
-        },
-    );
     m.function(
         "request_notifications",
         |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
