@@ -1041,6 +1041,12 @@ sees half of one.
   `scripts/fixed_update`, `scripts/reload`, `scene/transforms`.
 - `fixed_steps` sits beside the stages because a free-looking `fixed_update`
   usually means the accumulator had nothing to drain.
+- `--timings` opens with the boot, up to the first picture on screen: `device`,
+  `renderer` and `shaders` are what opening the window cost, and `later shaders`
+  counts pipelines built after it, each a stall on the frame that asked. A driver
+  compiles what it has not seen, so a first launch and a later one are different
+  runs: `scripts/first_launch.py` measures both on macOS, and
+  [docs/PLAN-loading.md](docs/PLAN-loading.md) has what they cost.
 - **Timings are an observer**: never recorded, replayed or hashed, so a
   `fixed_update` branching on one would desync and the digest would say so.
 

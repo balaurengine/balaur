@@ -3744,7 +3744,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.47.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#8b9bd937929576e74564c0330a224887e1f7ba5b"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#cbd95487c20bed7520bc633f9553c8731616def8"
 dependencies = [
  "android-activity",
  "bitflags 2.13.2",
@@ -3780,7 +3780,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.1"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#8b9bd937929576e74564c0330a224887e1f7ba5b"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#cbd95487c20bed7520bc633f9553c8731616def8"
 dependencies = [
  "proc-macro2",
  "quote",

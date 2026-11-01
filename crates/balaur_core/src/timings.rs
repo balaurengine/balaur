@@ -25,7 +25,7 @@
     reason = "an observer, never a simulation input"
 )]
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fmt::Write as _;
 use std::time::Duration;
 
@@ -44,6 +44,10 @@ thread_local! {
     static BOOT: RefCell<Vec<(SmolStr, Duration)>> = const { RefCell::new(Vec::new()) };
     /// When the process started, as the tool that owns `main` measured it.
     static STARTED: RefCell<Option<Instant>> = const { RefCell::new(None) };
+    /// Whether a loop here draws, so the boot ends at a picture and not at a tick.
+    static DRAWS: Cell<bool> = const { Cell::new(false) };
+    /// Shaders built after the first picture: modules, pipelines and the time.
+    static LATER_SHADERS: Cell<(u32, u32, Duration)> = const { Cell::new((0, 0, Duration::ZERO)) };
 }
 
 /// The name the first frame's own row carries.
@@ -83,9 +87,10 @@ impl Phase {
         Self(Instant::now())
     }
 
-    /// File what has passed since [`Phase::start`] under `name`.
-    pub fn note(self, name: &str) {
-        note_boot(name, self.0.elapsed());
+    /// What has passed since [`Phase::start`].
+    #[must_use]
+    pub fn elapsed(&self) -> Duration {
+        self.0.elapsed()
     }
 }
 
@@ -114,12 +119,38 @@ pub fn boot_report() -> String {
     for (name, cost) in &spans {
         let _ = writeln!(out, "{name:width$}  {:>9}", millis(*cost));
     }
+    let (modules, pipelines, time) = LATER_SHADERS.get();
+    if modules + pipelines > 0 {
+        let _ = writeln!(
+            out,
+            "later shaders: {modules} modules, {pipelines} pipelines, {}",
+            millis(time)
+        );
+    }
     out
 }
 
-/// File the first frame's own row, once. Called as a frame publishes, which
-/// is the first moment a run can say the boot is over.
-fn note_first_frame() {
+/// Say a loop on this thread draws. Its boot then ends when the first frame is on
+/// the screen, which it says with [`note_first_frame`]: a frame's shaders are built
+/// as it draws, and on a first launch those are the boot's largest cost.
+pub fn draws_pictures() {
+    DRAWS.set(true);
+}
+
+/// Add shaders built after the first picture to the boot table's last row. Each
+/// one was a stall on the frame that asked for it.
+pub fn note_later_shaders(modules: u32, pipelines: u32, time: Duration) {
+    let (modules_so_far, pipelines_so_far, time_so_far) = LATER_SHADERS.get();
+    LATER_SHADERS.set((
+        modules_so_far + modules,
+        pipelines_so_far + pipelines,
+        time_so_far + time,
+    ));
+}
+
+/// File the first frame's own row, once: when a loop that draws has drawn it, or
+/// when a frame publishes where nothing draws.
+pub fn note_first_frame() {
     let Some(started) = STARTED.with_borrow(|at| *at) else {
         return;
     };
@@ -256,7 +287,9 @@ pub fn measure<T>(eng: &Engine, name: &str, body: impl FnOnce() -> T) -> T {
 
 /// Publish the frame that just ended. Called by `App::tick` and nobody else.
 pub(crate) fn publish(eng: &Engine, frame: Duration, stages: [Duration; 8], fixed_steps: u32) {
-    note_first_frame();
+    if !DRAWS.get() {
+        note_first_frame();
+    }
     let Some(timings) = eng.try_resource::<Timings>() else {
         return;
     };
@@ -520,12 +553,20 @@ impl TimingLog {
         let _ = writeln!(out, "spikes  {} over twice the median", spikes.len());
         spikes.sort_by_key(|(_, m)| std::cmp::Reverse(m.period));
         for (frame, mark) in spikes.iter().take(8) {
+            // What the loop spent drawing a frame is filed after the next frame's
+            // stages and published with the one after that, so a frame's cause can
+            // be two tables behind it.
+            let (name, cost) = self.marks[*frame..]
+                .iter()
+                .take(3)
+                .map(|m| &m.costliest)
+                .max_by_key(|(_, cost)| *cost)
+                .unwrap_or(&mark.costliest);
             let _ = writeln!(
                 out,
-                "  frame {frame}: {}, most in {} ({})",
+                "  frame {frame}: {}, most in {name} ({})",
                 millis(mark.period),
-                mark.costliest.0,
-                millis(mark.costliest.1),
+                millis(*cost),
             );
         }
         let (cpu, period): (Duration, Duration) = self

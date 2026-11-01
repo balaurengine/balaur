@@ -18,6 +18,7 @@ use balaur_geometry::skeleton;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
+use crate::boot_cost;
 use crate::kiss3d_camera::{apply_camera, apply_camera_2d, publish_camera, publish_camera_2d};
 use crate::{ClearColorConfig, Renderable2d, Renderable3d, Shape2d, WindowConfig, WindowedBackend};
 
@@ -270,6 +271,7 @@ impl Frontend {
         // What the window last spent, filed before this frame's own spans so
         // a dock reads the frame in the order it ran.
         report_render_cost(app, window);
+        boot_cost::report_shader_builds(app, self.frame);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.
         let reloaded = self.assets_reloaded(app);
@@ -433,10 +435,10 @@ pub async fn run_windowed_async(
         samples: present::samples_of(&window_settings),
         ..CanvasSetup::default()
     };
-    let phase = balaur_core::timings::Phase::start();
+    let phase = boot_cost::window_opening();
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
-    phase.note("renderer");
+    boot_cost::note_window_opened(&phase);
     // A lazy UI builds no widgets on an idle frame, so the last pass's shapes
     // have to be drawn again. kiss3d stopped doing that by default.
     window.set_ui_retained(true);
@@ -509,6 +511,7 @@ pub async fn run_windowed_async(
             announced = true;
             crate::hidden_tab::announce_ready();
         }
+        boot_cost::note_drawn(f.frame);
         f.shoot(&app, &mut window);
         if app.engine.quit_requested() {
             break;
@@ -595,7 +598,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
     pollster::block_on(async move {
         // Not `new_hidden_*`: a hidden window still needs a display server.
         // Surface-less rendering runs on a CI box with no display at all.
-        let phase = balaur_core::timings::Phase::start();
+        let phase = boot_cost::window_opening();
         // A headless window draws at the sample count its setup asks, so a
         // shot is antialiased as `[window] msaa` says.
         let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
@@ -604,7 +607,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             ..CanvasSetup::default()
         };
         let mut window = Window::new_headless_with_setup(width, height, setup).await;
-        phase.note("renderer");
+        boot_cost::note_window_opened(&phase);
         window.set_ui_retained(true);
         let mut f = Frontend::new(&window_settings);
         f.on_screen = false;
@@ -635,6 +638,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             if !open {
                 break;
             }
+            boot_cost::note_drawn(f.frame);
             f.shoot(&app, &mut window);
             in_flight.submitted();
             if app.engine.quit_requested() {
