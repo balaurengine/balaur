@@ -9,7 +9,7 @@ use balaur_bs::Compiled;
 use balaur_bs::runtime::{
     Command, EngineKind, Object, Paused, Runtime, Step, StopReason, Value as L,
 };
-use balaur_script::{Frame, NodeId, Pause, PauseReason, ScriptHost, StepMode, Value};
+use balaur_script::{Frame, NodeId, Pause, PauseReason, StepMode, Value};
 use std::rc::Rc;
 
 /// What a stop holds, and whose it is.
@@ -69,7 +69,7 @@ impl BsHost {
         for (key, file) in files {
             if on && !file.compiled.meta.debug {
                 drop(file);
-                if let Err(e) = ScriptHost::reload(self, &key) {
+                if let Err(e) = self.rebuild_key(&key) {
                     tracing::error!("{e:#}");
                 }
             } else if let Ok(mut rt) = file.home.rt.try_borrow_mut() {
@@ -118,6 +118,16 @@ impl BsHost {
 
     pub(super) fn is_held(&self) -> bool {
         self.inner.stopped.borrow().is_some()
+    }
+
+    /// Whether the file at `key` has the call a stop holds: its memory takes
+    /// no other call until that one goes on.
+    pub(super) fn stopped_in(&self, key: &str) -> bool {
+        self.inner
+            .stopped
+            .borrow()
+            .as_ref()
+            .is_some_and(|held| held.path == key)
     }
 
     /// Whether a call of `key` is parked: its memory cannot be swapped yet.
@@ -176,7 +186,7 @@ impl BsHost {
         }
         let loaded = self.inner.files.borrow().contains_key(key);
         if loaded {
-            balaur_script::ScriptHost::reload(self, key)?;
+            self.rebuild_key(key)?;
         }
         Ok(())
     }
@@ -185,6 +195,13 @@ impl BsHost {
         let key = key_of(path);
         if lines.is_empty() {
             self.inner.breaks.borrow_mut().remove(&key);
+            // No probes left to pay for, once nothing runs in them.
+            if !self.holds_file(&key) && self.inner.debugging.borrow_mut().remove(&key) {
+                let loaded = self.inner.files.borrow().contains_key(&key);
+                if loaded {
+                    self.rebuild_key(&key)?;
+                }
+            }
         } else {
             self.inner
                 .breaks
@@ -272,7 +289,16 @@ impl BsHost {
                     self.answer(p.done, to_neutral(&v));
                 }
             }
-            Ok(Step::Waiting) => self.inner.tasks.borrow_mut().extend(task),
+            // Its scene may have parked while the debugger held it.
+            Ok(Step::Waiting) => {
+                let parked = self.inner.parked.borrow().iter().any(|i| i.node == node);
+                let tasks = if parked {
+                    &self.inner.parked_tasks
+                } else {
+                    &self.inner.tasks
+                };
+                tasks.borrow_mut().extend(task);
+            }
             Err(e) => {
                 let e = anyhow!("[{path}] {e}");
                 tracing::error!("{e:#}");

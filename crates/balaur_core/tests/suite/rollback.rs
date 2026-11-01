@@ -258,3 +258,19 @@ fn a_stale_input_does_not_mask_a_correction_that_can_still_be_made() {
         "the old one was counted, not lost"
     );
 }
+
+#[test]
+fn dropping_a_session_makes_every_tick_final_again() {
+    let (mut app, _) = app_driven_by_input();
+    let mut session = Session::new(&[PLAYER], 16);
+    session.submit(PLAYER, 1, input_at(1));
+    session.advance(&mut app);
+    let held = balaur_core::rollback::clock(&app.engine).settled;
+    assert_ne!(
+        held,
+        u64::MAX,
+        "the control: a session can take a tick back"
+    );
+    drop(session);
+    assert_eq!(balaur_core::rollback::clock(&app.engine).settled, u64::MAX);
+}

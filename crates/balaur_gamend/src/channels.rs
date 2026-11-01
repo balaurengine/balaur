@@ -65,6 +65,13 @@ impl Rejoins {
         }
     }
 
+    /// The game left a topic, so no join waits for it. True if one was.
+    pub(crate) fn forget(&mut self, topic: &str) -> bool {
+        let waiting = self.due.len();
+        self.due.retain(|due| due.topic != topic);
+        self.due.len() != waiting
+    }
+
     /// When the soonest waiting join falls due, if one is waiting.
     pub(crate) fn next_due(&self) -> Option<f64> {
         self.due.iter().map(|due| due.at).reduce(f64::min)
@@ -120,6 +127,16 @@ mod tests {
 
     fn lobby() -> Vec<(String, Json)> {
         vec![(String::from("lobby:7"), json!({ "password": "x" }))]
+    }
+
+    #[test]
+    fn leaving_a_crashed_channel_ends_its_wait_to_join_again() {
+        let mut rejoins = Rejoins::default();
+        let mut topics = lobby();
+        rejoins.heard("phx_error", "lobby:7", "user:1", &mut topics, 0.0);
+        assert!(rejoins.forget("lobby:7"), "it was waiting");
+        assert!(!rejoins.forget("lobby:7"), "and is no longer");
+        assert!(rejoins.take_due(f64::MAX).is_empty());
     }
 
     #[test]

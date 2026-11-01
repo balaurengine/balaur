@@ -821,6 +821,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
             None => app.run(),
         }
+        balaur_core::replay::stop_recording(&engine, "quit");
         balaur::logbuf::flush_file();
         if let Some(log) = &timings {
             print_timings(log);
@@ -841,6 +842,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     } else {
         balaur::run(app, &title)
     };
+    balaur_core::replay::stop_recording(&engine, "quit");
     if let Some(log) = &timings {
         print_timings(log);
     }

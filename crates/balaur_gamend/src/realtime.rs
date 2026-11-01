@@ -510,7 +510,6 @@ impl LiveSocket {
                 });
                 Next::Stay
             }
-            SocketEvent::Closed { reason } => Next::Drop(reason),
         }
     }
 
@@ -561,12 +560,30 @@ impl LiveSocket {
                 event,
                 payload,
             } => {
-                let (reference, frame) = link.protocol.push(&topic, &event, &payload)?;
+                let Ok((reference, frame)) = link.protocol.push(&topic, &event, &payload) else {
+                    self.refuse(request, &format!("not joined to {topic}"));
+                    return Ok(true);
+                };
                 (reference, frame, request)
             }
             SocketCommand::Leave { request, topic } => {
                 self.topics.retain(|(joined, _)| *joined != topic);
-                let (reference, frame) = link.protocol.leave(&topic)?;
+                self.rejoining.retain(|(_, rejoin)| rejoin.topic != topic);
+                let waiting = self.rejoins.forget(&topic);
+                let Ok((reference, frame)) = link.protocol.leave(&topic) else {
+                    // A crashed channel is gone from the server already, so
+                    // ending its wait to join again is the whole of leaving.
+                    if waiting {
+                        let _ = self.events.send(GamendEvent::Replied {
+                            request,
+                            status: "ok".into(),
+                            response: Json::Null,
+                        });
+                    } else {
+                        self.refuse(request, &format!("not joined to {topic}"));
+                    }
+                    return Ok(true);
+                };
                 (reference, frame, request)
             }
             SocketCommand::CallHook {
@@ -576,17 +593,32 @@ impl LiveSocket {
                 args,
             } => {
                 let payload = json!({ "plugin": plugin, "fn": function, "args": args });
-                let (reference, frame) =
-                    link.protocol
-                        .push(&self.user_topic, "call_hook", &payload)?;
+                let Ok((reference, frame)) =
+                    link.protocol.push(&self.user_topic, "call_hook", &payload)
+                else {
+                    let topic = self.user_topic.clone();
+                    self.refuse(request, &format!("not joined to {topic}"));
+                    return Ok(true);
+                };
                 (reference, frame, request)
             }
             SocketCommand::Close => return Ok(false),
             SocketCommand::Interrupt => return Err(anyhow!("interrupted by the game")),
         };
-        link.send(&frame).map_err(anyhow::Error::msg)?;
+        // Before the send: one that fails drops the link, and `fail_pending`
+        // answers what is listed here.
         self.pending.push((reference, request));
+        link.send(&frame).map_err(anyhow::Error::msg)?;
         Ok(true)
+    }
+
+    /// A request the socket cannot make, answered: a caller's mistake leaves
+    /// the connection up.
+    fn refuse(&self, request: u64, message: &str) {
+        let _ = self.events.send(GamendEvent::Failed {
+            request,
+            message: message.into(),
+        });
     }
 
     /// A reply that will never come is an error the caller must see, not a
@@ -598,6 +630,24 @@ impl LiveSocket {
                 request,
                 message: "the connection ended before the reply".into(),
             });
+        }
+    }
+}
+
+impl Drop for LiveSocket {
+    /// What the game queued and the socket never read still gets an answer,
+    /// or its caller would wait on a reply that cannot come.
+    fn drop(&mut self) {
+        while let Ok(command) = self.commands.try_recv() {
+            match command {
+                SocketCommand::Join { request, .. }
+                | SocketCommand::Push { request, .. }
+                | SocketCommand::Leave { request, .. }
+                | SocketCommand::CallHook { request, .. } => {
+                    self.refuse(request, "the socket closed");
+                }
+                SocketCommand::Close | SocketCommand::Interrupt => {}
+            }
         }
     }
 }

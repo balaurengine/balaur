@@ -193,6 +193,8 @@ fn stacked(lines: &[(String, Rc<Laid>)]) -> Typeset {
 /// What a field keeps between passes.
 #[derive(Default)]
 pub(crate) struct Field {
+    /// The node it is kept for, let go with it; a row of a tool has none.
+    pub(crate) owner: Option<balaur_core::hecs::Entity>,
     pub(crate) editing: Editing,
     /// What it was last filled from: a script writing a new text refills it,
     /// and the reader's own typing coming back as the same text does not.

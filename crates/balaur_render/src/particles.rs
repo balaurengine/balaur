@@ -225,6 +225,22 @@ pub(crate) struct Births {
     remaining: f32,
 }
 
+/// How far an emitter moves this frame, as `burst_system` counts it: a held one
+/// draws what it has.
+#[cfg(feature = "window")]
+pub(crate) fn step_of(
+    eng: &Engine,
+    world: &balaur_core::hecs::World,
+    entity: Entity,
+    dt: f32,
+) -> f32 {
+    let held = !balaur_core::process::ticks(world, entity, balaur_core::process::pause(eng))
+        || eng
+            .frozen_root()
+            .is_some_and(|root| balaur_core::scene::is_within(world, entity, root));
+    if held { 0.0 } else { dt }
+}
+
 #[cfg(feature = "window")]
 impl Births {
     /// How many particles are born this frame.
@@ -233,6 +249,10 @@ impl Births {
             self.debt = 0.0;
             // A burst re-arms once emitting has been off.
             self.fired = false;
+            return 0;
+        }
+        // A held emitter bears nothing. A burst stays armed until it goes on.
+        if dt <= 0.0 {
             return 0;
         }
         if emitter.one_shot {
@@ -460,7 +480,7 @@ pub(crate) fn sync_particles(
             slot,
             emitter,
             [global.position.x, global.position.y],
-            frame.dt,
+            step_of(&app.engine, &world, entity, frame.dt),
         );
         let appearance = world
             .get::<&GlobalAppearance>(entity)

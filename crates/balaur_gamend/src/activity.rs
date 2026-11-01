@@ -47,8 +47,10 @@ struct Entry {
 struct Socket {
     open: bool,
     topics: Vec<String>,
-    /// Why it closed, once it has.
+    /// Why it closed, or why it is trying again.
     reason: Option<String>,
+    /// It closed for good, and its row stays only to say why.
+    ended: bool,
 }
 
 #[derive(Default)]
@@ -76,6 +78,7 @@ impl Activity {
     pub(crate) fn configured(&mut self, url: &str) {
         url.clone_into(&mut self.url);
         self.user = None;
+        self.sockets.clear();
     }
 
     /// A call went out; `socket` is the one it went on, where it has one.
@@ -104,6 +107,8 @@ impl Activity {
             reply: None,
         });
         if kind == "connect" {
+            // A closed socket stays to say why until the next one starts.
+            self.sockets.retain(|_, socket| !socket.ended);
             self.sockets.insert(request, Socket::default());
         }
     }
@@ -192,6 +197,7 @@ impl Activity {
             | GamendEvent::SocketError { socket, reason } => {
                 let state = self.sockets.entry(*socket).or_default();
                 state.open = false;
+                state.ended = true;
                 state.reason = Some(reason.clone());
                 self.finish(*socket, reason.clone(), None);
             }
@@ -399,6 +405,24 @@ mod tests {
             field(&sockets[0], "topics"),
             &Value::List(vec![Value::Str("lobby:7".into())])
         );
+    }
+
+    #[test]
+    fn a_new_connect_clears_a_closed_socket_and_keeps_one_coming_back() {
+        let mut activity = Activity::default();
+        activity.started(1, None, "connect", String::from("realtime"), None);
+        activity.heard(&GamendEvent::SocketReconnecting {
+            socket: 1,
+            attempt: 1,
+            reason: String::from("reset by peer"),
+            wait: 1.0,
+        });
+        activity.heard(&GamendEvent::SocketClosed {
+            socket: 2,
+            reason: String::from("closed by the game"),
+        });
+        activity.started(3, None, "connect", String::from("realtime"), None);
+        assert_eq!(activity.sockets.keys().copied().collect::<Vec<_>>(), [1, 3]);
     }
 
     #[test]

@@ -18,8 +18,9 @@
 //!
 //! # One client
 //!
-//! A second connection replaces the first. Debugging is a conversation with
-//! one editor, and two clients sharing one breakpoint set would confuse both.
+//! Connections are served one at a time: a second waits until the first
+//! closes. Debugging is a conversation with one editor, and two clients sharing
+//! one breakpoint set would confuse both.
 
 // Every request handler shares one signature so `dispatch` reads as the
 // table it is; several have nothing to fail at and some need no state.

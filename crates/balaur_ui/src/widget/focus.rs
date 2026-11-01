@@ -17,6 +17,7 @@ use crate::widget::node::{Move, UiFocus, Widget};
 /// `focusable` flag can only take a candidate out, never put one in.
 pub(crate) fn takes_focus(widget: &Widget) -> bool {
     widget.visible
+        && !widget.disabled
         && widget.focusable
         && (matches!(
             widget.kind.as_str(),

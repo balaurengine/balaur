@@ -136,12 +136,11 @@ pub fn next_frame(eng: &Engine, ctx: &egui::Context) -> NextFrame {
 
 /// Fonts, a theme swap and a forgotten scene each take a pass to settle.
 fn settling(eng: &Engine) -> bool {
-    eng.try_resource::<UiState>().is_some_and(|state| {
-        let state = state.borrow();
-        !state.fonts_installed || state.forget_egui
-    }) || eng
-        .try_resource::<UiConfig>()
-        .is_some_and(|config| config.borrow().changed)
+    eng.try_resource::<UiState>()
+        .is_some_and(|state| !state.borrow().fonts_installed)
+        || eng
+            .try_resource::<UiConfig>()
+            .is_some_and(|config| config.borrow().changed)
 }
 
 /// Whether a repaint egui or a script scheduled has come due, clearing what has.

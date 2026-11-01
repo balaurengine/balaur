@@ -25,8 +25,6 @@ pub(crate) struct ProjectState {
     /// The per-user folder the editor shares across projects, named once at
     /// start-up because it is derived from the editor's own manifest.
     home: PathBuf,
-    /// What the last folder pick chose, read once by the script that asked.
-    picked: Option<String>,
 }
 
 pub(crate) struct ProjectPlugin {
@@ -50,7 +48,6 @@ impl balaur_plugin::Plugin for ProjectPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(ProjectState {
             home: PathBuf::new(),
-            picked: None,
         });
         // The data directory is derived from the loaded manifest, which is
         // the editor's own by the time the first frame runs.
@@ -336,8 +333,6 @@ fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
         if let Some(folder) = &picked {
             balaur::file_api::add_root(eng, folder);
         }
-        let state = eng.resource::<ProjectState>();
-        state.borrow_mut().picked.clone_from(&picked);
         Ok(picked.map_or(Value::Nil, Value::text))
     });
 }

@@ -505,10 +505,6 @@ impl App {
                 scene::free_nodes(eng, &freed);
             }
         });
-        // After deferred destruction, so a recorded digest describes the
-        // world the next tick starts from, and after every plugin's Last work
-        // so nothing this frame produced is left out of the events.
-        app.add_system(Stage::Last, crate::replay::record_frame_system);
         Ok(app)
     }
 
@@ -1124,6 +1120,10 @@ impl App {
             }
             *elapsed = started.elapsed();
         }
+        // After every stage, every plugin's `Last` work and the frees and the
+        // scene switch included: a recorded digest describes the world the next
+        // tick starts from, and nothing this frame produced is left out.
+        crate::replay::record_frame_system(&self.engine, dt);
         crate::timings::publish(&self.engine, frame_started.elapsed(), stages, fixed_steps);
         crate::logbuf::flush_file();
     }

@@ -221,6 +221,7 @@ pub(crate) fn edit(
     if typed.response.lost_focus() {
         left(ui, at, entity, field.editing.text(), submit);
     }
+    field.owner = Some(entity);
     state.borrow_mut().fields.insert(typing.id, field);
 }
 

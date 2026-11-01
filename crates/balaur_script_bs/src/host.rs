@@ -22,6 +22,7 @@ use tasks::Pending;
 
 mod debug;
 mod engine_facing;
+mod holds;
 mod profile;
 mod tasks;
 mod tools;
@@ -189,6 +190,9 @@ struct Inner {
     /// Files to rebuild between frames for another reason than an edit: a
     /// profiler switched on or off.
     rebuild: RefCell<Vec<String>>,
+    /// Files whose code changed, and whose instances are owed `on_hot_reload`
+    /// once the build lands.
+    reload_owed: RefCell<Vec<String>>,
     /// Each file built as a unit, by key: a script links the units of the
     /// modules it uses, each built once for every script ([`BsHost::unit`]).
     units: RefCell<HashMap<String, Arc<Compiled>>>,
@@ -206,14 +210,6 @@ struct Inner {
     /// changed since the build was made), so the project's instance runs on
     /// its engine.
     skip_native: Cell<bool>,
-}
-
-/// What holds an instance back from a pass: a game pause and `process` modes,
-/// and the subtree a debugger stop or a paused replay holds.
-#[derive(Clone, Copy)]
-struct Holds {
-    pause: balaur_core::process::Pause,
-    frozen: Option<balaur_core::hecs::Entity>,
 }
 
 /// The `.bs` backend. Cheap to clone; clones share the one host.
@@ -285,6 +281,7 @@ impl BsHost {
                 instances: RefCell::default(),
                 parked: RefCell::default(),
                 parked_tasks: RefCell::default(),
+                reload_owed: RefCell::default(),
                 held: RefCell::default(),
                 holds: Cell::new(0),
                 events,
@@ -712,7 +709,6 @@ impl BsHost {
                 ty,
             }),
         );
-        self.announce_reload(&[key.to_string()]);
         Ok(())
     }
 
@@ -867,38 +863,11 @@ impl BsHost {
         Some((file, inst))
     }
 
-    // What keeps an instance from a pass, read once per pass.
-    fn holds(&self) -> Holds {
-        let engine = &self.inner.engine;
-        Holds {
-            pause: balaur_core::process::pause(engine),
-            frozen: engine.frozen_root(),
-        }
-    }
-
-    // Whether a debugger stop or a paused replay holds `node`.
-    fn frozen(&self, node: u64, holds: Holds) -> bool {
-        holds.frozen.is_some_and(|root| {
-            balaur_core::entity_of(NodeId(node)).is_ok_and(|entity| {
-                balaur_core::scene::is_within(&self.inner.engine.world(), entity, root)
-            })
-        })
-    }
-
-    // Whether nothing holds `node` this frame.
-    fn ticks(&self, node: u64, holds: Holds) -> bool {
-        !self.frozen(node, holds)
-            && (!holds.pause.holds()
-                || balaur_core::entity_of(NodeId(node)).is_ok_and(|entity| {
-                    balaur_core::process::ticks(&self.inner.engine.world(), entity, holds.pause)
-                }))
-    }
-
     // `method` on every instance nothing holds.
     fn each(&self, method: &str, args: &[Value], sync_only: bool) {
         let holds = self.holds();
         let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
-        all.retain(|inst| self.ticks(inst.node, holds));
+        all.retain(|inst| self.ticks(inst.node, holds) && !self.stopped_in(&inst.path));
         self.each_of(&all, method, args, sync_only);
     }
 
@@ -906,17 +875,47 @@ impl BsHost {
     fn tell(&self, method: &str, args: &[Value], about: impl Fn(&Instance) -> bool) {
         let holds = self.holds();
         let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
-        all.retain(|inst| about(inst) && !self.frozen(inst.node, holds));
+        all.retain(|inst| {
+            about(inst) && !self.frozen(inst.node, holds) && !self.stopped_in(&inst.path)
+        });
         self.each_of(&all, method, args, false);
     }
 
     // Every instance of a file just rebuilt, its fields carried across: the
     // one place a script whose fields moved can bring them forward. A parked
     // one catches up when it returns.
-    fn announce_reload(&self, keys: &[String]) {
-        self.tell(balaur_core::hooks::ON_HOT_RELOAD, &[], |inst| {
-            keys.contains(&inst.path)
-        });
+    fn announce_reloads(&self) {
+        let owed: Vec<String> = {
+            let rebuilding = self.inner.rebuild.borrow();
+            let mut owed = self.inner.reload_owed.borrow_mut();
+            let (waiting, ready) = std::mem::take(&mut *owed)
+                .into_iter()
+                .partition(|key| rebuilding.contains(key));
+            *owed = waiting;
+            ready
+        };
+        if !owed.is_empty() {
+            self.tell(balaur_core::hooks::ON_HOT_RELOAD, &[], |inst| {
+                owed.contains(&inst.path)
+            });
+        }
+    }
+
+    // `key` built again, with no word to its script: what a reload and a
+    // debugger's or profiler's rebuild share.
+    pub(crate) fn rebuild_key(&self, key: &str) -> Result<()> {
+        if self.holds_file(key) {
+            return Err(anyhow!(
+                "{key} is stopped at a breakpoint; it reloads once it goes on"
+            ));
+        }
+        // Asked for by name, a reload reads the file again.
+        self.invalidate(key);
+        if self.as_units(key) {
+            self.rebuild_project(&[key.to_string()])
+        } else {
+            self.reload_alone(key)
+        }
     }
 
     // `update` and `fixed_update` run every frame, so an async one would
@@ -924,15 +923,20 @@ impl BsHost {
     fn each_of(&self, all: &[Rc<Instance>], method: &str, args: &[Value], sync_only: bool) {
         let mut start = 0;
         while start < all.len() {
-            // A stop freezes the game, the rest of this pass with it.
-            if self.is_held() {
-                break;
+            // A stop in this pass holds the rest of what it holds.
+            let held = |inst: &Instance| {
+                self.is_held()
+                    && (self.frozen(inst.node, self.holds()) || self.stopped_in(&inst.path))
+            };
+            if held(&all[start]) {
+                start += 1;
+                continue;
             }
             // The nodes in a row that run one script, in scene order.
             let path = &all[start].path;
             let run = all[start..]
                 .iter()
-                .take_while(|inst| inst.path == *path)
+                .take_while(|inst| inst.path == *path && !held(inst))
                 .count();
             let group = &all[start..start + run];
             start += run;

@@ -43,6 +43,14 @@ pub(crate) fn folded(entity: Entity, widget: &Widget) -> bool {
     })
 }
 
+/// Let go of the fold of each window freed.
+pub(crate) fn forget_freed(world: &balaur_core::hecs::World) {
+    FOLDED.with(|held| {
+        held.borrow_mut()
+            .retain(|bits, _| Entity::from_bits(*bits).is_some_and(|node| world.contains(node)));
+    });
+}
+
 fn set_folded(entity: Entity, now: bool) {
     FOLDED.with(|held| {
         held.borrow_mut().insert(entity.to_bits().get(), now);

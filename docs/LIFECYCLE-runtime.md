@@ -4,13 +4,15 @@ The animation, audio, physics, input, UI and render crates each keep state that 
 
 ## Holds and scripts
 
-A game pause is `Engine::set_paused`. `Stage::FixedUpdate` keeps running through it, and each subsystem asks `process::ticks` about its own nodes. A debugger freeze or a held replay (`Engine::frozen_root`) stops that stage and no other.
+A game pause is `Engine::set_paused`. `Stage::FixedUpdate` keeps running through it, and each subsystem asks `process::ticks` about its own nodes. A debugger freeze or a held replay stops that stage and no other. `Engine::frozen_root` names what such a hold covers: the `Engine::debug_scope` subtree, or the whole tree with no scope. A pause covers the same subtree.
 
 A parked scene hangs under a hidden holder with `ProcessMode::Disabled`, so `process::ticks` answers false for it. `events::announce` returns at once for a parked node.
 
-The script host obeys the same rule. `BsHost::each` runs `update`, `fixed_update`, `call_all` and `call_all_with` only on instances `process::ticks` lets run. `BsHost::run_tasks` leaves a task on a held node waiting with its wake kept, and it goes on when the hold ends.
+The script host obeys the same rule. `BsHost::each` runs `update`, `fixed_update`, `call_all` and `call_all_with` on an instance unless something holds it. Three things do: `process::ticks` answers false, its node sits under `frozen_root`, or its file holds a debugger stop (`stopped_in`).
 
-Two calls still reach a held script: `ScriptHost::announce` and `ScriptHost::call_on`. The pause and device hooks use the first. Every `on_<event>` hook that `events::announce` runs uses the second. So a held script hears the events below, while a task on it that awaits one waits. `set_parked` sets a parked script's instance aside, and neither call finds it.
+`BsHost::run_tasks` leaves a task held the same way waiting with its wake kept, and it goes on when the hold ends. So an editor outside the debug scope keeps running its `update` and its tasks through a stop. A stop in the middle of a pass skips only what it holds, in `each_of`.
+
+Two calls still reach a script that a pause or a `process` mode holds: `ScriptHost::announce` and `ScriptHost::call_on`. The pause and device hooks use the first, which skips an instance under `frozen_root` or in the file holding a stop. Every `on_<event>` hook that `events::announce` runs uses the second, which asks nothing. So a held script hears the events below, while a task on it that awaits one waits. `set_parked` sets a parked script's instance aside, and neither call finds it.
 
 ## Animation
 
@@ -170,7 +172,7 @@ stateDiagram-v2
 |---|---|
 | Waiting: `after=Some(id)` with `id` in `tweens`, `pending=Some(spec)`, `running=true` | Sits out every step. `is_tween_running` answers true. |
 | Running: `running=true`, `after` empty or naming nothing | `time` moves by `fixed_dt * speed`. A node tween writes its pose and fires its calls. |
-| Spent: `running=false`, `value=true` | A value tween that ran out. `tween_value_of` answers where it landed. |
+| Spent: `running=false`, `value=true` | A value tween that ran out, kept to the next frame. `is_tween_running` answers false, and `tween_value_of` answers where it landed. |
 | Gone: no entry in `tweens` | `is_tween_running` false, `tween_value_of` nil, `stop` a no-op. |
 
 | From | Trigger | To | What it does |
@@ -319,11 +321,11 @@ Source: `crates/balaur_animation/src/modifier.rs`, `Modifier2d.enabled`, `Modifi
 
 Starts as authored, on by default. Ends when the component is removed.
 
-Held by a pause, a `process` mode or a parked scene: `modify_system` asks no pause and no mode. It filters out parked nodes and returns early under a freeze.
+Held by a pause, a `process` mode or a parked scene: `modify_system` skips the node through `process::ticks`, so it writes nothing, a jiggle chain's memory stays, and held time is not owed. A freeze returns early.
 
 ## Audio
 
-No system in this crate asks about a game pause or a `process` mode. A sound plays through a pause unless `paused` holds it. `count_down_system` runs in `Stage::FixedUpdate`, so a freeze stops the clock and leaves the sink playing.
+`hold_sounds` runs first in `sweep_sounds_system`, every frame in `Stage::PostUpdate`. It holds a node's sound with its node, and a cue has no node to hold it. `count_down_system` runs in `Stage::FixedUpdate`, so a freeze stops every clock. A cue, or a node outside the frozen subtree, keeps its sink playing while its clock stands.
 
 ### Sound node voice
 
@@ -333,15 +335,15 @@ Source: `crates/balaur_audio/src/lib.rs`, `Voice.handle`.
 
 | State | What is true |
 |---|---|
-| `handle=None` | Nothing started, or it ended. `Sound.playback_time` reads 0. |
-| `handle=Some(h)` | This node started playback `h`. A sink that empties ahead of the clock leaves it set. |
+| `handle=None` | Nothing started, it was stopped, or it played out. `Sound.playback_time` reads 0. |
+| `handle=Some(h)` | This node started playback `h`. A known length ends on the clock, so a sink that empties first leaves it set. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `play_node`, script `audio.play(node)` | `Some(new)` | Stops the old handle at once and starts a new one from the top. |
 | `None` | Component `written` with `autoplay` and a `file` | `Some(new)` | Starts it, fading over `crossfade_time` when a file change released another. |
 | `Some` | Component `written`, `file` changed | `None`, then maybe `Some(new)` | `release_over` with `crossfade_time`, then autoplay. |
-| `Some` | Component `written`, same file | same | `retune` lands volume, pitch, pause, pan, `fade_out_time` and distances. |
+| `Some` | Component `written`, same file | same | `retune` lands volume, pitch, pause, pan, `fade_out_time` and distances. `hold_sounds` puts any hold back over the pause. |
 | `Some` | `stop_on`, script `audio.stop(node)` | `None` | `release` over the sound's `fade_out_time`. No event. |
 | `Some` | `announce_finished` after the clock ran out or a sink of unknown length ended | `None` | Announces `finished` with the handle. |
 | `Some` | `skip_on` past the last file | `None` | Announces `finished` with the handle. |
@@ -352,7 +354,7 @@ Starts in `None`. Ends when the voice is dropped.
 
 Refused or ignored: `play_on` errors with no `sound` component, no `file`, or a file that does not exist. Autoplay warns instead.
 
-Held by a pause, a `process` mode or a parked scene: the voice does not change. A parked scene's playback holds, as the next block says.
+Held by a pause, a `process` mode or a parked scene: the voice does not change. Its playback holds, as the next block says.
 
 ### Sound playback
 
@@ -377,7 +379,7 @@ stateDiagram-v2
 |---|---|
 | Sounding: in `routing` and `playing` (script: `is_playing` true) | The sink is live. |
 | Silent: in `routing` only (script: `is_playing` true) | No device, it did not decode, or the sink emptied ahead of the clock. The clock still counts. |
-| flag `Routed.paused=true` on either | The clock and the sink hold. |
+| flag `Routed.paused=true` on either | The clock and the sink hold. The node asked through `Sound.paused`, or `hold_sounds` found the node held. |
 | flag `Routed.fade` below 1 on either | `Timeline::left` is under `fade_out_time`, so the gain falls as it ends. |
 | Releasing: in `releasing` only (script: `is_playing` false, `releasing_volume` a number) | Falling to silence after a stop. It no longer counts as the game's sound. |
 | Gone: in none (script: `is_playing` false) | Setters no-op. |
@@ -386,7 +388,8 @@ stateDiagram-v2
 |---|---|---|---|
 | none | `play_with`, device open, decodes | Sounding | Places an emitter first when it has one. The handle counts up and is never reused. |
 | none | `play_with`, no device or a bad decode | Silent | A bad decode warns. |
-| Sounding, Silent | `set_paused`, `retune`, `parked_changed` | same | Sets `Routed.paused` and pauses the sink. |
+| Sounding, Silent | `set_paused`, `retune` | same | Sets `Routed.paused` and pauses the sink. |
+| Sounding, Silent | `hold_sounds`, a voice's handle, each frame | same | Sets `Routed.paused` to `Sound.paused`, or to true when `process::ticks` is false or the node sits under `frozen_root`. |
 | Sounding, Silent | `count_down_system`, not paused | same | Advances the clock by `dt * pitch` and updates the end fade. |
 | Sounding, Silent | `count_down_system`, clock over | Gone | `stop`, then `announce_finished`. A voice owner hears `finished`. |
 | Sounding | `sweep_sounds_system`, sink empty, clock not `counted` | Gone | `announce_finished`. |
@@ -405,7 +408,7 @@ Starts in Sounding or Silent. Ends in Gone.
 
 Refused or ignored: setters on a Silent handle reach the bookkeeping only. A handle played before the device opened stays Silent, since only `play_with` starts a sink and `restart` needs one.
 
-Held by a pause, a `process` mode or a parked scene: `parked_changed` sets `paused` to parked or what the node asks, so a parked sound holds and comes back. Nothing else holds it.
+Held by a pause, a `process` mode or a parked scene: `hold_sounds` holds a node's sound when `process::ticks` is false. So a pause holds a `pausable` node's sound and an `always` node's plays on. A debugger stop or a paused replay holds the sounds under `frozen_root`. When a hold ends, the sound goes back to what `Sound.paused` asks. A cue's handle has no voice and plays on.
 
 ### Playback clock
 
@@ -442,7 +445,7 @@ stateDiagram-v2
 
 Starts in Delayed or In file. Ends in Past end.
 
-Held by a pause, a `process` mode or a parked scene: `count_down_system` skips a clock while `Routed.paused` is set and asks nothing else.
+Held by a pause, a `process` mode or a parked scene: `count_down_system` skips a clock while `Routed.paused` is set, so a clock holds with its sound. A freeze stops the stage, so every clock stands.
 
 ### Cue
 
@@ -464,13 +467,13 @@ Starts in `loaded=false`. Never ends.
 
 Refused or ignored: `play_cue` warns and answers nil for a name nothing declared or a cue with no files. No voice owns its handle, so `finished` is never announced for it. `Playback::default` gives it a `fade_out_time` of 0, so `stop_playback` stops it at once.
 
-Held by a pause, a `process` mode or a parked scene: nothing asks. The handle has no node, so `parked_changed` never reaches it.
+Held by a pause, a `process` mode or a parked scene: no voice owns the handle, so `hold_sounds` never reaches it. A cue plays through all three, so a pause menu's click still sounds. A freeze stops its clock and leaves its sink playing.
 
 ### Output device
 
 `AudioState` holds how far the output device has opened.
 
-Source: `crates/balaur_audio/src/lib.rs`, `AudioState.configured`, `AudioState.opened`, `AudioState.opening`, `AudioState.awaiting_activation` and `AudioState.device`.
+Source: `crates/balaur_audio/src/lib.rs`, `AudioState.configured`, `AudioState.access`, `AudioState.opening`, `AudioState.device` and `AudioState.was_focused`.
 
 ```mermaid
 stateDiagram-v2
@@ -483,17 +486,17 @@ stateDiagram-v2
     opening --> disabled: open_if_needed fails
     awaiting --> open: UserActivation
     awaiting --> disabled: UserActivation, open fails
+    disabled --> opening: window regains focus
     open --> [*]
-    disabled --> [*]
 ```
 
 | State | What is true |
 |---|---|
-| Untouched: `opened=false`, `opening=None`, `awaiting_activation=false` | Nothing asked for audio yet. |
-| Awaiting: `awaiting_activation=true` | The browser refuses audio before a gesture. Sounds get handles and no sink. Script `device_ready` false. |
-| Opening: `opening=Some(receiver)` | A worker is opening the device. |
-| Open: `opened=true`, `device=Some` | Sounds get sinks. Script `device_ready` true. |
-| Disabled: `opened=true`, `device=None` | Every handle stays silent. Script `device_ready` false. |
+| Untouched: `access=Untried`, `opening=None` | Nothing asked for audio yet. |
+| Awaiting: `access=AwaitingActivation` | The browser refuses audio before a gesture. Sounds get handles and no sink. Script `device_ready` false. |
+| Opening: `access=Untried`, `opening=Some(receiver)` | A worker is opening the device. |
+| Open: `access=Tried`, `device=Some` | Sounds get sinks. Script `device_ready` true. |
+| Disabled: `access=Tried`, `device=None` | Every handle stays silent. Script `device_ready` false. `was_focused` follows the window. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -501,8 +504,9 @@ stateDiagram-v2
 | Untouched, Opening | `open_if_needed`, from `play_with` or script `device_ready` | Open | Waits for the worker, or opens in place when none started. |
 | Untouched, Opening | The same open fails | Disabled | Warns `audio disabled`. |
 | Awaiting | `open_on_activation_system`, `UserActivation` present | Open or Disabled | Runs in `Stage::First`. |
+| Disabled | `sweep_sounds_system`, `focused` true and `was_focused` false | Opening | Sets `access` back to `Untried` and calls `begin_open`. A failed retry waits for the window to come back again. |
 
-Starts in Untouched, or Awaiting on wasm. Ends in Open or Disabled.
+Starts in Untouched, or Awaiting on wasm. Ends in Open. Disabled lasts until a retry opens the device.
 
 Refused or ignored: `open_if_needed` and `begin_open` do nothing while Awaiting.
 
@@ -689,7 +693,7 @@ stateDiagram-v2
 | `enabled`, `disabled` | Component write changing only `enabled`, `toggled_in_place` | as asked | Switches it where it stands. |
 | any | Component write changing more | as the new params say | `apply_joint` removes the joint first and makes it again. |
 | `enabled` | A body at an end disabled, rapier | `body_disabled` | Rapier's `JointEnabled::DisabledByAttachedBody`. |
-| `body_disabled` | The end bodies enabled again, rapier | `enabled` | Rapier's `JointEnabled::Enabled`. |
+| `body_disabled` | An end body enabled again, rapier | `enabled` | Rapier's `JointEnabled::Enabled`. |
 | `enabled` | After a step, reaction over `break_force` or `break_torque`, `broken` | Gone | `break_joints` removes it and announces `joint_break` `#{ a, b, force, torque }`. |
 | any | Script `remove_joint`, `joint3d_removed` | Gone | `remove_joint`. No event. |
 
@@ -1349,23 +1353,27 @@ Source: `crates/balaur_ui/src/lib.rs`, `UiState.fonts_installed`.
 
 Starts false. Ends in true.
 
-### Forget request
+### Freed node sweep
 
-`UiState` holds a request to drop egui's memory.
+`UiState` holds the tree's shape when the widget layer last let go of what freed nodes left. Owed or swept is derived from `scene::shape_revision`.
 
-Source: `crates/balaur_ui/src/lib.rs`, `UiState.forget_egui`.
+Source: `crates/balaur_ui/src/lib.rs`, `UiState.swept_at` and `sweep_freed`.
 
 | State | What is true |
 |---|---|
-| `forget_egui=false` | Nothing asked. |
-| `forget_egui=true` | The next `pass` clears egui's data. Pacing owes a frame for it. |
+| Swept: `swept_at` equals `shape_revision` | No node was added, freed, moved or renamed since the last sweep. |
+| Owed: `swept_at` differs | The next `pass` sweeps. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| false | `forget_scene` | true | Also clears `textures` and `fields`. |
-| true | `pass` | false | `memory.data.clear()`. |
+| Swept | A node added, freed, moved or renamed | Owed | `shape_changed` adds to the revision. |
+| Owed | `sweep_freed`, at the start of `pass` | Swept | Drops each `fields` entry whose `Field.owner` is freed. `window::forget_freed` and `code::forget_freed` do the same for `FOLDED` and `CARETS`. |
 
-Starts false. Never ends.
+Starts with `swept_at` at 0. Never ends.
+
+Refused or ignored: a `Field` with `owner=None`, as a `DragNumber` keeps, is never swept. `edit` and `code_editor` set `owner` on each pass.
+
+Held by a pause, a `process` mode or a parked scene: a parked node is alive, so its field, its caret and its fold stay and a return finds them.
 
 ### Pending theme
 
@@ -1464,7 +1472,7 @@ Source: `crates/balaur_ui/src/widget/schema.rs` and `crates/balaur_ui/src/widget
 | State | What is true |
 |---|---|
 | `disabled=false` (`enabled=true`) | Answers input. |
-| `disabled=true` (`enabled=false`) | `ui.disable()` runs, the pointer reads `Away` and the click sensor is off. Its tooltip still shows. |
+| `disabled=true` (`enabled=false`) | `ui.disable()` runs, the pointer reads `Away` and the click sensor is off. It is no focus stop. Its tooltip still shows. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -1472,7 +1480,7 @@ Source: `crates/balaur_ui/src/widget/schema.rs` and `crates/balaur_ui/src/widget
 
 Starts as authored, enabled by default. Ends when the component is removed.
 
-Refused or ignored: `click`, `submit`, `edit` and a `shortcut` refuse a disabled widget. `takes_focus` does not ask, so it stays a focus stop.
+Refused or ignored: `click`, `submit`, `edit`, a `shortcut` and `takes_focus` refuse a disabled widget.
 
 ### Widget checked
 
@@ -1547,7 +1555,7 @@ Source: `crates/balaur_ui/src/widget/node.rs` and `crates/balaur_ui/src/widget/f
 | any | Tab, Shift+Tab, `Move::Next`, `Move::Previous` | next or previous stop | `advance` walks the stops in scene order and wraps. |
 | any | An arrow, `Move::Up`, `Down`, `Left`, `Right` | a stop on that side | The named neighbor, else `toward`, else `around`. From nothing: last for up and left, first for down and right. |
 | `Some` | Enter, Space, `Move::Accept` | same | `advance` hands it to `clicked`, and a fold flips through `turned_fold`. |
-| `Some` | The widget stops being a stop: hidden, freed or unfocusable | `None` | Next tick it emits `blur`. |
+| `Some` | The widget stops being a stop: hidden, disabled, freed or unfocusable | `None` | Next tick it emits `blur`. |
 | any | `Move::Leave`, script `clear_focus` | `None` | Next tick it emits `blur`. |
 | any | A click into a field, `gained_focus` | `Some` | `edit` writes it. |
 | `Some` | A field left by Escape or a click away, `left` | `None` | A click away emits `submit`, then `blur`. Escape emits `blur` only. |
@@ -1583,7 +1591,7 @@ Starts all clear. Never ends.
 
 A text field's `Editing` holds what an input method is composing.
 
-Source: `crates/balaur_text/src/edit.rs`, `Editing.composing`, kept in `UiState.fields` through `crates/balaur_ui/src/widget/typing.rs`.
+Source: `crates/balaur_text/src/edit.rs`, `Editing.composing`, kept in `UiState.fields` through `crates/balaur_ui/src/widget/typing.rs` (`Field`).
 
 | State | What is true |
 |---|---|
@@ -1597,7 +1605,7 @@ Source: `crates/balaur_text/src/edit.rs`, `Editing.composing`, kept in `UiState.
 | `Some` | `compose`, a commit `admit` empties | `None` | Reports nothing. |
 | any | `set_text`, a script's write of other text | `None` | `Field::refill` calls it. Undo clears too. |
 
-Starts in `None`. Ends with the field.
+Starts in `None`. Ends with the field, which `sweep_freed` drops once its `Field.owner` is freed.
 
 ### Undo step join
 
@@ -1736,7 +1744,7 @@ Source: `crates/balaur_ui/src/widget/rows.rs`, `settle_folds` and `open_walk`.
 |---|---|---|---|
 | any | A caret clicked, `settle_folds` | flipped | Reports `Edit::Folded`, which emits `fold` `#{ row, open }`. |
 
-Starts Open. Ends with the widget, or when egui's data clears.
+Starts Open. Never ends. The set stays in egui's temp data after its widget.
 
 ### Scroll drag
 
@@ -1803,7 +1811,7 @@ Starts as authored, true by default. Ends when the component is removed.
 
 A `collapsible` window keeps whether it shows only its bar. No property holds it.
 
-Source: `crates/balaur_ui/src/widget/window.rs`, `FOLDED`, `folded` and `set_folded`.
+Source: `crates/balaur_ui/src/widget/window.rs`, `FOLDED`, `folded`, `set_folded` and `forget_freed`.
 
 | State | What is true |
 |---|---|
@@ -1814,8 +1822,9 @@ Source: `crates/balaur_ui/src/widget/window.rs`, `FOLDED`, `folded` and `set_fol
 |---|---|---|---|
 | none | `folded`, first asked | `!default_open` | Stored by entity bits. |
 | any | The arrow clicked, `set_folded` | flipped | Marks the widget for the layout. No event. |
+| any | `sweep_freed`, the window's node freed | gone | `forget_freed` drops the entry. |
 
-Starts as `default_open` says. Never ends.
+Starts as `default_open` says. Ends when its node is freed.
 
 Refused or ignored: a window that is not `collapsible`, or has no `header`, always answers false.
 
@@ -2246,14 +2255,14 @@ stateDiagram-v2
 |---|---|---|---|
 | any | `due`, `emitting` false | Off | Zeroes `debt` and re-arms. |
 | Off, Rate | `due`, `emitting` true, not one-shot | Rate | Whole births come off `debt`. |
-| Armed | `due` | Firing or Spent | `total` is `rate * lifetime`, capped to 1 through 4096. `explosiveness` of it is born at once. |
+| Armed | `due`, with time to step | Firing or Spent | `total` is `rate * lifetime`, capped to 1 through 4096. `explosiveness` of it is born at once. |
 | Firing | `due` | Firing or Spent | Moves `remaining` to `debt`. |
 | any | `after_write` | same | New settings, same slot. |
 | any | The node stops being an emitter | gone | `sync_particles` detaches the group. |
 
 Starts as `emitting` and `one_shot` say. Ends when the slot goes.
 
-Held by a pause, a `process` mode or a parked scene: `sync_particles` asks nothing, and steps by `Engine::delta`, which a pause and a freeze do not stop. Live particles move on and births continue. `quad.set_visible` follows the node's appearance.
+Held by a pause, a `process` mode or a parked scene: `step_of` answers 0 for a 2D or 3D emitter when `process::ticks` is false or its node sits under `frozen_root`. With no time `due` bears nothing, so `debt` and the spread stand and an Armed burst stays armed. It still answers `emitting` false. `quad.set_visible` follows the node's appearance.
 
 ### Live particle
 
@@ -2272,6 +2281,8 @@ Source: `crates/balaur_render/src/particles.rs`, `Particle.age` and `Particle.li
 | Alive | `step_emitter`, `age` reaches `lifetime` | Dead | `retain` drops it. |
 
 Starts Alive. Ends Dead.
+
+Held by a pause, a `process` mode or a parked scene: a held emitter's particles stand with their `age`, and it draws what it has.
 
 ### Window mode
 
@@ -2456,6 +2467,7 @@ Starts in None. Ends with the run.
 | `Pressed` | `crates/balaur_ui/src/widget/typing.rs` | `Nothing`, `Moved`, `Changed`, `Left` | What one key did in a field. `Left` means it ended the line and gave up focus. |
 | `Typed` | `crates/balaur_ui/src/widget/typing.rs` | `response`, `changed`, `caret` | What one pass of a field did. |
 | `Moment` | `crates/balaur_ui/src/widget/drag.rs` | `id`, `slow`, `aim`, `auto`, `most`, `typing`, `gained`, `lost` | What one pass of a number knows before it draws. |
+| `CARETS` | `crates/balaur_ui/src/widget/code.rs` | One byte offset per `code` node | Where `caret` was last said to be, so it is emitted only when it moves. `forget_freed` drops a freed node's. |
 | `Move` | `crates/balaur_ui/src/widget/node.rs` | `Next`, `Previous`, `Accept`, `Up`, `Down`, `Left`, `Right`, `Leave` | One request to focus, from a key, a pad or a script. |
 | `Side` (focus) | `crates/balaur_ui/src/widget/focus.rs` | `Up`, `Down`, `Left`, `Right` | An arrow's way across the screen. |
 | `Side` (rows) | `crates/balaur_ui/src/widget/rows.rs` | `Before` (`before`), `Into` (`into`), `After` (`after`) | Where a dragged row would land. |

@@ -9,6 +9,7 @@ mod bs;
 mod bs_host;
 mod components;
 mod dap;
+mod debug_holds;
 mod dependencies;
 mod digest_cover;
 mod editor_theme;

@@ -127,7 +127,9 @@ flowchart TD
 | `PostUpdate` | Audio sweeps, ragdoll blends |
 | `SceneSync` | Transforms and appearance composed down the tree, cameras, screen notifiers, spatial audio |
 | `Render` | Widgets and drawing. Skipped when a rollback re-runs a tick |
-| `Last` | Queued frees, the recorded frame, variable changes, then the scene switch |
+| `Last` | Queued frees, variable changes, then the scene switch |
+
+The recorded frame is written after `Last`, once every stage has run, so it holds the frame's last state.
 
 A frame owes the fixed stage its time through one accumulator. At most `MAX_SUBSTEPS` steps' worth is kept, scaled up under fast forward, and the rest is dropped. A debugger stop drops what is owed.
 
@@ -140,13 +142,15 @@ Eight things can stop part of the game. Each row reads as that one thing acting 
 | Game pause | `engine.set_paused(true)` | Runs | Held on `pausable` nodes | All held, `always` nodes too | Both worlds held | Held on `pausable` nodes | Yes | Reach it |
 | `process = disabled` | Scene key, `node.set_process` | Runs | Held in the subtree | Count on, its tasks wait | Runs | Held in the subtree | Yes | Reach it, but `call_all` skips it |
 | Parked scene | `scene.switch` away | Runs | Held | Task held | Bodies and colliders disabled | Held | No | None reach it |
-| Debugger stop | A breakpoint, a step, a caught error | Skipped | All held | Tasks wait | Held with the stage | Held | Yes | `announce` held, `call_on` reaches it |
+| Debugger stop | A breakpoint, a step, a caught error | Skipped | `update` held in the debug scope, or everywhere with none, and in the stopped file. `fixed_update` goes with the stage | Held where `update` is | Held with the stage | Held | Yes | `announce` held there, `call_on` reaches it |
 | Paused replay | `replay.pause` | Skipped | Held in the debug scope, or everywhere with none | Held with the stage | Held with the stage | Held | Yes | `announce` held there, `call_on` reaches it |
 | `physics.set_paused(true)` | The editor, a script | Runs | Run | Run | Both worlds held | Run | Yes | Reach it |
 | Time scale 0 | `engine.set_time_scale(0)` | Owed nothing | `update` runs with 0, `fixed_update` does not | Held with the stage | Held with the stage | Held with the stage | Yes | Reach it |
 | Hidden | `node.set_visible(false)` | Runs | Run | Run | Runs | Run | No | Reach it |
 
 `call_all` passes by whatever `update` passes by. `announce` reaches every instance but a parked one or one a debugger stop or a paused replay holds. A run driving at a fixed step ignores the time scale. Physics is one world, so a game pause holds an `always` node's bodies too.
+
+A node's sound holds with its node: `hold_sounds` asks `process::ticks` and `frozen_root` every frame. So a game pause holds a `pausable` node's sound and an `always` node's plays on. A cue has no node and plays through all of them.
 
 ### Debugger stop and replay hold
 
@@ -345,7 +349,7 @@ stateDiagram-v2
 | --- | --- |
 | `waiting_init` | In `instances`, its node in `held`. Exported properties are written, `init` has not run. |
 | `running` | In `instances`, and nothing holds it. Gets `update`, `fixed_update`, `call_all`, `announce` and `call_on`. |
-| `held` | In `instances`, and a pause, a `process` mode, a debugger stop or a paused replay holds its node. `update`, `fixed_update` and `call_all` pass it by. `call_on` reaches it, and `announce` does under a pause or a mode. |
+| `held` | In `instances`, and a pause, a `process` mode, a debugger stop or a paused replay holds it. A stop holds its debug scope and every instance of the file it stopped in, so an editor around the game runs on. `update`, `fixed_update` and `call_all` pass it by. `call_on` reaches it, and `announce` does under a pause or a mode. |
 | `parked` | In `parked`. No pass or call finds it. `save_state` and a hot reload still do. |
 | `gone` | Out of both lists, `gone` set, its object dropped. A pass begun before still holds it and calls nothing. |
 
@@ -360,6 +364,7 @@ stateDiagram-v2
 | `parked` | `parked::unpark` | `running` | `set_parked`, then `on_parked_changed(false)`. No `init`. |
 | any | `detach` | `gone` | `on_free`, tasks cancelled |
 | any | A reload of its file | same | Fields carried across by name, tasks ended with a warning, `on_hot_reload` told. A parked instance is carried and not told. |
+| any | A rebuild for the debugger, breakpoints set or cleared | same | Fields carried across by name, tasks ended with a warning. The code did not change, so `on_hot_reload` is not told. |
 
 ### Tasks
 
@@ -383,6 +388,7 @@ stateDiagram-v2
     woken --> stopped: debugger stop
     stopped --> waiting: debugger resume, next await
     stopped --> done: debugger resume, returned
+    stopped --> parked: debugger resume, next await, its scene parked
     done --> [*]
     cancelled --> [*]
 ```
@@ -391,7 +397,7 @@ stateDiagram-v2
 | --- | --- |
 | `first_poll` | Inside `start`, running up to its first await. |
 | `waiting` | In `tasks`, the runtime awaiting its token. Polling finds nothing to do. |
-| `woken` | In `tasks`, its token's value kept in the runtime. The next `run_tasks` goes on, unless something holds its node. |
+| `woken` | In `tasks`, its token's value kept in the runtime. The next `run_tasks` goes on, unless something holds its node or its file holds a debugger stop. |
 | `parked` | In `parked_tasks`. Wakes are kept and nothing polls it. |
 | `stopped` | Taken out of the lists and held by the debugger's stop with its object. |
 | `done` | Returned. A caller awaiting it through `call_async` is woken on the next step. |

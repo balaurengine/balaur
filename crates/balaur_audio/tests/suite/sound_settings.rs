@@ -468,3 +468,36 @@ fn an_attenuation_naming_no_curve_is_refused() {
         "a refused write keeps what was held"
     );
 }
+
+#[test]
+fn a_pause_holds_a_node_sound_and_an_always_node_keeps_playing() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav_of(dir.path(), "tone.wav", tenths(100));
+    let mut app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\n");
+    for _ in 0..3 {
+        app.tick(STEP);
+    }
+    let before = playback_time(&app, entity);
+    assert!(before > 0.0, "the control: it plays");
+
+    app.engine.set_paused(true);
+    app.tick(STEP);
+    let held = playback_time(&app, entity);
+    for _ in 0..10 {
+        app.tick(STEP);
+    }
+    assert!(
+        (playback_time(&app, entity) - held).abs() < 1e-9,
+        "it holds"
+    );
+
+    balaur_core::process::set(
+        &mut app.engine.world_mut(),
+        entity,
+        balaur_core::process::ProcessMode::Always,
+    );
+    app.tick(STEP);
+    app.tick(STEP);
+    assert!(playback_time(&app, entity) > held, "always keeps playing");
+}

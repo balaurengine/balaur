@@ -70,13 +70,13 @@ pub struct ReplaySetupRegistry(pub Vec<(String, CaptureFn, RestoreFn)>);
 #[derive(Default)]
 pub struct ReplayFeed(pub Option<serde_json::Map<String, serde_json::Value>>);
 
-/// What this run is doing about recordings. Set once by whoever drives it,
-/// before the project loads — a script's `init` can already open a socket.
+/// Whether a recording is what feeds this run. Set when a session is loaded,
+/// which is before the project loads in a `balaur replay`: a script's `init`
+/// can already open a socket. A recording being written is `Recording`.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReplayMode {
     #[default]
     Off,
-    Recording,
     Playing,
 }
 
@@ -628,7 +628,6 @@ pub fn start_recording(
         per_tick_digest,
         eng.tick(),
     )?;
-    *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Recording;
     eng.resource::<Recording>().borrow_mut().0 = Some(recorder);
     Ok(())
 }
@@ -637,9 +636,6 @@ pub fn start_recording(
 pub fn stop_recording(eng: &Engine, reason: &str) -> Option<PathBuf> {
     let recorder = eng.resource::<Recording>().borrow_mut().0.take()?;
     let digest = Some(crate::digest::digest(eng).0);
-    if *eng.resource::<ReplayMode>().borrow() == ReplayMode::Recording {
-        *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Off;
-    }
     let trailer = Trailer {
         reason: reason.to_string(),
         tick: eng.tick(),

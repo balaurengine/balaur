@@ -76,7 +76,7 @@ impl BsHost {
         let parked = std::mem::take(&mut *self.inner.tasks.borrow_mut());
         let mut kept = Vec::with_capacity(parked.len());
         for p in parked {
-            if self.is_held() || !self.ticks(p.node, holds) {
+            if !self.ticks(p.node, holds) || self.stopped_in(&p.path) {
                 kept.push(p);
                 continue;
             }

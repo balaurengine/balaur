@@ -8,37 +8,22 @@ Recording, replay, rollback, the debugger, the command line and the editor each 
 
 ### Replay mode
 
-The Engine resource that says what this run does about recordings.
+The Engine resource that says whether a recording feeds this run. A recording being written is the [Recorder](#recorder), which neither reads nor sets this mode.
 
 Source: `crates/balaur_core/src/replay.rs`, `ReplayMode`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> Off
-    Off --> Recording: start_recording
-    Playing --> Recording: start_recording
-    Off --> Playing: begin
-    Recording --> Playing: begin
-    Recording --> Off: stop_recording
-    Playing --> Off: end
-```
 
 | State | What is true |
 |---|---|
 | `Off` | `is_playing` is false. Nothing is refused for a recording's sake. |
-| `Recording` | `start_recording` ran. `is_playing` is false. `record_frame_system` reads `Recording`, not this mode. |
 | `Playing` | `is_playing` and `suppressed` are true. |
 
-Scripts have no spelling for this. They read `replay::recording()` and `replay::state()`.
+Scripts have no spelling for this. They read `replay::state()`, and `replay::recording()` for a recording being written.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `start_recording` (`replay.record`, `balaur run --record`) | `Recording` | Puts a new `Recorder` in `Recording`. A recorder already there drops. |
-| `Recording` | `stop_recording` | `Off` | Closes the recorder with a trailer. |
-| `Playing` | `stop_recording` with a recorder open | `Playing` | Closes the recorder and keeps the mode. |
 | any | `begin` (`replay.load`, `balaur replay`) | `Playing` | Restores the tick rate, origin, setup and RNG seed. A recorder already open keeps writing. |
 | `Playing` | `end` (`replay.unload`) | `Off` | Drops the session. |
-| `Off`, `Recording` | `end` | same | Drops the session and keeps the mode. |
+| `Off` | `end` | `Off` | Drops the session. |
 
 Starts in `Off`. Never ends.
 
@@ -180,7 +165,7 @@ Starts in `None`. Never ends.
 
 ### Recorder
 
-The session file being written. It is derived from `Recording.0` and `Recorder.header`.
+The session file being written. It is derived from `Recording.0` and `Recorder.header`, and it alone says whether a run records.
 
 Source: `crates/balaur_core/src/replay.rs`, `Recording`, `Recorder`.
 
@@ -210,15 +195,17 @@ stateDiagram-v2
 | open | `record_frame_system` on the tick `born` | same | Clears `EventLog` and writes nothing. |
 | open, header pending | `record_frame_system` on a later tick | open, writing | Settles the origin's tick and time from the clock, then writes the header and the frame. |
 | open, writing | `record_frame_system` | open, writing | Writes the tick, step, sources, `frozen`, digest when asked, and events. |
-| open | `stop_recording(reason)` | `none` | Writes a pending header, then a trailer with the reason, tick and digest. Sets `finished`. Answers the path. |
+| open | `stop_recording(reason)`: `replay.stop`, the end of `balaur run` | `none` | Writes a pending header, then a trailer with the reason, tick and digest. Sets `finished`. Answers the path. |
 | open | `start_recording` | open, header pending | The old recorder drops. Its trailer says `quit`, tick 0, no digest. |
 | open | the Engine drops the recorder without `finish` | `none` | `Drop` writes the same `quit` trailer and logs a failure. |
 
 Starts in `none`. Never ends.
 
-Refused or ignored: `stop_recording` with nothing open answers `None` and leaves the mode alone. A failed write logs an error and the next frame tries again. `balaur run --record` never calls `stop_recording`, so its only trailer is the drop's.
+`balaur run --record` calls `stop_recording` with `"quit"` as the run ends, so its trailer holds the tick and digest.
 
-Held by a pause, a `process` mode or a parked scene: `record_frame_system` runs in `Stage::Last` every frame. `Frame.frozen` records the debugger's hold, not a game pause.
+Refused or ignored: `stop_recording` with nothing open answers `None`. A failed write logs an error and the next frame tries again.
+
+Held by a pause, a `process` mode or a parked scene: `App::run_stages` calls `record_frame_system` every frame, after every stage and the scene switch. `Frame.frozen` records the debugger's hold, not a game pause.
 
 ### Recorder restart
 
@@ -276,7 +263,7 @@ stateDiagram-v2
 
 | State | What is true |
 |---|---|
-| `empty` | Created with no line. `Session::read` errors that it is empty. |
+| `empty` | Created with no line. `Session::read` errors that it is empty, so `replay.load` and `replay.info` answer nil. |
 | `header and frames` | `Session.trailer` is `None`. The editor's row calls it `crashed`. |
 | `with trailer` | `Session.trailer` holds `reason`, `tick` and `digest`. |
 
@@ -289,7 +276,7 @@ stateDiagram-v2
 
 Starts in `empty`. Ends in `with trailer`.
 
-Refused or ignored: `Session::read` errors on a `format` other than this build's. A changed script fingerprint still plays.
+Refused or ignored: `Session::read` errors on a `format` other than this build's. `replay.load` then logs a warn and answers nil, and `replay.info` answers nil. The editor's row calls such a file `unreadable`. A changed script fingerprint still plays.
 
 ## Rollback
 
@@ -332,7 +319,7 @@ stateDiagram-v2
 
 `run_tick` pushes a snapshot, sets the clock, decides inputs, records them in `used`, writes `TickInputs`, calls `App::tick`, stores the digest and prunes the journal.
 
-Starts in `clean`. Never ends: its owner drops it, such as `NetSession` in `balaur_net`.
+Starts in `clean`. Never ends: its owner drops it, such as `NetSession` in `balaur_net`. A drop after a tick ran resets `Clock`.
 
 Refused or ignored: `submit` warns and drops an unknown player or a tick more than `INPUT_WINDOW` (120) ahead, and silently drops an absent player's input.
 
@@ -366,16 +353,32 @@ Source: `crates/balaur_core/src/rollback.rs`, `Clock`.
 
 | State | What is true |
 |---|---|
-| default `{ tick: 0, settled: u64::MAX }` | No session has run a tick here. Everything is final. |
+| default `{ tick: 0, settled: u64::MAX }` | No session has run a tick here, or the last one was dropped. Everything is final. |
 | `{ tick, settled }` | `settled` is the ring's earliest tick. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `Session::run_tick` | `{ tick, settled }` | Writes both values. |
+| `{ tick, settled }` | `Drop for Session`, `ran_on` set | default | Everything is final again. |
 
 Starts in the default. Never ends.
 
-Refused or ignored: nothing resets it when a session is dropped.
+### Rollback session engine
+
+The engine a session has run ticks on, whose clock it set.
+
+Source: `crates/balaur_core/src/rollback.rs`, `Session.ran_on`.
+
+| State | What is true |
+|---|---|
+| `None` | The session has run no tick. Dropping it touches no clock. |
+| `Some(Engine)` | It ran a tick on this engine. Dropping it resets that engine's `Clock`. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| `None` | `Session::run_tick` | `Some` | Keeps a clone of `app.engine`. |
+
+Starts in `None`. Ends with the session.
 
 ### Tick status
 
@@ -568,7 +571,7 @@ Source: `crates/balaur_bs/src/runtime/mod.rs`, `Runtime.parked_call`; `crates/ba
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `None`, `Some` | `call_method_steppable` | `Some` | Calls `prepare`, then `call_resumable`, then `settle`. |
+| `None` | `call_method_steppable` | `Some` | Calls `prepare`, then `call_resumable`, then `settle`. |
 | `None` | `poll_steppable` | `Some` | The same for a task's poll. |
 | `Some` | `settle` with `Done` or a trap | `None` | Hands back the results, or answers the error. |
 | `Some` | `settle` with `Parked` | `Some` | Answers `Step::Paused`. |
@@ -576,7 +579,7 @@ Source: `crates/balaur_bs/src/runtime/mod.rs`, `Runtime.parked_call`; `crates/ba
 
 Starts in `None`. Never ends.
 
-Refused or ignored: while `Some`, `invoke` and `poll_steppable` error "the script is stopped at a breakpoint". `go_on` errors "no method is parked" or "no poll is parked" when the kind differs.
+Refused or ignored: while `Some`, `invoke`, `call_method_steppable` and `poll_steppable` error "the script is stopped at a breakpoint". `go_on` errors "no method is parked" or "no poll is parked" when the kind differs.
 
 ### Parked engine call
 
@@ -649,7 +652,7 @@ stateDiagram-v2
 | `Parked` | `debug_resume`, the file is gone | `None` | Calls `set_frozen(false)`. |
 | `Parked` | `debug_resume`, `Step::Paused` | `Parked` | `hold` again. |
 | `Parked` | `debug_resume`, `Step::Done` | `None` | Answers a task's waiter, releases the object and calls `set_frozen(false)`. |
-| `Parked` | `debug_resume`, `Step::Waiting` | `None` | Files the task again, releases the object and calls `set_frozen(false)`. |
+| `Parked` | `debug_resume`, `Step::Waiting` | `None` | Files the task in `parked_tasks` if its node is parked, else in `tasks`. Releases the object and calls `set_frozen(false)`. |
 | `Parked` | `debug_resume`, a trap, break on error on | `Error` | Logs it, releases the object and stays frozen. |
 | `Parked` | `debug_resume`, a trap, break on error off | `None` | Logs it, releases the object and calls `set_frozen(false)`. |
 
@@ -657,9 +660,9 @@ stateDiagram-v2
 
 Starts in `None`. Never ends.
 
-Refused or ignored: while held, `update` and `fixed_update` return before any instance runs, the editor's scripts included. `each_of` breaks, and tasks wait in `run_tasks`. `call_on` and `init` still run. `reload` of a parked file errors. `debug_resume` with nothing held returns. `hold_error` does nothing while a stop is held. `detach` and the editor's `stop_play` do not clear it.
+Refused or ignored: while held, `each`, `each_of`, `tell` and `run_tasks` pass over an instance under `frozen_root` or in the file `stopped_in` names. Any other instance runs on, so an editor outside the debug scope keeps running. `call_on` and `init` are not filtered, and where a call is parked `call_method_steppable` errors. `reload` of a parked file errors. `debug_resume` with nothing held returns. `hold_error` does nothing while a stop is held. `detach` does not clear it.
 
-Held by a pause, a `process` mode or a parked scene: `each` skips a node they hold and `run_tasks` keeps its tasks, so its probes do not run. `set_parked` leaves `stopped` alone, and `release_held` looks in both `instances` and `parked`.
+Held by a pause, a `process` mode or a parked scene: `each` skips a node `process::ticks` holds and `run_tasks` keeps its tasks, so its probes do not run. `set_parked` leaves `stopped` alone, and `release_held` looks in both `instances` and `parked`.
 
 ### Files built with probes
 
@@ -674,12 +677,13 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.debugging`; `crates/balaur
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| absent | `debug_set_breakpoints` with lines | present | Reloads the file if it is loaded. |
-| absent | `debug_request_break` | present, every loaded file | Reloads each and calls `Debugger::pause`. |
+| absent | `debug_set_breakpoints` with lines | present | `rebuild_key` if the file is loaded. Its scripts hear nothing. |
+| absent | `debug_request_break` | present, every loaded file | `rebuild_key` for each, then `Debugger::pause`. |
+| present | `debug_set_breakpoints` with no lines, no call parked in the file | absent | `rebuild_key` if the file is loaded. Its scripts hear nothing. Break on error still builds it with probes. |
 
-Starts absent. Ends present: nothing removes a key.
+Starts absent. Never ends.
 
-Refused or ignored: `debug_set_breakpoints` with no lines forgets the lines and keeps the key.
+Refused or ignored: `debug_set_breakpoints` with no lines keeps the key while a call is parked in the file. `rebuild_key` errors for a parked file.
 
 ### Break on error
 
@@ -694,7 +698,7 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.break_on_error`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `debugger.set_break_on_error(on)`, DAP `setExceptionBreakpoints` | `on` | Turning on reloads each file without probes. Otherwise it calls `keep_locals(on)` where the runtime is free. |
+| any | `debugger.set_break_on_error(on)`, DAP `setExceptionBreakpoints` | `on` | Turning on calls `rebuild_key` on each file without probes. The code did not change, so no script hears `on_hot_reload`. Otherwise it calls `keep_locals(on)` where the runtime is free. |
 | `true` | DAP `disconnect`, `terminate` | `false` | The adapter leaves the game as it found it. |
 
 Starts in `false`. Never ends.
@@ -713,11 +717,34 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.profiling`; `crates/balaur
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `engine.set_script_profiling(on)`, value unchanged | same | Clears the tally. If on, clears each free runtime's profile. |
-| any | `engine.set_script_profiling(on)`, value changed | `on` | Clears the tally and queues every loaded file for `pump_reloads`. |
+| any | `engine.set_script_profiling(on)`, value changed | `on` | Clears the tally and queues every loaded file in `rebuild` for `pump_reloads`. Its scripts hear nothing. |
 
 The editor keeps its own copy in `State.script_profiling`, flipped by `dock::profiler_scripts`.
 
 Starts in `false`. Never ends.
+
+### Hot reload owed
+
+Which files' instances still have to hear `on_hot_reload`.
+
+Source: `crates/balaur_script_bs/src/host.rs`, `Inner.reload_owed`, `announce_reloads`; `crates/balaur_script_bs/src/host/engine_facing.rs`, `pump_reloads`, `reload`.
+
+| State | What is true |
+|---|---|
+| key absent | No notice is owed. A build through `rebuild_key` alone tells no script. |
+| key present | The file's code changed. Its instances hear `on_hot_reload` once no rebuild for the key is left. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| absent | `pump_reloads`: an edit, for the file and each file using it | present | Queues the build in this pump. |
+| absent | `ScriptHost::reload` | present | Calls `rebuild_key`, then `announce_reloads`. |
+| present | the build fails in `pump_reloads` or `reload` | absent | Logs or answers the error. No notice goes out. |
+| present | `announce_reloads`, key still in `rebuild` | present | Waits for the next `pump_reloads`. |
+| present | `announce_reloads`, key not in `rebuild` | absent | `tell` calls `on_hot_reload` on the file's instances. |
+
+Starts absent. Never ends.
+
+Held by a pause, a `process` mode or a parked scene: `tell` filters neither a pause nor a mode. It reads `instances`, so a parked instance hears nothing and catches up in `on_parked_changed`. It passes over an instance under `frozen_root` or in the stopped file, and that notice is not owed again.
 
 ### Debug adapter client
 
@@ -752,7 +779,7 @@ stateDiagram-v2
 
 Starts in `disconnected`. Never ends: the accept thread runs for the process.
 
-Refused or ignored: an unknown command is answered as unsupported. A `Content-Length` over 16 MB, or none, drops the client. Past 256 queued messages, output lines are dropped and counted. `evaluate` answers only a local's name in a stopped frame.
+Refused or ignored: a second connection waits until the first closes. An unknown command is answered as unsupported. A `Content-Length` over 16 MB, or none, drops the client. Past 256 queued messages, output lines are dropped and counted. `evaluate` answers only a local's name in a stopped frame.
 
 ### Debug adapter stop report
 
@@ -827,7 +854,7 @@ stateDiagram-v2
 | `before_load` | `--record` opens its recording. `--scene`, the dark mode fact and `--touch` are set, all before any script runs. |
 | `loaded` | `load_project` ran each script's `init`. Then `--fixed-tick`, `--trace-digest` and `--timings` are applied. |
 | `frame_loop` | The loop of the chosen display mode runs. |
-| `ending` | The log is flushed, timings are printed and the exit code is applied. |
+| `ending` | `stop_recording` closes a recording with `"quit"`. The log is flushed, timings are printed and the exit code is applied. |
 | `failed` | An `Err` reached `main`. |
 
 | From | Trigger | To | What it does |
@@ -835,7 +862,7 @@ stateDiagram-v2
 | `dispatch` | `Cli::parse_from` | `boot` | Parses argv and calls `run_project`. |
 | `boot` | `standard_app` | `debugger_up` | Keeps the engine. |
 | `debugger_up` | `start_debugger` | `before_load` | Holds the server for the run. |
-| `before_load` | `App::load_project` | `loaded` | Scripts attach and `init` runs. |
+| `before_load` | `App::load_project` | `loaded` | `instantiate_main_scene` builds the scene, scripts attach and `init` runs. |
 | `loaded` | display chosen | `frame_loop` | See [LIFECYCLE.md](LIFECYCLE.md). |
 | `frame_loop` | `--frames N` with a window or offscreen: `add_frame_budget` counts N in `Stage::Last` | `ending` | Asks for `--shot` at N-1, then `request_quit`. |
 | `frame_loop` | `--frames N` headless: the loop ends | `ending` | Stops early if quit was requested. |
@@ -928,7 +955,7 @@ stateDiagram-v2
 | `Writing` | `write_slice`: a write failed | `Over` | Reports `Failed`. |
 | `Writing` | `write_slice`: plan empty | `Over` | Reports `Done` with the scene and note. |
 
-`over` takes 1 from `running`, reports the event, sets `Over` and answers `Progress::Done`.
+`over` takes 1 from `running`, clears `cancel` if it was the last job, reports the event, sets `Over` and answers `Progress::Done`.
 
 Starts in `Reading`. Ends in `Over`.
 
@@ -950,7 +977,7 @@ Source: `crates/balaur_cli/src/import_api.rs`, `ImportState.running`.
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | n | `start`, the tab's `read_then_import` | n+1 | Counted before the job is handed to `task::step`. |
-| n | `ImportJob::over` | n-1 | Taken before the end is reported. |
+| n | `ImportJob::over` | n-1 | Taken before the end is reported. The last job out clears `cancel`. |
 
 Starts in 0. Never ends.
 
@@ -963,16 +990,17 @@ Source: `crates/balaur_cli/src/import_api.rs`, `ImportState.cancel`.
 | State | What is true |
 |---|---|
 | `false` | No press waits. |
-| `true` | The next job to reach the top of a slice is cancelled. |
+| `true` | A job runs, and the next to reach the top of a slice is cancelled. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `import.cancel()` | `true` | Sets the flag. |
+| any | `import.cancel()` with a job running | `true` | Sets the flag. |
 | `true` | `ImportJob::step` | `false` | That job reports `Cancelled`. |
+| `true` | `ImportJob::over` of the last job | `false` | A press no job read goes with it. |
 
 Starts in `false`. Never ends.
 
-Refused or ignored: `start` does not clear the flag.
+Refused or ignored: `import.cancel()` with no job running does nothing.
 
 ### Export job
 
@@ -1244,17 +1272,17 @@ stateDiagram-v2
 | `starting` | `release_world`, from the frame | `running` | `physics::set_paused(false)`, `anim::resume_all`. |
 | `running` | `on_pause_pressed` | `paused` | `physics::set_paused(true)`. |
 | `paused` | `on_pause_pressed` | `running` | `physics::set_paused(false)`. |
-| any but `edit` | `toggle_play`, `stop_play`, `on_stop_pressed` | `edit` | `release_at` -1, `session::end("stop")`, rebuild from `played`, `played` "", `playing` false, `theme::apply`, `apply_camera`. |
+| any but `edit` | `toggle_play`, `stop_play`, `on_stop_pressed` | `edit` | Calls `debugger::resume(CONTINUE)` until `debugger::stop_location()` is nil. Then `release_at` -1, `session::end("stop")`, rebuild from `played`, `played` "", `playing` false, `theme::apply`, `apply_camera`. |
 | any but `edit` | `shell::undo`, `shell::redo` | `edit` | `stop_for` logs and calls `stop_play`. |
 | any but `edit` | suite `reopen` | `edit` | Calls `stop_play`. |
-| any | `session::open` | `replaying` | See [Session replay](#session-replay). |
+| any | `session::open` | `replaying` | See [Session replay](#session-replay). When `replay::load` answers nil it ends in `edit`, with `played` kept. |
 | any | `model::build` | `edit` | Sets `playing` false, pauses physics and players and holds game cameras. `played` and `release_at` stay as they were. |
 
 Starts in `edit`. Never ends.
 
-Refused or ignored: autosave writes nothing while `playing`. The Play key is off while a script is stopped, and Break needs `playing` and no stop. A save or `reload_scripts` calls `session::end("reload")` and `playing` stays true. A script stop holds `Editor.update`, so `release_world` waits for the resume.
+Refused or ignored: autosave writes nothing while `playing`. The Play key is off while a script is stopped, and Break needs `playing` and no stop. A save or `reload_scripts` calls `session::end("reload")` and `playing` stays true.
 
-Held by a pause, a `process` mode or a parked scene: the Pause button never calls `engine.set_paused`, so scripts keep their `update`. A game's own `engine.set_paused` covers the subtree `debugger::set_scope` names, which is the mirror.
+Held by a pause, a `process` mode or a parked scene: the Pause button never calls `engine.set_paused`, so scripts keep their `update`. A game's own `engine.set_paused` covers the subtree `debugger::set_scope` names, which is the mirror. A script stop holds that subtree too, so `Editor.update` and `release_world` run on.
 
 ### Session recording
 
@@ -1269,12 +1297,13 @@ Source: `editor/scripts/session.bs`, `SessionState.recording`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| `""` | `session::start`, from `toggle_play` | a path | `replay::record` with the fingerprint and `verify` as `digest`. Marks the list stale. |
+| `""` | `session::start`, from `toggle_play`, `replay::record` answers the path | a path | Passes the fingerprint and `verify` as `digest`. Marks the list stale. |
+| `""` | `session::start`, `replay::record` answers nil | `""` | The verb logged a warn. Play goes on with no recording. |
 | a path | `session::finish(reason)`, from `session::end` | `""` | `replay::stop(reason)`, then `prune` keeps the newest `editor/recordings/keep` files, 10 by default, and every `kept-*`. |
 
 Starts in `""`. Never ends.
 
-Refused or ignored: a failing `replay::record` traps the call, which logs an error. `finish` with nothing open returns. Reasons passed are `"stop"` and `"reload"`.
+Refused or ignored: `finish` with nothing open returns. Reasons passed are `"stop"` and `"reload"`.
 
 ### Session replay
 
@@ -1304,6 +1333,7 @@ stateDiagram-v2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `session::open(name)`: Replay button | `scrubbing` | `stop_play`, `begin_play`, `replay::load`, header, span, lanes, caches cleared, stale warning, `attach_game_scripts`, `hold_game_cameras(true)`, `playing` true, recordings dock, `release_at` next frame, `replay::play`. |
+| any | `session::open`, `replay::load` answers nil | `none` | The verb logged a warn. `open` returns after `begin_play`, so the scene is rebuilt, `playing` is false and `played` is kept. |
 | `scrubbing` | `toggle_pause`: the bar's Pause, the lanes' Play | `parked` | `replay::pause`. |
 | `parked` | `toggle_pause` | `scrubbing` | `replay::play`. |
 | `scrubbing` | the player spends its frames | `parked` | `after_frame`. |
@@ -1315,7 +1345,7 @@ stateDiagram-v2
 
 Starts in `none`. Never ends.
 
-Refused or ignored: `step`, `seek` and `update` do nothing with nothing loaded. A failing `replay::load` traps `open` after `begin_play` has run, and logs an error.
+Refused or ignored: `step`, `seek` and `update` do nothing with nothing loaded.
 
 ### Session list
 
@@ -1330,7 +1360,7 @@ Source: `editor/scripts/session.bs`, `SessionState.list`, `SessionState.listed_a
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `listing`, stale or older than 0.5 s | a time | Reads each header with `replay::info`, newest first. |
+| any | `listing`, stale or older than 0.5 s | a time | Reads each header with `replay::info`, newest first. A nil answer lists as `unreadable`. |
 | any | `start`, `finish`, `open`, `keep`, `remove` | -1.0 | Marks it stale. |
 
 Starts in -1.0. Never ends.
@@ -1389,10 +1419,11 @@ Source: `editor/scripts/shell.bs`, `DebugState.paused`, `stopped`, `resume`, `on
 | `nil` | `on_debugger_stopped(map)` | a map | `on_pause` sets `paused_rel` and frame 0, selects the node, opens the Script workspace and the debugger dock, and logs. |
 | a map | `on_debugger_stopped(map or nil)` | new value | Tells the debugger panel. |
 | a map | `shell::resume(mode)`: keys, dock, showcase | `nil` | `debugger::resume(mode)`. |
+| a map | `stop_play` | `nil` | Calls `debugger::resume` until the stop is gone, then clears `paused`. |
 
 Starts in `nil`. Never ends.
 
-Refused or ignored: Break calls `debugger::request_break` and changes nothing until a stop lands. `stop_play` does not resume a stop, so it stays a map until a resume.
+Refused or ignored: Break calls `debugger::request_break` and changes nothing until a stop lands. `events::resumed` forgets the stop, so no `debugger_stopped` nil follows `stop_play`.
 
 ### Break self-test
 
@@ -1979,14 +2010,14 @@ stateDiagram-v2
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `on_export_clicked` | `"started"` | `export::start` with `download: true`. Its answer is not read. |
+| any | `on_export_clicked`, `export::start` answers true | `"started"` | Passes `download: true`. |
 | any | `report` `started` | `"started"` | Clears `said`. |
 | any | `report` `done` | `"done"` | Sets `said` and `landed`, logs and reads the targets again. |
 | any | `report` `failed` | `"failed"` | Sets `said` and warns. |
 
 Starts absent. Never ends.
 
-Refused or ignored: `report` drops an event with no target.
+Refused or ignored: `report` drops an event with no target. When `export::start` answers false, `on_export_clicked` logs it and leaves the status alone.
 
 ### Import line
 

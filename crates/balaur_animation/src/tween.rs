@@ -101,8 +101,8 @@ pub struct Tween {
     /// Scales the whole sequence. Always positive: a tween that ran backwards
     /// would never reach its end and never be cleaned up.
     pub speed: f32,
-    /// Whether the playhead is advancing. False only in the instant between
-    /// the last step and removal.
+    /// Whether the playhead is advancing. False once the last loop has played:
+    /// a tween goes at once, and a value tween on the next frame.
     pub running: bool,
     /// How many times to play the sequence; zero is forever (Godot's
     /// `set_loops(0)`).

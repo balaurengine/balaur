@@ -255,10 +255,12 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("choose", |eng: &Engine, ()| Ok(Value::Bool(choose(eng))));
     m.function("cancel", |eng: &Engine, ()| {
-        eng.resource::<ImportState>()
-            .borrow()
-            .cancel
-            .store(true, Ordering::Relaxed);
+        let state = eng.resource::<ImportState>();
+        let state = state.borrow();
+        // With nothing running, the press would stop the next job instead.
+        if state.running.load(Ordering::Relaxed) > 0 {
+            state.cancel.store(true, Ordering::Relaxed);
+        }
         Ok(Value::Nil)
     });
     m.function("running_count", |eng: &Engine, ()| {
@@ -499,7 +501,10 @@ impl ImportJob {
     fn over(&mut self, event: ImportEvent) -> Progress {
         // Let go first: on a thread, the tick may read the count as soon as
         // the end arrives. Counted up once when the job was made.
-        self.running.fetch_sub(1, Ordering::Relaxed);
+        // The last job out takes a press nothing read with it.
+        if self.running.fetch_sub(1, Ordering::Relaxed) == 1 {
+            self.cancel.store(false, Ordering::Relaxed);
+        }
         balaur_core::replay::report(&self.report, event);
         self.state = JobState::Over;
         Progress::Done

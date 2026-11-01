@@ -1358,14 +1358,14 @@ Records what a running game is fed and plays it back. A recording holds each tic
 | `divergence_tick` | `() -> replay::Divergence?` |
 | `events` | `(int, int) -> [replay::Event]` |
 | `header` | `() -> replay::Header?` |
-| `info` | `(str) -> replay::Header` |
+| `info` | `(str) -> replay::Header?` |
 | `length` | `() -> replay::Length?` |
-| `load` | `(str) -> replay::Header` |
+| `load` | `(str) -> replay::Header?` |
 | `marks` | `(str, str?) -> [replay::Mark]` |
 | `pause` | `()` |
 | `play` | `()` |
 | `position` | `() -> int` |
-| `record` | `(str, replay::RecordOptions?) -> str` |
+| `record` | `(str, replay::RecordOptions?) -> str?` |
 | `recording` | `() -> str?` |
 | `recording_name` | `() -> str` |
 | `seek` | `(int)` |

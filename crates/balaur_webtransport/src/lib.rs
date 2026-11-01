@@ -56,13 +56,6 @@ pub enum Accept {
 }
 
 /// What a worker thread reports back to the frame loop.
-#[cfg_attr(
-    target_family = "wasm",
-    allow(
-        dead_code,
-        reason = "the browser backend reports only Closed until it is built"
-    )
-)]
 enum LinkEvent {
     Open,
     /// A payload and the promise it was sent under.
@@ -71,13 +64,6 @@ enum LinkEvent {
 }
 
 /// What the frame loop asks a worker thread to do.
-#[cfg_attr(
-    target_family = "wasm",
-    allow(
-        dead_code,
-        reason = "nothing in a browser drains these until the backend does"
-    )
-)]
 enum LinkCommand {
     Send(Delivery, Vec<u8>),
     Close,
@@ -114,14 +100,11 @@ pub struct WebTransportLink {
     events: Receiver<LinkEvent>,
     commands: Option<queue::Commands>,
     state: LinkState,
-    /// Reported by the peer's QUIC stack once the link is up; the conservative
-    /// floor every QUIC implementation accepts until then.
-    max_datagram: usize,
 }
 
-/// The floor QUIC guarantees before a path has been measured. Real links
-/// report more, and the worker raises this once the session is up.
-const MIN_DATAGRAM: usize = 1200;
+/// The floor every QUIC path guarantees, and the most a datagram may carry
+/// here: a size that fits one path may not fit the next.
+const MAX_DATAGRAM: usize = 1200;
 
 impl WebTransportLink {
     /// Dial `url`, which must be `https://host:port/path`.
@@ -160,7 +143,6 @@ impl WebTransportLink {
             events,
             commands: Some(commands),
             state: LinkState::Connecting,
-            max_datagram: MIN_DATAGRAM,
         })
     }
 
@@ -170,7 +152,6 @@ impl WebTransportLink {
             events,
             commands: None,
             state: LinkState::Connecting,
-            max_datagram: MIN_DATAGRAM,
         }
     }
 
@@ -180,7 +161,6 @@ impl WebTransportLink {
             events,
             commands: Some(commands),
             state: LinkState::Connecting,
-            max_datagram: MIN_DATAGRAM,
         }
     }
 
@@ -208,11 +188,11 @@ impl Transport for WebTransportLink {
     }
 
     fn send_datagram(&mut self, bytes: &[u8]) -> Result<()> {
-        if bytes.len() > self.max_datagram {
+        if bytes.len() > MAX_DATAGRAM {
             bail!(
                 "{} bytes is over this path's {} byte datagram limit",
                 bytes.len(),
-                self.max_datagram
+                MAX_DATAGRAM
             );
         }
         self.send(Delivery::Datagram, bytes)
@@ -239,7 +219,7 @@ impl Transport for WebTransportLink {
     }
 
     fn max_datagram(&self) -> usize {
-        self.max_datagram
+        MAX_DATAGRAM
     }
 
     fn state(&self) -> LinkState {

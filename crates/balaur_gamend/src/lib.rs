@@ -341,11 +341,24 @@ impl GamendState {
         if let Some(handler) = self.socket_handlers.get(&socket).cloned() {
             self.request_handlers.insert(request, handler);
         }
-        self.sockets
+        let sent = self
+            .sockets
             .get(&socket)
-            .ok_or_else(|| anyhow!("no such gamend socket"))?
-            .send(command)
-            .map_err(|_| anyhow!("the gamend connection is gone"))
+            .ok_or_else(|| anyhow!("no such gamend socket"))
+            .and_then(|queue| {
+                queue
+                    .send(command)
+                    .map_err(|_| anyhow!("the gamend connection is gone"))
+            });
+        // No reply comes for this one, so what waits on a reply goes too.
+        if let Err(why) = &sent {
+            self.request_handlers.shift_remove(&request);
+            self.activity.heard(&GamendEvent::Failed {
+                request,
+                message: why.to_string(),
+            });
+        }
+        sent
     }
 
     pub fn join(&mut self, socket: u64, request: u64, topic: String, payload: Json) -> Result<()> {
@@ -935,6 +948,23 @@ fn token_of(id: i64) -> Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_command_with_no_socket_to_go_on_waits_for_no_reply() {
+        let mut state = crate::GamendState::default();
+        assert!(
+            state
+                .join(7, 1, "topic".into(), serde_json::json!({}))
+                .is_err()
+        );
+        assert!(state.request_handlers.is_empty());
+        let rows = state.activity.entries();
+        let balaur_script::Value::List(rows) = rows else {
+            panic!("the rows are a list");
+        };
+        let text = format!("{rows:?}");
+        assert!(!text.contains("waiting"), "{text}");
+    }
+
     #[test]
     fn a_reconnect_waits_twice_as_long_each_try_up_to_thirty_seconds() {
         let waits: Vec<f64> = (1..=crate::RECONNECT_TRIES).map(crate::backoff).collect();

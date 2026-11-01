@@ -162,9 +162,6 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn update(&self, dt: f32) {
-        if self.is_held() {
-            return;
-        }
         // A task a busy instance could not take last time runs on here.
         if self.has_tasks() {
             self.run_tasks();
@@ -173,9 +170,6 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn fixed_update(&self, dt: f32) {
-        if self.is_held() {
-            return;
-        }
         self.each("fixed_update", &[Value::Num(f64::from(dt))], true);
     }
 
@@ -246,6 +240,7 @@ impl ScriptHost<Engine> for BsHost {
                 .map(|(k, _)| k.clone())
                 .collect();
             for k in users {
+                self.inner.reload_owed.borrow_mut().push(k.clone());
                 if !todo.contains(&k) {
                     todo.push(k);
                 }
@@ -257,33 +252,38 @@ impl ScriptHost<Engine> for BsHost {
         if !units.is_empty() {
             match self.rebuild_project(&units) {
                 Ok(()) => tracing::info!("reloaded {}", units.join(", ")),
-                Err(e) => tracing::error!("{e:#}"),
+                Err(e) => {
+                    tracing::error!("{e:#}");
+                    self.inner
+                        .reload_owed
+                        .borrow_mut()
+                        .retain(|key| !units.contains(key));
+                }
             }
         }
         for key in alone {
-            match ScriptHost::reload(self, &key) {
+            match self.rebuild_key(&key) {
                 Ok(()) => tracing::info!("reloaded {key}"),
-                Err(e) => tracing::error!("{e:#}"),
+                Err(e) => {
+                    tracing::error!("{e:#}");
+                    self.inner.reload_owed.borrow_mut().retain(|k| *k != key);
+                }
             }
         }
+        self.announce_reloads();
     }
 
     // A new module, with every instance of the file carried across by field
     // name: as a unit, the whole project's instance made again.
     fn reload(&self, key: &str) -> Result<()> {
         let key = key_of(key);
-        if self.holds_file(&key) {
-            return Err(anyhow!(
-                "{key} is stopped at a breakpoint; it reloads once it goes on"
-            ));
+        self.inner.reload_owed.borrow_mut().push(key.clone());
+        let built = self.rebuild_key(&key);
+        if built.is_err() {
+            self.inner.reload_owed.borrow_mut().retain(|k| *k != key);
         }
-        // Asked for by name, a reload reads the file again.
-        self.invalidate(&key);
-        if self.as_units(&key) {
-            self.rebuild_project(&[key])
-        } else {
-            self.reload_alone(&key)
-        }
+        self.announce_reloads();
+        built
     }
 
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {

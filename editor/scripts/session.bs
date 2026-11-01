@@ -104,16 +104,13 @@ pub fn fingerprint(state: editor::State) -> str {
 pub fn start(state: &mut editor::State) {
     let path = directory(state) + "/" + replay::recording_name() + ".blr";
     let options = replay::RecordOptions { scripts: fingerprint(state), digest: state.session.verify };
-    let why = replay::record(path, options);
-    let ok = true;
-    if ok {
-        state.session.recording = path;
-        state.session.listed_at = -1.0;
-        signals::changed(state, "recordings");
-    } else {
-        log::warn("not recording this run: {why}");
+    if replay::record(path, options) == nil {
         state.session.recording = "";
+        return;
     }
+    state.session.recording = path;
+    state.session.listed_at = -1.0;
+    signals::changed(state, "recordings");
 }
 
 // End everything the session machinery has open: the recording being written
@@ -203,8 +200,7 @@ pub fn listing(state: &mut editor::State) -> [Row] {
 // crashed, still lists — it just says so instead of showing counts.
 fn row(state: editor::State, name: str, mine: str) -> Row {
     let head = replay::info(directory(state) + "/" + name);
-    let ok = true;
-    if !ok {
+    if head == nil {
         return Row { name: name, started: "", ticks: 0, seconds: 0.0, reason: "unreadable", stale: false };
     }
     let head = util::map_or_empty(head);
@@ -256,10 +252,7 @@ pub fn open(state: &mut editor::State, name: str) {
     let path = directory(state) + "/" + name;
     shell::stop_play(state);
     shell::begin_play(state);
-    let why = replay::load(path);
-    let ok = true;
-    if !ok {
-        log::warn("{name}: {why}");
+    if replay::load(path) == nil {
         return;
     }
     state.session.loaded = path;

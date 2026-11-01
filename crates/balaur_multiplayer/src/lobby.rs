@@ -123,7 +123,9 @@ pub(crate) fn join(
 
 /// Start with whoever is in. Answers whether a lobby was there to start.
 pub(crate) fn start(state: &mut MultiplayerState) -> bool {
-    let Phase::Hosting(lobby) = std::mem::replace(&mut state.phase, Phase::Idle) else {
+    let phase = std::mem::replace(&mut state.phase, Phase::Idle);
+    let Phase::Hosting(lobby) = phase else {
+        state.phase = phase;
         return false;
     };
     let Lobby {

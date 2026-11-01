@@ -34,6 +34,7 @@ pub mod output;
 pub mod playback;
 mod script_api;
 pub mod spatial;
+mod sweep;
 pub mod vocabulary;
 
 use crate::vocabulary::keys as k;
@@ -54,8 +55,9 @@ const MIN_PITCH: f32 = 0.01;
 #[derive(Clone, Debug, Default)]
 pub struct Voice {
     /// The playback this node started, `None` until autoplay or `audio.play`
-    /// starts one and again after `audio.stop`. A finished sink does not clear
-    /// it: intent must read the same headless as with a device.
+    /// starts one and again after `audio.stop` or when it plays out. The count
+    /// says when that is, not the sink: intent must read the same headless as
+    /// with a device.
     pub handle: Option<u64>,
     /// The `file` the node named at its last write, so the next one can tell
     /// a new file, which drops the playback, from a tweak, which lands on it.
@@ -78,18 +80,29 @@ fn seconds(asked: f32) -> f32 {
     }
 }
 
+/// How far the output device has been asked for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Access {
+    /// Nothing has tried. Nothing does until a sound plays or `ready` is read,
+    /// so a run that makes no sound never opens a device.
+    Untried,
+    /// A browser refuses to start audio before a gesture, so the open waits
+    /// for `UserActivation`.
+    AwaitingActivation,
+    /// The open was tried, and `device` says how it went.
+    Tried,
+}
+
 pub struct AudioState {
     device: Option<backend::Device>,
-    /// Whether the open has been tried. Nothing tries until a sound plays or
-    /// `ready` is read, so a run that makes no sound never opens a device.
-    opened: bool,
+    /// How far the device has been asked for.
+    access: Access,
+    /// Whether the window was in front when the device was last looked at.
+    was_focused: bool,
     /// The open the first touch of audio started off the frame, answered
     /// when a sound first needs the device: the platform's open is tens of
     /// milliseconds, too long for the frame a first sound plays in.
     opening: Option<std::sync::mpsc::Receiver<Result<backend::Device>>>,
-    /// True while the device waits for `UserActivation`: a browser refuses
-    /// to start audio before a gesture, so the open is deferred to one.
-    awaiting_activation: bool,
     /// What `[audio]` asks of the device and the buses' limiters, read with
     /// the bus table and handed to the device when it opens.
     configured: bool,
@@ -309,10 +322,10 @@ impl AudioState {
     /// Open the output device, once, unless a browser is still waiting for
     /// its gesture. Every path that needs a device calls this first.
     fn open_if_needed(&mut self) {
-        if self.opened || self.awaiting_activation {
+        if self.access != Access::Untried {
             return;
         }
-        self.opened = true;
+        self.access = Access::Tried;
         self.device = match self.opening.take().and_then(|asked| asked.recv().ok()) {
             Some(Ok(device)) => Some(device),
             Some(Err(err)) => {
@@ -327,7 +340,7 @@ impl AudioState {
     /// first sound finds it open. Not in a browser, which opens on its
     /// gesture.
     fn begin_open(&mut self) {
-        if self.opened || self.awaiting_activation || self.opening.is_some() {
+        if self.access != Access::Untried || self.opening.is_some() {
             return;
         }
         let (output, routes) = (self.output.clone(), self.routes.clone());
@@ -955,72 +968,15 @@ fn open_device(output: &OutputSettings, routes: &[bus::Route]) -> Option<backend
 
 /// Open the device the first tick after the page has seen a gesture.
 fn open_on_activation_system(eng: &Engine, _: f32) {
-    let waiting = eng.resource::<AudioState>().borrow().awaiting_activation;
+    let waiting = eng.resource::<AudioState>().borrow().access == Access::AwaitingActivation;
     if !waiting || eng.try_resource::<balaur_core::UserActivation>().is_none() {
         return;
     }
     ensure_loaded(eng);
     let state = eng.resource::<AudioState>();
     let mut state = state.borrow_mut();
-    state.awaiting_activation = false;
-    state.opened = true;
+    state.access = Access::Tried;
     state.device = open_device(&state.output, &state.routes);
-}
-
-/// Drop finished sinks, and stop the sounds of nodes that were freed.
-fn sweep_sounds_system(eng: &Engine, _: f32) {
-    let state = eng.resource::<AudioState>();
-    let mut state = state.borrow_mut();
-    let world = eng.world();
-    spatial::sweep_listeners(&mut state, &world);
-    let AudioState {
-        nodes,
-        playing,
-        routing,
-        spatial,
-        releasing,
-        ..
-    } = &mut *state;
-    // A voice lives here, not on the entity, so this is where a freed node's
-    // playback stops.
-    nodes.retain(|&entity, voice| {
-        if world.contains(entity) {
-            return true;
-        }
-        if let Some(handle) = voice.handle {
-            spatial.shift_remove(&handle);
-            routing.shift_remove(&handle);
-            if let Some(sink) = playing.shift_remove(&handle) {
-                sink.stop();
-            }
-        }
-        false
-    });
-    // A sink that has played out is dropped. A sound whose length is known
-    // ends on the fixed step's count instead, which a machine with no device
-    // reaches on the same tick; only one of unknown length ends here.
-    let mut ended = Vec::new();
-    playing.retain(|handle, sink| {
-        if !sink.finished() {
-            return true;
-        }
-        if routing
-            .get(handle)
-            .is_some_and(|routed| !routed.timeline.counted())
-        {
-            spatial.shift_remove(handle);
-            routing.shift_remove(handle);
-            ended.push(*handle);
-        }
-        false
-    });
-    releasing.retain(|_, release| release.sink.as_ref().is_none_or(|sink| !sink.finished()));
-    drop(world);
-    drop(state);
-    if !ended.is_empty() {
-        announce_finished(eng, &ended);
-        publish_playback_times(eng);
-    }
 }
 
 /// Count every timed sound on by a fixed step, end the ones that ran out, and
@@ -1125,23 +1081,6 @@ fn announce_finished(eng: &Engine, ended: &[u64]) {
     }
 }
 
-/// A parked scene's sounds hold where they are, and come back to what each
-/// asks for.
-fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
-    let Some(state) = eng.try_resource::<AudioState>() else {
-        return;
-    };
-    let mut state = state.borrow_mut();
-    let world = eng.world();
-    for node in nodes {
-        let Some(handle) = state.nodes.get(node).and_then(|voice| voice.handle) else {
-            continue;
-        };
-        let asked = world.get::<&Sound>(*node).is_ok_and(|sound| sound.paused);
-        state.set_paused(handle, parked || asked);
-    }
-}
-
 impl balaur_plugin::Plugin for AudioPlugin {
     fn manifest(&self) -> &balaur_plugin::Manifest {
         &self.manifest
@@ -1149,12 +1088,15 @@ impl balaur_plugin::Plugin for AudioPlugin {
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         output::declare_settings(reg.engine());
-        balaur_core::parked::on_change(reg.engine(), parked_changed);
         reg.insert_resource(AudioState {
             device: None,
-            opened: false,
+            access: if cfg!(target_family = "wasm") {
+                Access::AwaitingActivation
+            } else {
+                Access::Untried
+            },
+            was_focused: true,
             opening: None,
-            awaiting_activation: cfg!(target_family = "wasm"),
             configured: false,
             output: OutputSettings::default(),
             routes: Vec::new(),
@@ -1172,7 +1114,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         reg.insert_resource(cache::SoundCache::default());
 
         reg.add_system(Stage::First, open_on_activation_system);
-        reg.add_system(Stage::PostUpdate, sweep_sounds_system);
+        reg.add_system(Stage::PostUpdate, sweep::sweep_sounds_system);
         reg.add_system(Stage::FixedUpdate, count_down_system);
         reg.add_system(Stage::SceneSync, spatial::spatialize_system);
         component::register_sound_component(reg);

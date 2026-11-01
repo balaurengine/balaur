@@ -227,9 +227,8 @@ pub struct UiState {
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
     pub texture_generation: u64,
-    /// Set by [`forget_scene`], consumed by the next [`run_pass`]: egui's own
-    /// memory is keyed by entity, and dropping it needs the context.
-    pub forget_egui: bool,
+    /// The tree's shape when what freed nodes left was last let go.
+    swept_at: u64,
 }
 
 /// A finger dragging a `scroll`: where it started, what the offset was then,
@@ -256,22 +255,6 @@ pub fn toast(eng: &Engine, text: &str) -> anyhow::Result<()> {
     let entity = eng.spawn_node("Toast", root);
     let params = toml::toml! { kind = "toast" text = text anchor = "top_right" x = 16.0 y = 16.0 };
     balaur_core::components::add(eng, entity, "widget", Some(&params.into()))
-}
-
-/// Drop everything the plugin cached against a scene that is being rebuilt.
-///
-/// The textures and the text buffers are keyed by strings a scene chose, and
-/// egui's per-widget memory — scroll offsets, area sizes — is keyed by entity,
-/// which a respawned node reuses. Nothing inside the engine calls this yet; a
-/// host that reloads a scene should.
-pub fn forget_scene(eng: &Engine) {
-    let Some(state) = eng.try_resource::<UiState>() else {
-        return;
-    };
-    let mut state = state.borrow_mut();
-    state.textures.clear();
-    state.fields.clear();
-    state.forget_egui = true;
 }
 
 pub struct UiPlugin {
@@ -374,10 +357,28 @@ pub fn pass_without_window(app: &mut balaur_core::App, width: f32, height: f32) 
     });
 }
 
+/// Let go of what the widget layer keeps by node, once its node is freed. A
+/// parked scene's nodes are alive, so a return finds its caret and its folds.
+fn sweep_freed(eng: &Engine, state: &std::rc::Rc<std::cell::RefCell<UiState>>) {
+    let revision = balaur_core::scene::shape_revision();
+    let mut state = state.borrow_mut();
+    if state.swept_at == revision {
+        return;
+    }
+    state.swept_at = revision;
+    let world = eng.world();
+    state
+        .fields
+        .retain(|_, field| field.owner.is_none_or(|node| world.contains(node)));
+    widget::window::forget_freed(&world);
+    widget::code::forget_freed(&world);
+}
+
 fn pass(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };
+    sweep_freed(eng, &state);
     // Pictures a preload decoded since the last pass, up before anything draws.
     images::settle(eng, ctx);
     {
@@ -410,11 +411,6 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             // and a bar, and neither needs a font bound to paint.
             splash::draw(eng, ctx);
             return;
-        }
-        if std::mem::take(&mut state.forget_egui) {
-            // Scroll offsets and area sizes are keyed by entity, and a
-            // respawned node inherits the index the freed one had.
-            ctx.memory_mut(|memory| memory.data.clear());
         }
     }
     // A second lookup and borrow, deliberately: the pending theme is the

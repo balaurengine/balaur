@@ -416,3 +416,25 @@ fn a_websocket_says_where_it_is_and_how_it_closed() {
     );
     assert_eq!(state(&app), "closed");
 }
+
+#[test]
+fn a_socket_closed_while_it_dials_never_reads_open() {
+    let url = serve_echo();
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_websocket(dir.path());
+    let id = app.engine.next_token();
+    {
+        let state = app.engine.resource::<WebsocketState>();
+        let mut state = state.borrow_mut();
+        state.connect(&app.engine, id, &url, SocketOptions::default(), None);
+        state.close(id);
+    }
+    let state = app.engine.resource::<WebsocketState>();
+    let mut opened = false;
+    wait_for(&mut app, |snapshot| {
+        assert_ne!(state.borrow().state(id), "open", "it is on its way out");
+        opened |= socket_event(snapshot, "open").is_some();
+        socket_event(snapshot, "closed")
+    });
+    assert!(opened, "the control: the dial finished before the close");
+}

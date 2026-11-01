@@ -294,7 +294,12 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
                     state.handlers.shift_remove(socket)
                 }
                 SocketEvent::Open { socket } => {
-                    if let Some(status) = state.status.get_mut(socket) {
+                    // A socket closed while it dialed is still on its way out.
+                    if let Some(status) = state
+                        .status
+                        .get_mut(socket)
+                        .filter(|status| **status != self::state::CLOSING)
+                    {
                         *status = self::state::OPEN;
                     }
                     state.handlers.get(socket).cloned()

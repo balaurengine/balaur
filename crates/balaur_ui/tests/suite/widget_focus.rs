@@ -6,6 +6,32 @@ use crate::support::*;
 use balaur::{AppConfig, standard_app};
 use balaur_core::hecs::Entity;
 
+#[test]
+fn a_disabled_button_is_not_a_focus_stop() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
+    );
+    add_child_widget(
+        &app,
+        column,
+        "Off",
+        &toml::toml! { kind = "button" text = "Off" enabled = false }.into(),
+    );
+    let on = add_child_widget(
+        &app,
+        column,
+        "On",
+        &toml::toml! { kind = "button" text = "On" }.into(),
+    );
+    keyboard(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(on));
+}
+
 /// Focus follows the tree that was drawn, not the arena: an accept on a
 /// button under a hidden panel would fire an `on_click` nobody could see.
 #[test]

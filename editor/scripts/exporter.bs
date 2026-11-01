@@ -263,9 +263,12 @@ fn export_button(state: editor::State, name: str, installed: bool, fetchable: bo
 
 fn on_export_clicked(state: &mut editor::State, data: any, _value: any) {
     let name: str = data.name;
-    let status_map: any = state.exporter.status;
-    status_map.set(name, "started");
     // `download` is the consent this click just gave: the engine
     // never fetches a runtime without being told it may.
-    export::start(name, export::StartOptions { download: true });
+    if !export::start(name, export::StartOptions { download: true }) {
+        log::info("{name}: not exporting while a recording plays");
+        return;
+    }
+    let status_map: any = state.exporter.status;
+    status_map.set(name, "started");
 }

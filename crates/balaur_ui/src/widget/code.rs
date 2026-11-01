@@ -518,6 +518,15 @@ fn field_of(eng: &Engine, id: egui::Id, widget: &Widget) -> Field {
     field
 }
 
+/// Let go of the caret of each node freed.
+pub(crate) fn forget_freed(world: &balaur_core::hecs::World) {
+    CARETS.with(|carets| {
+        carets
+            .borrow_mut()
+            .retain(|bits, _| Entity::from_bits(*bits).is_some_and(|node| world.contains(node)));
+    });
+}
+
 fn code_id(entity: Entity) -> egui::Id {
     egui::Id::unique(("balaur-code", entity))
 }
@@ -623,6 +632,7 @@ pub(crate) fn code_editor(
         caret,
         used,
     };
+    field.owner = Some(entity);
     state.borrow_mut().fields.insert(id, field);
     coded
 }

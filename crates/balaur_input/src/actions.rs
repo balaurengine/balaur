@@ -248,7 +248,9 @@ impl Binding {
             Self::Key(key) => key.clone(),
             Self::Mouse(0) => String::from("mouse:left"),
             Self::Mouse(1) => String::from("mouse:right"),
-            Self::Mouse(_) => String::from("mouse:middle"),
+            Self::Mouse(2) => String::from("mouse:middle"),
+            Self::Mouse(3) => String::from("mouse:back"),
+            Self::Mouse(_) => String::from("mouse:forward"),
             Self::Pad(button) => format!("gamepad:{button}"),
             Self::Axis { name, half } => match half {
                 Half::Both => format!("axis:{name}"),
@@ -735,6 +737,14 @@ mod tests {
     use super::{Binding, InputActions};
     use crate::InputSnapshot;
     use crate::gamepad::GamepadState;
+
+    #[test]
+    fn every_mouse_button_writes_back_the_name_it_was_read_from() {
+        for name in ["left", "right", "middle", "back", "forward"] {
+            let text = format!("mouse:{name}");
+            assert_eq!(Binding::parse(&text).unwrap().text(), text);
+        }
+    }
 
     fn table(name: &str, key: &str) -> BTreeMap<String, Vec<Binding>> {
         BTreeMap::from([(name.to_string(), vec![Binding::parse(key).unwrap()])])

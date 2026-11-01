@@ -59,6 +59,9 @@ impl Runtime {
         }
         let nself = obj.raw.len();
         let results = nself + width(&self.meta, &info.ret);
+        if self.parked_call.is_some() {
+            return fail("the script is stopped at a breakpoint");
+        }
         self.parked_call = Some(ParkedCall {
             ret: info.ret,
             nself,

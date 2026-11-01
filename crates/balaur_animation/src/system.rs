@@ -206,12 +206,10 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                     continue;
                 }
                 if tween::advance(&world, id, tween, &mut effects) {
-                    if tween.played > 0 {
-                        effects.push(Effect::TweenFinished {
-                            entity: tween.node,
-                            id,
-                        });
-                    }
+                    effects.push(Effect::TweenFinished {
+                        entity: tween.node,
+                        id,
+                    });
                     done.push(id);
                 }
             }

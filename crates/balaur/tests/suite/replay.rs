@@ -107,3 +107,28 @@ fn replaying_without_the_recorded_input_diverges() {
         "a run fed no input must not land on the recorded digest"
     );
 }
+
+#[test]
+fn a_recording_that_cannot_be_read_answers_nil() {
+    let dir = tempfile::tempdir().unwrap();
+    project(dir.path());
+    std::fs::write(
+        dir.path().join("scripts").join("runner.bs"),
+        "pub class Runner { node: Node, pub info_nil: bool, pub load_nil: bool }
+impl Runner {
+    fn init() {
+        self.info_nil = replay::info(\"nope.blr\") == nil;
+        self.load_nil = replay::load(\"nope.blr\") == nil;
+    }
+}
+",
+    )
+    .unwrap();
+    let app = booted(dir.path());
+    let world = app.engine.world();
+    let node = balaur_core::scene::find_node(&world, app.engine.root(), "Runner").unwrap();
+    let host = app.engine.script_host().unwrap();
+    let flag = |name| host.script_field(balaur_core::node_id_of(node), name);
+    assert_eq!(flag("info_nil"), Some(balaur_script::Value::Bool(true)));
+    assert_eq!(flag("load_nil"), Some(balaur_script::Value::Bool(true)));
+}

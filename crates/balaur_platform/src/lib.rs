@@ -365,7 +365,22 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         let mut snapshot = snapshot.borrow_mut();
         // A tick being re-run queues its writes again, so whatever this tick
         // or a later one left behind belongs to the run being replaced.
+        let replaced: Vec<u64> = state
+            .pending
+            .iter()
+            .filter(|(tick, ..)| *tick >= clock.tick)
+            .map(|(_, request, _)| *request)
+            .collect();
         state.pending.retain(|(tick, ..)| *tick < clock.tick);
+        for request in replaced {
+            state.handlers.shift_remove(&request);
+        }
+        {
+            let world = eng.world();
+            state.watchers.retain(|watcher| {
+                balaur_core::entity_of(watcher.node).is_ok_and(|node| world.contains(node))
+            });
+        }
         state.release(eng, clock.settled);
         {
             let PlatformState { io, backend, .. } = &mut *state;

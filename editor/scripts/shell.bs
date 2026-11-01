@@ -360,6 +360,11 @@ pub fn stop_play(state: &mut editor::State) {
     if state.playing {
         log::info("stop: scene reset");
     }
+    // A call stopped at a line runs out, or its stack outlives the scene.
+    while debugger::stop_location() != nil {
+        debugger::resume(debugger::CONTINUE);
+    }
+    state.debug.paused = nil;
     // A stop in the frame play started must not release the rebuilt scene.
     state.release_at = -1;
     session::end(state, "stop");

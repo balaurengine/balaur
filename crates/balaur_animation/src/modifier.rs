@@ -559,6 +559,7 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
     if eng.frozen_root().is_some() {
         return;
     }
+    let paused = balaur_core::process::pause(eng);
     let mut work: Vec<(Entity, Arc<Params>, bool)> = {
         let world = eng.world();
         let mut work: Vec<(Vec<u32>, Entity, Arc<Params>, bool)> = world
@@ -572,7 +573,7 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
                     .map(|(e, m)| (e, Arc::clone(&m.0), true)),
             )
             .filter(|(_, m, _)| m.enabled && !(m.kind.wants_target() && m.target.is_empty()))
-            .filter(|(e, _, _)| !balaur_core::parked::is_parked(eng, *e))
+            .filter(|(e, _, _)| balaur_core::process::ticks(&world, *e, paused))
             .map(|(e, m, dim3)| (scene_order(&world, e), e, m, dim3))
             .collect();
         // Two modifiers on one bone have to land the same way twice, and the

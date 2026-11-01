@@ -199,6 +199,11 @@ impl balaur_plugin::Plugin for MultiplayerPlugin {
 
 /// Run the lobby: accept, greet, and notice who came and went.
 fn poll_system(eng: &Engine, _dt: f32) {
+    // A link made in a replay has no worker, and the wait for a host is on the
+    // wall clock: left to run, it tells a script the host never answered.
+    if balaur_core::replay::suppressed(eng) {
+        return;
+    }
     let state = eng.resource::<MultiplayerState>();
     let mut state = state.borrow_mut();
     match state.phase {

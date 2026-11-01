@@ -182,14 +182,14 @@ stateDiagram-v2
     Hosting --> Starting: start or lobby full
     Hosting --> Idle: leave
     JoiningDialed --> JoiningHello: link Open, Hello sent
-    JoiningDialed --> Idle: link closed, timeout, leave, start
+    JoiningDialed --> Idle: link closed, timeout, leave
     JoiningHello --> JoiningWelcomed: Welcome
-    JoiningHello --> Idle: link closed, timeout, Refuse, Bye, leave, start
+    JoiningHello --> Idle: link closed, timeout, Refuse, Bye, leave
     JoiningWelcomed --> Starting: Control Start
-    JoiningWelcomed --> Idle: link closed, Bye, leave, start
+    JoiningWelcomed --> Idle: link closed, Bye, leave
     Starting --> Playing: next live frame
-    Starting --> Idle: leave, start
-    Playing --> Idle: leave, host gone, start
+    Starting --> Idle: leave
+    Playing --> Idle: leave, host gone
 ```
 
 | State | What is true |
@@ -222,7 +222,6 @@ stateDiagram-v2
 | `Playing` | `multiplayer.leave` during a tick, the driver holds the session | `Playing`, then `Idle` | Sets `leave_asked`. `settle` broadcasts `Bye` and calls `end` with "left". |
 | `Playing`, client | `settle` reads `Control::Bye` | `Idle` | `end` with "the host left". |
 | `Playing`, client | `settle`, link silent or `Closed` | `Idle` | `end` with "lost the host". |
-| `Joining`, `Starting`, `Playing` | `multiplayer.start`, `lobby::start` | `Idle` | Answers false. Drops held links with no `Bye`. Leaves role, local, roster and `net`. Tells nothing. |
 
 `begin` frees every parked scene and switches to the match scene. A joiner restores the host's world. A host captures its world and sends `Control::Start` on every link. Both build the `NetSession`, and a host turns on relay and adds its bots as local players.
 
@@ -230,9 +229,9 @@ A silent link times out at the `timeout` option once it has been heard. A link n
 
 Starts in `Idle`. Never ends.
 
-Refused or ignored: `host` and `join` return an error unless `Idle`. A failed bind or a url with no transport leaves `Idle`. `add_bot` answers nil unless `Hosting` with room. `leave` in `Idle` with no role does nothing and tells nothing. `Hello` and `Absent` are ignored while `Joining`. A host ignores `Control::Absent` while `Playing`. A joined link in a lobby has no silence timeout.
+Refused or ignored: `host` and `join` return an error unless `Idle`. A failed bind or a url with no transport leaves `Idle`. `start` answers false outside `Hosting` and moves nothing. `add_bot` answers nil unless `Hosting` with room. `leave` in `Idle` with no role does nothing and tells nothing. `Hello` and `Absent` are ignored while `Joining`. A host ignores `Control::Absent` while `Playing`. A joined link in a lobby has no silence timeout.
 
-`App::advance` calls the driver only on `Step::Live`, so replay playback runs no `begin` and no match tick. `host` returns an error while a recording plays or a tick re-runs, because the listener refuses to bind.
+`App::advance` calls the driver only on `Step::Live`, so replay playback runs no `begin` and no match tick. `host` returns an error while a recording plays or a tick re-runs, because the listener refuses to bind. `poll_system` returns at once while `replay::suppressed`, so `poll_host` and `poll_join` do not run. A join made in a replay stays in `Joining`, with no timeout.
 
 Held by a pause, a `process` mode or a parked scene: `poll_system`, `deliver_system` and `drive` read none of them, so a paused game keeps ticking its match. `deliver_system` calls `announce`, which reaches a held script and no parked one.
 
@@ -443,7 +442,7 @@ stateDiagram-v2
     CONNECTING --> OPEN: Open drained
     CONNECTING --> CLOSING: close
     OPEN --> CLOSING: close
-    CLOSING --> OPEN: Open drained
+    CLOSING --> CLOSING: Open drained
     CONNECTING --> CLOSED: Closed or Failed drained
     OPEN --> CLOSED: Closed or Failed drained
     CLOSING --> CLOSED: Closed or Failed drained
@@ -453,18 +452,21 @@ stateDiagram-v2
 | State | What is true |
 |---|---|
 | `state::CONNECTING` (`"connecting"`, `STATE_CONNECTING`) | `connect` ran and no `Open` has drained. |
-| `state::OPEN` (`"open"`, `STATE_OPEN`) | `Open` drained. |
+| `state::OPEN` (`"open"`, `STATE_OPEN`) | `Open` drained while `CONNECTING`. |
 | `state::CLOSING` (`"closing"`, `STATE_CLOSING`) | `close` ran and no final event has drained. |
 | `state::CLOSED` (`"closed"`, `STATE_CLOSED`) | No row: a final event drained, or the id names nothing. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `WebsocketState::connect` | `CONNECTING` | Stores the handler, logs `websocket.connect`, spawns the worker through `io.start`. With no queue it reports `Failed`. |
-| `CONNECTING`, `CLOSING` | `pump_websocket_system` drains `Open` | `OPEN` | Handler hears `open`. `host.wake(id)`. |
+| `CONNECTING` | `pump_websocket_system` drains `Open` | `OPEN` | Handler hears `open`. `host.wake(id)`. |
+| `CLOSING` | pump drains `Open` | same | Handler hears `open`. `host.wake(id)`. |
 | `CONNECTING`, `OPEN` | `close` | `CLOSING` | Sends `SocketCommand::Close`. Answers whether a worker took it. |
 | any | pump drains `Closed` | `CLOSED` | Removes status, sockets and handler. Handler hears `closed` with `code` and `reason`. No wake. |
 | any | pump drains `Failed` | `CLOSED` | Same removal. Handler hears `error` with `reason` and `status`. `host.wake(id)`. |
 | `OPEN`, `CLOSING` | pump drains `Message`, `Binary` | same | Handler hears `message` or `binary`. |
+
+`Open` and a final event can drain in one pump. Handlers run after the drain, so a handler hearing `open` can read `closed` from `websocket.state`.
 
 Starts in `CONNECTING`. Ends in `CLOSED`.
 
@@ -895,7 +897,8 @@ No script reads this directly. Scripts hear the events below and read `gamend.co
 | `join_ref == Some` | `deliver`, join reply not `ok` | via `dropped` | Reason is "joining the user channel was refused: …". |
 | `Live` | `arrivals` reads `Closed` or `Failed`, or `Protocol::decode` fails | via `dropped` | An empty reason reads "closed". |
 | `joined == true` | `run` reads `Interrupt` | via `dropped` | Reason is "interrupted by the game". |
-| `joined == true` | `run` fails: `push` or `leave` on a topic with no join ref, or a frame send fails | via `dropped` | The command's request gets no reply. |
+| `joined == true` | `run` reads `Push`, `Leave` or `CallHook` on a topic with no join ref | same | `refuse` sends `Failed`, "not joined to …". `CallHook` asks for the own-user topic's ref. |
+| `joined == true` | `run`, a frame send fails | via `dropped` | The request is already in `pending`, so `fail_pending` answers it. |
 | `joined == true` | `Protocol::heartbeat` errors, or a rejoin or heartbeat send fails | via `dropped` | Nothing else. |
 | `joined == true` | `run` reads `Close`, or the channel is gone | removed | `closed_by_game`. |
 | via `dropped` | `opened_once` and `tries + 1 <= 8` | `Waiting(now + backoff)` | `fail_pending`, clears rejoins, closes. Reports `SocketReconnecting`. |
@@ -991,7 +994,7 @@ stateDiagram-v2
     Due --> Joined: connection dropped
     Retrying --> Joined: reply ok or connection dropped
     Retrying --> Due: refused, tries left
-    Retrying --> Gone: refused, out of tries
+    Retrying --> Gone: refused, out of tries, or leave
     Joined --> Rejoining: reconnect joined
     Rejoining --> Joined: reply ok or connection dropped
     Rejoining --> Gone: reply refused
@@ -1016,10 +1019,11 @@ stateDiagram-v2
 | in `topics` | `Rejoins::heard`, `phx_error` | in `Rejoins.due`, attempt 1 | Due in 1 second. Reports `SocketMessage`. `Protocol.joins` forgets it. |
 | in `topics`, `Rejoins.due` | `Rejoins::heard`, `phx_close` | gone | Reports `SocketMessage`. |
 | in `topics` | `run` reads `Leave` | gone | Sends `phx_leave`. |
-| in `Rejoins.due` | `run` reads `Leave` | gone | `Protocol::leave` errors because the topic has no join ref, so the connection drops. |
+| in `Rejoins.due` | `run` reads `Leave` | gone | `Rejoins::forget` ends the wait. `Protocol::leave` finds no join ref, so no frame goes. `Replied` with `ok`. |
+| in `LiveSocket.rejoining` | `run` reads `Leave` | gone | Sends `phx_leave`. The join's reply then matches nothing. |
 | in `topics` | `wait_commands` reads `Leave` | gone | `Replied` with `ok`. |
 | in `Rejoins.due` | `live`, `take_due` | in `LiveSocket.rejoining` | Sends the join. No event. |
-| in `LiveSocket.rejoining` | `Rejoins::answered`, `ok` | in `topics` | Nothing else. |
+| in `LiveSocket.rejoining` | `Rejoins::answered`, `ok` | in `topics` | Changes no list. |
 | in `LiveSocket.rejoining` | `Rejoins::answered`, refused, attempt below 8 | in `Rejoins.due`, next attempt | Waits `backoff(attempt)`. |
 | in `LiveSocket.rejoining` | `Rejoins::answered`, refused, attempt 8 | gone | Nothing else. |
 | in `Rejoins.due`, `LiveSocket.rejoining` | `dropped` | in `topics` | Both are cleared, and the reconnect asks again. |
@@ -1029,7 +1033,7 @@ stateDiagram-v2
 
 Starts in `joining`. Ends in gone.
 
-Refused or ignored: a `phx_error` for a topic the game never joined does nothing. The own-user topic can be due too, with an empty payload, though it is never in `topics`.
+Refused or ignored: a `Push` or a `Leave` on a topic with no join ref gets `Failed` and leaves the connection up. A `phx_error` for a topic the game never joined does nothing. The own-user topic can be due too, with an empty payload, though it is never in `topics`.
 
 ### Heartbeat
 
@@ -1142,16 +1146,18 @@ stateDiagram-v2
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `login`, `rest` | queued | `activity.started`. Queues through `io.start`. |
-| none | `join`, `push`, `leave`, `call_hook` | queued | `activity.started`. `command` returns "no such gamend socket" or "the gamend connection is gone", and the handler and the row stay. |
-| queued | `run` | in `pending` | Sends the frame. |
+| none | `join`, `push`, `leave`, `call_hook` | queued | `activity.started`, then `command` queues it. |
+| none | `command`, the socket is gone | none | Returns "no such gamend socket" or "the gamend connection is gone". Removes the handler. `activity.heard` finishes the row with `Failed`. |
+| queued | `run` | in `pending` | Adds the row, then sends the frame. |
+| queued | `run`, `Push`, `Leave` or `CallHook` with no join ref | answered | `refuse` sends `Failed`, "not joined to …". A `Leave` of a topic waiting to join again gets `Replied` with `ok`. |
 | queued | `spawn_login`, `spawn_rest` finish | answered | `LoggedIn`, `RestDone` or `Failed`. |
 | queued | `wait_commands` | answered | `Failed`, "the socket is reconnecting", or `Replied` for a `Leave`. |
+| queued | The socket is removed, `Drop for LiveSocket` | answered | `Failed`, "the socket closed". |
 | in `pending` | `deliver`, reply by ref | answered | `Replied`. |
 | in `pending` | `fail_pending` | answered | `Failed`, "the connection ended before the reply". |
 
 Starts queued. Ends answered.
 
-Refused or ignored: a command that makes `run` fail leaves queued and never reaches `pending`, so no event answers it.
 
 ### Activity row status
 
@@ -1209,13 +1215,17 @@ stateDiagram-v2
     Started --> RowDown: SocketError or SocketClosed
     RowOpen --> RowDown: reconnecting, closed or error
     RowDown --> RowOpen: SocketReopened
+    RowDown --> [*]: next connect or configured
+    RowOpen --> [*]: configured
+    Started --> [*]: configured
 ```
 
 | State | What is true |
 |---|---|
 | `open == false`, `reason == nil` | `connect` started. |
 | `open == true`, `reason == nil` | Open or reopened. |
-| `open == false`, `reason` set | Reconnecting, closed or failed. |
+| `open == false`, `reason` set, `ended == false` | Reconnecting. |
+| `open == false`, `reason` set, `ended == true` | Closed or failed. The row stays to say why. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -1223,11 +1233,14 @@ stateDiagram-v2
 | any | `heard`, `SocketOpen` | `open == true` | Leaves `reason`. |
 | any | `heard`, `SocketReconnecting` | `open == false`, `reason` set | Adds a `reconnecting` row. |
 | any | `heard`, `SocketReopened` | `open == true`, `reason == nil` | Removes `lost` from `topics`. Adds a `reopened` row. |
-| any | `heard`, `SocketClosed`, `SocketError` | `open == false`, `reason` set | Finishes the connect row. |
+| any | `heard`, `SocketClosed`, `SocketError` | `open == false`, `reason` set, `ended == true` | Finishes the connect row. |
 | any | `replied`, `ok` to a join or a leave | same | Adds to or removes from `topics`. |
 | any | `heard`, `SocketMessage` with `phx_close` | same | Removes the topic. |
+| `ended == true` | `started` with kind `connect`, for any socket | row gone | Runs before the new row is added. A socket still reconnecting keeps its row and its topics. |
+| any | `configured` | row gone | Clears every row. |
+| no row | `heard` or `replied` for that socket | a new row | `or_default` starts it with no topics. |
 
-Starts with `open == false`. Never ends: `configured` leaves the rows and nothing removes one.
+Starts with `open == false`. Ends when `configured` clears the rows, or a later `connect` drops an ended row.
 
 ### Activity user
 
@@ -1240,7 +1253,7 @@ The activity log holds who `gamend.connection()` names. Source: `crates/balaur_g
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `configured` | `None` | Sets the url. |
+| any | `configured` | `None` | Sets the url and clears `sockets`. |
 | any | `heard`, `LoggedIn` | `Some` | Finishes the login row. |
 | any | `signed_in`, from `gamend.restore` | `Some` or `None` | Nothing else. |
 
@@ -1278,8 +1291,9 @@ Refused or ignored: `Failed` and `Unsupported` leave it as it was.
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | not in `watchers` | `PlatformState::start` with `Call::SignIn` and a handler | in `watchers` | A handler with the same node and method is added once. |
+| in `watchers` | `pump_platform_system`, the node is gone from the world | not in `watchers` | Runs every pump. |
 
-Starts not in `watchers`. Ends in `watchers`: this crate removes none.
+Starts not in `watchers`. Ends when its node is gone.
 
 ### One platform call
 
@@ -1312,7 +1326,7 @@ stateDiagram-v2
 | none | `start`, `Call::writes` and `clock.tick >= clock.settled` | in `pending` | Stores the handler, logs `platform.call`. |
 | none | `start`, otherwise | issued | `issue`. With no session `settled` is `u64::MAX`, so a write goes out at once. |
 | in `pending` | `release` in the pump, tick before `settled`, not suppressed | issued | `issue`. |
-| in `pending` | Pump, tick at or past `clock.tick` | discarded | No event. `handlers[id]` stays. |
+| in `pending` | Pump, tick at or past `clock.tick` | discarded | No event. Removes `handlers[id]`. |
 | issued | `issue`, no backend | answered at the next pump | `Unsupported`. |
 | issued | Pump drains its event | answered | Targets are dispatched. `host.wake(request)`. |
 
@@ -1354,7 +1368,7 @@ Starts in `None`. Never ends.
 | `HttpEvent` | `crates/balaur_http/src/lib.rs` | `Response`, `Progress`, `Sent`, `Error` | One report from a request worker. |
 | `kind` | `crates/balaur_http/src/lib.rs` | `"response"`, `"progress"`, `"upload"`, `"cancelled"`, `"error"` | The `kind` of an HTTP event map. `"cancelled"` comes from the pump and has no `HttpEvent`. |
 | `Next` | `crates/balaur_gamend/src/realtime.rs` | `Stay`, `Drop`, `Refused`, `ClosedByGame` | What one `live` call tells `step` to do. |
-| `SocketEvent` | `crates/balaur_gamend/src/client/phoenix.rs` | `Reply`, `Message`, `Closed` | One decoded server frame. `Protocol::decode` makes `Reply` and `Message`. |
+| `SocketEvent` | `crates/balaur_gamend/src/client/phoenix.rs` | `Reply`, `Message` | One decoded server frame. |
 | `SocketCommand` | `crates/balaur_gamend/src/lib.rs` | `Join`, `Push`, `Leave`, `CallHook`, `Close`, `Interrupt` | What the engine asks a realtime socket to do. |
 | `GamendEvent` | `crates/balaur_gamend/src/lib.rs` | `LoggedIn`, `RestDone`, `Failed`, `Replied`, `SocketOpen`, `SocketMessage`, `SocketClosed`, `SocketError`, `SocketReconnecting`, `SocketReopened` | One completion crossing to the frame loop. |
 | `kind` | `crates/balaur_gamend/src/lib.rs` | `"login"`, `"rest"`, `"reply"`, `"open"`, `"message"`, `"closed"`, `"reconnecting"`, `"reopened"`, `"error"` | The `kind` of a Gamend event map. `Failed` and `SocketError` both read `"error"`. |

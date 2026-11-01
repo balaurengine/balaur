@@ -32,7 +32,7 @@ pub(super) fn draw(
         let live = slot
             .particles
             .get_or_insert_with(|| crate::particles_3d::Live3d::new(entity));
-        let delta = app.engine.delta();
+        let delta = crate::particles::step_of(&app.engine, world, entity, app.engine.delta());
         let any = crate::particles_3d::draw(&mut slot.node, live, &emitter, global, (eye, delta));
         slot.node.set_visible(visible && any);
     }

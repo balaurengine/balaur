@@ -5974,7 +5974,7 @@
       },
       "replay::info": {
         "least": 1,
-        "signature": "(str) -> replay::Header"
+        "signature": "(str) -> replay::Header?"
       },
       "replay::length": {
         "least": 0,
@@ -5982,7 +5982,7 @@
       },
       "replay::load": {
         "least": 1,
-        "signature": "(str) -> replay::Header"
+        "signature": "(str) -> replay::Header?"
       },
       "replay::marks": {
         "least": 1,
@@ -6002,7 +6002,7 @@
       },
       "replay::record": {
         "least": 1,
-        "signature": "(str, replay::RecordOptions?) -> str"
+        "signature": "(str, replay::RecordOptions?) -> str?"
       },
       "replay::recording": {
         "least": 0,
@@ -26575,14 +26575,14 @@
         "divergence_tick": "The first tick whose replay did not reproduce the recorded digest, or nil.",
         "events": "The events recorded between two ticks, each with its tick, kind, label and data.",
         "header": "The loaded recording's project, start time, script fingerprint and how it ended.",
-        "info": "The same summary for a recording on disk, without loading it.",
+        "info": "The same summary for a recording on disk, without loading it. Nil when it cannot be read.",
         "length": "The loaded recording's frame count and the ticks it spans, or nil.",
-        "load": "Read a recording and put it in front of the engine, paused before its first tick.",
+        "load": "Read a recording and put it in front of the engine, paused before its first tick. Nil when it cannot be read, which is logged.",
         "marks": "The ticks at which one replay source held a non-empty list under a key, and what it held.",
         "pause": "Stop between ticks, holding the simulation still while the frame loop keeps drawing.",
         "play": "Run the loaded recording, one recorded tick per frame.",
         "position": "The tick playback has reached.",
-        "record": "Start recording into a file; call it before the code it records runs.",
+        "record": "Start recording into a file; call it before the code it records runs. Answers the path, or nil when the file cannot be written, which is logged.",
         "recording": "The file being recorded into, or nil.",
         "recording_name": "A file-safe name for a recording starting now, so a list of them sorts by when they ran.",
         "seek": "Run recorded ticks until playback reaches the given tick; forward only.",
@@ -26614,14 +26614,14 @@
         "divergence_tick": "() -> replay::Divergence?",
         "events": "(int, int) -> [replay::Event]",
         "header": "() -> replay::Header?",
-        "info": "(str) -> replay::Header",
+        "info": "(str) -> replay::Header?",
         "length": "() -> replay::Length?",
-        "load": "(str) -> replay::Header",
+        "load": "(str) -> replay::Header?",
         "marks": "(str, str?) -> [replay::Mark]",
         "pause": "()",
         "play": "()",
         "position": "() -> int",
-        "record": "(str, replay::RecordOptions?) -> str",
+        "record": "(str, replay::RecordOptions?) -> str?",
         "recording": "() -> str?",
         "recording_name": "() -> str",
         "seek": "(int)",
