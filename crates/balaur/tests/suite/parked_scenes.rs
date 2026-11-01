@@ -29,7 +29,7 @@ impl Screen {
     }
     fn update(dt: float) {
         self.updates = self.updates + 1;
-        if !script::stored(\"freed\").is_nil() { self.saw_free = 1; }
+        if script::stored(\"freed\") != nil { self.saw_free = 1; }
     }
     fn fixed_update(dt: float) {
         self.fixed = self.fixed + 1;

@@ -315,7 +315,7 @@ fn a_packed_project_lists_and_reads_its_documents() {
         (
             "root.bs",
             "pub class Root { node: Node, ran: bool }\n\
-             impl Root { fn init() { self.ran = fs::read(\"strings/ro.toml\").is_some(); } }\n",
+             impl Root { fn init() { self.ran = fs::read(\"strings/ro.toml\") != nil; } }\n",
         ),
     );
     std::fs::create_dir(dir.path().join("strings")).unwrap();
