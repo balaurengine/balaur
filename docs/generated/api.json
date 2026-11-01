@@ -20155,12 +20155,12 @@
     [
       "update",
       "(dt)",
-      "Every frame, with the seconds since the last; not while paused."
+      "Every frame, with the seconds since the last; not while a pause or the node's `process` mode holds it."
     ],
     [
       "fixed_update",
       "(dt)",
-      "Every fixed step, with the step's length; not while paused."
+      "Every fixed step, with the step's length; not while a pause or the node's `process` mode holds it."
     ],
     [
       "on_free",

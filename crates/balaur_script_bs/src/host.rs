@@ -858,10 +858,25 @@ impl BsHost {
         Some((file, inst))
     }
 
+    // Whether a pause or a `process` mode lets `node` run this frame.
+    fn ticks(&self, node: u64, pause: balaur_core::process::Pause) -> bool {
+        !pause.holds()
+            || balaur_core::entity_of(NodeId(node)).is_ok_and(|entity| {
+                balaur_core::process::ticks(&self.inner.engine.world(), entity, pause)
+            })
+    }
+
+    // `method` on every instance a pause or a `process` mode lets run.
+    fn each(&self, method: &str, args: &[Value], sync_only: bool) {
+        let pause = balaur_core::process::pause(&self.inner.engine);
+        let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+        all.retain(|inst| self.ticks(inst.node, pause));
+        self.each_of(&all, method, args, sync_only);
+    }
+
     // `update` and `fixed_update` run every frame, so an async one would
     // start a task a frame: those two are called only when they do not await.
-    fn each(&self, method: &str, args: &[Value], sync_only: bool) {
-        let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+    fn each_of(&self, all: &[Rc<Instance>], method: &str, args: &[Value], sync_only: bool) {
         let mut start = 0;
         while start < all.len() {
             // A stop freezes the game, the rest of this pass with it.

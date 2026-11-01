@@ -131,8 +131,8 @@ pub fn hook_of(event: &str) -> smol_str::SmolStr {
 #[rustfmt::skip]
 pub const REFERENCE: &[(&str, &str, &str)] = &[
     (INIT, "()", "Once, when the script is attached and its scene has loaded."),
-    (UPDATE, "(dt)", "Every frame, with the seconds since the last; not while paused."),
-    (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while paused."),
+    (UPDATE, "(dt)", "Every frame, with the seconds since the last; not while a pause or the node's `process` mode holds it."),
+    (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while a pause or the node's `process` mode holds it."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
     (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
     (DEFAULTS, "()", "When the instance is made, before the scene's properties land."),

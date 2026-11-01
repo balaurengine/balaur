@@ -11,8 +11,8 @@ in [components.md](./components.md).
 <thead><tr><th>hook</th><th>when</th></tr></thead>
 <tbody>
 <tr><td><code>init()</code></td><td>Once, when the script is attached and its scene has loaded.</td></tr>
-<tr><td><code>update(dt)</code></td><td>Every frame, with the seconds since the last; not while paused.</td></tr>
-<tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while paused.</td></tr>
+<tr><td><code>update(dt)</code></td><td>Every frame, with the seconds since the last; not while a pause or the node&#x27;s <code>process</code> mode holds it.</td></tr>
+<tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while a pause or the node&#x27;s <code>process</code> mode holds it.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
 <tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
 <tr><td><code>defaults()</code></td><td>When the instance is made, before the scene&#x27;s properties land.</td></tr>

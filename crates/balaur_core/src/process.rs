@@ -138,6 +138,14 @@ pub struct Pause {
 }
 
 impl Pause {
+    /// Whether a pause or a mode holds anything, so a pass over many nodes
+    /// has any node to ask about. A parked node is held all the same, for a
+    /// pass that can meet one: [`ticks`] answers for it.
+    #[must_use]
+    pub const fn holds(self) -> bool {
+        self.on || self.modes
+    }
+
     #[must_use]
     fn covers(self, world: &World, entity: Entity) -> bool {
         self.on

@@ -99,11 +99,13 @@ pub trait ScriptHost<C: ?Sized> {
         let _ = (nodes, parked);
     }
 
-    /// Per-frame tick of every live instance, at the measured frame time.
-    /// Presentation: anything a dropped or doubled frame may safely skip.
+    /// Per-frame tick of every live instance a pause or a `process` mode does
+    /// not hold, at the measured frame time. Presentation: anything a dropped
+    /// or doubled frame may safely skip.
     fn update(&self, dt: f32);
 
-    /// Fixed-step tick of every live instance, at the engine's constant step.
+    /// Fixed-step tick of every live instance a pause or a `process` mode does
+    /// not hold, at the engine's constant step.
     ///
     /// Simulation goes here. It runs zero or more times per frame, always
     /// with the same `dt`, and before physics steps, so a force applied
@@ -197,7 +199,7 @@ pub trait ScriptHost<C: ?Sized> {
     }
 
     /// Call a method on every instance that defines it, in a deterministic
-    /// order.
+    /// order, but for one a pause or a `process` mode holds.
     fn call_all(&self, method: &str);
 
     /// As [`ScriptHost::call_all`], with arguments after the instance.

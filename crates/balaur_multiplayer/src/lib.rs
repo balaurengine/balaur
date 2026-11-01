@@ -217,7 +217,9 @@ fn deliver_system(eng: &Engine, _dt: f32) {
     let Some(host) = eng.script_host() else {
         return;
     };
+    // Told once, so a script a pause holds hears it too: a peer gone while the
+    // game was paused is still gone.
     for event in events {
-        host.call_all_with(HOOK, &[event]);
+        host.announce(HOOK, &[event]);
     }
 }
