@@ -486,7 +486,7 @@ pub fn drag_handle(state: &mut editor::State, row: int, world_x: float, world_y:
 // A world point in `parent`'s own frame: what a child placed there holds.
 fn in_frame(parent: Node, world_x: float, world_y: float) -> Vec2 {
     if !parent.is_valid() {
-        return Vec2 { x: world_x, y: world_y };
+        return vec2(world_x, world_y);
     }
     let origin = parent.transform.global_position();
     let angle = parent.transform.global_rotation_euler().z;
@@ -495,10 +495,7 @@ fn in_frame(parent: Node, world_x: float, world_y: float) -> Vec2 {
     let offset_y = world_y - origin.y;
     let cosine = math::cos(angle);
     let sine = math::sin(angle);
-    Vec2 {
-        x: (cosine * offset_x + sine * offset_y) / (if util::abs(parent_scale.x) > 1e-6 { parent_scale.x } else { 1.0 }),
-        y: (-sine * offset_x + cosine * offset_y) / (if util::abs(parent_scale.y) > 1e-6 { parent_scale.y } else { 1.0 }),
-    }
+    vec2((cosine * offset_x + sine * offset_y) / (if util::abs(parent_scale.x) > 1e-6 { parent_scale.x } else { 1.0 }), (-sine * offset_x + cosine * offset_y) / (if util::abs(parent_scale.y) > 1e-6 { parent_scale.y } else { 1.0 }))
 }
 
 // The same name on the other side, or `None`. Shared spelling with the

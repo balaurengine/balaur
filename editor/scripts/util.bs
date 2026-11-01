@@ -485,7 +485,7 @@ pub fn frame_of(found: Node) -> Frame {
 pub fn to_world(frame: Frame, local_x: float, local_y: float) -> Vec2 {
     let scaled_x = local_x * frame.scale_x;
     let scaled_y = local_y * frame.scale_y;
-    Vec2 { x: frame.x + frame.cosine * scaled_x - frame.sine * scaled_y, y: frame.y + frame.sine * scaled_x + frame.cosine * scaled_y }
+    vec2(frame.x + frame.cosine * scaled_x - frame.sine * scaled_y, frame.y + frame.sine * scaled_x + frame.cosine * scaled_y)
 }
 
 /// A world point back in that frame. A zero scale places everything at the
@@ -497,7 +497,7 @@ pub fn to_local(frame: Frame, world_x: float, world_y: float) -> Vec2 {
     let rotated_y = -frame.sine * offset_x + frame.cosine * offset_y;
     let scale_x = if math::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
     let scale_y = if math::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
-    Vec2 { x: rotated_x / scale_x, y: rotated_y / scale_y }
+    vec2(rotated_x / scale_x, rotated_y / scale_y)
 }
 
 /// A project path where the engine wants one. The editor's engine resolves a

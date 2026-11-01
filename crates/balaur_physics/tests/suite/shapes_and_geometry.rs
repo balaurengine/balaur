@@ -158,7 +158,7 @@ impl Scenario {
         let grid = geometry3d::voxelize("#wedge", geometry3d::VoxelizeOptions { resolution: 8 });
         if grid.cells.len() <= 0 { log::error("voxelising found no cells"); }
 
-        let halves = geometry3d::split("#wedge", geometry3d::Plane { point: [0.25, 0.0, 0.0], normal: [1.0, 0.0, 0.0] });
+        let halves = geometry3d::split("#wedge", geometry3d::Plane { point: vec3(0.25, 0.0, 0.0), normal: vec3(1.0, 0.0, 0.0) });
         if halves.len() != 2 { log::error("a cut gives two halves, not {halves.len()}"); }
     }
 }

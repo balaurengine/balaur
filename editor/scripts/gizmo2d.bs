@@ -191,7 +191,7 @@ fn handle_local(geometry: Geometry, signs: [float]) -> Vec2 {
     let length = math::sqrt(along_x * along_x + along_y * along_y);
     let corner = along_x != 0.0 && along_y != 0.0;
     let out = geometry.handle_radius * (if corner { OUT_CORNER } else { OUT_EDGE }) / length;
-    Vec2 { x: along_x * geometry.half_extents[0] + along_x * out, y: along_y * geometry.half_extents[1] + along_y * out }
+    vec2(along_x * geometry.half_extents[0] + along_x * out, along_y * geometry.half_extents[1] + along_y * out)
 }
 
 // The world centre and axis-aligned half extents of one row, turned with it,

@@ -1,0 +1,6 @@
+fn f() -> Vec3 {
+    let v: Vec3 = [1.0, 2.0, 3.0];
+    v
+}
+
+// error: 2:19: a Vec3 is written `vec3(..)`, not as a list

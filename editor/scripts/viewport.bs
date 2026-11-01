@@ -23,7 +23,7 @@ pub struct RailDrag {
 /// one. A distance converts the same way as a place.
 pub fn design_pixels(state: editor::State, window_x: float, window_y: float) -> Vec2 {
     let per_design = util::max(render::camera_pose()[7], 0.01) * util::max(state.ui_scale, 0.01);
-    Vec2 { x: window_x / per_design, y: window_y / per_design }
+    vec2(window_x / per_design, window_y / per_design)
 }
 
 /// Where the pointer is, in design px.
@@ -37,7 +37,7 @@ pub fn pointer(state: editor::State) -> Vec2 {
 pub fn screen_of_2d(state: editor::State, world_x: float, world_y: float) -> Vec2 {
     let camera = render::camera_2d();
     let scale = util::max(state.ui_scale, 0.01);
-    Vec2 { x: state.screen_width / 2.0 + (world_x - camera.x) * camera.z / scale, y: state.screen_height / 2.0 - (world_y - camera.y) * camera.z / scale }
+    vec2(state.screen_width / 2.0 + (world_x - camera.x) * camera.z / scale, state.screen_height / 2.0 - (world_y - camera.y) * camera.z / scale)
 }
 
 /// A rail tool's drag this frame, or `None` when the pointer stood still or

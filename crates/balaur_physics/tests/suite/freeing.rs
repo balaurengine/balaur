@@ -290,7 +290,7 @@ fn a_raycast_stops_finding_a_freed_node() {
 impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        let opts = physics3d::RayQuery { origin: [0.0, 8.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 };
+        let opts = physics3d::RayQuery { origin: vec3(0.0, 8.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 };
         if self.ticks == 2 {
             self.hit_before = physics3d::raycast(opts) != nil;
             scene::get_node("/World/Target").queue_free();

@@ -82,7 +82,7 @@ fn run_clean_with(items: &str, body: &str) {
 fn a_ray_finds_the_nearest_collider() {
     run_clean(
         r#"
-        let found = physics3d::raycast(physics3d::RayQuery { origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
+        let found = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 10.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 });
         if found == nil { log::error("the ray found nothing"); }
         let hit = found.unwrap();
         let distance = hit.distance;
@@ -97,7 +97,7 @@ fn a_ray_finds_the_nearest_collider() {
 fn raycast_all_is_sorted_nearest_first() {
     run_clean(
         r#"
-        let hits = physics3d::raycast_all(physics3d::RayQuery { origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
+        let hits = physics3d::raycast_all(physics3d::RayQuery { origin: vec3(0.0, 10.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 });
         let count = hits.len();
         if count != 2 { log::error("expected both balls, got {count}"); }
         if hits[0].distance >= hits[1].distance { log::error("not sorted by distance"); }
@@ -109,7 +109,7 @@ fn raycast_all_is_sorted_nearest_first() {
 fn a_ray_that_hits_nothing_returns_nothing() {
     run_clean(
         r#"
-        let hit = physics3d::raycast(physics3d::RayQuery { origin: [50.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
+        let hit = physics3d::raycast(physics3d::RayQuery { origin: vec3(50.0, 10.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 });
         if hit != nil { log::error("a ray into empty space found {hit.unwrap().node.name()}"); }
         "#,
     );
@@ -120,8 +120,8 @@ fn a_filter_excludes_the_node_it_names() {
     run_clean(
         r#"
         let hit = physics3d::raycast(physics3d::RayQuery {
-            origin: [0.0, 10.0, 0.0],
-            direction: [0.0, -1.0, 0.0],
+            origin: vec3(0.0, 10.0, 0.0),
+            direction: vec3(0.0, -1.0, 0.0),
             max_distance: 100.0,
             filter: physics3d::QueryFilter { exclude: self.node },
         });
@@ -139,8 +139,8 @@ fn a_predicate_can_reject_a_hit() {
         r#"fn not_near(node: Node) -> bool { node.name() != "Near" }"#,
         r#"
         let hit = physics3d::raycast(physics3d::RayQuery {
-            origin: [0.0, 10.0, 0.0],
-            direction: [0.0, -1.0, 0.0],
+            origin: vec3(0.0, 10.0, 0.0),
+            direction: vec3(0.0, -1.0, 0.0),
             max_distance: 100.0,
             filter: physics3d::QueryFilter { predicate: not_near },
         });
@@ -156,7 +156,7 @@ fn a_shape_query_finds_what_it_overlaps() {
     run_clean(
         r#"
         let hits = physics3d::overlap_shape(physics3d::ShapeQuery {
-            at: [0.0, 6.0, 0.0],
+            at: vec3(0.0, 6.0, 0.0),
             shape: { "kind": "sphere", "radius": 1.0 },
         });
         if hits.len() < 1 { log::error("a ball at the near ball's position found nothing"); }
@@ -168,7 +168,7 @@ fn a_shape_query_finds_what_it_overlaps() {
 fn the_nearest_point_lands_on_the_surface() {
     run_clean(
         r#"
-        let found = physics3d::closest_point(physics3d::PointQuery { point: [3.0, 6.0, 0.0], max_distance: 100.0 });
+        let found = physics3d::closest_point(physics3d::PointQuery { point: vec3(3.0, 6.0, 0.0), max_distance: 100.0 });
         if found == nil { log::error("nothing was near"); }
         let x = found.unwrap().point.x;
         if math::abs(x - 0.5) >= 0.001 { log::error("not on the surface: {x}"); }
@@ -181,8 +181,8 @@ fn a_shapecast_stops_at_the_first_thing_in_the_way() {
     run_clean(
         r#"
         let hit = physics3d::shapecast(physics3d::ShapeQuery {
-            origin: [0.0, 10.0, 0.0],
-            direction: [0.0, -1.0, 0.0],
+            origin: vec3(0.0, 10.0, 0.0),
+            direction: vec3(0.0, -1.0, 0.0),
             max_distance: 100.0,
             shape: { "kind": "sphere", "radius": 0.25 },
         });
@@ -210,8 +210,8 @@ fn layers_count_from_one_and_a_collider_is_on_layer_one_by_default() {
     run_clean_with(
         r"fn masked(layer: int) -> physics3d::RayQuery {
     physics3d::RayQuery {
-        origin: [0.0, 10.0, 0.0],
-        direction: [0.0, -1.0, 0.0],
+        origin: vec3(0.0, 10.0, 0.0),
+        direction: vec3(0.0, -1.0, 0.0),
         max_distance: 100.0,
         filter: physics3d::QueryFilter { collision_mask: [layer] },
     }

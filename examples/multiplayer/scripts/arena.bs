@@ -53,7 +53,7 @@ impl Arena {
                 let at = ship.transform.position;
                 let x = at.x + pressed["x"].as_float() * SPEED * dt;
                 let y = at.y + pressed["y"].as_float() * SPEED * dt;
-                ship.transform.position = [x, y, 0.0];
+                ship.transform.position = vec3(x, y, 0.0);
             }
         }
         if tick % REPORT_EVERY == 0 && !rollback::is_resimulating() {

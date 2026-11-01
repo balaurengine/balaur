@@ -922,7 +922,7 @@ pub fn set_transform(state: &mut editor::State, row: int, parts: rig::Parts) {
 }
 
 fn as_vector(values: [float]) -> Vec3 {
-    Vec3 { x: values[0], y: values[1], z: values[2] }
+    vec3(values[0], values[1], values[2])
 }
 
 /// One of the transform's vectors as the scene asked for it, else as the node

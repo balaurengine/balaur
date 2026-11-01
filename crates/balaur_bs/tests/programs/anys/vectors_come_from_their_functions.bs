@@ -1,0 +1,14 @@
+// A vector or a colour is made by its function, wherever one goes.
+
+fn len(v: Vec3) -> float { v.x + v.y + v.z }
+fn up() -> Vec3 { vec3(0.0, 1.0, 0.0) }
+fn tints() -> [Color] { [color(1.0, 0.0, 0.0, 1.0), color(0.0, 0.0, 1.0, 0.5)] }
+fn maybe() -> Vec2? { vec2(7.0, 8.0) }
+pub fn summed() -> str {
+    let p: Vec3 = vec3(1.0, 2.0, 3.0);
+    let flat: Vec2 = vec2(4.0, 5.0);
+    let c: Color = color(0.1, 0.2, 0.3, 1.0);
+    "{len(p)} {len(vec3(1.0, 1.0, 1.0))} {flat.y} {c.a} {up().y} {tints()[1].a} {maybe().unwrap().y}"
+}
+
+// expect: summed() == "6.0 3.0 5.0 1.0 1.0 0.5 8.0"

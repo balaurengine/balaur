@@ -148,8 +148,8 @@ impl Game {
 
     // Park the bird back on the sling as a kinematic body, ready to aim.
     fn rearm_bird() {
-        self.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
-        self.bird.transform.rotation_euler = [0.0, 0.0, 0.0];
+        self.bird.transform.position = vec3(ANCHOR_X, ANCHOR_Y, 0.0);
+        self.bird.transform.rotation_euler = vec3(0.0, 0.0, 0.0);
         self.bird.set_component("body2d", { "kind": physics2d::BODY_KINEMATIC });
         self.launched = false;
         self.rest_timer = 0.0;
@@ -186,7 +186,7 @@ impl Game {
                     dx = dx / len * MAX_PULL;
                     dy = dy / len * MAX_PULL;
                 }
-                self.bird.transform.position = [ANCHOR_X + dx, ANCHOR_Y + dy, 0.0];
+                self.bird.transform.position = vec3(ANCHOR_X + dx, ANCHOR_Y + dy, 0.0);
                 if input::mouse_just_released(input::MOUSE_BUTTON_LEFT) {
                     self.aiming = false;
                     let p = self.bird.transform.position;
@@ -199,7 +199,7 @@ impl Game {
                         self.birds_left -= 1;
                         self.set_widget_text("Birds", "Birds {self.birds_left}");
                     } else {
-                        self.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
+                        self.bird.transform.position = vec3(ANCHOR_X, ANCHOR_Y, 0.0);
                     }
                 }
             }

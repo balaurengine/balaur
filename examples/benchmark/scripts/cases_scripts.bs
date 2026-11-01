@@ -40,7 +40,7 @@ fn with_script(w: world::World, c: load::Case, i: int) {
 fn plain(w: world::World, i: int) -> Node {
     let node = world::plain(w, i);
     let at = world::grid(i, 20000, PITCH);
-    node.transform.position = [at.x, at.y, 0.0];
+    node.transform.position = vec3(at.x, at.y, 0.0);
     node.set_component("shape2d", { "shape": { "kind": "circle", "radius": 2.0 } });
     node.add_child("a");
     node.add_child("b");

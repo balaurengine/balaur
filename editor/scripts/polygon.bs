@@ -1021,7 +1021,7 @@ pub fn idle(state: &mut editor::State) {
         let backdrop = state.polygon.backdrop;
         backdrop.transform.position = found.transform.global_position();
         backdrop.transform.rotation_euler = found.transform.global_rotation_euler();
-        backdrop.transform.scale = Vec3 { x: frame_or.unwrap().scale_x, y: frame_or.unwrap().scale_y, z: 1.0 };
+        backdrop.transform.scale = vec3(frame_or.unwrap().scale_x, frame_or.unwrap().scale_y, 1.0);
     }
 }
 

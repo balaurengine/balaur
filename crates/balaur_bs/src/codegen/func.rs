@@ -729,35 +729,20 @@ impl<'a> FnGen<'a> {
         if let (ExprKind::ArrayLit(items), Ty::Array(et)) = (&e.kind, want) {
             return self.array_lit(items, Some(et), e.pos).map(|_| ());
         }
-        // `[x, y, z]` where a `Vec3` goes, and the same for `Vec2` and
-        // `Color`: the struct, a field an item.
-        if let (ExprKind::ArrayLit(items), Ty::Struct(s)) = (&e.kind, want) {
-            let fields: &[&str] = match s.as_str() {
-                "Vec2" => &["x", "y"],
-                "Vec3" => &["x", "y", "z"],
-                "Color" => &["r", "g", "b", "a"],
-                _ => &[],
-            };
-            if !fields.is_empty() && items.len() == fields.len() {
-                let lit = Expr {
-                    kind: ExprKind::StructLit(
-                        s.clone(),
-                        fields
-                            .iter()
-                            .zip(items)
-                            .map(|(f, v)| ((*f).to_string(), v.clone()))
-                            .collect(),
-                    ),
-                    pos: e.pos,
-                };
-                return self.expr_as(&lit, want);
-            }
+        // A vector or a colour is made by its function, not from a list.
+        if let (ExprKind::ArrayLit(_), Ty::Struct(s)) = (&e.kind, want)
+            && let Some(made) = vector_fn(s)
+        {
+            return err(
+                e.pos,
+                format!("a {s} is written `{made}(..)`, not as a list"),
+            );
         }
-        // A list literal where a `[T]?`, a `Vec3?` or the like goes: the
-        // list or the vector, there.
+        // A list literal where a `[T]?` goes: the list, there. Where a `Vec3?`
+        // goes it is refused as it is where a `Vec3` goes.
         if let (ExprKind::ArrayLit(_), Ty::Optional(inner)) = (&e.kind, want)
             && (matches!(**inner, Ty::Array(_))
-                || matches!(&**inner, Ty::Struct(s) if matches!(s.as_str(), "Vec2" | "Vec3" | "Color")))
+                || matches!(&**inner, Ty::Struct(s) if vector_fn(s).is_some()))
         {
             self.expr_as(e, inner)?;
             self.e(I::I32Const(1));
@@ -1050,6 +1035,16 @@ impl<'a> FnGen<'a> {
         if explicit {
             self.e(I::Return);
         }
+    }
+}
+
+/// The function that makes a vector or a colour, for one of those structs.
+pub(crate) fn vector_fn(name: &str) -> Option<&'static str> {
+    match name {
+        "Vec2" => Some("vec2"),
+        "Vec3" => Some("vec3"),
+        "Color" => Some("color"),
+        _ => None,
     }
 }
 

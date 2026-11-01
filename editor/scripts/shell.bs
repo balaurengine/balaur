@@ -1254,10 +1254,10 @@ fn state_animdemo(state: &mut editor::State) {
         anim::add_key(state, 0.0);
         let found = model::selected_node(state);
         if found.is_valid() {
-            found.transform.position = Vec3 { x: 2.5, y: 2.5, z: 0.0 };
-            found.transform.rotation_euler = Vec3 { x: 0.0, y: math::to_radians(180.0), z: 0.0 };
+            found.transform.position = vec3(2.5, 2.5, 0.0);
+            found.transform.rotation_euler = vec3(0.0, math::to_radians(180.0), 0.0);
             anim::add_key(state, 1.0);
-            found.transform.position = Vec3 { x: 2.5, y: 0.5, z: 0.0 };
+            found.transform.position = vec3(2.5, 0.5, 0.0);
             anim::add_key(state, 2.0);
             anim::seek(state, 0.6);
         }

@@ -792,7 +792,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
-            let hit = physics3d::raycast(physics3d::RayQuery { origin: [0.0, 5.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 20.0 });
+            let hit = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 5.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 20.0 });
             if hit == nil { log::error("the ray passed through the soft body"); }
             if hit != nil && hit.unwrap().node != self.node { log::error("the ray met a collider that names no node"); }
             log::error("checked: the ray named the body");
@@ -919,7 +919,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 2 {
-            let hit = physics3d::raycast(physics3d::RayQuery { origin: [0.0, 5.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 20.0 });
+            let hit = physics3d::raycast(physics3d::RayQuery { origin: vec3(0.0, 5.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 20.0 });
             if hit != nil { log::error("the ray met a body that does not collide"); }
             log::error("checked: passed through");
         }

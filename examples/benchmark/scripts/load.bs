@@ -99,9 +99,9 @@ pub fn with(w: world::World, i: int, pitch: float, component: str, params: any) 
     let node = world::plain(w, i);
     let at = world::grid(i, 20000, pitch);
     if w.dimensions == 2 {
-        node.transform.position = [at.x, at.y, 0.0];
+        node.transform.position = vec3(at.x, at.y, 0.0);
     } else {
-        node.transform.position = [at.x, 0.0, at.y];
+        node.transform.position = vec3(at.x, 0.0, at.y);
     }
     node.set_component(component, params);
     node

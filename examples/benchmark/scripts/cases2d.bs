@@ -36,7 +36,7 @@ fn pyramid() -> load::Case {
 }
 
 fn pyramid_ground(w: world::World, c: load::Case) {
-    world::fixed(w, [0.0, -20.0, 0.0], rect((pyramid_base() as float) * BOX * 2.0, 40.0));
+    world::fixed(w, vec3(0.0, -20.0, 0.0), rect((pyramid_base() as float) * BOX * 2.0, 40.0));
 }
 
 fn box_at_spot(w: world::World, c: load::Case, i: int) {
@@ -59,7 +59,7 @@ fn pyramid_spots() -> [Vec3] {
         }
         let x = -0.5 * ((width - 1) as float) * BOX;
         for i in 0..width {
-            out.push([x + (i as float) * BOX, BOX * (0.5 + (level as float)), 0.0]);
+            out.push(vec3(x + (i as float) * BOX, BOX * (0.5 + (level as float)), 0.0));
         }
         level += 1;
     }
@@ -79,15 +79,15 @@ fn mixed_pile() -> load::Case {
 }
 
 fn pile_walls(w: world::World, c: load::Case) {
-    world::fixed(w, [0.0, -960.0, 0.0], rect(HALF * 2.0, 40.0));
-    world::fixed(w, [-HALF, 0.0, 0.0], rect(40.0, 3000.0));
-    world::fixed(w, [HALF, 0.0, 0.0], rect(40.0, 3000.0));
+    world::fixed(w, vec3(0.0, -960.0, 0.0), rect(HALF * 2.0, 40.0));
+    world::fixed(w, vec3(-HALF, 0.0, 0.0), rect(40.0, 3000.0));
+    world::fixed(w, vec3(HALF, 0.0, 0.0), rect(40.0, 3000.0));
 }
 
 fn pile_body(w: world::World, c: load::Case, i: int) {
-    let at = world::lattice_2d(i, [30.0, 30.0], 88, [-1305.0, 930.0], 0.05);
-    let node = world::body(w, [at.x, -at.y, 0.0], pile_shape(i % 4));
-    node.transform.rotation_euler = [0.0, 0.0, random::range(-3.14159, 3.14159)];
+    let at = world::lattice_2d(i, vec2(30.0, 30.0), 88, vec2(-1305.0, 930.0), 0.05);
+    let node = world::body(w, vec3(at.x, -at.y, 0.0), pile_shape(i % 4));
+    node.transform.rotation_euler = vec3(0.0, 0.0, random::range(-3.14159, 3.14159));
 }
 
 fn pile_shape(kind: int) -> any {
@@ -152,7 +152,7 @@ fn grid_extra(w: world::World, c: load::Case) -> any {
     let worst = 0.0;
     for i in 0..w.bodies.len() {
         let p = w.bodies[i].transform.position;
-        let moved = world::distance([p.x, p.y, 0.0], lattice_at(i));
+        let moved = world::distance(vec3(p.x, p.y, 0.0), lattice_at(i));
         if moved > worst {
             worst = moved;
         }
@@ -163,12 +163,12 @@ fn grid_extra(w: world::World, c: load::Case) -> any {
 /// The anchor bar's own origin: a joint anchor is an offset in the other
 /// body's space, not a point above the body being pinned.
 fn anchor_at() -> Vec3 {
-    [0.0, PITCH, 0.0]
+    vec3(0.0, PITCH, 0.0)
 }
 
 fn lattice_at(i: int) -> Vec3 {
     let origin = -0.5 * ((COLS - 1) as float) * PITCH;
-    [origin + ((i % COLS) as float) * PITCH, -((i / COLS) as float) * PITCH, 0.0]
+    vec3(origin + ((i % COLS) as float) * PITCH, -((i / COLS) as float) * PITCH, 0.0)
 }
 
 /// A heavy fast projectile into a 100x50 wall of 5,000 boxes placed exactly
@@ -186,7 +186,7 @@ fn smash() -> load::Case {
 }
 
 fn smash_ground(w: world::World, c: load::Case) {
-    world::fixed(w, [0.0, -20.0, 0.0], rect(8000.0, 40.0));
+    world::fixed(w, vec3(0.0, -20.0, 0.0), rect(8000.0, 40.0));
 }
 
 fn smash_body(w: world::World, c: load::Case, i: int) {
@@ -195,7 +195,7 @@ fn smash_body(w: world::World, c: load::Case, i: int) {
 
 fn smash_shot(w: world::World, c: load::Case) {
     let ox = -0.5 * ((SMASH_COLUMNS - 1) as float) * BOX;
-    let shot = world::body(w, [ox - 900.0, (SMASH_ROWS as float) * BOX * 0.5, 0.0],
+    let shot = world::body(w, vec3(ox - 900.0, (SMASH_ROWS as float) * BOX * 0.5, 0.0),
         { "kind": "circle", "radius": 40.0 });
     shot.patch_component("body2d", {
         "mass": 800.0,
@@ -207,7 +207,7 @@ fn smash_shot(w: world::World, c: load::Case) {
 
 fn smash_at(i: int) -> Vec3 {
     let ox = -0.5 * ((SMASH_COLUMNS - 1) as float) * BOX;
-    [ox + ((i / SMASH_ROWS) as float) * BOX, BOX * (0.5 + ((i % SMASH_ROWS) as float)), 0.0]
+    vec3(ox + ((i / SMASH_ROWS) as float) * BOX, BOX * (0.5 + ((i % SMASH_ROWS) as float)), 0.0)
 }
 
 fn spread(w: world::World, c: load::Case) -> any {
@@ -231,7 +231,7 @@ fn spread(w: world::World, c: load::Case) -> any {
     for body in w.bodies {
         let p = body.transform.position;
         if stats::finite(p.x) && stats::finite(p.y) {
-            let far = world::distance([p.x, p.y, 0.0], [cx, cy, 0.0]);
+            let far = world::distance(vec3(p.x, p.y, 0.0), vec3(cx, cy, 0.0));
             if far > worst {
                 worst = far;
             }
@@ -264,7 +264,7 @@ fn storm_body(w: world::World, c: load::Case, i: int) {
     if i < STATICS {
         let node = world::fixed(w, scatter(),
             rect(random::range(20.0, 60.0), random::range(20.0, 60.0)));
-        node.transform.rotation_euler = [0.0, 0.0, random::range(-3.14159, 3.14159)];
+        node.transform.rotation_euler = vec3(0.0, 0.0, random::range(-3.14159, 3.14159));
     } else {
         let node = world::body(w, scatter(), { "kind": "circle", "radius": random::range(10.0, 24.0) });
         node.patch_component("body2d", { "gravity_scale": 0.0 });
@@ -277,7 +277,7 @@ fn storm_extra(w: world::World, c: load::Case) -> any {
 }
 
 fn scatter() -> Vec3 {
-    [random::range(-FIELD, FIELD), random::range(-FIELD, FIELD), 0.0]
+    vec3(random::range(-FIELD, FIELD), random::range(-FIELD, FIELD), 0.0)
 }
 
 fn storm(w: world::World, c: load::Case, tick: int) {
@@ -287,8 +287,8 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD;
         let hit = physics2d::raycast(physics2d::RayQuery {
-            origin: [x, y],
-            direction: [-x, -y],
+            origin: vec2(x, y),
+            direction: vec2(-x, -y),
             max_distance: FIELD * 2.5,
         });
         count(w, hit != nil);
@@ -299,8 +299,8 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let y = math::sin(a) * FIELD;
         let hit = physics2d::shapecast(physics2d::ShapeQuery {
             shape: { "kind": "circle", "radius": 24.0 },
-            origin: [x, y],
-            direction: [-x, -y],
+            origin: vec2(x, y),
+            direction: vec2(-x, -y),
             max_distance: 2.0,
         });
         count(w, hit != nil);
@@ -308,7 +308,7 @@ fn storm(w: world::World, c: load::Case, tick: int) {
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as float) / (POINTS as float);
         let hits = physics2d::overlap_point(physics2d::PointQuery {
-            point: [math::cos(a) * FIELD * 0.6, math::sin(a) * FIELD * 0.6],
+            point: vec2(math::cos(a) * FIELD * 0.6, math::sin(a) * FIELD * 0.6),
         });
         count(w, hits.len() > 0);
     }
@@ -335,14 +335,14 @@ fn drop() -> load::Case {
 
 fn pit(w: world::World, c: load::Case) {
     let half = 0.5 * (DROP_COLS as float) * GAP;
-    world::fixed(w, [0.0, -20.0, 0.0], rect((DROP_COLS as float) * GAP + 80.0, 40.0));
-    world::fixed(w, [-half - 20.0, 600.0, 0.0], rect(40.0, 1400.0));
-    world::fixed(w, [half + 20.0, 600.0, 0.0], rect(40.0, 1400.0));
+    world::fixed(w, vec3(0.0, -20.0, 0.0), rect((DROP_COLS as float) * GAP + 80.0, 40.0));
+    world::fixed(w, vec3(-half - 20.0, 600.0, 0.0), rect(40.0, 1400.0));
+    world::fixed(w, vec3(half + 20.0, 600.0, 0.0), rect(40.0, 1400.0));
 }
 
 fn drop_body(w: world::World, c: load::Case, i: int) {
     let origin = -0.5 * ((DROP_COLS - 1) as float) * GAP;
-    let at: Vec3 = [origin + ((i % DROP_COLS) as float) * GAP, 40.0 + ((i / DROP_COLS) as float) * GAP, 0.0];
+    let at: Vec3 = vec3(origin + ((i % DROP_COLS) as float) * GAP, 40.0 + ((i / DROP_COLS) as float) * GAP, 0.0);
     world::body(w, at, rect(BOX, BOX));
 }
 

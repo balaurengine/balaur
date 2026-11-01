@@ -108,10 +108,7 @@ pub fn grid(i: int, count: int, pitch: float) -> Vec2 {
         side += 1;
     }
     let half = (side as float) * pitch * 0.5;
-    Vec2 {
-        x: ((i % side) as float) * pitch - half,
-        y: ((i / side) as float) * pitch - half,
-    }
+    vec2(((i % side) as float) * pitch - half, ((i / side) as float) * pitch - half)
 }
 
 /// Tie two bodies at the point half way between them.
@@ -194,11 +191,11 @@ fn draw(w: World, node: Node, shape: any) {
 
 fn palette() -> [Color] {
     [
-        [0.86, 0.36, 0.30, 1.0],
-        [0.95, 0.68, 0.25, 1.0],
-        [0.40, 0.70, 0.45, 1.0],
-        [0.30, 0.55, 0.85, 1.0],
-        [0.62, 0.45, 0.80, 1.0],
+        color(0.86, 0.36, 0.30, 1.0),
+        color(0.95, 0.68, 0.25, 1.0),
+        color(0.40, 0.70, 0.45, 1.0),
+        color(0.30, 0.55, 0.85, 1.0),
+        color(0.62, 0.45, 0.80, 1.0),
     ]
 }
 
@@ -214,11 +211,11 @@ fn copy(shape: any) -> any {
 }
 
 pub fn midpoint(a: Vec3, b: Vec3) -> Vec3 {
-    [(a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5]
+    vec3((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5)
 }
 
 pub fn sub(a: Vec3, b: Vec3) -> Vec3 {
-    [a.x - b.x, a.y - b.y, a.z - b.z]
+    vec3(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
 pub fn distance(a: Vec3, b: Vec3) -> float {
@@ -232,18 +229,16 @@ pub fn distance(a: Vec3, b: Vec3) -> float {
 pub fn lattice(i: int, cell: Vec3, columns: int, depth: int, origin: Vec3, jitter: float) -> Vec3 {
     let per_layer = columns * depth;
     let within = i % per_layer;
-    [
+    vec3(
         origin.x + ((within % columns) as float) * cell.x + random::range(-jitter, jitter) * cell.x,
         origin.y + ((i / per_layer) as float) * cell.y + random::range(-jitter, jitter) * cell.y,
-        origin.z + ((within / columns) as float) * cell.z + random::range(-jitter, jitter) * cell.z,
-    ]
+        origin.z + ((within / columns) as float) * cell.z + random::range(-jitter, jitter) * cell.z)
 }
 
 /// The 2D lattice: columns across, rows downward in Godot's y-down plane.
 pub fn lattice_2d(i: int, cell: Vec2, columns: int, origin: Vec2, jitter: float) -> Vec3 {
-    [
+    vec3(
         origin.x + ((i % columns) as float) * cell.x + random::range(-jitter, jitter) * cell.x,
         origin.y - ((i / columns) as float) * cell.y + random::range(-jitter, jitter) * cell.y,
-        0.0,
-    ]
+        0.0)
 }

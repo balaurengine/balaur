@@ -166,7 +166,7 @@ pub fn colliders2d(state: editor::State) {
 // A point offset (offset_x, offset_y) from `origin`, turned by the angle whose cosine and
 // sine are `cosine` and `sine`.
 fn turned(origin: Vec3, cosine: float, sine: float, offset_x: float, offset_y: float) -> Vec2 {
-    Vec2 { x: origin.x + cosine * offset_x - sine * offset_y, y: origin.y + sine * offset_x + cosine * offset_y }
+    vec2(origin.x + cosine * offset_x - sine * offset_y, origin.y + sine * offset_x + cosine * offset_y)
 }
 
 // A `light2d` or `occluder2d` colour property, which the scene format writes

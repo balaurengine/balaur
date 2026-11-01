@@ -64,7 +64,7 @@ impl FirstPerson {
             eye.z - math::cos(yaw) * flat,
         ];
         self.eye.patch_component("camera3d", { "look_at": ahead });
-        self.node.transform.rotation_euler = [0.0, yaw, 0.0];
+        self.node.transform.rotation_euler = vec3(0.0, yaw, 0.0);
     }
 
     /// Carry the eye node at the body's height, give or take `WOBBLE`.
@@ -82,7 +82,7 @@ impl FirstPerson {
         }
         if self.apart {
             let at = self.eye.transform.position;
-            self.eye.transform.position = [at.x, self.rise + self.held - body, at.z];
+            self.eye.transform.position = vec3(at.x, self.rise + self.held - body, at.z);
         }
     }
 

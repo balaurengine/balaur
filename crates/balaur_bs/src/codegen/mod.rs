@@ -1142,8 +1142,7 @@ fn sync_fn(
     }
     fg.charge();
     fg.prof_enter(pid);
-    // A list literal at the end is read as the result type, so `[x, y, z]`
-    // ends a fn that returns a `Vec3` as it does a `let` of one.
+    // A list literal at the end is read as the result type, as a `let` reads it.
     let lit_tail = matches!(
         f.body.tail.as_deref().map(|e| &e.kind),
         Some(ExprKind::ArrayLit(_))

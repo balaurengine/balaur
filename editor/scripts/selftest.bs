@@ -563,7 +563,7 @@ pub fn rigging(state: &mut editor::State) {
     let found = model::node(state, first);
     let position = found.transform.position;
     rig::overwrite_rest(state);
-    found.transform.position = Vec3 { x: position.x + 1.0, y: position.y, z: position.z };
+    found.transform.position = vec3(position.x + 1.0, position.y, position.z);
     rig::apply_rest(state);
     let reset_x = model::node(state, first).transform.position.x;
     check(util::abs(reset_x - position.x) < 1e-5, "reset to rest pose puts {bone_name} back ({reset_x} vs {position.x})");

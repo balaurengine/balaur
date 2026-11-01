@@ -8,10 +8,10 @@ pub class Vector {
 
 impl Vector {
     fn update(dt: float) {
-        let a = Vec3 { x: 1.0, y: 2.0, z: 3.0 };
-        let b = Vec3 { x: dt, y: 0.5, z: 1.0 };
-        let sum = Vec3 { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z };
+        let a = vec3(1.0, 2.0, 3.0);
+        let b = vec3(dt, 0.5, 1.0);
+        let sum = vec3(a.x + b.x, a.y + b.y, a.z + b.z);
         let scale = 2.0 / math::sqrt(sum.x * sum.x + sum.y * sum.y + sum.z * sum.z);
-        self.out = Vec3 { x: sum.x * scale, y: sum.y * scale, z: sum.z * scale };
+        self.out = vec3(sum.x * scale, sum.y * scale, sum.z * scale);
     }
 }

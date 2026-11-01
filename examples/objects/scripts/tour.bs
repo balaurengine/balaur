@@ -60,7 +60,7 @@ impl Tour {
     fn look(pose: Pose) {
         let camera = self.root.get_node("Camera");
         let e = pose.eye;
-        camera.transform.position = [e[0], e[1], e[2]];
+        camera.transform.position = vec3(e[0], e[1], e[2]);
         camera.patch_component("camera3d", { "look_at": pose.at });
         // The 2D shapes sit over every 3D view, so only the flat pose shows them.
         self.node.get_node("Layer2D/Flat").set_visible(pose.slug == "flat");

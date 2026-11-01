@@ -1,5 +1,5 @@
 use super::Site;
-use super::func::{FnGen, LVal, Mode, R, any_read, err, op_text, show};
+use super::func::{FnGen, LVal, Mode, R, any_read, err, op_text, show, vector_fn};
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, StmtKind, Ty, UnOp};
@@ -198,6 +198,15 @@ impl FnGen<'_> {
     }
 
     fn struct_lit(&mut self, s: &str, fields: &[(String, Expr)], pos: Pos) -> R<Ty> {
+        // The converter a vector comes out of an `any` by writes one this way.
+        if !self.prelude
+            && let Some(made) = vector_fn(s)
+        {
+            return err(
+                pos,
+                format!("a {s} is written `{made}(..)`, not `{s} {{ .. }}`"),
+            );
+        }
         let decl = self.g.structs.get(s).cloned().ok_or(Error {
             pos,
             msg: format!("unknown struct `{s}`"),

@@ -15,6 +15,6 @@ impl MoveNode {
     fn update(dt: float) {
         self.t += dt;
         let at = self.home;
-        self.node.transform.position = [at.x, at.y + math::sin(self.t) * 4.0, at.z];
+        self.node.transform.position = vec3(at.x, at.y + math::sin(self.t) * 4.0, at.z);
     }
 }
