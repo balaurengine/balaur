@@ -860,7 +860,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
             ui::Control {
                 kind: "color_picker",
                 width: 34,
-                picked_color: rgba_of((if is_hex(hex.as_str()) { hex.as_str() } else { "#000000" }).as_str()),
+                picked_color: rgba_of((if is_hex(hex.as_str()) { hex.as_str() } else { "#000000" })),
                 enabled: mine,
                 on: "handle",
                 data: { "fn": on_key_color_picked, "at": at, "key": key },

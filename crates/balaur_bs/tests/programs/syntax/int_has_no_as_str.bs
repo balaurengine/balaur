@@ -1,0 +1,3 @@
+fn f(n: int) -> str { n.as_str() }
+
+// error: 1:24: a value becomes text as `"{x}"`, not `x.as_str()`

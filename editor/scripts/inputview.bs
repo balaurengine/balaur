@@ -175,13 +175,13 @@ pub fn view(state: editor::State) -> View {
     let viewport_rect = state.viewport;
     let window_size = ui::window_size();
     let window_height = window_size.y;
-    let staged = !manager::showing(state) && !state.focus && viewport_rect.width.as_float() > 0.0;
-    let viewport_x = if staged { viewport_rect.x.as_float() } else { 0.0 };
-    let viewport_y = if staged { viewport_rect.y.as_float() } else { 0.0 };
-    let viewport_height = if staged { viewport_rect.height.as_float() } else { window_height };
+    let staged = !manager::showing(state) && !state.focus && viewport_rect.width > 0.0;
+    let viewport_x = if staged { viewport_rect.x } else { 0.0 };
+    let viewport_y = if staged { viewport_rect.y } else { 0.0 };
+    let viewport_height = if staged { viewport_rect.height } else { window_height };
     let pose = render::camera_pose();
     let dpi = pose[7];
-    View { shown: state.show_input, factor: dpi.as_float() * state.ui_scale, chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height.as_float() - 46.0 }
+    View { shown: state.show_input, factor: dpi * state.ui_scale, chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height - 46.0 }
 }
 
 /// A key's chip, or "" for a key worth none: the rest of the key list is
@@ -214,7 +214,7 @@ pub fn fill_chips(state: editor::State, names: [any]) {
             font_weight: 700,
             interactive: false,
             fill: (if action { tokens["bg_control"] } else { tokens["primary_fill"] }).as_str(),
-            stroke: (if action { tokens["primary_text"].as_str() } else { "" }).as_str(),
+            stroke: (if action { tokens["primary_text"].as_str() } else { "" }),
             text_color: (if action { tokens["primary_text"] } else { tokens["text_on_primary"] }).as_str(),
         });
     }

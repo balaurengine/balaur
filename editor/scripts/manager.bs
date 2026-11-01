@@ -525,7 +525,7 @@ fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui
     let across = if narrow(column_width) { 1 } else if column_width < 760.0 { 2 } else { 3 };
     // Floored: three cards and two seams have to add up to the column, and a
     // third of a pixel each puts the last one past its edge.
-    let card_width = math::floor((column_width - (across - 1).as_float() * SEAM) / across.as_float());
+    let card_width = math::floor((column_width - (across - 1) as float * SEAM) / across as float);
     let cover_height = math::floor(card_width / COVER_ASPECT);
     let out: [ui::Row] = [];
     let start = 0;
@@ -1111,7 +1111,7 @@ pub fn progress_controls(state: editor::State) -> [ui::Control] {
     let part = if job.unpacking {
         1.0
     } else if job.total > 0 {
-        job.done.as_float() / job.total.as_float()
+        job.done as float / job.total as float
     } else {
         0.0
     };

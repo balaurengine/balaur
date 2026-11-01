@@ -4220,10 +4220,6 @@
         "least": 2,
         "signature": "(Node, str, any) -> bool"
       },
-      "node.try_set_component": {
-        "least": 2,
-        "signature": "(Node, str, any) -> bool"
-      },
       "node.vehicle3d.vehicle_speed": {
         "least": 1,
         "signature": "(Node) -> float"
@@ -22832,7 +22828,6 @@
         "ticking": "Whether the node ticks this frame, its process mode and the game's pause together.",
         "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
         "try_patch_component": "As `patch_component`, answering whether the component took the change rather than failing when it refuses it: an editor writing one property a reader typed asks this.",
-        "try_set_component": "As `set_component`, answering whether the component took the table rather than failing when it refuses it: an editor writing what a reader typed asks this.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
         "visible_in_tree": "What the renderer sees: false when the node or any ancestor is hidden.",
         "z_index": "The node's own draw layer, added to its parent's unless set absolute."
@@ -22893,7 +22888,6 @@
         "ticking",
         "tint",
         "try_patch_component",
-        "try_set_component",
         "visible",
         "visible_in_tree",
         "z_index"
@@ -22955,7 +22949,6 @@
         "ticking": "(Node) -> bool",
         "tint": "(Node) -> Color",
         "try_patch_component": "(Node, str, any) -> bool",
-        "try_set_component": "(Node, str, any) -> bool",
         "visible": "(Node) -> bool",
         "visible_in_tree": "(Node) -> bool",
         "z_index": "(Node) -> int"

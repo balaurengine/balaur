@@ -27,26 +27,26 @@ pub fn grid2d(state: editor::State) {
     let zoom = camera.z;
     let screen_width = state.screen_width * state.ui_scale;
     let screen_height = state.screen_height * state.ui_scale;
-    let half_width = screen_width / zoom.as_float() / 2.0 + 1.0;
-    let half_height = screen_height / zoom.as_float() / 2.0 + 1.0;
+    let half_width = screen_width / zoom / 2.0 + 1.0;
+    let half_height = screen_height / zoom / 2.0 + 1.0;
     if half_width > 200.0 || half_height > 200.0 {
         return;
     }
     let minor = util::rgb(tokens["grid_minor"].as_str());
     let major = util::rgb(tokens["grid_major"].as_str());
-    let first_x = math::floor(center_x.as_float() - half_width) as int;
-    let last_x = math::ceil(center_x.as_float() + half_width) as int;
+    let first_x = math::floor(center_x - half_width) as int;
+    let last_x = math::ceil(center_x + half_width) as int;
     for column in first_x..last_x + 1 {
         let color = if column % 5 == 0 { major } else { minor };
         let column_x = column as float;
-        render::draw_line_2d(column_x, center_y.as_float() - half_height, column_x, center_y.as_float() + half_height, color[0], color[1], color[2], if column == 0 { 2.0 } else { 1.0 });
+        render::draw_line_2d(column_x, center_y - half_height, column_x, center_y + half_height, color[0], color[1], color[2], if column == 0 { 2.0 } else { 1.0 });
     }
-    let first_y = math::floor(center_y.as_float() - half_height) as int;
-    let last_y = math::ceil(center_y.as_float() + half_height) as int;
+    let first_y = math::floor(center_y - half_height) as int;
+    let last_y = math::ceil(center_y + half_height) as int;
     for row in first_y..last_y + 1 {
         let color = if row % 5 == 0 { major } else { minor };
         let row_y = row as float;
-        render::draw_line_2d(center_x.as_float() - half_width, row_y, center_x.as_float() + half_width, row_y, color[0], color[1], color[2], if row == 0 { 2.0 } else { 1.0 });
+        render::draw_line_2d(center_x - half_width, row_y, center_x + half_width, row_y, color[0], color[1], color[2], if row == 0 { 2.0 } else { 1.0 });
     }
 }
 
@@ -60,14 +60,14 @@ pub fn guides(state: &mut editor::State) {
     let x_color = util::rgb(tokens["axis_x"].as_str());
     let y_color = util::rgb(tokens["axis_y"].as_str());
     if model::is_2d(state) {
-        render::draw_line_2d(position.x.as_float() - 4.0, position.y.as_float(), position.x.as_float() + 4.0, position.y.as_float(), x_color[0], x_color[1], x_color[2], 1.0);
-        render::draw_line_2d(position.x.as_float(), position.y.as_float() - 4.0, position.x.as_float(), position.y.as_float() + 4.0, y_color[0], y_color[1], y_color[2], 1.0);
+        render::draw_line_2d(position.x - 4.0, position.y, position.x + 4.0, position.y, x_color[0], x_color[1], x_color[2], 1.0);
+        render::draw_line_2d(position.x, position.y - 4.0, position.x, position.y + 4.0, y_color[0], y_color[1], y_color[2], 1.0);
         return;
     }
     let z_color = util::rgb(tokens["axis_z"].as_str());
-    render::draw_line_3d(position.x.as_float() - 4.0, position.y.as_float(), position.z.as_float(), position.x.as_float() + 4.0, position.y.as_float(), position.z.as_float(), x_color[0], x_color[1], x_color[2], 1.0);
-    render::draw_line_3d(position.x.as_float(), position.y.as_float() - 4.0, position.z.as_float(), position.x.as_float(), position.y.as_float() + 4.0, position.z.as_float(), y_color[0], y_color[1], y_color[2], 1.0);
-    render::draw_line_3d(position.x.as_float(), position.y.as_float(), position.z.as_float() - 4.0, position.x.as_float(), position.y.as_float(), position.z.as_float() + 4.0, z_color[0], z_color[1], z_color[2], 1.0);
+    render::draw_line_3d(position.x - 4.0, position.y, position.z, position.x + 4.0, position.y, position.z, x_color[0], x_color[1], x_color[2], 1.0);
+    render::draw_line_3d(position.x, position.y - 4.0, position.z, position.x, position.y + 4.0, position.z, y_color[0], y_color[1], y_color[2], 1.0);
+    render::draw_line_3d(position.x, position.y, position.z - 4.0, position.x, position.y, position.z + 4.0, z_color[0], z_color[1], z_color[2], 1.0);
 }
 
 // The selected clip's position keys, joined in order, with a marker on each
@@ -139,7 +139,7 @@ pub fn colliders2d(state: editor::State) {
             let radius = (if held == nil { 0.5 } else { held.as_float() }) * scale.x;
             let from = turned(position, cosine, sine, radius, 0.0);
             for step in 1..33 {
-                let step_angle = step.as_float() / 32.0 * math::PI * 2.0;
+                let step_angle = step as float / 32.0 * math::PI * 2.0;
                 let to = turned(position, cosine, sine, math::cos(step_angle) * radius, math::sin(step_angle) * radius);
                 render::draw_line_2d(from.x, from.y, to.x, to.y, color[0], color[1], color[2], 1.0);
                 from = to;
@@ -200,31 +200,31 @@ fn light_gizmo(found: Node, light: any) {
     let color = component_rgb(if held_color == nil { nil } else { held_color }, [1.0, 1.0, 1.0]);
     let position = found.transform.global_position();
     let angle = found.transform.global_rotation_euler().z;
-    let cosine = math::cos(angle.as_float());
-    let sine = math::sin(angle.as_float());
+    let cosine = math::cos(angle);
+    let sine = math::sin(angle);
     // At rest a light2d shines along -y; the node's z rotation turns it.
     let direction_x = sine;
     let direction_y = -cosine;
-    render::draw_line_2d(position.x.as_float() - 0.2, position.y.as_float(), position.x.as_float() + 0.2, position.y.as_float(), color[0], color[1], color[2], 2.0);
-    render::draw_line_2d(position.x.as_float(), position.y.as_float() - 0.2, position.x.as_float(), position.y.as_float() + 0.2, color[0], color[1], color[2], 2.0);
+    render::draw_line_2d(position.x - 0.2, position.y, position.x + 0.2, position.y, color[0], color[1], color[2], 2.0);
+    render::draw_line_2d(position.x, position.y - 0.2, position.x, position.y + 0.2, color[0], color[1], color[2], 2.0);
     let held_kind = light["kind"];
     if if held_kind == nil { render::LIGHT_POINT } else { held_kind.as_str() } == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let offset_x = -direction_y * (step as float) * 0.4;
             let offset_y = direction_x * (step as float) * 0.4;
-            render::draw_line_2d(position.x.as_float() + offset_x, position.y.as_float() + offset_y, position.x.as_float() + offset_x + direction_x, position.y.as_float() + offset_y + direction_y, color[0], color[1], color[2], 1.0);
+            render::draw_line_2d(position.x + offset_x, position.y + offset_y, position.x + offset_x + direction_x, position.y + offset_y + direction_y, color[0], color[1], color[2], 1.0);
         }
         return;
     }
     let held_radius = light["radius"];
     let radius = if held_radius == nil { 6.0 } else { held_radius.as_float() };
-    let previous_x: any = position.x.as_float() + radius;
+    let previous_x: any = position.x + radius;
     let previous_y = position.y;
     for step in 1..33 {
-        let step_angle = (step as float) / 32.0 * math::PI.as_float() * 2.0;
-        let next_x = position.x.as_float() + math::cos(step_angle) * radius;
-        let next_y = position.y.as_float() + math::sin(step_angle) * radius;
-        render::draw_line_2d(previous_x.as_float(), previous_y.as_float(), next_x, next_y, color[0], color[1], color[2], 1.0);
+        let step_angle = (step as float) / 32.0 * math::PI * 2.0;
+        let next_x = position.x + math::cos(step_angle) * radius;
+        let next_y = position.y + math::sin(step_angle) * radius;
+        render::draw_line_2d(previous_x.as_float(), previous_y, next_x, next_y, color[0], color[1], color[2], 1.0);
         previous_x = next_x;
         previous_y = next_y;
     }
@@ -242,7 +242,7 @@ fn occluder_outline(state: editor::State, found: Node) {
         return;
     }
     for index in 0..count - 1 {
-        render::draw_line_2d(flat[index * 2].as_float(), flat[index * 2 + 1].as_float(), flat[index * 2 + 2].as_float(), flat[index * 2 + 3].as_float(), color[0], color[1], color[2], 1.0);
+        render::draw_line_2d(flat[index * 2], flat[index * 2 + 1], flat[index * 2 + 2], flat[index * 2 + 3], color[0], color[1], color[2], 1.0);
     }
 }
 
@@ -273,9 +273,9 @@ pub fn colliders(state: editor::State) {
                 half_z = size[2].as_float() / 2.0;
             }
         }
-        let x_bounds = [position.x.as_float() - half_x, position.x.as_float() + half_x];
-        let y_bounds = [position.y.as_float() - half_y, position.y.as_float() + half_y];
-        let z_bounds = [position.z.as_float() - half_z, position.z.as_float() + half_z];
+        let x_bounds = [position.x - half_x, position.x + half_x];
+        let y_bounds = [position.y - half_y, position.y + half_y];
+        let z_bounds = [position.z - half_z, position.z + half_z];
         for bound_y in y_bounds {
             for bound_z in z_bounds {
                 render::draw_line_3d(x_bounds[0], bound_y, bound_z, x_bounds[1], bound_y, bound_z, color[0], color[1], color[2], 1.0);
@@ -292,8 +292,8 @@ pub fn colliders(state: editor::State) {
             }
         }
         // Center of mass.
-        render::draw_line_3d(position.x.as_float() - 0.15, position.y.as_float(), position.z.as_float(), position.x.as_float() + 0.15, position.y.as_float(), position.z.as_float(), color[0], color[1], color[2], 3.0);
-        render::draw_line_3d(position.x.as_float(), position.y.as_float() - 0.15, position.z.as_float(), position.x.as_float(), position.y.as_float() + 0.15, position.z.as_float(), color[0], color[1], color[2], 3.0);
+        render::draw_line_3d(position.x - 0.15, position.y, position.z, position.x + 0.15, position.y, position.z, color[0], color[1], color[2], 3.0);
+        render::draw_line_3d(position.x, position.y - 0.15, position.z, position.x, position.y + 0.15, position.z, color[0], color[1], color[2], 3.0);
     }
 }
 
@@ -316,7 +316,7 @@ fn push_line_3d(out: [any], from: [any], to: [any], color: [float], width: float
 fn push_ring_3d(out: [any], center: [any], first_axis: [float], second_axis: [float], radius: float, color: [float], width: float) {
     let previous = util::vector_add(center, util::vector_scale(first_axis, radius));
     for step in 1..25 {
-        let step_angle = (step as float) / 24.0 * math::PI.as_float() * 2.0;
+        let step_angle = (step as float) / 24.0 * math::PI * 2.0;
         let next = util::vector_add(center, util::vector_add(util::vector_scale(first_axis, math::cos(step_angle) * radius), util::vector_scale(second_axis, math::sin(step_angle) * radius)));
         push_line_3d(out, previous, next, color, width);
         previous = next;
@@ -408,7 +408,7 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
         let second_axis = axes.second_axis;
         for step in [-1.0, 0.0, 1.0] {
             for other in [-1.0, 0.0, 1.0] {
-                let base = util::vector_add(position, util::vector_add(util::vector_scale(first_axis, step.as_float() * 0.35), util::vector_scale(second_axis, other * 0.35)));
+                let base = util::vector_add(position, util::vector_add(util::vector_scale(first_axis, step * 0.35), util::vector_scale(second_axis, other * 0.35)));
                 push_line_3d(out, base, util::vector_add(base, util::vector_scale(direction, 1.2)), color, width);
             }
         }
@@ -418,9 +418,9 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
     let radius = if held_radius == nil { 30.0 } else { held_radius.as_float() };
     if kind == render::LIGHT_SPOT {
         let held_outer = light["outer"];
-        let outer = (if held_outer == nil { 35.0 } else { held_outer.as_float() }) * math::PI.as_float() / 180.0;
+        let outer = (if held_outer == nil { 35.0 } else { held_outer.as_float() }) * math::PI / 180.0;
         let held_inner = light["inner"];
-        let inner = (if held_inner == nil { 20.0 } else { held_inner.as_float() }) * math::PI.as_float() / 180.0;
+        let inner = (if held_inner == nil { 20.0 } else { held_inner.as_float() }) * math::PI / 180.0;
         let axes = across(direction);
         let first_axis = axes.first_axis;
         let second_axis = axes.second_axis;
@@ -431,8 +431,8 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
         for angle in [inner, outer] {
             let ring_radius = reach * math::tan(angle);
             push_ring_3d(out, tip, first_axis, second_axis, ring_radius, color, width);
-            for step in [0.0, math::PI.as_float() / 2.0, math::PI, math::PI.as_float() * 1.5] {
-                let edge = util::vector_add(tip, util::vector_add(util::vector_scale(first_axis, math::cos(step.as_float()) * ring_radius), util::vector_scale(second_axis, math::sin(step.as_float()) * ring_radius)));
+            for step in [0.0, math::PI / 2.0, math::PI, math::PI * 1.5] {
+                let edge = util::vector_add(tip, util::vector_add(util::vector_scale(first_axis, math::cos(step) * ring_radius), util::vector_scale(second_axis, math::sin(step) * ring_radius)));
                 push_line_3d(out, position, edge, color, width);
             }
         }
@@ -462,7 +462,7 @@ fn camera_gizmo(out: [any], state: editor::State, found: Node, selected: bool, t
     let second_axis = axes.second_axis;
     let camera = util::map_or_empty(found.get_component("camera3d"));
     let held_fov = camera["fov"];
-    let fov = (if held_fov == nil { 60.0 } else { held_fov.as_float() }) * math::PI.as_float() / 180.0;
+    let fov = (if held_fov == nil { 60.0 } else { held_fov.as_float() }) * math::PI / 180.0;
     let half = FRUSTUM_REACH * math::tan(fov / 2.0);
     let centre = util::vector_add(position, util::vector_scale(direction, FRUSTUM_REACH));
     let corners: [[any]] = [];

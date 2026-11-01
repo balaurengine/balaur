@@ -43,7 +43,7 @@ fn a_script_opens_echoes_and_closes() {
 pub class Scenario {{ node: Node, socket: int }}
 impl Scenario {{
     fn init() {{
-        self.socket = websocket::connect(self.node, "{echo}").as_int();
+        self.socket = websocket::connect(self.node, "{echo}");
     }}
 
     pub fn on_websocket_event(e: any) {{
@@ -76,7 +76,7 @@ fn a_script_sends_and_receives_a_binary_frame() {
 pub class Scenario {{ node: Node, socket: int }}
 impl Scenario {{
     fn init() {{
-        self.socket = websocket::connect(self.node, "{echo}").as_int();
+        self.socket = websocket::connect(self.node, "{echo}");
     }}
 
     pub fn on_websocket_event(e: any) {{
@@ -115,12 +115,12 @@ fn a_script_awaits_connect_until_it_opens_or_fails() {
 pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
-        let socket = websocket::connect(self.node, "{echo}").as_int();
+        let socket = websocket::connect(self.node, "{echo}");
         let opened = await task::wait(socket);
         let kind = opened["kind"];
         log::info("awaited {{kind}}");
         websocket::close(socket);
-        let refused = await task::wait(websocket::connect(self.node, "{nothing}").as_int());
+        let refused = await task::wait(websocket::connect(self.node, "{nothing}"));
         let why = refused["kind"];
         log::info("refused {{why}}");
     }}

@@ -203,7 +203,7 @@ pub fn rail_marks(state: editor::State) -> [str] {
 /// goes wider rather than running past the foot of the window.
 pub fn rail_grid(state: editor::State, room: float) -> RailGrid {
     let metrics = rail_metrics(state);
-    let mark_count = rail_marks(state).len().as_float();
+    let mark_count = rail_marks(state).len() as float;
     let fits = util::max(1.0, math::floor((room - 2.0 * metrics.padding + metrics.gap) / (metrics.diameter + metrics.gap)));
     let columns = math::ceil(mark_count / util::min(mark_count, fits));
     RailGrid { rows: math::ceil(mark_count / columns), columns: columns, diameter: metrics.diameter, gap: metrics.gap, padding: metrics.padding }
@@ -231,7 +231,7 @@ pub fn fill_rail(state: editor::State) {
     let column: [ui::Control] = [];
     for mark in rail_marks(state) {
         column.push(rail_mark(state, mark, grid.diameter));
-        if column.len().as_float() >= grid.rows {
+        if column.len() as float >= grid.rows {
             columns.push(ui::Control { kind: "column", gap: [grid.gap, grid.gap], controls: column });
             column = [];
         }
@@ -348,8 +348,8 @@ fn frame_16_9(viewport_rect: any) -> [float] {
         height = viewport_rect["height"];
         width = viewport_rect["height"].as_float() * target;
     }
-    let margin_x = util::max(0.0, (viewport_rect["width"].as_float() - width.as_float()).as_float() / 2.0);
-    let margin_y = util::max(0.0, (viewport_rect["height"].as_float() - height.as_float()).as_float() / 2.0);
+    let margin_x = util::max(0.0, (viewport_rect["width"].as_float() - width.as_float()) / 2.0);
+    let margin_y = util::max(0.0, (viewport_rect["height"].as_float() - height.as_float()) / 2.0);
     [margin_x, margin_y, margin_x, margin_y]
 }
 
@@ -511,7 +511,7 @@ fn on_bookmark_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn bookmark(state: &mut editor::State, key: str) {
-    if input::key_down(input::KEY_SHIFT.as_str()) {
+    if input::key_down(input::KEY_SHIFT) {
         let camera = render::camera_pose();
         let eye_x = camera[0];
         let eye_y = camera[1];
@@ -535,7 +535,7 @@ fn bookmark(state: &mut editor::State, key: str) {
 fn hud_inset(state: editor::State) -> any {
     let row: any = state.layout["upper"];
     let viewport_rect: any = state.layout["stage"];
-    util::max(0.0, (row["x"].as_float() + row["width"].as_float() - viewport_rect["x"].as_float() - viewport_rect["width"].as_float()).as_float())
+    util::max(0.0, (row["x"].as_float() + row["width"].as_float() - viewport_rect["x"].as_float() - viewport_rect["width"].as_float()))
 }
 
 /// What the HUD shows along the scene's foot.
@@ -616,10 +616,10 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
     let box: any = state.layout["stage_box"];
     let doc_rect: any = state.layout["doc"];
     let inset = [
-        util::max(0.0, (doc_rect["x"].as_float() - box["x"].as_float()).as_float()),
-        util::max(0.0, (doc_rect["y"].as_float() - box["y"].as_float()).as_float()),
-        util::max(0.0, (box["x"].as_float() + box["width"].as_float() - doc_rect["x"].as_float() - doc_rect["width"].as_float()).as_float()),
-        util::max(0.0, (box["y"].as_float() + box["height"].as_float() - doc_rect["y"].as_float() - doc_rect["height"].as_float()).as_float()),
+        util::max(0.0, (doc_rect["x"].as_float() - box["x"].as_float())),
+        util::max(0.0, (doc_rect["y"].as_float() - box["y"].as_float())),
+        util::max(0.0, (box["x"].as_float() + box["width"].as_float() - doc_rect["x"].as_float() - doc_rect["width"].as_float())),
+        util::max(0.0, (box["y"].as_float() + box["height"].as_float() - doc_rect["y"].as_float() - doc_rect["height"].as_float())),
     ];
     let file = open_file(state);
     if file.relative_path == "" {

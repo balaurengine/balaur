@@ -638,14 +638,15 @@ impl FnGen<'_> {
         let mut tb = self.expr(b)?;
         let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
         // `==` asks whether the `any` holds that value, so nil is no `false`
-        // and no `""`: both are compared as values. Anything else wants the
+        // and no `""`: both are compared as values. Anything but `==` wants the
         // `any` read first.
         let mixed = (ta == Ty::Any && plain(&tb)) || (tb == Ty::Any && plain(&ta));
         if mixed && matches!(op, BinOp::Eq | BinOp::Ne) {
             return self.equal_as_values(op, &ta, &tb, pos);
         }
+        let boxed = |t: &Ty| matches!(t, Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_));
         if ta == Ty::Any || tb == Ty::Any {
-            if ta == tb && matches!(op, BinOp::Eq | BinOp::Ne) {
+            if (ta == tb || boxed(&ta) || boxed(&tb)) && matches!(op, BinOp::Eq | BinOp::Ne) {
                 return self.equal_as_values(op, &ta, &tb, pos);
             }
             let read = any_read(if ta == Ty::Any { &tb } else { &ta }).unwrap_or("as_float");
@@ -665,7 +666,6 @@ impl FnGen<'_> {
             tb = Ty::Float;
         }
         // Lists or structs are equal as values: both boxed and compared.
-        let boxed = |t: &Ty| matches!(t, Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_));
         if matches!(op, BinOp::Eq | BinOp::Ne) && (boxed(&ta) || boxed(&tb)) {
             return self.equal_as_values(op, &ta, &tb, pos);
         }
@@ -687,15 +687,14 @@ impl FnGen<'_> {
         Ok(out)
     }
 
-    // The two values on the stack, `a` under `b`, boxed and compared as
-    // `any.equals` compares them.
+    // The two values on the stack, `a` under `b`, boxed and compared.
     fn equal_as_values(&mut self, op: BinOp, ta: &Ty, tb: &Ty, pos: Pos) -> R<Ty> {
         let b = self.temp(tb);
         self.set_raw(&b);
         self.coerce(ta, &Ty::Any, pos)?;
         self.take_out(&b);
         self.coerce(tb, &Ty::Any, pos)?;
-        self.call_prelude("any::equals");
+        self.call_prelude("any::#equals");
         if op == BinOp::Ne {
             self.e(I::I32Eqz);
         }

@@ -1,0 +1,3 @@
+fn f(s: str) -> str { s.as_str() }
+
+// error: 1:24: `as_str` reads an `any`, and this is a str

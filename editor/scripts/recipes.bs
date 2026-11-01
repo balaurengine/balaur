@@ -338,7 +338,7 @@ fn shape_points(shape: any) -> [[float]] {
         let radius = or_float(form(shape)[RADIUS], 0.5);
         let points: [[float]] = [];
         for step in 0..RIM_POINTS {
-            let angle = step.as_float() / RIM_POINTS.as_float() * 2.0 * math::PI;
+            let angle = step as float / RIM_POINTS as float * 2.0 * math::PI;
             points.push([radius * math::cos(angle), radius * math::sin(angle)]);
         }
         return points;
@@ -715,7 +715,7 @@ fn drawn_scale(state: editor::State, sprite: any, texture: str) -> float {
     let size = sprite[SIZE];
     if size != nil && size[0].as_float() > 0.0 {
         let texture_width = render::texture_size(state.game_root + "/" + texture)[0];
-        return texture_width.as_float() / size[0].as_float();
+        return texture_width as float / size[0].as_float();
     }
     let own = sprite[PIXELS_PER_UNIT].as_float();
     if own > 0.0 { own } else { render::texture_pixels_per_unit(state.game_root + "/" + texture) }

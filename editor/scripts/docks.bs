@@ -121,7 +121,7 @@ pub fn one_at_a_time(state: editor::State) -> bool {
     let floors = layout::floors(state);
     let width = floors.width;
     let height = floors.height;
-    state.screen_width < width.as_float() || state.screen_height < height.as_float()
+    state.screen_width < width || state.screen_height < height
 }
 
 /// Open a side dock, folding the other where there is only room for one.
@@ -571,7 +571,7 @@ pub fn active_tab_box(state: &mut editor::State, side: str) -> ActiveTabBox? {
     let shown = shown_tabs(state, side);
     let active = state.docks[side]["active"];
     for index in 0..shown.len() {
-        if shown[index].equals(active) {
+        if shown[index] == active {
             at = index;
         }
     }
@@ -798,7 +798,7 @@ fn tab_label(state: &mut editor::State, id: str) -> any {
         let counts = lint::counts(state);
         let errors = counts.errors;
         let warnings = counts.warnings;
-        if (errors + warnings).as_int() > 0 {
+        if (errors + warnings) > 0 {
             label = label.as_str() + " {errors + warnings}";
         }
     }
@@ -824,7 +824,7 @@ fn tabs_width(state: &mut editor::State, side: str) -> float {
 fn tab_width(state: &mut editor::State, id: str) -> float {
     // 11 px, semibold: under 6 px a character, plus the pill's padding, the
     // close mark and the gap to the next one, measured at 52 px.
-    52.0 + 6.0 * tab_label(state, id).len().as_float()
+    52.0 + 6.0 * tab_label(state, id).len() as float
 }
 
 // The caret on a dock's minimise button points at the edge it folds to, and

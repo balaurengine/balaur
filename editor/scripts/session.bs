@@ -213,13 +213,13 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
         started: head["started"].as_str(),
         ticks: head["frames"].as_int(),
         // Ticks are the fixed 60 Hz step, so seconds follow from the count.
-        seconds: (last - first + 1).as_float() / 60.0,
+        seconds: (last - first + 1) as float / 60.0,
         reason: (if recorded_reason != nil {
             let reason = recorded_reason;
             if reason.kind() == "str" { reason.as_str() } else { "crashed" }
         } else {
             "crashed"
-        }).as_str(),
+        }),
         stale: recorded != "" && recorded != mine,
     }
 }
@@ -419,11 +419,11 @@ pub fn loaded(state: editor::State) -> bool {
 // read. True while playing or seeking; a paused session hands the pointer
 // back, because nothing is fed and the engine is held.
 pub fn scrubbing(state: editor::State) -> bool {
-    loaded(state) && replay::state() != replay::STATE_PAUSED.as_str()
+    loaded(state) && replay::state() != replay::STATE_PAUSED
 }
 
 pub fn toggle_pause(state: editor::State) {
-    if replay::state() == replay::STATE_PAUSED.as_str() {
+    if replay::state() == replay::STATE_PAUSED {
         replay::play();
     } else {
         replay::pause();
@@ -454,7 +454,7 @@ pub fn update(state: &mut editor::State) {
     if state.session.loaded == "" {
         return;
     }
-    if replay::state() != replay::STATE_PAUSED.as_str() {
+    if replay::state() != replay::STATE_PAUSED {
         state.session.at = replay::position();
     }
 }

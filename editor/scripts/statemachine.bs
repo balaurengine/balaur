@@ -148,7 +148,7 @@ pub fn add_state(state: &mut editor::State, name: str) {
         return;
     }
     let found = copy.unwrap();
-    if name == "" || name == animation::STATE_END.as_str() || states(found.doc).has(name) {
+    if name == "" || name == animation::STATE_END || states(found.doc).has(name) {
         return;
     }
     // The clip of its own name when the library has one, and otherwise the
@@ -589,7 +589,7 @@ fn number(state: editor::State, at: int, key: str, current: float, whole: bool) 
         kind: "number_field",
         role: "input_number",
         width: FIELD_WIDTH,
-        value: current.as_float(),
+        value: current,
         min: 0.0,
         max: if whole { 1000.0 } else { 100.0 },
         drag_speed: if whole { 1.0 } else { 0.01 },

@@ -28,7 +28,7 @@ impl Problems {
         }
         let row = node.widget.text;
         node.widget.text = "";
-        if row.as_str() != "" {
+        if row != "" {
             self.editor.call("problems_pick", row);
         }
     }

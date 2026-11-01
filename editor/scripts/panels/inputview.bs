@@ -98,12 +98,12 @@ impl Inputview {
         let design_point = self.design(spot[0], spot[1]);
         let design_x = design_point.x;
         let design_y = design_point.y;
-        self.at = At { x: design_x.as_float(), y: design_y.as_float() };
+        self.at = At { x: design_x, y: design_y };
         let patched = self.node.get_node("Pointer");
         patched.widget.visible = true;
         patched.patch_component("widget", { "inset": [design_x, design_y, -1.0, -1.0] });
         self.node.get_node("Press").patch_component("widget", {
-            "inset": [design_x.as_float() - PRESS / 2.0, design_y.as_float() - PRESS / 2.0, -1.0, -1.0],
+            "inset": [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0],
         });
     }
 
@@ -119,7 +119,7 @@ impl Inputview {
         if event["button"].as_str() == "left" {
             let patched = self.node.get_node("Press");
             patched.widget.visible = true;
-            patched.patch_component("widget", { "inset": [design_x.as_float() - PRESS / 2.0, design_y.as_float() - PRESS / 2.0, -1.0, -1.0] });
+            patched.patch_component("widget", { "inset": [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0] });
         }
     }
 

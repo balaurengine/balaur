@@ -139,7 +139,7 @@ fn shape_box(found: Node) -> LocalBox? {
     }
     let asked = shape["size"];
     let size = util::list2_or(if asked == nil { nil } else { asked }, [1.0, 1.0]);
-    LocalBox { centre: [0.0, 0.0], half: [size[0].as_float() / 2.0, size[1].as_float() / 2.0] }
+    LocalBox { centre: [0.0, 0.0], half: [size[0] / 2.0, size[1] / 2.0] }
 }
 
 // What a row covers before its scale: the box the engine draws first, so a
@@ -166,15 +166,15 @@ fn placed_box(found: Node, fallback: LocalBox?) -> PlacedBox? {
     let held = covered.unwrap();
     let scale = found.transform.global_scale();
     let origin = found.transform.global_position();
-    let angle = found.transform.global_rotation_euler().z.as_float();
-    let off_x = held.centre[0] * scale.x.as_float();
-    let off_y = held.centre[1] * scale.y.as_float();
+    let angle = found.transform.global_rotation_euler().z;
+    let off_x = held.centre[0] * scale.x;
+    let off_y = held.centre[1] * scale.y;
     let cosine = math::cos(angle);
     let sine = math::sin(angle);
     PlacedBox {
-        centre: [origin.x.as_float() + cosine * off_x - sine * off_y, origin.y.as_float() + sine * off_x + cosine * off_y],
+        centre: [origin.x + cosine * off_x - sine * off_y, origin.y + sine * off_x + cosine * off_y],
         angle: angle,
-        half: [held.half[0] * scale.x.as_float(), held.half[1] * scale.y.as_float()],
+        half: [held.half[0] * scale.x, held.half[1] * scale.y],
     }
 }
 
@@ -216,12 +216,12 @@ fn set_geometry(state: editor::State) -> Geometry? {
     let highest = [-math::INFINITY, -math::INFINITY];
     let found_any = false;
     for row in selection::all(state) {
-        let found = extents_at(state, row.as_int());
+        let found = extents_at(state, row);
         if found != nil {
             let covered = found.unwrap();
             found_any = true;
             for axis in 0..2 {
-                lowest[axis] = util::min(lowest[axis].as_float(), covered.centre[axis] - covered.half[axis]);
+                lowest[axis] = util::min(lowest[axis], covered.centre[axis] - covered.half[axis]);
                 highest[axis] = util::max(highest[axis], covered.centre[axis] + covered.half[axis]);
             }
         }
@@ -231,10 +231,10 @@ fn set_geometry(state: editor::State) -> Geometry? {
     }
     let per_pixel = viewport::world_per_pixel(state);
     let handle_radius = HANDLE_PIXELS * per_pixel;
-    let half_x = (highest[0] - lowest[0]).as_float() * 0.5;
-    let half_y = (highest[1] - lowest[1]).as_float() * 0.5;
+    let half_x = (highest[0] - lowest[0]) * 0.5;
+    let half_y = (highest[1] - lowest[1]) * 0.5;
     Geometry {
-        center: [(lowest[0] + highest[0]).as_float() * 0.5, (lowest[1] + highest[1]).as_float() * 0.5],
+        center: [(lowest[0] + highest[0]) * 0.5, (lowest[1] + highest[1]) * 0.5],
         angle: 0.0,
         half_extents: [half_x, half_y],
         handle_radius: handle_radius,
@@ -380,7 +380,7 @@ pub fn draw(state: editor::State) {
     let ring_color = if is_hot(hot, "ring") { viewport::hover_color() } else { viewport::orange() };
     let previous = local_point(geometry, geometry.ring, 0.0);
     for step in 1..49 {
-        let angle = (step as float) / 48.0 * math::PI.as_float() * 2.0;
+        let angle = (step as float) / 48.0 * math::PI * 2.0;
         let next = local_point(geometry, math::cos(angle) * geometry.ring, math::sin(angle) * geometry.ring);
         line(previous, next, ring_color, STROKE_WIDTH);
         previous = next;
@@ -412,7 +412,7 @@ fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, 
         anchor: [0.0, 0.0],
         angle: geometry.angle,
         half_extents: [geometry.half_extents[0], geometry.half_extents[1]],
-        start_angle: math::atan2((world_y.as_float() - geometry.center[1]).as_float(), world_x.as_float() - geometry.center[0]),
+        start_angle: math::atan2((world_y.as_float() - geometry.center[1]), world_x.as_float() - geometry.center[0]),
     };
     if part.kind == "handle" {
         // The opposite corner/edge stays fixed in world space.
@@ -431,7 +431,7 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
         let delta = [world_x.as_float() - drag.mouse[0], world_y.as_float() - drag.mouse[1], 0.0];
         selection::move_by(state, drag.set, delta, viewport::snapping(state));
     } else if drag.part.kind == "ring" {
-        let current_angle = math::atan2((world_y.as_float() - drag.center[1]).as_float(), world_x.as_float() - drag.center[0]);
+        let current_angle = math::atan2((world_y.as_float() - drag.center[1]), world_x.as_float() - drag.center[0]);
         selection::rotate_by(state, drag.set, 2, current_angle - drag.start_angle, pivot);
     } else if drag.part.kind == "handle" {
         // steadyum drive_single_drag: per-axis factor from the cursor's
@@ -448,12 +448,12 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
             if sign != 0.0 {
                 let denominator = 2.0 * sign * drag.half_extents[axis];
                 if util::abs(denominator) > 1e-6 {
-                    let travel = delta_x.as_float() * axes[axis][0] + delta_y.as_float() * axes[axis][1];
+                    let travel = delta_x * axes[axis][0] + delta_y * axes[axis][1];
                     factors[axis] = util::max(0.001, 1.0 + travel / denominator);
                 }
             }
         }
-        if input::key_down(input::KEY_SHIFT.as_str()) {
+        if input::key_down(input::KEY_SHIFT) {
             let dominant = 1.0;
             for axis in 0..2 {
                 if drag.part.signs[axis] != 0.0 && util::abs(factors[axis] - 1.0) > util::abs(dominant - 1.0) {
@@ -476,8 +476,8 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
         let new_centre_y = anchor[1] + sine * off_x + cosine * off_y;
         selection::scale_by(state, drag.set, [factors[0], factors[1], 1.0], [anchor[0], anchor[1], 0.0]);
         if drag.set.len() == 1 {
-            let position_x = drag.position[0].as_float() + (new_centre_x - drag.center[0].as_float());
-            let position_y = drag.position[1].as_float() + (new_centre_y - drag.center[1].as_float());
+            let position_x = drag.position[0] + (new_centre_x - drag.center[0]);
+            let position_y = drag.position[1] + (new_centre_y - drag.center[1]);
             model::set_transform(state, state.selected, rig::Parts { position: [position_x, position_y, drag.position[2]], rotation_euler: [], scale: [] });
         }
     }
@@ -485,9 +485,9 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
 
 // Rows whose world box overlaps the marquee, in world units.
 fn rows_in_box(state: editor::State, world_start_x: float, world_start_y: float, world_end_x: float, world_end_y: float) -> [int] {
-    let low_x = util::min(world_start_x.as_float(), world_end_x);
+    let low_x = util::min(world_start_x, world_end_x);
     let high_x = util::max(world_start_x, world_end_x);
-    let low_y = util::min(world_start_y.as_float(), world_end_y);
+    let low_y = util::min(world_start_y, world_end_y);
     let high_y = util::max(world_start_y, world_end_y);
     let out: [int] = [];
     for row in 0..state.nodes.len() {
@@ -499,7 +499,7 @@ fn rows_in_box(state: editor::State, world_start_x: float, world_start_y: float,
             let covered = found.unwrap();
             let box_centre = covered.centre;
             let half_extents = covered.half;
-            if box_centre[0] - half_extents[0] <= high_x.as_float() && box_centre[0] + half_extents[0] >= low_x && box_centre[1] - half_extents[1] <= high_y.as_float() && box_centre[1] + half_extents[1] >= low_y {
+            if box_centre[0] - half_extents[0] <= high_x && box_centre[0] + half_extents[0] >= low_x && box_centre[1] - half_extents[1] <= high_y && box_centre[1] + half_extents[1] >= low_y {
                 out.push(row);
             }
         }
@@ -550,7 +550,7 @@ fn pick(state: editor::State, world_x: any, world_y: any) -> int? {
         let covered = covering(state, row, world_x.as_float(), world_y.as_float());
         if covered != nil {
             let area = covered.unwrap();
-            if area < best_area.as_float() {
+            if area < best_area {
                 best = row;
                 best_area = area;
             }
@@ -575,11 +575,11 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         if state.tool == "bone" {
             rig::update(state, over_viewport, world_x, world_y);
         } else if state.tool == "polygon" {
-            polygon::update(state, over_viewport, world_x.as_float(), world_y.as_float());
+            polygon::update(state, over_viewport, world_x, world_y);
         } else if state.tool == "pen" {
-            pen::update(state, over_viewport, world_x.as_float(), world_y.as_float());
+            pen::update(state, over_viewport, world_x, world_y);
         } else {
-            tiles::update(state, over_viewport, world_x.as_float(), world_y.as_float());
+            tiles::update(state, over_viewport, world_x, world_y);
         }
         return;
     }
@@ -600,7 +600,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
             nil
         };
     }
-    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int()) && over_viewport {
+    if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT) && over_viewport {
         if state.gizmo.hover != nil && geometry != nil {
             let part: gizmo::Part = state.gizmo.hover;
             start_drag(state, geometry.unwrap(), part, world_x, world_y);
@@ -638,7 +638,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         box_drag["end_y"] = pointer.y;
         box_drag["world_end_x"] = world_x;
         box_drag["world_end_y"] = world_y;
-        if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
+        if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;
             if util::abs(box_drag["end_x"].as_float() - box_drag["start_x"].as_float()) > 3.0 || util::abs(box_drag["end_y"].as_float() - box_drag["start_y"].as_float()) > 3.0 {
@@ -651,7 +651,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         }
         return;
     }
-    if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         state.gizmo.drag = nil;
         state.gizmo.in_viewport = false;
     }
@@ -673,13 +673,13 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let found = dragged.unwrap().node;
     let world_per_pixel = viewport::world_per_pixel(state);
     if state.tool == "move" {
-        selection::nudge(state, [delta_x.as_float() * world_per_pixel, (-delta_y).as_float() * world_per_pixel, 0.0], viewport::snapping(state));
+        selection::nudge(state, [delta_x * world_per_pixel, (-delta_y) * world_per_pixel, 0.0], viewport::snapping(state));
     } else if state.tool == "rotate" {
         // The live node, like every other writer here.
-        selection::spin(state, 2, (-delta_x).as_float() * 0.01);
+        selection::spin(state, 2, (-delta_x) * 0.01);
     } else if state.tool == "scale" {
-        selection::grow(state, util::clamp(1.0 - delta_y.as_float() * 0.01, 0.2, 5.0), true);
+        selection::grow(state, util::clamp(1.0 - delta_y * 0.01, 0.2, 5.0), true);
     } else if state.tool == "zoom" {
-        shell::set_zoom(state, state.zoom - delta_y.as_float() * 0.5);
+        shell::set_zoom(state, state.zoom - delta_y * 0.5);
     }
 }

@@ -7,7 +7,7 @@ pub fn run(a: any) -> str {
     let name: str = a["name"].as_str();
     "{gone.as_int()} {first.as_str()} {total} {a.has("n")} {name.starts_with("or")} {a["name"] == a["name"]} {a["name"].or("x")} {a["missing"] == nil} {-a["score"].as_float()}"
 }
-pub fn plain(n: int, s: str) -> str { "{n.as_float()} {s.as_str()} {n.as_str()}" }
+pub fn plain(n: int, s: str) -> str { "{n as float} {s} {n}" }
 
 // expect: run({ "name": "orc", "n": 3, "score": 1.5, "tags": ["a", "b"] }) == "3 a 1 false true true orc true -1.5"
 // expect: plain(2, "s") == "2.0 s 2"

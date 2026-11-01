@@ -47,7 +47,7 @@ pub fn align(state: &mut editor::State, axis: int, mode: str) {
     } else if mode == "max" {
         highest
     } else {
-        sum / rows.len().as_float()
+        sum / rows.len() as float
     };
     history::record(state, "align {axis_name(axis)}", nil);
     for row in rows {
@@ -82,12 +82,12 @@ pub fn distribute(state: &mut editor::State, axis: int) {
     }
     let first = world_of(state, sorted[0])[axis];
     let last = world_of(state, sorted[sorted.len() - 1])[axis];
-    let step = (last - first) / (sorted.len() - 1).as_float();
+    let step = (last - first) / (sorted.len() - 1) as float;
     history::record(state, "distribute {axis_name(axis)}", nil);
     for rank in 0..sorted.len() {
         let row = sorted[rank];
         let target = world_of(state, row);
-        target[axis] = first + step * rank.as_float();
+        target[axis] = first + step * rank as float;
         move_world_to(state, row, target);
     }
     history::commit(state);
@@ -130,7 +130,7 @@ pub fn group(state: &mut editor::State) {
     for row in rows {
         center = util::vector_add(center, world_of(state, row));
     }
-    center = util::vector_scale(center, 1.0 / rows.len().as_float());
+    center = util::vector_scale(center, 1.0 / rows.len() as float);
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
     history::record(state, "group", nil);

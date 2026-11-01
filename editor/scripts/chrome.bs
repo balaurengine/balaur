@@ -207,7 +207,7 @@ pub fn transport_spot(state: editor::State, index: int) -> Spot {
         return spot;
     }
     let command_width = if state.compact { COMMAND_WIDTH_COMPACT } else { COMMAND_WIDTH };
-    let block = (bar["x"].as_float() + bar["width"].as_float()).as_float() - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
+    let block = (bar["x"].as_float() + bar["width"].as_float()) - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
     return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
 }
 
@@ -292,7 +292,7 @@ fn menu_key(state: &mut editor::State) -> [any] {
 fn strip_key(state: editor::State, tokens: any) -> [any] {
     let replaying = session::loaded(state);
     let paused = if replaying {
-        replay::state() == replay::STATE_PAUSED.as_str()
+        replay::state() == replay::STATE_PAUSED
     } else {
         state.playing && physics::is_paused()
     };
@@ -520,7 +520,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
     let replaying = session::loaded(state);
     let running = state.playing || replaying;
     let paused = if replaying {
-        replay::state() == replay::STATE_PAUSED.as_str()
+        replay::state() == replay::STATE_PAUSED
     } else {
         state.playing && (physics::is_paused())
     };
@@ -697,7 +697,7 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [ui::Contr
         out.push(ui::Control {
             kind: "label",
             corner_radius: 0,
-            text: "{nodes} {plural(nodes.as_int(), "node")} · {scripts} {plural(scripts.as_int(), "script")}",
+            text: "{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, "script")}",
             role: "text_caption",
             text_color: tokens["text_subtle"].as_str(),
         });

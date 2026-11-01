@@ -693,7 +693,7 @@ fn frame(state: &mut State, delta_time: float) {
             state.formed = true;
             ui::finish_loading();
         } else {
-            ui::set_load_progress(util::clamp(0.4 + 0.06 * state.frame.as_float(), 0.0, 0.95));
+            ui::set_load_progress(util::clamp(0.4 + 0.06 * state.frame, 0.0, 0.95));
         }
     }
     // Above the start screen's own return: a clip of a project converting is
@@ -1551,7 +1551,7 @@ impl Editor {
     /// Text pasted where no field took it: ⌘V anywhere in the shell pastes a
     /// copied node.
     pub fn on_pasted(text: str) {
-        model::paste_nodes(self.state, text.as_str());
+        model::paste_nodes(self.state, text);
     }
 
     /// An image pasted where no field took it is a sprite at the pointer, as

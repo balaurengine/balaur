@@ -174,9 +174,9 @@ fn filtered(state: &mut editor::State) -> Built {
     // `since` hands back only what was logged after the cursor, so a frame
     // that logged nothing costs one call rather than the whole buffer.
     let news = log::since(state.log_cursor);
-    state.log_cursor = news.cursor.as_int();
+    state.log_cursor = news.cursor;
     let mark = "{state.log_level}|{state.log_query}";
-    if state.log_cache != nil && state.log_cache.unwrap().mark == mark && news.entries.len() == 0 && news.missed.as_int() == 0 {
+    if state.log_cache != nil && state.log_cache.unwrap().mark == mark && news.entries.len() == 0 && news.missed == 0 {
         return state.log_cache.unwrap();
     }
     // The buffer holds 500; asking for 60 threw away most of the session.

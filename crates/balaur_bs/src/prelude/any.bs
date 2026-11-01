@@ -213,9 +213,10 @@ pub fn remove(value: any, key: any) -> any {
     __vals(value).remove(index)
 }
 
-// The same value: numbers by number whatever their kind, maps by key
-// whatever their order, lists by their elements, nil only to nil.
-pub fn equals(value: any, other: any) -> bool {
+// `==` and `!=` on an `any`: the same value, numbers by number whatever their
+// kind, maps by key whatever their order, lists by their elements, nil only to
+// nil.
+fn equals(value: any, other: any) -> bool {
     same(value, other)
 }
 

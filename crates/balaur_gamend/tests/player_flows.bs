@@ -649,7 +649,7 @@ fn data(reply: any) -> any {
 /// Two strings or two ints that are equal; nothing else is the same.
 fn same(a: any, b: any) -> bool {
     let kind = a.kind();
-    (kind == "str" || kind == "int") && kind == b.kind() && a.equals(b)
+    (kind == "str" || kind == "int") && kind == b.kind() && a == b
 }
 
 fn count(list: any) -> int {

@@ -169,7 +169,11 @@ impl FnGen<'_> {
     /// A prelude function may call what its own code needs by any name.
     pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
         let nil_test = matches!(name, "is_nil" | "is_none" | "is_some" | "unwrap_or");
-        if self.prelude || !(nil_test || matches!(name, "get" | "at" | "set" | "put")) {
+        let read = matches!(
+            name,
+            "as_int" | "as_float" | "as_bool" | "as_str" | "as_node"
+        );
+        if self.prelude || !(nil_test || read || matches!(name, "get" | "at" | "set" | "put")) {
             return Ok(());
         }
         let msg = match (&self.type_of(base)?, name) {
@@ -209,6 +213,18 @@ impl FnGen<'_> {
             (Ty::Struct(s), "set") if crate::maps::is_map(s) => {
                 "a map writes a key as `m[k] = v`, not `m.set(k, v)`".to_string()
             }
+            (Ty::Int, "as_float") => {
+                "an int becomes a float as `x as float`, not `x.as_float()`".to_string()
+            }
+            (Ty::Float, "as_int") => {
+                "a float becomes an int as `x as int`, not `x.as_int()`".to_string()
+            }
+            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, "as_str") => {
+                "a value becomes text as `\"{x}\"`, not `x.as_str()`".to_string()
+            }
+            (from @ (Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node), _) if read => {
+                format!("`{name}` reads an `any`, and this is a {}", show(from))
+            }
             _ => return Ok(()),
         };
         err(pos, msg)
@@ -240,9 +256,6 @@ impl FnGen<'_> {
             Some(lv) => lv.ty.clone(),
             None => self.type_of(base)?,
         };
-        if let Some(t) = self.method_sugar(base, &bty, name, args, pos)? {
-            return Ok(t);
-        }
         match &bty {
             Ty::Array(_) => self.array_method(base, name, args, pos),
             Ty::Str if name == "len" => {
@@ -413,22 +426,6 @@ impl FnGen<'_> {
         Some(r)
     }
 
-    // What a value answers before its own kind's methods: `as_` conversions.
-    fn method_sugar(
-        &mut self,
-        base: &Expr,
-        bty: &Ty,
-        name: &str,
-        args: &[Expr],
-        pos: Pos,
-    ) -> R<Option<Ty>> {
-        let plain = matches!(bty, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
-        if plain && args.is_empty() && name.starts_with("as_") {
-            return self.plain_as(base, name, pos).map(Some);
-        }
-        Ok(None)
-    }
-
     // `node.f(a)` is the host's `f(node, a)`.
     fn node_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         let takes_node = |s: &super::Sig| s.params.first() == Some(&Ty::Node);
@@ -480,6 +477,9 @@ impl FnGen<'_> {
                 pos,
                 "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or write the key, `a[\"k\"] = v`",
             );
+        }
+        if name == "equals" && !self.prelude {
+            return err(pos, "an `any` compares as `a == b`, not `a.equals(b)`");
         }
         if !self.g.sigs.contains_key(&format!("any::{name}")) {
             return self.held_method(base, name, args, pos);
@@ -578,32 +578,6 @@ impl FnGen<'_> {
             pos,
             format!("an `any` has `{}`, not `{name}`", names.join("`, `")),
         )
-    }
-
-    // `x.as_float()` on a value that is one already, or converts plainly.
-    fn plain_as(&mut self, base: &Expr, name: &str, pos: Pos) -> R<Ty> {
-        let to = match name {
-            "as_int" => Ty::Int,
-            "as_float" => Ty::Float,
-            "as_bool" => Ty::Bool,
-            "as_str" => Ty::Str,
-            "as_node" => Ty::Node,
-            _ => return err(pos, format!("no method `{name}` on this value")),
-        };
-        let from = self.expr(base)?;
-        match (&from, &to) {
-            (a, b) if a == b => {}
-            (Ty::Int, Ty::Float) => self.e(I::F64ConvertI64S),
-            (Ty::Float, Ty::Int) => self.e(I::I64TruncSatF64S),
-            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, Ty::Str) => self.stringify(&from, pos)?,
-            _ => {
-                return err(
-                    pos,
-                    format!("a {} cannot be read as {}", show(&from), show(&to)),
-                );
-            }
-        }
-        Ok(to)
     }
 
     // `text.contains(needle)` is the prelude's `str::contains(text, needle)`.

@@ -199,15 +199,15 @@ fn line(from: [float], to: [float], color: [float]) {
 fn draw_bone(state: editor::State, spine: Geometry, color: [float]) {
     let span_x = spine.tip[0] - spine.origin[0];
     let span_y = spine.tip[1] - spine.origin[1];
-    let length = math::sqrt((span_x * span_x + span_y * span_y).as_float());
+    let length = math::sqrt((span_x * span_x + span_y * span_y));
     if length < 1e-6 {
         return;
     }
-    let normal_x = (-span_y).as_float() / length;
-    let normal_y = span_x.as_float() / length;
+    let normal_x = (-span_y) / length;
+    let normal_y = span_x / length;
     let half = util::min(0.12 * length, 6.0 * viewport::world_per_pixel(state));
-    let waist_x = spine.origin[0].as_float() + span_x.as_float() * 0.2;
-    let waist_y = spine.origin[1].as_float() + span_y.as_float() * 0.2;
+    let waist_x = spine.origin[0] + span_x * 0.2;
+    let waist_y = spine.origin[1] + span_y * 0.2;
     let left = [waist_x + normal_x * half, waist_y + normal_y * half];
     let right = [waist_x - normal_x * half, waist_y - normal_y * half];
     line(spine.origin, left, color);
@@ -221,11 +221,11 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
     let span = util::vector_subtract(spine.tip, spine.origin);
     let span_unit = util::vector_normalise(span);
     let length = span_unit.length;
-    if length.as_float() < 1e-6 {
+    if length < 1e-6 {
         return;
     }
     // Two directions across the bone: any vector not along it, crossed.
-    let across = if util::abs(span[2].as_float()) > 0.9 * length.as_float() {
+    let across = if util::abs(span[2]) > 0.9 * length {
         [1.0, 0.0, 0.0]
     } else {
         [0.0, 0.0, 1.0]
@@ -234,7 +234,7 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
     let first_side = first_unit.direction;
     let second_unit = util::vector_normalise(util::vector_cross(span, first_side));
     let second_side = second_unit.direction;
-    let half = 0.1 * length.as_float();
+    let half = 0.1 * length;
     let waist_centre = util::vector_add(spine.origin, util::vector_scale(span, 0.2));
     let waist = [
         util::vector_add(waist_centre, util::vector_scale(first_side, half)),
@@ -245,9 +245,9 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
     for corner in 0..waist.len() {
         let waist_point = waist[corner];
         let next_point = waist[(corner + 1) % 4];
-        render::draw_line_3d(spine.origin[0].as_float(), spine.origin[1].as_float(), spine.origin[2].as_float(), waist_point[0].as_float(), waist_point[1].as_float(), waist_point[2].as_float(), color[0], color[1], color[2], LINE_WIDTH);
-        render::draw_line_3d(waist_point[0].as_float(), waist_point[1].as_float(), waist_point[2].as_float(), spine.tip[0].as_float(), spine.tip[1].as_float(), spine.tip[2].as_float(), color[0], color[1], color[2], LINE_WIDTH);
-        render::draw_line_3d(waist_point[0].as_float(), waist_point[1].as_float(), waist_point[2].as_float(), next_point[0].as_float(), next_point[1].as_float(), next_point[2].as_float(), color[0], color[1], color[2], LINE_WIDTH);
+        render::draw_line_3d(spine.origin[0], spine.origin[1], spine.origin[2], waist_point[0], waist_point[1], waist_point[2], color[0], color[1], color[2], LINE_WIDTH);
+        render::draw_line_3d(waist_point[0], waist_point[1], waist_point[2], spine.tip[0], spine.tip[1], spine.tip[2], color[0], color[1], color[2], LINE_WIDTH);
+        render::draw_line_3d(waist_point[0], waist_point[1], waist_point[2], next_point[0], next_point[1], next_point[2], color[0], color[1], color[2], LINE_WIDTH);
     }
 }
 
@@ -407,8 +407,8 @@ fn dashed(state: editor::State, from: [float], to: [float], color: [float]) {
         if step % 2 == 1 {
             continue;
         }
-        let from_fraction = step.as_float() / steps.as_float();
-        let to_fraction = (step + 1).as_float() / steps.as_float();
+        let from_fraction = step as float / steps as float;
+        let to_fraction = (step + 1) as float / steps as float;
         line_at(state, along(from, to, from_fraction), along(from, to, to_fraction), color, LINE_WIDTH);
     }
 }
@@ -431,7 +431,7 @@ fn handle(state: editor::State, point: [float], color: [float]) {
 
 // Point `side` of `sides` around a ring of radius `radius` about `centre`.
 fn ring_at(centre: [float], radius: float, side: int, sides: int) -> [float] {
-    let angle = math::PI * 2.0 * side.as_float() / sides.as_float();
+    let angle = math::PI * 2.0 * side as float / sides as float;
     [centre[0] + math::cos(angle) * radius, centre[1] + math::sin(angle) * radius, centre[2]]
 }
 
@@ -447,7 +447,7 @@ pub fn pick_handle(state: editor::State, world_x: any, world_y: any) -> int? {
         let found = found_or.unwrap();
         if found.target != nil {
             let point = found.target.unwrap();
-            let distance = math::sqrt(((point[0] - world_x.as_float()) * (point[0] - world_x.as_float()) + (point[1] - world_y.as_float()) * (point[1] - world_y.as_float())).as_float());
+            let distance = math::sqrt(((point[0] - world_x.as_float()) * (point[0] - world_x.as_float()) + (point[1] - world_y.as_float()) * (point[1] - world_y.as_float())));
             if distance < best_distance {
                 best = row;
                 best_distance = distance;
@@ -537,13 +537,13 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         }
         let mine = mine_or;
         let full = bone.as_node().path();
-        let relative_path = if full == base { "" } else { full.as_str().slice(base.len() + 1, full.as_str().len()) };
+        let relative_path = if full == base { "" } else { full.slice(base.len() + 1, full.len()) };
         let other = mirror_name(relative_path);
         // Its opposite number's rest, reflected; or its own, for a bone with
         // no side in its name.
         let source = if other != nil {
             let twin = other.unwrap();
-            let twin_was = was[base.as_str() + "/" + twin];
+            let twin_was = was[base + "/" + twin];
             if twin_was == nil { mine } else { twin_was }
         } else {
             mine
@@ -587,7 +587,7 @@ fn reflect_rest(data: any, axis: str) -> any {
     let was = out["angle"];
     if was != nil {
         let angle = -was.as_float();
-        out["angle"] = if axis == "x" { math::PI.as_float() + angle } else { angle };
+        out["angle"] = if axis == "x" { math::PI + angle } else { angle };
     } else {
         nil
     }
@@ -608,9 +608,9 @@ fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, color
         pixels_per_unit: LABEL_PIXELS_PER_UNIT,
     };
     if state.mode2d {
-        render::draw_text_2d(spine.origin[0].as_float(), spine.origin[1].as_float() + LABEL_LIFT, node.name(), options);
+        render::draw_text_2d(spine.origin[0], spine.origin[1] + LABEL_LIFT, node.name(), options);
     } else {
-        render::draw_text_3d(spine.origin[0].as_float(), spine.origin[1].as_float() + LABEL_LIFT, spine.origin[2].as_float(), node.name(), options);
+        render::draw_text_3d(spine.origin[0], spine.origin[1] + LABEL_LIFT, spine.origin[2], node.name(), options);
     }
 }
 
@@ -657,7 +657,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: any, worl
         state.rig.hover = nil;
         return;
     }
-    if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
+    if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
         state.rig.drag = nil;
     }
     if state.rig.drag != nil {
@@ -666,7 +666,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: any, worl
         return;
     }
     state.rig.hover = if over_viewport { pick(state, world_x, world_y) } else { nil };
-    if !(over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int())) {
+    if !(over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT)) {
         return;
     }
     // A modifier's target handle wins over the bone under it: the handle is

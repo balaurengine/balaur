@@ -319,11 +319,11 @@ pub fn rename(state: &mut editor::State) {
     let was = model::node(state, state.selected).name();
     left::rename_open(state);
     check(state.renaming, "the rename dialog opens");
-    check(state.rename_text == was.as_str(), "it starts from the node's name ({state.rename_text})");
+    check(state.rename_text == was, "it starts from the node's name ({state.rename_text})");
     model::rename_selected(state, "Renamed");
     check(model::node(state, state.selected).name() == "Renamed", "the document takes it ({model::node(state, state.selected).name()})");
     let found = model::node(state, state.selected);
-    check(found.name().as_str() == "Renamed", "and so does the live node ({found.name()})");
+    check(found.name() == "Renamed", "and so does the live node ({found.name()})");
     // A second node cannot take the same name, or `find_node` answers with
     // whichever came first.
     let other = -1;
@@ -671,7 +671,7 @@ pub fn weighting(state: &mut editor::State) {
     // vertex count and every other column to nothing.
     state.polygon.bone = 0;
     weights::bind(state);
-    check(util::abs(column(state, 0) - count.as_float()) < 1e-4, "bind gives every vertex to one bone ({column(state, 0)} of {count})");
+    check(util::abs(column(state, 0) - count as float) < 1e-4, "bind gives every vertex to one bone ({column(state, 0)} of {count})");
     check(bones.len() < 2 || column(state, 1) == 0.0, "and takes them off the others");
     weights::unbind(state);
     check(column(state, 0) == 0.0, "unbind takes every vertex off every bone");
@@ -1558,9 +1558,9 @@ pub fn imports(state: editor::State) {
     let rel = "selftest-import.png";
     fs::write(root + rel, "not really a png, and never decoded here");
     let side = root + importer::sidecar_of(rel);
-    check(importer::kind_of(rel).as_str() == "texture", "a .png is a texture");
-    check(importer::kind_of("scenes/main.toml").as_str() == "", "a scene is no importer's business");
-    check(importer::kind_of("ART/HERO.PNG").as_str() == "texture", "the extension is matched whatever its case");
+    check(importer::kind_of(rel) == "texture", "a .png is a texture");
+    check(importer::kind_of("scenes/main.toml") == "", "a scene is no importer's business");
+    check(importer::kind_of("ART/HERO.PNG") == "texture", "the extension is matched whatever its case");
     check(!fs::exists(side), "a picture starts with no settings beside it");
     importer::write(state, rel, "filter", "nearest");
     check(fs::exists(side), "setting a key writes the sidecar");
@@ -1589,10 +1589,10 @@ pub fn imports(state: editor::State) {
         importer::write(state, rel, key, nil);
     }
     check(!fs::exists(side), "clearing every key removes the sidecar again");
-    check(importer::kind_of("art/logo.svg").as_str() == "texture", "an SVG is a texture");
-    check(importer::kind_of("sfx/theme.ogg").as_str() == "audio", "a sound takes settings too");
-    check(importer::kind_of("fonts/ui-Face.ttf").as_str() == "font", "and a face");
-    check(importer::kind_of("models/crate.obj").as_str() == "model", "and a model");
+    check(importer::kind_of("art/logo.svg") == "texture", "an SVG is a texture");
+    check(importer::kind_of("sfx/theme.ogg") == "audio", "a sound takes settings too");
+    check(importer::kind_of("fonts/ui-Face.ttf") == "font", "and a face");
+    check(importer::kind_of("models/crate.obj") == "model", "and a model");
     importer::write(state, rel, "scale", 2.5);
     check(importer::sidecar(state, rel)["scale"] == 2.5, "a number row writes a float");
     importer::write(state, rel, "scale", nil);
@@ -1909,7 +1909,7 @@ pub fn composite_props(state: &mut editor::State) {
     inspector::add_entry(state, at, of, "");
     let grown = list_now(state, index, component, property);
     check(grown.len() == 2, "an added entry makes two ({grown.len()})");
-    check(grown[1].equals(of["default"]), "a new entry starts at the spec's default");
+    check(grown[1] == of["default"], "a new entry starts at the spec's default");
     undo_all(state);
     check(mirror_resolves(state), "the mirror still resolves after editing a list");
     // Left where a picture of it is worth taking: three entries, the fold
@@ -3189,7 +3189,7 @@ pub fn focusing(state: &mut editor::State) {
     check(!state.focus, "leaving focus clears it");
     let back = true;
     for side in docks::sides() {
-        if !state.docks[side]["shut"].equals(was[side]) {
+        if state.docks[side]["shut"] != was[side] {
             back = false;
         }
     }
@@ -3372,14 +3372,14 @@ fn bundled_pairs(state: editor::State) {
     let folders: any = found;
     let bundled: any = theme::BUNDLED();
     let listed = bundled.sorted();
-    check(folders.sorted().equals(listed), "the bundled folders are the bundled list ({folders.sorted()} vs {listed})");
+    check(folders.sorted() == listed, "the bundled folders are the bundled list ({folders.sorted()} vs {listed})");
     let options: any = [];
     for setting in settings::all() {
         if setting.path == theme::SETTING {
             options = util::list_or_empty(util::map_or_empty(setting.spec)["options"]);
         }
     }
-    check(options.sorted().equals(listed), "and the setting offers the same ({options.sorted()})");
+    check(options.sorted() == listed, "and the setting offers the same ({options.sorted()})");
     for name in theme::BUNDLED() {
         for half in theme::HALVES() {
             check(theme::read(name, half).kind() == "map", "{name} has its {half} half");
@@ -3966,9 +3966,9 @@ pub fn camera_document(state: &mut editor::State) {
     check(current == nil || current.as_bool(), "and the document keeps the camera current ({current})");
     // An edit to `current` itself is the author's, and the editor keeps looking.
     model::set_component_property(state, model::CAMERA_3D, model::CAMERA_CURRENT, false);
-    check(util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D))[model::CAMERA_CURRENT].equals(false), "turning the camera off is written");
+    check(util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D))[model::CAMERA_CURRENT] == false, "turning the camera off is written");
     model::set_component_property(state, model::CAMERA_3D, model::CAMERA_CURRENT, true);
-    check(util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D))[model::CAMERA_CURRENT].equals(true), "and so is turning it back on");
+    check(util::map_or_empty(model::node(state, row).authored(model::CAMERA_3D))[model::CAMERA_CURRENT] == true, "and so is turning it back on");
     let live = model::node(state, row);
     check(live.get_component(model::CAMERA_3D, model::CAMERA_CURRENT).as_bool(), "and the camera holds it, the view held off it by the editor");
     model::delete_selected(state);
@@ -4129,7 +4129,7 @@ pub fn warning_marks(state: &mut editor::State) {
     let before = util::map_or_empty(model::node(state, row).authored("soft_grid2d"))["cells"];
     model::set_component_property(state, "soft_grid2d", "cells", [5000.0, 5000.0]);
     let after = util::map_or_empty(model::node(state, row).authored("soft_grid2d"))["cells"];
-    check(after.equals(before), "a refused write leaves the document as it was ({after})");
+    check(after == before, "a refused write leaves the document as it was ({after})");
     let named: [str] = [];
     for warning in scene::warnings(model::node(state, row)) {
         if warning.property != nil {
@@ -4303,7 +4303,7 @@ fn rows_answered(state: editor::State, widget: any, rows: any) {
     // Lit from the selection before the pick, the row went back to the old
     // node for a pass, and stayed there while nothing asked for another.
     let lit = util::list_or_empty(widget["selection"]);
-    check(lit.len() == 1 && lit[0].equals(rows[want]), "and the pass that answered it lights that row ({lit})");
+    check(lit.len() == 1 && lit[0] == rows[want], "and the pass that answered it lights that row ({lit})");
     check(rows.len() == state.nodes.len(), "and the walk is the document's still");
 }
 

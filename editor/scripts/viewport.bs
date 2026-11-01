@@ -111,9 +111,9 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
     let scroll = input::scroll_delta();
     let wheel = scroll.y;
     let wheel = if over { wheel } else { 0.0 };
-    let orbiting = button == input::MOUSE_BUTTON_MIDDLE.as_int();
-    let panning = button == input::MOUSE_BUTTON_RIGHT.as_int();
-    if wheel.as_float() == 0.0 && !orbiting && !panning {
+    let orbiting = button == input::MOUSE_BUTTON_MIDDLE;
+    let panning = button == input::MOUSE_BUTTON_RIGHT;
+    if wheel == 0.0 && !orbiting && !panning {
         return false;
     }
     let motion = input::mouse_delta();
@@ -129,11 +129,11 @@ pub fn mouse_camera(state: &mut editor::State) -> bool {
         let centre_y = camera.y;
         let zoom = camera.z;
         let held = util::max(zoom, 0.01);
-        let next = util::clamp(held.as_float() * math::pow(dolly_step(), wheel.as_float()), 0.02, 4000.0);
+        let next = util::clamp(held * math::pow(dolly_step(), wheel), 0.02, 4000.0);
         if panning {
-            render::set_camera_2d((centre_x - delta_x / held).as_float(), (centre_y + delta_y / held).as_float(), next);
+            render::set_camera_2d((centre_x - delta_x / held), (centre_y + delta_y / held), next);
         } else {
-            render::set_camera_2d(centre_x.as_float(), centre_y.as_float(), next);
+            render::set_camera_2d(centre_x, centre_y, next);
         }
         return true;
     }
@@ -150,8 +150,8 @@ fn camera_drag(state: &mut editor::State, over: bool) -> int {
     }
     if state.camera_drag < 0 && over {
         for button in [input::MOUSE_BUTTON_RIGHT, input::MOUSE_BUTTON_MIDDLE] {
-            if input::mouse_just_pressed(button.as_int()) {
-                state.camera_drag = button.as_int();
+            if input::mouse_just_pressed(button) {
+                state.camera_drag = button;
             }
         }
     }
@@ -167,7 +167,7 @@ const ORBIT_PER_PIXEL: float = 0.005;
 /// differs by two orders of magnitude; these are the backend camera's own
 /// numbers, so the editor dollies at the speed the engine does.
 pub fn dolly_step() -> float {
-    if engine::target().os.as_str() == "macos" { 1.0001 } else { 1.01 }
+    if engine::target().os == "macos" { 1.0001 } else { 1.01 }
 }
 
 fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bool, delta_x: float, delta_y: float) {
@@ -192,7 +192,7 @@ fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bo
         // drag there move the eye the same way.
         let yaw = math::atan2(offset_z, offset_x) + delta_x * ORBIT_PER_PIXEL;
         let pitch = util::clamp(math::acos(util::clamp(offset_y / distance, -1.0, 1.0)) + delta_y * ORBIT_PER_PIXEL, 0.02, 3.12);
-        render::set_camera(target_x.as_float() + want * math::cos(yaw) * math::sin(pitch), target_y.as_float() + want * math::cos(pitch), target_z.as_float() + want * math::sin(yaw) * math::sin(pitch), target_x.as_float(), target_y.as_float(), target_z.as_float());
+        render::set_camera(target_x + want * math::cos(yaw) * math::sin(pitch), target_y + want * math::cos(pitch), target_z + want * math::sin(yaw) * math::sin(pitch), target_x, target_y, target_z);
         return;
     }
     let unit_x = offset_x / distance;
@@ -201,9 +201,9 @@ fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bo
     let moved = if panning {
         let axes = slide_axes(state, [unit_x, unit_y, unit_z], want, fov);
         [
-            target_x.as_float() + axes[0] * (0.0 - delta_x) + axes[3] * delta_y,
-            target_y.as_float() + axes[1] * (0.0 - delta_x) + axes[4] * delta_y,
-            target_z.as_float() + axes[2] * (0.0 - delta_x) + axes[5] * delta_y,
+            target_x + axes[0] * (0.0 - delta_x) + axes[3] * delta_y,
+            target_y + axes[1] * (0.0 - delta_x) + axes[4] * delta_y,
+            target_z + axes[2] * (0.0 - delta_x) + axes[5] * delta_y,
         ]
     } else {
         [target_x, target_y, target_z]
@@ -230,7 +230,7 @@ fn slide_axes(state: editor::State, unit: [float], distance: float, fov: any) ->
         unit_x * right[1] - unit_y * right[0],
     ];
     let tall = util::max(state.screen_height, 1.0);
-    let per_pixel = 2.0 * distance * math::tan(util::max(fov.as_float(), 0.01).as_float() / 2.0) / tall;
+    let per_pixel = 2.0 * distance * math::tan(util::max(fov.as_float(), 0.01) / 2.0) / tall;
     let step = per_pixel / util::max(state.ui_scale, 0.01);
     let out = [
         right[0] * step,
@@ -251,8 +251,8 @@ fn pan_zoom_2d(state: editor::State, scale: float, delta_x: float, delta_y: floa
     let centre_y = camera.y;
     let zoom = camera.z;
     let held = util::max(zoom, 0.01);
-    let next = if scale > 0.0 { util::clamp(held.as_float() * scale, 0.02, 4000.0) } else { held };
-    render::set_camera_2d(centre_x.as_float() - delta_x / next.as_float(), centre_y.as_float() + delta_y / next.as_float(), next.as_float());
+    let next = if scale > 0.0 { util::clamp(held * scale, 0.02, 4000.0) } else { held };
+    render::set_camera_2d(centre_x - delta_x / next, centre_y + delta_y / next, next);
 }
 
 // The 3D camera is an eye and a target, so a pinch walks the eye along the
@@ -317,7 +317,7 @@ pub fn hover_color() -> [float] {
 pub fn world_per_pixel(state: editor::State) -> float {
     let camera = render::camera_2d();
     let zoom = camera.z;
-    state.ui_scale / util::max(zoom, 0.01).as_float()
+    state.ui_scale / util::max(zoom, 0.01)
 }
 
 /// Whether the Snap chip is on.

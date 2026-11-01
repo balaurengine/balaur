@@ -62,7 +62,7 @@ impl SceneTree {
             // even when the pick changed nothing.
             let row = node.widget.text;
             node.widget.text = "";
-            if row.as_str() != "" {
+            if row != "" {
                 self.editor.call("outline_pick", row);
             }
             self.refresh();

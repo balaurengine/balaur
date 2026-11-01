@@ -109,11 +109,11 @@ fn scene_findings(state: &mut editor::State) -> [Finding] {
         if prefab != nil && !fs::exists(state.game_root + "/" + prefab.unwrap()) {
             found.push(at(scene, 0, "error", "{name}: prefab {prefab.unwrap()} does not exist"));
         }
-        for warning in util::list_or_empty(scene::warnings(found_node.as_node())) {
+        for warning in util::list_or_empty(scene::warnings(found_node)) {
             found.push(at(scene, 0, "warning", "{name}: {describe(warning)}"));
         }
         for component in found_node.component_names() {
-            let schema = model::schema(state, component.as_str());
+            let schema = model::schema(state, component);
             let data = util::map_or_empty(found_node.get_component(component));
             for property in util::keys_sorted(schema) {
                 let spec = schema[property];

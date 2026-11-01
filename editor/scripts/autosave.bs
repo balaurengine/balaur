@@ -52,7 +52,7 @@ pub fn write_typed(state: &mut editor::State, now: float) -> int {
     let rested: [str] = [];
     for path in state.script_dirty.keys() {
         if now - state.script_dirty[path].as_float() >= TYPING_SETTLE {
-            rested.push(path.as_str());
+            rested.push(path);
         }
     }
     for path in rested {
