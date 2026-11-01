@@ -79,6 +79,7 @@ What is flagged in the editor: 1,581 flags on its 1,315 flagged lines.
 | `s[a..b]`, `s.chars()` | `s.slice(a, b)`; an index loop over one-byte slices, flagged |
 | `use crate::util;`, `crate::util::f()` | `use util;`, `util::f()` |
 | `x is Tuple` | `x == nil` |
+| `n.get_component("c", "p")`, `n.patch_component("c", #{ p: v })` | `n.c.p`, `n.c.p = v` |
 | `x is Object` | `x.kind() == "map"` on an `any`; on a typed value, its answer |
 | `x as f64`, `x as i64` | `x as float`, `x as int`; `.as_float()` on an `any` |
 | a `const` that is not a literal | a function of that name |

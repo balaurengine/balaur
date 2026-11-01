@@ -106,6 +106,7 @@ being built, marked `done`, never back in the shipped one.
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
 | **Enums and `match`** — `enum` variants carrying nothing, values by position or named fields, matched exhaustively, the same on every script engine. | 0.2 done | [PLAN-script-tests.md](PLAN-script-tests.md) |
 | **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to `.wasm` over the same host calls; the editor and examples run on it, each module compiled once. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
+| **One way to do each thing** — `balaur_bs` refuses by name every second spelling of an `any` read, a nil test, a vector and a property. | 0.7 done | [PLAN-balaur-script.md](PLAN-balaur-script.md) |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 | **Properties that hold properties** — a `list`, a `map` and a `record` a component or a script exports, drawn a row an entry in the inspector. | 0.2 done | [PLAN-property-types.md](PLAN-property-types.md) |

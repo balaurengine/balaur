@@ -290,14 +290,13 @@ impl FnGen<'_> {
             );
         }
         // A class is shared, so any expression holding one will do.
-        let (lv, held) = match place {
-            Some(lv) => (lv, None),
-            None => {
-                self.expr(base)?;
-                let t = self.temp(&bty);
-                self.set_raw(&t);
-                (t.clone(), Some(t))
-            }
+        let (lv, held) = if let Some(lv) = place {
+            (lv, None)
+        } else {
+            self.expr(base)?;
+            let t = self.temp(&bty);
+            self.set_raw(&t);
+            (t.clone(), Some(t))
         };
         self.get_raw(&lv);
         let places = self.script_args(&sig, args, pos, &key)?;

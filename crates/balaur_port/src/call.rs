@@ -420,6 +420,21 @@ impl Cx<'_> {
             }
         }
         let a: Vec<String> = args.iter().map(|a| a.s.clone()).collect();
+        // A component and a property both written out are `node.c.p`.
+        if t == Ty::Node
+            && let [c, table] = args.as_slice()
+        {
+            if name == "get_component"
+                && let (Some(c), Some(p)) = (bare_text(&c.s), bare_text(&table.s))
+            {
+                return Ex::atom(format!("{r}.{c}.{p}"), Ty::Any);
+            }
+            if name == "patch_component"
+                && let Some((comp, key, value)) = one_key_patch(&c.s, &table.s)
+            {
+                return Ex::new(format!("{r}.{comp}.{key} = {value}"), Ty::Void, 0);
+            }
+        }
         let joined = a.join(", ");
         let span = l.span;
         let same = |s: String, ty: Ty| Ex::atom(s, ty);
@@ -759,6 +774,18 @@ impl Cx<'_> {
 fn is_simple(s: &str) -> bool {
     s.chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+}
+
+/// A string literal as written, without its quotes.
+fn bare_text(literal: &str) -> Option<&str> {
+    literal.strip_prefix('"')?.strip_suffix('"')
+}
+
+/// `"c"` and `{ "p": v }` as written: a patch of one key.
+fn one_key_patch<'a>(comp: &'a str, table: &'a str) -> Option<(&'a str, &'a str, &'a str)> {
+    let inner = table.strip_prefix("{ \"")?.strip_suffix(" }")?;
+    let (key, value) = inner.split_once("\": ")?;
+    (!value.contains("\": ")).then_some((bare_text(comp)?, key, value))
 }
 
 /// `r[k] = v`, from a two-argument `insert`.

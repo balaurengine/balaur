@@ -103,18 +103,23 @@ is rewritten in the same commit).
 3. **One source for a widget's values**: done. `input.rs` writes
    `WidgetProperties` and `schema::follow` brings the `Widget` after it,
    field by field from the `cache_fields!` table.
-4. **A stricter language** (§9 step 5): built 2026-10-31 but for two parts.
+4. **A stricter language** (§9 step 5): built 2026-10-31, and one way to do
+   each thing 2026-11-01 (§1), but for typed calls between scripts.
    - Engine records: 108, from 47; 73 functions take one where they took an
      options table, 68 give one. `map()` and `with` are gone and the
      compiler names them; an `any` map is a literal, `{ "k": v }`. The
      editor's 1,466 `map()` and 4,086 `.with(` are literals or records.
-   - Left: the pool's control and row specs are any literals that
-     `fill_strip` and `fill_rows` read into `ui::Control` and `ui::Row` (351
-     control literals, 145 row literals, 70 fill sites), and the 111 widget
-     patches are any literals, not one property write each.
-     The gamend addon's hand-written modules are copies of gamend's
-     `clients/balaur_template` and its generated ones `sdkgen/balaur.py`'s
-     output: both still write `map()`, outside this repository.
+   - One form each, 2026-11-01: `a["k"]`, `a["k"] = v`, `.as_int()` and its
+     siblings, `x == nil`, `impl` only on a class, `vec2()`, `vec3()`,
+     `color()`, and `node.c.p` for a property the schema knows; every other
+     spelling is refused by name. `self` is a class's pointer now, so no call
+     hands it back.
+   - The pool's specs are `ui::Control` and `ui::Row` records from the literal
+     to `fill_strip` and `fill_rows`, and a widget patch of literal keys is one
+     property write each; PLAN-balaur-script §9 step 5 has what stays an `any`
+     and what it cost. The gamend addon's hand-written modules are copies of
+     gamend's `clients/balaur_template` and its generated ones
+     `sdkgen/balaur.py`'s output: rewritten there too, for the owner to commit.
    - Typed calls between scripts: blocked. A whole-file build (profiler,
      debugger, browser) makes each file its own instance, so
      `let editor: editor::Editor? = node.script;` is nil there; tried on the
