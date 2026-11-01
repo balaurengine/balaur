@@ -1275,10 +1275,12 @@ scale, the theme, the clipboard, when the next pass runs and pooled rows.
   renderer's world text, so a label and a `text3d` share one font set.
 - A character no face of a project has a glyph for asks the operating system
   through `fontique`, for drawing only: a measurement stays on the project's
-  faces. Asking reads every font on macOS, iOS and Android, tens of
-  milliseconds, so it waits for the first text that needs it, and that text
-  pays once a process. Text egui lays out itself is noted as it goes by
-  (`theme::asked_of_egui`), since egui never says what it could not draw.
+  faces. That reads every font on macOS, iOS and Android, tens of
+  milliseconds, so a worker does it once the first frame is out. A character
+  asking sooner waits for the worker and gets the same face, so what a frame
+  draws never depends on when it finishes. Text egui lays out itself is noted
+  as it goes by (`theme::asked_of_egui`), since egui never says what it could
+  not draw.
 - Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
   the queries divide back. HiDPI is separate and automatic; `set_scale` is
   comfort zoom (⌘+/⌘−).

@@ -140,6 +140,31 @@ impl FontProject {
     }
 }
 
+/// Have a worker read the system's fonts once the first frame is out, so the
+/// first character needing one of their faces does not stall a frame to read
+/// them. Left out where nothing has asked for a shaper, as on a dedicated
+/// server, or the project turned them off.
+pub fn read_system_fonts_ahead(reg: &mut balaur_plugin::Registry<'_>) {
+    let mut first_frame_out = false;
+    let mut settled = false;
+    reg.add_system(balaur_core::Stage::First, move |eng, _| {
+        if settled || !std::mem::replace(&mut first_frame_out, true) {
+            return;
+        }
+        let Some(state) = crate::state(eng) else {
+            return;
+        };
+        settled = true;
+        if state
+            .borrow()
+            .projects()
+            .any(|(_, fonts)| fonts.asks_the_system())
+        {
+            system_fonts::read_ahead();
+        }
+    });
+}
+
 /// The directory a project's faces are read from, as `ProjectFiles` takes it.
 fn fonts_directory(eng: &Engine, project: FontProject) -> String {
     match (project, balaur_core::project::content_root(eng)) {
@@ -610,9 +635,7 @@ impl ProjectFonts {
     }
 
     /// Have the operating system's face drawn for each character of `text` no
-    /// face here has a glyph for. Whether any face was gained. The first such
-    /// character in a process is what reads the system's fonts, so a project
-    /// whose text its own faces draw never pays for them.
+    /// face here has a glyph for. Whether any face was gained.
     pub(crate) fn cover(&mut self, text: &str) -> bool {
         if !self.system_fonts || text.is_ascii() {
             return false;
@@ -637,6 +660,11 @@ impl ProjectFonts {
             }
         }
         gained
+    }
+
+    /// Whether a character no face here draws may ask the operating system.
+    pub(crate) fn asks_the_system(&self) -> bool {
+        self.system_fonts
     }
 
     /// A character no face here draws may ask the operating system, as a

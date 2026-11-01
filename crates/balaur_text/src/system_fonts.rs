@@ -1,8 +1,9 @@
 //! The operating system's fonts, through `fontique`: which of its faces draws
 //! a character a project's own have no glyph for, and what a picker lists.
 //!
-//! Asking reads every font on the machine on macOS, iOS and Android, tens of
-//! milliseconds on a warm disk, so nothing here runs until a text needs it.
+//! Reading them takes every font on the machine on macOS, iOS and Android, tens
+//! of milliseconds on a warm disk, so a worker does it once the first frame is
+//! out ([`read_ahead`]). Nothing else here runs until a text needs a face.
 
 use unicode_properties::{GeneralCategoryGroup, UnicodeGeneralCategory};
 use unicode_script::{Script, UnicodeScript};
@@ -46,9 +47,9 @@ pub(crate) fn language_of<'a>(text: &str, locale: &'a str) -> &'a str {
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use native::face_for;
-#[cfg(not(target_family = "wasm"))]
 pub use native::installed_faces;
+#[cfg(not(target_family = "wasm"))]
+pub(crate) use native::{face_for, read_ahead};
 
 /// Every face installed; a browser has no fonts to read.
 #[cfg(target_family = "wasm")]
@@ -62,6 +63,10 @@ pub fn installed_faces() -> Vec<InstalledFace> {
 pub(crate) fn face_for(_: char, _: &str) -> Option<crate::fonts::FontFace> {
     None
 }
+
+/// A browser has no fonts to read ahead.
+#[cfg(target_family = "wasm")]
+pub(crate) fn read_ahead() {}
 
 #[cfg(not(target_family = "wasm"))]
 mod native {
@@ -111,6 +116,24 @@ mod native {
     /// The system's face for `c`, in `language` where its script cares.
     pub(crate) fn face_for(c: char, language: &str) -> Option<FontFace> {
         system_fonts().face_for(c, language)
+    }
+
+    /// A letter of each script most text is written in: Han, kana, Hangul,
+    /// Arabic, Hebrew, Devanagari, Bengali, Tamil and Thai. The operating system
+    /// takes milliseconds to answer for a script the first time.
+    const ASKED_AHEAD: [char; 10] = ['今', 'あ', 'ア', '한', 'ع', 'ש', 'ह', 'ব', 'த', 'ก'];
+
+    /// Read the system's fonts on a worker, and have it ask for the usual
+    /// scripts. Nothing waits on it and it reports nothing: a character asking
+    /// meanwhile waits in [`system_fonts`] and gets the same face, so what a
+    /// frame draws never depends on when this finishes.
+    pub(crate) fn read_ahead() {
+        drop(balaur_core::task::compute(|| {
+            for c in ASKED_AHEAD {
+                // A lock per question, so a frame asking waits for one at most.
+                system_fonts().preferred(c, "");
+            }
+        }));
     }
 
     /// Whether `c` draws as an emoji unless a text says otherwise; `☀` draws
@@ -284,6 +307,16 @@ mod native {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn asking_while_the_worker_reads_waits_for_it_and_gets_the_same_face() {
+        read_ahead();
+        let during = face_for('日', "ja").map(|face| face.name);
+        read_ahead();
+        let after = face_for('日', "ja").map(|face| face.name);
+        assert_eq!(during, after);
+    }
 
     #[test]
     fn han_beside_kana_or_hangul_asks_in_that_language_and_alone_in_the_locale() {

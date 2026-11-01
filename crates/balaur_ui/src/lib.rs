@@ -305,6 +305,7 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(routing::UiHits::default());
         reg.insert_resource(routing::PointerRoute::default());
         balaur_text::glyph::install(reg);
+        balaur_text::fonts::read_system_fonts_ahead(reg);
         balaur_text::font::register_font_asset(reg);
         balaur_text::text_style::register_text_style_asset(reg);
         reg.register_asset_type(
