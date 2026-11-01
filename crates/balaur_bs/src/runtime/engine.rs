@@ -158,8 +158,6 @@ pub(crate) trait ImportCtx {
     }
 }
 
-/// Reads past the end of memory come back as zeros, as an unwritten slot would.
-#[cfg(any(feature = "wasmi", native, jit))]
 /// `data[at..]` into `out`, or zeros where `data` ends first.
 pub(crate) fn copy_from(data: &[u8], at: usize, out: &mut [u8]) {
     match data.get(at..at + out.len()) {
@@ -168,6 +166,8 @@ pub(crate) fn copy_from(data: &[u8], at: usize, out: &mut [u8]) {
     }
 }
 
+/// Reads past the end of memory come back as zeros, as an unwritten slot would.
+#[cfg(any(feature = "wasmi", native, jit))]
 pub(crate) fn read_from(data: &[u8], at: usize, len: usize) -> Vec<u8> {
     data.get(at..at + len)
         .map_or_else(|| vec![0; len], <[u8]>::to_vec)
