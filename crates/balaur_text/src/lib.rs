@@ -25,6 +25,7 @@ pub mod fonts;
 pub mod glyph;
 pub mod markup;
 pub mod options;
+mod system_fonts;
 pub mod text_style;
 pub mod vocabulary;
 
@@ -428,10 +429,25 @@ impl TextState {
         &self.atlas
     }
 
-    /// Whether any loaded face has a glyph for `c`, for a test that wants to
-    /// know before asserting on a script.
+    /// Have the operating system's faces drawn for whatever in `text` a
+    /// project's own have no glyph for: what text egui lays out itself asks,
+    /// since egui draws only the faces it was given and never says what it
+    /// lacked. A face gained reaches egui as any font read does.
+    pub fn cover(&mut self, text: &str) {
+        let mut gained = self.host.cover(text);
+        if let Some((_, fonts)) = &mut self.content {
+            gained |= fonts.cover(text);
+        }
+        if gained {
+            self.fonts_generation += 1;
+        }
+    }
+
+    /// Whether any loaded face has a glyph for `c`, the system's asked first,
+    /// for a test that wants to know before asserting on a script.
     #[cfg(test)]
     fn covers(&mut self, c: char) -> bool {
+        self.cover(&c.to_string());
         let fonts = &mut self.host.drawing;
         let ids: Vec<cosmic_text::fontdb::ID> = fonts.db().faces().map(|f| f.id).collect();
         ids.into_iter().any(|id| {
@@ -522,6 +538,9 @@ impl TextState {
                 .font
                 .layout(request.text, request.size, page.region, page.page_size);
         }
+        if fonts.cover(request.text) {
+            self.fonts_generation += 1;
+        }
         let parsed = spans_of(request);
         let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, request);
         place(&mut self.atlas, fonts, &buffer, &parsed, request, scale)
@@ -537,6 +556,9 @@ impl TextState {
             shape::LINE_HEIGHT
         };
         let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
+        if fonts.cover(request.text) {
+            self.fonts_generation += 1;
+        }
         let plain = RequestRef {
             markup: false,
             ..*request
@@ -562,6 +584,9 @@ impl TextState {
             shape::LINE_HEIGHT
         };
         let fonts = fonts_of(&mut self.host, &mut self.content, plain.project);
+        if fonts.cover(plain.text) {
+            self.fonts_generation += 1;
+        }
         let parsed = spans_of(&plain);
         let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, &plain);
         let shaped = place(&mut self.atlas, fonts, &buffer, &parsed, &plain, scale);

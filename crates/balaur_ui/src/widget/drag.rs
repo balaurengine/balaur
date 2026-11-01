@@ -388,6 +388,7 @@ pub(crate) fn faces(
         .into_iter()
         .filter(|(text, _)| !text.is_empty())
         .map(|(text, is_number)| {
+            crate::theme::asked_of_egui(text);
             let mut rich = egui::RichText::new(text);
             if is_number {
                 rich = rich.text_style(number.clone());

@@ -798,7 +798,7 @@ low_processor = { type = "bool", default = false, order = 8, applies = "restart"
         &parse(
             "settings.ui",
             r#"
-system_fonts = { type = "bool", default = true, applies = "restart", help = "Append the operating system's own faces to every font chain, so text in a script balaur does not vendor draws instead of tofu. They are the largest files on the machine, so a game that only draws what it vendors can turn them off." }
+system_fonts = { type = "bool", default = true, applies = "restart", help = "Let a character no face of the project has a glyph for draw in the face the operating system picks for it, instead of tofu. Asked only when a text needs it, and it reads every font on the machine the first time, so a game that only draws what it vendors can turn it off." }
 theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget starts from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
 scale = { type = "float", default = 1.0, min = 0.25, max = 3.0, help = "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later." }
 system_text_size = { type = "bool", default = true, applies = "restart", help = "Multiply the scale by the size the reader asked their system for. Off for a game whose layout cannot give text more room." }

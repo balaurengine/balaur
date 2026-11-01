@@ -247,6 +247,7 @@ thread_local! {
     /// The fonts a widget asked for that egui has no family for yet: the next
     /// pass has the shaper read them, and egui takes their families after.
     static WANTED: RefCell<HashSet<(FontProject, String)>> = RefCell::new(HashSet::new());
+    static ASKED: RefCell<AskedOfEgui> = RefCell::new(AskedOfEgui::default());
     /// The fonts and weights whose italic has no face of its own, so egui
     /// slants the upright one. Written where the fonts are given.
     static SLANTED: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
@@ -316,6 +317,35 @@ pub(crate) fn take_fonts(eng: &balaur_core::Engine, ctx: &egui::Context) {
     for (project, reference) in wanted {
         balaur_text::load_font(eng, project, &reference);
     }
+    let asked = ASKED.with(|asked| std::mem::take(&mut asked.borrow_mut().unheard));
+    if !asked.is_empty() {
+        balaur_text::shaper(eng).borrow_mut().cover(&asked);
+    }
+}
+
+/// The characters past ASCII egui has been asked to lay out, and those the
+/// shaper has yet to hear of.
+#[derive(Default)]
+struct AskedOfEgui {
+    seen: HashSet<char>,
+    unheard: String,
+}
+
+/// Note `text`, which egui is about to lay out: it draws only the faces it was
+/// given and never says what it lacked, so the shaper hears from here what the
+/// operating system may have to draw, next pass.
+pub(crate) fn asked_of_egui(text: &str) {
+    if text.is_ascii() {
+        return;
+    }
+    ASKED.with(|asked| {
+        let asked = &mut *asked.borrow_mut();
+        for c in text.chars().filter(|c| !c.is_ascii()) {
+            if asked.seen.insert(c) {
+                asked.unheard.push(c);
+            }
+        }
+    });
 }
 
 /// Every face of each project's under a name of its own, with its import
@@ -349,6 +379,8 @@ fn face_name(project: FontProject, face: &FontFace) -> String {
 /// project's every face in order, then egui's own. Taken at the start of the
 /// next pass.
 pub(crate) fn load_fonts(ctx: &egui::Context, state: &balaur_text::TextState) {
+    // These may be faces read anew, which have heard of no character yet.
+    ASKED.with(|asked| asked.borrow_mut().seen.clear());
     let mut fonts = egui::FontDefinitions::default();
     let egui_own = fonts
         .families

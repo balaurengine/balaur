@@ -63,6 +63,7 @@ pub(crate) fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             warn_once(&widget.source, &err);
             if !widget.egui.alt_text.is_empty() {
                 let look = at.look(index);
+                crate::theme::asked_of_egui(&widget.egui.alt_text);
                 let words = egui::RichText::new(widget.egui.alt_text.as_str())
                     .font(look.font.clone())
                     .color(look.ink);

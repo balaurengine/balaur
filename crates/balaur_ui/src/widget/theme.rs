@@ -1102,6 +1102,7 @@ pub(crate) fn rich(
     slant: bool,
     look: &crate::widget::text_look::TextLook,
 ) -> egui::RichText {
+    crate::theme::asked_of_egui(text);
     let text = egui::RichText::new(text).font(font.clone()).color(color);
     let text = look.dress(text, font.size);
     if slant { text.italics() } else { text }

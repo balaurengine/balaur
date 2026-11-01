@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use super::*;
-use crate::{Request, TextState};
+use crate::{ProjectFonts, Request, TextState};
 
 fn editing(text: &str) -> Editing {
     Editing::new(text, true)
@@ -104,15 +104,18 @@ fn one_line_turns_a_line_break_into_a_space() {
 }
 
 fn faces() -> Vec<crate::fonts::FontFace> {
-    let mut faces = vec![crate::fonts::FontFace {
+    vec![crate::fonts::FontFace {
         name: "SourceSans3-Regular".into(),
         path: "fonts/SourceSans3-Regular.ttf".into(),
         system: false,
         bytes: Arc::new(include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf").to_vec()),
         tweak: crate::fonts::FaceTweak::default(),
-    }];
-    faces.extend(crate::fonts::system_faces());
-    faces
+    }]
+}
+
+/// A shaper over [`faces`] that may ask the operating system, as a project's does.
+fn asking() -> TextState {
+    TextState::over(ProjectFonts::new(&faces(), "en-US").with_system_fonts())
 }
 
 fn layout(state: &mut TextState, text: &str, width: Option<f32>) -> Clusters {
@@ -146,7 +149,7 @@ fn round_trips(state: &mut TextState, text: &str) -> Clusters {
 
 #[test]
 fn a_left_to_right_caret_walks_right_and_a_click_lands_back() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let text = "Hello world";
     let clusters = round_trips(&mut state, text);
     let xs: Vec<f32> = boundaries(text)
@@ -158,7 +161,7 @@ fn a_left_to_right_caret_walks_right_and_a_click_lands_back() {
 
 #[test]
 fn a_right_to_left_caret_walks_left() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     if !state.covers('س') {
         eprintln!("skipped: no Arabic face on this machine");
         return;
@@ -174,7 +177,7 @@ fn a_right_to_left_caret_walks_left() {
 
 #[test]
 fn hindi_thai_and_mixed_direction_text_round_trip() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     for (probe, text) in [('न', "नमस्ते दुनिया"), ('ส', "สวัสดีครับ"), ('ש', "abc שלום def")]
     {
         if !state.covers(probe) {
@@ -187,7 +190,7 @@ fn hindi_thai_and_mixed_direction_text_round_trip() {
 
 #[test]
 fn a_wrapped_text_moves_down_a_line_and_home_and_end_keep_to_it() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let text = "one two three four five six";
     let clusters = layout(&mut state, text, Some(80.0));
     assert!(clusters.lines.len() > 1, "the text wraps at 80 pixels");
@@ -204,7 +207,7 @@ fn a_wrapped_text_moves_down_a_line_and_home_and_end_keep_to_it() {
 
 #[test]
 fn an_empty_text_has_one_line_and_its_caret_at_the_start() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let clusters = layout(&mut state, "", None);
     assert_eq!(clusters.lines.len(), 1);
     assert_eq!(clusters.caret(0), (0.0, 0));
@@ -213,7 +216,7 @@ fn an_empty_text_has_one_line_and_its_caret_at_the_start() {
 
 #[test]
 fn the_caret_walks_a_mixed_direction_line_in_visual_order() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     if !state.covers('ש') {
         eprintln!("skipped: no Hebrew face on this machine");
         return;
@@ -253,7 +256,7 @@ fn the_caret_walks_a_mixed_direction_line_in_visual_order() {
 
 #[test]
 fn a_text_laid_out_a_line_at_a_time_reads_as_one() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let text = "one\n\ntwo three";
     let whole = layout(&mut state, text, None);
     let mut stacked = Clusters::default();

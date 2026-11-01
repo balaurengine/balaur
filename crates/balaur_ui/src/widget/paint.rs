@@ -289,11 +289,14 @@ impl Brush {
         &self,
         at: Pos2,
         anchor: egui::Align2,
-        text: impl ToString,
+        text: impl Into<String>,
         font: FontId,
         color: Color32,
     ) -> Rect {
-        self.0.text(at, anchor, text, font, color)
+        let galley = self.line_of(text.into(), font, color);
+        let rect = anchor.anchor_size(at, galley.size());
+        self.galley(rect.min, galley, color);
+        rect
     }
 
     pub(crate) fn picture(&self, texture: TextureId, rect: Rect, uv: Rect, tint: Color32) {
@@ -303,6 +306,7 @@ impl Brush {
     /// A line of text laid out but not painted, to measure it or to paint it
     /// later.
     pub(crate) fn line_of(&self, text: String, font: FontId, color: Color32) -> Arc<Galley> {
+        crate::theme::asked_of_egui(&text);
         self.0.layout_no_wrap(text, font, color)
     }
 
@@ -314,10 +318,12 @@ impl Brush {
         color: Color32,
         width: f32,
     ) -> Arc<Galley> {
+        crate::theme::asked_of_egui(&text);
         self.0.layout(text, font, color, width)
     }
 
     pub(crate) fn job(&self, job: egui::text::LayoutJob) -> Arc<Galley> {
+        crate::theme::asked_of_egui(&job.text);
         self.0.layout_job(job)
     }
 }

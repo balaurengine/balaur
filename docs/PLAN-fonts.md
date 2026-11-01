@@ -94,13 +94,17 @@
    styles', and a `code` widget draws in `mono`. A theme naming no default
    takes the face every build carries.
 4. **System fonts on desktop.** *Built:* `fonts::installed_faces` lists the
-   machine's faces by family and style (fontdb, mapped rather than read);
+   machine's faces by family and style (`fontique`, mapped rather than read);
    the editor host's `project.system_fonts` hands them to the inspector,
    whose `font` row gets a pick list of the project's fonts under `fonts/`
    and then the installed ones, and `project.copy_system_font` copies a
    picked one in under the name a drop would take, refusing a file the
    list does not name. `assets.kind_of` is the engine's own kind of a file,
-   which the Import panel and a drop now ask rather than keep a list.
+   which the Import panel and a drop now ask rather than keep a list. The
+   fallback a project's missing glyphs draw in comes from the same crate, per
+   script and per platform, and only once a text has such a glyph: the list of
+   paths it replaced gave Android and iOS Linux's paths and neither CJK nor
+   emoji.
 5. **Upload and the catalogue in a browser**, with Forge's proxy. *Built:*
    a file dropped on Forge's stage, pasted or picked with Add files reaches
    the engine through `hand_files` and is dropped as on a desktop, so a font
