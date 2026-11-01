@@ -452,9 +452,10 @@ fn an_empty_material_component_stays_on_the_node() {
     assert_eq!(got["source"].as_str(), Some(""));
 }
 
-/// `node.set_material` writes the same field, so the inspector shows it.
+/// The component reads the node's `Appearance`, so the inspector shows what
+/// the engine draws with.
 #[test]
-fn a_material_a_script_set_reads_back_as_the_component() {
+fn a_material_on_the_appearance_reads_back_as_the_component() {
     let dir = project();
     let app = app(dir.path());
     let entity = node(&app);

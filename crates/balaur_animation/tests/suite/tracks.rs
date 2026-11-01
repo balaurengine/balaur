@@ -302,32 +302,6 @@ keys = [ { time = 0.0, value = [0.0, 0.0, 0.0] }, { time = 0.5, value = [0.0, 1.
 }
 
 #[test]
-fn just_finished_answers_for_one_frame_and_names_the_clip() {
-    let mut app = app();
-    let entity = spawn(&app, "Box");
-    set(
-        &app,
-        entity,
-        "animation",
-        r#"library = "animations/hero.toml"
-autoplay = "spin""#,
-    );
-
-    tick(&mut app, 61);
-    assert_eq!(
-        balaur_animation::just_finished(&app.engine, entity).as_deref(),
-        Some("spin"),
-        "the frame a clip ends, `just_finished` names it"
-    );
-    tick(&mut app, 1);
-    assert_eq!(
-        balaur_animation::just_finished(&app.engine, entity),
-        None,
-        "and the frame after, it does not"
-    );
-}
-
-#[test]
 fn a_queued_clip_starts_when_the_one_before_it_ends() {
     let mut app = app();
     let entity = spawn(&app, "Box");

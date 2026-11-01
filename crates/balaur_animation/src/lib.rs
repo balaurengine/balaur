@@ -69,9 +69,8 @@ use balaur_core::{Engine, Stage};
 pub use crate::bindings::install_animation_api;
 pub use crate::machine::{STATE_FINISHED_EVENT, STATE_STARTED_EVENT, StateMachine};
 pub use crate::player::{
-    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing,
-    just_finished, pause, play, play_blended, play_from, queue, resume, seek, set_retarget,
-    set_speed_scale, stop, time,
+    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing, pause, play,
+    play_blended, play_from, queue, resume, seek, set_retarget, set_speed_scale, stop, time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
 pub use crate::system::{

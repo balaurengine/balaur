@@ -492,16 +492,6 @@ pub fn is_playing(eng: &Engine, entity: Entity) -> bool {
     read(eng, entity, |playback| playback.playing).unwrap_or(false)
 }
 
-/// The clip that ended on `entity` during the last step, for that one frame.
-///
-/// The other half of `on_animation_finished`: a script that would rather poll
-/// than define a method reads this, and it answers for exactly as long as the
-/// method call would have been in flight.
-#[must_use]
-pub fn just_finished(eng: &Engine, entity: Entity) -> Option<String> {
-    read(eng, entity, |playback| playback.finished.clone()).filter(|name| !name.is_empty())
-}
-
 /// Give `entity` a clip of its own under `clip_name`, from a definition
 /// table.
 ///

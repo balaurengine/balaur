@@ -320,8 +320,7 @@ fn effects_table(effects: &Effects) -> Value {
 /// emitter behind a handle that was played with a `position`.
 fn install_positional_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, or what `set_listener_position` last put there."),
-        ("set_listener_position", &[], "(x: float, y: float, z: float)", "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame."),
+        ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, else the current camera's."),
         ("emitter_position", &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
         ("set_emitter_position", &[], "(handle: int, x: float, y: float, z: float)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
         ("distance_gain", &[], "(handle: int) -> float?", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
@@ -332,16 +331,6 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
         let position = state.borrow().listener().position;
         Ok(Value::Vec3([position.x, position.y, position.z]))
     });
-    m.function(
-        "set_listener_position",
-        |eng: &Engine, (x, y, z): (Value, Option<Value>, Option<Value>)| {
-            let position = xyz(&x, y.as_ref(), z.as_ref())?;
-            eng.resource::<AudioState>()
-                .borrow_mut()
-                .set_listener(position);
-            Ok(())
-        },
-    );
     m.function("emitter_position", |eng: &Engine, handle: i64| {
         let state = eng.resource::<AudioState>();
         let position = state.borrow().emitter_position(handle_of(handle));

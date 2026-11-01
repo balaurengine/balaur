@@ -9,7 +9,7 @@ use balaur_plugin::Registry;
 use crate::vocabulary::words;
 use crate::{Renderable2d, SpriteSheet2d, SpriteTexture, set_sprite};
 
-/// A textured 2D quad at the node, sized by `pixels_per_unit`. `columns` and `rows`, or a `sprite_sheet` in `sheet`, cut it into frames `frame` picks.
+/// A textured 2D quad at the node, sized by `pixels_per_unit`. A `sprite_sheet` in `sheet` cuts it into frames `frame` picks.
 // The node draws the [`SpriteTexture`] each write leaves in its
 // [`Renderable2d`].
 #[derive(Clone, Component)]
@@ -21,7 +21,7 @@ pub struct Sprite {
     /// Tint, as channel floats or #rrggbb / #rrggbbaa
     #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
     pub color: [f32; 4],
-    /// A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over `columns`, `rows` and the region
+    /// A sprite_sheet whose frames `frame` indexes; its texture is drawn unless `texture` names another, and it wins over the region
     #[property(asset = "sprite_sheet")]
     pub sheet: String,
     /// Current sheet cell, counted left-to-right then top-to-bottom

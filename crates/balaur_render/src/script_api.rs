@@ -72,6 +72,11 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
             config.eye = glamx::Vec3::new(ex, ey, ez);
             config.target = glamx::Vec3::new(tx, ty, tz);
             config.changed = true;
+            let right = (config.target - config.eye)
+                .cross(glamx::Vec3::Y)
+                .try_normalize()
+                .unwrap_or(glamx::Vec3::X);
+            balaur_core::viewpoint::set(eng, config.eye, right);
             Ok(())
         },
     );
@@ -215,6 +220,7 @@ pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
             // and a scene file cannot disagree about the same number.
             config.zoom = zoom.max(crate::camera::MIN_ZOOM_2D);
             config.changed = true;
+            balaur_core::viewpoint::set(eng, glamx::Vec3::new(cx, cy, 0.0), glamx::Vec3::X);
             Ok(())
         },
     );
@@ -308,7 +314,6 @@ pub(crate) fn register_window_module(reg: &mut Registry<'_>) -> anyhow::Result<(
 fn install_window_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("set_app_icon", &[], "(path: string, opts: AppIconOptions?)", "Set the application icon, the dock or taskbar one, from a PNG or an SVG in the project. `opts.plate` colours the disc a macOS dock icon sits on, white by default. Replaces `[application] icon` for the run."),
-        ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
         ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
         ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
         ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
@@ -349,19 +354,8 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    // Borderless fullscreen on the current monitor. No readers by design
-    // (N8): `WindowConfig` already holds what a backend last applied.
-    m.function("set_fullscreen", |eng: &Engine, fullscreen: bool| {
-        let config = eng.resource::<WindowConfig>();
-        let mut config = config.borrow_mut();
-        config.mode = if fullscreen {
-            balaur_core::project::WindowMode::Fullscreen
-        } else {
-            balaur_core::project::WindowMode::Windowed
-        };
-        config.changed = true;
-        Ok(())
-    });
+    // No readers by design (N8): `WindowConfig` already holds what a backend
+    // last applied.
     m.function("set_window_mode", |eng: &Engine, mode: String| {
         let Some(mode) = balaur_core::project::WindowMode::parse(&mode) else {
             anyhow::bail!("no window mode '{mode}': windowed, maximized, fullscreen or exclusive");

@@ -84,12 +84,14 @@ pub struct Camera2d {
 /// camera never re-asserts itself, which leaves `changed` alone and keeps a
 /// script's `render.set_camera` in force between moves.
 pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
-    let (spatial, flat, post, winners) = {
+    let (spatial, flat, post, winners, view) = {
         let world = eng.world();
         let mut spatial = None;
         let mut flat = None;
         let mut post = None;
         let mut winners = (None, None);
+        // A 3D camera over a 2D one: ears go where the depth is.
+        let mut view = (None, None);
         let held = eng.resource::<HeldCameras>().borrow().0;
         let current = current_cameras(&world, eng.root())
             .into_iter()
@@ -107,6 +109,7 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 post = Some(cam.effects.clone());
                 spatial = Some((global.position, cam.look_at, Lens3d::clone(&lens)));
                 winners.0 = Some(entity);
+                view.0 = Some((global.position, global.rotation * glamx::Vec3::X));
             }
             if let Ok(cam) = world.get::<&Camera2d>(entity)
                 && cam.current
@@ -115,10 +118,14 @@ pub(crate) fn drive_camera_system(eng: &Engine, _dt: f32) {
                 let zoom = cam.pixels_per_unit.max(MIN_ZOOM_2D);
                 flat = Some(([global.position.x, global.position.y], zoom, cam.hidpi));
                 winners.1 = Some(entity);
+                view.1 = Some((global.position, global.rotation * glamx::Vec3::X));
             }
         }
-        (spatial, flat, post, winners)
+        (spatial, flat, post, winners, view.0.or(view.1))
     };
+    if let Some((position, right)) = view {
+        balaur_core::viewpoint::set(eng, position, right);
+    }
     announce_current(eng, winners);
     if let Some(effects) = post {
         drive_post(eng, &effects_of(eng, &effects));

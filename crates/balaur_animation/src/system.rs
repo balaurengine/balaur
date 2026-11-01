@@ -158,8 +158,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         state
             .tweens
             .retain(|_, tween| world.contains(tween.node) && (tween.running || !tween.value));
-        // A frame's worth of `just_finished` expires here: the script tick
-        // that could read it has already run.
+        // What ended last step has been told, and a digest should not keep it.
         for playback in state.players.values_mut() {
             playback.finished.clear();
         }
@@ -726,9 +725,7 @@ fn handle(id: TweenId) -> balaur_script::Value {
 ///
 /// The signal goes out after the queue moves on, so a handler asking
 /// `animation.current(node)` sees what is playing now rather than what just
-/// stopped. The clip that ended is the handler's argument —
-/// `animation.just_finished(node)` still answers for this frame, for a script
-/// that would rather poll than declare a method.
+/// stopped. The clip that ended is the handler's argument.
 fn settle_ended(eng: &Engine, ended: &[Entity]) {
     for &entity in ended {
         let next = {

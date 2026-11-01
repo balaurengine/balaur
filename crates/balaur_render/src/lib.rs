@@ -982,7 +982,6 @@ impl balaur_plugin::Plugin for RenderPlugin {
         retained::install_retained_api(&mut *m);
         material::install_material_check(&mut *m);
         material::install_material_params(&mut *m);
-        shape::install_shape_api(&mut *m);
         boolean::install_boolean_api(&mut *m);
         multimesh_api::install_multimesh_api(&mut *m);
         multimesh_api::install_multimesh_list_api(&mut *m);

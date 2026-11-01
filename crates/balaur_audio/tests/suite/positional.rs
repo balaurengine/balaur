@@ -322,6 +322,26 @@ fn freeing_a_listener_node_leaves_the_ears_where_they_were() {
     assert!((state.listener().position.x - 10.0).abs() < 1e-6);
 }
 
+/// With no `listener`, the ears stand where the frame is seen from.
+#[test]
+fn with_no_listener_the_ears_stand_at_the_camera() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav(dir.path(), "chime.wav");
+    let mut app = app_in(dir.path());
+    let (_, handle) = placed_sound(&app, POSITIONAL, Vec3::new(50.0, 0.0, 0.0));
+    balaur_core::viewpoint::set(&app.engine, Vec3::new(50.0, 0.0, 0.0), Vec3::X);
+    app.tick(1.0 / 60.0);
+
+    let state = app.engine.resource::<AudioState>();
+    let state = state.borrow();
+    assert!(state.listener().placed, "a camera places the ears");
+    assert!((state.listener().position.x - 50.0).abs() < 1e-6);
+    assert!(
+        (state.placement_of(handle).unwrap().gain - 1.0).abs() < 1e-6,
+        "the sound is where the camera is"
+    );
+}
+
 /// A one-shot at a point in the world: no node, no component, just a place.
 #[test]
 fn a_cue_can_be_played_at_a_point_with_no_node_behind_it() {

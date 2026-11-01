@@ -201,10 +201,9 @@ impl Watch {
         self.clip = self.node.animation.current_clip().or("");
         self.playing = self.node.animation.is_playing();
         self.elapsed = self.node.animation.time();
-        let ended = self.node.animation.just_finished();
-        if ended.is_some() {
-            self.ended = ended.unwrap();
-        }
+    }
+    fn on_animation_finished(clip: str) {
+        self.ended = clip;
     }
 }
 "#;
@@ -227,7 +226,7 @@ impl Watch {
     assert_eq!(
         field(&app, entity, "ended"),
         Value::Str("hop".into()),
-        "`just_finished` never named the clip that ended"
+        "`on_animation_finished` never named the clip that ended"
     );
     assert_eq!(field(&app, entity, "playing"), Value::Bool(false));
     assert_eq!(

@@ -17,13 +17,13 @@ use crate::playback::{Clip, Program};
 pub(super) type Boxed = Box<dyn Source + Send>;
 
 /// A decoder over a clip's bytes, with the file's decoder settings and level.
-fn decoder(clip: &Clip) -> Result<rodio::Decoder<Cursor<Arc<[u8]>>>> {
+fn decoder(clip: &Clip, seekable: bool) -> Result<rodio::Decoder<Cursor<Arc<[u8]>>>> {
     let len = clip.bytes.len() as u64;
     Ok(rodio::Decoder::builder()
         .with_data(Cursor::new(clip.bytes.clone()))
         .with_byte_len(len)
         .with_gapless(clip.file.gapless)
-        .with_seekable(clip.file.seekable)
+        .with_seekable(seekable)
         .build()?)
 }
 
@@ -31,7 +31,7 @@ fn decoder(clip: &Clip) -> Result<rodio::Decoder<Cursor<Arc<[u8]>>>> {
 /// per file, however many plays ask.
 pub(crate) fn length_of(clip: &Clip) -> Option<f64> {
     *clip.length.get_or_init(|| {
-        decoder(clip)
+        decoder(clip, false)
             .ok()?
             .total_duration()
             .map(|length| length.as_secs_f64())
@@ -43,21 +43,22 @@ fn seconds(value: f64) -> Duration {
     Duration::try_from_secs_f64(value.max(0.0)).unwrap_or(Duration::MAX)
 }
 
-/// A clip decoded from `at` seconds in. A seekable file jumps there in its
-/// container; any other is decoded up to it.
+/// A clip decoded from `at` seconds in: a jump in its container, or, where the
+/// format refuses one, decoded up to it. A play from the start reads the file in
+/// order, so only a seek asks the decoder to scan for one.
 fn decoded_from(clip: &Clip, at: f64) -> Result<Boxed> {
     let level = clip.file.level;
     if at <= 0.0 {
-        return Ok(Box::new(decoder(clip)?.amplify(level)));
+        return Ok(Box::new(decoder(clip, false)?.amplify(level)));
     }
-    if clip.file.seekable {
-        let mut seeking = decoder(clip)?;
-        if seeking.try_seek(seconds(at)).is_ok() {
-            return Ok(Box::new(seeking.amplify(level)));
-        }
+    let mut seeking = decoder(clip, true)?;
+    if seeking.try_seek(seconds(at)).is_ok() {
+        return Ok(Box::new(seeking.amplify(level)));
     }
     Ok(Box::new(
-        decoder(clip)?.skip_duration(seconds(at)).amplify(level),
+        decoder(clip, false)?
+            .skip_duration(seconds(at))
+            .amplify(level),
     ))
 }
 

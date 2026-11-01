@@ -267,9 +267,6 @@ pub struct FileSettings {
     pub loop_offset: f32,
     /// Trim the encoder's padding, so files queued back to back have no gap.
     pub gapless: bool,
-    /// Let the decoder jump in the container: a seek or a `start_time` lands
-    /// without decoding up to it.
-    pub seekable: bool,
 }
 
 impl Default for FileSettings {
@@ -279,7 +276,6 @@ impl Default for FileSettings {
             looped: false,
             loop_offset: 0.0,
             gapless: true,
-            seekable: false,
         }
     }
 }
@@ -296,7 +292,6 @@ impl FileSettings {
             looped: flag(settings, keys::LOOP, false),
             loop_offset: number(settings, keys::LOOP_OFFSET, 0.0).max(0.0) as f32,
             gapless: flag(settings, k::GAPLESS, true),
-            seekable: flag(settings, k::SEEKABLE, false),
         }
     }
 }
@@ -753,8 +748,8 @@ impl AudioState {
         &self.listener
     }
 
-    /// Put the ears somewhere by hand, for a game whose camera is not a node.
-    /// A `listener` node in the scene overrides this on the next frame.
+    /// Put the ears somewhere by hand. A `listener` node or a camera overrides
+    /// this on the next frame.
     pub fn set_listener(&mut self, position: Vec3) {
         self.listener.place(position);
     }

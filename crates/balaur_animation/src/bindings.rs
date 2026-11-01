@@ -159,7 +159,6 @@ fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
         ("current_clip", &[crate::COMPONENT], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
         ("time", &[crate::COMPONENT], "", "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
         ("is_playing", &[crate::COMPONENT], "", "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
-        ("just_finished", &[crate::COMPONENT], "", "The clip that ended on this node during the last step, and nil on every other frame."),
     ]);
     // Poses the node even on a paused or ended clip, and does not fire the
     // method keys it skips over.
@@ -187,9 +186,6 @@ fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
     // The clip that ended on this node last frame, and nil every other frame.
     // The polling half of `on_animation_finished`, for a script that would
     // rather ask than define a method.
-    m.function("just_finished", |eng: &Engine, node: NodeId| {
-        Ok(player::just_finished(eng, entity_of(node)?))
-    });
 }
 
 /// A number from an options entry, whichever way the language spelled it.

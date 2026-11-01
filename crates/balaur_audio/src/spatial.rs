@@ -1,8 +1,8 @@
 //! Positional audio: where the ears are, where a sound is, and what the
 //! distance between them does to it.
 //!
-//! A `listener` node is the ears; a `sound` marked `positional`, or an
-//! `audio.play_cue` given a `position`, is an emitter. Once a frame's transforms
+//! A `listener` node is the ears, else the current camera; a `sound` marked
+//! `positional`, or an `audio.play_cue` given a `position`, is an emitter. Once a frame's transforms
 //! have settled, every live emitter is re-placed: distance sets its gain, its
 //! offset across the listener's right sets its pan, and the speed the two
 //! close at bends its pitch. All of it multiplies the bus chain rather than
@@ -71,8 +71,8 @@ pub struct ListenerPose {
     /// the pan.
     pub right: Vec3,
     pub velocity: Vec3,
-    /// False until a `listener` node or `audio.set_listener_position` places
-    /// it, and positional sounds play flat until it is true.
+    /// False until a `listener` node or a camera places it, and positional
+    /// sounds play flat until it is true.
     pub placed: bool,
     /// The current `listener`'s ears, and the speeds its doppler works from.
     pub hearing: Listener,
@@ -103,6 +103,14 @@ impl ListenerPose {
     pub fn follow(&mut self, at: &GlobalTransform) {
         self.place(at.position);
         self.right = at.rotation * Vec3::X;
+    }
+
+    /// Put the ears where the camera is, with nothing of a `listener`'s to hear
+    /// by.
+    fn follow_view(&mut self, view: balaur_core::viewpoint::Pose) {
+        self.place(view.position);
+        self.right = view.right;
+        self.hearing = Listener::default();
     }
 
     fn track(&mut self, dt: f32) {
@@ -290,8 +298,8 @@ pub(crate) fn spatialize_system(eng: &Engine, dt: f32) {
     place_live(&mut state, &buses, dt);
 }
 
-/// The ears go where the current listener node is, and a positional `sound`
-/// emits from wherever its own node is now.
+/// The ears go where the current listener node is, else where the camera is,
+/// and a positional `sound` emits from wherever its own node is now.
 fn follow_nodes(state: &mut AudioState, eng: &Engine) {
     let world = eng.world();
     let AudioState {
@@ -313,6 +321,10 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
         if let Some(hearing) = listeners.get(&entity) {
             listener.hearing = *hearing;
         }
+    } else if current.is_none()
+        && let Some(view) = balaur_core::viewpoint::get(eng)
+    {
+        listener.follow_view(view);
     }
     for (entity, sound) in nodes.iter() {
         let Some(handle) = sound.handle else { continue };

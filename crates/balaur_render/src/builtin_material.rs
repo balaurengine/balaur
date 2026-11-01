@@ -56,9 +56,9 @@ const OBJECT_MATERIAL: &str = "object";
 /// node's texture, which a material's own image replaces.
 fn maps(app: &balaur_core::App, node: &mut SceneNode3d, maps: &[Option<String>]) {
     let upload = |slot: usize| {
-        maps.get(slot).and_then(Option::as_deref).and_then(|path| {
-            crate::texture::upload(&app.engine, path, crate::texture::PREMULTIPLY_DROPPED)
-        })
+        maps.get(slot)
+            .and_then(Option::as_deref)
+            .and_then(|path| crate::texture::upload_for_surface(&app.engine, path))
     };
     if let Some(albedo) = upload(0) {
         node.set_texture(albedo);

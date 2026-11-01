@@ -8,7 +8,6 @@
 pub(crate) mod keys {
     /// A sound file's import keys for its decoder, beside core's own.
     pub(crate) const GAPLESS: &str = "gapless";
-    pub(crate) const SEEKABLE: &str = "seekable";
 
     /// A bus's effects, in `[audio.buses]` and in `audio.bus_effects`.
     pub(crate) const AUTO_GAIN: &str = "auto_gain";

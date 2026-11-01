@@ -116,7 +116,7 @@ pub fn measure(eng: &Engine) {
                 cost.draws += 1;
                 cost.triangles += triangles_3d(eng, &renderable, &mut cache) * copies;
                 if !renderable.texture.is_empty() {
-                    count_image(eng, &mut seen, &mut cost, &renderable.texture);
+                    count_image(eng, &mut seen, &mut cost, &renderable.texture, true);
                 }
             }
             if let Ok(renderable) = world.get::<&crate::Renderable2d>(entity) {
@@ -125,7 +125,7 @@ pub fn measure(eng: &Engine) {
                 // as once it is triangulated.
                 cost.triangles += 2 * copies;
                 if let Some(sprite) = &renderable.sprite {
-                    count_image(eng, &mut seen, &mut cost, &sprite.path);
+                    count_image(eng, &mut seen, &mut cost, &sprite.path, false);
                 }
             }
             if cost.draws == 0 {
@@ -142,8 +142,14 @@ pub fn measure(eng: &Engine) {
 }
 
 /// Add one image to a node's cost and to the frame's distinct set.
-fn count_image(eng: &Engine, seen: &mut BTreeMap<String, u64>, cost: &mut NodeCost, path: &str) {
-    let bytes = image_bytes(eng, path);
+fn count_image(
+    eng: &Engine,
+    seen: &mut BTreeMap<String, u64>,
+    cost: &mut NodeCost,
+    path: &str,
+    on_surface: bool,
+) {
+    let bytes = image_bytes(eng, path, on_surface);
     cost.texture_bytes += bytes;
     if !seen.contains_key(path) {
         seen.insert(path.to_string(), bytes);
@@ -186,13 +192,15 @@ fn triangles_3d(eng: &Engine, renderable: &crate::Renderable3d, cache: &mut Meas
 
 /// Four bytes a pixel of what the file holds, which is what every format the
 /// engine uploads becomes, and a third more for a mip chain.
-fn image_bytes(eng: &Engine, path: &str) -> u64 {
+fn image_bytes(eng: &Engine, path: &str, on_surface: bool) -> u64 {
     let Ok((width, height)) = crate::texture::shipped_size_of(eng, path) else {
         return 0;
     };
     let base = u64::from(width) * u64::from(height) * 4;
     let mips = balaur_asset::texture_asset::source(eng, path).is_ok_and(|source| {
-        balaur_core::import::texture::sampling(&source.settings.settings).mipmaps
+        use balaur_core::import::texture;
+        let settings = &source.settings.settings;
+        texture::sampling(settings).mipmaps || (on_surface && texture::mips_on_a_surface(settings))
     });
     if mips { base + base / 3 } else { base }
 }

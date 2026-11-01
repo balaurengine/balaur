@@ -805,7 +805,7 @@ fn build(
             path.and_then(|path| {
                 let path = crate::material::project_path(&app.engine, reference, path)
                     .unwrap_or_else(|| path.to_string());
-                crate::texture::upload(&app.engine, &path, crate::texture::PREMULTIPLY_DROPPED)
+                crate::texture::upload_for_surface(&app.engine, &path)
             })
         })
         .collect();

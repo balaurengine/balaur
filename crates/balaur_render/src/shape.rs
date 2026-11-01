@@ -2,50 +2,19 @@
 //! untextured primitives, in both dimensions.
 
 use anyhow::Result;
+use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Property, Record, Variant, Written};
 use balaur_core::hecs::Entity;
-use balaur_core::{Engine, entity_of};
 use balaur_geometry::primitive::{Flat, Solid};
 use balaur_geometry::stroke::{Cap, Join, Stroke};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::vocabulary::words;
 use crate::{
     Renderable2d, Renderable3d, Shape2d, Shape3d, set_color, set_polyline, set_shape, set_shape2d,
 };
 use balaur_core::layers::Layer;
-
-pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_sphere", &["shape3d"], "", "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
-        ("set_box", &["shape3d"], "", "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
-        ("set_rectangle", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
-    ]);
-    m.function(
-        "set_sphere",
-        |eng: &Engine, (node, radius): (NodeId, f32)| {
-            set_shape(eng, entity_of(node)?, Shape3d::Solid(Solid::ball(radius)))
-        },
-    );
-    m.function(
-        "set_box",
-        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
-            set_shape(
-                eng,
-                entity_of(node)?,
-                Shape3d::Solid(Solid::cuboid(hx, hy, hz)),
-            )
-        },
-    );
-    m.function(
-        "set_rectangle",
-        |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::rect(hx, hy)))
-        },
-    );
-}
 
 /// What a `shape3d` draws, and the dimensions that primitive reads: the
 /// table the mesher builds from (`Solid::from_params`).
