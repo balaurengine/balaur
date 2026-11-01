@@ -336,8 +336,7 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn announce(&self, method: &str, args: &[Value]) {
-        let all = self.inner.instances.borrow().clone();
-        self.each_of(&all, method, args, false);
+        self.tell(method, args, |_| true);
     }
 
     fn wake(&self, token: u64, payload: &Value) {

@@ -23,6 +23,7 @@ mod replay;
 mod screenshot_events;
 mod script_check;
 mod script_pause;
+mod script_reload;
 mod script_tooling;
 mod touch_replay;
 mod tree_events;

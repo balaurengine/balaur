@@ -230,3 +230,56 @@ fn a_call_still_reaches_a_held_script() {
         "a call is not a tick"
     );
 }
+
+#[test]
+fn a_paused_replay_holds_every_script_and_a_call_still_reaches_them() {
+    let (_dir, mut app) = booted(SCENE);
+    app.engine.set_replay_hold(true);
+    let moved = ran(&mut app, 3, &ALL);
+    assert_eq!(moved[0], (0, 0), "pausable");
+    assert_eq!(moved[1], (0, 0), "not even always");
+    assert_eq!(moved[2], (0, 0), "nor its child");
+
+    let host = app.engine.script_host().unwrap();
+    let id = balaur::node_id_of(node(&app, "always"));
+    host.call_on(id, "update", &[Value::Num(0.0)]);
+    assert_eq!(field(&app, "always", "updates"), 1, "a call is not a tick");
+
+    app.engine.set_replay_hold(false);
+    let moved = ran(&mut app, 3, &ALL);
+    assert_eq!(moved[0], (3, 3), "the hold ends");
+}
+
+#[test]
+fn a_hold_with_a_scope_holds_only_what_is_under_it() {
+    let (_dir, mut app) = booted(SCENE);
+    app.engine.set_debug_scope(Some(node(&app, "always")));
+    app.engine.set_replay_hold(true);
+    let moved = ran(&mut app, 3, &ALL);
+    assert_eq!(moved[0].0, 3, "the editor around a held game keeps drawing");
+    assert_eq!(moved[1].0, 0, "the scope's own root holds");
+    assert_eq!(moved[2].0, 0, "and what is under it");
+    assert_eq!(moved[0].1, 0, "no fixed step runs at all");
+}
+
+#[test]
+fn a_frame_the_debugger_held_runs_no_script() {
+    let (_dir, mut app) = booted(SCENE);
+    app.engine.set_frozen(true);
+    let moved = ran(&mut app, 2, &ALL);
+    assert_eq!(moved[0], (0, 0));
+    assert_eq!(moved[1], (0, 0));
+}
+
+#[test]
+fn an_announcement_stops_at_a_hold_and_reaches_a_pause() {
+    let (_dir, mut app) = booted(SCENE);
+    let host = app.engine.script_host().unwrap();
+    app.engine.set_paused(true);
+    app.tick(DEFAULT_FIXED_DT);
+    let told = field(&app, "pausable", "told");
+    assert_eq!(told, 1, "the control: a pause does not stop it");
+    app.engine.set_replay_hold(true);
+    host.announce("on_paused_changed", &[Value::Bool(true)]);
+    assert_eq!(field(&app, "pausable", "told"), told, "a hold does");
+}

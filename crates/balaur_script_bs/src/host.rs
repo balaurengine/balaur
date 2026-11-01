@@ -208,6 +208,14 @@ struct Inner {
     skip_native: Cell<bool>,
 }
 
+/// What holds an instance back from a pass: a game pause and `process` modes,
+/// and the subtree a debugger stop or a paused replay holds.
+#[derive(Clone, Copy)]
+struct Holds {
+    pause: balaur_core::process::Pause,
+    frozen: Option<balaur_core::hecs::Entity>,
+}
+
 /// The `.bs` backend. Cheap to clone; clones share the one host.
 #[derive(Clone)]
 pub struct BsHost {
@@ -704,6 +712,7 @@ impl BsHost {
                 ty,
             }),
         );
+        self.announce_reload(&[key.to_string()]);
         Ok(())
     }
 
@@ -858,20 +867,56 @@ impl BsHost {
         Some((file, inst))
     }
 
-    // Whether a pause or a `process` mode lets `node` run this frame.
-    fn ticks(&self, node: u64, pause: balaur_core::process::Pause) -> bool {
-        !pause.holds()
-            || balaur_core::entity_of(NodeId(node)).is_ok_and(|entity| {
-                balaur_core::process::ticks(&self.inner.engine.world(), entity, pause)
-            })
+    // What keeps an instance from a pass, read once per pass.
+    fn holds(&self) -> Holds {
+        let engine = &self.inner.engine;
+        Holds {
+            pause: balaur_core::process::pause(engine),
+            frozen: engine.frozen_root(),
+        }
     }
 
-    // `method` on every instance a pause or a `process` mode lets run.
+    // Whether a debugger stop or a paused replay holds `node`.
+    fn frozen(&self, node: u64, holds: Holds) -> bool {
+        holds.frozen.is_some_and(|root| {
+            balaur_core::entity_of(NodeId(node)).is_ok_and(|entity| {
+                balaur_core::scene::is_within(&self.inner.engine.world(), entity, root)
+            })
+        })
+    }
+
+    // Whether nothing holds `node` this frame.
+    fn ticks(&self, node: u64, holds: Holds) -> bool {
+        !self.frozen(node, holds)
+            && (!holds.pause.holds()
+                || balaur_core::entity_of(NodeId(node)).is_ok_and(|entity| {
+                    balaur_core::process::ticks(&self.inner.engine.world(), entity, holds.pause)
+                }))
+    }
+
+    // `method` on every instance nothing holds.
     fn each(&self, method: &str, args: &[Value], sync_only: bool) {
-        let pause = balaur_core::process::pause(&self.inner.engine);
+        let holds = self.holds();
         let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
-        all.retain(|inst| self.ticks(inst.node, pause));
+        all.retain(|inst| self.ticks(inst.node, holds));
         self.each_of(&all, method, args, sync_only);
+    }
+
+    // `method` on every instance but those a stop or a paused replay holds.
+    fn tell(&self, method: &str, args: &[Value], about: impl Fn(&Instance) -> bool) {
+        let holds = self.holds();
+        let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+        all.retain(|inst| about(inst) && !self.frozen(inst.node, holds));
+        self.each_of(&all, method, args, false);
+    }
+
+    // Every instance of a file just rebuilt, its fields carried across: the
+    // one place a script whose fields moved can bring them forward. A parked
+    // one catches up when it returns.
+    fn announce_reload(&self, keys: &[String]) {
+        self.tell(balaur_core::hooks::ON_HOT_RELOAD, &[], |inst| {
+            keys.contains(&inst.path)
+        });
     }
 
     // `update` and `fixed_update` run every frame, so an async one would

@@ -69,7 +69,7 @@ stateDiagram-v2
 |---|---|
 | `Stopped` (`"stopped"`, `replay.STATE_STOPPED`) | No session is loaded. The game runs live. `plan` answers `Live`. |
 | `Playing` (`"playing"`, `replay.STATE_PLAYING`) | One recorded frame runs per `App::advance`. |
-| `Paused` (`"paused"`, `replay.STATE_PAUSED`) | Nothing is fed, no fixed step runs and the tick stands still. A script's `update` still runs: the script host reads no replay hold. A spent session parks here. `plan` answers `Hold`. |
+| `Paused` (`"paused"`, `replay.STATE_PAUSED`) | Nothing is fed, no fixed step runs and the tick stands still. Scripts in the debug scope are held too, or every script with none. |
 | `Seeking` (`"seeking"`, `replay.STATE_SEEKING`) | Frames run until `seek_to`. `App::replay_frames` stops a call after one fixed step of wall time. |
 
 | From | Trigger | To | What it does |

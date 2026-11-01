@@ -70,13 +70,13 @@ impl BsHost {
 
     /// Polls every parked task; one that finishes answers its caller. A
     /// stop freezes the game, and the tasks behind it wait with it, as a task
-    /// waits with a node a pause or a `process` mode holds.
+    /// waits with a node anything else holds.
     pub(super) fn run_tasks(&self) {
-        let pause = balaur_core::process::pause(&self.inner.engine);
+        let holds = self.holds();
         let parked = std::mem::take(&mut *self.inner.tasks.borrow_mut());
         let mut kept = Vec::with_capacity(parked.len());
         for p in parked {
-            if self.is_held() || !self.ticks(p.node, pause) {
+            if self.is_held() || !self.ticks(p.node, holds) {
                 kept.push(p);
                 continue;
             }

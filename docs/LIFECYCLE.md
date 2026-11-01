@@ -140,13 +140,34 @@ Eight things can stop part of the game. Each row reads as that one thing acting 
 | Game pause | `engine.set_paused(true)` | Runs | Held on `pausable` nodes | All held, `always` nodes too | Both worlds held | Held on `pausable` nodes | Yes | Reach it |
 | `process = disabled` | Scene key, `node.set_process` | Runs | Held in the subtree | Count on, its tasks wait | Runs | Held in the subtree | Yes | Reach it, but `call_all` skips it |
 | Parked scene | `scene.switch` away | Runs | Held | Task held | Bodies and colliders disabled | Held | No | None reach it |
-| Debugger stop | A breakpoint, a step, a caught error | Skipped | All held | Tasks wait | Held with the stage | Held | Yes | Tasks and passes held |
-| Paused replay | `replay.pause` | Skipped | `update` runs, `fixed_update` does not | Held with the stage | Held with the stage | Held | Yes | Reach it |
+| Debugger stop | A breakpoint, a step, a caught error | Skipped | All held | Tasks wait | Held with the stage | Held | Yes | `announce` held, `call_on` reaches it |
+| Paused replay | `replay.pause` | Skipped | Held in the debug scope, or everywhere with none | Held with the stage | Held with the stage | Held | Yes | `announce` held there, `call_on` reaches it |
 | `physics.set_paused(true)` | The editor, a script | Runs | Run | Run | Both worlds held | Run | Yes | Reach it |
 | Time scale 0 | `engine.set_time_scale(0)` | Owed nothing | `update` runs with 0, `fixed_update` does not | Held with the stage | Held with the stage | Held with the stage | Yes | Reach it |
 | Hidden | `node.set_visible(false)` | Runs | Run | Run | Runs | Run | No | Reach it |
 
-`call_all` passes by whatever `update` passes by, and `announce` reaches every instance but a parked one. A run driving at a fixed step ignores the time scale. Physics is one world, so a game pause holds an `always` node's bodies too.
+`call_all` passes by whatever `update` passes by. `announce` reaches every instance but a parked one or one a debugger stop or a paused replay holds. A run driving at a fixed step ignores the time scale. Physics is one world, so a game pause holds an `always` node's bodies too.
+
+### Debugger stop and replay hold
+
+The two holds on the whole simulation. Source: `balaur_core/src/engine.rs`, `frozen` and `replay_hold`. `Engine::frozen_root` answers both: the debug scope while either is on, or the root with no scope.
+
+| State | What is true |
+| --- | --- |
+| `frozen` false | No debugger stop holds the simulation. |
+| `frozen` true | A script is stopped at a line or a caught error, or a replay is feeding a frame recorded during a stop. |
+| `replay_hold` false | The player is stopped, or feeding frames. |
+| `replay_hold` true | A replay is paused or out of frames. |
+
+| From | Trigger | To | What it does |
+| --- | --- | --- | --- |
+| `frozen` false | A stop held by the script host | true | No fixed step runs, what is owed is dropped |
+| `frozen` true | `debugger.resume` lets the call finish or wait | false | |
+| `frozen` any | `App::replay_frames`, a frame recorded frozen | true for that tick | Put back after it |
+| `replay_hold` any | `replay::begin`, or `App::advance` planning `Hold` | true | `tick_held` keeps the tick count and clock |
+| `replay_hold` any | `replay::end`, or `App::advance` planning `Live` or `Frames` | false | |
+
+Both start false and never end. [LIFECYCLE-tools.md](LIFECYCLE-tools.md) has the player and the stop itself.
 
 ### Process mode
 
@@ -309,8 +330,8 @@ stateDiagram-v2
     [*] --> waiting_init: attach during a scene build
     [*] --> running: attach alone
     waiting_init --> running: release_inits runs init
-    running --> held: pause or process mode holds the node
-    held --> running: pause ends, mode changes
+    running --> held: pause, process mode, stop or paused replay
+    held --> running: the hold ends
     running --> parked: scene switched away
     held --> parked: scene switched away
     parked --> running: scene switched back
@@ -323,8 +344,8 @@ stateDiagram-v2
 | State | What is true |
 | --- | --- |
 | `waiting_init` | In `instances`, its node in `held`. Exported properties are written, `init` has not run. |
-| `running` | In `instances`, and `process::ticks` is true. Gets `update`, `fixed_update`, `call_all`, `announce` and `call_on`. |
-| `held` | In `instances`, and `process::ticks` is false. `update`, `fixed_update` and `call_all` pass it by. `announce` and `call_on` reach it. |
+| `running` | In `instances`, and nothing holds it. Gets `update`, `fixed_update`, `call_all`, `announce` and `call_on`. |
+| `held` | In `instances`, and a pause, a `process` mode, a debugger stop or a paused replay holds its node. `update`, `fixed_update` and `call_all` pass it by. `call_on` reaches it, and `announce` does under a pause or a mode. |
 | `parked` | In `parked`. No pass or call finds it. `save_state` and a hot reload still do. |
 | `gone` | Out of both lists, `gone` set, its object dropped. A pass begun before still holds it and calls nothing. |
 
@@ -338,7 +359,7 @@ stateDiagram-v2
 | `running`, `held` | `parked::park_current` | `parked` | `on_parked_changed(true)` first, then `set_parked` moves it and its tasks |
 | `parked` | `parked::unpark` | `running` | `set_parked`, then `on_parked_changed(false)`. No `init`. |
 | any | `detach` | `gone` | `on_free`, tasks cancelled |
-| any | A reload of its file | same | Fields carried across by name, tasks ended with a warning |
+| any | A reload of its file | same | Fields carried across by name, tasks ended with a warning, `on_hot_reload` told. A parked instance is carried and not told. |
 
 ### Tasks
 
@@ -370,7 +391,7 @@ stateDiagram-v2
 | --- | --- |
 | `first_poll` | Inside `start`, running up to its first await. |
 | `waiting` | In `tasks`, the runtime awaiting its token. Polling finds nothing to do. |
-| `woken` | In `tasks`, its token's value kept in the runtime. The next `run_tasks` goes on, unless its node is held by a pause or a `process` mode. |
+| `woken` | In `tasks`, its token's value kept in the runtime. The next `run_tasks` goes on, unless something holds its node. |
 | `parked` | In `parked_tasks`. Wakes are kept and nothing polls it. |
 | `stopped` | Taken out of the lists and held by the debugger's stop with its object. |
 | `done` | Returned. A caller awaiting it through `call_async` is woken on the next step. |

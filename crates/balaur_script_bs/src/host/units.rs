@@ -293,6 +293,8 @@ impl BsHost {
             };
             files.insert(key, Rc::new(file));
         }
+        drop(files);
+        self.announce_reload(changed);
         Ok(())
     }
 

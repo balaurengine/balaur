@@ -99,13 +99,13 @@ pub trait ScriptHost<C: ?Sized> {
         let _ = (nodes, parked);
     }
 
-    /// Per-frame tick of every live instance a pause or a `process` mode does
-    /// not hold, at the measured frame time. Presentation: anything a dropped
-    /// or doubled frame may safely skip.
+    /// Per-frame tick of every live instance nothing holds: a pause, a
+    /// `process` mode, a debugger stop, a paused replay. At the measured frame
+    /// time. Presentation: anything a dropped or doubled frame may safely skip.
     fn update(&self, dt: f32);
 
-    /// Fixed-step tick of every live instance a pause or a `process` mode does
-    /// not hold, at the engine's constant step.
+    /// Fixed-step tick of every live instance nothing holds, at the engine's
+    /// constant step.
     ///
     /// Simulation goes here. It runs zero or more times per frame, always
     /// with the same `dt`, and before physics steps, so a force applied
@@ -199,7 +199,7 @@ pub trait ScriptHost<C: ?Sized> {
     }
 
     /// Call a method on every instance that defines it, in a deterministic
-    /// order, but for one a pause or a `process` mode holds.
+    /// order, but for one anything holds.
     fn call_all(&self, method: &str);
 
     /// As [`ScriptHost::call_all`], with arguments after the instance.
@@ -207,7 +207,8 @@ pub trait ScriptHost<C: ?Sized> {
 
     /// As [`ScriptHost::call_all_with`], reaching the instances a pause is
     /// holding as well: `on_paused_changed(true)` is how a script learns it stopped,
-    /// so the pause must not filter it. A debugger's freeze still stops it.
+    /// so the pause must not filter it. A debugger's stop and a paused replay
+    /// still do.
     fn announce(&self, method: &str, args: &[Value]) {
         self.call_all_with(method, args);
     }
