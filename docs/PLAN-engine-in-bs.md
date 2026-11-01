@@ -217,8 +217,8 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
      the Editor's own call into the plugin runs: a call into a busy instance
      runs on a second holder of it (`Runtime::share`), which is allowed when
      every string, list or `any` it holds sits in a class, as `State` does.
-   - `node.try_set_component` answers `false` where `set_component` fails:
-     an engine error ends the script's call, and the inspector expects
+   - `node.try_patch_component` answers `false` where `patch_component`
+     fails: an engine error ends the script's call, and the inspector expects
      refusals.
 7. **Examples, templates, the GDScript translator, docs.** In progress.
    Every example's scripts are `.bs`. The benchmark builds every

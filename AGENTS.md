@@ -105,7 +105,7 @@ A `{` in a string starts an interpolation; `{{` and `}}` write braces.
 
 A host function's error **ends the whole script call**, and nothing catches
 it. Where a failure is expected the host answers nil or `false` instead
-(`toml::parse`, `node.try_set_component`), and the caller checks.
+(`toml::parse`, `node.try_patch_component`), and the caller checks.
 
 ## Rune
 
