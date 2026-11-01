@@ -1790,19 +1790,19 @@
       },
       "apple::credential_state": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "apple::entitlements": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "() -> any"
       },
       "apple::finish_purchase": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "apple::identity": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "() -> any"
       },
       "apple::listen_for_cloud_changes": {
         "least": 0,
@@ -1818,15 +1818,15 @@
       },
       "apple::notify": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any) -> any"
       },
       "apple::products": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "apple::purchase": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "apple::register_for_push": {
         "least": 0,
@@ -1834,19 +1834,19 @@
       },
       "apple::request_notifications": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "() -> any"
       },
       "apple::restore_purchases": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "() -> any"
       },
       "apple::show_dashboard": {
         "least": 0,
-        "signature": "(any, any) -> int"
+        "signature": "(any) -> int"
       },
       "apple::sign_in": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "() -> any"
       },
       "assets::assign_id": {
         "least": 1,
@@ -2333,24 +2333,24 @@
         "signature": "(int, str) -> int"
       },
       "gamend::login": {
-        "least": 2,
-        "signature": "(any, gamend::Credentials, events::ListenOptions?) -> int"
+        "least": 1,
+        "signature": "(gamend::Credentials) -> int"
       },
       "gamend::push": {
         "least": 3,
         "signature": "(int, str, str, any) -> int"
       },
       "gamend::register": {
-        "least": 2,
-        "signature": "(any, gamend::Credentials, events::ListenOptions?) -> int"
+        "least": 1,
+        "signature": "(gamend::Credentials) -> int"
       },
       "gamend::reply": {
         "least": 1,
         "signature": "(int) -> any"
       },
       "gamend::rest": {
-        "least": 3,
-        "signature": "(any, str, str, any) -> any"
+        "least": 2,
+        "signature": "(str, str, any) -> any"
       },
       "gamend::restore": {
         "least": 0,
@@ -2453,8 +2453,8 @@
         "signature": "(int) -> any"
       },
       "http::request": {
-        "least": 0,
-        "signature": "(any, any, http::RequestOptions?) -> int"
+        "least": 1,
+        "signature": "(str, http::RequestOptions?) -> int"
       },
       "import::cancel": {
         "least": 0,
@@ -5366,11 +5366,11 @@
       },
       "platform::cloud_read": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "platform::cloud_write": {
         "least": 0,
-        "signature": "(any, any, any, any) -> any"
+        "signature": "(any, any) -> any"
       },
       "platform::player": {
         "least": 0,
@@ -5378,19 +5378,19 @@
       },
       "platform::progress": {
         "least": 0,
-        "signature": "(any, any, any, any) -> any"
+        "signature": "(any, any) -> any"
       },
       "platform::scores": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any, any) -> any"
       },
       "platform::set_presence": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "platform::sign_in": {
         "least": 0,
-        "signature": "(any, any) -> any"
+        "signature": "() -> any"
       },
       "platform::signed_in": {
         "least": 0,
@@ -5398,11 +5398,11 @@
       },
       "platform::submit_score": {
         "least": 0,
-        "signature": "(any, any, any, any) -> any"
+        "signature": "(any, any) -> any"
       },
       "platform::unlock": {
         "least": 0,
-        "signature": "(any, any, any) -> any"
+        "signature": "(any) -> any"
       },
       "project::copy_example": {
         "least": 2,
@@ -6570,8 +6570,6 @@
         "body": "any",
         "headers": "any",
         "method": "str?",
-        "on_progress": "str?",
-        "on_response": "str?",
         "save_to": "str?",
         "timeout_seconds": "float?"
       },
@@ -20628,7 +20626,7 @@
           "value": "\"url\""
         }
       ],
-      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
+      "doc": "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
       "docs": {
         "access_point": "Show or hide Game Center's floating access point, and answer whether it is showing; `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         "authenticated": "Whether Game Center has a signed-in player right now.",
@@ -20677,21 +20675,21 @@
         "authenticated": "() -> any",
         "available": "() -> any",
         "cancel_notification": "(any) -> any",
-        "credential_state": "(any, any, any) -> any",
-        "entitlements": "(any, any) -> any",
-        "finish_purchase": "(any, any, any) -> any",
-        "identity": "(any, any) -> any",
+        "credential_state": "(any) -> any",
+        "entitlements": "() -> any",
+        "finish_purchase": "(any) -> any",
+        "identity": "() -> any",
         "listen_for_cloud_changes": "() -> any",
         "listen_for_invites": "() -> any",
         "listen_for_urls": "() -> any",
-        "notify": "(any, any, any) -> any",
-        "products": "(any, any, any) -> any",
-        "purchase": "(any, any, any) -> any",
+        "notify": "(any, any) -> any",
+        "products": "(any) -> any",
+        "purchase": "(any) -> any",
         "register_for_push": "() -> any",
-        "request_notifications": "(any, any) -> any",
-        "restore_purchases": "(any, any) -> any",
-        "show_dashboard": "(any, any) -> int",
-        "sign_in": "(any, any) -> any"
+        "request_notifications": "() -> any",
+        "restore_purchases": "() -> any",
+        "show_dashboard": "(any) -> int",
+        "sign_in": "() -> any"
       }
     },
     {
@@ -21248,7 +21246,7 @@
           "value": "\"rest\""
         }
       ],
-      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.",
+      "doc": "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
       "docs": {
         "activity": "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it.",
         "call_hook": "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`.",
@@ -21303,11 +21301,11 @@
         "interrupt": "(int) -> bool",
         "join": "(int, str, any) -> int",
         "leave": "(int, str) -> int",
-        "login": "(any, gamend::Credentials, events::ListenOptions?) -> int",
+        "login": "(gamend::Credentials) -> int",
         "push": "(int, str, str, any) -> int",
-        "register": "(any, gamend::Credentials, events::ListenOptions?) -> int",
+        "register": "(gamend::Credentials) -> int",
         "reply": "(int) -> any",
-        "rest": "(any, str, str, any) -> any",
+        "rest": "(str, str, any) -> any",
         "restore": "(gamend::Session?) -> bool",
         "run_id": "() -> str",
         "server": "() -> gamend::Server",
@@ -21438,10 +21436,10 @@
           "value": "\"upload\""
         }
       ],
-      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
+      "doc": "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
       "docs": {
-        "cancel": "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished.",
-        "request": "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."
+        "cancel": "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished.",
+        "request": "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."
       },
       "functions": [
         "cancel",
@@ -21450,7 +21448,7 @@
       "name": "http",
       "signatures": {
         "cancel": "(int) -> any",
-        "request": "(any, any, http::RequestOptions?) -> int"
+        "request": "(str, http::RequestOptions?) -> int"
       }
     },
     {
@@ -25478,7 +25476,7 @@
           "value": "\"unsupported\""
         }
       ],
-      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
+      "doc": "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`.",
       "docs": {
         "backend": "The name of the loaded store, or \"none\".",
         "cloud_read": "Read a value the store syncs between the player's devices.",
@@ -25508,16 +25506,16 @@
       "name": "platform",
       "signatures": {
         "backend": "() -> any",
-        "cloud_read": "(any, any, any) -> any",
-        "cloud_write": "(any, any, any, any) -> any",
+        "cloud_read": "(any) -> any",
+        "cloud_write": "(any, any) -> any",
         "player": "() -> any",
-        "progress": "(any, any, any, any) -> any",
-        "scores": "(any, any, any) -> any",
-        "set_presence": "(any, any, any) -> any",
-        "sign_in": "(any, any) -> any",
+        "progress": "(any, any) -> any",
+        "scores": "(any, any) -> any",
+        "set_presence": "(any) -> any",
+        "sign_in": "() -> any",
         "signed_in": "() -> any",
-        "submit_score": "(any, any, any, any) -> any",
-        "unlock": "(any, any, any) -> any"
+        "submit_score": "(any, any) -> any",
+        "unlock": "(any) -> any"
       }
     },
     {

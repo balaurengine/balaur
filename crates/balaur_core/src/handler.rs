@@ -79,17 +79,14 @@ pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
     }
 }
 
-/// Deliver finished work: each value to the handlers named for it, then to
-/// whatever awaits the request's token. Called with the world unborrowed,
-/// since a handler is script code and may do anything to it.
-pub fn dispatch(eng: &Engine, dispatches: Vec<(Vec<Handler>, u64, Value)>) {
+/// Wake whatever awaits each finished call's token, with its value. Called
+/// with the world unborrowed, since what wakes is script code and may do
+/// anything to it.
+pub fn wake_all(eng: &Engine, finished: Vec<(u64, Value)>) {
     let Some(host) = eng.script_host() else {
         return;
     };
-    for (targets, token, value) in dispatches {
-        for handler in targets {
-            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-        }
+    for (token, value) in finished {
         host.wake(token, &value);
     }
 }

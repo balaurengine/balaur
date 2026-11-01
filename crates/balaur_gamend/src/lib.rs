@@ -11,7 +11,7 @@
 //!
 //! ```rune
 //! pub async fn init(this) {
-//!     task::wait(gamend::login((), #{ device_id: engine::device_id() })).await;
+//!     task::wait(gamend::login(#{ device_id: engine::device_id() })).await;
 //!     this.socket = gamend::connect(this.node);
 //! }
 //!
@@ -22,9 +22,9 @@
 //! }
 //! ```
 //!
-//! One-shot operations (login, rest, call_hook, join, push, leave) wake
-//! their returned id and, when a node is given, also dispatch to its
-//! handler. Socket events are a stream, so they only dispatch. Every event
+//! One-shot operations wake their returned id: login and rest only that, and
+//! call_hook, join, push and leave also the socket's handler. Socket events are
+//! a stream, so they only dispatch. Every event
 //! map carries a `kind` — `login`, `rest`, `reply`, `error`, `open`,
 //! `message`, `reconnecting`, `reopened`, `closed` — so one handler can take
 //! them all.
@@ -262,12 +262,8 @@ impl GamendState {
         eng: &Engine,
         request: u64,
         credentials: LoginCredentials,
-        handler: Option<Handler>,
     ) -> Result<()> {
         let client = self.client(eng);
-        if let Some(handler) = handler {
-            self.request_handlers.insert(request, handler);
-        }
         let (kind, who) = match &credentials {
             LoginCredentials::Device { .. } => ("login", String::from("device")),
             LoginCredentials::EmailPassword { email, .. } => ("login", email.clone()),
@@ -287,12 +283,8 @@ impl GamendState {
         method: String,
         path: String,
         body: Option<Json>,
-        handler: Option<Handler>,
     ) -> Result<()> {
         let client = self.client(eng);
-        if let Some(handler) = handler {
-            self.request_handlers.insert(request, handler);
-        }
         self.activity.started(
             request,
             None,
@@ -753,7 +745,7 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// connect call's handler method (default `on_gamend_event`).
 fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     m.module_doc(
-        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.",
+        "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.records(&[(
@@ -763,8 +755,8 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
     )]);
     m.describe(&[
         ("configure", &[], "(url: string?) -> string", "Point the plugin at another server and answer its url; with none, the one `server` answers. The first call that reaches a server does this on its own."),
-        ("login", &[], "(node: any, credentials: Credentials, opts: events::ListenOptions?) -> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
-        ("register", &[], "(node: any, account: Credentials, opts: events::ListenOptions?) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
+        ("login", &[], "(credentials: Credentials) -> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
+        ("register", &[], "(account: Credentials) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
         ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
         ("connect", &[], "(node: any, opts: events::ListenOptions?) -> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
     ]);
@@ -777,47 +769,30 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
         eng.resource::<GamendState>().borrow_mut().configure(&url);
         Ok(Value::Str(url))
     });
-    // `gamend.login(node|nil, { device_id = ... } or { email = ..,
-    // password = .. })` -> id. Completion: `{ request, user_id, username,
-    // display_name }` or `{ request, error }`.
-    m.function(
-        "login",
-        |eng: &Engine, (node, spec, opts): (Value, Option<Value>, Option<Value>)| {
-            let (node, spec) = normalize_target(node, spec);
-            let credentials = credentials_of(
-                spec.as_ref()
-                    .ok_or_else(|| anyhow!("login needs a credentials table"))?,
-            )?;
-            let handler = handler_of(&node, opts.as_ref(), "on_gamend_event")?;
-            let id = eng.next_token();
-            eng.resource::<GamendState>()
-                .borrow_mut()
-                .login(eng, id, credentials, handler)?;
-            Ok(int(id))
-        },
-    );
-    m.function(
-        "register",
-        |eng: &Engine, (node, spec, opts): (Value, Option<Value>, Option<Value>)| {
-            let (node, spec) = normalize_target(node, spec);
-            let account = account_of(
-                spec.as_ref()
-                    .ok_or_else(|| anyhow!("register needs an account table"))?,
-            )?;
-            let handler = handler_of(&node, opts.as_ref(), "on_gamend_event")?;
-            let id = eng.next_token();
-            eng.resource::<GamendState>()
-                .borrow_mut()
-                .login(eng, id, account, handler)?;
-            Ok(int(id))
-        },
-    );
-    // `gamend.rest(node|nil, method, path, body?)` -> id. Completion:
+    // `gamend.login({ device_id = ... } or { email = .., password = .. })` -> id.
+    // Completion: `{ request, user_id, username, display_name }` or
+    // `{ request, error }`.
+    m.function("login", |eng: &Engine, spec: Value| {
+        let credentials = credentials_of(&spec)?;
+        let id = eng.next_token();
+        eng.resource::<GamendState>()
+            .borrow_mut()
+            .login(eng, id, credentials)?;
+        Ok(int(id))
+    });
+    m.function("register", |eng: &Engine, spec: Value| {
+        let account = account_of(&spec)?;
+        let id = eng.next_token();
+        eng.resource::<GamendState>()
+            .borrow_mut()
+            .login(eng, id, account)?;
+        Ok(int(id))
+    });
+    // `gamend.rest(method, path, body?)` -> id. Completion:
     // `{ request, status, body }` or `{ request, error }`.
     m.function(
         "rest",
-        |eng: &Engine, (node, method, path, body): (Value, String, String, Option<Value>)| {
-            let handler = handler_of(&node, None, "on_gamend_event")?;
+        |eng: &Engine, (method, path, body): (String, String, Option<Value>)| {
             let body = match body {
                 None | Some(Value::Nil) => None,
                 Some(v) => Some(balaur_core::engine_api::to_json(&v)?),
@@ -829,7 +804,6 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
                 method.to_uppercase(),
                 path,
                 body,
-                handler,
             )?;
             Ok(int(id))
         },
@@ -932,15 +906,6 @@ fn install_gamend_socket_api(m: &mut dyn Bindings<Engine>) {
             .is_ok_and(|id| eng.resource::<GamendState>().borrow_mut().interrupt(id));
         Ok(Value::Bool(cut))
     });
-}
-
-/// `login` may be called with or without a leading node, like
-/// `http.request`: a credentials map in position 0 means no handler node.
-fn normalize_target(node: Value, spec: Option<Value>) -> (Value, Option<Value>) {
-    match &node {
-        Value::Map(_) => (Value::Nil, Some(node)),
-        _ => (node, spec),
-    }
 }
 
 fn token_of(id: i64) -> Result<u64> {

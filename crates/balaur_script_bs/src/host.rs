@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use tasks::Pending;
+use tasks::{Pending, WaitingStart};
 
 mod debug;
 mod engine_facing;
@@ -175,6 +175,8 @@ struct Inner {
     /// [`api::line`]: what the pack records.
     called: RefCell<std::collections::BTreeSet<String>>,
     tasks: RefCell<Vec<Pending>>,
+    /// Async methods asked of an instance busy in the call that asked.
+    waiting_starts: RefCell<Vec<WaitingStart>>,
     /// Files built with probes, on an engine that can hold a call at a line.
     debugging: RefCell<HashSet<String>>,
     /// The lines a debugger asked to stop at, by file, as it asked for them.
@@ -290,6 +292,7 @@ impl BsHost {
                 watch_mounts,
                 called: RefCell::default(),
                 tasks: RefCell::default(),
+                waiting_starts: RefCell::default(),
                 debugging: RefCell::default(),
                 breaks: RefCell::default(),
                 stopped: RefCell::new(None),
@@ -1097,7 +1100,13 @@ impl BsHost {
     ) -> Result<Option<Value>> {
         let Some(obj) = inst.obj.borrow_mut().take() else {
             if is_async {
-                return Err(anyhow!("[{}] {method}: the instance is busy", inst.path));
+                self.inner.waiting_starts.borrow_mut().push(WaitingStart {
+                    node: inst.node,
+                    method: method.to_string(),
+                    args: args.iter().map(to_neutral).collect(),
+                    done,
+                });
+                return Ok(None);
             }
             return Self::nested(file, inst, method, args);
         };

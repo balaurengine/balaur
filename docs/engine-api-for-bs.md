@@ -230,7 +230,7 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 ### `gamend`
 <a id="gamend"></a>
 
-19 of 19 functions used, 299 references. The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.
+19 of 19 functions used, 299 references. The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
 
 | fn | refs | result used | source | .bs signature | not typed / not callable |
 | --- | ---: | ---: | --- | --- | --- |
@@ -683,7 +683,7 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 ### `http`
 <a id="http"></a>
 
-1 of 2 functions used, 2 references. HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
+1 of 2 functions used, 2 references. HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
 
 | fn | refs | result used | source | .bs signature | not typed / not callable |
 | --- | ---: | ---: | --- | --- | --- |

@@ -5,22 +5,22 @@
 // Admin – Economy: one function per operation, `admin_economy::<name>` once a
 // script says `use addons::gamend::admin_economy;`.
 //
-// A call takes the node its result should reach, then the path's own
-// parameters, then `params` for the request body and `options` for the
-// query where the operation has them. It answers the id `gamend::rest`
-// answers, to await with `task::wait`, or nil when it refused to send.
+// A call takes the path's own parameters, then `params` for the request
+// body and `options` for the query where the operation has them. It
+// answers the id `gamend::rest` answers, to await with `task::wait`, or
+// nil when it refused to send.
 
 use core;
 
 /// Consume items from a user (admin)
 /// `POST /api/v1/admin/economy/consume_item`
-pub fn consume_item(node: Node) -> any {
-    gamend::rest(node, "POST", "/api/v1/admin/economy/consume_item", nil())
+pub fn consume_item() -> any {
+    gamend::rest("POST", "/api/v1/admin/economy/consume_item", nil())
 }
 
 /// Grant currency to a user (admin)
 /// `POST /api/v1/admin/economy/grant`
-pub fn grant_currency(node: Node, params: any) -> any {
+pub fn grant_currency(params: any) -> any {
     if !core::given(params, "user_id") {
         return core::missing("gamend::admin_economy::grant_currency", "user_id");
     }
@@ -30,12 +30,12 @@ pub fn grant_currency(node: Node, params: any) -> any {
     if !core::given(params, "amount") {
         return core::missing("gamend::admin_economy::grant_currency", "amount");
     }
-    gamend::rest(node, "POST", "/api/v1/admin/economy/grant", params)
+    gamend::rest("POST", "/api/v1/admin/economy/grant", params)
 }
 
 /// Grant items to a user (admin)
 /// `POST /api/v1/admin/economy/grant_item`
-pub fn grant_item(node: Node, params: any) -> any {
+pub fn grant_item(params: any) -> any {
     if !core::given(params, "user_id") {
         return core::missing("gamend::admin_economy::grant_item", "user_id");
     }
@@ -45,33 +45,33 @@ pub fn grant_item(node: Node, params: any) -> any {
     if !core::given(params, "quantity") {
         return core::missing("gamend::admin_economy::grant_item", "quantity");
     }
-    gamend::rest(node, "POST", "/api/v1/admin/economy/grant_item", params)
+    gamend::rest("POST", "/api/v1/admin/economy/grant_item", params)
 }
 
 /// List inventory item stacks (admin)
 /// `GET /api/v1/admin/economy/items`
-pub fn list_inventory(node: Node, options: any) -> any {
+pub fn list_inventory(options: any) -> any {
     let query = core::query(options, ["user_id", "item", "page", "page_size"]);
-    gamend::rest(node, "GET", "/api/v1/admin/economy/items{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/economy/items{query}", nil())
 }
 
 /// List ledger entries (admin)
 /// `GET /api/v1/admin/economy/ledger`
-pub fn list_ledger(node: Node, options: any) -> any {
+pub fn list_ledger(options: any) -> any {
     let query = core::query(options, ["user_id", "currency", "page", "page_size"]);
-    gamend::rest(node, "GET", "/api/v1/admin/economy/ledger{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/economy/ledger{query}", nil())
 }
 
 /// List wallets (admin)
 /// `GET /api/v1/admin/economy/wallets`
-pub fn list_wallets(node: Node, options: any) -> any {
+pub fn list_wallets(options: any) -> any {
     let query = core::query(options, ["user_id", "currency", "page", "page_size"]);
-    gamend::rest(node, "GET", "/api/v1/admin/economy/wallets{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/economy/wallets{query}", nil())
 }
 
 /// Spend currency from a user (admin)
 /// `POST /api/v1/admin/economy/spend`
-pub fn spend_currency(node: Node, params: any) -> any {
+pub fn spend_currency(params: any) -> any {
     if !core::given(params, "user_id") {
         return core::missing("gamend::admin_economy::spend_currency", "user_id");
     }
@@ -81,5 +81,5 @@ pub fn spend_currency(node: Node, params: any) -> any {
     if !core::given(params, "amount") {
         return core::missing("gamend::admin_economy::spend_currency", "amount");
     }
-    gamend::rest(node, "POST", "/api/v1/admin/economy/spend", params)
+    gamend::rest("POST", "/api/v1/admin/economy/spend", params)
 }

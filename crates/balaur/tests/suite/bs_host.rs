@@ -3,7 +3,7 @@
 
 #![cfg(any(feature = "bs", feature = "bs-jit"))]
 
-use super::bs::{booted, field, project, spun, ticked};
+use super::bs::{booted, field, one_script, project, spun, ticked};
 
 const PAIR: &str = "pub class Pair { node: Node, hits: int, answer: int, seen: int }
 impl Pair {
@@ -261,4 +261,31 @@ fn a_script_holds_another_nodes_script_as_its_class() {
     ticked(&mut app, 1);
     assert_eq!(field(&app, "Editor", "edits"), Some(Int(13)));
     assert_eq!(field(&app, "Editor/Panel", "seen"), Some(Int(13)));
+}
+
+// A `str` field, so a second holder of the object is refused: the wait starts
+// once the plain method that asked for it has returned.
+const ASKER: &str = "pub class Asker { node: Node, heard: str }
+impl Asker {
+    fn init() {
+        let token = events::next(\"ping\");
+        self.node.call(\"hear\", token);
+        events::emit(\"ping\", \"hello\");
+    }
+    pub async fn hear(token: int) {
+        let payload = await task::wait(token);
+        self.heard = payload.text();
+    }
+}
+";
+
+#[test]
+fn a_plain_method_starts_its_own_async_method_through_its_node() {
+    let dir = one_script("Asker", ASKER);
+    let mut app = booted(dir.path());
+    ticked(&mut app, 2);
+    assert_eq!(
+        field(&app, "Asker", "heard"),
+        Some(balaur_script::Value::Str("hello".into()))
+    );
 }

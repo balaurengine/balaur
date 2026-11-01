@@ -162,6 +162,7 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn update(&self, dt: f32) {
+        self.run_waiting_starts();
         // A task a busy instance could not take last time runs on here.
         if self.has_tasks() {
             self.run_tasks();

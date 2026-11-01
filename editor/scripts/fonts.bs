@@ -126,10 +126,11 @@ fn waiting_on(state: editor::State, purpose: str) -> bool {
     false
 }
 
-/// One request to Forge, its answer kept for `on_response` by its id.
+/// One request to Forge, its answer kept for `answered` by its id.
 fn ask(state: &mut editor::State, url: str, waiting: Waiting, options: any) {
-    let id = http::request(scene::get_node("Editor"), url, options);
+    let id = http::request(url, options);
     state.font_requests["{id}"] = waiting;
+    scene::get_node("Editor").call("await_font_reply", id);
 }
 
 /// Fill the picker with the families matching what is typed.
@@ -214,7 +215,7 @@ pub fn request_for(state: editor::State, purpose: str) -> any {
 }
 
 /// An answer from Forge, by what it was asked for.
-pub fn on_response(state: &mut editor::State, reply: any) {
+pub fn answered(state: &mut editor::State, reply: any) {
     let key = "{reply["request"]}";
     let waiting = state.font_requests[key];
     if waiting == nil {

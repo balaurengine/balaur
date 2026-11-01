@@ -1,5 +1,5 @@
-// The Gamend dock: the engine's `gamend` state, and GETs whose replies reach
-// `on_gamend_event`, which refills it. Nothing runs on a clock.
+// The Gamend dock: the engine's `gamend` state, and GETs whose replies
+// `await_reply` keeps, which refills it. Nothing runs on a clock.
 
 /// The save slots the addon keeps on the device.
 const SESSION_SLOT: str = "gamend";
@@ -144,8 +144,8 @@ impl Gamend {
 
     /// A Gamend Cloud request came back: a link starts its claim, a claim
     /// keeps its token, and every reply is kept for the page.
-    pub fn on_response(reply: any) {
-        let request = reply["request"].as_int();
+    pub async fn await_cloud_reply(request: int) {
+        let reply = await task::wait(request);
         let kind = "";
         for key in self.cloud_asked.keys() {
             if self.cloud_asked[key].as_int() == request {
@@ -177,8 +177,8 @@ impl Gamend {
     }
 
     /// A call the dock made came back: kept under the key it was asked for.
-    pub fn on_gamend_event(e: any) {
-        let request = e["request"].as_int();
+    pub async fn await_reply(request: int) {
+        let e = await task::wait(request);
         for key in self.requests.keys() {
             if self.requests[key].as_int() == request {
                 self.replies[key] = e;
@@ -316,7 +316,7 @@ impl Gamend {
     }
 
     /// A request to the person's Gamend Cloud account, with the editor's
-    /// token when it has one; its reply reaches `on_response`.
+    /// token when it has one; `await_cloud_reply` takes its reply.
     fn cloud_send(kind: str, method: str, path: str, body: any, seconds: float) {
         let headers: any = { "content-type": "application/json", "accept": "application/json" };
         let token = cloud_token();
@@ -327,8 +327,9 @@ impl Gamend {
         if body != nil {
             opts["body"] = body;
         }
-        let asked = http::request(self.node, cloud_url() + path, opts);
+        let asked = http::request(cloud_url() + path, opts);
         self.cloud_asked[kind] = asked;
+        self.node.call("await_cloud_reply", asked);
     }
 
     fn user() -> [any] {
@@ -522,15 +523,17 @@ impl Gamend {
         out
     }
 
-    /// A GET the dock made, by key: sent once, and nil until its reply came
-    /// back to `on_gamend_event`.
+    /// A GET the dock made, by key: sent once, and nil until `await_reply`
+    /// keeps its reply.
     fn fetch(key: str, path: str) -> any {
         let held = self.replies[key];
         if held != nil {
             return held;
         }
         if !self.requests.has(key) {
-            self.requests[key] = gamend::rest(self.node, "GET", path, nil());
+            let asked = gamend::rest("GET", path, nil());
+            self.requests[key] = asked;
+            self.node.call("await_reply", asked);
         }
         nil()
     }
@@ -622,8 +625,9 @@ impl Gamend {
 
     pub fn sign_in(_data: any, _value: any) {
         self.forget("login");
-        let asked = gamend::login(self.node, gamend::Credentials { device_id: engine::device_id() }, nil());
+        let asked = gamend::login(gamend::Credentials { device_id: engine::device_id() });
         self.requests["login"] = asked;
+        self.node.call("await_reply", asked);
     }
 
     /// The session as `auth.bs` keeps it.

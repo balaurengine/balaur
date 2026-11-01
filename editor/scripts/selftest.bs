@@ -2025,7 +2025,7 @@ fn answer(state: &mut editor::State, purpose: str, extra: any) -> bool {
     for key in extra.keys() {
         reply[key] = extra[key];
     }
-    fonts::on_response(state, reply);
+    fonts::answered(state, reply);
     true
 }
 

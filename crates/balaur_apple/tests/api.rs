@@ -58,7 +58,6 @@ fn presence_is_unsupported_rather_than_pretended() {
         Call::SetPresence {
             text: "in the caves".into(),
         },
-        None,
     );
     drop(state);
     app.tick(1.0 / 60.0);

@@ -107,7 +107,7 @@ fn field<'a>(map: &'a Value, key: &str) -> Option<&'a Value> {
 fn start(app: &App, call: HttpCall) -> u64 {
     let id = app.engine.next_token();
     let state = app.engine.resource::<HttpState>();
-    state.borrow_mut().request(&app.engine, id, call, None);
+    state.borrow_mut().request(&app.engine, id, call);
     id
 }
 

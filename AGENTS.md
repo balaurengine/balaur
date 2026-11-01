@@ -103,6 +103,10 @@ closing a function after an `if` is the `if` indexed. Write `return [..];`.
 
 A `{` in a string starts an interpolation; `{{` and `}}` write braces.
 
+A plain method cannot await. To hear a call's reply it starts an async method
+of its own, `self.node.call("await_reply", id)`, which runs once the plain
+method has returned.
+
 A host function's error **ends the whole script call**, and nothing catches
 it. Where a failure is expected the host answers nil or `false` instead
 (`toml::parse`, `node.try_patch_component`), and the caller checks.

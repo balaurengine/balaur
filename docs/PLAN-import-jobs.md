@@ -443,7 +443,7 @@ as `k`. Every control now names its shape or is given a neutral one.
   view of imports alone is a view built twice.
 - **No thread, task or job handed to a script.** A script runs inside the
   fixed step and its digest has to match on every machine, so what it gets is
-  the event: `on_import_event`, as `on_response` and `on_export_event` already are. The
+  the event: `on_import_event`, as `on_export_event` already is. The
   verbs a script calls start work and ask how much is in flight, and that is
   the whole of the surface.
 - **No `on_files_dropped` hook.** Hooks address a node and a window's drop

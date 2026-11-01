@@ -54,15 +54,15 @@ pub fn plugin() -> str {
     gamend::server().plugin
 }
 
-/// Open a session from a device id. The reply reaches `node`'s handler as
-/// `kind = "login"`, and the returned id can be awaited instead.
-pub fn login_device(node: Node, device_id: str) -> int {
-    gamend::login(node, gamend::Credentials { device_id: device_id }, nil())
+/// Open a session from a device id. The returned id awaits a reply of
+/// `kind = "login"`.
+pub fn login_device(device_id: str) -> int {
+    gamend::login(gamend::Credentials { device_id: device_id })
 }
 
 /// Open a session from an email and a password.
-pub fn login_email(node: Node, email: str, password: str) -> int {
-    gamend::login(node, gamend::Credentials { email: email, password: password }, nil())
+pub fn login_email(email: str, password: str) -> int {
+    gamend::login(gamend::Credentials { email: email, password: password })
 }
 
 /// Make an account from an email, with no password yet. Not a sign-in, as
@@ -71,18 +71,18 @@ pub fn login_email(node: Node, email: str, password: str) -> int {
 /// The server emails a link and a six-digit code; `auth::confirm_registration`
 /// takes the code and the password the player chooses, and opens a session.
 /// An empty `username` lets the server pick one.
-pub fn register_email(node: Node, email: str, username: str) -> any {
+pub fn register_email(email: str, username: str) -> any {
     let account: any = { "email": email };
     if username != "" {
         account["username"] = username;
     }
-    authentication::register(node, account)
+    authentication::register(account)
 }
 
 /// Email a `register_email` account a new code; only the newest works. The
 /// reply is `ok` whether or not the address has an account waiting.
-pub fn resend_confirmation(node: Node, email: str) -> any {
-    authentication::resend_confirmation(node, { "email": email })
+pub fn resend_confirmation(email: str) -> any {
+    authentication::resend_confirmation({ "email": email })
 }
 
 /// Open the realtime socket. The worker joins this session's own `user:<id>`
@@ -254,11 +254,11 @@ pub fn has_row(key: str) -> bool {
 /// server even when a row is cached. A key the server has no row for caches
 /// an empty map, so `has_row` answers without asking again; anything else
 /// that went wrong caches nothing and the next call retries.
-pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
+pub async fn fetch_row(key: str, force: bool) -> any {
     if !force && has_row(key) {
         return row(key);
     }
-    let reply = await task::wait(kv::get_kv(node, key, nil()).as_int());
+    let reply = await task::wait(kv::get_kv(key, nil()).as_int());
     if !core::ok(reply) {
         if reply["status"].as_int() == 404 {
             keep_row(key, {});
@@ -273,14 +273,14 @@ pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
 }
 
 /// The signed-in player's profile, fetched fresh, as `core::unpack` shapes it.
-pub async fn fetch_current_user(node: Node) -> any {
-    let reply = await task::wait(users::get_current_user(node).as_int());
+pub async fn fetch_current_user() -> any {
+    let reply = await task::wait(users::get_current_user().as_int());
     core::unpack(reply)
 }
 
 /// One lobby, fetched fresh, its members inside it as the server sends them.
-pub async fn fetch_lobby(node: Node, lobby_id: any) -> any {
-    let reply = await task::wait(lobbies::get_lobby(node, lobby_id).as_int());
+pub async fn fetch_lobby(lobby_id: any) -> any {
+    let reply = await task::wait(lobbies::get_lobby(lobby_id).as_int());
     core::unpack(reply)
 }
 

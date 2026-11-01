@@ -170,7 +170,7 @@ Spline's event and action lists, and where each lands.
 | State change | `on_state_changed`, step 2 |
 | Collision | have |
 | Screen resize | `on_resize`, step 1 |
-| API updated | `on_response` (have) |
+| API updated | `await task::wait(http::request(..))` (have) |
 
 | Spline action | Balaur |
 | --- | --- |

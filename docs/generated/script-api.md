@@ -117,7 +117,7 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 
 ## `apple`
 
-Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.
+Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, "apple_event")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.
 
 | Function | Signature |
 | --- | --- |
@@ -125,21 +125,21 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 | `authenticated` | `() -> any` |
 | `available` | `() -> any` |
 | `cancel_notification` | `(any) -> any` |
-| `credential_state` | `(any, any, any) -> any` |
-| `entitlements` | `(any, any) -> any` |
-| `finish_purchase` | `(any, any, any) -> any` |
-| `identity` | `(any, any) -> any` |
+| `credential_state` | `(any) -> any` |
+| `entitlements` | `() -> any` |
+| `finish_purchase` | `(any) -> any` |
+| `identity` | `() -> any` |
 | `listen_for_cloud_changes` | `() -> any` |
 | `listen_for_invites` | `() -> any` |
 | `listen_for_urls` | `() -> any` |
-| `notify` | `(any, any, any) -> any` |
-| `products` | `(any, any, any) -> any` |
-| `purchase` | `(any, any, any) -> any` |
+| `notify` | `(any, any) -> any` |
+| `products` | `(any) -> any` |
+| `purchase` | `(any) -> any` |
 | `register_for_push` | `() -> any` |
-| `request_notifications` | `(any, any) -> any` |
-| `restore_purchases` | `(any, any) -> any` |
-| `show_dashboard` | `(any, any) -> int` |
-| `sign_in` | `(any, any) -> any` |
+| `request_notifications` | `() -> any` |
+| `restore_purchases` | `() -> any` |
+| `show_dashboard` | `(any) -> int` |
+| `sign_in` | `() -> any` |
 
 **Constants** (25):
 
@@ -377,7 +377,7 @@ Files on disk, project-relative unless the path is absolute. A packed build's co
 
 ## `gamend`
 
-The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.
+The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
 
 | Function | Signature |
 | --- | --- |
@@ -391,11 +391,11 @@ The Gamend backend: session, REST API and realtime socket. Each call returns an 
 | `interrupt` | `(int) -> bool` |
 | `join` | `(int, str, any) -> int` |
 | `leave` | `(int, str) -> int` |
-| `login` | `(any, gamend::Credentials, events::ListenOptions?) -> int` |
+| `login` | `(gamend::Credentials) -> int` |
 | `push` | `(int, str, str, any) -> int` |
-| `register` | `(any, gamend::Credentials, events::ListenOptions?) -> int` |
+| `register` | `(gamend::Credentials) -> int` |
 | `reply` | `(int) -> any` |
-| `rest` | `(any, str, str, any) -> any` |
+| `rest` | `(str, str, any) -> any` |
 | `restore` | `(gamend::Session?) -> bool` |
 | `run_id` | `() -> str` |
 | `server` | `() -> gamend::Server` |
@@ -458,12 +458,12 @@ SHA-256 content hashes of files and strings.
 
 ## `http`
 
-HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
+HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
 
 | Function | Signature |
 | --- | --- |
 | `cancel` | `(int) -> any` |
-| `request` | `(any, any, http::RequestOptions?) -> int` |
+| `request` | `(str, http::RequestOptions?) -> int` |
 
 **Constants** (5):
 
@@ -1126,21 +1126,21 @@ A picture of a project: its scene through its current camera, at its `[window]` 
 
 ## `platform`
 
-Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.
+Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, "platform_event")`.
 
 | Function | Signature |
 | --- | --- |
 | `backend` | `() -> any` |
-| `cloud_read` | `(any, any, any) -> any` |
-| `cloud_write` | `(any, any, any, any) -> any` |
+| `cloud_read` | `(any) -> any` |
+| `cloud_write` | `(any, any) -> any` |
 | `player` | `() -> any` |
-| `progress` | `(any, any, any, any) -> any` |
-| `scores` | `(any, any, any) -> any` |
-| `set_presence` | `(any, any, any) -> any` |
-| `sign_in` | `(any, any) -> any` |
+| `progress` | `(any, any) -> any` |
+| `scores` | `(any, any) -> any` |
+| `set_presence` | `(any) -> any` |
+| `sign_in` | `() -> any` |
 | `signed_in` | `() -> any` |
-| `submit_score` | `(any, any, any, any) -> any` |
-| `unlock` | `(any, any, any) -> any` |
+| `submit_score` | `(any, any) -> any` |
+| `unlock` | `(any) -> any` |
 
 **Constants** (7):
 

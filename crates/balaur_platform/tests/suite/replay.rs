@@ -42,7 +42,6 @@ fn unlock(app: &App) {
         Call::Unlock {
             achievement: "first_blood".into(),
         },
-        None,
     );
 }
 

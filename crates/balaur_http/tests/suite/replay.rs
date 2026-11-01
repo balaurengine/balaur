@@ -63,7 +63,6 @@ fn record_a_fetch(url: &str) -> Vec<serde_json::Map<String, serde_json::Value>> 
             timeout: Some(5.0),
             save_to: None,
         },
-        None,
     );
 
     let mut frames = Vec::new();
@@ -106,7 +105,6 @@ fn a_recorded_response_replays_with_no_server_listening() {
             timeout: Some(5.0),
             save_to: None,
         },
-        None,
     );
 
     let feed = app.engine.resource::<ReplayFeed>();
@@ -155,7 +153,6 @@ fn replaying_does_not_reach_the_network() {
             timeout: Some(5.0),
             save_to: None,
         },
-        None,
     );
     for _ in 0..30 {
         app.tick(1.0 / 60.0);

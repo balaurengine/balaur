@@ -20,15 +20,15 @@ pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
         gamend::configure("{url}");
-        let boards = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards?page=1").as_int());
+        let boards = await task::wait(gamend::rest("GET", "/api/v1/leaderboards?page=1").as_int());
         let listed = boards["body"]["data"];
         let records = 200;
         if listed.len() > 0 {{
             let id = listed[0]["id"];
-            let got = await task::wait(gamend::rest(nil(), "GET", "/api/v1/leaderboards/{{id}}/records").as_int());
+            let got = await task::wait(gamend::rest("GET", "/api/v1/leaderboards/{{id}}/records").as_int());
             records = got["status"].as_int();
         }}
-        let stats = await task::wait(gamend::rest(nil(), "GET", "/api/v1/lobbies/stats").as_int());
+        let stats = await task::wait(gamend::rest("GET", "/api/v1/lobbies/stats").as_int());
         let a = boards["status"];
         let c = stats["status"];
         log::info("rest {{a}} {{records}} {{c}}");
@@ -57,13 +57,13 @@ impl Scenario {{
     async fn init() {{
         gamend::configure("{url}");
         // A stock Gamend takes ten sign-ins a minute from one address.
-        let login = await task::wait(gamend::login(nil(), gamend::Credentials {{ device_id: "{device}" }}));
+        let login = await task::wait(gamend::login(gamend::Credentials {{ device_id: "{device}" }}));
         while login.has("error") && login["error"].as_str().contains("(429)") {{
             let until = engine::unix_time() + 15.0;
             while engine::unix_time() < until {{
                 await task::frames(1);
             }}
-            let again = await task::wait(gamend::login(nil(), gamend::Credentials {{ device_id: "{device}" }}));
+            let again = await task::wait(gamend::login(gamend::Credentials {{ device_id: "{device}" }}));
             login = again;
         }}
         if login.has("error") {{
@@ -78,10 +78,10 @@ impl Scenario {{
         if e["kind"].as_str() != "open" {{
             return;
         }}
-        let me = await task::wait(gamend::rest(nil(), "GET", "/api/v1/me").as_int());
+        let me = await task::wait(gamend::rest("GET", "/api/v1/me").as_int());
         let hook = await task::wait(gamend::call_hook(self.socket, "sdk_probe", "echo", ["hi"]));
         gamend::close(self.socket);
-        let gone = await task::wait(gamend::rest(nil(), "DELETE", "/api/v1/me").as_int());
+        let gone = await task::wait(gamend::rest("DELETE", "/api/v1/me").as_int());
         let a = me["status"];
         let b = hook["status"];
         let c = gone["status"];

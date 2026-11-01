@@ -72,9 +72,7 @@ fn a_response_arrives_in_the_snapshot_with_status_and_body() {
     let id = app.engine.next_token();
     {
         let state = app.engine.resource::<HttpState>();
-        state
-            .borrow_mut()
-            .request(&app.engine, id, get_call(&url), None);
+        state.borrow_mut().request(&app.engine, id, get_call(&url));
     }
     let response = wait_for(&mut app, |snapshot| snapshot.responses.first().cloned());
     assert_eq!(
@@ -94,9 +92,7 @@ fn an_http_error_status_is_a_response_not_an_error() {
     {
         let state = app.engine.resource::<HttpState>();
         let id = app.engine.next_token();
-        state
-            .borrow_mut()
-            .request(&app.engine, id, get_call(&url), None);
+        state.borrow_mut().request(&app.engine, id, get_call(&url));
     }
     let response = wait_for(&mut app, |snapshot| snapshot.responses.first().cloned());
     assert_eq!(field(&response, "status"), Some(&Value::Int(404)));
@@ -119,7 +115,6 @@ fn a_failed_transfer_reports_an_error_event() {
             &app.engine,
             id,
             get_call(&format!("http://127.0.0.1:{port}")),
-            None,
         );
     }
     let response = wait_for(&mut app, |snapshot| snapshot.responses.first().cloned());
@@ -159,7 +154,7 @@ fn save_to_streams_a_body_to_disk_and_reports_progress() {
         let state = app.engine.resource::<HttpState>();
         let mut call = get_call(&url);
         call.save_to = Some(target.clone());
-        state.borrow_mut().request(&app.engine, id, call, None);
+        state.borrow_mut().request(&app.engine, id, call);
     }
     let response = wait_for(&mut app, |snapshot| {
         snapshot
@@ -205,7 +200,7 @@ fn a_miss_with_save_to_writes_nothing_and_hands_the_body_back() {
         let id = app.engine.next_token();
         let mut call = get_call(&url);
         call.save_to = Some(target.clone());
-        state.borrow_mut().request(&app.engine, id, call, None);
+        state.borrow_mut().request(&app.engine, id, call);
     }
     let response = wait_for(&mut app, |snapshot| snapshot.responses.first().cloned());
     assert_eq!(field(&response, "status"), Some(&Value::Int(404)));
@@ -235,7 +230,7 @@ fn a_cancelled_request_says_so_and_its_late_reply_is_dropped() {
     {
         let state = app.engine.resource::<HttpState>();
         let mut state = state.borrow_mut();
-        state.request(&app.engine, id, get_call(&format!("http://{addr}")), None);
+        state.request(&app.engine, id, get_call(&format!("http://{addr}")));
         assert!(state.cancel(id), "a request in flight can be cancelled");
         assert!(!state.cancel(id), "and only once");
     }
@@ -305,7 +300,7 @@ fn a_long_body_reports_going_out_before_the_reply() {
     call.body = Some("x".repeat(600 * 1024));
     {
         let state = app.engine.resource::<HttpState>();
-        state.borrow_mut().request(&app.engine, id, call, None);
+        state.borrow_mut().request(&app.engine, id, call);
     }
     let mut kinds = Vec::new();
     for _ in 0..1000 {

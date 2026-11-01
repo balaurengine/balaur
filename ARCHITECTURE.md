@@ -1005,8 +1005,8 @@ things are shared.
   none every call still answers.
 - **Delivery is the engine's usual one**: an id out, the answer across a
   channel, `ExternalIo` landing it at `Stage::First` of a later tick — recorded,
-  replayable with no store present, dispatched to `on_platform_event` and to whoever
-  awaits the id.
+  replayable with no store present, waking whoever awaits the id; who is playing
+  is also the `platform_event` event.
 - **A write waits for its tick to settle.** A rollback cannot take an
   achievement back, so an outward call is held until its tick leaves the
   snapshot ring (`rollback::Clock`; `u64::MAX` with no session). Reads are never

@@ -1031,8 +1031,9 @@ impl Editor {
     }
 
     /// An answer to a request the editor sent: the font catalogue's.
-    pub fn on_response(reply: any) {
-        fonts::on_response(self.state, reply);
+    pub async fn await_font_reply(request: int) {
+        let reply = await task::wait(request);
+        fonts::answered(self.state, reply);
     }
 
     /// Files dropped on the window, imported where the pointer is.

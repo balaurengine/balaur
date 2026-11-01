@@ -17,7 +17,40 @@ pub(super) struct Pending {
     pub(super) done: Option<u64>,
 }
 
+/// An async method a script asked of its own instance from a plain method:
+/// `self.node.call("await_reply", id)`. It starts once the instance is free,
+/// which is before any wake, so the token it waits on cannot wake first.
+pub(super) struct WaitingStart {
+    pub(super) node: u64,
+    pub(super) method: String,
+    pub(super) args: Vec<Value>,
+    pub(super) done: Option<u64>,
+}
+
 impl BsHost {
+    /// Starts what was asked of an instance that was busy.
+    pub(super) fn run_waiting_starts(&self) {
+        let waiting = std::mem::take(&mut *self.inner.waiting_starts.borrow_mut());
+        for start in waiting {
+            let inst = self
+                .inner
+                .instances
+                .borrow()
+                .iter()
+                .find(|inst| inst.node == start.node)
+                .cloned();
+            let Some(inst) = inst else {
+                continue;
+            };
+            let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
+                continue;
+            };
+            if let Err(why) = self.run(&file, &inst, &start.method, &start.args, start.done) {
+                tracing::error!("{why:#}");
+            }
+        }
+    }
+
     /// Starts async `method` and runs it to its first await; `Some` when it
     /// finished there.
     pub(super) fn start(
@@ -54,6 +87,7 @@ impl BsHost {
 
     /// Hands `payload` to the instance awaiting `token`, then runs on what can.
     pub(super) fn deliver(&self, token: u64, payload: &Value) {
+        self.run_waiting_starts();
         let mut woke = false;
         for home in self.homes() {
             let Ok(mut rt) = home.rt.try_borrow_mut() else {

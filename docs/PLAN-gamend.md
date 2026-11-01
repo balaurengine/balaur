@@ -217,8 +217,8 @@ Designed on 2026-09-18, before building past the first tab. The dock is an
 editor plugin the addon carries (`addons/gamend/editor/gamend.bs`), so only a
 project with the addon shows it, and it is written the way anyone's plugin
 is: `register()` returning docks, windows and commands. Since 2026-10-24 it
-is Balaur Script and fills the kit's rows on the editor's words; a reply
-reaches its `on_gamend_event`, which says the dock moved, so nothing polls.
+is Balaur Script and fills the kit's rows on the editor's words; a method
+awaits each reply and says the dock moved, so nothing polls.
 
 **One header, seven sub-tabs, then a tab per feature.** The header is one
 row: the server target as two chips, `Open` and `Admin` links to the

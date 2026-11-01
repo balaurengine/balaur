@@ -124,14 +124,11 @@ impl FnGen<'_> {
         }
         let sig = self.g.sigs.get(name).cloned().ok_or_else(|| Error {
             pos,
-            msg: match name.split_once("::") {
-                Some((m, f)) if self.g.sigs.contains_key(&format!("{m}::#{f}")) => {
-                    format!("`{f}` is private to `{m}`: mark it `pub` there")
-                }
-                Some(_) => format!("the engine has no `{name}`"),
-                None => format!("unknown function `{name}`"),
-            },
+            msg: self.no_function(name),
         })?;
+        if matches!(sig.kind, Kind::Extern | Kind::Host) {
+            self.no_node_for_a_reply(name, args, pos)?;
+        }
         match sig.kind {
             Kind::ExternAsync | Kind::HostAsync | Kind::Async => {
                 return err(
@@ -163,6 +160,39 @@ impl FnGen<'_> {
             }
         }
         Ok(sig.ret)
+    }
+
+    // Why `name` calls nothing.
+    fn no_function(&self, name: &str) -> String {
+        match name.split_once("::") {
+            Some((m, f)) if self.g.sigs.contains_key(&format!("{m}::#{f}")) => {
+                format!("`{f}` is private to `{m}`: mark it `pub` there")
+            }
+            Some(_) => super::dropped::function(name)
+                .unwrap_or_else(|| format!("the engine has no `{name}`")),
+            None => format!("unknown function `{name}`"),
+        }
+    }
+
+    /// A call whose one reply is what `task::wait` answers names no node to tell.
+    fn no_node_for_a_reply(&mut self, name: &str, args: &[Expr], pos: Pos) -> R<()> {
+        let Some(first) = args
+            .first()
+            .filter(|_| super::dropped::answers_by_await(name))
+        else {
+            return Ok(());
+        };
+        let nil = matches!(&first.kind, ExprKind::Nil)
+            || matches!(&first.kind, ExprKind::Call(callee, _) if callee == "nil");
+        if nil || self.type_of(first)? == Ty::Node {
+            return err(
+                pos,
+                format!(
+                    "`{name}` takes no node: await what it answers, `await task::wait({name}(..))`"
+                ),
+            );
+        }
+        Ok(())
     }
 
     /// A spelling a value has no more, refused by name with the one it keeps.

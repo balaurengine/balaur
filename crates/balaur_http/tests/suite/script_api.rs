@@ -74,7 +74,7 @@ fn a_delete_carries_the_body_it_was_given() {
 pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
-        let r = await task::wait(http::request("{url}", {{ "method": "DELETE", "body": "ids=7" }}));
+        let r = await task::wait(http::request("{url}", http::RequestOptions {{ method: "DELETE", body: "ids=7" }}));
         let status = r["status"];
         let body = r["body"];
         log::info("delete-echo {{status}} {{body}}");
@@ -85,45 +85,9 @@ impl Scenario {{
     run_until(&source, &["delete-echo 200 ids=7"]);
 }
 
-/// The response handler named through `on_response`, rather than the default
-/// `on_response` method.
+/// A reply is awaited, and so is the next.
 #[test]
-fn a_script_awaits_a_request_and_takes_another_through_a_named_handler() {
-    if !e2e_enabled() {
-        return;
-    }
-    let awaited =
-        serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nquail");
-    let handled =
-        serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nhello");
-    let source = format!(
-        r#"
-pub class Scenario {{ node: Node, request: int }}
-impl Scenario {{
-    async fn init() {{
-        let r = await task::wait(http::request("{awaited}"));
-        let status = r["status"];
-        let body = r["body"];
-        log::info("named-await {{status}} {{body}}");
-        self.request = http::request(self.node, "{handled}", http::RequestOptions {{ on_response: "on_login" }});
-    }}
-
-    pub fn on_login(r: any) {{
-        if r["request"].as_int() == self.request {{
-            let status = r["status"];
-            let body = r["body"];
-            log::info("named-http {{status}} {{body}}");
-        }}
-    }}
-}}
-"#
-    );
-    run_until(&source, &["named-await 200 quail", "named-http 200 hello"]);
-}
-
-/// The same two paths through the default handler name.
-#[test]
-fn a_script_awaits_a_request_and_takes_another_through_on_response() {
+fn a_script_awaits_one_request_after_another() {
     if !e2e_enabled() {
         return;
     }
@@ -133,28 +97,20 @@ fn a_script_awaits_a_request_and_takes_another_through_on_response() {
         serve_one("HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nrhino");
     let source = format!(
         r#"
-pub class Scenario {{ node: Node, request: int }}
+pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
         let r = await task::wait(http::request("{awaited}"));
         let status = r["status"];
         let body = r["body"];
-        log::info("default-await {{status}} {{body}}");
-        self.request = http::request(self.node, "{handled}");
-    }}
-
-    pub fn on_response(r: any) {{
-        if r["request"].as_int() == self.request {{
-            let status = r["status"];
-            let body = r["body"];
-            log::info("default-http {{status}} {{body}}");
-        }}
+        log::info("first {{status}} {{body}}");
+        let r = await task::wait(http::request("{handled}"));
+        let status = r["status"];
+        let body = r["body"];
+        log::info("second {{status}} {{body}}");
     }}
 }}
 "#
     );
-    run_until(
-        &source,
-        &["default-await 200 raven", "default-http 200 rhino"],
-    );
+    run_until(&source, &["first 200 raven", "second 200 rhino"]);
 }

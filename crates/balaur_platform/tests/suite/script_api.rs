@@ -6,37 +6,31 @@
 
 use balaur_testkit::{e2e_enabled, run_until};
 
-/// Both shapes in one boot: a call awaited for its answer, and a call whose
-/// answer arrives at a named handler method.
+/// A call awaited for its answer, and the next.
 #[test]
-fn a_script_awaits_a_call_and_takes_another_through_a_handler() {
+fn a_script_awaits_one_call_after_another() {
     if !e2e_enabled() {
         return;
     }
     run_until(
         r#"
-pub class Scenario { node: Node, request: int }
+pub class Scenario { node: Node }
 impl Scenario {
     async fn init() {
         let store = platform::backend();
         let r = await task::wait(platform::sign_in().as_int());
         let kind = r["kind"];
         log::info("platform-await {store} {kind}");
-        self.request = platform::unlock(self.node, "first_blood", { "on_event": "on_store" }).as_int();
-    }
-
-    pub fn on_store(e: any) {
-        if e["request"].as_int() == self.request {
-            let kind = e["kind"];
-            let call = e["call"];
-            log::info("platform-handler {kind} {call}");
-        }
+        let e = await task::wait(platform::unlock("first_blood").as_int());
+        let kind = e["kind"];
+        let call = e["call"];
+        log::info("platform-second {kind} {call}");
     }
 }
 "#,
         &[
             "platform-await none unsupported",
-            "platform-handler unsupported unlock",
+            "platform-second unsupported unlock",
         ],
     );
 }

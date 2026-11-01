@@ -1,6 +1,9 @@
-// Ship a run's log lines to Gamend in batches, as the Godot addon's
-// GamendLogs did. Functions over one `Sink`: `log_sink.bs` keeps it on its
-// node and pumps it each frame, and a game with its own loop can too.
+// Ship a run's log lines to Gamend in batches. Functions over one `Sink`:
+// `log_sink.bs` keeps it on its node, pumps it, and settles what it asked in a
+// `settle_reply` method; a game with its own loop writes the same.
+
+/// The method on the node given to `pump` that awaits a request.
+const SETTLE_REPLY: str = "settle_reply";
 
 const POLICY_PATH: str = "/api/v1/client_logs/policy";
 const INGEST_PATH: str = "/api/v1/client_logs";
@@ -250,7 +253,8 @@ fn ask_policy(sink: &mut Sink, node: Node) {
     sink.retry_in = RETRY;
     let url = sink.url + POLICY_PATH;
     let opts: any = { "headers": headers(sink), "timeout_seconds": 10.0 };
-    sink.policy = http::request(node, url, opts);
+    sink.policy = http::request(url, opts);
+    node.call(SETTLE_REPLY, sink.policy);
 }
 
 fn policy_came(sink: &mut Sink, reply: any) {
@@ -426,7 +430,9 @@ fn send(sink: Sink, node: Node, lines: [Line]) -> int {
         "body": body,
         "timeout_seconds": 15.0,
     };
-    http::request(node, url, opts)
+    let asked = http::request(url, opts);
+    node.call(SETTLE_REPLY, asked);
+    asked
 }
 
 /// Lines as the server takes them, a repeat folded into its message.

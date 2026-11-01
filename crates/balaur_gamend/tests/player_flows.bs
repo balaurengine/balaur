@@ -512,11 +512,11 @@ async fn goodbye(r: Run, me: str, params: any) {
 
 /// Sign in, waiting out the server's limit on sign-ins.
 async fn sign_in(r: Run, device: str) -> any {
-    let login = await task::wait(client::login_device(r.node, device));
+    let login = await task::wait(client::login_device(device));
     let tries = 0;
     while limited_login(login) && tries < LIMITED_TRIES {
         await pause();
-        login = await task::wait(client::login_device(r.node, device));
+        login = await task::wait(client::login_device(device));
         tries += 1;
     }
     login
@@ -538,41 +538,41 @@ async fn pause() {
 
 // An SDK call, made again while the server answers 429; its status noted
 // under `name`, and its reply's data answered. One per arity of the SDK's
-// functions after the node, since a call is passed as the function itself.
+// functions, since a call is passed as the function itself.
 
-async fn call0(r: Run, name: str, make: fn(Node) -> any) -> any {
+async fn call0(r: Run, name: str, make: fn() -> any) -> any {
     let reply = await fetch0(r, make);
     note(r, name, reply)
 }
 
-async fn call1(r: Run, name: str, make: fn(Node, any) -> any, a: any) -> any {
-    let reply = await task::wait(make(r.node, a).as_int());
+async fn call1(r: Run, name: str, make: fn(any) -> any, a: any) -> any {
+    let reply = await task::wait(make(a).as_int());
     let tries = 0;
     while limited(reply) && tries < LIMITED_TRIES {
         await pause();
-        reply = await task::wait(make(r.node, a).as_int());
+        reply = await task::wait(make(a).as_int());
         tries += 1;
     }
     note(r, name, reply)
 }
 
-async fn call2(r: Run, name: str, make: fn(Node, any, any) -> any, a: any, b: any) -> any {
-    let reply = await task::wait(make(r.node, a, b).as_int());
+async fn call2(r: Run, name: str, make: fn(any, any) -> any, a: any, b: any) -> any {
+    let reply = await task::wait(make(a, b).as_int());
     let tries = 0;
     while limited(reply) && tries < LIMITED_TRIES {
         await pause();
-        reply = await task::wait(make(r.node, a, b).as_int());
+        reply = await task::wait(make(a, b).as_int());
         tries += 1;
     }
     note(r, name, reply)
 }
 
-async fn call3(r: Run, name: str, make: fn(Node, any, any, any) -> any, a: any, b: any, c: any) -> any {
-    let reply = await task::wait(make(r.node, a, b, c).as_int());
+async fn call3(r: Run, name: str, make: fn(any, any, any) -> any, a: any, b: any, c: any) -> any {
+    let reply = await task::wait(make(a, b, c).as_int());
     let tries = 0;
     while limited(reply) && tries < LIMITED_TRIES {
         await pause();
-        reply = await task::wait(make(r.node, a, b, c).as_int());
+        reply = await task::wait(make(a, b, c).as_int());
         tries += 1;
     }
     note(r, name, reply)
@@ -580,12 +580,12 @@ async fn call3(r: Run, name: str, make: fn(Node, any, any, any) -> any, a: any, 
 
 /// An SDK call of no arguments, made again while the server answers 429:
 /// the whole reply, its status unnoted.
-async fn fetch0(r: Run, make: fn(Node) -> any) -> any {
-    let reply = await task::wait(make(r.node).as_int());
+async fn fetch0(r: Run, make: fn() -> any) -> any {
+    let reply = await task::wait(make().as_int());
     let tries = 0;
     while limited(reply) && tries < LIMITED_TRIES {
         await pause();
-        reply = await task::wait(make(r.node).as_int());
+        reply = await task::wait(make().as_int());
         tries += 1;
     }
     reply

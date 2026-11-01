@@ -89,10 +89,7 @@ pub async fn init(this) {
     if player["kind"] == "unsupported" {
         log::info("no store here; playing offline");
     }
-    platform::unlock(this.node, "first_blood");
-}
-
-pub fn on_platform_event(this, e) {
+    let e = task::wait(platform::unlock("first_blood")).await;
     if e["kind"] == "unlocked" { log::info(`achievement ${e["id"]}`); }
 }
 ```

@@ -362,7 +362,7 @@ impl Counter {
 
 /// One node named `name`, running `scripts/<name>.bs`: a script's class is
 /// named after its file, so `Counter` runs from `scripts/counter.bs`.
-fn one_script(name: &str, source: &str) -> tempfile::TempDir {
+pub(super) fn one_script(name: &str, source: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -715,10 +715,11 @@ fn payloads_cross_between_scripts_as_any() {
 
 #[test]
 fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
-    let source = "pub class Fetcher { request: any }
+    let source = "pub class Fetcher { kept: any }
 impl Fetcher {
     fn init() {
-        self.request = http::request(\"https://example.com\", nil(), nil());
+        script::store(\"key\", nil());
+        self.kept = script::stored(\"key\");
     }
 }
 ";

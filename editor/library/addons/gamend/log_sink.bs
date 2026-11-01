@@ -34,7 +34,10 @@ impl LogSink {
         }
     }
 
-    pub fn on_response(reply: any) {
+    /// What `logs` asked comes back: the node's own wait, so it asks from
+    /// `update`.
+    pub async fn settle_reply(request: int) {
+        let reply = await task::wait(request);
         logs::settle(self.sink, reply);
     }
 }

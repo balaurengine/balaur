@@ -83,7 +83,7 @@ fn set_clock(app: &App, tick: u64, settled: u64) {
 fn start(app: &App, id: u64, call: Call) {
     let state = app.engine.resource::<PlatformState>();
     let mut state = state.borrow_mut();
-    state.start(&app.engine, id, call, None);
+    state.start(&app.engine, id, call);
 }
 
 #[test]
