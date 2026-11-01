@@ -106,7 +106,7 @@ drops Godot's `get_` (NAMING N7).
 | `transform_format`, `use_colors`, `use_custom_data` | none: every instance carries a transform, a colour and custom data | not planned |
 | `buffer` | `set_instances(list)` in the asset's shape, and `buffer()` and `set_buffer(floats)` in Godot's layout | step 2, step 7 |
 | `custom_aabb`, `get_aabb` | the bounds culling reads | `PLAN-views-and-culling.md` step 1 |
-| `physics_interpolation_quality`, `reset_instance_physics_interpolation` | the node's pose blends under `[time] interpolate`; an instance moved each fixed step does not, since that means keeping a second list | not planned |
+| `physics_interpolation_quality`, `reset_instance_physics_interpolation` | the node's pose blends when the display rate differs from the tick rate; an instance moved each fixed step does not, since that means keeping a second list | not planned |
 | the editor's MultiMesh › Populate Surface | a Populate sheet on the component, over `populate(options)` on the handle | step 5 |
 
 An index past the end is an error that names the count.

@@ -123,8 +123,8 @@ long-lived, so it never shrinks.
   writing the field. It goes on any node, shape or none: this is the node
   you set a look on. A `NodeMaterial` marker keeps it present while it names
   nothing yet, and it also reads back a material a script set.
-- `node.material()`, `node.set_material(ref)` and `node.effective_material()`,
-  the same three verbs the tint has.
+- `node.material()` and `node.effective_material()`; the `material` component
+  is how one is set.
 - **A renderable's own `material` stays its own.** `shape3d`, `shape2d`,
   `mesh`, `sprite` and `tilemap` keep `Renderable3d::material` and friends. A
   renderable draws with its own when it names one and with

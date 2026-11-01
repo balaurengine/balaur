@@ -151,7 +151,6 @@ still gets a function, because the next game has one.
 
 ```rune
 pub async fn init(this) {
-    gamend::configure("https://play.example");
     task::wait(gamend::login(#{ provider: gamend::PROVIDER_STEAM, ticket: ticket })).await;
     let ticket = task::wait(gamend::matchmaking_join(this.node, #{ mode: "duel" }, #{ min_players: 2 })).await;
 }
@@ -299,11 +298,12 @@ declares, so it is on the settings screen like any other:
 | `gamend/url` | project | `https://gamend.org` | The server a shipped game talks to: `https://polyglotpirates.com` for that game |
 | `gamend/local_url` | project | `http://localhost:4000` | A developer's own `mix dev.start` |
 | `gamend/plugin` | project | empty | The server plugin hooks are called in |
-| `gamend/server` | editor | `production` | `production` or `local`: the person's choice, kept in the editor's own file so it can never ship |
+| `gamend/server` | editor | `local` | `production` or `local`: the person's choice, kept in the editor's own file so it can never ship |
 
-`client.rn`'s `configure()` with no argument reads them. `gamend/server`
-is the header's two chips. An exported game has no editor file, so it can
-only ever read `gamend/url`. `configure(url)` with an argument still wins,
+The first call that reaches a server configures the plugin from them, unless
+`GAMEND_URL` is in the environment. `gamend/server` is the header's two chips;
+with none picked a run from the sources talks to `gamend/local_url`. An exported
+game has no editor file, so it reads `gamend/url`. `configure(url)` still wins,
 for a game that picks its server at run time.
 
 **Logs: a cursor, a file, and shipping.** Today `log::recent(n)` is the

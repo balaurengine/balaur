@@ -111,7 +111,7 @@ shut, 12.84 ms of wall is `render cpu` and `scripts/update` drawing and
 stepping 2000 nodes, and that belongs to the renderer and the tick.
 
 Two things the table does not say. An offscreen run takes a pass every frame,
-while a windowed editor sets `ui.set_lazy` and skips passes when nothing
+while a windowed editor sets `[window] low_processor` and skips passes when nothing
 moves, so these are the numbers for dragging or typing rather than sitting
 still. And shutting a dock hides its contents as well as its frame, so the
 flat 1 ms is a floor for the chrome rather than a measurement of it.
@@ -250,7 +250,7 @@ frame moves the total and leaves the difference between two runs alone.
 
 ## 6. The tessellation a skipped pass still pays
 
-`ui.set_lazy` skips the pass, not the drawing. kiss3d's `EguiRenderer::render`
+A lazy UI skips the pass, not the drawing. kiss3d's `EguiRenderer::render`
 clones every shape and tessellates all of them on every frame, whether or not a
 pass replaced them. An idle editor therefore pays the tessellator in full, which
 is most of what the web editor costs while nobody touches it. Caching the

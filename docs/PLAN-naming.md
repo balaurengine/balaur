@@ -42,7 +42,7 @@ with no alias and no migration, as `one way to do a thing` asks.
   place of positional booleans.
   Settings keys name their unit (`timeout_seconds`, `delay_ticks`,
   `narrow_below_pixels`, `max_rate_hz`), read as their type (`to_file`,
-  `simulate_faults`, `migrate_script`, `script_language`, `[locale] initial`,
+  `simulate_faults`, `migrate_script`, `[locale] initial`,
   `force_mono`), and match the store's word (`display_name`, `min_ios`,
   `build_number`, `team_id`, `sign-in-with-apple`, `quantized`).
   Signing keys live in the table of the platform they sign for, the

@@ -179,9 +179,8 @@ one backend; the Rune backend before it was one crate and went as one.
 - Nothing subscribes with a closure — that lifetime is call-scoped. A
   subscription is a node plus a method name: `ScriptHost::call_on(node, method,
   args)`. Persistent callbacks would need an id space with explicit release.
-- Most events also ship a polling twin (`animation.just_finished(node)`,
-  `input.key_just_pressed(key)`): an event is a frame-scoped
-  snapshot.
+- Input also answers when asked (`input.key_just_pressed(key)`): a press is a
+  frame-scoped snapshot.
 - `events.listen(node, name)` / `events.emit(name, payload)` deliver
   `on_<name>(payload)` at the top of the next `Update`, in emission then
   subscription order. The frame of delay keeps a handler from freeing the node
@@ -193,8 +192,6 @@ one backend; the Rune backend before it was one crate and went as one.
 - A scene inits its scripts children before parents, Godot's `_ready` order: a
   child can always reach its parent node, while a parent reading a child's
   script state is the one that would find nothing.
-- `script_language` in `project.toml` names the language; absent means `bs`,
-  the one this build runs.
 
 ### Model
 
@@ -331,8 +328,11 @@ holds it. On a phone-sized screen of 55 cards, in release, the first visit takes
   A system memory warning frees them all. The budget is a node count rather than
   a share of the machine's memory: a parked tree is in the digest, and two
   machines must park alike. A scene freed is built again on the next visit.
-- **`scene.unload(path)` is `scene.preload`'s inverse.** It frees the parked scene
-  and drops its parsed files and pictures, for a scene a game wants new.
+- **A pack warms what it ships.** After the first frame, one scene a frame is read
+  and parsed and its pictures decoded off the frame, one a pass, so a first visit
+  is no slower than the next; a memory warning ends it.
+- **`scene.unload(path)` lets go.** It frees the parked scene and drops its parsed
+  files and pictures, for a scene a game wants new.
 - **A multiplayer session starts with none.** Each peer visited its own screens
   on the way there, and a rollback would carry them every tick.
 
@@ -440,7 +440,7 @@ and remove hooks.
 
 A second set of components over the same tree, on the same `transform`.
 
-- `shape2d` (seven kinds, `circle` to `polyline`) and `sprite` render through a pan/zoom
+- `shape2d` (six kinds) and `sprite` render through a pan/zoom
   orthographic camera: `render.set_camera_2d(cx, cy, zoom)` in logical px per
   world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
 - `body2d`/`collider2d` run in a rapier2d world beside the 3D one — same
@@ -453,7 +453,7 @@ A second set of components over the same tree, on the same `transform`.
 - Changing the frame moves UVs only and does not bump the renderable's version;
   changing texture or sheet does.
 - `physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed`,
-  `sleeping_allowed`, `set_tuning`, `set_debug_draw`, `set_threads` span both
+  `sleeping_allowed`, `set_tuning`, `set_debug_draw` span both
   worlds, so an editor treats physics as one simulation.
 - The editor detects a 2D scene from its components and switches grid, camera,
   gizmo, picking and collider overlays. `examples/angrynerds` is a full 2D game.
@@ -752,6 +752,7 @@ such an export pack: the editor's, never a game template.
   variant is a game template, with no editor and no compiler, takes its
   platform's tags and is found as `balaur-runtime-<target>-<variant>`. A
   server is a target of its own; `[export] runtime` turns `web` into `web-2d`,
+  by default whichever is the smallest the game's scenes and scripts fit,
   and the export refuses a game whose scenes or scripts use the world it
   leaves out, since a script's body is invisible until it runs. CI builds,
   exports and runs every one; `scripts/features.sh` holds the feature sets.
@@ -899,9 +900,9 @@ write. It walks widgets in scene order and wraps.
 - A widget calls the method its `on_<verb>` key names and emits the event of
   that name without the `on_`: `click`, `change`, `submit`. The key reaches one
   method, the event reaches whoever subscribed or is awaiting it.
-- egui drives keyboard focus, but only once a project declares a `ui_*` action
-  or a script calls `ui.set_keyboard_focus`, so a game's arrows stay its own. A
-  pad goes through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
+- The keyboard drives focus until the game shows the keys are its own: an action
+  binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
+  declares a `ui_*` action. A pad goes through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
   to the actions `ui_next`, `ui_previous`, `ui_accept` — wiring in the
   assembling crate, since `balaur_ui` has no pads and `balaur_input` no widgets.
 
@@ -938,9 +939,9 @@ write. It walks widgets in scene order and wraps.
 and the engine RNG would put what a player hears into the simulation's stream.
 Where the rotation got to is presentation: not snapshotted, not digested.
 
-**Positional.** A `listener` node is the ears: distance sets volume, offset
-across its right sets pan. A sound is placed by its `sound` component or per
-call; `audio.set_listener_position` covers a game whose ears are not a node.
+**Positional.** A `listener` node is the ears, else the current camera, a 3D one
+over a 2D one: distance sets volume, offset across its right sets pan. A sound
+is placed by its `sound` component or per call.
 
 - Attenuation is `inverse`, halving per doubling, or `inverse_square`,
   quartering, full inside `min_distance` and cut at `max_distance`. Pan is
@@ -1456,7 +1457,7 @@ fire = ["mouse:left"]
   the fixed step, never recorded, and skipped on a rollback's second run of a
   tick, where their timers would count twice.
 - The keyboard height lives on `DeviceFacts`, beside the safe area a layout
-  reads with it; `avoid_keyboard` on a root widget measures from its top.
+  reads with it; every root but a backdrop measures its bottom from its top.
 
 ## Showcase: the manual's pictures are a test
 

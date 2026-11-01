@@ -19,30 +19,31 @@ atomics only that build has.
 | Feature | Default | Web runtime | What it is | Adds to a web build |
 | --- | --- | --- | --- | --- |
 | `apple` | off | off | `apple.*` for scripts, and Game Center and iCloud under `platform.*`. Off, a build drops GameKit and the objc2 bindings to it. `platform.*` is always there; with no store behind it every call answers `unsupported`. | `balaur_apple` |
-| `audio` | on | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | `cpal`, `rodio`, `symphonia`, `atomic_float`, `balaur_audio`, `chacha20`, … (26 crates) |
-| `browser` | on | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | `balaur_browser` |
-| `bs` | on | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | nothing |
-| `bs-jit` | on | on |  | nothing |
+| `audio` | off | on | Sound. Off, a build drops rodio, cpal and the platform audio stack. | nothing |
+| `browser` | off | on | `browser.*` for scripts: the page a browser build runs in. Always compiles; off the web every call answers nil. | nothing |
+| `bs` | off | off | Balaur Script (`.bs`), the language scripts are written in: `bs` on wasmi or an iOS export's native build, `bs-jit` on wasmtime (5 to 7 times wasmi, about 11 MB; not on the web or iOS), `bs-web` on the page's own engine. | nothing |
+| `bs-jit` | off | on |  | nothing |
 | `bs-wasmi` | off | off | The interpreter alone: what the web editor's module adds beside `bs-web` so a debugger can park a call. | nothing |
 | `bs-web` | off | on |  | nothing |
-| `compile` | on | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the export pack. | nothing |
-| `editor` | on | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | `audio-codec-algorithms`, `audioadapter`, `audioadapter-buffers`, `audioadapter-sample`, `balaur_export`, `crc`, … (26 crates) |
+| `compile` | off | off | The WESL shader linker and the `.bs` to C translator: a dev run, the editor and an export. A template leaves it off and draws with the shaders an export linked into the export pack. | nothing |
+| `editor` | off | off | The editor: `edit` and `export`, the `export.*` and `project.*` modules its scripts call, a browser tab's editor entry points, and egui's bundled faces. A game template leaves it off. | nothing |
 | `extensions` | off | off | Load extensions from a project's extensions/ directory at run time. | `libloading` |
-| `flac` | on | on | One feature per container `audio` decodes; a build without one plays none of that format. | `symphonia-bundle-flac` |
-| `gamend` | on | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | `balaur_gamend` |
-| `http` | on | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | `balaur_http` |
-| `import` | on | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | `arrayref`, `aseprite-loader`, `balaur_import`, `color_quant`, `data-url`, `float-cmp`, … (30 crates) |
-| `mp3` | on | on |  | `symphonia-bundle-mp3` |
-| `mp4` | on | on |  | `symphonia-codec-aac`, `symphonia-format-isomp4` |
-| `multiplayer` | on | on | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | `balaur_multiplayer` |
-| `parallel` | on | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | `crossbeam-deque`, `crossbeam-epoch`, `crossbeam-utils`, `rayon`, `rayon-core` |
-| `physics2d` | on | on | The 2D physics world: `physics2d.*`, its components and presets. | nothing |
-| `physics3d` | on | on | The 3D physics world: `physics3d.*`, its components and presets. | nothing |
-| `vorbis` | on | on |  | `symphonia-codec-vorbis`, `symphonia-format-ogg` |
-| `wav` | on | on |  | `extended`, `symphonia-codec-pcm`, `symphonia-format-riff` |
-| `websocket` | on | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build without `gamend` drops tungstenite, rustls and the frame codec; Gamend's realtime socket runs on them. | nothing |
-| `webtransport` | on | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | `balaur_webtransport` |
-| `window` | off | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `naga`, `wgpu`, `winit`, … (27 crates) |
+| `flac` | off | on | One feature per container `audio` decodes; a build without one plays none of that format. | nothing |
+| `gamend` | off | on | `gamend.*` for scripts: the Gamend backend (auth, REST, realtime, hooks). | nothing |
+| `headless` | on | off | Every default but the window: a tool that opens none, on a machine that may have no display. Its runs are headless. | nothing |
+| `http` | off | on | `http.*` for scripts. Off, a build drops ureq and its TLS stack. | nothing |
+| `import` | off | off | `balaur import`, `import.*` for the editor and SVGs read in place. The web game runtime leaves it off: a game reads what an import and export wrote. | nothing |
+| `mp3` | off | on |  | nothing |
+| `mp4` | off | on |  | nothing |
+| `multiplayer` | off | on | `multiplayer.*` for scripts: host, join and play a rollback match over whichever of `websocket` and `webtransport` the build has. | nothing |
+| `parallel` | off | off | rapier's solver on rayon. Native builds want it; a browser can only take it with shared memory and atomics, which is the threaded web runtime alone. | nothing |
+| `physics2d` | off | on | The 2D physics world: `physics2d.*`, its components and presets. | nothing |
+| `physics3d` | off | on | The 3D physics world: `physics3d.*`, its components and presets. | nothing |
+| `vorbis` | off | on |  | nothing |
+| `wav` | off | on |  | nothing |
+| `websocket` | off | on | `websocket.*` for scripts, and the websocket `Transport`. Off, a build without `gamend` drops tungstenite, rustls and the frame codec; Gamend's realtime socket runs on them. | nothing |
+| `webtransport` | off | on | The WebTransport `Transport`, over QUIC: the transport rollback and replication are meant to run on. Off, a build drops quinn, its runtime and the certificate machinery, which is most of what a networked build costs. | nothing |
+| `window` | on | on | Windowed rendering (kiss3d/wgpu). | `egui-wgpu`, `glow`, `kiss3d`, `naga`, `wgpu`, `winit`, … (27 crates) |
 
 ## What the web runtime resolves
 

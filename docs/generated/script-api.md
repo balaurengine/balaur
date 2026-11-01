@@ -9,16 +9,16 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
 | Module | Functions | Constants |
 | --- | ---: | ---: |
-| [`animation`](#animation) | 20 | 80 |
+| [`animation`](#animation) | 19 | 80 |
 | [`apple`](#apple) | 20 | 25 |
 | [`assets`](#assets) | 13 | 0 |
-| [`audio`](#audio) | 24 | 1 |
+| [`audio`](#audio) | 23 | 1 |
 | [`browser`](#browser) | 8 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 2 | 0 |
 | [`engine`](#engine) | 30 | 0 |
-| [`events`](#events) | 6 | 0 |
+| [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 6 | 0 |
 | [`forge`](#forge) | 6 | 0 |
 | [`fs`](#fs) | 9 | 0 |
@@ -33,30 +33,30 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 63 | 0 |
-| [`physics`](#physics) | 14 | 0 |
-| [`physics2d`](#physics2d) | 132 | 113 |
-| [`physics3d`](#physics3d) | 142 | 120 |
+| [`node`](#node) | 59 | 0 |
+| [`physics`](#physics) | 13 | 0 |
+| [`physics2d`](#physics2d) | 130 | 111 |
+| [`physics3d`](#physics3d) | 139 | 118 |
 | [`picture`](#picture) | 2 | 0 |
 | [`platform`](#platform) | 11 | 7 |
 | [`project`](#project) | 16 | 0 |
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 5 | 0 |
-| [`render`](#render) | 74 | 45 |
+| [`render`](#render) | 71 | 45 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
-| [`scene`](#scene) | 33 | 0 |
+| [`scene`](#scene) | 32 | 0 |
 | [`script`](#script) | 15 | 0 |
 | [`settings`](#settings) | 12 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 40 | 66 |
+| [`ui`](#ui) | 38 | 66 |
 | [`websocket`](#websocket) | 4 | 9 |
-| [`window`](#window) | 8 | 0 |
+| [`window`](#window) | 7 | 0 |
 
 ## `animation`
 
@@ -71,7 +71,6 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 | `is_playing` | `(Node) -> bool` |
 | `is_tween_running` | `(any) -> bool` |
 | `jump` | `(Node, str)` |
-| `just_finished` | `(Node) -> str?` |
 | `pause` | `(Node)` |
 | `play` | `(Node, str, animation::PlayOptions?)` |
 | `queue` | `(Node, str)` |
@@ -217,7 +216,6 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `seek` | `(Node, float)` |
 | `set_bus_volume_linear` | `(str, float)` |
 | `set_emitter_position` | `(int, any, any, any)` |
-| `set_listener_position` | `(any, any, any)` |
 | `set_pitch_scale` | `(int, float)` |
 | `set_volume_linear` | `(int, float)` |
 | `skip` | `(Node)` |
@@ -337,8 +335,6 @@ Named events between scripts. A node listens for a name and hears it as its `on_
 | Function | Signature |
 | --- | --- |
 | `emit` | `(str, any)` |
-| `emitted` | `(str) -> any` |
-| `emitted_from` | `(Node, str) -> any` |
 | `listen` | `(Node, str, Node?)` |
 | `next` | `(str, Node?) -> int` |
 | `stop_listening` | `(Node, str, Node?)` |
@@ -623,7 +619,7 @@ Deterministic float maths backed by pure-Rust `libm`: the same inputs give the s
 | `abs` | `(float) -> float` |
 | `acos` | `(float) -> float` |
 | `asin` | `(float) -> float` |
-| `atan` | `(float, float?) -> float` |
+| `atan` | `(float) -> float` |
 | `atan2` | `(float, float) -> float` |
 | `ceil` | `(float) -> float` |
 | `clamp` | `(float, float, float) -> float` |
@@ -631,7 +627,7 @@ Deterministic float maths backed by pure-Rust `libm`: the same inputs give the s
 | `cosh` | `(float) -> float` |
 | `exp` | `(float) -> float` |
 | `floor` | `(float) -> float` |
-| `log` | `(float, float?) -> float` |
+| `log` | `(float) -> float` |
 | `log10` | `(float) -> float` |
 | `max` | `(float, float) -> float` |
 | `min` | `(float, float) -> float` |
@@ -727,7 +723,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `has_method` | `(Node, str) -> bool` |
 | `has_tag` | `(Node, str) -> bool` |
 | `instance` | `(Node) -> str?` |
-| `interpolate` | `(Node) -> bool` |
 | `is_valid` | `(Node) -> bool` |
 | `material` | `(Node) -> str` |
 | `name` | `(Node) -> str` |
@@ -743,8 +738,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `script_path` | `(Node) -> str` |
 | `script_props` | `(Node) -> any` |
 | `set_component` | `(Node, str, any)` |
-| `set_interpolate` | `(Node, bool)` |
-| `set_material` | `(Node, str)` |
 | `set_name` | `(Node, str)` |
 | `set_parent` | `(Node, Node)` |
 | `set_process` | `(Node, str)` |
@@ -760,7 +753,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `tags` | `(Node) -> [str]` |
 | `ticking` | `(Node) -> bool` |
 | `tint` | `(Node) -> Color` |
-| `translate` | `(Node, float, float, float)` |
 | `try_patch_component` | `(Node, str, any) -> bool` |
 | `try_set_component` | `(Node, str, any) -> bool` |
 | `visible` | `(Node) -> bool` |
@@ -782,7 +774,6 @@ What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies a
 | `set_paused` | `(bool)` |
 | `set_ragdoll_influence` | `(Node, float)` |
 | `set_sleeping_allowed` | `(bool)` |
-| `set_threads` | `(int)` |
 | `set_tuning` | `(any)` |
 | `sleeping_allowed` | `() -> bool` |
 | `threads` | `() -> int` |
@@ -868,7 +859,6 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `reset_softbody_forces` | `(Node)` |
 | `set_angular_velocity` | `(Node, float)` |
 | `set_cell_tear_resistance` | `(Node, int, float)` |
-| `set_collider` | `(Node, any)` |
 | `set_constant_force` | `(Node, float, float)` |
 | `set_constant_torque` | `(Node, float)` |
 | `set_edge_tear_resistance` | `(Node, int, float)` |
@@ -882,7 +872,6 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `set_particle_position` | `(Node, int, any)` |
 | `set_particle_target` | `(Node, int, any)` |
 | `set_particle_velocity` | `(Node, int, any)` |
-| `set_softbody` | `(Node, any)` |
 | `set_voxel` | `(Node, int, int, bool)` |
 | `set_voxel_size` | `(Node, float, float)` |
 | `shapecast` | `(physics2d::ShapeQuery) -> physics2d::Hit?` |
@@ -927,7 +916,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `wake_up` | `(Node)` |
 | `world_center_of_mass` | `(Node) -> any` |
 
-**Constants** (113):
+**Constants** (111):
 
 | Name | Value |
 | --- | --- |
@@ -956,7 +945,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `COMBINE_MAX` | `"max"` |
 | `COMBINE_MIN` | `"min"` |
 
-…and 89 more.
+…and 87 more.
 
 ## `physics3d`
 
@@ -1039,7 +1028,6 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `set_angular_velocity` | `(Node, float, float, float)` |
 | `set_brake` | `(Node, float)` |
 | `set_cell_tear_resistance` | `(Node, int, float)` |
-| `set_collider` | `(Node, any)` |
 | `set_constant_force` | `(Node, float, float, float)` |
 | `set_constant_torque` | `(Node, float, float, float)` |
 | `set_edge_tear_resistance` | `(Node, int, float)` |
@@ -1054,7 +1042,6 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `set_particle_position` | `(Node, int, any)` |
 | `set_particle_target` | `(Node, int, any)` |
 | `set_particle_velocity` | `(Node, int, any)` |
-| `set_softbody` | `(Node, any)` |
 | `set_steering` | `(Node, float)` |
 | `set_voxel` | `(Node, int, int, int, bool)` |
 | `set_voxel_size` | `(Node, float, float, float)` |
@@ -1084,7 +1071,6 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `softbody_volume` | `(Node) -> float` |
 | `softbody_volume_pieces` | `(Node) -> [any]` |
 | `solve_ik` | `(Node, float, float, float, physics3d::IkOptions?)` |
-| `speed` | `(Node) -> float` |
 | `swept_aabb` | `(Node) -> [float]` |
 | `tear_cell` | `(Node, int)` |
 | `tear_edge` | `(Node, int)` |
@@ -1107,7 +1093,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `wheel_state` | `(Node) -> any` |
 | `world_center_of_mass` | `(Node) -> any` |
 
-**Constants** (120):
+**Constants** (118):
 
 | Name | Value |
 | --- | --- |
@@ -1136,7 +1122,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `COLLIDE_KINEMATIC_KINEMATIC` | `"kinematic_kinematic"` |
 | `COLLIDE_KINEMATIC_STATIC` | `"kinematic_static"` |
 
-…and 96 more.
+…and 94 more.
 
 ## `picture`
 
@@ -1287,7 +1273,6 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `populate` | `(Node, render::PopulateOptions) -> any` |
 | `screenshot` | `(str)` |
 | `set_background` | `(float, float, float)` |
-| `set_box` | `(Node, float, float, float)` |
 | `set_buffer` | `(Node, any)` |
 | `set_camera` | `(float, float, float, float, float, float)` |
 | `set_camera_2d` | `(float, float, float)` |
@@ -1301,10 +1286,8 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `set_instance_region` | `(Node, int, any, any)` |
 | `set_instance_transform` | `(Node, int, any)` |
 | `set_instances` | `(Node, any)` |
-| `set_rectangle` | `(Node, float, float)` |
 | `set_shader_preview` | `(str, int)` |
 | `set_shader_probe` | `(float, float)` |
-| `set_sphere` | `(Node, float)` |
 | `set_terrain` | `(Node, int, int, int)` |
 | `set_visible_instance_count` | `(Node, int)` |
 | `shader_probe` | `() -> any` |
@@ -1393,7 +1376,7 @@ Rollback netcode from a script's side. `input` reads this tick's input, real or 
 
 ## `save`
 
-Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.
+Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.
 
 | Function | Signature |
 | --- | --- |
@@ -1427,7 +1410,6 @@ The node tree: its root, lookup by path and instancing, plus the component and p
 | `keep_changes` | `(Node?)` |
 | `node_by_id` | `(str, Node?) -> Node` |
 | `parked` | `() -> [str]` |
-| `preload` | `(str)` |
 | `preset_info` | `(str) -> scene::Preset?` |
 | `presets` | `() -> [str]` |
 | `removed_since` | `(str, int) -> [Node]` |
@@ -1559,8 +1541,6 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |
 | `set_focus` | `(Node)` |
-| `set_keyboard_navigation` | `(bool)` |
-| `set_lazy` | `(bool)` |
 | `set_load_progress` | `(float, str?)` |
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
@@ -1641,7 +1621,6 @@ The OS window and the display under it: mode, cursor, app icon, keep-awake, the 
 | `set_app_icon` | `(str, window::AppIconOptions?)` |
 | `set_cursor_grab` | `(bool)` |
 | `set_cursor_hidden` | `(bool)` |
-| `set_fullscreen` | `(bool)` |
 | `set_keep_awake` | `(bool)` |
 | `set_window_mode` | `(str)` |
 

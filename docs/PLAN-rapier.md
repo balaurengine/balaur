@@ -39,14 +39,13 @@
    Native builds have it on by default and nothing has to ask. The count is the
    performance cores where the operating system rates its cores as more than
    one kind (`task::performance_cores`), else every core; `[physics]
-   threads` and `physics.set_threads` from a script's `init` override it, and
-   the pool is built at the first tick so both are heard. Varying it is safe
+   threads` overrides it, and the pool is built at the first tick. Varying it is safe
    because the digest does not depend on it.
 
    Still open: the event collector takes a `Mutex` per event now that handlers
-   run on rapier's threads. Events are opt-in per collider and a step raises
-   tens, so it should be noise — but a game that turns on contact-force events
-   broadly would serialise there. `cargo bench -p balaur_bench --bench engine
+   run on rapier's threads. A collider raises only what something hears and a
+   step raises tens, so it should be noise — but a game hearing contact forces
+   on everything would serialise there. `cargo bench -p balaur_bench --bench engine
    -- physics_step` is the measurement; the fix, if it shows, is per-thread
    buffers merged after the step, which costs nothing because `take()` already
    sorts by a total key.
@@ -58,7 +57,7 @@
    `closest_points`, `time_of_impact`, `contacts`, `collider_mass`,
    `collider_volume`, `collider_mesh`, `handles`, `effective_dominance`,
    `is_moving`, `potential_energy`, `predict_position_with_forces`,
-   `set_collider`, `solve_ik`, `voxel`, `voxel_at` and `set_voxel`, and
+   `solve_ik`, `voxel`, `voxel_at` and `set_voxel`, and
    `collider2d` has the `voxels`, `voxelized_mesh`, `convex_decomposition`
    and `fit` kinds. *`voxels` shipped 2026-09-06*, with
    `physics2d.set_voxel`, `voxel` and `voxel_at` and a `shape_revision` row in

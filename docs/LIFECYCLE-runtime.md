@@ -72,14 +72,14 @@ Held by a pause, a `process` mode or a parked scene: `advance_system` skips the 
 
 ### Just-finished clip
 
-One node's `Playback` keeps the clip that ended on the last step, for a script that polls.
+One node's `Playback` keeps the clip that ended on the last step, for `animation_finished`.
 
 Source: `crates/balaur_animation/src/player.rs`, `Playback.finished`.
 
 | State | What is true |
 |---|---|
-| `""` (script: `just_finished` nil) | No clip ended on the last step. |
-| the clip's name (script: `just_finished` names it) | That clip ended on the last step. |
+| `""` | No clip ended on the last step. |
+| the clip's name | That clip ended on the last step. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -520,6 +520,7 @@ Source: `crates/balaur_audio/src/spatial.rs`, `Listener.current` and `AudioState
 |---|---|
 | `current=true` | The last such node in `listeners` that is not parked gives the ears their place. |
 | `current=false` | Ignored. |
+| no such node | The ears follow the view: the current camera's pose. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
@@ -733,7 +734,7 @@ stateDiagram-v2
 
 Starts in Intact. Ends in Torn.
 
-Refused or ignored: the `events` row does not gate `tear`, because rapier calls the handler on every tear in a step. `set_edge_tear_resistance` and `set_cell_tear_resistance` move the threshold. A `tear_force` and a `tear_strain` of 0 never tear.
+Refused or ignored: who hears does not gate `tear`, because rapier calls the handler on every tear in a step. `set_edge_tear_resistance` and `set_cell_tear_resistance` move the threshold. A `tear_force` and a `tear_strain` of 0 never tear.
 
 Held by a pause, a `process` mode or a parked scene: step tears wait. `tear_softbody` and `cut_softbody` ask nothing and run through a pause.
 
@@ -826,7 +827,7 @@ Source: `crates/balaur_physics/src/shared/events.rs`, `Event::Started` and `Even
 
 Starts in Apart. Ends when either collider is gone.
 
-Refused or ignored: a collider reports only what its `events` row asks for. Events are sorted by `Event::key`, then delivered after the step.
+Refused or ignored: a collider reports only what its node or its body's node hears (`follow_hearers`). Events are sorted by `Event::key`, then delivered after the step.
 
 Held by a pause, a `process` mode or a parked scene: no step means no events.
 
@@ -1375,23 +1376,23 @@ Refused or ignored: a `Field` with `owner=None`, as a `DragNumber` keeps, is nev
 
 Held by a pause, a `process` mode or a parked scene: a parked node is alive, so its field, its caret and its fold stay and a return finds them.
 
-### Pending theme
+### Worn theme
 
-`UiConfig` holds a theme a script wrote that has not reached egui.
+`UiConfig` holds the theme egui's own controls were last dressed in. The theme in force is the one `ui.set_theme` named, else `[ui] theme`, or `theme_dark` on a dark system.
 
-Source: `crates/balaur_ui/src/lib.rs`, `UiConfig.changed`.
+Source: `crates/balaur_ui/src/lib.rs` and `crates/balaur_ui/src/theme.rs`, `UiConfig.worn_theme` and `out_of_date`.
 
 | State | What is true |
 |---|---|
-| `changed=false` | egui has the theme. |
-| `changed=true` | The next `pass` applies it. Pacing owes a frame for it. |
+| Worn | egui has the theme in force. |
+| Out of date | Another is in force. The next `pass` dresses egui in it. Pacing owes a frame for it. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| false | Script `ui.set_theme` | true | Keeps the tokens. |
-| true | `pass` | false | `theme::apply`. |
+| Worn | Script `ui.set_theme`, the project changing, the system going dark | Out of date | Read on the next frame. |
+| Out of date | `pass` | Worn | `theme::wear`. |
 
-Starts false. Never ends.
+Starts Worn, in the built-in look. Never ends.
 
 ### Pointer on a widget
 
@@ -1950,8 +1951,7 @@ Source: `crates/balaur_ui/src/pacing.rs`, `Pacing.lazy`, `honoured`, `requested`
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | Script `set_lazy` | as asked | Writes `lazy`. |
-| none | `honour_lazy`, by the windowed loop | `honoured` true | An offscreen run stays per frame. |
+| none | `honour_lazy`, by the windowed loop, reading `[window] low_processor` | `lazy` and `honoured` true | An offscreen run stays per frame. |
 | any | Script `request_repaint` with no delay, `ask` | same | Sets `requested` and `owed` for one frame. |
 | any | Script `request_repaint` with `after`, or an egui request | same | Adds a time to `due`. |
 | any | `wants_pass`, each frame | same | Spends `requested` and drops `due` times passed. |
@@ -2013,15 +2013,14 @@ Source: `crates/balaur_ui/src/widget/node.rs`, `WidgetLayerConfig.keyboard`.
 
 | State | What is true |
 |---|---|
-| `keyboard=false` | The arrows, Tab, Enter and Space do nothing to focus. |
+| `keyboard=false` | The arrows, Tab, Enter and Space do nothing to focus: the game took them. |
 | `keyboard=true` | They move and activate it, while egui does not want the keyboard. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | Script `set_keyboard_navigation` | as asked | Writes it. |
-| false | `standard_app`, for a project declaring the `ui_*` actions | true | Writes it. |
+| any | `drive_ui_focus`, each frame | as read | True where the project declares the `ui_*` actions, or where no action binds those keys and no script has read one. |
 
-Starts false. Never ends.
+Starts true. Never ends.
 
 ## Render
 

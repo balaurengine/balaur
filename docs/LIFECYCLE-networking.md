@@ -1075,12 +1075,13 @@ Starts in no row. Ends with its connection.
 
 | State | What is true |
 |---|---|
-| `None` | `login`, `rest` and `connect` return "gamend.configure(url) must be called first". |
+| `None` | Nothing has asked for the server yet. |
 | `Some(SharedClient)` | Calls go to this server. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `GamendState::configure` | `Some(new)` | The new client has no session. Live sockets keep their old clone. |
+| `None` | The first `login`, `rest` or `connect` | `Some(new)` | `target::url`: `GAMEND_URL`, else `[gamend]`, the local server in a dev run. |
+| any | `gamend.configure(url)` | `Some(new)` | The new client has no session. Live sockets keep their old clone. |
 
 Starts in `None`. Never ends.
 

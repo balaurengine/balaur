@@ -433,7 +433,6 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `complete_theme` | 1 | 1 | seam | `(any) -> any` | any in arg 1 `Value`, result `Value` |
 | `contrast` | 1 | 1 | seam | `(str, str) -> any` | any in result `Value` |
 | `finish_loading` | 1 | 0 | seam | `()` |  |
-| `set_lazy` | 1 | 0 | seam | `(bool)` |  |
 | `set_scale` | 1 | 0 | seam | `(float)` |  |
 | `set_theme` | 1 | 0 | seam | `(any)` | any in arg 1 `Value` |
 | `set_widget_surface` | 1 | 0 | seam | `(str, bool, float, float, float, float)` |  |

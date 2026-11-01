@@ -914,7 +914,7 @@ again.
   (`components::written_of`, since 2026-10-31; before, a separate `Authored`
   record kept what each write asked). The
   node keys (`visible`, `tint`, `z_index`, `z_as_relative`, `process`,
-  `interpolate`, `tags`) are read off the node and written where they are
+  `tags`) are read off the node and written where they are
   not the default. A key nothing handles is kept from the file as it was.
 - **Its script.** `{ scripts: false }` still names each node's script, so a
   node carries its script whether or not it runs: `node.script_path` and

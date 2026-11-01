@@ -23,8 +23,9 @@ any system to say so.
 - **Only a script can hold the splash.** `ui.set_load_progress` and
   `ui.finish_loading` (`balaur_ui/src/loading.rs`) keep a picture over a world that
   is already ticking. No engine system can report.
-- **`scene.preload` has no done signal,** `preload::on_component` has one user (a
-  widget's pictures), and nothing preloads the main scene.
+- **A pack warms its scenes by itself,** one a frame with no done signal.
+  `preload::on_component` has one user (a widget's pictures), and nothing preloads
+  the main scene.
 - **`task::compute` and `task::step`** run work off the frame and wake the loop.
   Their threads run at the default priority.
 - **`--timings` shows the bill.** Its boot table runs to the first picture, with
@@ -152,8 +153,7 @@ colour, which needs no pipeline, then the splash once `egui` and tonemap are war
 gate waiting on it would never open. It keeps the splash over a running world, as
 it does now, and feeds the same bar.
 
-**On by default.** Booting preloads the main scene with no call and no setting, and
-`scene.preload` means the same thing for any other scene. After the first frame a
+**On by default.** Booting preloads the main scene with no call and no setting. After the first frame a
 worker warms every other scene in the project, so a first switch does not stall on a
 first launch. A later launch would spend CPU re-parsing for nothing, so a stamp in
 user data (engine build, adapter, pack hash) skips it.

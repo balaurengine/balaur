@@ -1,6 +1,6 @@
 > **Status:** built, bar one item. All four steps below landed: pause and
-> `process`, the time scale and `max_fps`, interpolation behind
-> `[time] interpolate`, and `[time] tick_hz`. What is left is the multiplayer
+> `process`, the time scale and `max_fps`, interpolation when the display and
+> the tick differ, and `[time] tick_hz`. What is left is the multiplayer
 > handshake refusing a peer at another rate, which waits on a handshake to
 > put it in — see [PLAN-multiplayer.md](PLAN-multiplayer.md).
 
@@ -23,11 +23,10 @@
   A run driving at a fixed step ignores it.
 - `[window] max_fps` caps the loop, in `App::run` and in the windowed backend.
   `[window] vsync` was already there.
-- `[time] interpolate` turns on drawing between steps. A node that opts in
-  keeps the poses the last two steps left it in, and the scene sync draws
-  `lerp(previous, current, accumulator / step)`. A moving body and a script
-  declaring `fixed_update` opt in on their own; `interpolate` on the node
-  overrides either way; `node.reset_interpolation()` and both `teleport`s
+- A display more than 1 Hz from the tick rate draws between steps. A moving body
+  and a script declaring `fixed_update` keep the poses the last two steps left
+  them in, and the scene sync draws `lerp(previous, current, accumulator / step)`;
+  `node.reset_interpolation()` and both `teleport`s
   clear it; a rollback clears it with the transforms it restores.
 - `[time] tick_hz` replaces the constant. `balaur_core::fixed_dt()` is what
   every subsystem reads, a recording's header carries the rate, and
@@ -89,12 +88,11 @@ does with everything render-side. A body that teleports resets its
 previous pose, so a respawn does not streak across the level.
 
 **Who interpolates.** A node carrying a dynamic or kinematic body, and a
-node whose script has a `fixed_update`, by default; anything else moves in
-`update` per frame and needs nothing. `interpolate = true | false` on the
-node overrides either way, and `[time] interpolate` in `project.toml` is what
-turns any of it on. Off is the default: the blend is one step behind real
-time, and a run taking exactly one step per frame would pay that latency for
-no smoothness at all.
+node whose script has a `fixed_update`; anything else moves in `update` per
+frame and needs nothing. No key turns it on: the blend runs when the measured
+display rate is more than 1 Hz from the tick rate. The blend is one step behind
+real time, and a run taking exactly one step per frame would pay that latency
+for no smoothness at all, so a display at the tick rate draws the tick.
 
 **The tick rate is a project setting last.** `[time] tick_hz` replaces the
 constant, the recording header carries it, and `MAX_SUBSTEPS` scales with it.
@@ -123,8 +121,8 @@ game has a reason.
    keeps running and each per-node subsystem asks `process::ticks`, because a
    frozen root cannot hold one subtree and let its sibling run.
 2. **Done.** Time scale, the substep cap, `max_fps` and `vsync`.
-3. **Done.** Interpolation, behind `[time] interpolate`, with the body and
-   `fixed_update` defaults.
+3. **Done.** Interpolation, on when the display and the tick differ, for bodies
+   and `fixed_update` scripts.
 4. **Done.** The tick rate setting, in the recording header. The session
    handshake has no message to carry it yet.
 

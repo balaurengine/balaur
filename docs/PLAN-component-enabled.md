@@ -9,8 +9,8 @@
   their own: `body2d`, `body3d`, `collider2d`, `collider3d`, `joint2d`,
   `joint3d`, `modifier2d`, `modifier3d` and `tile_collision`. Each means
   something slightly different, and each is honoured by its own system.
-- `widget` declares both `visible` and `disabled`: one stops the drawing, the
-  other greys the control and refuses its input.
+- `widget` declares both `visible` and `enabled`: the first stops the drawing,
+  the second off greys the control and refuses its input.
 - The other thirty components have no way to be turned off. A `sprite` a scene
   wants gone is removed, which loses what it held, or hidden through the
   node's `visible`, which hides its siblings too.

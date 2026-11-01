@@ -27,12 +27,12 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 
 - `cargo fmt --all --check`.
 - `cargo clippy --workspace --all-targets -- -D warnings`
-- Once for `window`, `extensions`, `apple`
+- Once for `extensions`, `apple`
 - The game templates `scripts/package.sh` builds: `2d` and `3d`, one physics
   world each with a window, and `server` without one
 - Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
 - The workspace for `aarch64-linux-android` and `aarch64-apple-ios`, then the
-  iOS template's `window` and `apple`: the code no host build compiles.
+  iOS template's `apple`: the code no host build compiles.
   `scripts/precommit.sh` skips either without its target, and Android without
   the NDK, whose clang builds the C and C++ under `ring` and HarfBuzz.
 - `examples/extension_greeter`, deliberately outside the workspace: the only
@@ -203,7 +203,7 @@ run it; `scripts/precommit.sh --e2e` does.
 - **render**, twice — the game and the editor surface-less on a real GPU,
   which is where a texture the backend cannot bind or a shader it rejects
   warns. The step reads the `rendering ... offscreen` line back, so a binary
-  built without `--features window` fails rather than repeating the headless
+  built with no `window` feature fails rather than repeating the headless
   run.
 
 Two bars: **a clean exit and a clean log.** A logged `ERROR` or `WARN` fails,
@@ -288,7 +288,7 @@ one entry in `cases_kinds.bs` or `cases_scripts.bs`.
   `package_play.sh` boots each example on the web runtime its
   `[export] runtime` picked.
 - `build.yml` builds a `-2d`, `-3d` and `-server` template of every desktop,
-  exports an example whose `[export] runtime` names it onto each with that
+  exports an example that fits only it onto each with that
   run's editor and plays 60 frames (`VARIANT=... scripts/package.sh`); the
   mobile and web variants go through `scripts/export_check.sh`.
 - `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`

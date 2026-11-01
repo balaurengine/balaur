@@ -55,7 +55,7 @@ Measured 2026-09-13.
   The tick's `input.long_press()` is a second recogniser with its own
   `[input] long_press_seconds`.
 - **The keyboard is done.** [PLAN-touch.md](PLAN-touch.md) built the height,
-  the raise on focus and `avoid_keyboard` on a root, and has not run on a
+  the raise on focus and a root's bottom kept above the keyboard, and has not run on a
   phone.
 - **Nothing renders at a phone's size.** The offscreen editor is a constant
   1920 by 1080 in `crates/balaur_cli/src/main.rs`; a game's offscreen run takes
@@ -219,9 +219,10 @@ touch opens on `long_touched`. A widget with a `context` menu opens the menu
 instead. egui's `max_click_duration` is set from `[input] long_press_seconds`
 in `run_pass`, so the widget's long press and the tick's are one number.
 
-A root widget takes `safe_area = true`, which insets its surface by
-`DeviceFacts::safe_area` the way `avoid_keyboard` insets its bottom. Off by
-default: a backdrop must reach the edge, a HUD must not.
+A root widget's `safe_area` names the edges it insets its surface on by
+`DeviceFacts::safe_area`, all four by default, and the keyboard takes the
+bottom the same way. A `fill` root's colour still paints to the edge, and one
+with no children is a backdrop and is not inset.
 
 `[ui] scale` seeds `UiConfig.scale` at load through `UiSettings`, default 1.0,
 in the range `ui.set_scale` clamps to. `ui.set_scale` still changes it later,

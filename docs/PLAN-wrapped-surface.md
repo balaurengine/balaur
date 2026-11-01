@@ -794,7 +794,7 @@ the VHACD keys `symmetry_bias`, `revolution_bias`, `plane_downsampling`,
 
 Readers 2D still lacks, from `docs/PLAN-rapier.md` item 5: `aabb`,
 `swept_aabb`, `closest_points`, `time_of_impact`, `collider_mass`,
-`collider_volume`, `collider_mesh`, `handles`, `set_collider`,
+`collider_volume`, `collider_mesh`, `handles`,
 `predict_position_with_forces` and `solve_ik`. `max_contact_impulse` sits on
 `body2d` here and on `collider3d` in 3D. 3D's `convex_decomposition` has no
 `method` and no VHACD keys; 2D has both.

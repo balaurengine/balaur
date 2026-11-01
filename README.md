@@ -47,7 +47,7 @@ Other platforms and distros: [Build from source](https://balaurengine.org/docs/b
 ```bash
 cargo run -p balaur_cli -- new my-game
 cargo run -p balaur_cli -- run my-game                        # dev mode, hot reload on
-cargo run -p balaur_cli --features window -- edit my-game     # open in the editor
+cargo run -p balaur_cli -- edit my-game                       # open in the editor
 cargo build --release -p balaur_cli                           # the runtime a game ships on
 cargo run -p balaur_cli -- export my-game --runtime target/release/balaur
 ```

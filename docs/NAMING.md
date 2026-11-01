@@ -124,7 +124,6 @@ Recorded so each stops being cited as precedent for the next.
 | `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
 | `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
 | `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
-| `render.set_sphere` / `set_box` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
 | `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
@@ -254,7 +253,6 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Where the next widget lands | `layout_y` | none |
 | This frame's paste | `pasted_text` | none |
 | Loading screen | `set_load_progress`, `finish_loading` | none |
-| Tab moves focus | `set_keyboard_navigation` | none |
 | The focused widget | `focused_widget` | none |
 | Overwrite a field's text | `set_field_text` | none |
 | Theme in use, and a theme with its gaps derived | `set_theme`, `complete_theme` | none |
@@ -342,7 +340,7 @@ An editor role is `<component>[_<context>][_<emphasis>]`, as in `action_form_dan
 | Tags | `tags`, `add_tag`, `has_tag` | Unreal |
 | When a node runs | `process_mode`, `set_process_mode`, `can_process` | Godot |
 | Skip interpolation after a jump | `reset_physics_interpolation` | Godot |
-| Position, scale, move | `position`, `scale`, `translate` | Godot, Unity |
+| Position, scale | `position`, `scale` | Godot, Unity |
 | Rotation in radians | `rotation_euler` | Blender |
 | Rotation in degrees | `rotation_degrees`, `set_rotation_degrees` | Godot |
 | Reserved: rotation as a quaternion | `rotation_quaternion` | Blender |
@@ -512,7 +510,7 @@ Most names match Godot 4. A clip is Unity's word, because `animation` is already
 | A key | `time`, `value`, `ease`, `call` | Godot, Unity |
 | A track | `target`, `property`, `keys`, in a clip's `tracks` | Godot, Unity |
 | Cross-fade | `blend_time` | Godot |
-| Playback | `play`, `queue`, `pause`, `resume`, `stop`, `seek`, `is_playing`, `time`, `just_finished` | Godot |
+| Playback | `play`, `queue`, `pause`, `resume`, `stop`, `seek`, `is_playing`, `time` | Godot |
 | The clip playing, a new clip | `current_clip`, `add_clip` | Godot |
 | State machine | `state_machine`, with `machine`, `start`, `states`, `enabled` | Godot, Unity |
 | Transition | `from`, `to`, `priority`, `reset`, `condition`, `blend_time`, `blend_curve`, `break_loop_at_end` | Godot |
@@ -540,7 +538,7 @@ A volume names its unit, because Godot reads a bare `volume` as decibels. A cue 
 | Pitch multiplier | `pitch_scale`, `set_pitch_scale` | Godot |
 | Doppler amount, 0 to 1 | `doppler_level` | Unity |
 | Playback | `play`, `stop`, `stop_all`, `is_playing` | Godot, Unity |
-| Where it is heard | `emitter_position`, `distance_gain`, `pan`, `listener_position`, `set_listener_position`, `listener.current` | Godot |
+| Where it is heard | `emitter_position`, `distance_gain`, `pan`, `listener_position`, `listener.current` | Godot |
 | The audio device is up | `device_ready` | none |
 | Buses | `[audio.buses]`, `master`, `parent`, `buses` | Godot, Unity, FMOD |
 | Bus loudness | `bus_volume_linear`, `set_bus_volume_linear` | Godot |
@@ -624,7 +622,7 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Positional argument | what the command acts on; a destination is `--project <DIR>` | Cargo |
 | Environment variable | `BALAUR_` and the settings path in capitals | Cargo |
 | A setting with a unit | the unit last: `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | none |
-| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[application] script_language`, `[locale] initial`, `[import.audio] force_mono` | none |
+| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[locale] initial`, `[import.audio] force_mono` | none |
 | Signing identities | `[apple] macos_identity`, `notarize`, `ios_identity`, `ios_provisioning_profile`; `[android] keystore`, `key`, `bundletool`; `[windows] certificate`, `timestamp_url` | none |
 | How an export re-encodes | `[export] image_recode`, `font_recode`, `audio_recode` and a file's `recode`, `original` among the values; `image_quality`, `audio_quality` | none |
 | Globs an export takes whatever it decides | `[export] include`, `font_original` | none |

@@ -440,7 +440,7 @@ What one scene file is to the engine. Derived from `SceneFiles` (`balaur_core/sr
 ```mermaid
 stateDiagram-v2
     [*] --> cold
-    cold --> warm: scene.preload, or any read
+    cold --> warm: a pack warming its scenes, or any read
     warm --> running: switch builds it
     cold --> running: switch builds it
     running --> parked: switch elsewhere

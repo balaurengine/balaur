@@ -164,8 +164,7 @@ style everything else uses. `events.listen(node, name)` records the pair
 in a `DetHashMap`; `events.emit(name, payload)` appends to the tick's queue;
 a core system at the top of `Stage::Update` calls `on_<name>(payload)` on
 each subscriber in subscription order, skips freed nodes, and clears the
-queue. `events.poll(name)` is the asking twin, the pair
-`animation.just_finished` already has. Delivery a frame later at a fixed
+queue. Delivery a frame later at a fixed
 stage is what keeps it deterministic and out of the middle of a script batch;
 emits come from scripts, so a replay reproduces them with no recording
 source. `unsubscribe` and detach both release.
@@ -182,14 +181,13 @@ applies them whenever a visible button exists, and the focused button gets a
 ring (`:756-765`). A game that moves with arrows and jumps with Space clicks
 its own HUD button, and the ring appears the first time an arrow is pressed.
 
-**Shape.** `WidgetLayerConfig.keyboard`, off by default. `standard_app`
-turns it on for a project that declares `ui_next`, `ui_previous` or
-`ui_accept`, beside `drive_ui_focus` (`crates/balaur/src/lib.rs:280-300`),
-and `ui.set_keyboard_focus(on)` covers a menu that opens at run time. While
-egui reports a text field focused, the focus keys stand down. The focus
-tests (`tests/widget_layer.rs:758-889`) set the flag.
+**Shape.** `WidgetLayerConfig.keyboard`, on by default. `standard_app`'s
+`drive_ui_focus` takes it away while an action binds one of those keys or a
+script reads one, unless the project declares `ui_next`, `ui_previous` or
+`ui_accept`. While egui reports a text field focused, the focus keys stand
+down.
 
-Status: **done** — `WidgetLayerConfig::keyboard`, off by default, turned on by `standard_app` for a project declaring the `ui_*` actions and by `ui.set_keyboard_focus`.
+Status: **done**.
 
 ### 3.2 Label wrap and alignment; an `image` kind
 

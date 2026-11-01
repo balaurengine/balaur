@@ -18,13 +18,7 @@ Called by name, with no module before them.
 
 | Function | Signature |
 | --- | --- |
-| `abs` | `fn abs(x: float) -> float` |
-| `ceil` | `fn ceil(x: float) -> float` |
 | `color` | `fn color(r: float, g: float, b: float, a: float) -> Color` |
-| `floor` | `fn floor(x: float) -> float` |
-| `max` | `fn max(a: float, b: float) -> float` |
-| `min` | `fn min(a: float, b: float) -> float` |
 | `nil` | `fn nil() -> any` |
-| `sqrt` | `fn sqrt(x: float) -> float` |
 | `vec2` | `fn vec2(x: float, y: float) -> Vec2` |
 | `vec3` | `fn vec3(x: float, y: float, z: float) -> Vec3` |
