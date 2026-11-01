@@ -269,7 +269,7 @@ pub(crate) fn focused(eng: &Engine, _: &[Value]) -> Result<Value> {
 }
 
 pub(crate) fn dark_mode(eng: &Engine, _: &[Value]) -> Result<Value> {
-    Ok(Value::Bool(crate::facts::device(eng).dark_mode))
+    Ok(Value::Bool(crate::facts::dark_mode(eng)))
 }
 
 pub(crate) fn unix_time(eng: &Engine, _: &[Value]) -> Result<Value> {

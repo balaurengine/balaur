@@ -159,6 +159,7 @@ pub(super) fn attach_script(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::changes::scripted(eng, e);
     scene::name_script(eng, e, Some((&path, &props)));
     host.attach_with_props(crate::node_id_of(e), &path, &props)?;
+    crate::interpolate::follow_script(eng, e, host.as_ref());
     Ok(Value::Nil)
 }
 

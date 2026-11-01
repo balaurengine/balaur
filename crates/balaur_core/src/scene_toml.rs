@@ -459,7 +459,6 @@ struct NodeKeys {
     z_index: i64,
     z_as_relative: bool,
     process: ProcessMode,
-    interpolate: Option<bool>,
     tags: Vec<String>,
 }
 
@@ -471,7 +470,6 @@ impl Default for NodeKeys {
             z_index: 0,
             z_as_relative: true,
             process: ProcessMode::Inherit,
-            interpolate: None,
             tags: Vec::new(),
         }
     }
@@ -492,7 +490,6 @@ impl NodeKeys {
             keys.tags.clone_from(&tags.0);
         }
         drop(world);
-        keys.interpolate = crate::interpolate::own(eng, entity);
         keys
     }
 
@@ -517,9 +514,6 @@ impl NodeKeys {
         {
             keys.process = mode;
         }
-        keys.interpolate = table
-            .get(crate::interpolate::KEY)
-            .and_then(toml::Value::as_bool);
         if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
             let mut tags = Tags::default();
             for tag in list.iter().filter_map(toml::Value::as_str) {
@@ -561,11 +555,6 @@ impl NodeKeys {
                 toml::Value::String(self.process.name().into()),
             );
         }
-        if self.interpolate != base.interpolate
-            && let Some(on) = self.interpolate
-        {
-            out.insert(crate::interpolate::KEY.into(), toml::Value::Boolean(on));
-        }
         if self.tags != base.tags {
             out.insert(
                 "tags".into(),
@@ -595,10 +584,6 @@ pub(crate) fn node_keys_value(eng: &Engine, entity: Entity) -> balaur_script::Va
         ("z_index".into(), Value::Int(keys.z_index)),
         ("z_as_relative".into(), Value::Bool(keys.z_as_relative)),
         (crate::process::KEY.into(), Value::text(keys.process.name())),
-        (
-            crate::interpolate::KEY.into(),
-            keys.interpolate.map_or(Value::Nil, Value::Bool),
-        ),
         (
             "tags".into(),
             Value::List(keys.tags.iter().map(Value::text).collect()),

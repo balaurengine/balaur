@@ -51,6 +51,20 @@ pub struct Pack {
     pub api: Vec<String>,
 }
 
+/// The documents a pack carries, by project-relative path: what lists them
+/// where there is no directory to list. The texts stay with the script host.
+#[derive(Default)]
+pub struct Documents(pub Vec<String>);
+
+impl Documents {
+    /// Keep the paths of what `pack` holds, for a run from one.
+    pub(crate) fn note(eng: &crate::engine::Engine, pack: Option<&Pack>) {
+        if let Some(pack) = pack {
+            eng.insert_resource(Self(pack.scenes.keys().cloned().collect()));
+        }
+    }
+}
+
 impl Pack {
     /// The pack as the project tree it was built from: `project.toml`, then
     /// every scene, script and asset under the path it was packed at.

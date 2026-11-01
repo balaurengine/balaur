@@ -81,6 +81,7 @@ pub mod timers;
 pub mod timings;
 pub mod transform;
 pub mod variables;
+pub mod viewpoint;
 pub mod wake;
 pub mod warnings;
 

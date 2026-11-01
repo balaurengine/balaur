@@ -694,8 +694,7 @@ pub fn build_core_settings(eng: &Engine) {
             r#"
 name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
 main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
-script_language = { type = "enum", default = "bs", options = ["bs"], order = 3, applies = "restart", help = "Which scripting language this project is written in." }
-asset_source = { type = "enum", default = "files", options = ["files", "embedded", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
+asset_source = { type = "enum", default = "embedded", options = ["embedded", "files", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
 splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
 splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }
 ignore = { type = "list", of = { type = "string" }, default = [], order = 7, applies = "restart", help = "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out." }
@@ -707,6 +706,17 @@ icon_monochrome = { type = "string", default = "", order = 10, applies = "restar
     );
     build_window_settings(eng, &parse);
     build_time_settings(eng, &parse);
+    define_group(
+        eng,
+        "check",
+        Scope::Project,
+        &parse(
+            "settings.check",
+            r#"
+strict = { type = "bool", default = false, applies = "restart", help = "`balaur check` fails on a warning as well as an error, for this project on every run." }
+"#,
+        ),
+    );
     define_group(
         eng,
         "save",
@@ -726,7 +736,7 @@ migrate_script = { type = "string", default = "", help = "A script whose migrate
         &parse(
             "settings.locale",
             r#"
-initial = { type = "string", default = "en", help = "The locale a fresh run starts in." }
+initial = { type = "string", default = "", help = "The locale a fresh run starts in. Empty starts in the system's language where the project ships it, else in `fallback`." }
 fallback = { type = "string", default = "en", help = "Where a key missing from the current locale is looked for next." }
 "#,
         ),
@@ -789,7 +799,7 @@ fn build_import_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::R
             r#"
 filter = { type = "enum", default = "linear", options = ["linear", "nearest"], order = 1, applies = "restart", help = "Between texels. Nearest is what keeps pixel art crisp when it is magnified." }
 repeat = { type = "enum", default = "clamp", options = ["clamp", "repeat", "mirror"], order = 2, applies = "restart", help = "What a coordinate past the edge reads. Mirror tiles without a seam." }
-mipmaps = { type = "bool", default = false, order = 3, applies = "restart", help = "Build the smaller copies a texture drawn small samples, which stops it shimmering." }
+mipmaps = { type = "bool", default = false, order = 3, applies = "restart", help = "Build the smaller copies a texture drawn small samples, which stops it shimmering. A picture on a 3D surface builds them unless this says or its filter is nearest." }
 anisotropy = { type = "int", default = 1, min = 1, max = 16, order = 4, applies = "restart", help = "Samples per fetch on a surface seen edge-on. Needs every filter linear." }
 premultiply = { type = "bool", default = false, order = 5, applies = "restart", help = "Scale colour by alpha at upload, so a soft edge blends with no dark fringe. 2D nodes only." }
 srgb = { type = "bool", default = true, order = 6, applies = "restart", help = "Off for a normal map or a mask, which carry data rather than colour." }
@@ -810,7 +820,6 @@ loop = { type = "bool", default = false, order = 2, applies = "restart", help = 
 force_mono = { type = "bool", default = false, order = 3, applies = "restart", help = "Mix every WAV to one channel at export, which halves a stereo file. A sound played from a place in the world is heard mono anyway." }
 max_rate_hz = { type = "int", default = 0, min = 0, max = 192000, order = 4, applies = "restart", help = "The highest sample rate a WAV ships at, in Hz; 0 keeps each file's own. 22050 is plenty for most effects. Set it per target to ship a phone less." }
 gapless = { type = "bool", default = true, order = 5, applies = "restart", help = "Trim the padding an encoder adds to a compressed file, where the file records it, so files queued back to back play without a gap." }
-seekable = { type = "bool", default = false, order = 6, applies = "restart", help = "Let the decoder jump within the file, so a seek or a `start_time` lands without decoding everything before it." }
 "#,
         ),
     );
@@ -853,7 +862,6 @@ fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<
             "settings.time",
             r#"
 tick_hz = { type = "int", default = 60, min = 1, max = 480, order = 1, applies = "restart", help = "How many fixed steps a second the simulation takes. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used." }
-interpolate = { type = "bool", default = false, order = 2, applies = "restart", help = "Draw bodies and fixed_update nodes between steps, so they move every frame on a display faster than the tick. Costs one tick of latency, which is why a project asks for it." }
 "#,
         ),
     );
@@ -888,8 +896,9 @@ low_processor = { type = "bool", default = false, order = 8, applies = "restart"
             "settings.ui",
             r#"
 system_fonts = { type = "bool", default = true, applies = "restart", help = "Let a character no face of the project has a glyph for draw in the face the operating system picks for it, instead of tofu. A worker reads every font on the machine once, after the first frame, so a game that only draws what it vendors can turn it off." }
-theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget starts from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
-scale = { type = "float", default = 1.0, min = 0.25, max = 3.0, help = "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later." }
+theme = { type = "string", default = "", help = "A project-relative `widget_theme` every widget and egui's own controls start from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one." }
+theme_dark = { type = "string", default = "", help = "The theme's form for a dark system, worn while `dark_mode()` is true. `ui.set_theme` goes over both." }
+scale = { type = "float", default = 1.0, min = 0.25, max = 3.0, applies = "restart", help = "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later." }
 system_text_size = { type = "bool", default = true, applies = "restart", help = "Multiply the scale by the size the reader asked their system for. Off for a game whose layout cannot give text more room." }
 narrow_below_pixels = { type = "float", default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
 wide_from_pixels = { type = "float", default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }

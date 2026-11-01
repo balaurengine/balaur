@@ -15,9 +15,7 @@ use glamx::{EulerRot, Vec3};
 use hecs::Entity;
 
 use crate::engine::Engine;
-use crate::scene::{
-    self, Appearance, Children, GlobalTransform, Name, NodeScript, Parent, Tags, Transform,
-};
+use crate::scene::{self, Appearance, Children, GlobalTransform, Name, NodeScript, Parent, Tags};
 
 mod scripts;
 use scripts::{
@@ -48,10 +46,6 @@ pub const NODE_OPS: &[NodeOp] = &[
     NodeOp {
         name: "path",
         call: path,
-    },
-    NodeOp {
-        name: "translate",
-        call: translate,
     },
     NodeOp {
         name: "global_position",
@@ -225,10 +219,6 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: material,
     },
     NodeOp {
-        name: "set_material",
-        call: set_material,
-    },
-    NodeOp {
         name: "effective_material",
         call: effective_material,
     },
@@ -255,14 +245,6 @@ pub const NODE_OPS: &[NodeOp] = &[
     NodeOp {
         name: "ticking",
         call: ticking,
-    },
-    NodeOp {
-        name: crate::interpolate::KEY,
-        call: interpolate,
-    },
-    NodeOp {
-        name: "set_interpolate",
-        call: set_interpolate,
     },
     NodeOp {
         name: "reset_interpolation",
@@ -299,7 +281,6 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("name", &[], "()", "The node's own name, empty when it carries none."),
         ("set_name", &[], "(name: string)", "Rename the node, doing nothing when it carries no name."),
         ("path", &[], "()", "The node's slash-separated path, built by climbing parents from the node up to the root."),
-        ("translate", &["transform"], "(x: float, y: float, z: float)", "Move the node by an offset in its parent's space, given as three numbers or one vector."),
         ("global_position", &["transform"], "()", "The node's position in world space, as of the last transform sync."),
         ("global_rotation_euler", &["transform"], "()", "The node's world rotation as euler angles in radians, as of the last transform sync."),
         ("global_scale", &["transform"], "()", "The node's scale in world space, as of the last transform sync."),
@@ -343,7 +324,6 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
         ("effective_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
         ("material", &[], "(node)", "The `material` asset the node names itself, empty when it takes its parent's."),
-        ("set_material", &[], "(node, material: string)", "Draw the node and every descendant naming none with a `material` asset; empty goes back to the parent's."),
         ("effective_material", &[], "(node)", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one."),
         ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
         ("set_z_index", &[], "(node, z: int, options: map?)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `z_as_relative = false` makes it absolute."),
@@ -351,8 +331,6 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         (crate::process::KEY, &[], "(node)", "When this node ticks: \"inherit\", \"pausable\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer."),
         ("set_process", &[], "(node, mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says."),
         ("ticking", &[], "(node)", "Whether the node ticks this frame, its process mode and the game's pause together."),
-        (crate::interpolate::KEY, &[], "(node)", "Whether the node is drawn between fixed steps."),
-        ("set_interpolate", &[], "(node, on: bool)", "Draw the node between fixed steps, or stop. Needs `[time] interpolate` on; a body and a script with `fixed_update` ask for it on their own."),
         ("reset_interpolation", &[], "(node)", "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you."),
         ("tags", &[], "(node)", "The names the node is filed under, sorted."),
         ("has_tag", &[], "(node, tag: string)", "Whether the node is filed under a name."),
@@ -384,19 +362,6 @@ fn number(args: &[Value], i: usize) -> Result<f32> {
         Some(Value::Int(n)) => Ok(*n as f32),
         other => Err(anyhow!("argument {i} should be a number, got {other:?}")),
     }
-}
-
-/// Read three numbers, or one vector, so `set_position(v)` and
-/// `set_position(x, y, z)` both work.
-fn xyz(args: &[Value], from: usize) -> Result<Vec3> {
-    if let Some(Value::Vec3([x, y, z])) = args.get(from) {
-        return Ok(Vec3::new(*x, *y, *z));
-    }
-    Ok(Vec3::new(
-        number(args, from)?,
-        number(args, from + 1)?,
-        number(args, from + 2)?,
-    ))
 }
 
 fn vec3(v: Vec3) -> Value {
@@ -501,19 +466,6 @@ fn ticking(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Bool(crate::process::ticking(eng, e)))
 }
 
-fn interpolate(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let e = node(args)?;
-    Ok(Value::Bool(crate::interpolate::is_on(eng, e)))
-}
-
-fn set_interpolate(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let on = flag(args, 1)?;
-    let e = node(args)?;
-    crate::changes::node_keys(eng, e);
-    crate::interpolate::set(eng, e, Some(on));
-    Ok(Value::Nil)
-}
-
 fn reset_interpolation(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     crate::interpolate::reset(eng, e);
@@ -553,12 +505,6 @@ fn material(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| {
         Value::Str(a.material.reference().to_string())
     })
-}
-
-fn set_material(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let id = scene::MaterialId::intern(text(args, 1)?);
-    with_appearance(eng, node(args)?, |a| a.material = id)?;
-    Ok(Value::Nil)
 }
 
 /// What the renderer draws with: the nearest material from the node up.
@@ -651,31 +597,6 @@ fn remove_tag(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
-/// Read the node's local transform, answering identity when it has none.
-///
-/// Write the node's local transform, giving it one when it has none.
-///
-/// Moving a node is what says it has a transform, so a script never has to add
-/// the component before setting a position. The node changes archetype the once
-/// -- which is why a scene file naming a transform is spawned with one.
-fn with_transform<R>(eng: &Engine, e: Entity, f: impl FnOnce(&mut Transform) -> R) -> Result<R> {
-    {
-        let world = eng.world();
-        if let Ok(mut transform) = world.get::<&mut Transform>(e) {
-            return Ok(f(&mut transform));
-        }
-        if !world.contains(e) {
-            return Err(anyhow!("node is dead"));
-        }
-    }
-    let mut transform = Transform::identity();
-    let out = f(&mut transform);
-    eng.world_mut()
-        .insert_one(e, transform)
-        .map_err(|_| anyhow!("node is dead"))?;
-    Ok(out)
-}
-
 fn is_valid(eng: &Engine, args: &[Value]) -> Result<Value> {
     let Ok(e) = node(args) else {
         return Ok(Value::Bool(false));
@@ -710,12 +631,6 @@ fn set_name(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn path(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     Ok(Value::Str(scene::node_path(&eng.world(), e)))
-}
-
-fn translate(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let v = xyz(args, 1)?;
-    with_transform(eng, node(args)?, |t| t.position += v)?;
-    Ok(Value::Nil)
 }
 
 /// The same rotation as `rotation_euler`, in degrees.

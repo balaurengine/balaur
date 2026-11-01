@@ -88,14 +88,7 @@ pub(crate) fn scene_parked(eng: &Engine, _args: &[Value]) -> Result<Value> {
     ))
 }
 
-/// `scene.preload(path)` — the scene and its prefabs read and parsed, and
-/// what their components name started, before anything switches to it.
-pub(crate) fn scene_preload(eng: &Engine, args: &[Value]) -> Result<Value> {
-    crate::preload::scene(eng, text(args, 0)?)?;
-    Ok(Value::Nil)
-}
-
-/// `scene.unload(path)` — what `preload` warmed and `switch` kept, let go.
+/// `scene.unload(path)` — what a pack warmed and `switch` kept, let go.
 pub(crate) fn scene_unload(eng: &Engine, args: &[Value]) -> Result<Value> {
     crate::preload::unload(eng, text(args, 0)?);
     Ok(Value::Nil)
@@ -139,10 +132,6 @@ pub(crate) fn scene_variables(eng: &Engine, _args: &[Value]) -> Result<Value> {
                         Value::Str(spec.map_or("float", |s| s.kind.word()).to_string()),
                     ),
                     ("value".into(), spec.map_or(Value::Nil, |s| s.value.clone())),
-                    (
-                        "persist".into(),
-                        Value::Bool(spec.is_some_and(|s| s.persist)),
-                    ),
                 ])
             })
             .collect(),

@@ -412,6 +412,7 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
         }
         _ => Vec::new(),
     };
+    crate::events::hearers_may_have_changed(eng, entity);
     eng.world_mut()
         .insert_one(entity, Bindings { rows })
         .map_err(|_| anyhow!("node is dead"))
@@ -592,7 +593,7 @@ mod tests {
     fn variables(rows: &[(&str, VarType, Value)]) -> Variables {
         let mut variables = Variables::default();
         for (name, kind, value) in rows {
-            variables.declare(name, *kind, value, false);
+            variables.declare(name, *kind, value);
         }
         variables
     }

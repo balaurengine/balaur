@@ -15,41 +15,46 @@
 //! asset index skips what it matches and a pack leaves it out, so it never
 //! reaches a shipped game. A shipped script that `use`s a file it matches
 //! fails the export, which names the pattern, rather than the game.
+//!
+//! `tests/` is on every project's list: `balaur test` owns that folder.
 
 use crate::engine::Engine;
 
 pub const SETTING: &str = "application/ignore";
 
-/// The patterns a running project declares.
+/// What no project ships.
+const ALWAYS: &str = "tests/**";
+
+/// The patterns in force for a project that lists `declared`.
+fn with_always(declared: Option<&Vec<toml::Value>>) -> Vec<String> {
+    declared
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_str().map(str::to_string))
+        .chain([ALWAYS.to_string()])
+        .collect()
+}
+
+/// The patterns a running project holds to.
 pub fn patterns(eng: &Engine) -> Vec<String> {
-    crate::settings::get(eng, SETTING)
-        .and_then(|value| value.as_array().cloned())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    with_always(
+        crate::settings::get(eng, SETTING)
+            .as_ref()
+            .and_then(toml::Value::as_array),
+    )
 }
 
 /// The same list read straight from a `project.toml`, for a tool holding the
 /// text rather than a running engine.
 pub fn from_manifest(manifest: &str) -> Vec<String> {
-    let Ok(document) = toml::from_str::<toml::Value>(manifest) else {
-        return Vec::new();
-    };
-    document
-        .get("application")
-        .and_then(|table| table.get("ignore"))
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    let document = toml::from_str::<toml::Value>(manifest).ok();
+    with_always(
+        document
+            .as_ref()
+            .and_then(|document| document.get("application"))
+            .and_then(|table| table.get("ignore"))
+            .and_then(toml::Value::as_array),
+    )
 }
 
 /// Whether a project-relative path is ignored: the path itself, or a

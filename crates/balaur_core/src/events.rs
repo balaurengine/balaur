@@ -86,6 +86,110 @@ pub struct EventState {
     saves_seen: u64,
     /// Where a script was stopped at the last pump, for [`DEBUGGER_STOPPED`].
     stop_seen: Option<balaur_script::Pause>,
+    /// Whose hearers changed, for a plugin paying for an event only where it
+    /// is heard.
+    hearers: Hearers,
+}
+
+/// What [`watch_hearers`] has not yet been told.
+#[derive(Default)]
+struct Hearers {
+    /// The events somebody watches; a listener for another is nobody's news.
+    watched: Vec<&'static str>,
+    /// Somebody began to listen for a watched event from anyone.
+    everyone: bool,
+    nodes: Vec<Entity>,
+}
+
+impl Hearers {
+    fn listening(&mut self, name: &str, from: Option<Entity>) {
+        if self.watched.contains(&name) {
+            match from {
+                Some(node) => self.nodes.push(node),
+                None => self.everyone = true,
+            }
+        }
+    }
+}
+
+/// Keep track of which nodes' hearers of `names` may have changed, until
+/// [`take_changed_hearers`] is asked. For an event that costs a plugin
+/// something to raise.
+pub fn watch_hearers(eng: &Engine, names: &[&'static str]) {
+    eng.resource::<EventState>()
+        .borrow_mut()
+        .hearers
+        .watched
+        .extend_from_slice(names);
+}
+
+/// `node` may hear differently now: a script came onto it, or a row, or what a
+/// watcher charges for was built on it.
+pub fn hearers_may_have_changed(eng: &Engine, node: Entity) {
+    if let Some(state) = eng.try_resource::<EventState>() {
+        let mut state = state.borrow_mut();
+        if !state.hearers.watched.is_empty() {
+            state.hearers.nodes.push(node);
+        }
+    }
+}
+
+/// The nodes whose hearers may have changed since the last ask, one each, in
+/// node order; `true` where that may be every node.
+pub fn take_changed_hearers(eng: &Engine) -> (bool, Vec<Entity>) {
+    let Some(state) = eng.try_resource::<EventState>() else {
+        return (false, Vec::new());
+    };
+    let mut state = state.borrow_mut();
+    let everyone = std::mem::take(&mut state.hearers.everyone);
+    let mut nodes = std::mem::take(&mut state.hearers.nodes);
+    nodes.sort_unstable_by_key(|node| node.to_bits());
+    nodes.dedup();
+    (everyone, nodes)
+}
+
+/// Whether anything hears `name` said from `node`: its script's hook, one of
+/// its rows, an observer, a listener or a waiter on it or on anyone.
+#[must_use]
+pub fn is_heard(eng: &Engine, node: Entity, name: &str) -> bool {
+    // Most nodes carry neither, and finding a script's instance is a walk.
+    {
+        let world = eng.world();
+        let scripted = world.get::<&crate::scene::NodeScript>(node).is_ok();
+        if scripted
+            && eng.script_host().is_some_and(|host| {
+                host.has_method(crate::node_id_of(node), &crate::hooks::hook_of(name))
+            })
+        {
+            return true;
+        }
+        if world
+            .get::<&crate::bindings::Bindings>(node)
+            .is_ok_and(|rows| rows.rows.iter().any(|one| one.event == row_event(name)))
+        {
+            return true;
+        }
+    }
+    if observers::watched(eng, node, name) {
+        return true;
+    }
+    let Some(state) = eng.try_resource::<EventState>() else {
+        return false;
+    };
+    let state = state.borrow();
+    let key = |from: Option<Entity>| (SmolStr::new(name), from);
+    let listened = |from| {
+        state
+            .listeners
+            .get(&key(from))
+            .is_some_and(|held| !held.is_empty())
+    };
+    listened(Some(node))
+        || listened(None)
+        || state
+            .waiters
+            .iter()
+            .any(|(heard, from, _)| heard == name && from.is_none_or(|from| from == node))
 }
 
 /// What the log says from no node when lines arrived since the last pump,
@@ -126,7 +230,9 @@ pub const CHANGED: &str = "changed";
 pub fn next(eng: &Engine, name: &str, from: Option<Entity>) -> u64 {
     let token = eng.next_token();
     let state = eng.resource::<EventState>();
-    state.borrow_mut().waiters.push((name.into(), from, token));
+    let mut state = state.borrow_mut();
+    state.hearers.listening(name, from);
+    state.waiters.push((name.into(), from, token));
     token
 }
 
@@ -140,6 +246,7 @@ pub fn next(eng: &Engine, name: &str, from: Option<Entity>) -> u64 {
 pub fn subscribe(eng: &Engine, entity: Entity, name: &str, from: Option<Entity>) {
     let state = eng.resource::<EventState>();
     let mut state = state.borrow_mut();
+    state.hearers.listening(name, from);
     let seq = state.next_seq;
     let listeners = state.listeners.entry((name.into(), from)).or_default();
     if listeners.iter().any(|l| l.entity == entity) {
@@ -547,18 +654,6 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
             "Queue an event from no particular node, delivered at the top of the next frame's update to whoever listens for the name from anyone.",
         ),
         (
-            "emitted",
-            &[],
-            "(name: string) -> list",
-            "The payloads delivered under this name this frame whoever emitted them, in emission order; empty when none were.",
-        ),
-        (
-            "emitted_from",
-            &[],
-            "(node: node, name: string) -> list",
-            "The payloads delivered under this name this frame from that node, in emission order; empty when none were.",
-        ),
-        (
             "next",
             &[],
             "(name: string, from: node?) -> int",
@@ -593,19 +688,6 @@ pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
         |eng: &Engine, (name, from): (String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             Ok(i64::try_from(next(eng, &name, from)).unwrap_or(i64::MAX))
-        },
-    );
-    m.function("emitted", |eng: &Engine, name: String| {
-        Ok(Value::List(delivered(eng, &name)))
-    });
-    m.function(
-        "emitted_from",
-        |eng: &Engine, (node, name): (NodeId, String)| {
-            Ok(Value::List(delivered_from(
-                eng,
-                crate::entity_of(node)?,
-                &name,
-            )))
         },
     );
 }

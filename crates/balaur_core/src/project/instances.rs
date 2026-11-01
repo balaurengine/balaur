@@ -51,9 +51,6 @@ pub(super) fn apply_own_keys(
         }
     }
     apply_process(eng, entity, node.process.as_deref(), &node.name)?;
-    if let Some(on) = node.interpolate {
-        crate::interpolate::set(eng, entity, Some(on));
-    }
     if !node.tags.is_empty() {
         let mut tags = eng
             .world()

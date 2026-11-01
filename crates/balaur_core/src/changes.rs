@@ -315,7 +315,7 @@ pub(crate) fn scripted(eng: &Engine, node: Entity) {
 }
 
 /// One of `node`'s own keys is about to change: `visible`, `tint`,
-/// `z_index`, `z_as_relative`, `process`, `interpolate` or `tags`. A kept
+/// `z_index`, `z_as_relative`, `process` or `tags`. A kept
 /// change carries them all as they were.
 pub(crate) fn node_keys(eng: &Engine, node: Entity) {
     keep(eng, node, "keys", || {

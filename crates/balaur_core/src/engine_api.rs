@@ -197,11 +197,6 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
         },
         EngineOp {
             module: "scene",
-            name: "preload",
-            call: crate::scene_api::scene_preload,
-        },
-        EngineOp {
-            module: "scene",
             name: "to_toml",
             call: to_toml,
         },

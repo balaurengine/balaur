@@ -541,3 +541,17 @@ fn a_nested_projects_scripts_are_not_compiled() {
         Some(&b"abc"[..])
     );
 }
+
+#[test]
+fn a_pack_leaves_out_a_projects_tests() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("tests/shots")).unwrap();
+    std::fs::write(dir.path().join("tests/shots/one.png"), PNG).unwrap();
+    std::fs::write(dir.path().join("tests/smoke.toml"), "[[nodes]]\n").unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    let held: Vec<&String> = pack.assets.keys().chain(pack.scenes.keys()).collect();
+    assert!(
+        !held.iter().any(|path| path.starts_with("tests/")),
+        "`balaur test` owns that folder: {held:?}"
+    );
+}

@@ -417,6 +417,14 @@ pub mod texture {
         pub premultiply: bool,
     }
 
+    /// Whether a picture on a 3D surface builds its smaller copies though its
+    /// settings did not ask: they did not say either way, and its texels are
+    /// not meant to be seen whole.
+    #[must_use]
+    pub fn mips_on_a_surface(settings: &toml::Table) -> bool {
+        !settings.contains_key(keys::MIPMAPS) && sampling(settings).min != Filter::Nearest
+    }
+
     /// What the engine samples with when nothing says otherwise: a sprite's
     /// clamped bilinear colour, with no mip chain to build at load.
     impl Default for Sampling {

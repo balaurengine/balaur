@@ -46,9 +46,6 @@ pub const MANIFEST: &str = "project.toml";
 pub struct ProjectManifest {
     pub name: String,
     pub main_scene: String,
-    /// Which scripting language this project is written in. The assembling
-    /// crate maps the name to a backend; core does not know the set.
-    pub language: String,
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
@@ -238,6 +235,8 @@ pub struct UiSettings {
     /// The `widget_theme` every root widget starts from; empty is the
     /// built-in look.
     pub theme: String,
+    /// That theme's form for a dark system; empty keeps `theme`.
+    pub theme_dark: String,
     /// How large the game's own UI is drawn, as egui's zoom factor.
     pub scale: f32,
     /// Whether the reader's own preferred text size multiplies that scale.
@@ -251,6 +250,7 @@ impl Default for UiSettings {
         Self {
             system_fonts: true,
             theme: String::new(),
+            theme_dark: String::new(),
             scale: 1.0,
             system_text_size: true,
             classes: crate::facts::ClassLines::default(),
@@ -270,6 +270,7 @@ impl UiSettings {
         Self {
             system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
             theme: setting_string(eng, "ui/theme"),
+            theme_dark: setting_string(eng, "ui/theme_dark"),
             scale: setting_f32(eng, "ui/scale", fallback.scale),
             system_text_size: setting_bool(eng, "ui/system_text_size", fallback.system_text_size),
             classes: crate::facts::ClassLines {
@@ -348,8 +349,6 @@ struct RawManifest {
 struct Application {
     name: String,
     main_scene: String,
-    #[serde(default = "default_language", rename = "script_language")]
-    language: String,
 }
 
 impl From<RawManifest> for ProjectManifest {
@@ -357,7 +356,6 @@ impl From<RawManifest> for ProjectManifest {
         Self {
             name: raw.application.name,
             main_scene: raw.application.main_scene,
-            language: raw.application.language,
             plugins: raw.plugins,
             check: raw.check,
         }
@@ -368,10 +366,6 @@ impl<'de> Deserialize<'de> for ProjectManifest {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         RawManifest::deserialize(deserializer).map(Self::from)
     }
-}
-
-fn default_language() -> String {
-    "bs".to_string()
 }
 
 impl ProjectManifest {
@@ -437,9 +431,6 @@ pub(crate) struct SceneNode {
     /// When this node and its subtree tick: `pausable`, `always`, `disabled`,
     /// or `inherit` to take the parent's.
     process: Option<String>,
-    /// Draw this node between fixed steps, whatever it is made of. Unset
-    /// leaves it to the body or the `fixed_update` on it.
-    interpolate: Option<bool>,
     /// Names the node is filed under, for `scene.tagged`.
     #[serde(default)]
     tags: Vec<String>,
@@ -855,7 +846,9 @@ fn attach_named(eng: &Engine, pending: &[PendingScript]) -> Result<()> {
         .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
     host.hold_inits();
     let attached = pending.iter().try_for_each(|(entity, script, props)| {
-        host.attach_with_props(crate::node_id_of(*entity), script, props)
+        host.attach_with_props(crate::node_id_of(*entity), script, props)?;
+        crate::interpolate::follow_script(eng, *entity, host.as_ref());
+        Ok(())
     });
     host.release_inits();
     attached
@@ -968,13 +961,12 @@ fn apply_process(eng: &Engine, entity: Entity, named: Option<&str>, node: &str) 
 }
 
 /// The keys every node has, which an override may set like any other.
-const NODE_KEYS: [&str; 7] = [
+const NODE_KEYS: [&str; 6] = [
     "visible",
     "tint",
     "z_index",
     "z_as_relative",
     crate::process::KEY,
-    crate::interpolate::KEY,
     "tags",
 ];
 
@@ -1003,12 +995,6 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
         .and_then(crate::process::ProcessMode::parse)
     {
         crate::process::set(&mut eng.world_mut(), entity, mode);
-    }
-    if let Some(on) = table
-        .get(crate::interpolate::KEY)
-        .and_then(toml::Value::as_bool)
-    {
-        crate::interpolate::set(eng, entity, Some(on));
     }
     let world = eng.world();
     if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {

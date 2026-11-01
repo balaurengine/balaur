@@ -112,8 +112,8 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ),
         (
             "Variable",
-            "{ name: string, type: string, value: any, persist: bool }",
-            "A scene variable: its name, declared type, current value and whether it is saved.",
+            "{ name: string, type: string, value: any }",
+            "A scene variable: its name, declared type and current value.",
         ),
         (
             "InstantiateOptions",
@@ -145,7 +145,6 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("changed_since", &[], "(component: string, tick: int) -> [node]", "The nodes whose component was written, or put on, after change tick `tick`, in node order. After a rollback restored the world, a tick from before it answers every holder."),
         ("removed_since", &[], "(component: string, tick: int) -> [node]", "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear."),
         ("tagged", &[], "(tag: string) -> [node]", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
-        ("preload", &[], "(path: string)", "Ready a scene file before anything switches to it: the file and every prefab it instances read and parsed, and what their components name started off the frame, the pictures a screen draws decoded on worker threads. Builds no node: a switch to it, a frame or a minute later, finds it all warm. An app calls it at boot for each screen, or a screen ahead; `unload` lets it go."),
         ("instantiate", &[], "(source: string, parent: node?, opts: InstantiateOptions?)", "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it."),
         ("to_toml", &[], "(root: node, opts: ToTomlOptions?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it."),
         ("attach_scripts", &[], "(root: node)", "Run every script the nodes under a node name, children first: what starts a scene built with `scripts: false`."),
@@ -164,10 +163,10 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("warnings", &[], "(node: node) -> [Warning]", "What is off about the node, as `{ component, property, message }`: a component missing one it expects, a write its component refused, and what a component says of itself. `property` is nil for the whole component; advisory only."),
         ("variable", &[], "(name: string) -> any", "A scene variable's value, or nil for a name nothing declared. A scene declares them under `[variables]`."),
         ("set_variable", &[], "(name: string, value: any)", "Write a scene variable, coerced to the type it was declared with. Every node declaring `on_variable_changed` hears about it at the end of the tick; writing the value it already holds says nothing."),
-        ("variables", &[], "() -> [Variable]", "Every declared variable as `{ name, type, value, persist }`, in name order."),
+        ("variables", &[], "() -> [Variable]", "Every declared variable as `{ name, type, value }`, in name order."),
         ("switch", &[], "(path: string, options: SwitchOptions?)", "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first."),
         ("parked", &[], "() -> [string]", "Every scene `switch` kept built, by the path it was asked for, oldest first."),
-        ("unload", &[], "(path: string)", "`preload`'s inverse: frees the scene if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks."),
+        ("unload", &[], "(path: string)", "Lets go of a scene: frees it if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks."),
         ("bindable_events", &[], "(node: node?) -> [string]", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce."),
         ("binding_actions", &[], "() -> [string]", "Every action a binding row may do, in the order an editor offers them."),
     ]);
@@ -233,13 +232,13 @@ pub(crate) fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("locale", &[], "() -> string", "The locale in force."),
         ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
         ("locales", &[], "() -> [string]", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
-        ("system_locale", &[], "() -> string?", "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A game picks its starting locale from it once and saves the choice."),
+        ("system_locale", &[], "() -> string?", "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A run starts in the shipped locale nearest it unless `[locale] initial` says."),
     ]);
 }
 
 pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
     m.module_doc(
-        "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate` names the script whose `migrate_save(version, data)` upgrades older ones.",
+        "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.",
     );
     m.describe(&[
         ("write", &[], "(slot: string, data: any)", "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one. A script hears this and every `remove` with `events::listen(this.node, \"saved\")`, as `on_saved(count)`."),
@@ -307,7 +306,7 @@ pub(crate) fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
         "One entry of a directory listing.",
     )]);
     m.describe(&[
-        ("read", &[], "(path: string) -> string?", "A whole file as text, project-relative unless absolute; nil when it cannot be read."),
+        ("read", &[], "(path: string) -> string?", "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read."),
         ("write", &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in."),
         ("exists", &[], "(path: string) -> bool", "Whether a project-relative path has anything at it, file or directory."),
         ("list", &[], "(path: string) -> [Entry]", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),

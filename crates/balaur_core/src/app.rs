@@ -292,6 +292,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     {
         crate::settings::answer_to_built_tags(eng);
     }
+    crate::pack::Documents::note(eng, config.pack.as_ref());
     // A packed game serves its textures, sounds and fonts from the pack;
     // a dev run serves them from the source tree.
     eng.insert_resource(
@@ -473,8 +474,7 @@ impl App {
         app.add_system(Stage::SceneSync, |eng, _| {
             crate::timings::measure(eng, "scene/transforms", || {
                 let root = eng.root();
-                // 1.0 is the tick's own pose for every node, and the pass
-                // skips the per-node lookup that a blend would cost.
+                // 1.0 is the tick's own pose for every node.
                 let alpha = if crate::interpolate::on(eng) {
                     eng.frame_alpha()
                 } else {
@@ -506,6 +506,7 @@ impl App {
                 scene::free_nodes(eng, &freed);
             }
         });
+        app.add_system(Stage::Last, crate::preload::warm_system);
         Ok(app)
     }
 
@@ -895,8 +896,7 @@ impl App {
             );
         }
         let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
-        // Before the scene: a node's `interpolate` key is read as it is built,
-        // and its step is what the first tick takes.
+        // Before the scene: its step is what the first tick takes.
         self.apply_time_settings();
         let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
         let main_scene = self.main_scene.as_ref().unwrap_or(&manifest.main_scene);
@@ -924,6 +924,7 @@ impl App {
         self.load_project_presets()?;
         let root = self.engine.root();
         project::instantiate_main_scene(&self.engine, &main_scene, &scene_src, root)?;
+        crate::preload::queue_pack(&self.engine, self.pack.as_ref(), &main_scene);
         Ok(self)
     }
 
@@ -940,7 +941,6 @@ impl App {
             reason = "a rate from a setting bounded at 1..=480"
         )]
         set_tick_hz(hz.map_or(DEFAULT_TICK_HZ, |n| n as u32));
-        crate::interpolate::apply_setting(&self.engine);
     }
 
     /// Load `presets.toml`, letting a project name its own recipes.

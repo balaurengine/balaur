@@ -767,5 +767,6 @@ fn respawn(eng: &Engine, root: Entity, node: &NodeFrame) {
         if let Err(e) = host.attach_with_props(crate::node_id_of(entity), path, &node.props) {
             tracing::error!(error = %e, node = %node.id, "reattaching a script");
         }
+        crate::interpolate::follow_script(eng, entity, host.as_ref());
     }
 }
