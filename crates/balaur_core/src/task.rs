@@ -101,13 +101,21 @@ fn cores() -> usize {
 /// no sooner, since it waits on its slowest thread.
 #[must_use]
 pub fn performance_cores() -> Option<usize> {
-    #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
+    #[cfg(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        target_os = "linux",
+        target_os = "windows"
+    ))]
     {
         gdt_cpus::num_performance_cores()
             .ok()
             .filter(|count| *count > 0)
     }
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        target_os = "linux",
+        target_os = "windows"
+    )))]
     {
         None
     }

@@ -74,6 +74,7 @@ js-sys = "0.3.106"
 rayon = "1"
 
 # Which cores are the fast ones (`task::performance_cores`), where the crate
-# reads them: it has no phone or browser backend.
-[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+# reads them: it has no phone or browser backend, and refuses an Intel Mac,
+# whose cores are all alike.
+[target.'cfg(any(all(target_os = "macos", target_arch = "aarch64"), target_os = "linux", target_os = "windows"))'.dependencies]
 gdt-cpus = { version = "0.2606", default-features = false }
