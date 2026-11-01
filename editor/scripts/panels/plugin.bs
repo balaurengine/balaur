@@ -45,10 +45,8 @@ impl Plugin {
     }
 
     /// A control's own handler ran first; what it changed shows now.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" || event == "change" || event == "submit" {
-            self.refresh();
-        }
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible,

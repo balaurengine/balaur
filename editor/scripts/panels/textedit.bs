@@ -35,16 +35,15 @@ impl Textedit {
         self.open = view["open"].as_bool();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if node.name() != "Field" {
-            return;
-        }
-        if event == "change" {
-            self.editor.call("textedit_typed", value);
-        } else if event == "submit" {
-            self.editor.call("textedit_submit", value);
-        } else if event == "blur" {
-            self.editor.call("textedit_close");
-        }
+    pub fn typed(value: any) {
+        self.editor.call("textedit_typed", value);
+    }
+
+    pub fn submitted(value: any) {
+        self.editor.call("textedit_submit", value);
+    }
+
+    pub fn blurred() {
+        self.editor.call("textedit_close");
     }
 }

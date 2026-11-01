@@ -69,7 +69,6 @@ const HOOKS: &[(&str, &[&str])] = &[
     ("on_action", &["string"]),
     ("on_action_released", &["string"]),
     ("on_resize", &["float", "float"]),
-    ("on_widget_event", &["string", "node", "any"]),
     ("on_variable_changed", &["string", "any"]),
     ("on_state_changed", &["string", "string"]),
     ("on_paused_changed", &["bool"]),

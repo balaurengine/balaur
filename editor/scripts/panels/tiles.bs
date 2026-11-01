@@ -30,14 +30,12 @@ impl Tiles {
 
     /// A chip has run its own handler by now, so what is left is to show what
     /// it changed; a card is a tile picked.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if node.name() == "Cards" && event == "click" {
-            self.editor.call("tiles_pick", node.widget.text);
-            return;
-        }
-        if event == "click" || event == "change" {
-            self.refresh();
-        }
+    pub fn card_clicked(_value: any, node: Node) {
+        self.editor.call("tiles_pick", node.widget.text);
+    }
+
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and

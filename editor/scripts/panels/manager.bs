@@ -7,10 +7,6 @@ pub class Manager {
     editor: Node,
 }
 
-fn VERBS() -> [str] {
-    ["Import", "Open", "New"]
-}
-
 impl Manager {
     pub fn init() {
         self.editor = scene::get_node("Editor");
@@ -27,23 +23,15 @@ impl Manager {
         self.editor.call("manager_fill");
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Filter" && event == "change" {
-            self.editor.call("manager_filter", value);
-        } else if event == "click" && is_verb(name, VERBS()) && node.parent().name() == "Tools" {
-            self.editor.call("manager_verb", name);
-        } else if event == "click" || event == "change" || event == "submit" {
-            self.editor.call("manager_fill");
-        }
+    pub fn filter_typed(value: any) {
+        self.editor.call("manager_filter", value);
     }
-}
 
-fn is_verb(name: str, items: [str]) -> bool {
-    for verb in items {
-        if verb == name {
-            return true;
-        }
+    pub fn verb(_value: any, node: Node) {
+        self.editor.call("manager_verb", node.name());
     }
-    false
+
+    pub fn refill() {
+        self.editor.call("manager_fill");
+    }
 }

@@ -39,9 +39,12 @@ id = "editor"
 name = "Editor"
 parent = "scroll"
 [nodes.widget]
+on_caret = "caret"
+on_change = "typed"
 kind = "code"
 font_size = 13
 [nodes.widget_code]
+on_gutter = "gutter"
 gutter_width = 34
 
 # Rename a name across the scripts, or find and replace: over the code's top

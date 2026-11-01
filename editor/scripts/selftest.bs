@@ -3639,7 +3639,7 @@ pub fn dropping(state: &mut editor::State) {
     // the panel hears the drop and hands it to the Editor.
     let panel = scene::get_node(ASSETS_PANEL);
     let cards = util::map_or_empty(panel.get_node("Cards").get_component("widget_list"));
-    check(cards["draggable"].as_bool() && panel.has_method("on_widget_event") && scene::get_node("Editor").has_method("assets_dropped"), "the Assets panel's cards hand a drop to the panel, and it to the Editor");
+    check(cards["draggable"].as_bool() && panel.has_method("card_dropped") && scene::get_node("Editor").has_method("assets_dropped"), "the Assets panel's cards hand a drop to the panel, and it to the Editor");
     dropin::place_file(state, "art/selftest-drop.png");
     let placed = model::selected_node(state);
     let drawer = placed.authored(if placed.has_component("sprite") { "sprite" } else { "mesh" });

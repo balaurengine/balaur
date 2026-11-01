@@ -191,7 +191,7 @@ impl Property for Numeral {
     }
 }
 
-/// A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
+/// A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
 #[derive(Clone, Component)]
 #[component(name = "widget")]
 #[allow(
@@ -486,6 +486,36 @@ pub(crate) struct WidgetProperties {
     /// Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_link: SmolStr,
+    /// Script method called on a double click, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_double_click: SmolStr,
+    /// Script method called when focus leaves, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_blur: SmolStr,
+    /// Script method called with the value once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_commit: SmolStr,
+    /// Script method called with `#{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_caret: SmolStr,
+    /// Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_activate: SmolStr,
+    /// Script method called with `#{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_fold: SmolStr,
+    /// Script method called when a popup, dialog or window comes up, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_opened: SmolStr,
+    /// Script method called when a popup, dialog or window goes away, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_closed: SmolStr,
+    /// Script method called with the offset, `[x, y]`, when a `scroll` moves, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_scrolled: SmolStr,
+    /// Script method called when a `window`'s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it
+    #[property(group = "events")]
+    pub(crate) on_close_request: SmolStr,
     /// Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this
     #[property(default = true, group = "events")]
     pub(crate) interactive: bool,

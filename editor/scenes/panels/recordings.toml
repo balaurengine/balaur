@@ -38,6 +38,7 @@ id = "verify"
 name = "Verify"
 parent = "tools"
 [nodes.widget]
+on_click = "verify"
 kind = "button"
 role = "chip"
 text = "verify"

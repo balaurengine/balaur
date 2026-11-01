@@ -26,10 +26,7 @@ impl Outline {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "change" || node.name() != "List" {
-            return;
-        }
+    pub fn list_picked(_value: any, node: Node) {
         let row = node.widget.text;
         node.widget.text = "";
         if row != "" {

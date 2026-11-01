@@ -27,20 +27,18 @@ impl Inspector {
         ui::reread(self.node);
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        // Where the pointer or the scroll went changes nothing the form shows.
-        if event == "scrolled" || event == "focus" || event == "blur" {
-            return;
-        }
-        let name = node.name();
-        if name == "Search" && event == "change" {
-            self.query = value.as_str();
-        } else if name == "Add" && event == "click" {
-            self.editor.call("inspector_add");
-            return;
-        }
-        // Any other control is a row of the form, whose handler has already run
-        // and may have moved what the form is built from.
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
+        self.refresh();
+    }
+
+    pub fn add() {
+        self.editor.call("inspector_add");
+    }
+
+    // A row of the form, whose handler has run and may have moved what the
+    // form is built from.
+    pub fn refill() {
         self.refresh();
     }
 

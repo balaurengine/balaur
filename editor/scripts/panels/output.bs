@@ -30,17 +30,18 @@ impl Output {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Clear" && event == "click" {
-            self.editor.call("output_clear");
-        } else if is_level(name, LEVELS()) && event == "click" {
-            self.level = name;
-        } else if name == "Search" && event == "change" {
-            self.query = value.as_str();
-        } else {
-            return;
-        }
+    pub fn clear() {
+        self.editor.call("output_clear");
+        self.refresh();
+    }
+
+    pub fn level_picked(_value: any, node: Node) {
+        self.level = node.name();
+        self.refresh();
+    }
+
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
         self.refresh();
     }
 
@@ -67,13 +68,4 @@ impl Output {
             tools.get_node(level).widget.checked = on;
         }
     }
-}
-
-fn is_level(name: str, items: [str]) -> bool {
-    for level in items {
-        if level == name {
-            return true;
-        }
-    }
-    false
 }

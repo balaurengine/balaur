@@ -482,6 +482,16 @@ pub(crate) mod keys {
     pub(crate) const ON_CLICK: &str = "on_click";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
+    pub(crate) const ON_DOUBLE_CLICK: &str = "on_double_click";
+    pub(crate) const ON_BLUR: &str = "on_blur";
+    pub(crate) const ON_COMMIT: &str = "on_commit";
+    pub(crate) const ON_CARET: &str = "on_caret";
+    pub(crate) const ON_ACTIVATE: &str = "on_activate";
+    pub(crate) const ON_FOLD: &str = "on_fold";
+    pub(crate) const ON_OPENED: &str = "on_opened";
+    pub(crate) const ON_CLOSED: &str = "on_closed";
+    pub(crate) const ON_SCROLLED: &str = "on_scrolled";
+    pub(crate) const ON_CLOSE_REQUEST: &str = "on_close_request";
     pub(crate) const ON_SUBMIT: &str = "on_submit";
     pub(crate) const OPEN: &str = "open";
     pub(crate) const OPTIONS: &str = "options";

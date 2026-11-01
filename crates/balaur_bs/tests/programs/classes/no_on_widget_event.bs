@@ -1,0 +1,6 @@
+pub class Panel { n: int }
+impl Panel {
+    pub fn on_widget_event(event: str, value: any) {}
+}
+
+// error: 3:9: `on_widget_event` is gone: name a method in the widget's key, `on_click = "pressed"`; it is handed the value, then the widget's node

@@ -27,6 +27,7 @@ id = "scripts"
 name = "Scripts"
 parent = "tools"
 [nodes.widget]
+on_click = "scripts"
 kind = "button"
 role = "chip"
 text = "scripts"

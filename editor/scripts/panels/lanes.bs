@@ -28,15 +28,16 @@ impl Lanes {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Scrub" && event == "change" {
-            self.editor.call("lanes_seek", value);
-        } else if event == "click" && (name == "Play" || name == "Step" || name == "Stop") {
-            self.editor.call("lanes_verb", name);
-        } else if event == "click" {
-            self.refresh();
-        }
+    pub fn seek(value: any) {
+        self.editor.call("lanes_seek", value);
+    }
+
+    pub fn verb(_value: any, node: Node) {
+        self.editor.call("lanes_verb", node.name());
+    }
+
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible.

@@ -33,11 +33,9 @@ impl Meter {
         }
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" && node.name() == "Scripts" {
-            self.editor.call("profiler_scripts");
-            self.sample();
-        }
+    pub fn scripts() {
+        self.editor.call("profiler_scripts");
+        self.sample();
     }
 
     fn sample() {

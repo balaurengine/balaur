@@ -16,23 +16,16 @@ impl Hud {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        let name = node.name();
-        let verb = if name == "Out" {
-            "zoom_out"
-        } else if name == "In" {
-            "zoom_in"
-        } else if name == "Open" {
-            "open_bottom"
-        } else {
-            ""
-        };
-        if verb != "" {
-            self.editor.call("stage_verb", verb);
-        }
+    pub fn zoom_out() {
+        self.editor.call("stage_verb", "zoom_out");
+    }
+
+    pub fn zoom_in() {
+        self.editor.call("stage_verb", "zoom_in");
+    }
+
+    pub fn open_bottom() {
+        self.editor.call("stage_verb", "open_bottom");
     }
 
     fn refresh() {

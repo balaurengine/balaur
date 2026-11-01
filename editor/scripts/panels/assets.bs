@@ -13,10 +13,6 @@ pub struct Field {
     text: any,
 }
 
-fn VERBS() -> [str] {
-    ["Up", "Import", "Folder", "Local", "Move", "Source", "Update", "Rename", "Delete"]
-}
-
 impl Assets {
     pub fn init() {
         self.query = "";
@@ -36,22 +32,27 @@ impl Assets {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Search" && event == "change" {
-            self.query = value.as_str();
-            self.refresh();
-        } else if name == "Cards" && event == "click" {
-            // A second click on the selected card reports the same row, and that
-            // is the one that opens it, so the click is heard rather than a change.
-            self.editor.call("assets_pick", node.widget.text);
-        } else if name == "Cards" && event == "drop" {
-            self.editor.call("assets_dropped", value);
-        } else if name == "Name" && event == "submit" {
-            self.editor.call("assets_verb", "rename_to", value);
-        } else if event == "click" && is_verb(name, VERBS()) {
-            self.editor.call("assets_verb", name, "");
-        }
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
+        self.refresh();
+    }
+
+    // A second click on the selected card reports the same row, and that is
+    // the one that opens it, so the click is heard rather than a change.
+    pub fn card_clicked(_value: any, node: Node) {
+        self.editor.call("assets_pick", node.widget.text);
+    }
+
+    pub fn card_dropped(value: any) {
+        self.editor.call("assets_dropped", value);
+    }
+
+    pub fn name_submitted(value: any) {
+        self.editor.call("assets_verb", "rename_to", value);
+    }
+
+    pub fn verb(_value: any, node: Node) {
+        self.editor.call("assets_verb", node.name(), "");
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
@@ -102,13 +103,4 @@ impl Assets {
         patched.widget.options = view["items"];
         patched.widget.text = view["picked"].as_str();
     }
-}
-
-fn is_verb(name: str, items: [str]) -> bool {
-    for verb in items {
-        if verb == name {
-            return true;
-        }
-    }
-    false
 }

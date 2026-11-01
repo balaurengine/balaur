@@ -37,5 +37,4 @@ impl Dock {
     /// The tabs, the "+N" list and the fold run the Editor's own handlers, so
     /// a dock has nothing to add; a panel with a script of its own hears its
     /// controls first.
-    pub fn on_widget_event(event: str, node: Node, value: any) {}
 }

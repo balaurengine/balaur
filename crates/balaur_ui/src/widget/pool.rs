@@ -5,7 +5,7 @@
 //! A spec is a `widget` property table plus `on` and `on_submit`, which hear
 //! the reader's edit: a callback, or the name of a method, called on the
 //! nearest node above the control whose script has it, with the spec's
-//! `data` and then the edit. A script that hands the engine no functions
+//! `data`, then the edit, then the control's node. A script that hands the engine no functions
 //! names its handler. A spec carrying `controls` is a group: one node
 //! holding its controls. A node is written only when what is
 //! asked of it changed, and spare nodes are hidden rather than freed.
@@ -805,14 +805,15 @@ pub(crate) fn dispatch(
                 }
                 _ => None,
             };
-            (handler, to, value)
+            (control, handler, to, value)
         })
         .collect();
-    for (handler, to, value) in calls {
+    for (control, handler, to, value) in calls {
         let heard = match (handler, to, &host) {
             (Handler::Callback(cb), _, _) => eng.invoke(cb, &[value]).map(|_| ()),
             (Handler::Named { method, data }, Some(to), Some(host)) => {
-                host.call_on(balaur_core::node_id_of(to), &method, &[data, value]);
+                let told = Value::Node(control);
+                host.call_on(balaur_core::node_id_of(to), &method, &[data, value, told]);
                 Ok(())
             }
             (Handler::Named { method, .. }, ..) => Err(anyhow!("nothing hears `{method}`")),

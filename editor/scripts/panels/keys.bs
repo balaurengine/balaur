@@ -22,10 +22,8 @@ impl Keys {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" {
-            self.editor.call("command", node.name());
-        }
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.call("command", node.name());
     }
 
     fn refresh() {

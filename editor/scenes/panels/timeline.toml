@@ -39,6 +39,7 @@ id = "create"
 name = "Create"
 parent = "missing"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "Create clip"
@@ -68,6 +69,7 @@ id = "add"
 name = "AddKey"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "chip"
 checked = true
@@ -79,6 +81,7 @@ id = "delete"
 name = "DeleteKey"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "chip"
 text = "− Key"
@@ -90,6 +93,7 @@ id = "length"
 name = "Length"
 parent = "head"
 [nodes.widget]
+on_change = "clip_changed"
 kind = "number_field"
 width = 72
 suffix = " s"
@@ -102,6 +106,7 @@ id = "loop"
 name = "Loop"
 parent = "head"
 [nodes.widget]
+on_change = "clip_changed"
 kind = "dropdown"
 width = 92
 tooltip = "What the clip does at its end"
@@ -203,6 +208,7 @@ id = "scrub"
 name = "Scrub"
 parent = "scrub_row"
 [nodes.widget]
+on_change = "seek"
 kind = "slider"
 [nodes.widget_range]
 value = 0.0

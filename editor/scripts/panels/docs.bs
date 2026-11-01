@@ -24,18 +24,13 @@ impl Docs {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "change" {
-            return;
-        }
-        let name = node.name();
-        if name == "Module" {
-            self.editor.call("docs_pick", value);
-        } else if name == "Search" {
-            self.query = value.as_str();
-        } else {
-            return;
-        }
+    pub fn module_picked(value: any) {
+        self.editor.call("docs_pick", value);
+        self.refresh();
+    }
+
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
         self.refresh();
     }
 

@@ -28,9 +28,7 @@ impl Dialogs {
 
     /// A control has run its own handler by now, so what is left is to show
     /// what it changed.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" || event == "change" || event == "submit" {
-            self.editor.call("dialogs_fill");
-        }
+    pub fn refill() {
+        self.editor.call("dialogs_fill");
     }
 }

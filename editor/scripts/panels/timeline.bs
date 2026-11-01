@@ -33,17 +33,20 @@ impl Timeline {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Scrub" && event == "change" {
-            self.editor.call("timeline_seek", value);
-        } else if (name == "Length" || name == "Loop") && event == "change" {
-            self.editor.call("timeline_clip", name, value);
-        } else if event == "click" && (name == "AddKey" || name == "DeleteKey" || name == "Create") {
-            self.editor.call("timeline_verb", name);
-        } else if event == "click" {
-            self.refresh();
-        }
+    pub fn seek(value: any) {
+        self.editor.call("timeline_seek", value);
+    }
+
+    pub fn clip_changed(value: any, node: Node) {
+        self.editor.call("timeline_clip", node.name(), value);
+    }
+
+    pub fn verb(_value: any, node: Node) {
+        self.editor.call("timeline_verb", node.name());
+    }
+
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible.

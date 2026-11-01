@@ -647,21 +647,24 @@ impl Editor {
     }
 
     /// A search control's edit: the query under the `id` it carries.
-    pub fn search_typed(id: any, text: any) {
+    pub fn search_typed(id: any, text: any, control: Node) {
         search::typed(self.state, id.as_str(), text.as_str());
+        refill_panel(control);
     }
 
     /// A pooled control's edit, for the function its spec's data names: see
     /// `pool::on`.
-    pub fn handle(data: any, value: any) {
+    pub fn handle(data: any, value: any, control: Node) {
         let handler: fn(&mut State, any, any) = data["fn"];
         handler(self.state, data, value);
+        refill_panel(control);
     }
 
     /// The same for Enter in a field: see `pool::on_submit`.
-    pub fn handle_submit(data: any, value: any) {
+    pub fn handle_submit(data: any, value: any, control: Node) {
         let handler: fn(&mut State, any, any) = data["submit"];
         handler(self.state, data, value);
+        refill_panel(control);
     }
 
     /// Reload kept every field of the Editor whose name and type held; the
@@ -1198,15 +1201,17 @@ impl Editor {
 
     /// A plugin property editor's control writing its value: `data.at` is
     /// the `at` its `controls` method was handed.
-    pub fn inspector_write(data: any, value: any) {
+    pub fn inspector_write(data: any, value: any, control: Node) {
         let at: inspector::AtTop = data["at"];
         inspector::write_at(self.state, at, value);
+        refill_panel(control);
     }
 
     /// A plugin control's edit, handed to the method its `data` names on the
     /// plugin's node: `on: "relay"`, `data: { to, method, .. }`.
-    pub fn relay(data: any, value: any) {
+    pub fn relay(data: any, value: any, control: Node) {
         kit::relay(data, value);
+        refill_panel(control);
     }
 
     /// The kit, for a plugin filling its dock: see kit.bs. `part` names
@@ -1729,5 +1734,18 @@ impl Editor {
 
     pub fn tree_delete() {
         model::delete_selected(self.state);
+    }
+}
+
+// A pooled control's handler has run: the panel it stands in, the nearest
+// script above it with a `refill`, shows what that moved.
+fn refill_panel(control: Node) {
+    let at = control;
+    while at.is_valid() {
+        if at.has_method("refill") {
+            at.call("refill");
+            return;
+        }
+        at = at.parent();
     }
 }

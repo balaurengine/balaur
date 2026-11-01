@@ -18,6 +18,7 @@ id = "palette"
 name = "palette"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+k"
@@ -27,6 +28,7 @@ id = "save"
 name = "save"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+s"
@@ -36,6 +38,7 @@ id = "format"
 name = "format"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+shift+f"
@@ -45,6 +48,7 @@ id = "definition"
 name = "definition"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+b"
@@ -54,6 +58,7 @@ id = "rename_symbol"
 name = "rename_symbol"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+shift+r"
@@ -63,6 +68,7 @@ id = "replace"
 name = "replace"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+shift+f"
@@ -72,6 +78,7 @@ id = "focus"
 name = "focus"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+shift+backslash"
@@ -81,6 +88,7 @@ id = "split"
 name = "split"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+backslash"
@@ -90,6 +98,7 @@ id = "zoom_in"
 name = "zoom_in"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+equals"
@@ -99,6 +108,7 @@ id = "zoom_out"
 name = "zoom_out"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+minus"
@@ -108,6 +118,7 @@ id = "settings"
 name = "settings"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+comma"
@@ -117,6 +128,7 @@ id = "export"
 name = "export"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+e"
@@ -126,6 +138,7 @@ id = "step_out"
 name = "step_out"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -136,6 +149,7 @@ id = "continue"
 name = "continue"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -146,6 +160,7 @@ id = "step_over"
 name = "step_over"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -156,6 +171,7 @@ id = "step_into"
 name = "step_into"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -166,6 +182,7 @@ id = "play"
 name = "play"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "f5"
@@ -176,6 +193,7 @@ id = "break"
 name = "break"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
@@ -187,6 +205,7 @@ id = "workspace_1"
 name = "workspace_1"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+1"
@@ -197,6 +216,7 @@ id = "workspace_2"
 name = "workspace_2"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+2"
@@ -207,6 +227,7 @@ id = "workspace_3"
 name = "workspace_3"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+3"
@@ -217,6 +238,7 @@ id = "workspace_4"
 name = "workspace_4"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+4"
@@ -227,6 +249,7 @@ id = "workspace_5"
 name = "workspace_5"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+5"
@@ -237,6 +260,7 @@ id = "add_child"
 name = "add_child"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "shift+a"
@@ -247,6 +271,7 @@ id = "attach_script"
 name = "attach_script"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+s"
@@ -257,6 +282,7 @@ id = "reload"
 name = "reload"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "shift+r"
@@ -267,6 +293,7 @@ id = "copy"
 name = "copy"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+c"
@@ -277,6 +304,7 @@ id = "redo"
 name = "redo"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "shift+cmd+z"
@@ -287,6 +315,7 @@ id = "redo_y"
 name = "redo_y"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+y"
@@ -297,6 +326,7 @@ id = "undo"
 name = "undo"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+z"
@@ -307,6 +337,7 @@ id = "theme"
 name = "theme"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "alt+l"
@@ -317,6 +348,7 @@ id = "select_all"
 name = "select_all"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+a"
@@ -327,6 +359,7 @@ id = "ungroup"
 name = "ungroup"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "shift+cmd+g"
@@ -337,6 +370,7 @@ id = "group"
 name = "group"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+g"
@@ -347,6 +381,7 @@ id = "unlock_all"
 name = "unlock_all"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "shift+cmd+l"
@@ -357,6 +392,7 @@ id = "lock"
 name = "lock"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "cmd+l"
@@ -367,6 +403,7 @@ id = "show_all"
 name = "show_all"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "shift+h"
@@ -377,6 +414,7 @@ id = "hide"
 name = "hide"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "h"
@@ -387,6 +425,7 @@ id = "isolate"
 name = "isolate"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "slash"
@@ -397,6 +436,7 @@ id = "key"
 name = "key"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "k"
@@ -407,6 +447,7 @@ id = "cancel"
 name = "cancel"
 parent = "keys"
 [nodes.widget]
+on_click = "pressed"
 kind = "button"
 focusable = false
 shortcut = "escape"

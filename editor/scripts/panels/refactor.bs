@@ -18,15 +18,16 @@ impl Refactor {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if (name == "From" || name == "To") && event == "change" {
-            self.editor.call("refactor_set", name, value);
-        } else if name == "Apply" && event == "click" {
-            self.editor.call("refactor_apply");
-        } else if name == "Cancel" && event == "click" {
-            self.editor.call("refactor_close");
-        }
+    pub fn field_typed(value: any, node: Node) {
+        self.editor.call("refactor_set", node.name(), value);
+    }
+
+    pub fn apply() {
+        self.editor.call("refactor_apply");
+    }
+
+    pub fn cancel() {
+        self.editor.call("refactor_close");
     }
 
     fn refresh() {

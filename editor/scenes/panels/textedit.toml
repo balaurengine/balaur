@@ -18,5 +18,8 @@ id = "field"
 name = "Field"
 parent = "textedit"
 [nodes.widget]
+on_blur = "blurred"
+on_submit = "submitted"
+on_change = "typed"
 kind = "text_field"
 role = "input_form"

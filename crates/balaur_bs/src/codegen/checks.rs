@@ -54,6 +54,12 @@ pub(crate) fn check_types(prog: &Program) -> R<()> {
                 ),
             );
         }
+        if f.owner.is_some() && f.name.rsplit("::").next() == Some("on_widget_event") {
+            return err(
+                f.pos,
+                "`on_widget_event` is gone: name a method in the widget's key, `on_click = \"pressed\"`; it is handed the value, then the widget's node",
+            );
+        }
         for p in &f.params {
             unknown(&p.ty, p.pos)?;
             if p.by_ref && f.is_async {

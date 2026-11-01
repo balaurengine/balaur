@@ -41,32 +41,30 @@ impl SceneTree {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Add" && event == "click" {
-            self.editor.call("scene_add");
-            return;
+    pub fn add() {
+        self.editor.call("scene_add");
+    }
+
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
+        self.refresh();
+    }
+
+    pub fn facet_picked(value: any) {
+        self.facet = facet_tag(value);
+        self.refresh();
+    }
+
+    // `text` is the row the click landed on. The set the tree lit is the
+    // Editor's to decide, so the rows are filled again from its answer even
+    // when the pick changed nothing.
+    pub fn tree_picked(_value: any, node: Node) {
+        let row = node.widget.text;
+        node.widget.text = "";
+        if row != "" {
+            self.editor.call("outline_pick", row);
         }
-        if event != "change" {
-            return;
-        }
-        if name == "Search" {
-            self.query = value.as_str();
-            self.refresh();
-        } else if name == "Facet" {
-            self.facet = facet_tag(value);
-            self.refresh();
-        } else if name == "Tree" {
-            // `text` is the row the click landed on. The set the tree lit is the
-            // Editor's to decide, so the rows are filled again from its answer
-            // even when the pick changed nothing.
-            let row = node.widget.text;
-            node.widget.text = "";
-            if row != "" {
-                self.editor.call("outline_pick", row);
-            }
-            self.refresh();
-        }
+        self.refresh();
     }
 
     /// Search the tree for `query`, as the `find:` start state does.

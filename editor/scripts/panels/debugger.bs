@@ -34,21 +34,21 @@ impl Debugger {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        let name = node.name();
-        if is_step(name, STEPS()) {
-            self.editor.call("debugger_step", name);
-        } else if name == "Pause" {
-            self.editor.call("debugger_pause");
-        } else if name == "BreakOnError" {
-            self.editor.call("debugger_break_on_error");
-            self.refresh();
-        } else if name == "Stack" {
-            self.editor.call("debugger_frame", node.widget.text);
-        }
+    pub fn step(_value: any, node: Node) {
+        self.editor.call("debugger_step", node.name());
+    }
+
+    pub fn pause() {
+        self.editor.call("debugger_pause");
+    }
+
+    pub fn break_on_error() {
+        self.editor.call("debugger_break_on_error");
+        self.refresh();
+    }
+
+    pub fn frame_clicked(_value: any, node: Node) {
+        self.editor.call("debugger_frame", node.widget.text);
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
@@ -82,13 +82,4 @@ impl Debugger {
         patched.widget.options = view["frames"];
         patched.widget.text = view["picked"].as_str();
     }
-}
-
-fn is_step(name: str, items: [str]) -> bool {
-    for step in items {
-        if step == name {
-            return true;
-        }
-    }
-    false
 }

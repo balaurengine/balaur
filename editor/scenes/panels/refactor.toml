@@ -29,6 +29,7 @@ id = "from"
 name = "From"
 parent = "panel"
 [nodes.widget]
+on_change = "field_typed"
 kind = "text_field"
 role = "input_form"
 [nodes.widget_field]
@@ -39,6 +40,7 @@ id = "to"
 name = "To"
 parent = "panel"
 [nodes.widget]
+on_change = "field_typed"
 kind = "text_field"
 role = "input_form"
 [nodes.widget_field]
@@ -76,6 +78,7 @@ id = "apply"
 name = "Apply"
 parent = "verbs"
 [nodes.widget]
+on_click = "apply"
 kind = "button"
 role = "action_form_primary"
 text = "Apply"
@@ -86,6 +89,7 @@ id = "cancel"
 name = "Cancel"
 parent = "verbs"
 [nodes.widget]
+on_click = "cancel"
 kind = "button"
 role = "action_form"
 text = "Cancel"

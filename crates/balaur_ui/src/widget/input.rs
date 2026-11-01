@@ -442,14 +442,6 @@ fn apply_system(eng: &Engine, _dt: f32) {
         emitted.push((entity, CHANGE_EVENT, value));
     }
     crate::widget::pool::dispatch(eng, &emitted, &hit);
-    // What a panel's `on_widget_event` hears: a widget's own events, not the
-    // pointer hooks every node already gets.
-    let mut told: Vec<(Entity, &'static str, Value)> = emitted
-        .iter()
-        .filter(|(_, event, _)| !hooks::BINDABLE.contains(event))
-        .cloned()
-        .collect();
-    told.extend(hit.iter().map(|&entity| (entity, CLICK_EVENT, Value::Nil)));
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {
@@ -470,13 +462,14 @@ fn apply_system(eng: &Engine, _dt: f32) {
     if let Some(host) = eng.script_host() {
         // Every recipient found before any handler runs, which may reshape
         // the tree the search walks.
+        let told = |entity: Entity| Value::Node(balaur_core::node_id_of(entity).0);
         let signals: Vec<_> = signals
             .into_iter()
             .map(|(entity, method)| {
                 (
                     recipient(eng, host.as_ref(), entity, &method),
                     method,
-                    Vec::new(),
+                    vec![Value::Nil, told(entity)],
                 )
             })
             .collect();
@@ -486,27 +479,12 @@ fn apply_system(eng: &Engine, _dt: f32) {
                 (
                     recipient(eng, host.as_ref(), entity, &method),
                     method,
-                    vec![value],
+                    vec![value, told(entity)],
                 )
-            })
-            .collect();
-        let panels: Vec<_> = told
-            .into_iter()
-            .filter_map(|(entity, event, value)| {
-                let panel = panel_of(eng, host.as_ref(), entity)?;
-                let node = Value::Node(balaur_core::node_id_of(entity).0);
-                Some((panel, [Value::Str(event.to_string()), node, value]))
             })
             .collect();
         for (entity, method, args) in signals.into_iter().chain(typed) {
             host.call_on(balaur_core::node_id_of(entity), &method, &args);
-        }
-        for (panel, args) in panels {
-            host.call_on(
-                balaur_core::node_id_of(panel),
-                hooks::ON_WIDGET_EVENT,
-                &args,
-            );
         }
     }
     announce_focus(eng, focused.as_ref());
@@ -558,11 +536,11 @@ fn settle_one(
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
-        Edit::Entered
-        | Edit::Left
-        | Edit::Pressed(_)
-        | Edit::Released(_)
-        | Edit::DoubleClicked
+        Edit::Entered | Edit::Left | Edit::Pressed(_) | Edit::Released(_) => {
+            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
+            None
+        }
+        Edit::DoubleClicked
         | Edit::Blurred
         | Edit::Committed(_)
         | Edit::ColorCommitted(_)
@@ -572,10 +550,21 @@ fn settle_one(
         | Edit::Closed
         | Edit::Caret(..)
         | Edit::CloseRequested
-        | Edit::Scrolled(_) => {
-            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
-            None
-        }
+        | Edit::Scrolled(_) => heard(edit).map(|(event, value)| {
+            let handler = match event {
+                DOUBLE_CLICK_EVENT => &widget.on_double_click,
+                BLUR_EVENT => &widget.on_blur,
+                COMMIT_EVENT => &widget.on_commit,
+                ACTIVATE_EVENT => &widget.on_activate,
+                FOLD_EVENT => &widget.on_fold,
+                OPENED_EVENT => &widget.on_opened,
+                CLOSED_EVENT => &widget.on_closed,
+                CARET_EVENT => &widget.on_caret,
+                SCROLLED_EVENT => &widget.on_scrolled,
+                _ => &widget.on_close_request,
+            };
+            (event, value, handler)
+        }),
     };
     // The node emits its event whatever the widget carries, and the handler
     // is called only where one is named.
@@ -639,8 +628,7 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
     }
 }
 
-/// What the pointer, focus or a finished gesture did: an event with no
-/// handler key, emitted as it is.
+/// What the pointer, focus or a finished gesture did, as the event it is.
 fn heard(edit: &Edit) -> Option<(&'static str, Value)> {
     let said = match edit {
         Edit::Entered => (hooks::POINTER_ENTER, Value::Nil),
@@ -854,31 +842,11 @@ fn announce_focus(eng: &Engine, focused: Option<&WidgetKey>) {
     }
 }
 
-/// The node a widget's handler runs on: the widget's own when its script
-/// declares the method, else the nearest ancestor whose script does. So a
-/// button deep in a panel names a method on the panel's script, the way a
-/// Godot signal is connected to the node that owns the scene. With none
-/// declaring it, the widget's own node, where the call is the no-op it was.
-/// The nearest node at or above `entity` whose script has `on_widget_event`:
-/// the panel that answers for the widget. `None` where no script up the tree
-/// has one.
-fn panel_of(
-    eng: &Engine,
-    host: &dyn balaur_script::ScriptHost<Engine>,
-    entity: Entity,
-) -> Option<Entity> {
-    let world = eng.world();
-    let mut current = entity;
-    loop {
-        if host.has_method(balaur_core::node_id_of(current), hooks::ON_WIDGET_EVENT) {
-            return Some(current);
-        }
-        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
-    }
-}
-
 /// Where a widget's handler `method` goes: the nearest node at or above
-/// `entity` whose script has it, or `entity` when none does.
+/// `entity` whose script has it, or `entity` when none does. So a button deep
+/// in a panel names a method on the panel's script, the way a Godot signal is
+/// connected to the node that owns the scene. The method is handed the event's
+/// value, then the widget's node, as many of the two as it declares.
 pub(crate) fn recipient(
     eng: &Engine,
     host: &dyn balaur_script::ScriptHost<Engine>,

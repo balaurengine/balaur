@@ -27,6 +27,7 @@ id = "cards"
 name = "Cards"
 parent = "panel"
 [nodes.widget]
+on_click = "card_clicked"
 kind = "list"
 grow = 1
 grid_columns = "repeat(8, 1fr)"

@@ -22,14 +22,11 @@ impl Rail {
         self.handle();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        if node.name() == "Open" && node.parent().name() == "Handle" {
-            self.editor.call("stage_verb", "open_left");
-            return;
-        }
+    pub fn open_left() {
+        self.editor.call("stage_verb", "open_left");
+    }
+
+    pub fn refill() {
         self.editor.call("rail_fill");
     }
 

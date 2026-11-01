@@ -7,10 +7,6 @@ pub class Complete {
     editor: Node,
 }
 
-fn KEYS() -> [str] {
-    ["Up", "Down", "Accept", "Tab", "Close"]
-}
-
 impl Complete {
     pub fn init() {
         self.editor = scene::get_node("Editor");
@@ -21,16 +17,12 @@ impl Complete {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        let name = node.name();
-        if is_key(name, KEYS()) {
-            self.editor.call("complete_key", name);
-        } else if name == "List" {
-            self.editor.call("complete_pick", node.widget.text);
-        }
+    pub fn key(_value: any, node: Node) {
+        self.editor.call("complete_key", node.name());
+    }
+
+    pub fn list_clicked(_value: any, node: Node) {
+        self.editor.call("complete_pick", node.widget.text);
     }
 
     fn refresh() {
@@ -52,13 +44,4 @@ impl Complete {
         patched.widget.visible = view["doc"].as_str() != "";
         patched.widget.text = view["doc"].as_str();
     }
-}
-
-fn is_key(name: str, items: [str]) -> bool {
-    for key in items {
-        if key == name {
-            return true;
-        }
-    }
-    false
 }

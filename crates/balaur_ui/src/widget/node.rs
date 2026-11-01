@@ -98,6 +98,17 @@ pub struct Widget {
     pub neighbours: [SmolStr; 4],
     /// Method on this node's script, called when focus arrives.
     pub on_focus: SmolStr,
+    /// The methods the rest of a widget's events call, each key's own.
+    pub on_double_click: SmolStr,
+    pub on_blur: SmolStr,
+    pub on_commit: SmolStr,
+    pub on_caret: SmolStr,
+    pub on_activate: SmolStr,
+    pub on_fold: SmolStr,
+    pub on_opened: SmolStr,
+    pub on_closed: SmolStr,
+    pub on_scrolled: SmolStr,
+    pub on_close_request: SmolStr,
     /// A `widget_theme` reference, or empty to take the one above.
     pub theme: SmolStr,
     /// A localization key drawn instead of `text` when it is set.

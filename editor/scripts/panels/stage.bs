@@ -19,10 +19,7 @@ impl Stage {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" || node.name() != "Open" {
-            return;
-        }
+    pub fn open(_value: any, node: Node) {
         let side = node.parent().name();
         self.editor.call("stage_verb", if side == "Left" { "open_left" } else { "open_right" });
     }

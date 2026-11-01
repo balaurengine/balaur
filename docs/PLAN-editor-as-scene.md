@@ -544,8 +544,8 @@ that answers every control under it and fills them. The Editor node is the one
 controller: it owns the document, the selection and the history, tells the
 panels when they moved, and is told what they picked. Three things are out:
 
-- **A script a node.** A control names no handler of its own; the panel's
-  `on_widget_event(event, node, value)` hears every widget under it.
+- **A script a node.** A control's key names a method on the panel's script,
+  handed the value and then the control's node.
 - **Drawing.** No `draw` node, no `draw_ui`, no pool restated each pass. A
   panel writes its nodes when its data changes, and a written widget is what
   asks for a pass.
@@ -563,7 +563,7 @@ Built 2026-10-18, phase 0:
 - Queuing an event wakes a loop sleeping under `low_processor`, so a signal
   emitted in a handler is delivered the next frame rather than at the next
   input.
-- `on_widget_event`, a core hook, reaches the nearest script at or above the
+- A widget's key finds its method on the nearest script at or above the
   widget.
 - An input action binds a chord, `cmd+shift+KeyS`, with `cmd` the platform's
   command key, and a key binding reads nothing while a text field holds the
@@ -691,8 +691,8 @@ Every bottom tab is a scene of its own with one script:
   word follows the engine's `debugger_stopped`, which replaced asking
   `stop_location` every frame.
 - Tiles, State machine and Recordings keep pooled rows of chips, filled by
-  the Editor on the word. A chip's own handler runs first, then the panel's
-  `on_widget_event` fills it again.
+  the Editor on the word. A chip's own handler runs first, then the Editor calls
+  the panel's `refill`.
 
 Each widget node's egui child is salted by its node now. egui names an
 unsalted child after its parent alone, so the Debugger's stack and the Scene

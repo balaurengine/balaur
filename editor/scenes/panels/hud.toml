@@ -99,6 +99,7 @@ id = "out"
 name = "Out"
 parent = "zoom_row"
 [nodes.widget]
+on_click = "zoom_out"
 kind = "button"
 text = "−"
 fill = "none"
@@ -119,6 +120,7 @@ id = "in"
 name = "In"
 parent = "zoom_row"
 [nodes.widget]
+on_click = "zoom_in"
 kind = "button"
 fill = "none"
 padding = 0
@@ -139,6 +141,7 @@ id = "bottom_open"
 name = "Open"
 parent = "bottom"
 [nodes.widget]
+on_click = "open_bottom"
 kind = "button"
 fill = "none"
 padding = 0

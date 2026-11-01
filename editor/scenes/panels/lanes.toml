@@ -29,6 +29,7 @@ id = "play"
 name = "Play"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "▶ Play"
@@ -38,6 +39,7 @@ id = "step"
 name = "Step"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "⇥"
@@ -48,6 +50,7 @@ id = "stop"
 name = "Stop"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "■"
@@ -58,6 +61,7 @@ id = "scrub"
 name = "Scrub"
 parent = "head"
 [nodes.widget]
+on_change = "seek"
 kind = "slider"
 grow = 1
 [nodes.widget_range]

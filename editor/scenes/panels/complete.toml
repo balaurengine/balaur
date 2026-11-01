@@ -20,6 +20,7 @@ id = "list"
 name = "List"
 parent = "complete"
 [nodes.widget]
+on_click = "list_clicked"
 kind = "list"
 row_height = 22
 font_size = 11
@@ -61,6 +62,7 @@ id = "up"
 name = "Up"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
 focusable = false
 shortcut = "arrowup"
@@ -71,6 +73,7 @@ id = "down"
 name = "Down"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
 focusable = false
 shortcut = "arrowdown"
@@ -81,6 +84,7 @@ id = "accept"
 name = "Accept"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
 focusable = false
 shortcut = "enter"
@@ -91,6 +95,7 @@ id = "tab"
 name = "Tab"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
 focusable = false
 shortcut = "tab"
@@ -101,6 +106,7 @@ id = "close"
 name = "Close"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
 focusable = false
 shortcut = "escape"

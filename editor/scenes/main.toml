@@ -339,6 +339,7 @@ id = "rail_handle_open"
 name = "Open"
 parent = "rail_handle"
 [nodes.widget]
+on_click = "open_left"
 kind = "button"
 role = "icon_action"
 padding = 0
@@ -771,6 +772,7 @@ id = "manager_filter"
 name = "Filter"
 parent = "manager_tools"
 [nodes.widget]
+on_change = "filter_typed"
 kind = "text_field"
 role = "input_form"
 grow = 1
@@ -783,6 +785,7 @@ id = "manager_open"
 name = "Open"
 parent = "manager_tools"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_manager"
 text = "Open folder"
@@ -792,6 +795,7 @@ id = "manager_new"
 name = "New"
 parent = "manager_tools"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "New project"
@@ -822,6 +826,7 @@ name = "Picker"
 parent = "n_editor"
 script = { source = "scripts/panels/picker.bs" }
 [nodes.widget]
+on_closed = "closed"
 kind = "dialog"
 layer = "shell"
 role = "sheet_picker"
@@ -865,6 +870,7 @@ name = "Sheet"
 parent = "n_editor"
 script = { source = "scripts/panels/sheet.bs" }
 [nodes.widget]
+on_closed = "closed"
 kind = "dialog"
 layer = "shell"
 role = "sheet_dialog"

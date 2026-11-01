@@ -28,6 +28,7 @@ id = "search"
 name = "Search"
 parent = "find"
 [nodes.widget]
+on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 grow = 1
@@ -39,6 +40,7 @@ id = "add"
 name = "Add"
 parent = "find"
 [nodes.widget]
+on_click = "add"
 kind = "button"
 role = "icon_action_primary"
 tooltip = "Add child node"
@@ -51,6 +53,7 @@ id = "facet"
 name = "Facet"
 parent = "panel"
 [nodes.widget]
+on_change = "facet_picked"
 kind = "dropdown"
 role = "choice"
 text = "All nodes"
@@ -71,6 +74,7 @@ id = "tree"
 name = "Tree"
 parent = "panel"
 [nodes.widget]
+on_change = "tree_picked"
 kind = "tree"
 grow = 1
 # The row a click landed on, which the script reads once and clears.

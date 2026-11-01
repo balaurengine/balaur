@@ -82,6 +82,7 @@ id = "left_open"
 name = "Open"
 parent = "left"
 [nodes.widget]
+on_click = "open"
 kind = "button"
 role = "icon_action"
 padding = 0
@@ -102,6 +103,7 @@ id = "right_open"
 name = "Open"
 parent = "right"
 [nodes.widget]
+on_click = "open"
 kind = "button"
 role = "icon_action"
 padding = 0

@@ -48,6 +48,7 @@ id = "search"
 name = "Search"
 parent = "panel"
 [nodes.widget]
+on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 [nodes.widget_field]
@@ -96,6 +97,7 @@ id = "add"
 name = "Add"
 parent = "foot"
 [nodes.widget]
+on_click = "add"
 kind = "button"
 role = "action"
 text = "Add component"

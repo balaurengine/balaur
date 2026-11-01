@@ -17,9 +17,7 @@ impl Topbar {
         self.editor.call("chrome_fill");
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" || event == "change" {
-            self.editor.call("chrome_fill");
-        }
+    pub fn refill() {
+        self.editor.call("chrome_fill");
     }
 }

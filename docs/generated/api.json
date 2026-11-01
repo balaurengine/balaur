@@ -7261,7 +7261,7 @@
     "transform": "The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.",
     "vehicle3d": "Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.",
     "wheel3d": "One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.",
-    "widget": "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.",
+    "widget": "A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.",
     "widget_code": "The rows a `code` widget reads: what it highlights and its gutter.",
     "widget_color_picker": "The rows a `color_picker` reads: the colour it holds and what it offers.",
     "widget_dropdown": "The row a `dropdown` reads: how tall its list grows.",
@@ -8615,6 +8615,16 @@
       "on_submit",
       "on_focus",
       "on_link",
+      "on_double_click",
+      "on_blur",
+      "on_commit",
+      "on_caret",
+      "on_activate",
+      "on_fold",
+      "on_opened",
+      "on_closed",
+      "on_scrolled",
+      "on_close_request",
       "interactive",
       "focusable",
       "neighbour_up",
@@ -18857,6 +18867,24 @@
         "group": "events",
         "type": "string"
       },
+      "on_activate": {
+        "default": "",
+        "description": "Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_blur": {
+        "default": "",
+        "description": "Script method called when focus leaves, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_caret": {
+        "default": "",
+        "description": "Script method called with `#{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
       "on_change": {
         "default": "",
         "description": "Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it",
@@ -18869,15 +18897,57 @@
         "group": "events",
         "type": "string"
       },
+      "on_close_request": {
+        "default": "",
+        "description": "Script method called when a `window`'s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_closed": {
+        "default": "",
+        "description": "Script method called when a popup, dialog or window goes away, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_commit": {
+        "default": "",
+        "description": "Script method called with the value once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_double_click": {
+        "default": "",
+        "description": "Script method called on a double click, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
       "on_focus": {
         "default": "",
         "description": "Script method called when focus arrives, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
+      "on_fold": {
+        "default": "",
+        "description": "Script method called with `#{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
       "on_link": {
         "default": "",
         "description": "Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_opened": {
+        "default": "",
+        "description": "Script method called when a popup, dialog or window comes up, on this node or the nearest ancestor whose script declares it",
+        "group": "events",
+        "type": "string"
+      },
+      "on_scrolled": {
+        "default": "",
+        "description": "Script method called with the offset, `[x, y]`, when a `scroll` moves, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -19991,11 +20061,6 @@
       "on_resize",
       "(width, height)",
       "The window changed size, told to every node."
-    ],
-    [
-      "on_widget_event",
-      "(event, node, value)",
-      "A widget at or under the node had an event (`click`, `change`, `submit` and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it."
     ],
     [
       "on_variable_changed",

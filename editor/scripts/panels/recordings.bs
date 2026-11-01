@@ -18,13 +18,12 @@ impl Recordings {
 
     /// The verify switch is this panel's own; a row's verbs have run their
     /// handlers by now, so what is left is to show what they changed.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        if node.name() == "Verify" {
-            self.editor.call("recordings_verify");
-        }
+    pub fn verify() {
+        self.editor.call("recordings_verify");
+        self.refresh();
+    }
+
+    pub fn refill() {
         self.refresh();
     }
 

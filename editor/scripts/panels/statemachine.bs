@@ -29,10 +29,8 @@ impl Statemachine {
 
     /// A control has run its own handler by now, so what is left is to show
     /// what it changed.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" || event == "change" || event == "submit" {
-            self.refresh();
-        }
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and

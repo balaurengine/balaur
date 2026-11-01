@@ -2507,9 +2507,9 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 120 properties
+`ui` · 130 properties
 
-A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button sets `clicked` and calls `on_click`.
+A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
@@ -2610,6 +2610,16 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_double_click</code></td><td>string</td><td>—</td><td>Script method called on a double click, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_blur</code></td><td>string</td><td>—</td><td>Script method called when focus leaves, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_commit</code></td><td>string</td><td>—</td><td>Script method called with the value once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_caret</code></td><td>string</td><td>—</td><td>Script method called with `#{ x, y, index }` when a text widget&#x27;s caret moves, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_activate</code></td><td>string</td><td>—</td><td>Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_fold</code></td><td>string</td><td>—</td><td>Script method called with `#{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_opened</code></td><td>string</td><td>—</td><td>Script method called when a popup, dialog or window comes up, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_closed</code></td><td>string</td><td>—</td><td>Script method called when a popup, dialog or window goes away, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_scrolled</code></td><td>string</td><td>—</td><td>Script method called with the offset, `[x, y]`, when a `scroll` moves, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_close_request</code></td><td>string</td><td>—</td><td>Script method called when a `window`&#x27;s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>interactive</code></td><td>bool</td><td><code>true</code></td><td>Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>neighbour_up</code></td><td>string</td><td>—</td><td>The widget focus goes to when an arrow, a stick or a d-pad points up from this one, by node name; empty leaves it to where the widgets were drawn</td></tr>

@@ -26,21 +26,17 @@ impl Library {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        let name = node.name();
-        if is_kind(name, KINDS()) {
-            self.editor.call("library_kind", name);
-        } else if name == "Cards" || name == "Table" {
-            // A pick places, so the same card twice places twice: the row is
-            // read and let go rather than kept lit.
-            let row = node.widget.text;
-            node.widget.text = "";
-            if row != "" {
-                self.editor.call("library_pick", row);
-            }
+    pub fn kind(_value: any, node: Node) {
+        self.editor.call("library_kind", node.name());
+    }
+
+    // A pick places, so the same card twice places twice: the row is read and
+    // let go rather than kept lit.
+    pub fn card_clicked(_value: any, node: Node) {
+        let row = node.widget.text;
+        node.widget.text = "";
+        if row != "" {
+            self.editor.call("library_pick", row);
         }
     }
 
@@ -70,13 +66,4 @@ impl Library {
         patched.widget.visible = table;
         patched.widget.options = if table { view["items"] } else { [] };
     }
-}
-
-fn is_kind(name: str, items: [str]) -> bool {
-    for kind in items {
-        if kind == name {
-            return true;
-        }
-    }
-    false
 }

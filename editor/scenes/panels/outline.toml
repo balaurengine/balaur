@@ -17,6 +17,7 @@ id = "list"
 name = "List"
 parent = "panel"
 [nodes.widget]
+on_change = "list_picked"
 kind = "list"
 grow = 1
 

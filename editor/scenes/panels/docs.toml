@@ -27,6 +27,7 @@ id = "module"
 name = "Module"
 parent = "tools"
 [nodes.widget]
+on_change = "module_picked"
 kind = "dropdown"
 role = "choice"
 options = []
@@ -37,6 +38,7 @@ id = "search"
 name = "Search"
 parent = "tools"
 [nodes.widget]
+on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
 width = 150
