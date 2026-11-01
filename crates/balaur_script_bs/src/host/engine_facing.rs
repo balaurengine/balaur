@@ -49,7 +49,7 @@ impl ScriptHost<Engine> for BsHost {
         let mut init: Vec<(String, L)> = vec![];
         for (name, v) in props {
             match file.field_ty(name) {
-                Some(t) => init.push((name.clone(), from_neutral(v, &t))),
+                Some(t) => init.push((name.clone(), from_neutral(v, &t, &file.compiled.meta))),
                 None => {
                     tracing::warn!("[{path}] property '{name}' is set on a node but not exported");
                 }
@@ -210,11 +210,11 @@ impl ScriptHost<Engine> for BsHost {
             let Some(obj) = guard.as_mut() else { continue };
             for (name, v) in fields {
                 if let Some(t) = file.field_ty(name)
-                    && let Err(e) = file
-                        .home
-                        .rt
-                        .borrow_mut()
-                        .set(obj, name, &from_neutral(v, &t))
+                    && let Err(e) = file.home.rt.borrow_mut().set(
+                        obj,
+                        name,
+                        &from_neutral(v, &t, &file.compiled.meta),
+                    )
                 {
                     tracing::error!("[{}] load_state: {e}", inst.path);
                 }

@@ -3,7 +3,7 @@
 //! scene leaves for the next: a round's results for the summary that
 //! follows it. Held as neutral values, so a map stored by one file is read
 //! back by another; a `[T]` or a struct crosses as its neutral shape.
-use crate::convert::{from_neutral, to_neutral};
+use crate::convert::{dynamic, to_neutral};
 use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_bs::{HostSignature, Ty};
 use balaur_script::Value;
@@ -62,5 +62,5 @@ pub(crate) fn call(key: &str, args: &dyn CallArgs) -> Result<L, String> {
         return Ok(L::Void);
     }
     let value = STORE.with_borrow(|store| store.get(&name).cloned());
-    Ok(from_neutral(&value.unwrap_or(Value::Nil), &Ty::Any))
+    Ok(dynamic(&value.unwrap_or(Value::Nil)))
 }

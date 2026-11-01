@@ -60,7 +60,8 @@ impl BsHost {
                 continue;
             };
             if let Some(ty) = rt.awaits(token) {
-                woke |= rt.wake(token, from_neutral(payload, &ty));
+                let payload = from_neutral(payload, &ty, rt.meta());
+                woke |= rt.wake(token, payload);
             }
         }
         if woke {

@@ -987,7 +987,7 @@ impl BsHost {
             .params
             .iter()
             .zip(args.iter().chain(std::iter::repeat(&Value::Nil)))
-            .map(|(ty, value)| from_neutral(value, ty))
+            .map(|(ty, value)| from_neutral(value, ty, &file.compiled.meta))
             .collect();
         let before = rt.steps();
         let out = rt.call_batch(&file.ty, &objs, method, &args);
@@ -1029,7 +1029,7 @@ impl BsHost {
             .params
             .iter()
             .zip(args.iter().chain(std::iter::repeat(&Value::Nil)))
-            .map(|(t, v)| from_neutral(v, t))
+            .map(|(t, v)| from_neutral(v, t, &file.compiled.meta))
             .collect();
         let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
             return self.reenter(file, inst, method, &args, info.is_async, done);

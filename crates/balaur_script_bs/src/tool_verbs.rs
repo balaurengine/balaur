@@ -2,7 +2,7 @@
 //! file: answered by whichever backend serves it, in the shapes the editor
 //! reads (`balaur_script::tool_answer`).
 use crate::api::Structs;
-use crate::convert::{from_neutral_in, to_neutral};
+use crate::convert::{from_neutral, to_neutral};
 use crate::doc_types::Cx;
 use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_bs::{HostSignature, Ty};
@@ -95,14 +95,14 @@ pub(crate) fn call(
 ) -> Result<L, String> {
     if verb == "api" {
         let answer = crate::BsHost::of(eng).map_or(Value::List(vec![]), |host| host.reference());
-        return Ok(from_neutral_in(&answer, ret, structs));
+        return Ok(from_neutral(&answer, ret, structs));
     }
     let Some(path) = args.text(0) else {
         return Err(format!("`script::{verb}` wants a path first"));
     };
     let key = crate::host::key_of(path);
     if verb == "exports" {
-        return Ok(from_neutral_in(&exports(eng, &key), ret, structs));
+        return Ok(from_neutral(&exports(eng, &key), ret, structs));
     }
     let after: Vec<Value> = (1..args.len())
         .map(|index| to_neutral(&args.value(index)))
@@ -111,7 +111,7 @@ pub(crate) fn call(
         let tools = scripts.tools_for(&key)?;
         balaur_script::tool_answer(tools, verb, &key, &after)
     });
-    Ok(from_neutral_in(&answer.unwrap_or(Value::Nil), ret, structs))
+    Ok(from_neutral(&answer.unwrap_or(Value::Nil), ret, structs))
 }
 
 /// What the script at `key` declares tunable, one row a property in name

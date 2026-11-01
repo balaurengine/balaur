@@ -56,7 +56,7 @@ pub(crate) fn bind(
     let (eng, ret) = (eng.clone(), ret.clone());
     let structs = registry.borrow().structs();
     let answer = move |v: anyhow::Result<Value>, ret: &Ty| {
-        v.map(|v| convert::from_neutral_in(&v, ret, &structs))
+        v.map(|v| convert::from_neutral(&v, ret, &*structs))
             .map_err(|e| format!("{e:#}"))
     };
     if store::is_store(key) {
