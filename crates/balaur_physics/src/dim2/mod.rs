@@ -142,6 +142,7 @@ crate::shared::world::functions!(
     component = c::JOINT_2D,
     prune = prune_freed_nodes_except_tiles,
     body = body::Body2d,
+    collider = collider::Collider2d,
     soft = softbody::Softbody2d
 );
 

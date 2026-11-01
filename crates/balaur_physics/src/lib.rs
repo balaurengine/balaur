@@ -446,6 +446,7 @@ crate::shared::world::functions!(
     component = c::JOINT_3D,
     prune = prune_freed_nodes_except_wheels,
     body = body::Body3d,
+    collider = collider::Collider3d,
     soft = softbody::Softbody3d
 );
 

@@ -3,7 +3,7 @@
 //! pointed forwards.
 
 macro_rules! functions {
-    (state = $State:ty, component = $component:expr, prune = $prune:ident, body = $Body:ty, soft = $Soft:ty) => {
+    (state = $State:ty, component = $component:expr, prune = $prune:ident, body = $Body:ty, collider = $Collider:ty, soft = $Soft:ty) => {
         /// A parked scene's bodies, soft bodies and colliders leave the
         /// simulation with their state, and come back to what they ask for.
         pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
@@ -13,9 +13,12 @@ macro_rules! functions {
             let state = &mut *state;
             let world = eng.world();
             for node in nodes {
+                let asked = world
+                    .get::<&$Collider>(*node)
+                    .map_or(true, |held| held.enabled);
                 for &handle in state.colliders.get(node).into_iter().flatten() {
                     if let Some(collider) = state.world.colliders.get_mut(handle) {
-                        collider.set_enabled(!parked);
+                        collider.set_enabled(!parked && asked);
                     }
                 }
                 if let Some(body) = state

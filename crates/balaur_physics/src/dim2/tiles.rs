@@ -184,10 +184,14 @@ pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     let state = &mut *state;
+    let world = eng.world();
     for node in nodes {
+        let asked = world
+            .get::<&TileCollision>(*node)
+            .map_or(true, |held| held.enabled);
         for &handle in state.tile_colliders.get(node).into_iter().flatten() {
             if let Some(collider) = state.world.colliders.get_mut(handle) {
-                collider.set_enabled(!parked);
+                collider.set_enabled(!parked && asked);
             }
         }
     }

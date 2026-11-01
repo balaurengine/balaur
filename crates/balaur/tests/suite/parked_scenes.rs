@@ -627,6 +627,24 @@ fn unload_hands_what_preload_handed_to_the_same_plugin() {
 const BODY: &str = "\n[nodes.body3d]\nkind = \"dynamic\"\n\n[nodes.collider3d]\nshape = { kind = \"sphere\", radius = 0.5 }\n";
 
 #[test]
+fn a_collider_authored_off_stays_off_when_its_scene_returns() {
+    let off = "\n[nodes.body3d]\nkind = \"static\"\n\n[nodes.collider3d]\nshape = { kind = \"sphere\", radius = 0.5 }\nenabled = false\n";
+    let (_dir, mut app) = app_of(off, "");
+    let a = live(&app, "A").unwrap();
+    let enabled = |app: &App| {
+        let state = app.engine.resource::<balaur::physics::PhysicsState3d>();
+        let state = state.borrow();
+        state.colliders[&a]
+            .iter()
+            .all(|&handle| state.world.colliders[handle].is_enabled())
+    };
+    assert!(!enabled(&app), "the control: authored off");
+    switch(&mut app, "b.toml");
+    switch(&mut app, "a.toml");
+    assert!(!enabled(&app), "a return gives back what it asks for");
+}
+
+#[test]
 fn a_parked_body_holds_still_and_goes_on_falling_when_it_returns() {
     let (_dir, mut app) = app_of(BODY, "");
     tick(&mut app, 5);
