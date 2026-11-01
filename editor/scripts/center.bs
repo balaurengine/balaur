@@ -227,14 +227,14 @@ const RAIL: str = "Editor/Shell/Body/Centre/UpperRow/RailSlot/Rail";
 
 /// What the rail is built from, which `signals::bars` compares.
 pub fn rail_key(state: editor::State) -> [any] {
-    let grid = rail_grid(state, state.layout["rail_room"]);
+    let grid = rail_grid(state, state.layout["rail_room"].as_float());
     [state.workspace, state.tool, state.rail_shut, state.rail_visible, state.compact, state.touchscreen, grid.rows, grid.columns, state.theme_revision]
 }
 
 /// Fill the rail: the marks in as many columns as its height leaves room
 /// for, each a node a click on which runs its tool. What its script asks for.
 pub fn fill_rail(state: editor::State) {
-    let grid = rail_grid(state, state.layout["rail_room"]);
+    let grid = rail_grid(state, state.layout["rail_room"].as_float());
     let columns: [any] = [];
     let column: [any] = [];
     for mark in rail_marks(state) {
@@ -348,12 +348,12 @@ fn frame_16_9(viewport_rect: any) -> [float] {
     let target = 16.0 / 9.0;
     let width = viewport_rect["width"];
     let height: any = viewport_rect["width"].as_float() / target;
-    if height > viewport_rect["height"] {
+    if height.as_float() > viewport_rect["height"].as_float() {
         height = viewport_rect["height"];
         width = viewport_rect["height"].as_float() * target;
     }
-    let margin_x = util::max(0.0, (viewport_rect["width"] - width).as_float() / 2.0);
-    let margin_y = util::max(0.0, (viewport_rect["height"] - height).as_float() / 2.0);
+    let margin_x = util::max(0.0, (viewport_rect["width"].as_float() - width.as_float()).as_float() / 2.0);
+    let margin_y = util::max(0.0, (viewport_rect["height"].as_float() - height.as_float()).as_float() / 2.0);
     [margin_x, margin_y, margin_x, margin_y]
 }
 
@@ -472,7 +472,7 @@ fn view_chip(state: editor::State) -> ViewChip {
 }
 
 fn on_view_mode_picked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data["name"];
+    let name: str = data["name"].as_str();
     render::set_debug_view(name);
     signals::bars(state);
 }
@@ -503,7 +503,7 @@ fn bookmark_chips(state: editor::State) -> [any] {
 }
 
 fn on_bookmark_pressed(state: &mut editor::State, data: any, _value: any) {
-    let key: str = data["key"];
+    let key: str = data["key"].as_str();
     bookmark(state, key);
 }
 
@@ -532,7 +532,7 @@ fn bookmark(state: &mut editor::State, key: str) {
 fn hud_inset(state: editor::State) -> any {
     let row: any = state.layout["upper"];
     let viewport_rect: any = state.layout["stage"];
-    util::max(0.0, (row["x"] + row["width"] - viewport_rect["x"] - viewport_rect["width"]).as_float())
+    util::max(0.0, (row["x"].as_float() + row["width"].as_float() - viewport_rect["x"].as_float() - viewport_rect["width"].as_float()).as_float())
 }
 
 /// What the HUD shows along the scene's foot.
@@ -613,10 +613,10 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
     let box: any = state.layout["stage_box"];
     let doc_rect: any = state.layout["doc"];
     let inset = [
-        util::max(0.0, (doc_rect["x"] - box["x"]).as_float()),
-        util::max(0.0, (doc_rect["y"] - box["y"]).as_float()),
-        util::max(0.0, (box["x"] + box["width"] - doc_rect["x"] - doc_rect["width"]).as_float()),
-        util::max(0.0, (box["y"] + box["height"] - doc_rect["y"] - doc_rect["height"]).as_float()),
+        util::max(0.0, (doc_rect["x"].as_float() - box["x"].as_float()).as_float()),
+        util::max(0.0, (doc_rect["y"].as_float() - box["y"].as_float()).as_float()),
+        util::max(0.0, (box["x"].as_float() + box["width"].as_float() - doc_rect["x"].as_float() - doc_rect["width"].as_float()).as_float()),
+        util::max(0.0, (box["y"].as_float() + box["height"].as_float() - doc_rect["y"].as_float() - doc_rect["height"].as_float()).as_float()),
     ];
     let file = open_file(state);
     if file.relative_path == "" {

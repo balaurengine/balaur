@@ -452,7 +452,10 @@ impl<'a> FnGen<'a> {
             Ty::Int => {}
             Ty::Float => self.e(I::I64TruncSatF64S),
             Ty::Any => {
-                self.unbox_any(&Ty::Int);
+                return err(
+                    idx.pos,
+                    "an index is int, not any: read it with `.as_int()`",
+                );
             }
             t => return err(idx.pos, format!("an index is int, not {}", show(&t))),
         }
@@ -555,6 +558,13 @@ impl<'a> FnGen<'a> {
         } else if *got == Ty::Int && *want == Ty::Float {
             self.e(I::F64ConvertI64S);
             Ok(())
+        } else if *got == Ty::Any
+            && let Some(read) = any_read(want).filter(|_| !self.prelude)
+        {
+            err(
+                pos,
+                format!("an `any` is no {}: read it with `.{read}()`", show(want)),
+            )
         } else if (*want == Ty::Any && self.box_any(got))
             || (*got == Ty::Any && self.unbox_any(want))
         {
@@ -628,13 +638,12 @@ impl<'a> FnGen<'a> {
     /// The `any` is released after; false for a type it cannot become.
     pub(crate) fn unbox_any(&mut self, want: &Ty) -> bool {
         let read = match want {
-            Ty::Int | Ty::Fn(..) => Some("as_int"),
-            Ty::Float => Some("as_float"),
-            Ty::Bool => Some("as_bool"),
-            Ty::Str => Some("as_str"),
-            Ty::Node => Some("as_node"),
+            Ty::Fn(..) => Some("as_int"),
             Ty::Struct(_) | Ty::Array(_) | Ty::Optional(_) => None,
-            _ => return false,
+            _ => match any_read(want) {
+                Some(read) => Some(read),
+                None => return false,
+            },
         };
         if let Some(method) = read {
             self.call_prelude(&format!("any::{method}"));
@@ -1048,6 +1057,19 @@ impl<'a> FnGen<'a> {
         if explicit {
             self.e(I::Return);
         }
+    }
+}
+
+/// The method that reads an `any` as `want`, for a scalar: the one spelling
+/// of that, as nothing else asks what the value holds.
+pub(crate) fn any_read(want: &Ty) -> Option<&'static str> {
+    match want {
+        Ty::Int => Some("as_int"),
+        Ty::Float => Some("as_float"),
+        Ty::Bool => Some("as_bool"),
+        Ty::Str => Some("as_str"),
+        Ty::Node => Some("as_node"),
+        _ => None,
     }
 }
 

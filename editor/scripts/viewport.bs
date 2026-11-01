@@ -230,7 +230,7 @@ fn slide_axes(state: editor::State, unit: [float], distance: float, fov: any) ->
         unit_x * right[1] - unit_y * right[0],
     ];
     let tall = util::max(state.screen_height, 1.0);
-    let per_pixel = 2.0 * distance * math::tan(util::max(fov, 0.01).as_float() / 2.0) / tall;
+    let per_pixel = 2.0 * distance * math::tan(util::max(fov.as_float(), 0.01).as_float() / 2.0) / tall;
     let step = per_pixel / util::max(state.ui_scale, 0.01);
     let out = [
         right[0] * step,

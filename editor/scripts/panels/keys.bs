@@ -37,6 +37,6 @@ impl Keys {
             self.node.get_node(name).patch_component("widget", { "enabled": state["stopped"] });
         }
         self.node.get_node("play").patch_component("widget", { "enabled": !state["stopped"].as_bool() });
-        self.node.get_node("break").patch_component("widget", { "enabled": state["playing"] && !state["stopped"].as_bool() });
+        self.node.get_node("break").patch_component("widget", { "enabled": state["playing"].as_bool() && !state["stopped"].as_bool() });
     }
 }

@@ -329,7 +329,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     let at = model::index_of_node(state, driven);
     let limit = util::max(1, (modifier_component["chain_count"].as_float() as int));
     let authored_kind = modifier_component["kind"];
-    let kind = if authored_kind.is_nil() { animation::MODIFIER_LOOK_AT } else { authored_kind };
+    let kind = if authored_kind.is_nil() { animation::MODIFIER_LOOK_AT } else { authored_kind.as_str() };
     // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
     // three by definition. The rest walk as far as `chain` allows.
     let walk = if kind == animation::MODIFIER_LOOK_AT {
@@ -447,7 +447,7 @@ pub fn pick_handle(state: editor::State, world_x: any, world_y: any) -> int? {
         let found = found_or.unwrap();
         if found.target.is_some() {
             let point = found.target.unwrap();
-            let distance = math::sqrt(((point[0] - world_x) * (point[0] - world_x) + (point[1] - world_y) * (point[1] - world_y)).as_float());
+            let distance = math::sqrt(((point[0] - world_x.as_float()) * (point[0] - world_x.as_float()) + (point[1] - world_y.as_float()) * (point[1] - world_y.as_float())).as_float());
             if distance < best_distance {
                 best = row;
                 best_distance = distance;
@@ -534,12 +534,12 @@ pub fn mirror(state: &mut editor::State, axis: str) {
     }
     let moved = 0;
     for bone in bones {
-        let mine_or = was[bone.path()];
+        let mine_or = was[bone.as_node().path()];
         if mine_or.is_nil() {
             continue;
         }
         let mine = mine_or;
-        let full = bone.path();
+        let full = bone.as_node().path();
         let relative_path = if full == base { "" } else { full.as_str().slice(base.len() + 1, full.as_str().len()) };
         let other = mirror_name(relative_path);
         // Its opposite number's rest, reflected; or its own, for a bone with
@@ -555,7 +555,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         moved += 1;
         let live = model::node(state, mine["index"].as_int());
         if live.is_valid() {
-            live.set_component(mine["key"], rest);
+            live.set_component(mine["key"].as_str(), rest);
         }
     }
     apply_rest(state);
@@ -665,7 +665,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: any, worl
     }
     if state.rig.drag.is_some() {
         let drag = state.rig.drag.unwrap();
-        drag_handle(state, drag, world_x, world_y);
+        drag_handle(state, drag, world_x.as_float(), world_y.as_float());
         return;
     }
     state.rig.hover = if over_viewport { pick(state, world_x, world_y) } else { nil };

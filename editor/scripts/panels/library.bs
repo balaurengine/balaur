@@ -60,7 +60,7 @@ impl Library {
         }
         self.node.get_node("Note").patch_component("widget", { "visible": view["says"].as_str() != "", "text": view["says"] });
         let cards = !view["templates"].as_bool() && view["items"].len() > 0;
-        let table = view["templates"] && view["items"].len() > 0;
+        let table = view["templates"].as_bool() && view["items"].len() > 0;
         self.node.get_node("Cards").patch_component("widget", {
             "visible": cards,
             "options": if cards { view["items"] } else { [] },

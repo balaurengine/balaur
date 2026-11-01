@@ -75,7 +75,7 @@ pub fn fill(state: &mut editor::State) {
     }
     // No sidebar: the sheet is one list of targets, and `sheet_form` left it
     // shut for us.
-    pool::sync(state, hosts["form"], specs(state), 0.0, false);
+    pool::sync(state, hosts["form"].as_str(), specs(state), 0.0, false);
 }
 
 /// Every row the sheet shows: what it builds, the link to the settings it
@@ -262,7 +262,7 @@ fn export_button(state: editor::State, name: str, installed: bool, fetchable: bo
 }
 
 fn on_export_clicked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data["name"];
+    let name: str = data["name"].as_str();
     // `download` is the consent this click just gave: the engine
     // never fetches a runtime without being told it may.
     if !export::start(name, export::StartOptions { download: true }) {

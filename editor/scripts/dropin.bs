@@ -388,8 +388,8 @@ pub fn place_file(state: &mut editor::State, rel: str) -> bool {
         log::warn("{file_name(rel)} is not a thing to place in the scene");
         nothing()
     };
-    select_placed(state, placed);
-    placed.is_valid()
+    select_placed(state, placed.as_node());
+    placed.as_node().is_valid()
 }
 
 /// An image pasted where no field took it: written into the project's images

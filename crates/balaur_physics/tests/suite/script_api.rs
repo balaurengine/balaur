@@ -282,7 +282,7 @@ fn writing_one_property_field_leaves_the_others() {
         r#"
         self.node.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.75 }, "density": 2.5 });
         self.node.collider3d.density = 0.9;
-        let radius = self.node.collider3d.shape["radius"];
+        let radius = self.node.collider3d.shape["radius"].as_float();
         if math::abs(radius - 0.75) >= 0.0001 { log::error("radius became {radius}"); }
         let density = self.node.collider3d.density;
         if math::abs(density - 0.9) >= 0.0001 { log::error("density became {density}"); }

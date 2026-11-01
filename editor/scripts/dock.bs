@@ -1025,7 +1025,7 @@ pub fn lanes_fill(state: editor::State) {
         let marks: [any] = [];
         for mark in lane.marks {
             let tick = mark.tick;
-            let mark_x = util::clamp(((tick - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
+            let mark_x = util::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
             marks.push({
                 "kind": "button",
                 "role": "chip_quiet",
@@ -1034,7 +1034,7 @@ pub fn lanes_fill(state: editor::State) {
                 "padding": 0,
                 "absolute": true,
                 "inset": [mark_x, -1.0, -1.0, -1.0],
-                "text_color": if tick <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
+                "text_color": if tick.as_int() <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
                 "tooltip": "{tick}: {mark.label}",
                 "on": "handle",
                 "data": { "fn": on_mark_pressed, "tick": tick },

@@ -176,7 +176,7 @@ fn node(state: editor::State, id: any) -> any {
     // A miss is not remembered: one transient failure would leave the box
     // inert for the rest of the session.
     if !util::is_nil(found) {
-        layout_state["nodes"][id] = found;
+        layout_state["nodes"][id.as_str()] = found;
     }
     found
 }
@@ -187,7 +187,7 @@ fn widget_of(state: editor::State, id: str) -> any {
     if util::is_nil(found) {
         return {};
     }
-    util::map_or_empty(found.get_component("widget"))
+    util::map_or_empty(found.as_node().get_component("widget"))
 }
 
 /// The shell's own gutter: the scene's number, a step tighter in a small
@@ -207,7 +207,7 @@ pub fn seam(state: editor::State) -> any {
 /// the layout has already spent.
 pub fn chrome(state: editor::State) -> Chrome {
     let edges = 2.0 * gutter(state).as_float() + 2.0 * seam(state).as_float();
-    Chrome { width: edges, height: edges + state.layout["status_height"] }
+    Chrome { width: edges, height: edges + state.layout["status_height"].as_float() }
 }
 
 /// What the scene states for one of a box's sizes. A `padding` is four sides
@@ -382,9 +382,9 @@ fn size(state: editor::State, id: str, key: str, value: any) {
         layout_state["tweens"][mark] = animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] });
         return;
     }
-    let parameters = util::map_or_empty(found.get_component("widget"));
+    let parameters = util::map_or_empty(found.as_node().get_component("widget"));
     parameters[key] = value;
-    found.set_component("widget", parameters);
+    found.as_node().set_component("widget", parameters);
 }
 
 /// Draw a box, or stop drawing it. Memoised like `size`, because a component
@@ -402,7 +402,7 @@ fn show(state: editor::State, id: str, on: bool) {
     }
     layout_state["sent"][mark] = want;
     layout_state["quiet"] = 0;
-    found.patch_component("widget", { "visible": on });
+    found.as_node().patch_component("widget", { "visible": on });
 }
 
 /// Where a box was laid out, in design pixels; a zero rect until it has
@@ -478,12 +478,12 @@ pub fn compute(state: &mut editor::State) {
     };
     let grid = center::rail_grid(state, layout_state["rail_room"].as_float());
     let rail_width = if state.rail_visible { center::rail_span(grid, grid.columns) } else { 0.0 };
-    let hooks_width = if state.hooks_open { layout_state["hooks_width"] } else { 0.0 };
+    let hooks_width = if state.hooks_open { layout_state["hooks_width"].as_float() } else { 0.0 };
     // The gutter round the shell and the seams between its sheets: a step
     // tighter in a small window, where they are most of what is on screen.
     let tight = state.compact;
     size(state, "shell", "padding", gutter(state));
-    let gap = if tight { TIGHT_GAP } else { layout_state["gap"] };
+    let gap = if tight { TIGHT_GAP } else { layout_state["gap"].as_float() };
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
         size(state, id, "gap", [gap, gap]);
     }
@@ -544,7 +544,7 @@ pub fn compute(state: &mut editor::State) {
     layout_state["railtop"] = boxes.railtop;
     // The column the rail is in, not the whole centre: the dock below takes
     // its share of the centre, and a rail measured against that overran it.
-    let column: float = if boxes.railslot["height"] > 0.0 { boxes.railslot["height"] } else { boxes.centre["height"] };
+    let column: float = if boxes.railslot["height"].as_float() > 0.0 { boxes.railslot["height"].as_float() } else { boxes.centre["height"].as_float() };
     // Less the folded dock's handle above it and the HUD strip under its foot.
     let hud = if state.stage_chrome && !state.chrome_off { center::hud_height(state) } else { 0.0 };
     layout_state["rail_room"] = util::max(120.0, column - docks::rail_top_height(state) - hud);
@@ -621,12 +621,12 @@ const BAR_HEIGHT_GUESS: float = 43.0;
 pub fn stage_room(state: editor::State) -> Room {
     let layout_state: any = state.layout;
     let screen_width = state.screen_width;
-    let tree_width = side_width(state, "left", screen_width, util::max(layout_state["tree_width"], LEFT_MIN).as_float());
-    let inspector_width = side_width(state, "right", screen_width, util::max(layout_state["inspector_width"], RIGHT_MIN).as_float());
+    let tree_width = side_width(state, "left", screen_width, util::max(layout_state["tree_width"].as_float(), LEFT_MIN).as_float());
+    let inspector_width = side_width(state, "right", screen_width, util::max(layout_state["inspector_width"].as_float(), RIGHT_MIN).as_float());
     let dock_height = if docks::folded(state, "bottom") {
         0.0
     } else {
-        util::max(layout_state["dock_height"], BOTTOM_MIN) + layout_state["status_height"]
+        util::max(layout_state["dock_height"].as_float(), BOTTOM_MIN) + layout_state["status_height"].as_float()
     };
     // Less what the shell spends on itself: the room a rail or a chip strip
     // is offered is the room it will actually be drawn in.
@@ -641,7 +641,7 @@ pub fn stage_room(state: editor::State) -> Room {
 /// 220 px column of it on a phone is a list of truncated words. The stage
 /// keeps a strip, so it is still there to go back to.
 fn side_width(state: editor::State, side: str, room: float, open_width: float) -> float {
-    if state.docks[side]["tabs"].len() == 0 || state.docks[side]["shut"] {
+    if state.docks[side]["tabs"].len() == 0 || state.docks[side]["shut"].as_bool() {
         return 0.0;
     }
     // One sheet at a time takes the whole body: its own fold is the way back,
@@ -674,7 +674,7 @@ pub fn workspace_width(state: editor::State) -> float {
 /// against a hole in the chrome.
 pub fn over_sheet(state: editor::State, point_x: float, point_y: float) -> bool {
     for sheet in sheets(state) {
-        if sheet["width"].as_float() > 0.0 && sheet["height"].as_float() > 0.0 && point_x >= sheet["x"].as_float() && point_x <= (sheet["x"] + sheet["width"]).as_float() && point_y >= sheet["y"].as_float() && point_y <= (sheet["y"] + sheet["height"]).as_float() {
+        if sheet["width"].as_float() > 0.0 && sheet["height"].as_float() > 0.0 && point_x >= sheet["x"].as_float() && point_x <= (sheet["x"].as_float() + sheet["width"].as_float()).as_float() && point_y >= sheet["y"].as_float() && point_y <= (sheet["y"].as_float() + sheet["height"].as_float()).as_float() {
             return true;
         }
     }

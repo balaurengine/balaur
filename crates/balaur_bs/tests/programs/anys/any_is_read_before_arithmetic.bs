@@ -1,0 +1,3 @@
+fn f(a: any) -> int { a["n"] + 1 }
+
+// error: 1:30: `+` on an `any`: read it first, as with `.as_int()`

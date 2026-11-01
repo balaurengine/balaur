@@ -247,12 +247,12 @@ pub fn project(camera: Camera, point: [float]) -> Project? {
     let world_x = point[0];
     let world_y = point[1];
     let world_z = point[2];
-    let clip_w = matrix[3] * world_x + matrix[7] * world_y + matrix[11] * world_z + matrix[15];
+    let clip_w = matrix[3].as_float() * world_x + matrix[7].as_float() * world_y + matrix[11].as_float() * world_z + matrix[15].as_float();
     if clip_w.as_float() < 1e-4 {
         return nil;
     }
-    let normalized_x = (matrix[0] * world_x + matrix[4] * world_y + matrix[8] * world_z + matrix[12]) / clip_w;
-    let normalized_y = (matrix[1] * world_x + matrix[5] * world_y + matrix[9] * world_z + matrix[13]) / clip_w;
+    let normalized_x = (matrix[0].as_float() * world_x + matrix[4].as_float() * world_y + matrix[8].as_float() * world_z + matrix[12].as_float()) / clip_w;
+    let normalized_y = (matrix[1].as_float() * world_x + matrix[5].as_float() * world_y + matrix[9].as_float() * world_z + matrix[13].as_float()) / clip_w;
     let rect = camera.rect;
     Project { x: rect.width * (0.5 + normalized_x.as_float() * 0.5), y: rect.height * (0.5 - normalized_y.as_float() * 0.5) }
 }
@@ -864,7 +864,7 @@ fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: fl
                     }
                 }
             }
-            if seen && box_left <= high_x && box_right.as_float() >= low_x && box_top <= high_y && box_bottom.as_float() >= low_y {
+            if seen && box_left <= high_x.as_float() && box_right.as_float() >= low_x && box_top <= high_y.as_float() && box_bottom.as_float() >= low_y {
                 out.push(row);
             }
         }
@@ -1086,8 +1086,8 @@ pub fn update(state: &mut editor::State) {
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;
-            if util::abs(box_drag["end_x"] - box_drag["start_x"]) > 3.0 || util::abs(box_drag["end_y"] - box_drag["start_y"]) > 3.0 {
-                let rows = rows_in_box(state, camera, box_drag["start_x"], box_drag["start_y"], box_drag["end_x"], box_drag["end_y"]);
+            if util::abs(box_drag["end_x"].as_float() - box_drag["start_x"].as_float()) > 3.0 || util::abs(box_drag["end_y"].as_float() - box_drag["start_y"].as_float()) > 3.0 {
+                let rows = rows_in_box(state, camera, box_drag["start_x"].as_float(), box_drag["start_y"].as_float(), box_drag["end_x"].as_float(), box_drag["end_y"].as_float());
                 if rows.len() > 0 {
                     history::commit(state);
                     selection::set(state, rows);

@@ -1,0 +1,4 @@
+fn g(s: str) -> str { s }
+fn f(a: any) -> str { g(a["name"]) }
+
+// error: 2:26: an `any` is no str: read it with `.as_str()`

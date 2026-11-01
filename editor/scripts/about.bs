@@ -64,8 +64,8 @@ fn specs(state: editor::State) -> [any] {
         },
     ];
     fact(out, "Version", mine["version"].as_str());
-    fact(out, "Build", (if mine["source"].as_bool() == true { "from a checkout" } else { mine["id"] }).as_str());
-    fact(out, "Channel", (if mine["channel"].as_str() == "" { "none" } else { mine["channel"] }).as_str());
+    fact(out, "Build", (if mine["source"].as_bool() == true { "from a checkout" } else { mine["id"].as_str() }).as_str());
+    fact(out, "Channel", (if mine["channel"].as_str() == "" { "none" } else { mine["channel"].as_str() }).as_str());
     fact(out, "Platform", engine::target().os.as_str());
     fact(out, "License", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
@@ -113,7 +113,7 @@ fn link(text: str, url: str) -> any {
 }
 
 fn on_link_clicked(state: any, data: any, _value: any) {
-    let url: str = data["url"];
+    let url: str = data["url"].as_str();
     engine::open_url(url);
 }
 
@@ -123,7 +123,7 @@ fn on_link_clicked(state: any, data: any, _value: any) {
 fn update_rows(state: editor::State, mine: any, out: [any]) {
     let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
-    let line = if mine["channel"].as_str() == "" { "nightly" } else { mine["channel"] };
+    let line = if mine["channel"].as_str() == "" { "nightly" } else { mine["channel"].as_str() };
     let newest = manager::newest_on(state, line.as_str());
     let fresh = newest["order"].as_str() == "newer";
     let controls: [any] = [

@@ -94,7 +94,7 @@ pub fn apply_workspace(state: &mut editor::State, id: str) {
     // A plugin's dock is in no workspace's set: it was adopted when the plugin
     // loaded, and a workspace must not unregister it.
     for entry in state.registry.panels {
-        adopt(state, entry["id"]);
+        adopt(state, entry["id"].as_str());
     }
 }
 
@@ -200,8 +200,8 @@ pub fn panels(state: &mut editor::State) -> any {
         "statemachine": { "name": "State machine", "icon": icons::panel("statemachine"), "tall": true },
     };
     for entry in state.registry.panels {
-        let icon = if entry["icon"] == "" { icons::panel(entry["id"]) } else { entry["icon"] };
-        table[entry["id"]] = Table { name: entry["title"], icon: icon, tall: entry["tall"] };
+        let icon = if entry["icon"] == "" { icons::panel(entry["id"].as_str()) } else { entry["icon"].as_str() };
+        table[entry["id"].as_str()] = Table { name: entry["title"].as_str(), icon: icon, tall: entry["tall"].as_bool() };
     }
     state.panels = Panels { at: state.frame, workspace: state.workspace, table: table };
     table
@@ -229,7 +229,7 @@ pub fn close(state: &mut editor::State, id: str) {
     let kept: [str] = [];
     for tab in state.docks[side]["tabs"] {
         if tab != id {
-            kept.push(tab);
+            kept.push(tab.as_str());
         }
     }
     state.docks[side]["tabs"] = kept;
@@ -278,7 +278,7 @@ pub fn showing(state: editor::State, id: str) -> bool {
     let holder = side_of(state, id);
     if holder.is_some() {
         let side = holder.unwrap();
-        state.docks[side]["active"] == id && !state.docks[side]["shut"]
+        state.docks[side]["active"] == id && !state.docks[side]["shut"].as_bool()
     } else {
         false
     }
@@ -310,7 +310,7 @@ pub fn move_to(state: &mut editor::State, id: str, side: str) {
         let kept: [str] = [];
         for tab in state.docks[old]["tabs"] {
             if tab != id {
-                kept.push(tab);
+                kept.push(tab.as_str());
             }
         }
         state.docks[old]["tabs"] = kept;
@@ -330,10 +330,10 @@ pub fn move_to(state: &mut editor::State, id: str, side: str) {
 /// The taller bottom dock, asked before the layout is computed.
 pub fn bottom_tall(state: &mut editor::State) -> any {
     let dock = state.docks["bottom"];
-    if dock["shut"] || dock["active"] == "" {
+    if dock["shut"].as_bool() || dock["active"] == "" {
         return false;
     }
-    panel(state, dock["active"])["tall"]
+    panel(state, dock["active"].as_str())["tall"]
 }
 
 fn body(state: editor::State, id: str) {
@@ -467,7 +467,7 @@ fn hide_node(state: editor::State, which: str) {
 }
 
 fn hide_unused(state: editor::State, side: str, dock: any) {
-    hide_plugin_hosts(state, side, if dock["shut"] { "" } else { dock["active"] });
+    hide_plugin_hosts(state, side, if dock["shut"].as_bool() { "" } else { dock["active"].as_str() });
     for entry in node_owners()[side] {
         let wanted = false;
         for id in entry["panels"] {
@@ -475,7 +475,7 @@ fn hide_unused(state: editor::State, side: str, dock: any) {
                 wanted = true;
             }
         }
-        if dock["shut"] || !wanted {
+        if dock["shut"].as_bool() || !wanted {
             hide_node(state, entry["hide"].as_str());
         }
     }
@@ -544,7 +544,7 @@ fn hide_plugin_hosts(state: editor::State, side: str, active: str) {
             has_active = true;
             continue;
         }
-        util::hide(plugins_of(side) + "/" + host_name(entry["id"]));
+        util::hide(plugins_of(side) + "/" + host_name(entry["id"].as_str()));
     }
     if !has_active {
         util::hide(plugins_of(side));
@@ -617,7 +617,7 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
     // Problems count its label carries, and the room the row has.
     let names: [any] = [];
     for id in dock["tabs"] {
-        names.push(panel(state, id)["name"]);
+        names.push(panel(state, id.as_str())["name"]);
     }
     let counts = lint::counts(state);
     let key: any = ["{dock}", names, counts.errors + counts.warnings, tab_height(state), state.layout[side]["width"]];
@@ -650,7 +650,7 @@ fn tail_controls(state: editor::State, side: str) -> [any] {
 }
 
 fn on_fold_pressed(state: &mut editor::State, data: any, _value: any) {
-    let side: str = data["side"];
+    let side: str = data["side"].as_str();
     state.docks[side]["shut"] = true;
     signals::docks(state);
 }
@@ -663,9 +663,9 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
     let shown: [any] = shown_tabs(state, side);
     for id in shown {
         let held = id;
-        let info = panel(state, held);
+        let info = panel(state, held.as_str());
         let active = dock["active"] == held;
-        let label = tab_label(state, held);
+        let label = tab_label(state, held.as_str());
         // One tile: the row carries the fill and the corners, and the two
         // halves inside it paint nothing, so the pair reads as one control.
         let inner: [any] = [];
@@ -707,8 +707,8 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
     }
     let hidden: [any] = [];
     for id in dock["tabs"] {
-        if !has(shown, id) {
-            hidden.push(panel(state, id)["name"]);
+        if !has(shown, id.as_str()) {
+            hidden.push(panel(state, id.as_str())["name"]);
         }
     }
     if hidden.len() > 0 {
@@ -728,19 +728,19 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
 }
 
 fn on_tab_picked(state: &mut editor::State, data: any, _value: any) {
-    let side: str = data["side"];
-    let held: str = data["held"];
+    let side: str = data["side"].as_str();
+    let held: str = data["held"].as_str();
     state.docks[side]["active"] = held;
     signals::docks(state);
 }
 
 fn on_tab_close_pressed(state: &mut editor::State, data: any, _value: any) {
-    let held: str = data["held"];
+    let held: str = data["held"].as_str();
     close(state, held);
 }
 
 fn on_more_tab_picked(state: &mut editor::State, data: any, picked: any) {
-    let side: str = data["side"];
+    let side: str = data["side"].as_str();
     show_named(state, side, picked);
 }
 
@@ -748,7 +748,7 @@ fn on_more_tab_picked(state: &mut editor::State, data: any, picked: any) {
 /// leading run that fits, slid along until it reaches the active tab.
 pub fn shown_tabs(state: &mut editor::State, side: str) -> [any] {
     let dock = state.docks[side];
-    let room = state.layout[side]["width"] - HEAD_END;
+    let room = state.layout[side]["width"].as_float() - HEAD_END;
     if tabs_width(state, side) <= room {
         return dock["tabs"];
     }
@@ -760,7 +760,7 @@ pub fn shown_tabs(state: &mut editor::State, side: str) -> [any] {
     let fits = true;
     for index in 0..dock["tabs"].len() {
         let id = dock["tabs"][index];
-        let width = tab_width(state, id);
+        let width = tab_width(state, id.as_str());
         widths.push(width);
         used += width;
         if used <= room && fits {
@@ -797,7 +797,7 @@ fn has(list: [any], id: str) -> bool {
 // A pick from the "+N" list, which lists names: the panel it names comes forward.
 fn show_named(state: &mut editor::State, side: str, name: any) {
     for id in state.docks[side]["tabs"] {
-        if panel(state, id)["name"] == name {
+        if panel(state, id.as_str())["name"] == name {
             state.docks[side]["active"] = id;
             signals::docks(state);
         }
@@ -812,7 +812,7 @@ fn tab_label(state: &mut editor::State, id: str) -> any {
         let errors = counts.errors;
         let warnings = counts.warnings;
         if (errors + warnings).as_int() > 0 {
-            label += " {errors + warnings}";
+            label = label.as_str() + " {errors + warnings}";
         }
     }
     label
@@ -829,7 +829,7 @@ fn hide_tabs(state: &mut editor::State, side: str) {
 fn tabs_width(state: &mut editor::State, side: str) -> float {
     let total = 0.0;
     for tab in state.docks[side]["tabs"] {
-        total += tab_width(state, tab);
+        total += tab_width(state, tab.as_str());
     }
     total
 }
@@ -866,7 +866,7 @@ fn open_icon(side: str) -> str {
 /// An emptied dock is not a blank sheet — it gives its width back.
 pub fn folded(state: editor::State, side: str) -> bool {
     let dock = state.docks[side];
-    dock["shut"] || dock["tabs"].len() == 0
+    dock["shut"].as_bool() || dock["tabs"].len() == 0
 }
 
 /// Whether every dock is down to its rail, which is the layout focus leaves.
@@ -885,12 +885,12 @@ pub fn fill(state: &mut editor::State, side: str) -> str {
     let tokens = state.theme;
     let dock = state.docks[side];
     hide_unused(state, side, dock);
-    if dock["tabs"].len() == 0 || dock["shut"] {
+    if dock["tabs"].len() == 0 || dock["shut"].as_bool() {
         hide_tabs(state, side);
         return "";
     }
     tab_row(state, tokens, side, dock);
-    body(state, dock["active"]);
+    body(state, dock["active"].as_str());
     shown_panel(state, side, dock)
 }
 
@@ -900,13 +900,13 @@ fn shown_panel(state: editor::State, side: str, dock: any) -> str {
     if side == "right" && dock["active"] == "import" {
         return "Import";
     }
-    if side != "bottom" || !filled_by_itself(dock["active"]) {
+    if side != "bottom" || !filled_by_itself(dock["active"].as_str()) {
         return "";
     }
     if dock["active"] == "recordings" && session::loaded(state) {
         return "Lanes";
     }
-    own_node(dock["active"])
+    own_node(dock["active"].as_str())
 }
 
 /// Whether a side dock is open: the one sheet that takes the whole body where
@@ -950,11 +950,11 @@ pub fn handles(state: editor::State) -> Handles {
 }
 
 fn handle(state: editor::State, hidden: bool, side: str) -> Handle {
-    let info = panel(state, state.docks[side]["active"]);
+    let info = panel(state, state.docks[side]["active"].as_str());
     Handle {
         shown: !hidden && has_handle(state, side),
         icon: icons::ui(open_icon(side)),
-        tooltip: "Open the {info["name"].to_lower()}",
+        tooltip: "Open the {info["name"].as_str().to_lower()}",
     }
 }
 

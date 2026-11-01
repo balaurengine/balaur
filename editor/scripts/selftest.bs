@@ -2991,14 +2991,14 @@ pub fn plugin_docks(state: &mut editor::State) {
         return;
     }
     for entry in state.registry.panels {
-        let side = docks::side_of(state, entry["id"]);
+        let side = docks::side_of(state, entry["id"].as_str());
         if !check(side.is_some(), "the {entry["id"]} dock has a tab") {
             continue;
         }
         check(side.unwrap() == "bottom", "and it is in the bottom dock ({side.unwrap()})");
-        check(docks::panels(state).has(entry["id"]), "the panel table names {entry["id"]}");
-        docks::show(state, entry["id"]);
-        check(docks::showing(state, entry["id"]), "showing {entry["id"]} brings it up");
+        check(docks::panels(state).has(entry["id"].as_str()), "the panel table names {entry["id"]}");
+        docks::show(state, entry["id"].as_str());
+        check(docks::showing(state, entry["id"].as_str()), "showing {entry["id"]} brings it up");
     }
     // The User data dock with every file at its root opened: what a plugin
     // fills its host with is rows, and a file's contents are rows under the

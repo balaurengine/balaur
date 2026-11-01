@@ -84,7 +84,7 @@ impl SceneTree {
         self.node.get_node("Find/Add").patch_component("widget", { "icon": view["add_icon"] });
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
-        if view["filtering"] && view["items"].len() == 0 {
+        if view["filtering"].as_bool() && view["items"].len() == 0 {
             tree.patch_component("widget", { "visible": false });
             nothing.patch_component("widget", { "visible": true, "text": view["nothing"] });
             return;

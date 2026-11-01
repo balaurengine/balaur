@@ -219,7 +219,7 @@ fn side_controls(state: editor::State) -> [any] {
 }
 
 fn on_page_button_clicked(state: &mut editor::State, data: any, _value: any) {
-    let page: str = data["page"];
+    let page: str = data["page"].as_str();
     state.themewin.page = page;
 }
 
@@ -721,7 +721,7 @@ fn on_role_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_state_chip_clicked(state: &mut editor::State, data: any, _value: any) {
-    let word: str = data["word"];
+    let word: str = data["word"].as_str();
     state.themewin.table = word;
 }
 
@@ -818,7 +818,7 @@ fn key_spec(state: editor::State, doc: any, at: [str], key: str, value: any, sta
 
 fn on_key_cleared(state: &mut editor::State, data: any, _value: any) {
     let at: [str] = data["at"];
-    let key: str = data["key"];
+    let key: str = data["key"].as_str();
     clear(state, at, key);
 }
 
@@ -860,7 +860,7 @@ fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, 
             {
                 "kind": "color_picker",
                 "width": 34,
-                "picked_color": rgba_of((if is_hex(hex.as_str()) { hex } else { "#000000" }).as_str()),
+                "picked_color": rgba_of((if is_hex(hex.as_str()) { hex.as_str() } else { "#000000" }).as_str()),
                 "enabled": mine,
                 "on": "handle",
                 "data": { "fn": on_key_color_picked, "at": at, "key": key },
@@ -929,25 +929,25 @@ fn on_key_color_picked(state: &mut editor::State, data: any, rgba: any) {
 
 fn on_key_color_name_picked(state: &mut editor::State, data: any, picked: any) {
     let at: [str] = data["at"];
-    let key: str = data["key"];
+    let key: str = data["key"].as_str();
     edit(state, at, key, picked);
 }
 
 fn on_key_word_picked(state: &mut editor::State, data: any, picked: any) {
     let at: [str] = data["at"];
-    let key: str = data["key"];
+    let key: str = data["key"].as_str();
     edit(state, at, key, picked);
 }
 
 fn on_key_number_changed(state: &mut editor::State, data: any, value: any) {
     let at: [str] = data["at"];
-    let key: str = data["key"];
+    let key: str = data["key"].as_str();
     edit(state, at, key, whole(value));
 }
 
 fn on_key_text_submitted(state: &mut editor::State, data: any, text: any) {
     let at: [str] = data["at"];
-    let key: str = data["key"];
+    let key: str = data["key"].as_str();
     edit(state, at, key, text);
 }
 
@@ -1052,8 +1052,8 @@ fn on_alike_edit_clicked(state: &mut editor::State, _data: any, _value: any) {
 }
 
 fn on_problem_edit_clicked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data["name"];
-    let table: str = data["table"];
+    let name: str = data["name"].as_str();
+    let table: str = data["table"].as_str();
     show_role(state, name, table);
 }
 
@@ -1197,7 +1197,7 @@ pub fn duplicate(state: &mut editor::State) -> str {
 
 fn rename(state: &mut editor::State, text: any) {
     let old = state.theme["name"].as_str();
-    let name = text.trim();
+    let name = text.as_str().trim();
     let bad = name == "" || name.contains("/") || name.contains(".");
     if bad || theme::is_bundled(name) || name_taken(name, theme::names()) {
         state.themewin.said = "'{text}' is not a name a new theme folder can take";

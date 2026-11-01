@@ -63,16 +63,7 @@ const SHOWN: [T; 9] = [
 ];
 
 /// What a typed `let` may read out of an `any`.
-const UNBOXED: [T; 8] = [
-    T::Int,
-    T::Float,
-    T::Bool,
-    T::Str,
-    T::Ints,
-    T::Point,
-    T::Ages,
-    T::Maybe,
-];
+const UNBOXED: [T; 4] = [T::Ints, T::Point, T::Ages, T::Maybe];
 
 fn plain(t: T) -> bool {
     matches!(t, T::Int | T::Float | T::Bool | T::Str)
@@ -373,9 +364,10 @@ impl Gen {
                 E::Method(r, if self.rng.chance(2) { "as_int" } else { "len" }, vec![])
             }
             12 if self.reads_any(s) => {
-                // An `any` beside an int is read as one.
+                // An `any` read as an int, beside one.
                 let op = self.pick(&[Op::Add, Op::Sub, Op::Mul]);
-                let (r, n) = (self.any_expr(s, d), self.expr(T::Int, s, d));
+                let r = E::Method(Box::new(self.any_expr(s, d)), "as_int", vec![]);
+                let n = self.expr(T::Int, s, d);
                 let (a, b) = if self.rng.chance(2) { (r, n) } else { (n, r) };
                 E::Bin(op, Box::new(a), Box::new(b))
             }
@@ -444,11 +436,11 @@ impl Gen {
                 Box::new(self.expr(T::Float, s, d)),
             ),
             5 if self.reads_any(s) => {
-                // Read as a float: by `as_float`, negated, or beside a float
-                // or another `any`.
-                let r = self.any_expr(s, d);
+                // Read as a float, then negated, or beside a float or another
+                // `any` read the same way.
+                let r = E::Method(Box::new(self.any_expr(s, d)), "as_float", vec![]);
                 match self.rng.below(4) {
-                    0 => E::Method(Box::new(r), "as_float", vec![]),
+                    0 => r,
                     1 => E::Neg(Box::new(r)),
                     2 => {
                         let op = self.pick(&[Op::Add, Op::Sub, Op::Mul, Op::Div]);
@@ -456,7 +448,8 @@ impl Gen {
                     }
                     _ => {
                         let op = self.pick(&[Op::Add, Op::Sub, Op::Mul, Op::Div]);
-                        E::Bin(op, Box::new(r), Box::new(self.any_expr(s, d)))
+                        let other = E::Method(Box::new(self.any_expr(s, d)), "as_float", vec![]);
+                        E::Bin(op, Box::new(r), Box::new(other))
                     }
                 }
             }
@@ -515,10 +508,11 @@ impl Gen {
                 E::Bin(eq, Box::new(a), Box::new(b))
             }
             4 => E::Bin(eq, Box::new(r), Box::new(self.any_expr(s, d))),
-            5 => E::Not(Box::new(r)),
+            5 => E::Not(Box::new(E::Method(Box::new(r), "as_bool", vec![]))),
             6 => {
                 let op = self.pick(&[Op::Lt, Op::Le]);
-                E::Bin(op, Box::new(r), Box::new(self.expr(T::Int, s, d)))
+                let read = E::Method(Box::new(r), "as_int", vec![]);
+                E::Bin(op, Box::new(read), Box::new(self.expr(T::Int, s, d)))
             }
             _ => self.change(r, s, d, true),
         }
@@ -610,7 +604,12 @@ impl Gen {
                 self.any_arg(s, d)
             } else if self.rng.chance(8) {
                 // Read out of an `any` as the parameter's type.
-                self.any_expr(s, d)
+                let r = self.any_expr(s, d);
+                match t {
+                    T::Int => E::Method(Box::new(r), "as_int", vec![]),
+                    T::Float => E::Method(Box::new(r), "as_float", vec![]),
+                    _ => r,
+                }
             } else {
                 self.expr(t, s, d)
             });

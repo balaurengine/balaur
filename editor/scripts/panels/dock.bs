@@ -30,7 +30,7 @@ impl Dock {
         // Told once it is visible, so a panel that fills itself never reads
         // itself as hidden and skips the fill.
         if shown.kind() == "str" && shown.as_str() != "" {
-            self.node.get_node(shown).call("refresh");
+            self.node.get_node(shown.as_str()).call("refresh");
         }
     }
 

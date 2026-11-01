@@ -205,16 +205,16 @@ pub fn fill_chips(state: editor::State, names: [any]) {
     let tokens = state.theme;
     let out: [any] = [];
     for name in names {
-        let action = name.starts_with(ACTION);
+        let action = name.as_str().starts_with(ACTION);
         out.push({
             "kind": "button",
-            "text": if action { name.slice(ACTION.len(), name.len()) } else { name },
+            "text": if action { name.as_str().slice(ACTION.len(), name.len()) } else { name },
             "height": 30,
             "font_size": style::MEDIUM,
             "font_weight": 700,
             "interactive": false,
             "fill": (if action { tokens["bg_control"] } else { tokens["primary_fill"] }).as_str(),
-            "stroke": (if action { tokens["primary_text"] } else { "" }).as_str(),
+            "stroke": (if action { tokens["primary_text"].as_str() } else { "" }).as_str(),
             "text_color": (if action { tokens["primary_text"] } else { tokens["text_on_primary"] }).as_str(),
         });
     }

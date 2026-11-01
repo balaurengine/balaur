@@ -496,7 +496,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
 }
 
 fn on_project_pressed(state: &mut editor::State, data: any, _value: any) {
-    let gone: bool = data["gone"];
+    let gone: bool = data["gone"].as_bool();
     let here: any = data["here"];
     if !gone {
         go(state, here.as_str());
@@ -923,7 +923,7 @@ fn tab_controls(state: editor::State) -> [any] {
 }
 
 fn on_page_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"];
+    let id: str = data["id"].as_str();
     state.manager.tab = id;
 }
 
@@ -1082,12 +1082,12 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> any {
 }
 
 fn on_download_pressed(state: &mut editor::State, data: any, _value: any) {
-    let download: str = data["download"];
+    let download: str = data["download"].as_str();
     engine::open_url(download);
 }
 
 fn on_install_row_pressed(state: &mut editor::State, data: any, _value: any) {
-    let tag: str = data["tag"];
+    let tag: str = data["tag"].as_str();
     put(state, "", tag);
 }
 
@@ -1215,7 +1215,7 @@ pub fn new_fill(state: &mut editor::State) {
             },
         ],
     });
-    pool::sync(state, hosts["form"], specs, 72.0, false);
+    pool::sync(state, hosts["form"].as_str(), specs, 72.0, false);
 }
 
 fn on_name_typed(state: &mut editor::State, data: any, text: any) {

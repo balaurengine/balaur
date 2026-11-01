@@ -216,7 +216,7 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
         seconds: (last - first + 1).as_float() / 60.0,
         reason: (if !recorded_reason.is_nil() {
             let reason = recorded_reason;
-            if reason.kind() == "str" { reason } else { "crashed" }
+            if reason.kind() == "str" { reason.as_str() } else { "crashed" }
         } else {
             "crashed"
         }).as_str(),

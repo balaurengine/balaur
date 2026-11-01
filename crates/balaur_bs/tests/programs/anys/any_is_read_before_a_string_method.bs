@@ -1,0 +1,3 @@
+fn f(a: any) -> bool { a["name"].starts_with("o") }
+
+// error: 1:33: an `any` has no `starts_with`: read it with `.as_str()` first

@@ -146,7 +146,7 @@ fn plural(count: int, word: str) -> str {
 // Where the first workspace pill starts, after the brand.
 fn workspaces_x(state: editor::State) -> float {
     let name = if state.compact { 0.0 } else { 3.0 + NAME_WIDTH };
-    state.layout["bar"]["x"] + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
+    state.layout["bar"]["x"].as_float() + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
 }
 
 /// Where one workspace pill's centre lands in the bar, in design px, so the
@@ -207,7 +207,7 @@ pub fn transport_spot(state: editor::State, index: int) -> Spot {
         return spot;
     }
     let command_width = if state.compact { COMMAND_WIDTH_COMPACT } else { COMMAND_WIDTH };
-    let block = (bar["x"] + bar["width"]).as_float() - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
+    let block = (bar["x"].as_float() + bar["width"].as_float()).as_float() - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
     return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
 }
 
@@ -408,7 +408,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [any] {
 }
 
 fn on_workspace_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"];
+    let id: str = data["id"].as_str();
     shell::set_workspace(state, id);
 }
 
@@ -508,12 +508,12 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
 }
 
 fn on_doc_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"];
+    let id: str = data["id"].as_str();
     shell::open_doc(state, id);
 }
 
 fn on_doc_close_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"];
+    let id: str = data["id"].as_str();
     shell::close_doc(state, id);
 }
 
@@ -584,7 +584,7 @@ fn on_play_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data["replaying"];
+    let replaying: bool = data["replaying"].as_bool();
     if replaying {
         session::toggle_pause(state);
     } else {
@@ -593,7 +593,7 @@ fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_stop_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data["replaying"];
+    let replaying: bool = data["replaying"].as_bool();
     if replaying {
         session::close(state);
     } else {

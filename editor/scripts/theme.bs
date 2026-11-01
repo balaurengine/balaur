@@ -85,7 +85,7 @@ pub fn path_of(name: str, half: str) -> str {
 pub fn names() -> [any] {
     let out: [any] = copy_names(BUNDLED());
     for entry in util::list_or_empty(fs::list(user_directory())) {
-        if entry["is_dir"] && !is_bundled(entry["name"].as_str()) {
+        if entry["is_dir"].as_bool() && !is_bundled(entry["name"].as_str()) {
             out.push(entry["name"]);
         }
     }

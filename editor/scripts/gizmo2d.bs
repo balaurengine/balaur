@@ -403,7 +403,7 @@ fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, 
         scale: util::xyz(scale),
         rotation: rotation,
         basis: [],
-        mouse: [world_x, world_y],
+        mouse: [world_x.as_float(), world_y.as_float()],
         center: [geometry.center[0], geometry.center[1]],
         extent: 0.0,
         world_center: [],
@@ -412,7 +412,7 @@ fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, 
         anchor: [0.0, 0.0],
         angle: geometry.angle,
         half_extents: [geometry.half_extents[0], geometry.half_extents[1]],
-        start_angle: math::atan2((world_y - geometry.center[1]).as_float(), world_x - geometry.center[0]),
+        start_angle: math::atan2((world_y.as_float() - geometry.center[1]).as_float(), world_x.as_float() - geometry.center[0]),
     };
     if part.kind == "handle" {
         // The opposite corner/edge stays fixed in world space.
@@ -428,17 +428,17 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
     }
     let pivot = [drag.center[0], drag.center[1], 0.0];
     if drag.part.kind == "face" {
-        let delta = [world_x - drag.mouse[0], world_y - drag.mouse[1], 0.0];
+        let delta = [world_x.as_float() - drag.mouse[0], world_y.as_float() - drag.mouse[1], 0.0];
         selection::move_by(state, drag.set, delta, viewport::snapping(state));
     } else if drag.part.kind == "ring" {
-        let current_angle = math::atan2((world_y - drag.center[1]).as_float(), world_x - drag.center[0]);
+        let current_angle = math::atan2((world_y.as_float() - drag.center[1]).as_float(), world_x.as_float() - drag.center[0]);
         selection::rotate_by(state, drag.set, 2, current_angle - drag.start_angle, pivot);
     } else if drag.part.kind == "handle" {
         // steadyum drive_single_drag: per-axis factor from the cursor's
         // world travel projected on the box's (rotated) axes; Shift applies
         // the dominant factor to every active axis.
-        let delta_x = world_x - drag.mouse[0];
-        let delta_y = world_y - drag.mouse[1];
+        let delta_x = world_x.as_float() - drag.mouse[0];
+        let delta_y = world_y.as_float() - drag.mouse[1];
         let cosine = math::cos(drag.angle);
         let sine = math::sin(drag.angle);
         let axes = [[cosine, sine], [-sine, cosine]];
@@ -641,8 +641,8 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;
-            if util::abs(box_drag["end_x"] - box_drag["start_x"]) > 3.0 || util::abs(box_drag["end_y"] - box_drag["start_y"]) > 3.0 {
-                let rows = rows_in_box(state, box_drag["world_start_x"], box_drag["world_start_y"], box_drag["world_end_x"], box_drag["world_end_y"]);
+            if util::abs(box_drag["end_x"].as_float() - box_drag["start_x"].as_float()) > 3.0 || util::abs(box_drag["end_y"].as_float() - box_drag["start_y"].as_float()) > 3.0 {
+                let rows = rows_in_box(state, box_drag["world_start_x"].as_float(), box_drag["world_start_y"].as_float(), box_drag["world_end_x"].as_float(), box_drag["world_end_y"].as_float());
                 if rows.len() > 0 {
                     history::commit(state);
                     selection::set(state, rows);

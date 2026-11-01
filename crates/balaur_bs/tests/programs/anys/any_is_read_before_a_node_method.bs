@@ -1,0 +1,4 @@
+extern fn is_ready(node: Node) -> bool;
+fn f(a: any) -> bool { a["node"].is_ready() }
+
+// error: 2:33: an `any` has no `is_ready`: read it with `.as_node()` first

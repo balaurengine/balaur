@@ -1165,11 +1165,11 @@ fn edit_vector(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
 }
 
 fn on_vector_edited(state: &mut editor::State, data: any, value: any) {
-    let count: int = data["count"];
+    let count: int = data["count"].as_int();
     let at: AtTop = data["at"];
     let held: any = data["held"];
-    let fallback: float = data["fallback"];
-    let slot: int = data["slot"];
+    let fallback: float = data["fallback"].as_float();
+    let slot: int = data["slot"].as_int();
     let datatype: any = data["datatype"];
     let spec: any = data["spec"];
     let out: [float] = [];
@@ -1287,10 +1287,10 @@ fn on_asset_embed_or_save(state: &mut editor::State, data: any, _value: any) {
 /// What the placeholder calls an inherited material: its file's stem.
 fn inherited_label(state: editor::State, reference: str) -> str {
     let file = model::relative_file(state, reference);
-    if file.starts_with("#!") {
+    if file.as_str().starts_with("#!") {
         "inline"
     } else {
-        util::last_segment(file).replace(".toml", "")
+        util::last_segment(file.as_str()).replace(".toml", "")
     }
 }
 

@@ -1,5 +1,5 @@
 use super::Site;
-use super::func::{FnGen, LVal, Mode, R, err, op_text, show};
+use super::func::{FnGen, LVal, Mode, R, any_read, err, op_text, show};
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, StmtKind, Ty, UnOp};
@@ -148,14 +148,16 @@ impl FnGen<'_> {
             (UnOp::Neg, Ty::Float) => self.e(I::F64Neg),
             (UnOp::Not, Ty::Bool) => self.e(I::I32Eqz),
             (UnOp::Neg, Ty::Any) => {
-                self.unbox_any(&Ty::Float);
-                self.e(I::F64Neg);
-                return Ok(Ty::Float);
+                return err(
+                    pos,
+                    "cannot negate an `any`: read it with `.as_float()` or `.as_int()`",
+                );
             }
             (UnOp::Not, Ty::Any) => {
-                self.unbox_any(&Ty::Bool);
-                self.e(I::I32Eqz);
-                return Ok(Ty::Bool);
+                return err(
+                    pos,
+                    "`!` needs a bool, not an `any`: read it with `.as_bool()`",
+                );
             }
             (UnOp::Neg, _) => return err(pos, format!("cannot negate {}", show(&t))),
             (UnOp::Not, _) => return err(pos, format!("`!` needs a bool, got {}", show(&t))),
@@ -540,7 +542,6 @@ impl FnGen<'_> {
                 "an `if` without `else` has no value; end the block with `;` or add `else`",
             );
         }
-        let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
         // A branch that leaves has whatever type the other gives: it never
         // hands a value to the `if`.
         let (tt, et) = match els {
@@ -558,19 +559,6 @@ impl FnGen<'_> {
             (Ty::Int, Ty::Float) => {
                 then_code.push(I::F64ConvertI64S);
                 Ty::Float
-            }
-            // An `any` branch is read as the other branch's plain kind.
-            (Ty::Any, t) if plain(t) => {
-                let mark = self.code.len();
-                self.unbox_any(t);
-                then_code.extend(self.code.drain(mark..));
-                t.clone()
-            }
-            (t, Ty::Any) if plain(t) => {
-                let mark = self.code.len();
-                self.unbox_any(t);
-                else_code.extend(self.code.drain(mark..));
-                t.clone()
             }
             (Ty::Float, Ty::Int) => {
                 else_code.push(I::F64ConvertI64S);
@@ -640,40 +628,30 @@ impl FnGen<'_> {
         let mut tb = self.expr(b)?;
         let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
         // `==` asks whether the `any` holds that value, so nil is no `false`
-        // and no `""`: both are compared as values. Anything else meets the
-        // plain value as that value's kind.
+        // and no `""`: both are compared as values. Anything else wants the
+        // `any` read first.
         let mixed = (ta == Ty::Any && plain(&tb)) || (tb == Ty::Any && plain(&ta));
         if mixed && matches!(op, BinOp::Eq | BinOp::Ne) {
             return self.equal_as_values(op, &ta, &tb, pos);
         }
-        if ta == Ty::Any && plain(&tb) {
-            let held = self.temp(&tb);
-            self.set_raw(&held);
-            self.unbox_any(&tb);
-            self.take_out(&held);
-            ta = tb.clone();
-        } else if tb == Ty::Any && plain(&ta) {
-            self.unbox_any(&ta);
-            tb = ta.clone();
+        if ta == Ty::Any || tb == Ty::Any {
+            if ta == tb && matches!(op, BinOp::Eq | BinOp::Ne) {
+                return self.equal_as_values(op, &ta, &tb, pos);
+            }
+            let read = any_read(if ta == Ty::Any { &tb } else { &ta }).unwrap_or("as_float");
+            return err(
+                pos,
+                format!(
+                    "`{}` on an `any`: read it first, as with `.{read}()`",
+                    op_text(op)
+                ),
+            );
         }
         if ta == Ty::Int && tb == Ty::Float {
             self.code.insert(mark, I::F64ConvertI64S);
             ta = Ty::Float;
         } else if ta == Ty::Float && tb == Ty::Int {
             self.e(I::F64ConvertI64S);
-            tb = Ty::Float;
-        }
-        // Two `any`s: equal as values, else compared and counted as floats.
-        if ta == Ty::Any && tb == Ty::Any {
-            if matches!(op, BinOp::Eq | BinOp::Ne) {
-                return self.equal_as_values(op, &ta, &tb, pos);
-            }
-            let held = self.temp(&Ty::Any);
-            self.set_raw(&held);
-            self.unbox_any(&Ty::Float);
-            self.take_out(&held);
-            self.unbox_any(&Ty::Float);
-            ta = Ty::Float;
             tb = Ty::Float;
         }
         // Lists or structs are equal as values: both boxed and compared.

@@ -71,7 +71,7 @@ impl Assets {
         // The field's text only as it opens: a refresh while it is up would take
         // the typing back.
         let field = Field { visible: view["renaming"], text: nil };
-        if view["renaming"] && !self.renaming {
+        if view["renaming"].as_bool() && !self.renaming {
             field.text = view["name"];
         }
         self.renaming = view["renaming"].as_bool();

@@ -102,11 +102,6 @@ fn binary_type(op: Op, a: T, b: T) -> Option<T> {
     if matches!(op, Op::And | Op::Or | Op::Eq | Op::Ne | Op::Lt | Op::Le) {
         return Some(T::Bool);
     }
-    let (a, b) = match (a, b) {
-        (T::Any, p) | (p, T::Any) if plain(p) => (p, p),
-        (T::Any, T::Any) => (T::Float, T::Float),
-        x => x,
-    };
     match (a, b) {
         (T::Int, T::Int) => Some(T::Int),
         (T::Int | T::Float, T::Int | T::Float) => Some(T::Float),
@@ -481,12 +476,6 @@ impl Interp<'_> {
             let same = anys::same(&anys::boxed(&va)?, &anys::boxed(&vb)?);
             return Ok(V::Bool(same == (op == Op::Eq)));
         }
-        let (va, vb) = match (ta, tb) {
-            (T::Any, p) if plain(p) => (coerce(va, p)?, vb),
-            (p, T::Any) if plain(p) => (va, coerce(vb, p)?),
-            (T::Any, T::Any) => (coerce(va, T::Float)?, coerce(vb, T::Float)?),
-            _ => (va, vb),
-        };
         Ok(match (va, vb) {
             (V::Int(x), V::Int(y)) => match op {
                 Op::Add => V::Int(x.wrapping_add(y)),

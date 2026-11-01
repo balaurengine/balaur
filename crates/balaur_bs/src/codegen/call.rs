@@ -211,19 +211,11 @@ impl FnGen<'_> {
             && let Some(sig) = self.g.sigs.get(&format!("node.{comp}.{name}")).cloned()
             && sig.kind == Kind::Host
         {
-            // An `any` holding the node is read as one.
             if self.type_of(node)? == Ty::Any {
-                self.expr(node)?;
-                self.unbox_any(&Ty::Node);
-                let lv = self.alloc(&Ty::Node);
-                self.set_raw(&lv);
-                let hidden = format!("#node{}", lv.slots[0]);
-                self.declare(&hidden, lv);
-                let var = Expr {
-                    kind: ExprKind::Var(hidden),
+                return err(
                     pos,
-                };
-                return self.node_call(&var, &sig, args, pos, name);
+                    format!("`{comp}.{name}` on an `any`: read the node with `.as_node()` first"),
+                );
             }
             if self.type_of(node)? != Ty::Node {
                 return err(
@@ -564,8 +556,8 @@ impl FnGen<'_> {
         sig.ret
     }
 
-    // A method an `any` lacks but what it holds has: a `T?`'s, read as nil
-    // or not; a string's or a node's, called on it read as one.
+    // A method an `any` lacks: a `T?`'s, read as nil or not. A string's or a
+    // node's is named, with the read it wants first.
     fn held_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         match (name, args.len()) {
             // Nil is no cell.
@@ -601,33 +593,29 @@ impl FnGen<'_> {
             }
             _ => {}
         }
-        let held = if self.g.sigs.contains_key(&format!("str::{name}")) {
-            Ty::Str
-        } else if self.g.sigs.contains_key(&format!("node.{name}")) {
-            Ty::Node
-        } else {
-            let names: Vec<String> = crate::prelude::methods("any")
-                .into_iter()
-                .map(|method| method.0)
-                .collect();
+        if self.g.sigs.contains_key(&format!("str::{name}")) {
             return err(
                 pos,
-                format!("an `any` has `{}`, not `{name}`", names.join("`, `")),
+                format!("an `any` has no `{name}`: read it with `.as_str()` first"),
             );
-        };
-        self.expr(base)?;
-        self.unbox_any(&held);
-        let lv = self.alloc(&held);
-        self.set_raw(&lv);
-        let hidden = format!("#held{}", lv.slots[0]);
-        self.declare(&hidden, lv.clone());
-        let var = Expr {
-            kind: ExprKind::Var(hidden),
+        }
+        let takes_node = |sig: &super::Sig| sig.params.first() == Some(&Ty::Node);
+        if self.g.sigs.contains_key(&format!("node.{name}"))
+            || self.g.sigs.get(name).is_some_and(takes_node)
+        {
+            return err(
+                pos,
+                format!("an `any` has no `{name}`: read it with `.as_node()` first"),
+            );
+        }
+        let names: Vec<String> = crate::prelude::methods("any")
+            .into_iter()
+            .map(|method| method.0)
+            .collect();
+        err(
             pos,
-        };
-        let out = self.method(&var, name, args, pos)?;
-        self.release(&lv);
-        Ok(out)
+            format!("an `any` has `{}`, not `{name}`", names.join("`, `")),
+        )
     }
 
     // `x.as_float()` on a value that is one already, or converts plainly.

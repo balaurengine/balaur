@@ -52,8 +52,8 @@ fn roots(state: editor::State) -> [any] {
     for found in state.nodes {
         let rel = model::script_rel(found);
         if !rel.is_nil() {
-            if !seen.has(rel) {
-                seen[rel] = true;
+            if !seen.has(rel.as_str()) {
+                seen[rel.as_str()] = true;
                 out.push(rel);
             }
         } else {
