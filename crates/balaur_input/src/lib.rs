@@ -39,7 +39,7 @@ pub use gamepad::{
     Power, PowerState,
 };
 pub use gestures::Gestures;
-pub use keys::{EITHER_SIDE, KEYS};
+pub use keys::{EITHER_SIDE, FOCUS_KEYS, KEYS};
 pub use settings::{InputConfig, PadSettings};
 pub use touch_controls::{TouchButton, TouchStick};
 
@@ -146,6 +146,10 @@ pub struct InputSnapshot {
     /// dispatch a press run at the top of one.
     #[serde(skip)]
     fed: Vec<Fed>,
+    /// A script has read one of [`FOCUS_KEYS`], which makes those keys the
+    /// game's rather than the widgets'.
+    #[serde(skip)]
+    focus_key_read: bool,
     /// Whether a backend began this frame, so the tick does not begin it
     /// again and clear the events the backend fed.
     #[serde(skip)]
@@ -371,6 +375,16 @@ impl InputSnapshot {
 
     pub const fn keyboard_taken(&self) -> bool {
         self.keyboard_taken
+    }
+
+    /// Whether a script has read one of [`FOCUS_KEYS`] at any point in this run.
+    pub const fn focus_key_read(&self) -> bool {
+        self.focus_key_read
+    }
+
+    /// A script heard one of [`FOCUS_KEYS`] through a hook.
+    pub const fn note_focus_key_read(&mut self) {
+        self.focus_key_read = true;
     }
 
     /// Say which key `cmd` is, where the build's platform cannot know it.
@@ -627,6 +641,15 @@ fn check_key(key: &str) {
 ///
 /// The index is the one `InputSnapshot` stores, so a constant and a raw number
 /// cannot disagree.
+/// The snapshot, noting a read of a key widget focus also moves on.
+fn keys_for_script(eng: &Engine, key: &str) -> std::rc::Rc<std::cell::RefCell<InputSnapshot>> {
+    let state = eng.resource::<InputSnapshot>();
+    if FOCUS_KEYS.contains(&key) {
+        state.borrow_mut().note_focus_key_read();
+    }
+    state
+}
+
 pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] = &[
     ("MOUSE_BUTTON_LEFT", 0),
     ("MOUSE_BUTTON_RIGHT", 1),
@@ -664,20 +687,17 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     }
     m.function("key_down", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().key_down(&key);
+        let v = keys_for_script(eng, &key).borrow().key_down(&key);
         Ok(v)
     });
     m.function("key_just_pressed", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().key_just_pressed(&key);
+        let v = keys_for_script(eng, &key).borrow().key_just_pressed(&key);
         Ok(v)
     });
     m.function("key_just_released", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().key_just_released(&key);
+        let v = keys_for_script(eng, &key).borrow().key_just_released(&key);
         Ok(v)
     });
     m.function("mouse_position", |eng: &Engine, ()| {

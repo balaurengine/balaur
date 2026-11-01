@@ -25,7 +25,6 @@ fn a_disabled_button_is_not_a_focus_stop() {
         "On",
         &toml::toml! { kind = "button" text = "On" }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -59,7 +58,6 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
         "Open",
         &toml::toml! { kind = "button" text = "Open" }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -91,7 +89,6 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
 fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     {
@@ -111,7 +108,6 @@ fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
 fn focus_walks_the_menu_in_scene_order_and_wraps() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     assert_eq!(focused(&app), None, "nothing is focused until asked");
@@ -132,7 +128,6 @@ fn focus_walks_the_menu_in_scene_order_and_wraps() {
 fn accepting_the_focused_widget_is_a_click() {
     let (_dir, mut app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -152,7 +147,6 @@ fn accepting_a_focused_fold_turns_it() {
         &app,
         &toml::toml! { kind = "fold" text = "Advanced" open = false x = 0.0 y = 0.0 }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -183,7 +177,6 @@ fn focus_skips_what_it_could_not_activate() {
         "Quit",
         &toml::toml! { kind = "button" text = "Quit" }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -217,7 +210,6 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
         "Note",
         &toml::toml! { kind = "label" text = "note" focusable = true }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -233,7 +225,6 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
 fn hiding_the_focused_widget_releases_focus() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -571,7 +562,6 @@ fn a_named_neighbour_wins_over_the_widget_drawn_nearer() {
         "Third",
         &toml::toml! { kind = "button" text = "Third" }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -643,7 +633,6 @@ fn focus_an_arrow_moves_is_scrolled_into_view() {
             row
         })
         .collect();
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     for _ in 0..10 {

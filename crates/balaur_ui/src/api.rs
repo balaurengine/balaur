@@ -162,8 +162,8 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
         (
             "set_theme",
             &[],
-            "(theme: str | table)",
-            "Set the theme the UI falls back on where a node's `widget_theme` says nothing: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. The theme already in force again changes nothing.",
+            "(theme: str | table | nil)",
+            "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         ),
         (
             "complete_theme",
@@ -173,20 +173,28 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     // No reader by design (N8): the caller holds the document it passed.
-    m.function("set_theme", |eng: &Engine, theme: Value| {
-        // A path is the asset's cached document; a table is read as given.
-        let doc = match &theme {
-            Value::Str(reference) => balaur_core::assets::definition(eng, reference)?,
-            _ => balaur_core::node_api::to_toml(&theme)?,
+    m.function("set_theme", |eng: &Engine, asked: Value| {
+        let asked = match asked {
+            Value::Nil => None,
+            // Read now, so a path that names nothing is the caller's error.
+            Value::Str(reference) => {
+                balaur_core::assets::definition(eng, &reference)?;
+                Some(reference)
+            }
+            // A table is keyed by its content, so the same one again is the
+            // theme already in force.
+            table => {
+                let doc = balaur_core::node_api::to_toml(&table)?;
+                let inline =
+                    balaur_core::assets::define_inline(eng, crate::widget::theme::ASSET_TYPE, doc)?;
+                Some(inline.to_string())
+            }
         };
-        let config = eng.resource::<UiConfig>();
-        let mut config = config.borrow_mut();
-        if config.theme_doc.as_ref() == Some(&doc) {
-            return Ok(());
-        }
-        config.theme = theme::ThemeTokens::from_doc(&doc);
-        config.theme_doc = Some(doc);
-        config.changed = true;
+        eng.resource::<UiConfig>().borrow_mut().asked_theme =
+            asked.map(|reference| theme::AskedTheme {
+                reference: reference.into(),
+                under: balaur_core::project::content_root(eng),
+            });
         Ok(())
     });
     m.function("complete_theme", |_: &Engine, doc: Value| {
@@ -207,21 +215,7 @@ fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
         &[],
         "",
         "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
-    ),
-    (
-        "set_keyboard_navigation",
-        &[],
-        "",
-        "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
     )]);
-    {
-        m.function("set_keyboard_navigation", |eng: &Engine, on: bool| {
-            eng.resource::<crate::WidgetLayerConfig>()
-                .borrow_mut()
-                .keyboard = on;
-            Ok(())
-        });
-    }
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
         // holds the flag and the rect; add `ui.widget_layer` when a caller
@@ -281,8 +275,8 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 /// `ui.*` bindings: which widget the keyboard and the pad are pointing at.
 ///
 /// The keyboard drives focus on its own, through egui. These exist for the
-/// pad: a game maps its `ui_next` / `ui_previous` / `ui_accept` actions onto
-/// them, and `standard_app` does it for a project that declares those names.
+/// pad: `standard_app` maps a project's `ui_next`, `ui_previous` and `ui_accept`
+/// actions onto them.
 fn install_focus(m: &mut dyn Bindings<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[

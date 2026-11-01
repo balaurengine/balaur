@@ -24,8 +24,7 @@ use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, rich,
 
 /// `area` less the part the on-screen keyboard covers. The keyboard is
 /// measured in the window's pixels, which are this pass's units.
-fn above_keyboard(eng: &Engine, area: egui::Rect) -> egui::Rect {
-    let facts = balaur_core::facts::device(eng);
+fn above_keyboard(facts: &balaur_core::facts::DeviceFacts, area: egui::Rect) -> egui::Rect {
     // The fact is physical pixels, because that is what a keyboard covers,
     // and a layout is design pixels.
     let covered = facts.keyboard_height / facts.ui_scale.max(f32::EPSILON);
@@ -38,8 +37,11 @@ fn above_keyboard(eng: &Engine, area: egui::Rect) -> egui::Rect {
 /// The insets are a fact about the display, so they are the same whichever
 /// surface a root draws on: a root filling the screen loses them all, and one
 /// in a viewport that the notch does not reach loses nothing.
-fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::Rect {
-    let facts = balaur_core::facts::device(eng);
+fn inside_safe_area(
+    facts: &balaur_core::facts::DeviceFacts,
+    area: egui::Rect,
+    edges: [bool; 4],
+) -> egui::Rect {
     let per_point = facts.ui_scale.max(f32::EPSILON);
     let mut cover = facts.safe_area.map(|edge| edge / per_point);
     for (inset, keep) in cover.iter_mut().zip(edges) {
@@ -48,6 +50,10 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
         }
     }
     let [left, top, right, bottom] = cover;
+    // A display with no insets takes nothing off, whatever size it last reported.
+    if cover.iter().all(|inset| *inset <= 0.0) {
+        return area;
+    }
     let screen = facts.design_size();
     // A device that has not reported its size yet answers zero, and an
     // intersection with that is an empty root rather than an uninset one.
@@ -59,6 +65,59 @@ fn inside_safe_area(eng: &Engine, area: egui::Rect, edges: [bool; 4]) -> egui::R
         egui::pos2(screen[0] - right, screen[1] - bottom),
     );
     area.intersect(safe)
+}
+
+/// A `fill` root's own colour over the part of its surface it keeps its
+/// children out of, so a screen's background reaches the edge of the display.
+fn paint_to_the_edge(ui: &mut egui::Ui, at: &mut Painting<'_>, root: usize, kept: egui::Rect) {
+    let outer = at.theme.clone();
+    at.theme = theme_of(at.eng, &at.arena[root].widget.theme, &outer);
+    let fill = at.style(root).fill;
+    at.theme = outer;
+    let Some(fill) = fill else {
+        return;
+    };
+    let edge = at.edge_to_edge;
+    let strips = [
+        egui::Rect::from_min_max(edge.min, pos2(edge.max.x, kept.min.y)),
+        egui::Rect::from_min_max(pos2(edge.min.x, kept.max.y), edge.max),
+        egui::Rect::from_min_max(pos2(edge.min.x, kept.min.y), pos2(kept.min.x, kept.max.y)),
+        egui::Rect::from_min_max(pos2(kept.max.x, kept.min.y), pos2(edge.max.x, kept.max.y)),
+    ];
+    for strip in strips.into_iter().filter(egui::Rect::is_positive) {
+        Brush::of(ui).fill(strip, egui::CornerRadius::ZERO, fill);
+    }
+}
+
+/// Every visible root, each on the surface it names.
+fn draw_roots(
+    ctx: &egui::Context,
+    painting: &mut Painting<'_>,
+    roots: &[usize],
+    surface_of: &dyn Fn(&str) -> Surface,
+) -> crate::widget::toast::Stack {
+    let (eng, placed, screen) = (painting.eng, painting.arena, painting.surface);
+    let mut toasts = crate::widget::toast::Stack::default();
+    for &root in roots {
+        let widget = &placed[root].widget;
+        if !widget.visible {
+            continue;
+        }
+        let surface = surface_of(&widget.layer);
+        if !surface.enabled {
+            continue;
+        }
+        let area = match surface.rect {
+            Some([x, y, w, h]) => egui::Rect::from_min_size(pos2(x, y), vec2(w, h)),
+            None => screen,
+        };
+        // A toast is pushed clear of the toasts already at its anchor, and
+        // is drawn thinner as its time runs out.
+        let (area, fade) = toasts.place(eng, &placed[root], area);
+        draw_root(ctx, painting, root, area, fade);
+        toasts.drew(&placed[root]);
+    }
+    toasts
 }
 
 /// Draw every widget entity. Runs inside the frame's egui pass.
@@ -114,7 +173,6 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     // A chord is a click by another name, as an `accept` is.
     let fired = shortcuts(ctx, &placed, &shown);
     let (focused, taking, arriving) = focus_before(eng);
-    let mut toasts = crate::widget::toast::Stack::default();
     let mut painting = Painting {
         eng,
         arena: &placed,
@@ -125,6 +183,8 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         assigned: egui::Vec2::ZERO,
         bounds: egui::Vec2::ZERO,
         surface: screen,
+        edge_to_edge: screen,
+        facts: balaur_core::facts::device(eng),
         edits: turned.into_iter().collect(),
         rects: crate::widget::taffy::Rects::default(),
         fresh,
@@ -139,26 +199,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         under: Vec::new(),
         shown: Vec::new(),
     };
-    for &root in &roots {
-        let widget = &placed[root].widget;
-        if !widget.visible {
-            continue;
-        }
-        // Each root draws on the surface it names.
-        let surface = surface_of(&widget.layer);
-        if !surface.enabled {
-            continue;
-        }
-        let area = match surface.rect {
-            Some([x, y, w, h]) => egui::Rect::from_min_size(pos2(x, y), vec2(w, h)),
-            None => screen,
-        };
-        // A toast is pushed clear of the toasts already at its anchor, and
-        // is drawn thinner as its time runs out.
-        let (area, fade) = toasts.place(eng, &placed[root], area);
-        draw_root(ctx, &mut painting, root, area, fade);
-        toasts.drew(&placed[root]);
-    }
+    let toasts = draw_roots(ctx, &mut painting, &roots, &surface_of);
     settle(eng, ctx);
     crate::access::written(eng, ctx, &placed, &roots, &shown);
     let mut edits = std::mem::take(&mut painting.edits);
@@ -213,16 +254,19 @@ fn draw_root(
     if modal {
         painting.shown.push(entity);
     }
-    let area = if widget.safe_area.iter().any(|on| *on) {
-        inside_safe_area(eng, area, widget.safe_area)
-    } else {
+    // A `fill` root with nothing in it is a backdrop, which reaches the edge;
+    // one with children keeps them clear of the notch and the keyboard.
+    let fills = widget.anchor == w::FILL;
+    painting.edge_to_edge = area;
+    let area = if fills && placed[root].children.is_empty() {
         area
-    };
-    let area = if widget.avoid_keyboard {
-        above_keyboard(eng, area)
     } else {
-        area
+        above_keyboard(
+            &painting.facts,
+            inside_safe_area(&painting.facts, area, widget.safe_area),
+        )
     };
+    let bled = fills && area != painting.edge_to_edge;
     painting.surface = area;
     let (pos, align, mut assigned, order) = crate::widget::anchor::root_frame(widget, area);
     // Folded, a window is as tall as its bar whatever height it states.
@@ -268,6 +312,9 @@ fn draw_root(
         if assigned != egui::Vec2::ZERO {
             ui.set_max_size(assigned);
             ui.advance_cursor_after_rect(egui::Rect::from_min_size(pos, assigned));
+        }
+        if bled {
+            paint_to_the_edge(ui, painting, root, area);
         }
         if dragged_by_box {
             drag_root(ui, painting, root);
@@ -479,8 +526,7 @@ thread_local! {
 /// project's `ui/theme`, or the built-in look.
 pub(crate) fn theme_root(eng: &Engine) -> Rc<WidgetTheme> {
     let bare = BARE.with(Rc::clone);
-    let settings = balaur_core::project::UiSettings::of(eng);
-    theme_of(eng, &settings.theme, &bare)
+    theme_of(eng, &crate::theme::for_widgets(eng), &bare)
 }
 
 /// What one draw pass carries down the widget tree.
@@ -507,6 +553,11 @@ pub(crate) struct Painting<'a> {
     /// The surface the root being drawn sits on, which a `constrain`ed drag
     /// keeps it inside.
     pub(crate) surface: egui::Rect,
+    /// That root's surface before the notch and the keyboard are taken off,
+    /// which is how far its own colour reaches.
+    edge_to_edge: egui::Rect,
+    /// The display, read once for the frame's roots.
+    facts: balaur_core::facts::DeviceFacts,
     pub(crate) clicked: Vec<Entity>,
     pub(crate) edits: Vec<(Entity, Edit)>,
     /// Where this pass drew what takes the pointer: every widget that does

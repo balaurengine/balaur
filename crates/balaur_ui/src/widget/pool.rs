@@ -121,7 +121,6 @@ fn shapeless() -> Spec {
         (k::FILL.into(), Value::text("")),
         (k::TOOLTIP.into(), Value::text("")),
         (k::CHECKED.into(), Value::Bool(false)),
-        // A pooled node is made a label, whose text defaults to "label".
         (k::TEXT.into(), Value::text("")),
     ])
 }
@@ -427,7 +426,7 @@ impl Pool<'_> {
         self.listen(key, node, &want, button);
         let mut set = want;
         set.insert(k::VISIBLE.into(), Value::Bool(true));
-        for gone in [p::ON, p::DATA, k::ON_SUBMIT, k::CLICKED, k::SUBMITTED] {
+        for gone in [p::ON, p::DATA, k::ON_SUBMIT] {
             set.remove(gone);
         }
         self.patched(key, node, &set)

@@ -335,6 +335,17 @@ impl InputActions {
         self.bound.contains_key(name)
     }
 
+    /// Whether any action reads one of `keys` on its own, without a modifier.
+    pub fn binds_any_key(&self, keys: &[&str]) -> bool {
+        self.bound.values().flatten().any(|binding| match binding {
+            Binding::Key(key) => keys.contains(&key.as_str()),
+            Binding::KeyPair(low, high) => {
+                keys.contains(&low.as_str()) || keys.contains(&high.as_str())
+            }
+            _ => false,
+        })
+    }
+
     /// Put a value into an action for this frame, as if a binding had
     /// produced it. The furthest from rest wins, so two controls feeding one
     /// action behave like two bindings on it.

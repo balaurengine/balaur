@@ -134,11 +134,15 @@ fn focused_field(app: &balaur_core::App, ctx: &egui::Context, time: f64, input: 
 #[test]
 fn a_focused_caret_stops_blinking_ten_seconds_after_the_last_input() {
     let (_dir, app, ctx, errors) = crate::pass::run(&crate::pass::Script {
-        update: "ui::set_lazy(true);",
         scene: FIELD,
         ..crate::pass::Script::default()
     });
     assert!(errors.is_empty(), "{errors:?}");
+    balaur_core::settings::set(
+        &app.engine,
+        "window/low_processor",
+        toml::Value::Boolean(true),
+    );
     balaur_ui::honour_lazy(&app.engine);
     let field = app
         .engine

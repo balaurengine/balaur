@@ -11,9 +11,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::vocabulary::{keys as k, tokens as t};
+use balaur_core::Engine;
 use balaur_text::FontProject;
 use balaur_text::fonts::FontFace;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
+use smol_str::SmolStr;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -90,8 +92,94 @@ impl ThemeTokens {
     }
 }
 
+/// The theme `ui.set_theme` named, and the project it was named in.
+pub(crate) struct AskedTheme {
+    pub(crate) reference: SmolStr,
+    /// A theme dresses the widgets of the project that asked for it: an editor
+    /// wearing one does not put it on a game it plays.
+    pub(crate) under: Option<std::path::PathBuf>,
+}
+
+/// The project's own theme now: `[ui] theme`, or `theme_dark` on a dark system.
+fn of_project(eng: &Engine) -> SmolStr {
+    let settings = balaur_core::project::UiSettings::of(eng);
+    if !settings.theme_dark.is_empty() && balaur_core::facts::dark_mode(eng) {
+        return settings.theme_dark.as_str().into();
+    }
+    settings.theme.as_str().into()
+}
+
+/// The theme a widget starts from where no ancestor names its own.
+pub(crate) fn for_widgets(eng: &Engine) -> SmolStr {
+    let asked = eng.try_resource::<crate::UiConfig>().and_then(|config| {
+        config
+            .borrow()
+            .asked_theme
+            .as_ref()
+            .filter(|asked| asked.under == balaur_core::project::content_root(eng))
+            .map(|asked| asked.reference.clone())
+    });
+    asked.unwrap_or_else(|| of_project(eng))
+}
+
+/// The theme egui's own controls should be in now.
+fn for_controls(eng: &Engine) -> SmolStr {
+    let asked = eng.try_resource::<crate::UiConfig>().and_then(|config| {
+        config
+            .borrow()
+            .asked_theme
+            .as_ref()
+            .map(|asked| asked.reference.clone())
+    });
+    asked.unwrap_or_else(|| of_project(eng))
+}
+
+/// Whether another theme came into force since egui's controls were dressed.
+pub(crate) fn out_of_date(eng: &Engine) -> bool {
+    eng.try_resource::<crate::UiConfig>()
+        .is_some_and(|config| config.borrow().worn_theme != for_controls(eng))
+}
+
+/// Dress egui's own controls in the theme in force, when another came in.
+pub(crate) fn wear(eng: &Engine, ctx: &egui::Context) {
+    let config = eng.resource::<crate::UiConfig>();
+    let wanted = for_controls(eng);
+    if config.borrow().worn_theme == wanted {
+        return;
+    }
+    let tokens = if wanted.is_empty() {
+        ThemeTokens::default()
+    } else {
+        match balaur_core::assets::definition(eng, &wanted) {
+            Ok(doc) => ThemeTokens::from_doc(&doc),
+            Err(why) => {
+                tracing::warn!("theme '{wanted}': {why:#}");
+                ThemeTokens::default()
+            }
+        }
+    };
+    apply(&tokens, ctx);
+    config.borrow_mut().worn_theme = wanted;
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::{App, AppConfig, facts, settings};
+
+    #[test]
+    fn a_dark_system_wears_the_projects_dark_theme() {
+        let app = App::new(AppConfig::bare(".")).unwrap();
+        for (key, theme) in [("ui/theme", "light.toml"), ("ui/theme_dark", "dark.toml")] {
+            settings::set(&app.engine, key, toml::Value::String(theme.into()));
+        }
+        assert_eq!(super::for_widgets(&app.engine), "light.toml");
+        facts::update_device(&app.engine, |facts| facts.dark_mode = true);
+        assert_eq!(super::for_widgets(&app.engine), "dark.toml");
+    }
+}
+
 thread_local! {
-    /// The theme `ui::set_theme` put in force: what a kind falls back to for
+    /// The theme in force on egui's own controls: what a kind falls back to for
     /// a colour its `widget_theme` does not name.
     static IN_FORCE: RefCell<Rc<ThemeTokens>> = RefCell::new(Rc::new(ThemeTokens::default()));
 }

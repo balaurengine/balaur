@@ -113,8 +113,8 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
     };
     let inspector = {
         let world = eng.world();
-        let (Ok(mut asked), Ok(mut widget)) = (
-            world.get::<&mut WidgetProperties>(entity),
+        let (Ok(asked), Ok(mut widget)) = (
+            world.get::<&WidgetProperties>(entity),
             world.get::<&mut Widget>(entity),
         ) else {
             return false;
@@ -122,8 +122,6 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
         if !put_one(&mut widget, &asked, name) {
             return false;
         }
-        asked.clicked = false;
-        widget.clicked = false;
         widget.kind == w::INSPECTOR
     };
     told(eng, entity, inspector);
@@ -136,10 +134,9 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
 fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     let mut next = {
         let world = eng.world();
-        let Ok(mut asked) = world.get::<&mut WidgetProperties>(entity) else {
+        let Ok(asked) = world.get::<&WidgetProperties>(entity) else {
             return Ok(());
         };
-        asked.clicked = false;
         let mut next = widget_of(&asked);
         crate::widget::beside::put_all(&world, entity, &asked, &mut next);
         next.classes = world
@@ -399,7 +396,6 @@ cache_fields! {
         k::INSET => widget.inset = asked.inset;
         k::LAYER => widget.layer = asked.layer.clone();
         k::SAFE_AREA => widget.safe_area = edges(&asked.safe_area);
-        k::AVOID_KEYBOARD => widget.avoid_keyboard = asked.avoid_keyboard;
         k::MOVABLE => egui(widget).movable = asked.movable;
         k::CONSTRAIN => egui(widget).constrain = asked.constrain;
         k::HIDE_NARROWER => widget.hide_narrower = asked.hide_narrower;
@@ -460,9 +456,6 @@ cache_fields! {
         k::ON_SUBMIT => widget.on_submit = asked.on_submit.clone();
         k::ON_FOCUS => widget.on_focus = asked.on_focus.clone();
         k::ON_LINK => widget.on_link = asked.on_link.clone();
-        k::PASS_NODE => widget.pass_node = asked.pass_node;
-        k::CLICKED => widget.clicked = asked.clicked;
-        k::SUBMITTED => widget.submitted = asked.submitted;
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
         k::FOCUSABLE => widget.focusable = asked.focusable;
         k::NEIGHBOUR_UP => widget.neighbours[0] = asked.neighbour_up.clone();

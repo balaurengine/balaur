@@ -203,7 +203,6 @@ pub(crate) struct WidgetProperties {
     #[property(default = Kind::new(w::LABEL))]
     pub(crate) kind: Kind,
     /// Label or button caption
-    #[property(default = "label")]
     pub(crate) text: SmolStr,
     /// Draw the widget; hidden widgets keep their state
     #[property(default = true)]
@@ -271,12 +270,9 @@ pub(crate) struct WidgetProperties {
     /// The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface
     #[property(group = "placement")]
     pub(crate) layer: SmolStr,
-    /// The edges this root keeps clear of what a notch, a status bar or a home bar covers. Empty by default: a backdrop is meant to reach the edge and a control is not, and a screen often wants content above the notch and its background under the gesture bar
-    #[property(flags, group = "placement")]
+    /// The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root's own colour still reaches the edge, and one with no children is a backdrop and reaches it whole
+    #[property(flags, default = vec![Edge::new(w::LEFT), Edge::new(w::TOP), Edge::new(w::RIGHT), Edge::new(w::BOTTOM)], group = "placement")]
     pub(crate) safe_area: Vec<Edge>,
-    /// On a root: measure the bottom of the surface from the top of the on-screen keyboard, so a form or a chat bar stays above it; nothing on a desktop
-    #[property(group = "placement")]
-    pub(crate) avoid_keyboard: bool,
     /// Let a drag move this root and write its `x` and `y`: a `window` by its title bar, any other root by its whole box where no child takes the press
     #[property(group = "placement")]
     pub(crate) movable: bool,
@@ -490,15 +486,6 @@ pub(crate) struct WidgetProperties {
     /// Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_link: SmolStr,
-    /// Hand every handler this widget calls its own node as the last argument, so one method can serve many widgets
-    #[property(group = "events")]
-    pub(crate) pass_node: bool,
-    /// True on the frame the button was clicked
-    #[property(group = "events", readonly)]
-    pub(crate) clicked: bool,
-    /// True for the one frame a `text_field` was submitted, the way `clicked` reports a press
-    #[property(group = "events")]
-    pub(crate) submitted: bool,
     /// Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this
     #[property(default = true, group = "events")]
     pub(crate) interactive: bool,

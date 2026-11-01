@@ -50,9 +50,6 @@ pub struct Widget {
     /// Empty means nothing is connected. A name rather than a function value:
     /// scene files cannot hold closures, and a name works on any backend.
     pub on_click: SmolStr,
-    /// Whether each handler this widget calls gets the widget's node as its
-    /// last argument: Godot's connection that appends its source.
-    pub pass_node: bool,
     /// Name of a `menu` node whose rows open at the pointer on a secondary
     /// click or a long touch. Empty means none.
     pub context: SmolStr,
@@ -248,9 +245,6 @@ pub struct Widget {
     /// Left, top, right and bottom margins a `fill` root keeps from its
     /// surface, in design pixels.
     pub inset: [f32; 4],
-    /// A root that measures its bottom from the top of the on-screen
-    /// keyboard, so a form stays above it.
-    pub avoid_keyboard: bool,
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
@@ -284,7 +278,6 @@ pub struct Widget {
     pub radius: f32,
     /// How a container spreads its children along its own direction.
     pub justify: SmolStr,
-    /// Keep a root clear of what a notch or a home bar covers.
     /// Which edges this root keeps clear of the display's insets, left, top,
     /// right then bottom, the order an `inset` is spelled in.
     pub safe_area: [bool; 4],
@@ -475,10 +468,9 @@ pub struct WidgetLayerConfig {
     pub enabled: bool,
     /// Whether arrows, Tab, Enter and Space move and activate the focus.
     ///
-    /// Off by default: a game that moves with the arrows and jumps with Space
-    /// would otherwise click its own HUD button. `standard_app` turns it on
-    /// for a project that declares the `ui_*` actions, and a script asks for
-    /// it with `ui.set_keyboard_navigation`.
+    /// `standard_app` takes it away while the game has those keys: an action
+    /// binding one, or a script reading one, so a game that moves with the
+    /// arrows and jumps with Space does not click its own HUD button.
     pub keyboard: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,
@@ -508,7 +500,7 @@ impl Default for WidgetLayerConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            keyboard: false,
+            keyboard: true,
             rect: None,
             layers: HashMap::new(),
         }

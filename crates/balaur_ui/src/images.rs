@@ -45,11 +45,13 @@ pub(crate) type Decoding = (
     egui::TextureOptions,
 );
 
-/// [`balaur_core::preload`]'s hand-off for a `widget`: its picture read now
-/// and decoded on a worker thread, so the screen that draws it finds it up.
+/// [`balaur_core::preload`]'s hand-off for a `widget`: its picture queued for
+/// [`settle`] to decode off the frame, so the screen that draws it finds it up.
 pub(crate) fn preload_widget(eng: &Engine, widget: &toml::Value) {
-    if let Some(path) = widget.get("image").and_then(toml::Value::as_str) {
-        prefetch(eng, path);
+    if let Some(path) = widget.get("image").and_then(toml::Value::as_str)
+        && let Some(state) = eng.try_resource::<UiState>()
+    {
+        state.borrow_mut().to_decode.push_back(path.to_string());
     }
 }
 
@@ -63,6 +65,7 @@ pub(crate) fn unload_widget(eng: &Engine, widget: &toml::Value) {
         let mut state = state.borrow_mut();
         state.textures.remove(path);
         state.decoding.remove(path);
+        state.to_decode.retain(|queued| queued != path);
     }
 }
 
@@ -93,15 +96,36 @@ pub(crate) fn prefetch(eng: &Engine, path: &str) {
         .insert(path.to_string(), (answer, sampler));
 }
 
-/// Upload every preloaded picture whose decode has come back. Called at the
-/// start of a pass, which is where the context is.
+/// What pictures warmed ahead of their screens may hold: past it, a screen
+/// decodes its own as it opens. The same on every machine, and well past what a
+/// screen shows at once.
+const WARM_BYTES: usize = 256 << 20;
+
+/// Warm pictures a pass at a time: at the start of each, where the context is,
+/// the next queued one starts decoding and the decodes come back up. One at a
+/// time: where a page has no worker the decode runs here, and an upload is the
+/// frame's whichever thread decoded.
 pub(crate) fn settle(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };
-    let done: Vec<(String, egui::ColorImage, egui::TextureOptions)> = {
+    let next = {
         let mut held = state.borrow_mut();
         forget_stale(eng, &mut held);
+        if held.warmed_bytes >= WARM_BYTES {
+            held.to_decode.clear();
+        }
+        if held.decoding.is_empty() {
+            held.to_decode.pop_front()
+        } else {
+            None
+        }
+    };
+    if let Some(path) = next {
+        prefetch(eng, &path);
+    }
+    let done: Vec<(String, egui::ColorImage, egui::TextureOptions)> = {
+        let mut held = state.borrow_mut();
         if held.decoding.is_empty() {
             return;
         }
@@ -119,6 +143,7 @@ pub(crate) fn settle(eng: &Engine, ctx: &egui::Context) {
         done
     };
     for (path, color, sampler) in done {
+        state.borrow_mut().warmed_bytes += color.pixels.len() * 4;
         // The cache holds the handle; nothing draws it this pass.
         let _ = upload(&state, ctx, &path, color, sampler);
     }

@@ -239,7 +239,10 @@ fn a_set_s_pill_reports_the_set_with_its_option_turned_round() {
     assert!(balaur_ui::click(&app.engine, top, false));
     app.tick(1.0 / 60.0);
     assert_eq!(number(&app, "edits"), Some(1.0));
-    assert_eq!(seen(&app).as_deref(), Some("safe_area [\"top\"]"));
+    assert_eq!(
+        seen(&app).as_deref(),
+        Some("safe_area [\"left\", \"right\", \"bottom\"]")
+    );
 }
 
 #[test]

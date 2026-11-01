@@ -193,11 +193,7 @@ pub fn consume_input(app: &mut App) {
 }
 
 pub fn clicked(app: &App, entity: Entity) -> bool {
-    balaur::components::get(&app.engine, entity, "widget")
-        .expect("the widget component is still on the node")
-        .get("clicked")
-        .and_then(toml::Value::as_bool)
-        .expect("the component emits a `clicked` bool")
+    !balaur_core::events::delivered_from(&app.engine, entity, "click").is_empty()
 }
 
 /// A widget under a container, as a scene node under a scene node. The tree
@@ -263,15 +259,6 @@ pub fn key(k: egui::Key) -> Vec<egui::Event> {
 
 pub fn focused(app: &App) -> Option<Entity> {
     app.engine.resource::<balaur_ui::UiFocus>().borrow().focused
-}
-
-/// Let the keyboard drive focus, which a game has to ask for: the keys are
-/// the game's until it declares the `ui_*` actions or says so here.
-pub fn keyboard(app: &App) {
-    app.engine
-        .resource::<balaur_ui::WidgetLayerConfig>()
-        .borrow_mut()
-        .keyboard = true;
 }
 
 /// A menu of three buttons in a column, which is what focus is for.

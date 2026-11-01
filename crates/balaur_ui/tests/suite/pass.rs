@@ -437,11 +437,15 @@ pub(crate) fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> 
 #[test]
 fn a_lazy_shell_nobody_touched_runs_no_pass_however_long_it_waits() {
     let (_dir, app, ctx, errors) = run(&Script {
-        update: "ui::set_lazy(true);",
         scene: LABEL,
         ..Script::default()
     });
     assert!(errors.is_empty(), "{errors:#?}");
+    balaur_core::settings::set(
+        &app.engine,
+        "window/low_processor",
+        toml::Value::Boolean(true),
+    );
     balaur_ui::honour_lazy(&app.engine);
     feed(&app, &ctx, Vec::new());
     std::thread::sleep(std::time::Duration::from_millis(300));

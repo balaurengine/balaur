@@ -1,7 +1,7 @@
 //! What the draw saw, applied inside the next tick.
 //!
 //! egui pumps its events during the render pass, which runs after the tick and
-//! not at all headless. Writing `clicked` there moved the digest of a tick no
+//! not at all headless. Acting on a click there moved the digest of a tick no
 //! recording could reproduce, and `on_click` never ran on a replay or under
 //! `--headless`. The draw now only reports what it saw; this takes that report
 //! at the top of the next tick, from a resource a recording carries.
@@ -131,8 +131,8 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
 }
 
 /// Submit a `text_field` as Enter would, settled at the next tick: the text lands
-/// on the widget and `submitted` is true for one frame. What a headless
-/// harness types with, and what proves a pooled row hears it.
+/// on the widget and it says `submit`. What a headless harness types with, and
+/// what proves a pooled row hears it.
 pub fn submit(eng: &Engine, entity: Entity, text: &str) -> bool {
     let writable = eng
         .world()
@@ -423,8 +423,8 @@ fn apply_system(eng: &Engine, _dt: f32) {
         )
     };
     let mut emitted = Vec::new();
-    let (mut typed, submitted) = settle_edits(eng, &edits, &mut emitted);
-    let signals = settle_clicks(eng, &clicked, &submitted, &mut typed, &mut emitted);
+    let mut typed = settle_edits(eng, &edits, &mut emitted);
+    let signals = settle_clicks(eng, &clicked, &mut typed, &mut emitted);
     // The pool's controls hear their edits and clicks here, before any named
     // handler, so a strip nobody refilled still answers.
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
@@ -473,15 +473,21 @@ fn apply_system(eng: &Engine, _dt: f32) {
         let signals: Vec<_> = signals
             .into_iter()
             .map(|(entity, method)| {
-                let args = passed(eng, entity, Vec::new());
-                (recipient(eng, host.as_ref(), entity, &method), method, args)
+                (
+                    recipient(eng, host.as_ref(), entity, &method),
+                    method,
+                    Vec::new(),
+                )
             })
             .collect();
         let typed: Vec<_> = typed
             .into_iter()
             .map(|(entity, method, value)| {
-                let args = passed(eng, entity, vec![value]);
-                (recipient(eng, host.as_ref(), entity, &method), method, args)
+                (
+                    recipient(eng, host.as_ref(), entity, &method),
+                    method,
+                    vec![value],
+                )
             })
             .collect();
         let panels: Vec<_> = told
@@ -504,19 +510,6 @@ fn apply_system(eng: &Engine, _dt: f32) {
         }
     }
     announce_focus(eng, focused.as_ref());
-}
-
-/// A handler's arguments, with the widget's own node last where it asks to
-/// pass it.
-fn passed(eng: &Engine, entity: Entity, mut args: Vec<Value>) -> Vec<Value> {
-    let pass = eng
-        .world()
-        .get::<&Widget>(entity)
-        .is_ok_and(|widget| widget.pass_node);
-    if pass {
-        args.push(Value::Node(balaur_core::node_id_of(entity).0));
-    }
-    args
 }
 
 /// One edit written onto the properties of the widget it names, the widget's
@@ -709,16 +702,12 @@ fn settle_edits(
     eng: &Engine,
     edits: &[(WidgetKey, Edit)],
     emitted: &mut Vec<(Entity, &'static str, Value)>,
-) -> (Vec<(Entity, String, Value)>, Vec<Entity>) {
+) -> Vec<(Entity, String, Value)> {
     let mut signals = Vec::new();
-    let mut submitted = Vec::new();
     for (key, edit) in edits {
         let Some(entity) = resolve(eng, key) else {
             continue;
         };
-        if matches!(edit, Edit::Submit(_)) {
-            submitted.push(entity);
-        }
         {
             let world = eng.world();
             let (Ok(mut asked), Ok(mut widget)) = (
@@ -734,7 +723,7 @@ fn settle_edits(
         }
         besides_written(eng, entity, edit);
     }
-    (signals, submitted)
+    signals
 }
 
 /// What an edit writes onto a component beside the widget, where the rows
@@ -768,36 +757,24 @@ fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
 /// layer reads, which follows them.
 type Settled<'a> = (Entity, &'a mut WidgetProperties, &'a mut Widget);
 
-/// Write this frame's `clicked` and `submitted` onto every widget, and collect
-/// the handlers.
-///
-/// Every widget, not only the ones hit: both are true for one frame, and a
-/// button nobody pressed this tick has to say so.
+/// Tick what this frame's clicks tick, and collect the handlers.
 fn settle_clicks(
     eng: &Engine,
     clicked: &[WidgetKey],
-    submitted: &[Entity],
     changes: &mut Vec<(Entity, String, Value)>,
     emitted: &mut Vec<(Entity, &'static str, Value)>,
 ) -> Vec<(Entity, String)> {
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
     let mut signals = Vec::new();
+    if hit.is_empty() {
+        return signals;
+    }
     // The grouped checks this tick ticked, unticked in a second pass: the loop
     // below holds one widget at a time and a group's siblings are others.
     let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
     let world = eng.world();
     for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
-        let struck = hit.contains(&entity);
-        let said = submitted.contains(&entity);
-        // Only on the change: this runs over every widget every frame, and a
-        // write that put the same `false` back would rebuild the whole arena.
-        if asked.clicked != struck || asked.submitted != said {
-            asked.clicked = struck;
-            asked.submitted = said;
-            follow(widget, asked, &[k::CLICKED, k::SUBMITTED]);
-            crate::widget::arena::widget_changed(entity);
-        }
-        if !struck {
+        if !hit.contains(&entity) {
             continue;
         }
         // A click on a check or toggle is the tick itself, by mouse or by

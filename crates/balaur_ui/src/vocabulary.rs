@@ -420,12 +420,10 @@ pub(crate) mod keys {
     pub(crate) const DARK: &str = "dark";
     pub(crate) const SIZES: &str = "sizes";
     pub(crate) const ANCHOR: &str = "anchor";
-    pub(crate) const AVOID_KEYBOARD: &str = "avoid_keyboard";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const CHECKED: &str = "checked";
     pub(crate) const RADIO_GROUP: &str = "radio_group";
     pub(crate) const TOGGLE: &str = "toggle";
-    pub(crate) const CLICKED: &str = "clicked";
     pub(crate) const PICKED_COLOR: &str = "picked_color";
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
@@ -482,7 +480,6 @@ pub(crate) mod keys {
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
-    pub(crate) const PASS_NODE: &str = "pass_node";
     pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
     pub(crate) const ON_SUBMIT: &str = "on_submit";
@@ -536,7 +533,6 @@ pub(crate) mod keys {
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
-    pub(crate) const SUBMITTED: &str = "submitted";
     pub(crate) const SUFFIX: &str = "suffix";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_ALIGN: &str = "text_align";

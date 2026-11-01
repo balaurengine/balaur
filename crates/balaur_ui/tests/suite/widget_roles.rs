@@ -268,27 +268,20 @@ fn a_field_reports_its_submit_for_one_frame() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let mut app = app;
+    let said =
+        |app: &balaur::App| balaur_core::events::delivered_from(&app.engine, field, "submit").len();
     app.tick(1.0 / 60.0);
-    assert!(
-        !property(&app, field, "submitted").as_bool().unwrap(),
-        "it reported a submit nobody made"
-    );
+    assert_eq!(said(&app), 0, "it reported a submit nobody made");
     balaur_ui::submit(&app.engine, field, "two");
     app.tick(1.0 / 60.0);
-    assert!(
-        property(&app, field, "submitted").as_bool().unwrap(),
-        "the submit was not reported"
-    );
+    assert_eq!(said(&app), 1, "the submit was not reported");
     assert_eq!(
         property(&app, field, "text").as_str(),
         Some("two"),
         "the text did not land"
     );
     app.tick(1.0 / 60.0);
-    assert!(
-        !property(&app, field, "submitted").as_bool().unwrap(),
-        "the submit was still true a frame later"
-    );
+    assert_eq!(said(&app), 0, "the submit was still said a frame later");
 }
 
 /// A `switch` holds `checked`, flips on a click, and takes its track from the

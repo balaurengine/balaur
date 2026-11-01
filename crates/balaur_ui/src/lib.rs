@@ -29,6 +29,7 @@ mod widget;
 
 use anyhow::Result;
 use balaur_core::Engine;
+use smol_str::SmolStr;
 use std::collections::HashMap;
 
 pub use access::{AccessTree, act, enable_access, take_access_update};
@@ -153,22 +154,17 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
     }
 }
 
-/// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
-/// writes, and the UI scale, which is egui's own zoom factor. A design pixel
-/// is a point, so nothing multiplies by the scale: the backend hands it to
+/// What scripts ask the UI to look like: the theme `ui.set_theme` put in force,
+/// and the UI scale, which is egui's own zoom factor. A design pixel is a
+/// point, so nothing multiplies by the scale: the backend hands it to
 /// [`egui::Context::set_zoom_factor`] and egui lays the whole pass out in it,
 /// its own widgets included.
-///
-/// [`run_pass`] applies a pending theme and clears `changed`; nothing else
-/// owns these values.
 pub struct UiConfig {
-    pub theme: ThemeTokens,
-    /// The document `ui.set_theme` built [`UiConfig::theme`] from, so the
-    /// same one again -- each screen of an app setting its theme -- skips
-    /// deriving the palette a second time.
-    pub theme_doc: Option<toml::Value>,
-    /// Set by `ui.set_theme`, cleared once the theme reaches egui.
-    pub changed: bool,
+    /// The theme `ui.set_theme` named, over the project's `[ui] theme`.
+    pub(crate) asked_theme: Option<theme::AskedTheme>,
+    /// The theme egui's own controls were last dressed in, so a pass derives
+    /// the palette only when another one comes into force.
+    pub(crate) worn_theme: SmolStr,
     pub scale: f32,
     /// Whether a script has set the scale. `[ui] scale` seeds it on the first
     /// tick, which is after a script's `init` has run, so a seed that did not
@@ -179,9 +175,8 @@ pub struct UiConfig {
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            theme: ThemeTokens::default(),
-            theme_doc: None,
-            changed: false,
+            asked_theme: None,
+            worn_theme: SmolStr::default(),
             scale: 1.0,
             asked: false,
         }
@@ -224,6 +219,10 @@ pub struct UiState {
     /// Pictures a preloaded scene names, decoding on a worker thread: each
     /// one's answer and the sampler it is uploaded with.
     pub(crate) decoding: HashMap<String, images::Decoding>,
+    /// Pictures a preloaded scene names, waiting for their turn to decode.
+    pub(crate) to_decode: std::collections::VecDeque<String>,
+    /// What the pictures warmed so far came to.
+    pub(crate) warmed_bytes: usize,
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
     pub texture_generation: u64,
@@ -413,18 +412,10 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             return;
         }
     }
-    // A second lookup and borrow, deliberately: the pending theme is the
-    // script's to set and this crate's cache is not, so they are two entries.
-    let Some(config) = eng.try_resource::<UiConfig>() else {
+    if eng.try_resource::<UiConfig>().is_none() {
         return;
-    };
-    {
-        let mut config = config.borrow_mut();
-        if config.changed {
-            theme::apply(&config.theme, ctx);
-            config.changed = false;
-        }
     }
+    theme::wear(eng, ctx);
     // Before the classes are read by anything: the theme answers by them, and
     // so does the floor egui's own controls take.
     widget::theme::set_pass_classes(&widget::arena::begin_classes(eng));
