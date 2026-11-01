@@ -248,7 +248,7 @@ fn every_engine_function_hovers() {
             },
         )
     });
-    assert!(checked > 600, "only {checked} functions hovered");
+    assert!(checked > 400, "only {checked} functions hovered");
     assert!(
         missing.is_empty(),
         "{} functions do not hover: {:?}",

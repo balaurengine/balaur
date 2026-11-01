@@ -23,7 +23,7 @@ bandwidth per player rather than per object.
 ```rune
 pub fn fixed_update(this, dt) {          // simulation
     if input::key_down(input::KEY_SPACE) {
-        physics3d::apply_impulse(this.node, 0.0, 5.0, 0.0);
+        this.node.body3d.apply_impulse(0.0, 5.0, 0.0);
     }
 }
 

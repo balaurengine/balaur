@@ -23,7 +23,7 @@
 //! Playback advances on its own 1/60 accumulator, never on `engine.time()`:
 //! a variable dt in a simulation path is a different result on every machine.
 //! The system runs in `Stage::Update`, after the script tick, so a script's
-//! `animation.play()` lands the same frame — and before `Stage::PostUpdate`,
+//! `node.animation.play()` lands the same frame — and before `Stage::PostUpdate`,
 //! so physics reads an animated kinematic body's transform in the frame it
 //! was animated.
 //!

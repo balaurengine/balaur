@@ -563,7 +563,7 @@ its `Cargo.toml` and fails if one appears.
   `max_substeps()` catch-up steps, so the sampler only sees the fixed step. Folding is floor-and-subtract;
   every transcendental is `libm`'s, glam's included. Players and tweens live in
   `DetHashMap`s and apply in insertion order.
-- Scheduling: after the script tick, so `animation.play()` lands the same frame;
+- Scheduling: after the script tick, so `node.animation.play()` lands the same frame;
   before `FixedUpdate`, where physics reads `Transform` for kinematic bodies, so
   an animated platform pushes what stands on it with no wiring. A step records
   deferred effects rather than applying in place — an `apply` may want the world

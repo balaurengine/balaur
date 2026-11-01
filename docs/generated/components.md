@@ -21,8 +21,8 @@ registration provides the scene-file key, the runtime
 
 **Methods.** `node.<component>` is a handle that binds the node to the
 module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`
-is `physics2d::apply_impulse(node, 1.0, 0.0)` and the same call on a
-`body3d` handle reaches `physics3d`. The methods listed per component
+reaches `physics2d` and the same call on a `body3d` handle reaches
+`physics3d`. It is the only way to call one. The methods listed per component
 below are the functions that declared they act on it. A component with
 no methods of its own is reached through its properties, or through
 `node.get_component(name)` and `node.set_component(name, value)`.

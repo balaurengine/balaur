@@ -6,7 +6,7 @@
     },
     "bone_map": {
       "directory": "animations",
-      "doc": "Lets one rig play another's clips: `[bones]` pairs canonical bone names with node paths on this rig, `profile` names the `skeleton_profile` they come from.\n\n```toml\ntype = \"bone_map\"\n# profile = \"animations/humanoid.toml\"   # left out, the built-in humanoid profile\n# Used as animation.play(node, clip, { retarget = \"maps/hero.toml\" })\n\n[bones]\nHips = \"Armature/Hips\"\nSpine = \"Armature/Hips/Spine\"\nHead = \"Armature/Hips/Spine/Neck/Head\"\n```"
+      "doc": "Lets one rig play another's clips: `[bones]` pairs canonical bone names with node paths on this rig, `profile` names the `skeleton_profile` they come from.\n\n```toml\ntype = \"bone_map\"\n# profile = \"animations/humanoid.toml\"   # left out, the built-in humanoid profile\n# Used as node.animation.play(clip, { retarget = \"maps/hero.toml\" })\n\n[bones]\nHips = \"Armature/Hips\"\nSpine = \"Armature/Hips/Spine\"\nHead = \"Armature/Hips/Spine/Neck/Head\"\n```"
     },
     "camera_effects": {
       "directory": "camera_effects",
@@ -1696,69 +1696,17 @@
       "websocket::STATE_OPEN": "open"
     },
     "functions": {
-      "animation::add_clip": {
-        "least": 2,
-        "signature": "(Node, str, any)"
-      },
-      "animation::current_clip": {
-        "least": 1,
-        "signature": "(Node) -> str?"
-      },
-      "animation::current_state": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
       "animation::ease_names": {
         "least": 0,
         "signature": "() -> [str]"
-      },
-      "animation::is_playing": {
-        "least": 1,
-        "signature": "(Node) -> bool"
       },
       "animation::is_tween_running": {
         "least": 0,
         "signature": "(any) -> bool"
       },
-      "animation::jump": {
-        "least": 2,
-        "signature": "(Node, str)"
-      },
-      "animation::pause": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "animation::play": {
-        "least": 2,
-        "signature": "(Node, str, animation::PlayOptions?)"
-      },
-      "animation::queue": {
-        "least": 2,
-        "signature": "(Node, str)"
-      },
-      "animation::resume": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "animation::seek": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "animation::set_condition": {
-        "least": 3,
-        "signature": "(Node, str, bool)"
-      },
       "animation::stop": {
         "least": 0,
         "signature": "(any)"
-      },
-      "animation::time": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "animation::travel": {
-        "least": 2,
-        "signature": "(Node, str)"
       },
       "animation::tween": {
         "least": 2,
@@ -1948,17 +1896,9 @@
         "least": 1,
         "signature": "(int) -> float?"
       },
-      "audio::play": {
-        "least": 1,
-        "signature": "(Node) -> int"
-      },
       "audio::play_cue": {
         "least": 1,
         "signature": "(str, audio::CueOptions?) -> int?"
-      },
-      "audio::seek": {
-        "least": 2,
-        "signature": "(Node, float)"
       },
       "audio::set_bus_volume_linear": {
         "least": 2,
@@ -1975,14 +1915,6 @@
       "audio::set_volume_linear": {
         "least": 2,
         "signature": "(int, float)"
-      },
-      "audio::skip": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "audio::stop": {
-        "least": 1,
-        "signature": "(Node)"
       },
       "audio::stop_all": {
         "least": 0,
@@ -3572,13 +3504,73 @@
         "least": 1,
         "signature": "(Node) -> str"
       },
+      "node.multimesh2d.buffer": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.multimesh2d.instance_color": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.multimesh2d.instance_count": {
+        "least": 1,
+        "signature": "(Node) -> int"
+      },
+      "node.multimesh2d.instance_custom_data": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
       "node.multimesh2d.instance_region": {
         "least": 2,
         "signature": "(Node, int) -> any"
       },
+      "node.multimesh2d.instance_transform": {
+        "least": 2,
+        "signature": "(Node, int) -> any"
+      },
+      "node.multimesh2d.instances": {
+        "least": 1,
+        "signature": "(Node) -> any"
+      },
+      "node.multimesh2d.populate": {
+        "least": 2,
+        "signature": "(Node, render::PopulateOptions) -> any"
+      },
+      "node.multimesh2d.set_buffer": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.multimesh2d.set_instance_color": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.multimesh2d.set_instance_count": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.multimesh2d.set_instance_custom_data": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
       "node.multimesh2d.set_instance_region": {
         "least": 2,
         "signature": "(Node, int, any, any)"
+      },
+      "node.multimesh2d.set_instance_transform": {
+        "least": 2,
+        "signature": "(Node, int, any)"
+      },
+      "node.multimesh2d.set_instances": {
+        "least": 1,
+        "signature": "(Node, any)"
+      },
+      "node.multimesh2d.set_visible_instance_count": {
+        "least": 2,
+        "signature": "(Node, int)"
+      },
+      "node.multimesh2d.visible_instance_count": {
+        "least": 1,
+        "signature": "(Node) -> int"
       },
       "node.multimesh3d.buffer": {
         "least": 1,
@@ -4228,89 +4220,13 @@
         "least": 1,
         "signature": "(Node) -> int"
       },
-      "physics2d::aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
       "physics2d::active_bodies": {
         "least": 0,
         "signature": "() -> [Node]"
       },
-      "physics2d::add_constant_force": {
-        "least": 3,
-        "signature": "(Node, float, float)"
-      },
-      "physics2d::add_constant_force_at_point": {
-        "least": 5,
-        "signature": "(Node, float, float, float, float)"
-      },
-      "physics2d::add_constant_torque": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics2d::add_particle_force": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics2d::add_softbody_force": {
-        "least": 1,
-        "signature": "(Node, any)"
-      },
-      "physics2d::angular_velocity": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::apply_force": {
-        "least": 3,
-        "signature": "(Node, float, float)"
-      },
-      "physics2d::apply_force_at_point": {
-        "least": 5,
-        "signature": "(Node, float, float, float, float)"
-      },
-      "physics2d::apply_impulse": {
-        "least": 3,
-        "signature": "(Node, float, float)"
-      },
-      "physics2d::apply_impulse_at_point": {
-        "least": 5,
-        "signature": "(Node, float, float, float, float)"
-      },
-      "physics2d::apply_particle_impulse": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics2d::apply_softbody_impulse": {
-        "least": 1,
-        "signature": "(Node, any)"
-      },
-      "physics2d::apply_softbody_impulse_at": {
-        "least": 1,
-        "signature": "(Node, any, any, any)"
-      },
-      "physics2d::apply_softbody_radial_impulse": {
-        "least": 1,
-        "signature": "(Node, any, any, any)"
-      },
-      "physics2d::apply_torque": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics2d::apply_torque_impulse": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics2d::attach_particle": {
-        "least": 3,
-        "signature": "(Node, int, Node)"
-      },
       "physics2d::bodies": {
         "least": 0,
         "signature": "() -> [Node]"
-      },
-      "physics2d::broad_phase_aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
       },
       "physics2d::closest_point": {
         "least": 1,
@@ -4320,137 +4236,17 @@
         "least": 2,
         "signature": "(Node, Node) -> any"
       },
-      "physics2d::collider_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::collider_mass_properties": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::collider_mesh": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::collider_volume": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::collision_aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
-      "physics2d::combine_voxels": {
-        "least": 2,
-        "signature": "(Node, Node)"
-      },
-      "physics2d::constant_force": {
-        "least": 1,
-        "signature": "(Node) -> Vec2"
-      },
-      "physics2d::constant_torque": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::contacts": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::crop_voxels": {
-        "least": 5,
-        "signature": "(Node, int, int, int, int)"
-      },
-      "physics2d::cut_softbody": {
-        "least": 1,
-        "signature": "(Node, any) -> any"
-      },
-      "physics2d::detach_particle": {
-        "least": 2,
-        "signature": "(Node, int) -> bool"
-      },
       "physics2d::distance": {
         "least": 2,
         "signature": "(Node, Node) -> float"
-      },
-      "physics2d::effective_angular_inertia": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::effective_dominance": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::effective_mass": {
-        "least": 1,
-        "signature": "(Node) -> any"
       },
       "physics2d::gravity": {
         "least": 0,
         "signature": "() -> Vec2"
       },
-      "physics2d::handles": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::has_pending_tears": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics2d::heightfield_hole": {
-        "least": 2,
-        "signature": "(Node, int) -> bool"
-      },
       "physics2d::intersects": {
         "least": 2,
         "signature": "(Node, Node) -> bool"
-      },
-      "physics2d::is_ccd_active": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics2d::is_moving": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics2d::is_on_floor": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics2d::is_sleeping": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics2d::joint_force": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::joint_state": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::kinetic_energy": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::linear_velocity": {
-        "least": 1,
-        "signature": "(Node) -> Vec2"
-      },
-      "physics2d::local_center_of_mass": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::max_contact_impulse": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::move_character": {
-        "least": 3,
-        "signature": "(Node, float, float) -> any"
-      },
-      "physics2d::next_position": {
-        "least": 1,
-        "signature": "(Node) -> any"
       },
       "physics2d::overlap_aabb": {
         "least": 1,
@@ -4464,30 +4260,6 @@
         "least": 1,
         "signature": "(physics2d::ShapeQuery) -> [Node]"
       },
-      "physics2d::overlaps": {
-        "least": 1,
-        "signature": "(Node) -> [Node]"
-      },
-      "physics2d::pin_particle": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics2d::pose_in_body": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::potential_energy": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::predict_position": {
-        "least": 2,
-        "signature": "(Node, float) -> any"
-      },
-      "physics2d::predict_position_with_forces": {
-        "least": 2,
-        "signature": "(Node, float) -> any"
-      },
       "physics2d::ragdoll": {
         "least": 1,
         "signature": "(Node, physics2d::RagdollOptions?) -> [Node]"
@@ -4500,337 +4272,29 @@
         "least": 1,
         "signature": "(physics2d::RayQuery) -> [physics2d::Hit]"
       },
-      "physics2d::remove_joint": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::reset_follow": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::reset_plasticity": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::reset_softbody_forces": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::set_angular_velocity": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics2d::set_cell_tear_resistance": {
-        "least": 3,
-        "signature": "(Node, int, float)"
-      },
-      "physics2d::set_constant_force": {
-        "least": 3,
-        "signature": "(Node, float, float)"
-      },
-      "physics2d::set_constant_torque": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics2d::set_edge_tear_resistance": {
-        "least": 3,
-        "signature": "(Node, int, float)"
-      },
       "physics2d::set_gravity": {
         "least": 2,
         "signature": "(float, float)"
-      },
-      "physics2d::set_heightfield_hole": {
-        "least": 3,
-        "signature": "(Node, int, bool)"
-      },
-      "physics2d::set_joint_limits": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
-      "physics2d::set_linear_velocity": {
-        "least": 3,
-        "signature": "(Node, float, float)"
-      },
-      "physics2d::set_motor_position": {
-        "least": 5,
-        "signature": "(Node, str, float, float, float)"
-      },
-      "physics2d::set_motor_velocity": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
-      "physics2d::set_particle_damaged": {
-        "least": 3,
-        "signature": "(Node, int, bool)"
-      },
-      "physics2d::set_particle_position": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics2d::set_particle_target": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics2d::set_particle_velocity": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics2d::set_voxel": {
-        "least": 4,
-        "signature": "(Node, int, int, bool)"
-      },
-      "physics2d::set_voxel_size": {
-        "least": 3,
-        "signature": "(Node, float, float)"
       },
       "physics2d::shapecast": {
         "least": 1,
         "signature": "(physics2d::ShapeQuery) -> physics2d::Hit?"
       },
-      "physics2d::sleep": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::softbody_area": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::softbody_attachments": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::softbody_boundary": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics2d::softbody_cell": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics2d::softbody_cells": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics2d::softbody_center": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::softbody_contacts": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics2d::softbody_crossing": {
-        "least": 1,
-        "signature": "(Node, any) -> any"
-      },
-      "physics2d::softbody_edge": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics2d::softbody_edges": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics2d::softbody_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::softbody_particle": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics2d::softbody_particle_radius": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::softbody_particles": {
-        "least": 1,
-        "signature": "(Node) -> int"
-      },
-      "physics2d::softbody_position": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec2"
-      },
-      "physics2d::softbody_rest_area": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::softbody_sleeping": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics2d::softbody_stress": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
-      "physics2d::softbody_velocity": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec2"
-      },
-      "physics2d::softbody_volume_pieces": {
-        "least": 1,
-        "signature": "(Node) -> [any]"
-      },
-      "physics2d::solve_ik": {
-        "least": 3,
-        "signature": "(Node, float, float, physics2d::IkOptions?)"
-      },
-      "physics2d::swept_aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
-      "physics2d::tear_cell": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics2d::tear_edge": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics2d::tear_softbody": {
-        "least": 1,
-        "signature": "(Node, any, any) -> any"
-      },
-      "physics2d::teleport": {
-        "least": 3,
-        "signature": "(Node, float, float, physics2d::TeleportOptions?)"
-      },
       "physics2d::time_of_impact": {
         "least": 3,
         "signature": "(Node, Node, physics2d::ImpactOptions) -> any"
-      },
-      "physics2d::time_since_can_sleep": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::total_inertia": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::total_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics2d::unpin_particle": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics2d::velocity_at_point": {
-        "least": 3,
-        "signature": "(Node, float, float) -> Vec2"
-      },
-      "physics2d::voxel": {
-        "least": 3,
-        "signature": "(Node, int, int) -> bool"
-      },
-      "physics2d::voxel_at": {
-        "least": 3,
-        "signature": "(Node, float, float) -> [int]"
-      },
-      "physics2d::voxel_size": {
-        "least": 1,
-        "signature": "(Node) -> any"
       },
       "physics2d::wake_all": {
         "least": 0,
         "signature": "()"
       },
-      "physics2d::wake_softbody": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::wake_up": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics2d::world_center_of_mass": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
       "physics3d::active_bodies": {
         "least": 0,
         "signature": "() -> [Node]"
       },
-      "physics3d::add_constant_force": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::add_constant_force_at_point": {
-        "least": 7,
-        "signature": "(Node, float, float, float, float, float, float)"
-      },
-      "physics3d::add_constant_torque": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::add_particle_force": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics3d::add_softbody_force": {
-        "least": 1,
-        "signature": "(Node, any)"
-      },
-      "physics3d::angular_velocity": {
-        "least": 1,
-        "signature": "(Node) -> Vec3"
-      },
-      "physics3d::apply_force": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::apply_force_at_point": {
-        "least": 7,
-        "signature": "(Node, float, float, float, float, float, float)"
-      },
-      "physics3d::apply_impulse": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::apply_impulse_at_point": {
-        "least": 7,
-        "signature": "(Node, float, float, float, float, float, float)"
-      },
-      "physics3d::apply_particle_impulse": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics3d::apply_softbody_impulse": {
-        "least": 1,
-        "signature": "(Node, any)"
-      },
-      "physics3d::apply_softbody_impulse_at": {
-        "least": 1,
-        "signature": "(Node, any, any, any)"
-      },
-      "physics3d::apply_softbody_radial_impulse": {
-        "least": 1,
-        "signature": "(Node, any, any, any)"
-      },
-      "physics3d::apply_torque": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::apply_torque_impulse": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::attach_particle": {
-        "least": 3,
-        "signature": "(Node, int, Node)"
-      },
       "physics3d::bodies": {
         "least": 0,
         "signature": "() -> [Node]"
-      },
-      "physics3d::broad_phase_aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
       },
       "physics3d::closest_point": {
         "least": 1,
@@ -4840,137 +4304,17 @@
         "least": 2,
         "signature": "(Node, Node) -> any"
       },
-      "physics3d::collider_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::collider_mass_properties": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::collider_mesh": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::collider_volume": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::collision_aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
-      "physics3d::combine_voxels": {
-        "least": 2,
-        "signature": "(Node, Node)"
-      },
-      "physics3d::constant_force": {
-        "least": 1,
-        "signature": "(Node) -> Vec3"
-      },
-      "physics3d::constant_torque": {
-        "least": 1,
-        "signature": "(Node) -> Vec3"
-      },
-      "physics3d::contacts": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::crop_voxels": {
-        "least": 7,
-        "signature": "(Node, int, int, int, int, int, int)"
-      },
-      "physics3d::cut_softbody": {
-        "least": 1,
-        "signature": "(Node, any) -> any"
-      },
-      "physics3d::detach_particle": {
-        "least": 2,
-        "signature": "(Node, int) -> bool"
-      },
       "physics3d::distance": {
         "least": 2,
         "signature": "(Node, Node) -> float"
-      },
-      "physics3d::effective_angular_inertia": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::effective_dominance": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::effective_mass": {
-        "least": 1,
-        "signature": "(Node) -> any"
       },
       "physics3d::gravity": {
         "least": 0,
         "signature": "() -> Vec3"
       },
-      "physics3d::handles": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::has_pending_tears": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics3d::heightfield_hole": {
-        "least": 3,
-        "signature": "(Node, int, int) -> bool"
-      },
       "physics3d::intersects": {
         "least": 2,
         "signature": "(Node, Node) -> bool"
-      },
-      "physics3d::is_ccd_active": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics3d::is_moving": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics3d::is_on_floor": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics3d::is_sleeping": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics3d::joint_force": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::joint_state": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::kinetic_energy": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::linear_velocity": {
-        "least": 1,
-        "signature": "(Node) -> Vec3"
-      },
-      "physics3d::local_center_of_mass": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::max_contact_impulse": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::move_character": {
-        "least": 4,
-        "signature": "(Node, float, float, float) -> any"
-      },
-      "physics3d::next_position": {
-        "least": 1,
-        "signature": "(Node) -> any"
       },
       "physics3d::overlap_aabb": {
         "least": 1,
@@ -4984,30 +4328,6 @@
         "least": 1,
         "signature": "(physics3d::ShapeQuery) -> [Node]"
       },
-      "physics3d::overlaps": {
-        "least": 1,
-        "signature": "(Node) -> [Node]"
-      },
-      "physics3d::pin_particle": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics3d::pose_in_body": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::potential_energy": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::predict_position": {
-        "least": 2,
-        "signature": "(Node, float) -> any"
-      },
-      "physics3d::predict_position_with_forces": {
-        "least": 2,
-        "signature": "(Node, float) -> any"
-      },
       "physics3d::ragdoll": {
         "least": 1,
         "signature": "(Node, physics3d::RagdollOptions?) -> [Node]"
@@ -5020,289 +4340,21 @@
         "least": 1,
         "signature": "(physics3d::RayQuery) -> [physics3d::Hit]"
       },
-      "physics3d::remove_joint": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::reset_follow": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::reset_plasticity": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::reset_softbody_forces": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::set_angular_velocity": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::set_brake": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics3d::set_cell_tear_resistance": {
-        "least": 3,
-        "signature": "(Node, int, float)"
-      },
-      "physics3d::set_constant_force": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::set_constant_torque": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::set_edge_tear_resistance": {
-        "least": 3,
-        "signature": "(Node, int, float)"
-      },
-      "physics3d::set_engine_force": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
       "physics3d::set_gravity": {
         "least": 3,
         "signature": "(float, float, float)"
-      },
-      "physics3d::set_heightfield_hole": {
-        "least": 4,
-        "signature": "(Node, int, int, bool)"
-      },
-      "physics3d::set_joint_limits": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
-      "physics3d::set_linear_velocity": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::set_motor_position": {
-        "least": 5,
-        "signature": "(Node, str, float, float, float)"
-      },
-      "physics3d::set_motor_velocity": {
-        "least": 4,
-        "signature": "(Node, str, float, float)"
-      },
-      "physics3d::set_particle_damaged": {
-        "least": 3,
-        "signature": "(Node, int, bool)"
-      },
-      "physics3d::set_particle_position": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics3d::set_particle_target": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics3d::set_particle_velocity": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "physics3d::set_steering": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
-      "physics3d::set_voxel": {
-        "least": 5,
-        "signature": "(Node, int, int, int, bool)"
-      },
-      "physics3d::set_voxel_size": {
-        "least": 4,
-        "signature": "(Node, float, float, float)"
-      },
-      "physics3d::set_wheel_rotation": {
-        "least": 2,
-        "signature": "(Node, float)"
       },
       "physics3d::shapecast": {
         "least": 1,
         "signature": "(physics3d::ShapeQuery) -> physics3d::Hit?"
       },
-      "physics3d::sleep": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::softbody_attachments": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::softbody_boundary": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics3d::softbody_cell": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics3d::softbody_cells": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics3d::softbody_center": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::softbody_contacts": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::softbody_crossing": {
-        "least": 1,
-        "signature": "(Node, any) -> any"
-      },
-      "physics3d::softbody_dihedral": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics3d::softbody_dihedrals": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics3d::softbody_edge": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics3d::softbody_edges": {
-        "least": 1,
-        "signature": "(Node) -> [[int]]"
-      },
-      "physics3d::softbody_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::softbody_particle": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "physics3d::softbody_particle_radius": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::softbody_particles": {
-        "least": 1,
-        "signature": "(Node) -> int"
-      },
-      "physics3d::softbody_position": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec3"
-      },
-      "physics3d::softbody_rest_volume": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::softbody_sleeping": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
-      "physics3d::softbody_stress": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
-      "physics3d::softbody_velocity": {
-        "least": 2,
-        "signature": "(Node, int) -> Vec3"
-      },
-      "physics3d::softbody_volume": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::softbody_volume_pieces": {
-        "least": 1,
-        "signature": "(Node) -> [any]"
-      },
-      "physics3d::solve_ik": {
-        "least": 4,
-        "signature": "(Node, float, float, float, physics3d::IkOptions?)"
-      },
-      "physics3d::swept_aabb": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
-      "physics3d::tear_cell": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics3d::tear_edge": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics3d::tear_softbody": {
-        "least": 1,
-        "signature": "(Node, any, any) -> any"
-      },
-      "physics3d::teleport": {
-        "least": 4,
-        "signature": "(Node, float, float, float, physics3d::TeleportOptions?)"
-      },
       "physics3d::time_of_impact": {
         "least": 3,
         "signature": "(Node, Node, physics3d::ImpactOptions) -> any"
       },
-      "physics3d::time_since_can_sleep": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::total_inertia": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::total_inertia_rotation": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::total_mass": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::unpin_particle": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "physics3d::vehicle_speed": {
-        "least": 1,
-        "signature": "(Node) -> float"
-      },
-      "physics3d::velocity_at_point": {
-        "least": 4,
-        "signature": "(Node, float, float, float) -> Vec3"
-      },
-      "physics3d::voxel": {
-        "least": 4,
-        "signature": "(Node, int, int, int) -> bool"
-      },
-      "physics3d::voxel_at": {
-        "least": 4,
-        "signature": "(Node, float, float, float) -> [int]"
-      },
-      "physics3d::voxel_size": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
       "physics3d::wake_all": {
         "least": 0,
         "signature": "()"
-      },
-      "physics3d::wake_softbody": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::wake_up": {
-        "least": 1,
-        "signature": "(Node)"
-      },
-      "physics3d::wheel_state": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "physics3d::world_center_of_mass": {
-        "least": 1,
-        "signature": "(Node) -> any"
       },
       "physics::clear": {
         "least": 0,
@@ -5331,10 +4383,6 @@
       "physics::set_paused": {
         "least": 1,
         "signature": "(bool)"
-      },
-      "physics::set_ragdoll_influence": {
-        "least": 2,
-        "signature": "(Node, float)"
       },
       "physics::set_sleeping_allowed": {
         "least": 1,
@@ -5536,14 +4584,6 @@
         "least": 1,
         "signature": "(Node) -> [Vec3]?"
       },
-      "render::buffer": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "render::built_mesh": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
       "render::camera_2d": {
         "least": 0,
         "signature": "() -> Vec3"
@@ -5555,10 +4595,6 @@
       "render::camera_pose": {
         "least": 0,
         "signature": "() -> [float]"
-      },
-      "render::cell": {
-        "least": 3,
-        "signature": "(Node, int, int) -> int"
       },
       "render::check_material": {
         "least": 1,
@@ -5640,34 +4676,6 @@
         "least": 0,
         "signature": "(Node?)"
       },
-      "render::instance_color": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "render::instance_count": {
-        "least": 1,
-        "signature": "(Node) -> int"
-      },
-      "render::instance_custom_data": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "render::instance_region": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "render::instance_transform": {
-        "least": 2,
-        "signature": "(Node, int) -> any"
-      },
-      "render::instances": {
-        "least": 1,
-        "signature": "(Node) -> any"
-      },
-      "render::is_on_screen": {
-        "least": 1,
-        "signature": "(Node) -> bool"
-      },
       "render::material_params": {
         "least": 1,
         "signature": "(str) -> [render::Param]"
@@ -5680,10 +4688,6 @@
         "least": 0,
         "signature": "() -> Vec2"
       },
-      "render::outline": {
-        "least": 1,
-        "signature": "(Node) -> [float]"
-      },
       "render::pick_ray": {
         "least": 6,
         "signature": "(float, float, float, float, float, float) -> Node"
@@ -5692,10 +4696,6 @@
         "least": 6,
         "signature": "(float, float, float, float, float, float) -> render::Hit?"
       },
-      "render::populate": {
-        "least": 2,
-        "signature": "(Node, render::PopulateOptions) -> any"
-      },
       "render::screenshot": {
         "least": 1,
         "signature": "(str)"
@@ -5703,14 +4703,6 @@
       "render::set_background": {
         "least": 3,
         "signature": "(float, float, float)"
-      },
-      "render::set_buffer": {
-        "least": 1,
-        "signature": "(Node, any)"
-      },
-      "render::set_cell": {
-        "least": 4,
-        "signature": "(Node, int, int, int)"
       },
       "render::set_debug_view": {
         "least": 1,
@@ -5724,30 +4716,6 @@
         "least": 6,
         "signature": "(float, float, float, float, float, float)"
       },
-      "render::set_instance_color": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "render::set_instance_count": {
-        "least": 2,
-        "signature": "(Node, int)"
-      },
-      "render::set_instance_custom_data": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "render::set_instance_region": {
-        "least": 2,
-        "signature": "(Node, int, any, any)"
-      },
-      "render::set_instance_transform": {
-        "least": 2,
-        "signature": "(Node, int, any)"
-      },
-      "render::set_instances": {
-        "least": 1,
-        "signature": "(Node, any)"
-      },
       "render::set_shader_preview": {
         "least": 2,
         "signature": "(str, int)"
@@ -5755,14 +4723,6 @@
       "render::set_shader_probe": {
         "least": 2,
         "signature": "(float, float)"
-      },
-      "render::set_terrain": {
-        "least": 4,
-        "signature": "(Node, int, int, int)"
-      },
-      "render::set_visible_instance_count": {
-        "least": 2,
-        "signature": "(Node, int)"
       },
       "render::shader_probe": {
         "least": 0,
@@ -5776,10 +4736,6 @@
         "least": 0,
         "signature": "() -> render::Stats"
       },
-      "render::terrain": {
-        "least": 3,
-        "signature": "(Node, int, int) -> int"
-      },
       "render::text_size": {
         "least": 1,
         "signature": "(str, render::TextOptions?) -> Vec2"
@@ -5792,17 +4748,9 @@
         "least": 1,
         "signature": "(str) -> [int]"
       },
-      "render::tile_data": {
-        "least": 3,
-        "signature": "(Node, int, int) -> any"
-      },
       "render::trace_texture": {
         "least": 1,
         "signature": "(str, render::TraceOptions?) -> [[Vec2]]"
-      },
-      "render::visible_instance_count": {
-        "least": 1,
-        "signature": "(Node) -> int"
       },
       "replay::divergence_tick": {
         "least": 0,

@@ -51,7 +51,7 @@ Consequences seen in the compiler, all probed:
 
 - `any` flows into nothing typed: ``expected bool, got any``. A typed value flows into `any`.
 - An optional argument must still be passed. `HostSignature` has no arity range: ``takes 4 argument(s), 3 given``. A Rust `Option<f32>` is a required `float`; a documented `float?` is a required `any` (`nil()`). A Rust `Option<NodeId>` is a required `Node`, and `nil()` is an `any` (``expected Node, got any``), so `events::listen(node, name)` without its third argument has no spelling.
-- `node.animation.play(..)` is not a form: ``Node has no field `animation` ``. Only the node ops that `acts_on` a component (`transform`, `states`) are called on it; every other component function is `animation::play(node, ..)`.
+- A function that `acts_on` a component is called on it: `node.animation.play(..)`, and `animation::play(node, ..)` does not compile. The handle is the one form.
 - `get_component` takes exactly one argument in `.bs` (``takes 1 argument(s), 2 given``), `call` exactly two, `set_component` exactly two.
 - The checker stops at the first error in a file, so one probe file per function was used (§11).
 

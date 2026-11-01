@@ -87,7 +87,9 @@ pub fn view(state: &mut editor::State, query: str) -> View {
         }
         shown += 1;
         let tint = if name == state.docs.function_pick { tokens["primary_text"] } else { tokens["text_default"] };
-        items.push(util::row("", name + module["signatures"][name].as_str(), "", tint.as_str()));
+        let on = module["acts_on"][name];
+        let called = if on == nil { name } else { "node.{on[0].as_str()}.{name}" };
+        items.push(util::row("", called + module["signatures"][name].as_str(), "", tint.as_str()));
         let doc = module["docs"][name].as_str();
         if doc != "" {
             items.push(util::row("", "\t  " + doc, "", tokens["text_subtle"].as_str()));

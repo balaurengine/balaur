@@ -100,11 +100,7 @@ impl Registry {
         self.modules
             .iter()
             .filter(|(m, _)| m.as_str() != crate::node_ops::MODULE)
-            .find(|(_, entries)| {
-                entries
-                    .get(name)
-                    .is_some_and(|e| e.acts_on.first() == Some(&comp))
-            })
+            .find(|(_, entries)| entries.get(name).is_some_and(|e| e.acts_on.contains(&comp)))
             .map(|(m, _)| (m.clone(), name.to_string()))
     }
 
@@ -293,19 +289,20 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
             };
             if let Some((params, ret)) = typed {
                 let ret = result(ret);
-                // One that drives a component is called on it, too.
-                if let Some(comp) = entry.acts_on.first()
-                    && params.first() == Some(&Ty::Node)
-                {
-                    let on = format!("{}{comp}.{name}", crate::node_ops::PREFIX);
-                    if !typed_here.contains(&on) {
-                        functions.push(HostSignature {
-                            key: on,
-                            params: params.clone(),
-                            ret: ret.clone(),
-                            is_async: false,
-                        });
+                // One that drives a component is called on it, and only on it.
+                if !entry.acts_on.is_empty() && params.first() == Some(&Ty::Node) {
+                    for comp in entry.acts_on {
+                        let on = format!("{}{comp}.{name}", crate::node_ops::PREFIX);
+                        if !typed_here.contains(&on) {
+                            functions.push(HostSignature {
+                                key: on,
+                                params: params.clone(),
+                                ret: ret.clone(),
+                                is_async: false,
+                            });
+                        }
                     }
+                    continue;
                 }
                 functions.push(HostSignature {
                     key,
@@ -441,34 +438,42 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
         .chain(crate::waits::docs())
         .chain(crate::store::docs())
         .collect();
-    let mut named: Vec<(&str, &str, &HostSignature)> = api
+    // A function called on a component is its module's all the same, listed
+    // once however many components take it.
+    let mut named: Vec<(String, String, &HostSignature)> = api
         .functions
         .iter()
         .filter_map(|f| {
-            let split = f
-                .key
-                .split_once("::")
-                .or_else(|| Some((crate::node_ops::MODULE, node_op(registry, &f.key)?)));
-            split.map(|(module, name)| (module, name, f))
+            if let Some((module, name)) = f.key.split_once("::") {
+                return Some((module.to_string(), name.to_string(), f));
+            }
+            if let Some((module, name)) = registry.component_fn(&f.key) {
+                return Some((module, name, f));
+            }
+            let name = node_op(registry, &f.key)?;
+            Some((crate::node_ops::MODULE.to_string(), name.to_string(), f))
         })
         .collect();
-    named.sort_by_key(|(module, name, _)| (*module, *name));
-    let mut modules: BTreeMap<&str, Page> = BTreeMap::new();
+    named.sort_by(|a, b| (&a.0, &a.1).cmp(&(&b.0, &b.1)));
+    named.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
+    let mut modules: BTreeMap<String, Page> = BTreeMap::new();
     for (module, name, f) in named {
-        let entry = registry.modules.get(module).and_then(|m| m.get(name));
+        let entry = registry
+            .modules
+            .get(&module)
+            .and_then(|m| m.get(name.as_str()));
         let row = modules.entry(module).or_default();
-        row.functions.push(Value::text(name));
-        row.signatures
-            .push((name.to_string(), Value::text(f.text())));
+        row.functions.push(Value::text(name.as_str()));
+        row.signatures.push((name.clone(), Value::text(f.text())));
         let doc = entry
             .and_then(|e| e.doc)
             .or_else(|| own.get(&f.key).copied())
             .unwrap_or("");
-        row.docs.push((name.to_string(), Value::text(doc)));
+        row.docs.push((name.clone(), Value::text(doc)));
         let acts_on = entry.map_or(&[][..], |e| e.acts_on);
         if !acts_on.is_empty() {
             let list = acts_on.iter().map(|c| Value::text(*c)).collect();
-            row.acts_on.push((name.to_string(), Value::List(list)));
+            row.acts_on.push((name.clone(), Value::List(list)));
             row.components.extend(acts_on);
         }
     }
@@ -495,13 +500,13 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
                 .collect();
             let doc = registry
                 .module_docs
-                .get(module)
+                .get(module.as_str())
                 .copied()
-                .or_else(|| own_module_doc(module))
+                .or_else(|| own_module_doc(&module))
                 .unwrap_or("");
             let components = row.components.into_iter().map(Value::text).collect();
             Value::Map(vec![
-                ("name".into(), Value::text(module)),
+                ("name".into(), Value::text(module.as_str())),
                 ("doc".into(), Value::text(doc)),
                 ("functions".into(), Value::List(row.functions)),
                 ("signatures".into(), Value::Map(row.signatures)),

@@ -224,17 +224,20 @@ def gen_script_api(api):
     body = "# Script API\n\nEvery module, function and constant a script can reach. Read from a booted\nengine rather than the source, so derived constants are included and this\ncannot drift from what scripts actually see. A node's own operations are\nthe `node` module's, called on the node: `self.node.add_tag(\"hit\")`.\n\n"
     body += "| Module | Functions | Constants |\n| --- | ---: | ---: |\n"
     for m in api["modules"]:
-        body += f"| [`{m['name']}`](#{m['name']}) | {len(m['functions'])} | {len(m['constants'])} |\n"
+        body += f"| [`{m['name']}`](#{m['name']}) | {len(module_functions(m))} | {len(m['constants'])} |\n"
     body += "\n"
     for m in api["modules"]:
         body += f"## `{m['name']}`\n\n"
         if m.get("doc"):
             body += f"{m['doc']}\n\n"
-        if m["functions"]:
+        if module_functions(m):
             body += "| Function | Signature |\n| --- | --- |\n"
-            for f in m["functions"]:
+            for f in module_functions(m):
                 body += f"| `{f}` | `{m['signatures'].get(f, '')}` |\n"
             body += "\n"
+        if m.get("acts_on"):
+            on = ", ".join(f"`{c}`" for c in m.get("components", []))
+            body += f"Called on a node's component: {on}. See [components](components.md).\n\n"
         if m["constants"]:
             body += f"**Constants** ({len(m['constants'])}):\n\n"
             shown = m["constants"][:24]
@@ -245,6 +248,13 @@ def gen_script_api(api):
                 body += f"\n…and {len(m['constants']) - len(shown)} more.\n"
             body += "\n"
     return body
+
+
+def module_functions(module):
+    """What a script calls by the module's name: one that acts on a component is
+    called on the component, and listed under it."""
+    acts_on = module.get("acts_on") or {}
+    return [f for f in module["functions"] if f not in acts_on]
 
 
 def code_spans(text):
@@ -381,8 +391,8 @@ def gen_components(components, tags, docs=None, methods=None, events=None, order
         "`node.set_component` family, and the editor's inspector rows.\n\n"
         "**Methods.** `node.<component>` is a handle that binds the node to the\n"
         "module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`\n"
-        "is `physics2d::apply_impulse(node, 1.0, 0.0)` and the same call on a\n"
-        "`body3d` handle reaches `physics3d`. The methods listed per component\n"
+        "reaches `physics2d` and the same call on a `body3d` handle reaches\n"
+        "`physics3d`. It is the only way to call one. The methods listed per component\n"
         "below are the functions that declared they act on it. A component with\n"
         "no methods of its own is reached through its properties, or through\n"
         "`node.get_component(name)` and `node.set_component(name, value)`.\n\n"

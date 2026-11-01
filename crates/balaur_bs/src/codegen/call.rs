@@ -168,10 +168,33 @@ impl FnGen<'_> {
             Some((m, f)) if self.g.sigs.contains_key(&format!("{m}::#{f}")) => {
                 format!("`{f}` is private to `{m}`: mark it `pub` there")
             }
-            Some(_) => super::dropped::function(name)
+            Some((_, f)) => super::dropped::function(name)
+                .or_else(|| self.on_a_component(name, f))
                 .unwrap_or_else(|| format!("the engine has no `{name}`")),
             None => format!("unknown function `{name}`"),
         }
+    }
+
+    // A module's function that drives a component is called on it.
+    fn on_a_component(&self, name: &str, function: &str) -> Option<String> {
+        let mut on: Vec<String> = self
+            .g
+            .host
+            .functions
+            .iter()
+            .filter_map(|host| {
+                let (component, op) = host.key.strip_prefix("node.")?.split_once('.')?;
+                (op == function).then(|| format!("`node.{component}.{function}(..)`"))
+            })
+            .collect();
+        if on.is_empty() {
+            return None;
+        }
+        on.sort();
+        Some(format!(
+            "`{name}` is called on its component: {}",
+            on.join(" or ")
+        ))
     }
 
     /// A call whose one reply is what `task::wait` answers names no node to tell.

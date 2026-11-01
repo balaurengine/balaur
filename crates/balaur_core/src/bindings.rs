@@ -28,7 +28,7 @@ pub enum Action {
     SetVariable,
     /// Add `value` to a number variable; `target` names it.
     AddVariable,
-    /// `animation.play(target, value)`.
+    /// `target.animation.play(value)`.
     Play,
     /// `sound.play` on the target.
     PlaySound,

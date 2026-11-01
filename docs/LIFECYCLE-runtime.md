@@ -340,11 +340,11 @@ Source: `crates/balaur_audio/src/lib.rs`, `Voice.handle`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `play_node`, script `audio.play(node)` | `Some(new)` | Stops the old handle at once and starts a new one from the top. |
+| any | `play_node`, script `node.sound.play()` | `Some(new)` | Stops the old handle at once and starts a new one from the top. |
 | `None` | Component `written` with `autoplay` and a `file` | `Some(new)` | Starts it, fading over `crossfade_time` when a file change released another. |
 | `Some` | Component `written`, `file` changed | `None`, then maybe `Some(new)` | `release_over` with `crossfade_time`, then autoplay. |
 | `Some` | Component `written`, same file | same | `retune` lands volume, pitch, pause, pan, `fade_out_time` and distances. `hold_sounds` puts any hold back over the pause. |
-| `Some` | `stop_on`, script `audio.stop(node)` | `None` | `release` over the sound's `fade_out_time`. No event. |
+| `Some` | `stop_on`, script `node.sound.stop()` | `None` | `release` over the sound's `fade_out_time`. No event. |
 | `Some` | `announce_finished` after the clock ran out or a sink of unknown length ended | `None` | Announces `finished` with the handle. |
 | `Some` | `skip_on` past the last file | `None` | Announces `finished` with the handle. |
 | any | `stop_all` | `None` | Stops everything. No event. |

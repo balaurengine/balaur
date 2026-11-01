@@ -185,7 +185,7 @@ against that list. What is there now:
   `test:bone_map`). Godot's BoneMap panel: the canonical humanoid against the
   rig's own bones, a guess by name that ignores case, separators and an
   exporter's prefix, and a `bone_map` asset written out for
-  `animation.play(node, clip, { retarget = … })`.
+  `node.animation.play(clip, { retarget = … })`.
 - **Physical bones.** Godot's Create Physical Skeleton, as one call to
   `physics2d.ragdoll` and one `model::adopt` of what it built, so the bodies
   land in the tree and in the saved scene like anything the editor makes.

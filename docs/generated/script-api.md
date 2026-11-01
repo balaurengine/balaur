@@ -9,10 +9,10 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
 | Module | Functions | Constants |
 | --- | ---: | ---: |
-| [`animation`](#animation) | 19 | 80 |
+| [`animation`](#animation) | 6 | 80 |
 | [`apple`](#apple) | 19 | 25 |
 | [`assets`](#assets) | 13 | 0 |
-| [`audio`](#audio) | 23 | 1 |
+| [`audio`](#audio) | 19 | 1 |
 | [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
@@ -33,17 +33,17 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 58 | 0 |
-| [`physics`](#physics) | 13 | 0 |
-| [`physics2d`](#physics2d) | 130 | 111 |
-| [`physics3d`](#physics3d) | 139 | 118 |
+| [`node`](#node) | 53 | 0 |
+| [`physics`](#physics) | 12 | 0 |
+| [`physics2d`](#physics2d) | 17 | 111 |
+| [`physics3d`](#physics3d) | 17 | 118 |
 | [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
 | [`project`](#project) | 16 | 0 |
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 69 | 45 |
+| [`render`](#render) | 44 | 45 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
@@ -64,25 +64,14 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 
 | Function | Signature |
 | --- | --- |
-| `add_clip` | `(Node, str, any)` |
-| `current_clip` | `(Node) -> str?` |
-| `current_state` | `(Node) -> any` |
 | `ease_names` | `() -> [str]` |
-| `is_playing` | `(Node) -> bool` |
 | `is_tween_running` | `(any) -> bool` |
-| `jump` | `(Node, str)` |
-| `pause` | `(Node)` |
-| `play` | `(Node, str, animation::PlayOptions?)` |
-| `queue` | `(Node, str)` |
-| `resume` | `(Node)` |
-| `seek` | `(Node, float)` |
-| `set_condition` | `(Node, str, bool)` |
 | `stop` | `(any)` |
-| `time` | `(Node) -> float` |
-| `travel` | `(Node, str)` |
 | `tween` | `(Node, animation::Tween) -> int` |
 | `tween_value` | `(any, any, float, str?) -> int` |
 | `tween_value_of` | `(any) -> float` |
+
+Called on a node's component: `animation`, `state_machine`. See [components](components.md).
 
 **Constants** (80):
 
@@ -210,17 +199,15 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `is_playing` | `(int) -> bool` |
 | `listener_position` | `() -> Vec3` |
 | `pan` | `(int) -> float?` |
-| `play` | `(Node) -> int` |
 | `play_cue` | `(str, audio::CueOptions?) -> int?` |
-| `seek` | `(Node, float)` |
 | `set_bus_volume_linear` | `(str, float)` |
 | `set_emitter_position` | `(int, any, any, any)` |
 | `set_pitch_scale` | `(int, float)` |
 | `set_volume_linear` | `(int, float)` |
-| `skip` | `(Node)` |
-| `stop` | `(Node)` |
 | `stop_all` | `()` |
 | `stop_playback` | `(int)` |
+
+Called on a node's component: `sound`. See [components](components.md).
 
 **Constants** (1):
 
@@ -709,9 +696,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `free` | `(Node)` |
 | `get_component` | `(Node, str, str?) -> any` |
 | `get_node` | `(Node, str) -> Node` |
-| `global_position` | `(Node) -> Vec3` |
-| `global_rotation_euler` | `(Node) -> Vec3` |
-| `global_scale` | `(Node) -> Vec3` |
 | `has_component` | `(Node, str) -> bool` |
 | `has_method` | `(Node, str) -> bool` |
 | `has_tag` | `(Node, str) -> bool` |
@@ -736,13 +720,11 @@ What every node has: name, path, transform, children, components and script. Eac
 | `set_process` | `(Node, str)` |
 | `set_script` | `(Node, str?, any)` |
 | `set_sibling_index` | `(Node, int)` |
-| `set_state` | `(Node, str)` |
 | `set_tint` | `(Node, float, float, float, float)` |
 | `set_visible` | `(Node, bool)` |
 | `set_z_index` | `(Node, int, any)` |
 | `sibling_index` | `(Node) -> int` |
 | `stable_id` | `(Node) -> str` |
-| `state` | `(Node) -> str` |
 | `tags` | `(Node) -> [str]` |
 | `ticking` | `(Node) -> bool` |
 | `tint` | `(Node) -> Color` |
@@ -750,6 +732,8 @@ What every node has: name, path, transform, children, components and script. Eac
 | `visible` | `(Node) -> bool` |
 | `visible_in_tree` | `(Node) -> bool` |
 | `z_index` | `(Node) -> int` |
+
+Called on a node's component: `states`, `transform`. See [components](components.md).
 
 ## `physics`
 
@@ -764,12 +748,13 @@ What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies a
 | `quarantined` | `() -> any` |
 | `set_debug_draw` | `(any)` |
 | `set_paused` | `(bool)` |
-| `set_ragdoll_influence` | `(Node, float)` |
 | `set_sleeping_allowed` | `(bool)` |
 | `set_tuning` | `(any)` |
 | `sleeping_allowed` | `() -> bool` |
 | `threads` | `() -> int` |
 | `tuning` | `() -> any` |
+
+Called on a node's component: `ragdoll`. See [components](components.md).
 
 ## `physics2d`
 
@@ -777,136 +762,25 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 | Function | Signature |
 | --- | --- |
-| `aabb` | `(Node) -> [float]` |
 | `active_bodies` | `() -> [Node]` |
-| `add_constant_force` | `(Node, float, float)` |
-| `add_constant_force_at_point` | `(Node, float, float, float, float)` |
-| `add_constant_torque` | `(Node, float)` |
-| `add_particle_force` | `(Node, int, any)` |
-| `add_softbody_force` | `(Node, any)` |
-| `angular_velocity` | `(Node) -> float` |
-| `apply_force` | `(Node, float, float)` |
-| `apply_force_at_point` | `(Node, float, float, float, float)` |
-| `apply_impulse` | `(Node, float, float)` |
-| `apply_impulse_at_point` | `(Node, float, float, float, float)` |
-| `apply_particle_impulse` | `(Node, int, any)` |
-| `apply_softbody_impulse` | `(Node, any)` |
-| `apply_softbody_impulse_at` | `(Node, any, any, any)` |
-| `apply_softbody_radial_impulse` | `(Node, any, any, any)` |
-| `apply_torque` | `(Node, float)` |
-| `apply_torque_impulse` | `(Node, float)` |
-| `attach_particle` | `(Node, int, Node)` |
 | `bodies` | `() -> [Node]` |
-| `broad_phase_aabb` | `(Node) -> [float]` |
 | `closest_point` | `(physics2d::PointQuery) -> physics2d::Closest?` |
 | `closest_points` | `(Node, Node) -> any` |
-| `collider_mass` | `(Node) -> float` |
-| `collider_mass_properties` | `(Node) -> any` |
-| `collider_mesh` | `(Node) -> any` |
-| `collider_volume` | `(Node) -> float` |
-| `collision_aabb` | `(Node) -> [float]` |
-| `combine_voxels` | `(Node, Node)` |
-| `constant_force` | `(Node) -> Vec2` |
-| `constant_torque` | `(Node) -> float` |
-| `contacts` | `(Node) -> any` |
-| `crop_voxels` | `(Node, int, int, int, int)` |
-| `cut_softbody` | `(Node, any) -> any` |
-| `detach_particle` | `(Node, int) -> bool` |
 | `distance` | `(Node, Node) -> float` |
-| `effective_angular_inertia` | `(Node) -> float` |
-| `effective_dominance` | `(Node) -> float` |
-| `effective_mass` | `(Node) -> any` |
 | `gravity` | `() -> Vec2` |
-| `handles` | `(Node) -> any` |
-| `has_pending_tears` | `(Node) -> bool` |
-| `heightfield_hole` | `(Node, int) -> bool` |
 | `intersects` | `(Node, Node) -> bool` |
-| `is_ccd_active` | `(Node) -> bool` |
-| `is_moving` | `(Node) -> bool` |
-| `is_on_floor` | `(Node) -> bool` |
-| `is_sleeping` | `(Node) -> bool` |
-| `joint_force` | `(Node) -> any` |
-| `joint_state` | `(Node) -> any` |
-| `kinetic_energy` | `(Node) -> float` |
-| `linear_velocity` | `(Node) -> Vec2` |
-| `local_center_of_mass` | `(Node) -> any` |
-| `max_contact_impulse` | `(Node) -> float` |
-| `move_character` | `(Node, float, float) -> any` |
-| `next_position` | `(Node) -> any` |
 | `overlap_aabb` | `(physics2d::BoxQuery) -> [Node]` |
 | `overlap_point` | `(physics2d::PointQuery) -> [Node]` |
 | `overlap_shape` | `(physics2d::ShapeQuery) -> [Node]` |
-| `overlaps` | `(Node) -> [Node]` |
-| `pin_particle` | `(Node, int)` |
-| `pose_in_body` | `(Node) -> any` |
-| `potential_energy` | `(Node) -> float` |
-| `predict_position` | `(Node, float) -> any` |
-| `predict_position_with_forces` | `(Node, float) -> any` |
 | `ragdoll` | `(Node, physics2d::RagdollOptions?) -> [Node]` |
 | `raycast` | `(physics2d::RayQuery) -> physics2d::Hit?` |
 | `raycast_all` | `(physics2d::RayQuery) -> [physics2d::Hit]` |
-| `remove_joint` | `(Node)` |
-| `reset_follow` | `(Node)` |
-| `reset_plasticity` | `(Node)` |
-| `reset_softbody_forces` | `(Node)` |
-| `set_angular_velocity` | `(Node, float)` |
-| `set_cell_tear_resistance` | `(Node, int, float)` |
-| `set_constant_force` | `(Node, float, float)` |
-| `set_constant_torque` | `(Node, float)` |
-| `set_edge_tear_resistance` | `(Node, int, float)` |
 | `set_gravity` | `(float, float)` |
-| `set_heightfield_hole` | `(Node, int, bool)` |
-| `set_joint_limits` | `(Node, str, float, float)` |
-| `set_linear_velocity` | `(Node, float, float)` |
-| `set_motor_position` | `(Node, str, float, float, float)` |
-| `set_motor_velocity` | `(Node, str, float, float)` |
-| `set_particle_damaged` | `(Node, int, bool)` |
-| `set_particle_position` | `(Node, int, any)` |
-| `set_particle_target` | `(Node, int, any)` |
-| `set_particle_velocity` | `(Node, int, any)` |
-| `set_voxel` | `(Node, int, int, bool)` |
-| `set_voxel_size` | `(Node, float, float)` |
 | `shapecast` | `(physics2d::ShapeQuery) -> physics2d::Hit?` |
-| `sleep` | `(Node)` |
-| `softbody_area` | `(Node) -> float` |
-| `softbody_attachments` | `(Node) -> any` |
-| `softbody_boundary` | `(Node) -> [[int]]` |
-| `softbody_cell` | `(Node, int) -> any` |
-| `softbody_cells` | `(Node) -> [[int]]` |
-| `softbody_center` | `(Node) -> any` |
-| `softbody_contacts` | `(Node) -> any` |
-| `softbody_crossing` | `(Node, any) -> any` |
-| `softbody_edge` | `(Node, int) -> any` |
-| `softbody_edges` | `(Node) -> [[int]]` |
-| `softbody_mass` | `(Node) -> float` |
-| `softbody_particle` | `(Node, int) -> any` |
-| `softbody_particle_radius` | `(Node) -> float` |
-| `softbody_particles` | `(Node) -> int` |
-| `softbody_position` | `(Node, int) -> Vec2` |
-| `softbody_rest_area` | `(Node) -> float` |
-| `softbody_sleeping` | `(Node) -> bool` |
-| `softbody_stress` | `(Node) -> [float]` |
-| `softbody_velocity` | `(Node, int) -> Vec2` |
-| `softbody_volume_pieces` | `(Node) -> [any]` |
-| `solve_ik` | `(Node, float, float, physics2d::IkOptions?)` |
-| `swept_aabb` | `(Node) -> [float]` |
-| `tear_cell` | `(Node, int)` |
-| `tear_edge` | `(Node, int)` |
-| `tear_softbody` | `(Node, any, any) -> any` |
-| `teleport` | `(Node, float, float, physics2d::TeleportOptions?)` |
 | `time_of_impact` | `(Node, Node, physics2d::ImpactOptions) -> any` |
-| `time_since_can_sleep` | `(Node) -> float` |
-| `total_inertia` | `(Node) -> float` |
-| `total_mass` | `(Node) -> float` |
-| `unpin_particle` | `(Node, int)` |
-| `velocity_at_point` | `(Node, float, float) -> Vec2` |
-| `voxel` | `(Node, int, int) -> bool` |
-| `voxel_at` | `(Node, float, float) -> [int]` |
-| `voxel_size` | `(Node) -> any` |
 | `wake_all` | `()` |
-| `wake_softbody` | `(Node)` |
-| `wake_up` | `(Node)` |
-| `world_center_of_mass` | `(Node) -> any` |
+
+Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`, `joint2d`, `softbody2d`. See [components](components.md).
 
 **Constants** (111):
 
@@ -945,145 +819,25 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 
 | Function | Signature |
 | --- | --- |
-| `aabb` | `(Node) -> [float]` |
 | `active_bodies` | `() -> [Node]` |
-| `add_constant_force` | `(Node, float, float, float)` |
-| `add_constant_force_at_point` | `(Node, float, float, float, float, float, float)` |
-| `add_constant_torque` | `(Node, float, float, float)` |
-| `add_particle_force` | `(Node, int, any)` |
-| `add_softbody_force` | `(Node, any)` |
-| `angular_velocity` | `(Node) -> Vec3` |
-| `apply_force` | `(Node, float, float, float)` |
-| `apply_force_at_point` | `(Node, float, float, float, float, float, float)` |
-| `apply_impulse` | `(Node, float, float, float)` |
-| `apply_impulse_at_point` | `(Node, float, float, float, float, float, float)` |
-| `apply_particle_impulse` | `(Node, int, any)` |
-| `apply_softbody_impulse` | `(Node, any)` |
-| `apply_softbody_impulse_at` | `(Node, any, any, any)` |
-| `apply_softbody_radial_impulse` | `(Node, any, any, any)` |
-| `apply_torque` | `(Node, float, float, float)` |
-| `apply_torque_impulse` | `(Node, float, float, float)` |
-| `attach_particle` | `(Node, int, Node)` |
 | `bodies` | `() -> [Node]` |
-| `broad_phase_aabb` | `(Node) -> [float]` |
 | `closest_point` | `(physics3d::PointQuery) -> physics3d::Closest?` |
 | `closest_points` | `(Node, Node) -> any` |
-| `collider_mass` | `(Node) -> float` |
-| `collider_mass_properties` | `(Node) -> any` |
-| `collider_mesh` | `(Node) -> any` |
-| `collider_volume` | `(Node) -> float` |
-| `collision_aabb` | `(Node) -> [float]` |
-| `combine_voxels` | `(Node, Node)` |
-| `constant_force` | `(Node) -> Vec3` |
-| `constant_torque` | `(Node) -> Vec3` |
-| `contacts` | `(Node) -> any` |
-| `crop_voxels` | `(Node, int, int, int, int, int, int)` |
-| `cut_softbody` | `(Node, any) -> any` |
-| `detach_particle` | `(Node, int) -> bool` |
 | `distance` | `(Node, Node) -> float` |
-| `effective_angular_inertia` | `(Node) -> any` |
-| `effective_dominance` | `(Node) -> float` |
-| `effective_mass` | `(Node) -> any` |
 | `gravity` | `() -> Vec3` |
-| `handles` | `(Node) -> any` |
-| `has_pending_tears` | `(Node) -> bool` |
-| `heightfield_hole` | `(Node, int, int) -> bool` |
 | `intersects` | `(Node, Node) -> bool` |
-| `is_ccd_active` | `(Node) -> bool` |
-| `is_moving` | `(Node) -> bool` |
-| `is_on_floor` | `(Node) -> bool` |
-| `is_sleeping` | `(Node) -> bool` |
-| `joint_force` | `(Node) -> any` |
-| `joint_state` | `(Node) -> any` |
-| `kinetic_energy` | `(Node) -> float` |
-| `linear_velocity` | `(Node) -> Vec3` |
-| `local_center_of_mass` | `(Node) -> any` |
-| `max_contact_impulse` | `(Node) -> float` |
-| `move_character` | `(Node, float, float, float) -> any` |
-| `next_position` | `(Node) -> any` |
 | `overlap_aabb` | `(physics3d::BoxQuery) -> [Node]` |
 | `overlap_point` | `(physics3d::PointQuery) -> [Node]` |
 | `overlap_shape` | `(physics3d::ShapeQuery) -> [Node]` |
-| `overlaps` | `(Node) -> [Node]` |
-| `pin_particle` | `(Node, int)` |
-| `pose_in_body` | `(Node) -> any` |
-| `potential_energy` | `(Node) -> float` |
-| `predict_position` | `(Node, float) -> any` |
-| `predict_position_with_forces` | `(Node, float) -> any` |
 | `ragdoll` | `(Node, physics3d::RagdollOptions?) -> [Node]` |
 | `raycast` | `(physics3d::RayQuery) -> physics3d::Hit?` |
 | `raycast_all` | `(physics3d::RayQuery) -> [physics3d::Hit]` |
-| `remove_joint` | `(Node)` |
-| `reset_follow` | `(Node)` |
-| `reset_plasticity` | `(Node)` |
-| `reset_softbody_forces` | `(Node)` |
-| `set_angular_velocity` | `(Node, float, float, float)` |
-| `set_brake` | `(Node, float)` |
-| `set_cell_tear_resistance` | `(Node, int, float)` |
-| `set_constant_force` | `(Node, float, float, float)` |
-| `set_constant_torque` | `(Node, float, float, float)` |
-| `set_edge_tear_resistance` | `(Node, int, float)` |
-| `set_engine_force` | `(Node, float)` |
 | `set_gravity` | `(float, float, float)` |
-| `set_heightfield_hole` | `(Node, int, int, bool)` |
-| `set_joint_limits` | `(Node, str, float, float)` |
-| `set_linear_velocity` | `(Node, float, float, float)` |
-| `set_motor_position` | `(Node, str, float, float, float)` |
-| `set_motor_velocity` | `(Node, str, float, float)` |
-| `set_particle_damaged` | `(Node, int, bool)` |
-| `set_particle_position` | `(Node, int, any)` |
-| `set_particle_target` | `(Node, int, any)` |
-| `set_particle_velocity` | `(Node, int, any)` |
-| `set_steering` | `(Node, float)` |
-| `set_voxel` | `(Node, int, int, int, bool)` |
-| `set_voxel_size` | `(Node, float, float, float)` |
-| `set_wheel_rotation` | `(Node, float)` |
 | `shapecast` | `(physics3d::ShapeQuery) -> physics3d::Hit?` |
-| `sleep` | `(Node)` |
-| `softbody_attachments` | `(Node) -> any` |
-| `softbody_boundary` | `(Node) -> [[int]]` |
-| `softbody_cell` | `(Node, int) -> any` |
-| `softbody_cells` | `(Node) -> [[int]]` |
-| `softbody_center` | `(Node) -> any` |
-| `softbody_contacts` | `(Node) -> any` |
-| `softbody_crossing` | `(Node, any) -> any` |
-| `softbody_dihedral` | `(Node, int) -> any` |
-| `softbody_dihedrals` | `(Node) -> [[int]]` |
-| `softbody_edge` | `(Node, int) -> any` |
-| `softbody_edges` | `(Node) -> [[int]]` |
-| `softbody_mass` | `(Node) -> float` |
-| `softbody_particle` | `(Node, int) -> any` |
-| `softbody_particle_radius` | `(Node) -> float` |
-| `softbody_particles` | `(Node) -> int` |
-| `softbody_position` | `(Node, int) -> Vec3` |
-| `softbody_rest_volume` | `(Node) -> float` |
-| `softbody_sleeping` | `(Node) -> bool` |
-| `softbody_stress` | `(Node) -> [float]` |
-| `softbody_velocity` | `(Node, int) -> Vec3` |
-| `softbody_volume` | `(Node) -> float` |
-| `softbody_volume_pieces` | `(Node) -> [any]` |
-| `solve_ik` | `(Node, float, float, float, physics3d::IkOptions?)` |
-| `swept_aabb` | `(Node) -> [float]` |
-| `tear_cell` | `(Node, int)` |
-| `tear_edge` | `(Node, int)` |
-| `tear_softbody` | `(Node, any, any) -> any` |
-| `teleport` | `(Node, float, float, float, physics3d::TeleportOptions?)` |
 | `time_of_impact` | `(Node, Node, physics3d::ImpactOptions) -> any` |
-| `time_since_can_sleep` | `(Node) -> float` |
-| `total_inertia` | `(Node) -> any` |
-| `total_inertia_rotation` | `(Node) -> any` |
-| `total_mass` | `(Node) -> float` |
-| `unpin_particle` | `(Node, int)` |
-| `vehicle_speed` | `(Node) -> float` |
-| `velocity_at_point` | `(Node, float, float, float) -> Vec3` |
-| `voxel` | `(Node, int, int, int) -> bool` |
-| `voxel_at` | `(Node, float, float, float) -> [int]` |
-| `voxel_size` | `(Node) -> any` |
 | `wake_all` | `()` |
-| `wake_softbody` | `(Node)` |
-| `wake_up` | `(Node)` |
-| `wheel_state` | `(Node) -> any` |
-| `world_center_of_mass` | `(Node) -> any` |
+
+Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`, `joint3d`, `softbody3d`, `vehicle3d`, `wheel3d`. See [components](components.md).
 
 **Constants** (118):
 
@@ -1221,12 +975,9 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | --- | --- |
 | `begin_retained` | `(str)` |
 | `bounds` | `(Node) -> [Vec3]?` |
-| `buffer` | `(Node) -> any` |
-| `built_mesh` | `(Node) -> any` |
 | `camera_2d` | `() -> Vec3` |
 | `camera_matrix` | `() -> [float]` |
 | `camera_pose` | `() -> [float]` |
-| `cell` | `(Node, int, int) -> int` |
 | `check_material` | `(str) -> [script::Diagnostic]` |
 | `clear_retained` | `(str)` |
 | `debug_view` | `() -> str` |
@@ -1247,47 +998,27 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `draw_texture_2d` | `(str, float, float, float, float, any, render::TextureOptions?)` |
 | `end_retained` | `()` |
 | `hold_cameras` | `(Node?)` |
-| `instance_color` | `(Node, int) -> any` |
-| `instance_count` | `(Node) -> int` |
-| `instance_custom_data` | `(Node, int) -> any` |
-| `instance_region` | `(Node, int) -> any` |
-| `instance_transform` | `(Node, int) -> any` |
-| `instances` | `(Node) -> any` |
-| `is_on_screen` | `(Node) -> bool` |
 | `material_params` | `(str) -> [render::Param]` |
 | `mouse_ray` | `() -> [float]` |
 | `mouse_world_2d` | `() -> Vec2` |
-| `outline` | `(Node) -> [float]` |
 | `pick_ray` | `(float, float, float, float, float, float) -> Node` |
 | `pick_ray_at` | `(float, float, float, float, float, float) -> render::Hit?` |
-| `populate` | `(Node, render::PopulateOptions) -> any` |
 | `screenshot` | `(str)` |
 | `set_background` | `(float, float, float)` |
-| `set_buffer` | `(Node, any)` |
-| `set_cell` | `(Node, int, int, int)` |
 | `set_debug_view` | `(str)` |
 | `set_grid` | `(bool, float?, int?, int?)` |
 | `set_grid_colors` | `(float, float, float, float, float, float)` |
-| `set_instance_color` | `(Node, int, any)` |
-| `set_instance_count` | `(Node, int)` |
-| `set_instance_custom_data` | `(Node, int, any)` |
-| `set_instance_region` | `(Node, int, any, any)` |
-| `set_instance_transform` | `(Node, int, any)` |
-| `set_instances` | `(Node, any)` |
 | `set_shader_preview` | `(str, int)` |
 | `set_shader_probe` | `(float, float)` |
-| `set_terrain` | `(Node, int, int, int)` |
-| `set_visible_instance_count` | `(Node, int)` |
 | `shader_probe` | `() -> any` |
 | `snap_aov` | `(str, str)` |
 | `stats` | `() -> render::Stats` |
-| `terrain` | `(Node, int, int) -> int` |
 | `text_size` | `(str, render::TextOptions?) -> Vec2` |
 | `texture_pixels_per_unit` | `(str) -> float` |
 | `texture_size` | `(str) -> [int]` |
-| `tile_data` | `(Node, int, int) -> any` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
-| `visible_instance_count` | `(Node) -> int` |
+
+Called on a node's component: `boolean3d`, `multimesh2d`, `multimesh3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
 
 **Constants** (45):
 

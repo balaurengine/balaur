@@ -252,7 +252,7 @@ pub(crate) const MAP_ASSET_DOC: &str = r#"Lets one rig play another's clips: `[b
 ```toml
 type = "bone_map"
 # profile = "animations/humanoid.toml"   # left out, the built-in humanoid profile
-# Used as animation.play(node, clip, { retarget = "maps/hero.toml" })
+# Used as node.animation.play(clip, { retarget = "maps/hero.toml" })
 
 [bones]
 Hips = "Armature/Hips"

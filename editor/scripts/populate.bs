@@ -379,7 +379,7 @@ pub fn apply(state: &mut editor::State) {
         }
         asked["surface"] = surface;
     }
-    let instances = render::populate(found, asked);
+    let instances = if found.has_component("multimesh2d") { found.multimesh2d.populate(asked) } else { found.multimesh3d.populate(asked) };
     let wrote = write(state, node, name, instances);
     state.populate.said = "{instances.len()} instances written to {wrote}.";
 }

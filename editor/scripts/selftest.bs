@@ -4544,7 +4544,7 @@ fn instance_count(state: editor::State) -> int {
     if populate::component(model::selected_node(state)) == nil || !found.is_valid() {
         return -1;
     }
-    render::instance_count(found)
+    if found.has_component("multimesh2d") { found.multimesh2d.instance_count() } else { found.multimesh3d.instance_count() }
 }
 
 /// The outliner's eye and lock: a click on either acts on that row's node

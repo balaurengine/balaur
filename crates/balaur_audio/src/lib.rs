@@ -1,7 +1,7 @@
 //! Audio as a Balaur plugin, backed by rodio.
 //!
 //! The `sound` component gives a node a configured sound: `autoplay` starts
-//! it on load, `audio.play(node)` restarts it and `audio.stop(node)` silences
+//! it on load, `node.sound.play()` restarts it and `node.sound.stop()` silences
 //! it. `audio.play` and `audio.play_cue(name)` hand back an integer handle;
 //! `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing`
 //! address it. A sound with a place in the world (a `sound` with `positional`

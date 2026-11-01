@@ -214,3 +214,26 @@ fn a_call_that_answers_by_await_refuses_a_node_by_name() {
         .to_string();
     assert!(error.contains("`http::request` takes no node"), "{error}");
 }
+
+#[test]
+fn a_function_that_drives_a_component_is_refused_by_its_module_and_names_it() {
+    let on = |key: &str| HostSignature {
+        key: key.into(),
+        params: vec![Ty::Node, Ty::Float],
+        ret: Ty::Void,
+        is_async: false,
+    };
+    let options = Options {
+        host: HostApi {
+            functions: vec![on("node.body2d.apply_impulse")],
+            ..HostApi::default()
+        },
+        ..Options::default()
+    };
+    let source = "pub fn push(node: Node) { physics2d::apply_impulse(node, 1.0); }";
+    let error = compile(source, &options)
+        .map(|_| ())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("`node.body2d.apply_impulse(..)`"), "{error}");
+}
