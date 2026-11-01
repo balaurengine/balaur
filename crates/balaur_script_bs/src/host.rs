@@ -1095,7 +1095,7 @@ impl BsHost {
         is_async: bool,
         done: Option<u64>,
     ) -> Result<Option<Value>> {
-        let Some(mut obj) = inst.obj.borrow_mut().take() else {
+        let Some(obj) = inst.obj.borrow_mut().take() else {
             if is_async {
                 return Err(anyhow!("[{}] {method}: the instance is busy", inst.path));
             }
@@ -1106,7 +1106,7 @@ impl BsHost {
             let key = format!("{}.{method}", file.ty);
             file.home
                 .reentry
-                .start(&key, args, &mut obj)
+                .start(&key, args, &obj)
                 .map(|(task, out)| {
                     if out.is_none() {
                         self.inner.tasks.borrow_mut().push(Pending {
