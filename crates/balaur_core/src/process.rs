@@ -25,8 +25,6 @@ pub enum ProcessMode {
     Inherit,
     /// Ticks while the game runs and stops while it is paused.
     Pausable,
-    /// Ticks only while the game is paused: a menu that drives itself.
-    WhenPaused,
     /// Ticks either way. What a pause menu, a loading screen and the music
     /// that outlives a pause are set to.
     Always,
@@ -40,7 +38,6 @@ impl ProcessMode {
         match self {
             Self::Inherit => "inherit",
             Self::Pausable => "pausable",
-            Self::WhenPaused => "when_paused",
             Self::Always => "always",
             Self::Disabled => "disabled",
         }
@@ -53,7 +50,6 @@ impl ProcessMode {
         match name {
             "inherit" => Some(Self::Inherit),
             "pausable" => Some(Self::Pausable),
-            "when_paused" => Some(Self::WhenPaused),
             "always" => Some(Self::Always),
             "disabled" => Some(Self::Disabled),
             _ => None,
@@ -61,20 +57,13 @@ impl ProcessMode {
     }
 
     /// Every mode a node may be set to, for a schema and an editor's list.
-    pub const ALL: [Self; 5] = [
-        Self::Inherit,
-        Self::Pausable,
-        Self::WhenPaused,
-        Self::Always,
-        Self::Disabled,
-    ];
+    pub const ALL: [Self; 4] = [Self::Inherit, Self::Pausable, Self::Always, Self::Disabled];
 
     /// Whether a node resolved to this mode ticks, given the game's state.
     #[must_use]
     const fn runs(self, paused: bool) -> bool {
         match self {
             Self::Disabled => false,
-            Self::WhenPaused => paused,
             Self::Always => true,
             // Inherit cannot reach here: `resolved` stops at the root.
             Self::Inherit | Self::Pausable => !paused,

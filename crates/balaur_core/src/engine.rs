@@ -362,8 +362,7 @@ impl Engine {
 
     /// Pause or resume the game: every node whose `process` mode is
     /// `pausable` stops ticking, physics holds both worlds, and the frame
-    /// loop keeps drawing. `always` and `when_paused` subtrees are what runs
-    /// through it.
+    /// loop keeps drawing. An `always` subtree is what runs through it.
     pub fn set_paused(&self, paused: bool) {
         if self.inner.paused.get() == paused {
             return;

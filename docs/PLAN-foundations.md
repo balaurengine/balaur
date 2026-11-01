@@ -81,7 +81,7 @@ Nothing was left to merge.
 | Editor follow-ups | finish the derive, property by index, per-kind splits, a stricter language, the editor native in CI, budgets, the PR gates | [HANDOVER-editor-followups.md](HANDOVER-editor-followups.md), PLAN-property-types §5, PLAN-component-order §4, PLAN-balaur-script §9 |
 | Script tests | a corpus of programs on every engine, errors as written, fuzzing, random programs against a reference, CI over the big corpus, a language reference, enums and `match` | [PLAN-script-tests.md](PLAN-script-tests.md) |
 | Core split | a kernel and four crates around it | [PLAN-core-split.md](PLAN-core-split.md) |
-| ECS on hecs | one door for writes, ticks, lifecycle calls, observers, messages, commands, relationships, required components, schedules, app modes, typed systems | [PLAN-ecs.md](PLAN-ecs.md) |
+| ECS on hecs | one door for writes, ticks, lifecycle calls, observers, messages, commands, relationships, required components, schedules, typed systems | [PLAN-ecs.md](PLAN-ecs.md) |
 | UI gaps | text fields shaped like labels, one layout owner, accessibility, directional focus, gradients and shadows | [PLAN-ui-gaps.md](PLAN-ui-gaps.md) |
 
 ## 3. Where they meet
@@ -126,7 +126,7 @@ stop, open a pull request and merge before going on.
 | 8 | The core split | PLAN-core-split; **PR boundary** |
 | 9 | One door, ticks, change detection, lifecycle calls | PLAN-ecs 1 to 4 |
 | 10 | Observers, messages, commands, relationships, required components; the scene tree on relationships | PLAN-ecs 5 to 9 |
-| 11 | Schedules, app modes, typed systems, parallel work inside a system | PLAN-ecs 10 to 13; **PR boundary** |
+| 11 | Schedules, typed systems, parallel work inside a system | PLAN-ecs 10 to 13; **PR boundary** |
 | 12 | Text fields on `balaur_text`, one layout owner, accessibility, directional focus, gradients and shadows | PLAN-ui-gaps; **PR boundary** |
 | 13 | Random programs and the reference interpreter; the language reference; Rune leftovers | PLAN-script-tests 8 and 9 |
 | 14 | ARCHITECTURE, ROADMAP rows, NAMING rows, generated docs, a devlog post a feature | each step writes its own; this one checks nothing was left |

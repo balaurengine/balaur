@@ -48,9 +48,9 @@ a `Builtins`; a bare app gets the kernel's own.
   [..])]`); commands made at each stage's end (`Engine::defer*`); typed
   messages (`App::add_messages`, `MessageCursor`); observers inside
   `events::announce`; relationships (`relationships`, the scene tree's
-  `Parent` and `Children`); schedules (`schedule::System`, `Set`); app modes
-  (`modes`); typed systems (`system_param`, `App::add_typed`); and batches on
-  the thread pool (`Query::par_for_each`).
+  `Parent` and `Children`); schedules (`schedule::System`, `Set`); typed systems
+  (`system_param`, `App::add_typed`); and batches on the thread pool
+  (`Query::par_for_each`).
 - **Math: glamx** (glam + `Pose3`/`Rot3`), shared with rapier 0.35 and kiss3d
   0.46, so there are no conversion layers. It re-exports glam whole. The
   workspace pins `libm` and `scalar-math` — the features parry's

@@ -9,7 +9,7 @@
 ## 0. What it is now
 
 - `engine.set_paused(true)` holds every `pausable` subtree, and
-  `process = "always" | "when_paused" | "disabled" | "pausable" | "inherit"`
+  `process = "always" | "disabled" | "pausable" | "inherit"`
   is a key on a node like `visible`, inherited by its subtree
   (`crates/balaur_core/src/process.rs`).
 - The fixed stage keeps running through a pause. Each subsystem skips the
@@ -63,8 +63,7 @@ subtree run while its sibling is held and a root cannot say that. The fixed
 stage keeps running and every per-node subsystem asks `process::ticks`
 instead. A node with `process = "always"` — a core key beside `visible` —
 keeps its subtree ticking through a pause, which is what a pause menu is;
-`process = "when_paused"` ticks only while paused; `process = "disabled"`
-never ticks; `process = "pausable"` is the default and cancels an inherited
+`process = "disabled"` never ticks; `process = "pausable"` is the default and cancels an inherited
 `always`. Physics is one world, so a paused root holds every body even under
 an `always` node, as Godot's does.
 

@@ -23,9 +23,8 @@
 > `transform`, and `transform::ensure` is gone. Step 10 built 2026-10-31:
 > `schedule::System` (`in_set`, `before`, `after`, `run_if`), `Set`,
 > `App::add_scheduled`, `configure_set`, `check_schedules`; a plain
-> `add_system` is named by its function's path. Step 11 built 2026-10-31:
-> `modes` (`App::add_mode`, `add_sub_mode`, `add_computed_mode`,
-> `on_enter`, `on_exit`; `Engine::mode`, `set_mode`; `in_mode`). Step 12
+> `add_system` is named by its function's path. Step 11, app modes, was
+> built 2026-10-31 and removed 2026-11-01: nothing used them. Step 12
 > built 2026-10-31: `system_param` (`Res`, `ResMut`, their `Option`s,
 > `Query`, `Commands`, `Local`, `Step`, `MessageReader`, `MessageWriter`,
 > `Changed`, `Added`), `App::add_typed`, `Registry::add_typed`,
@@ -158,15 +157,6 @@ something else in this engine.
   conditions are asked once a stage run. A plain `add_system` is named by its
   function's path (`std::any::type_name`), so a `fn` item is a label as it
   stands.
-- **App modes**. Bevy's `States`: a value with enter and exit
-  schedules, sub-modes that exist while a parent mode holds a value, and
-  computed modes. In the digest and the snapshot. Named *mode*, since
-  `states` is the component of named looks. Any `Copy + Eq + Debug + serde`
-  type is one. A mode set now changes at the next frame's start, before
-  `First`, in the order the modes were declared, so a sub-mode follows its
-  parent and a computed mode the ones before it in the same frame. A
-  sub-mode starts at its first value each time its parent comes to the
-  value. A restore puts the value back and enters or leaves nothing.
 - **Typed systems.** A Rust function whose parameters say what it reads and
   writes: a query with filters, a resource, `ResMut`, commands, a message
   reader or writer, a local. Borrowed through the engine's `RefCell`s, and a
@@ -225,7 +215,8 @@ something else in this engine.
    determinism trace matches the one before step 3.
 9. **Required components.** *Built.*
 10. **Schedules**: sets, order, run conditions, cycle errors. *Built.*
-11. **App modes.** *Built.*
+11. **App modes.** *Removed*: nothing used them, and `states` and
+    `scene.switch` cover what they were for.
 12. **Typed systems**, and the systems that read better with them moved over.
     *Built.*
 13. **Parallel work inside a system**, for what measures as hot: the render

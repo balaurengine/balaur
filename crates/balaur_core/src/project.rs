@@ -430,8 +430,8 @@ pub(crate) struct SceneNode {
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
     z_as_relative: Option<bool>,
-    /// When this node and its subtree tick: `pausable`, `always`,
-    /// `when_paused`, `disabled`, or `inherit` to take the parent's.
+    /// When this node and its subtree tick: `pausable`, `always`, `disabled`,
+    /// or `inherit` to take the parent's.
     process: Option<String>,
     /// Draw this node between fixed steps, whatever it is made of. Unset
     /// leaves it to the body or the `fixed_update` on it.
