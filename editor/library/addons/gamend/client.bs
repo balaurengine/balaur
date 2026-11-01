@@ -35,9 +35,9 @@ const WRITES_KEY: str = "gamend:writes";
 /// What this client thinks of its connection.
 const NETWORK_KEY: str = "gamend:network";
 
-/// Point the plugin at a server, and name the server plugin `call` reaches;
-/// nil or empty for either takes `[gamend]`'s. Every other call errors until
-/// this one runs. Answers the server's url.
+/// Point the plugin at another server, and name the server plugin `call`
+/// reaches; nil or empty for either takes `[gamend]`'s, which is what a game
+/// that never calls this talks to. Answers the server's url.
 pub fn configure(url: str?, plugin: str) -> str {
     if plugin != "" {
         script::store(PLUGIN_KEY, plugin);
