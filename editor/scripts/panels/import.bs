@@ -30,7 +30,7 @@ impl Import {
 
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("import_fill");
@@ -38,14 +38,14 @@ impl Import {
             return;
         }
         let patched = self.node.get_node("Name");
-        patched.widget.visible = view["ready"].as_bool();
+        patched.set_visible(view["ready"].as_bool());
         patched.widget.text = view["name"].as_str();
         let patched = self.node.get_node("From");
-        patched.widget.visible = view["ready"].as_bool();
+        patched.set_visible(view["ready"].as_bool());
         patched.widget.text = view["from"].as_str();
         let patched = self.node.get_node("Nothing");
-        patched.widget.visible = !view["ready"].as_bool();
+        patched.set_visible(!view["ready"].as_bool());
         patched.widget.text = view["says"].as_str();
-        self.node.get_node("Scroll").widget.visible = view["ready"].as_bool();
+        self.node.get_node("Scroll").set_visible(view["ready"].as_bool());
     }
 }

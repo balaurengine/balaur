@@ -43,7 +43,7 @@ impl Library {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("library_view");
@@ -55,15 +55,15 @@ impl Library {
             kinds.get_node(kind).widget.checked = kind == view["kind"].as_str();
         }
         let patched = self.node.get_node("Note");
-        patched.widget.visible = view["says"].as_str() != "";
+        patched.set_visible(view["says"].as_str() != "");
         patched.widget.text = view["says"].as_str();
         let cards = !view["templates"].as_bool() && view["items"].len() > 0;
         let table = view["templates"].as_bool() && view["items"].len() > 0;
         let patched = self.node.get_node("Cards");
-        patched.widget.visible = cards;
+        patched.set_visible(cards);
         patched.widget.options = if cards { view["items"] } else { [] };
         let patched = self.node.get_node("Table");
-        patched.widget.visible = table;
+        patched.set_visible(table);
         patched.widget.options = if table { view["items"] } else { [] };
     }
 }

@@ -39,9 +39,9 @@ impl Problems {
         }
         let patched = self.node.get_node("List");
         patched.widget.options = view["items"];
-        patched.widget.visible = view["items"].len() > 0;
+        patched.set_visible(view["items"].len() > 0);
         let patched = self.node.get_node("Nothing");
-        patched.widget.visible = view["says"].as_str() != "";
+        patched.set_visible(view["says"].as_str() != "");
         patched.widget.text = view["says"].as_str();
     }
 }

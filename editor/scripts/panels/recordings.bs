@@ -30,7 +30,7 @@ impl Recordings {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("recordings_fill");
@@ -38,6 +38,6 @@ impl Recordings {
             return;
         }
         self.node.get_node("Tools/Verify").widget.checked = view["verify"].as_bool();
-        self.node.get_node("Nothing").widget.visible = view["count"].as_int() == 0;
+        self.node.get_node("Nothing").set_visible(view["count"].as_int() == 0);
     }
 }

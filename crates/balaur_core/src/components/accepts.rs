@@ -36,6 +36,11 @@ pub fn refuse_unknown_keys(eng: &Engine, name: &str, params: Option<&toml::Value
     for (key, value) in table {
         let declared = def.schema.get(key).is_some();
         if !declared && !accepts.is_some_and(|accepts| accepts(key, value)) {
+            if key == "visible" {
+                bail!(
+                    "`{name}` has no property `visible`: it is the node's, `visible = false` beside its `name`"
+                );
+            }
             bail!("`{name}` has no property `{key}`");
         }
     }

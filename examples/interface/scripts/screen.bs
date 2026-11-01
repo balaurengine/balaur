@@ -282,7 +282,7 @@ impl Screen {
         self.ring = held;
         if held.age >= RIPPLE {
             self.ring = nil;
-            node.widget.visible = false;
+            node.set_visible(false);
         }
     }
 }

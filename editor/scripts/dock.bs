@@ -1031,7 +1031,7 @@ pub fn lanes_fill(state: editor::State) {
     let parted = if split != nil { "parted from the recording at tick {split.unwrap().tick}" } else { "" };
     let filled = scene::get_node(LANES + "/Parted");
     if filled.is_valid() {
-        filled.widget.visible = parted != "";
+        filled.set_visible(parted != "");
         filled.widget.text = parted;
     }
     let rows: [ui::Row] = [];

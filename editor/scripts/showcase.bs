@@ -926,7 +926,7 @@ fn form_control(label: str, at: int) -> [float] {
     }
     for row in host.children() {
         let named = row.get_node("L");
-        if row.widget.visible && named.is_valid()
+        if row.visible() && named.is_valid()
             && named.widget.text == label {
             return centre_of("{FORM}/{row.name()}/H/C/C{at}");
         }

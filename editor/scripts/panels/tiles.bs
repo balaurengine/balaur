@@ -7,7 +7,6 @@ pub class Tiles {
 }
 
 pub struct Parameters {
-    visible: bool,
     options: any,
     text: any,
 }
@@ -41,7 +40,7 @@ impl Tiles {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("tiles_fill");
@@ -50,7 +49,8 @@ impl Tiles {
         }
         let cards = view["items"].len() > 0;
         let list = self.node.get_node("Cards");
-        list.patch_component("widget", Parameters { visible: cards, options: view["items"], text: view["picked"] });
+        list.set_visible(cards);
+        list.patch_component("widget", Parameters { options: view["items"], text: view["picked"] });
         if cards {
             list.widget_list.sheet = view["sheet"].as_str();
         }

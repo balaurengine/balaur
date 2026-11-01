@@ -83,13 +83,13 @@ impl SceneTree {
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
         if view["filtering"].as_bool() && view["items"].len() == 0 {
-            tree.widget.visible = false;
-            nothing.widget.visible = true;
+            tree.set_visible(false);
+            nothing.set_visible(true);
             nothing.widget.text = view["nothing"].as_str();
             return;
         }
-        nothing.widget.visible = false;
-        tree.widget.visible = true;
+        nothing.set_visible(false);
+        tree.set_visible(true);
         tree.widget.options = view["items"];
         tree.widget.selection = view["chosen"];
     }

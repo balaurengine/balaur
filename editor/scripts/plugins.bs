@@ -268,7 +268,7 @@ pub fn fill_dialogs(state: &mut editor::State) {
     let viewport_rect = state.layout["stage"];
     let filled = scene::get_node(DIALOGS);
     if filled.is_valid() {
-        filled.widget.visible = out.len() > 0;
+        filled.set_visible(out.len() > 0);
         filled.widget.x = viewport_rect["x"].as_float() + 12.0;
         filled.widget.y = viewport_rect["y"].as_float() + 12.0;
     }

@@ -51,14 +51,14 @@ impl Inspector {
         let nothing = self.node.get_node("Nothing");
         if !view["selected"].as_bool() {
             for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
-                one.widget.visible = false;
+                one.set_visible(false);
             }
-            nothing.widget.visible = true;
+            nothing.set_visible(true);
             return;
         }
-        nothing.widget.visible = false;
+        nothing.set_visible(false);
         for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
-            one.widget.visible = true;
+            one.set_visible(true);
         }
         let patched = head.get_node("Name");
         patched.widget.text = view["name"].as_str();

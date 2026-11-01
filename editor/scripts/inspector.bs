@@ -127,7 +127,7 @@ pub fn drawn_rows() -> int {
     }
     let shown = 0;
     for row in host.children() {
-        if row.widget.visible {
+        if row.visible() {
             shown += 1;
         }
     }
@@ -2013,7 +2013,7 @@ pub fn reread_rows(name: str, properties: [str]?) {
 pub fn show_panel() {
     let found = scene::get_node(PANEL);
     if found.is_valid() {
-        found.widget.visible = true;
+        found.set_visible(true);
     }
 }
 

@@ -6,12 +6,12 @@
 id = "panel"
 name = "Recordings"
 script = { source = "scripts/panels/recordings.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "tools"
@@ -48,12 +48,12 @@ tooltip = "Hash the world every tick, so a replay can name where it parted"
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_caption"
 text = "no recordings yet — press Play"
 wrap = true
-visible = false
 
 [[nodes]]
 id = "rows"

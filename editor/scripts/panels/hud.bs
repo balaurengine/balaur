@@ -33,7 +33,7 @@ impl Hud {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.widget.visible = view["shown"].as_bool();
+        self.node.set_visible(view["shown"].as_bool());
         self.node.widget.height = view["height"].as_float();
         self.node.patch_component("widget", { "inset": view["inset"] });
         if !view["shown"].as_bool() {
@@ -52,7 +52,7 @@ impl Hud {
         zoom.get_node("In").widget.icon = view["add_icon"].as_str();
         zoom.get_node("Reading").widget.text = view["zoom"].as_str();
         let bottom = self.node.get_node("Bottom");
-        bottom.widget.visible = view["bottom"].as_bool();
+        bottom.set_visible(view["bottom"].as_bool());
         let patched = bottom.get_node("Open");
         patched.widget.icon = view["bottom_icon"].as_str();
         patched.widget.width = view["step"].as_float() + 6.0;

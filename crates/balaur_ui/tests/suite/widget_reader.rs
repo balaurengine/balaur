@@ -18,7 +18,7 @@ fn every_key_the_reader_answers_agrees_with_the_whole_table() {
     let (_dir, app) = app();
     let entity = add_widget(
         &app,
-        &toml::toml! { kind = "text_field" text = "hello" role = "danger" visible = true }.into(),
+        &toml::toml! { kind = "text_field" text = "hello" role = "danger" }.into(),
     );
     let whole = components::get(&app.engine, entity, "widget").expect("the node has a widget");
     let table = whole.as_table().expect("a component is a table");
@@ -55,7 +55,7 @@ fn the_keys_a_pooled_control_reads_every_frame_are_answered_on_their_own() {
         &toml::toml! { kind = "text_field" text = "" role = "danger" }.into(),
     );
     let index = components::index_of(&app.engine, "widget").expect("widget is registered");
-    for key in ["role", "visible", "text", "checked"] {
+    for key in ["role", "text", "checked"] {
         assert!(
             components::answers_alone(&app.engine, entity, index, key),
             "`widget.{key}` is read every frame and still builds the whole table"
@@ -84,7 +84,7 @@ fn a_key_the_reader_does_not_claim_still_answers_from_the_table() {
         &toml::toml! {
             kind = "text_field" text = ""
             [narrow]
-            visible = false
+            text = "small"
         }
         .into(),
     );

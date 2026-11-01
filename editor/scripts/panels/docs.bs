@@ -37,7 +37,7 @@ impl Docs {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("docs_view", self.query);
@@ -49,7 +49,7 @@ impl Docs {
         patched.widget.text = view["pick"].as_str();
         self.node.get_node("List").widget.options = view["items"];
         let patched = self.node.get_node("Nothing");
-        patched.widget.visible = view["says"].as_str() != "";
+        patched.set_visible(view["says"].as_str() != "");
         patched.widget.text = view["says"].as_str();
     }
 }

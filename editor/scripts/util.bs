@@ -101,7 +101,7 @@ pub fn fill(id: str, parameters: any) {
 pub fn set_visible(id: str, visible: bool) {
     let found = scene::get_node(id);
     if found.is_valid() {
-        found.widget.visible = visible;
+        found.set_visible(visible);
     }
 }
 
@@ -140,7 +140,7 @@ pub fn hide(id: str) {
     if !found.is_valid() {
         return;
     }
-    found.widget.visible = false;
+    found.set_visible(false);
 }
 
 /// One row of a `list` or `tree`: the icon, the label, a trailing note and a

@@ -30,7 +30,7 @@ impl Complete {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.widget.visible = view["open"].as_bool();
+        self.node.set_visible(view["open"].as_bool());
         self.node.widget.x = view["x"].as_float();
         self.node.widget.y = view["y"].as_float();
         if !view["open"].as_bool() {
@@ -41,7 +41,7 @@ impl Complete {
         patched.widget.text = view["picked"].as_str();
         patched.widget.height = view["list_h"].as_float();
         let patched = self.node.get_node("Doc");
-        patched.widget.visible = view["doc"].as_str() != "";
+        patched.set_visible(view["doc"].as_str() != "");
         patched.widget.text = view["doc"].as_str();
     }
 }

@@ -335,3 +335,19 @@ pub fn glyphs(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Rect)> {
     }
     found
 }
+
+/// Show or hide a node, and let the tree hear it: what a frame does between
+/// the script that wrote it and the next UI pass.
+pub fn set_shown(app: &App, node: Entity, on: bool) {
+    assert!(balaur::scene::set_visible(&app.engine, node, on));
+    let root = app.engine.root();
+    balaur::scene::propagate_transforms(&mut app.engine.world_mut(), root);
+}
+
+/// Whether the node itself is set to draw.
+pub fn own_visible(app: &App, node: Entity) -> bool {
+    app.engine
+        .world()
+        .get::<&balaur::scene::Appearance>(node)
+        .is_ok_and(|look| look.visible)
+}

@@ -737,7 +737,7 @@ pub fn demo_step(state: &mut editor::State) {
     let labels: [str] = [];
     for row in host.children() {
         let label = row.get_node("L");
-        if label.is_valid() && label.widget.visible {
+        if label.is_valid() && label.visible() {
             labels.push(label.widget.text);
         }
     }

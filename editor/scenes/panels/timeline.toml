@@ -6,25 +6,25 @@
 id = "panel"
 name = "Timeline"
 script = { source = "scripts/panels/timeline.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 2]
-visible = false
 
 # What the player is missing, and the verb that gives it a clip.
 [[nodes]]
 id = "missing"
 name = "Missing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "row"
 gap = [12, 12]
 align_items = "center"
 height = 30
 padding = [12, 0, 12, 0]
-visible = false
 
 [[nodes]]
 id = "missing_says"

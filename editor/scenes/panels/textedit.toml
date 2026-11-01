@@ -5,13 +5,13 @@
 id = "textedit"
 name = "TextEdit"
 script = { source = "scripts/panels/textedit.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
 anchor = "top_left"
 padding = [8, 4, 8, 4]
 layer = "shell"
-visible = false
 
 [[nodes]]
 id = "field"

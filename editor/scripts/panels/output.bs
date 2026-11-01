@@ -49,7 +49,7 @@ impl Output {
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
         // A hidden log costs nothing: it is filled again when it shows.
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("output_view", self.level, self.query);
@@ -58,7 +58,7 @@ impl Output {
         }
         self.node.get_node("Log").widget.options = view["items"];
         let patched = self.node.get_node("Nothing");
-        patched.widget.visible = view["says"].as_str() != "";
+        patched.set_visible(view["says"].as_str() != "");
         patched.widget.text = view["says"].as_str();
         let tools = self.node.get_node("Tools");
         for level in LEVELS() {

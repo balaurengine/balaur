@@ -573,6 +573,7 @@ text = "a flow wraps when the row runs out; every box here is a scene node"
 id = "ripple"
 name = "Ripple"
 parent = "n_screen"
+visible = false
 [nodes.widget]
 kind = "panel"
 anchor = "top_left"
@@ -582,7 +583,6 @@ width = 12
 height = 12
 corner_radius = 6
 fill = "#00000000"
-visible = false
 
 # The drawn cursor the manual's clip follows. Its own root, after the sheet so
 # it draws over it, and hidden until a clip asks for it.
@@ -590,6 +590,7 @@ visible = false
 id = "cursor"
 name = "Cursor"
 parent = "n_screen"
+visible = false
 [nodes.widget]
 kind = "image"
 image = "assets/cursor.png"
@@ -598,4 +599,3 @@ x = 0
 y = 0
 width = 20
 height = 20
-visible = false

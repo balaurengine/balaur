@@ -6,12 +6,12 @@
 id = "panel"
 name = "SceneTree"
 script = { source = "scripts/panels/scene_tree.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 # The search, and the "+" that adds a child to the selection beside it.
 [[nodes]]
@@ -64,10 +64,10 @@ options = ["All nodes", "3D", "2D", "Physics", "Rendering", "UI", "Script"]
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-visible = false
 
 [[nodes]]
 id = "tree"
@@ -96,9 +96,9 @@ row_height = 33
 id = "tree_menu"
 name = "tree_menu"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "menu"
-visible = false
 
 [[nodes]]
 id = "tree_add"

@@ -204,9 +204,6 @@ pub(crate) struct WidgetProperties {
     pub(crate) kind: Kind,
     /// Label or button caption
     pub(crate) text: SmolStr,
-    /// Draw the widget; hidden widgets keep their state
-    #[property(default = true)]
-    pub(crate) visible: bool,
     /// Off, the widget is greyed out and swallows its clicks
     #[property(default = true)]
     pub(crate) enabled: bool,

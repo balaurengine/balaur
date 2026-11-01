@@ -350,7 +350,7 @@ fn head_note(state: editor::State, tokens: any) {
     let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
     let filled = scene::get_node(NOTE());
     if filled.is_valid() {
-        filled.widget.visible = said != "";
+        filled.set_visible(said != "");
         filled.widget.text = said;
         filled.patch_component("widget", { "text_color": (if state.manager.failed != "" { tokens["warning_text"] } else { tokens["text_subtle"] }).as_str() });
     }
@@ -373,12 +373,12 @@ fn tools(state: editor::State) {
     util::set_text(TOOLS() + "/Filter", state.manager.filter);
     let filled = scene::get_node(TOOLS() + "/Open");
     if filled.is_valid() {
-        filled.widget.visible = acting && !state.touchscreen;
+        filled.set_visible(acting && !state.touchscreen);
         filled.widget.icon = icons::panel("assets");
     }
     let filled = scene::get_node(TOOLS() + "/New");
     if filled.is_valid() {
-        filled.widget.visible = acting;
+        filled.set_visible(acting);
         filled.widget.icon = icons::ui("add");
     }
 }

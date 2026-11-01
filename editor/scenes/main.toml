@@ -189,9 +189,9 @@ instance = "scenes/panels/outline.toml"
 id = "left_plugins"
 name = "LeftPlugins"
 parent = "left_sheet"
+visible = false
 [nodes.widget]
 kind = "column"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -297,9 +297,9 @@ instance = "scenes/panels/import.toml"
 id = "right_plugins"
 name = "RightPlugins"
 parent = "right_sheet"
+visible = false
 [nodes.widget]
 kind = "column"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -329,10 +329,10 @@ height = 0
 id = "rail_handle"
 name = "Handle"
 parent = "railtop"
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-visible = false
 
 [[nodes]]
 id = "rail_handle_open"
@@ -542,9 +542,9 @@ instance = "scenes/panels/bonemap.toml"
 id = "bottom_plugins"
 name = "BottomPlugins"
 parent = "bottom"
+visible = false
 [nodes.widget]
 kind = "column"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -614,11 +614,11 @@ id = "doc_panel"
 name = "DocPanel"
 parent = "stage"
 script = { source = "scripts/panels/events.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet_doc"
 # A `panel` draws its caption, and the default one is the word "label".
-visible = false
 grow = 1
 
 [[nodes]]
@@ -684,11 +684,11 @@ gap = [0, 6]
 id = "hooks_unsaved"
 name = "Unsaved"
 parent = "hooks"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_caption_primary"
 text = "● unsaved · ⌘S"
-visible = false
 
 # The start screen, over the shell rather than inside it: its own root on the
 # same surface, drawn after, so it covers the editor and takes every click.
@@ -697,13 +697,13 @@ id = "manager"
 name = "Manager"
 parent = "n_editor"
 script = { source = "scripts/panels/manager.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 layer = "shell"
 anchor = "fill"
 role = "sheet_manager"
 align_items = "center"
-visible = false
 
 [[nodes]]
 id = "manager_head"
@@ -738,22 +738,22 @@ gap = [0, 10]
 id = "manager_note"
 name = "Note"
 parent = "manager_body"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
 wrap = true
-visible = false
 
 [[nodes]]
 id = "manager_progress"
 name = "Progress"
 parent = "manager_body"
+visible = false
 [nodes.widget]
 kind = "row"
 gap = [10, 10]
 align_items = "center"
-visible = false
 
 # Wraps under a phone's width: a filter and three buttons do not share 280
 # pixels, so the verbs drop to the line below.
@@ -761,11 +761,11 @@ visible = false
 id = "manager_tools"
 name = "Tools"
 parent = "manager_body"
+visible = false
 [nodes.widget]
 kind = "flow"
 gap = [6, 8]
 align_items = "center"
-visible = false
 
 [[nodes]]
 id = "manager_filter"
@@ -946,18 +946,19 @@ id = "dialogs"
 name = "Dialogs"
 parent = "n_editor"
 script = { source = "scripts/panels/dialogs.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 anchor = "top_left"
 gap = [12, 12]
 layer = "shell"
-visible = false
 
 # `--state fontdemo`'s sheet of every script, face and icon, over the stage.
 [[nodes]]
 id = "font_sheet"
 name = "FontSheet"
 parent = "n_editor"
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
@@ -965,13 +966,13 @@ anchor = "top_left"
 layer = "shell"
 gap = [6, 6]
 padding = [16, 12, 16, 12]
-visible = false
 
 # The box select's outline, placed while the drag lasts.
 [[nodes]]
 id = "marquee"
 name = "Marquee"
 parent = "n_editor"
+visible = false
 [nodes.widget]
 kind = "panel"
 anchor = "top_left"
@@ -980,7 +981,6 @@ fill = "none"
 stroke = "primary_text"
 dashed = true
 interactive = false
-visible = false
 
 # Typing over a text node where it is drawn: see scenes/panels/textedit.toml.
 [[nodes]]

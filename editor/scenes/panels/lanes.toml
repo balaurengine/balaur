@@ -6,12 +6,12 @@
 id = "panel"
 name = "Lanes"
 script = { source = "scripts/panels/lanes.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "head"
@@ -82,11 +82,11 @@ font_size = 11
 id = "parted"
 name = "Parted"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_caption_primary"
 padding = [8, 0, 8, 0]
-visible = false
 
 [[nodes]]
 id = "scroll"

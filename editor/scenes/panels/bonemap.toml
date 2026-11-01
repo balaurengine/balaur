@@ -6,24 +6,24 @@
 id = "panel"
 name = "Bonemap"
 script = { source = "scripts/panels/bonemap.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 # What the map needs before there is anything to map.
 [[nodes]]
 id = "missing"
 name = "Missing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
 text = "select a rig — a node with bones under it — to map its bones"
 padding = [12, 8, 12, 0]
-visible = false
 
 [[nodes]]
 id = "body"

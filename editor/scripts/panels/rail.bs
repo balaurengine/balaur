@@ -36,7 +36,7 @@ impl Rail {
             return;
         }
         let sheet = self.node.get_node("RailTop/Handle");
-        sheet.widget.visible = view["rail_handle"].as_bool();
+        sheet.set_visible(view["rail_handle"].as_bool());
         sheet.patch_component("widget", { "padding": view["pad"] });
         let patched = sheet.get_node("Open");
         patched.widget.icon = view["left"]["icon"].as_str();

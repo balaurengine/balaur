@@ -8,7 +8,6 @@ pub class Debugger {
 }
 
 pub struct Shown {
-    visible: any,
     text: any,
 }
 
@@ -54,7 +53,7 @@ impl Debugger {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("debugger_view");
@@ -62,23 +61,24 @@ impl Debugger {
             return;
         }
         let tools = self.node.get_node("Tools");
-        tools.get_node("Pause").widget.visible = view["can_pause"].as_bool();
+        tools.get_node("Pause").set_visible(view["can_pause"].as_bool());
         let steps = STEPS();
         for index in 0..steps.len() {
             let step = steps[index];
-            let shown = Shown { visible: view["stopped"], text: nil };
+            let shown = Shown { text: nil };
             if view["stopped"].as_bool() {
                 shown.text = view["steps"][index];
             }
+            tools.get_node(step).set_visible(view["stopped"].as_bool());
             tools.get_node(step).patch_component("widget", shown);
         }
         tools.get_node("Where").widget.text = view["where"].as_str();
         let patched = tools.get_node("Threw");
-        patched.widget.visible = view["threw"].as_str() != "";
+        patched.set_visible(view["threw"].as_str() != "");
         patched.widget.text = view["threw"].as_str();
         tools.get_node("BreakOnError").widget.checked = view["break_on_error"].as_bool();
         let patched = self.node.get_node("Stack");
-        patched.widget.visible = view["stopped"].as_bool();
+        patched.set_visible(view["stopped"].as_bool());
         patched.widget.options = view["frames"];
         patched.widget.text = view["picked"].as_str();
     }

@@ -6,13 +6,13 @@
 id = "hud"
 name = "Hud"
 script = { source = "scripts/panels/hud.bs" }
+visible = false
 [nodes.widget]
 kind = "row"
 absolute = true
 inset = [0.0, -1.0, 0.0, 0.0]
 height = 28
 align_items = "center"
-visible = false
 
 [[nodes]]
 id = "axes"
@@ -129,12 +129,12 @@ padding = 0
 id = "bottom"
 name = "Bottom"
 parent = "hud"
+visible = false
 [nodes.widget]
 kind = "panel"
 fill = "bg_panel"
 corner_radius = 8
 padding = 0
-visible = false
 
 [[nodes]]
 id = "bottom_open"

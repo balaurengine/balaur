@@ -1125,7 +1125,7 @@ pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
 /// back. The innermost widget under the pointer that names a menu takes the
 /// press; a widget's own `on_click` never fires for it, egui counting only
 /// the primary button as a click. The menu's own button is not drawn here,
-/// so a menu that is only ever a context menu can be `visible = false`.
+/// so a menu that is only ever a context menu names no caption and no icon.
 pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let context = &placed.widget.context;

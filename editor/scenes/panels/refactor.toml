@@ -5,6 +5,7 @@
 id = "panel"
 name = "Refactor"
 script = { source = "scripts/panels/refactor.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
@@ -13,7 +14,6 @@ inset = [-1.0, 16.0, 20.0, -1.0]
 width = 420
 padding = [14, 12, 14, 12]
 gap = [0, 6]
-visible = false
 
 [[nodes]]
 id = "title"

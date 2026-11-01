@@ -6,12 +6,12 @@
 id = "panel"
 name = "Inspector"
 script = { source = "scripts/panels/inspector.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 3]
-visible = false
 
 # The node's mark and name, then its type beside them on one line.
 [[nodes]]
@@ -58,11 +58,11 @@ placeholder = "Search"
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
 text = "nothing selected"
-visible = false
 
 [[nodes]]
 id = "scroll"

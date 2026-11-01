@@ -27,11 +27,9 @@ pub(crate) struct Placed {
     /// says nothing itself.
     pub(crate) name: SmolStr,
     pub(crate) widget: Widget,
-    /// What the widget itself said about being drawn, before the scene tree
-    /// had its say. Held because `widget.visible` is folded with the node's
-    /// own appearance every pass, and re-reading the world for it would read
-    /// the widget as authored rather than as this screen class resolved it.
-    pub(crate) authored_visible: bool,
+    /// Whether the widget has anything of its own to draw, before the scene
+    /// tree has its say: `widget.visible` is folded from the two every pass.
+    pub(crate) draws_itself: bool,
     pub(crate) children: Vec<usize>,
     /// The look resolved for this widget, worked out once a frame.
     ///
@@ -309,7 +307,7 @@ fn patch(
         // of the forest is not what the arena says it is.
         let widget = world.get::<&Widget>(entity).ok()?;
         let widget = for_classes(eng, entity, &widget, classes);
-        arena[index].authored_visible = widget.visible;
+        arena[index].draws_itself = draws_itself(&widget);
         arena[index].widget = widget;
         *arena[index].look.borrow_mut() = Looks::default();
         touched.push(index);
@@ -363,7 +361,7 @@ fn forest(
                 entity,
                 parent: owner,
                 name,
-                authored_visible: widget.visible,
+                draws_itself: draws_itself(&widget),
                 widget,
                 children: Vec::new(),
                 look: RefCell::default(),
@@ -444,6 +442,15 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
     }
 }
 
+/// A `menu` with no caption and no icon has no button: it only opens from a
+/// `context`, whose rows are its children, drawn all the same.
+fn draws_itself(widget: &Widget) -> bool {
+    widget.kind != crate::vocabulary::words::MENU
+        || !widget.text.is_empty()
+        || !widget.text_key.is_empty()
+        || !widget.icon.is_empty()
+}
+
 /// A widget draws only while its node does: `visible = false` on the node,
 /// or on any node above it, hides the widget and everything it lays out, as
 /// it hides a sprite; and it draws at its node's inherited tint's alpha, so a
@@ -475,7 +482,7 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
         .collect();
     let world = eng.world();
     let mut fold = |index: usize, one: &mut Placed| {
-        let authored = one.authored_visible && roomed[index];
+        let authored = one.draws_itself && roomed[index];
         // A tree built this tick (a scene switch) has no propagated
         // appearance yet: compose it, or every hidden node shows one frame.
         let (shown, alpha) = world

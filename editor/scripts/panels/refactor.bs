@@ -35,7 +35,7 @@ impl Refactor {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.widget.visible = view["open"].as_bool();
+        self.node.set_visible(view["open"].as_bool());
         if !view["open"].as_bool() {
             self.open = false;
             return;

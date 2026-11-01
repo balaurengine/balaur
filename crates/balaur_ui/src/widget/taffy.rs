@@ -714,7 +714,7 @@ fn sync(
             measure.heading(index, &theme)
         },
         // A solve's root is laid out whatever its `visible` says, on a node
-        // of its own: a hidden menu still opens its rows from a `context`.
+        // of its own: a menu with no button still opens its rows from a `context`.
         shown: widget.visible || is_root,
         is_root,
         folded,

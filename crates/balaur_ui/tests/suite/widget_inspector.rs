@@ -80,7 +80,7 @@ fn shown_rows(app: &App) -> usize {
         .unwrap_or_default();
     drop(world);
     kids.iter()
-        .filter(|row| prop(app, **row, "visible") == Some(toml::Value::Boolean(true)))
+        .filter(|row| crate::support::own_visible(app, **row))
         .count()
 }
 

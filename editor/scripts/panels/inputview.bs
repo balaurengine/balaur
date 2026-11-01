@@ -100,7 +100,7 @@ impl Inputview {
         let design_y = design_point.y;
         self.at = At { x: design_x, y: design_y };
         let patched = self.node.get_node("Pointer");
-        patched.widget.visible = true;
+        patched.set_visible(true);
         patched.patch_component("widget", { "inset": [design_x, design_y, -1.0, -1.0] });
         self.node.get_node("Press").patch_component("widget", {
             "inset": [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0],
@@ -118,7 +118,7 @@ impl Inputview {
         self.ripple(design_x, design_y);
         if event["button"].as_str() == "left" {
             let patched = self.node.get_node("Press");
-            patched.widget.visible = true;
+            patched.set_visible(true);
             patched.patch_component("widget", { "inset": [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0] });
         }
     }
@@ -126,7 +126,7 @@ impl Inputview {
     pub fn on_pointer_released(event: any) {
         self.let_go(button_label(event["button"]).as_str());
         if event["button"].as_str() == "left" {
-            self.node.get_node("Press").widget.visible = false;
+            self.node.get_node("Press").set_visible(false);
         }
     }
 
@@ -150,8 +150,8 @@ impl Inputview {
         let kept: [Ring] = [];
         for ring in self.rings {
             if now >= ring.until {
-                self.node.get_node("Wash{ring.slot}").widget.visible = false;
-                self.node.get_node("Ring{ring.slot}").widget.visible = false;
+                self.node.get_node("Wash{ring.slot}").set_visible(false);
+                self.node.get_node("Ring{ring.slot}").set_visible(false);
             } else {
                 kept.push(ring);
             }
@@ -170,7 +170,7 @@ impl Inputview {
         }
         self.shown = view["shown"].as_bool();
         self.factor = view["factor"].as_float();
-        self.node.widget.visible = view["shown"].as_bool();
+        self.node.set_visible(view["shown"].as_bool());
         self.node.get_node("Chips").patch_component("widget", { "inset": [view["chips_x"], view["chips_y"], -1.0, -1.0] });
     }
 
@@ -229,7 +229,7 @@ impl Inputview {
         self.next_ring += 1;
         for name in ["Wash{slot}", "Ring{slot}"] {
             let node = self.node.get_node(name);
-            node.widget.visible = true;
+            node.set_visible(true);
             node.widget.width = RIPPLE_FROM;
             node.widget.height = RIPPLE_FROM;
             node.widget.corner_radius = RIPPLE_FROM / 2.0;

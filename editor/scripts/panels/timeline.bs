@@ -51,7 +51,7 @@ impl Timeline {
 
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
-        if self.node.widget.visible == false {
+        if self.node.visible() == false {
             return;
         }
         self.editor.call("timeline_fill");

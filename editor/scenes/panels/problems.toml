@@ -5,11 +5,11 @@
 id = "panel"
 name = "Problems"
 script = { source = "scripts/panels/problems.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
-visible = false
 
 [[nodes]]
 id = "list"
@@ -29,7 +29,7 @@ row_height = 33
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-visible = false

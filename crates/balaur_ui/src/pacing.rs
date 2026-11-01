@@ -2,7 +2,7 @@
 //!
 //! Every frame by default: a HUD reads live state each pass. Under `[window]
 //! low_processor` a pass runs only when something asks for one: input, a widget
-//! node written, `ui.request_repaint`, a log line, an asset reload or an egui
+//! node written or hidden, `ui.request_repaint`, a log line, an asset reload or an egui
 //! animation, and the frames between re-present the last pass's shapes. Nothing
 //! is polled: an untouched UI draws nothing. The editor asks for it: on the web
 //! its shell is most of the frame, and nothing in it moves while nobody touches
@@ -51,6 +51,7 @@ pub struct Pacing {
     passes: u32,
     logs_seen: u64,
     assets_seen: u64,
+    shown_seen: u64,
     /// When passes are owed: egui's delayed requests, which it reports from
     /// any thread, and a script's `request_repaint(#{ after })`. Every one is
     /// kept, so one asked for as another comes due is not lost behind it.
@@ -181,9 +182,12 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     hold_caret(&mut pacing, ctx, input_seen);
     let logs = balaur_core::logbuf::total();
     let assets = balaur_core::assets::generation(eng);
-    let changed = logs != pacing.logs_seen || assets != pacing.assets_seen;
+    let shown = balaur_core::scene::appearance_revision();
+    let changed =
+        logs != pacing.logs_seen || assets != pacing.assets_seen || shown != pacing.shown_seen;
     pacing.logs_seen = logs;
     pacing.assets_seen = assets;
+    pacing.shown_seen = shown;
     let written = crate::widget::arena::has_dirty();
     input_seen || written || requested || changed || settling(eng) || due
 }

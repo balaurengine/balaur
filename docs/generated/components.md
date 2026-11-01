@@ -2507,7 +2507,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 130 properties
+`ui` · 129 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
 
@@ -2516,7 +2516,6 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tbody>
 <tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>inspector</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>toast</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>Label or button caption</td></tr>
-<tr><td><code>visible</code></td><td>bool</td><td><code>true</code></td><td>Draw the widget; hidden widgets keep their state</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>

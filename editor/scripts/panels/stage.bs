@@ -29,14 +29,14 @@ impl Stage {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Safe").widget.visible = view["safe"].as_bool();
+        self.node.get_node("Safe").set_visible(view["safe"].as_bool());
         let patched = self.node.get_node("Resolution");
-        patched.widget.visible = view["resolution"].as_bool();
+        patched.set_visible(view["resolution"].as_bool());
         patched.patch_component("widget", { "inset": view["res_inset"] });
         for side in ["Left", "Right"] {
             let handle = if side == "Left" { view["left"] } else { view["right"] };
             let sheet = self.node.get_node(side);
-            sheet.widget.visible = handle["shown"].as_bool();
+            sheet.set_visible(handle["shown"].as_bool());
             sheet.patch_component("widget", { "padding": view["pad"] });
             let patched = sheet.get_node("Open");
             patched.widget.icon = handle["icon"].as_str();

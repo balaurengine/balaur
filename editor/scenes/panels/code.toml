@@ -6,6 +6,7 @@
 id = "code"
 name = "Code"
 script = { source = "scripts/panels/code.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 absolute = true
@@ -14,16 +15,15 @@ fill = "bg_control"
 stroke = "border_default"
 corner_radius = 11
 padding = [0, 12, 0, 12]
-visible = false
 
 [[nodes]]
 id = "note"
 name = "Note"
 parent = "code"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-visible = false
 
 [[nodes]]
 id = "scroll"

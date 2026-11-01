@@ -26,8 +26,7 @@ fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
         "control: the visible button did not take the click"
     );
 
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
+    set_shown(&app, entity, false);
     let hidden = pass(&app, &ctx, vec![]);
     assert!(
         hidden.shapes.is_empty(),
@@ -930,11 +929,9 @@ fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
 
     // Hidden, then shown again: egui counts that as a new appearance, and
     // this is the path a collapsing panel takes.
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
+    set_shown(&app, entity, false);
     pass(&app, &ctx, vec![]);
-    let show = toml::toml! { visible = true };
-    balaur::components::patch(&app.engine, entity, "widget", &show.into()).unwrap();
+    set_shown(&app, entity, true);
     let shown = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
     assert_eq!(
         shown, settled,
@@ -953,8 +950,9 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
             &app,
             &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = [0.0, 0.0] }.into(),
         );
-        let first = toml::toml! { kind = "label" text = "First" height = 60.0 visible = (!hide) };
-        add_child_widget(&app, column, "First", &first.into());
+        let first = toml::toml! { kind = "label" text = "First" height = 60.0 };
+        let first = add_child_widget(&app, column, "First", &first.into());
+        set_shown(&app, first, !hide);
         let second = toml::toml! { kind = "label" text = "Second" height = 60.0 };
         add_child_widget(&app, column, "Second", &second.into());
         let ctx = egui::Context::default();

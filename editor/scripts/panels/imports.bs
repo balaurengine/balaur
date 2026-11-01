@@ -31,9 +31,9 @@ impl Imports {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.widget.visible = view["shown"].as_bool();
+        self.node.set_visible(view["shown"].as_bool());
         let bar = self.node.get_node("Bar");
-        bar.widget.visible = view["bar"].as_bool();
+        bar.set_visible(view["bar"].as_bool());
         bar.widget_range.value = view["value"].as_float();
         self.until = view["until"].as_float();
         if view["until"].as_float() > 0.0 {

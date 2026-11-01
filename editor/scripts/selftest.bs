@@ -1191,7 +1191,7 @@ pub fn start_screen_step(state: &mut editor::State) {
     let head = ui::widget_rect(scene::get_node("Editor/Manager/ManagerHead"));
     check(head != nil && head.unwrap().width > 0.0, "and its head is drawn ({head})");
     let shell = scene::get_node("Editor/Shell");
-    check(shell.is_valid() && shell.widget.visible == false, "the shell under it is hidden");
+    check(shell.is_valid() && shell.visible() == false, "the shell under it is hidden");
     log::info("selftest start screen: done");
 }
 
@@ -2786,7 +2786,7 @@ pub fn font_sheet(state: editor::State) {
     controls.push(ui::Control { kind: "row", height: 24, controls: panels, gap: [8, 0] });
     let filled = scene::get_node(FONT_SHEET);
     if filled.is_valid() {
-        filled.widget.visible = true;
+        filled.set_visible(true);
         filled.widget.x = stage["x"].as_float();
         filled.widget.y = stage["y"].as_float();
         filled.widget.width = stage["width"].as_float();
@@ -3084,7 +3084,7 @@ pub fn plugin_step(state: &mut editor::State) {
     }
     let shown = 0;
     for row in rows.children() {
-        if row.widget.visible == true {
+        if row.visible() == true {
             shown += 1;
         }
     }
@@ -3092,7 +3092,7 @@ pub fn plugin_step(state: &mut editor::State) {
     let labels: [str] = [];
     for row in rows.children() {
         let label = row.get_node("L");
-        if label.is_valid() && label.widget.visible == true {
+        if label.is_valid() && label.visible() == true {
             labels.push(label.widget.text);
         }
     }
@@ -3125,7 +3125,7 @@ pub fn palette_step(state: &mut editor::State) {
     }
     let shown: [bool] = [];
     for row in host.children() {
-        if row.widget.visible == true {
+        if row.visible() == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
             shown.push(slot.widget.checked == true);
         }
@@ -3475,7 +3475,7 @@ pub fn theme_edit_step(state: &mut editor::State) {
     let host = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm");
     let roles: [str] = [];
     for row in host.children() {
-        if row.widget.visible == true {
+        if row.visible() == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
             roles.push(slot.widget.role);
         }
@@ -3757,7 +3757,7 @@ pub fn events_step(state: &mut editor::State) {
     }
     let shown = 0;
     for row in host.children() {
-        if row.widget.visible == true {
+        if row.visible() == true {
             shown += 1;
         }
     }
@@ -4227,7 +4227,7 @@ pub fn rows_step(state: &mut editor::State) {
         rows_narrowed(state, rows);
         rows_search(state, "zzqq-nothing-matches-this");
     } else if stage == 3 {
-        check(widget["visible"].as_bool() == false, "a query matching nothing hides the tree");
+        check(!tree.visible(), "a query matching nothing hides the tree");
         rows_search(state, "");
     } else if stage == 4 {
         check(rows.len() == state.nodes.len(), "and clearing the query brings every row back");

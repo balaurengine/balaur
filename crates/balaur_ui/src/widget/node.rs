@@ -33,7 +33,8 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
 pub struct Widget {
     pub kind: SmolStr,
     pub text: SmolStr,
-    /// Hidden widgets draw nothing and take no clicks, but keep their state.
+    /// Whether it draws and takes clicks this pass: its node's `visible`,
+    /// folded in from the tree by the arena. Hidden widgets keep their state.
     pub visible: bool,
     pub anchor: SmolStr,
     pub x: f32,

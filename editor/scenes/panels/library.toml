@@ -5,12 +5,12 @@
 id = "panel"
 name = "Library"
 script = { source = "scripts/panels/library.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 # A chip a kind, named for the kind it filters by.
 [[nodes]]
@@ -120,10 +120,10 @@ text = "On Forge"
 id = "note"
 name = "Note"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-visible = false
 
 [[nodes]]
 id = "cards"
@@ -143,11 +143,11 @@ row_height = 33
 id = "table"
 name = "Table"
 parent = "panel"
+visible = false
 [nodes.widget]
 on_click = "card_clicked"
 kind = "table"
 grow = 1
-visible = false
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
 [nodes.widget_table]

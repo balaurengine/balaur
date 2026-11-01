@@ -73,9 +73,8 @@ the §2 rows say where:
   toggled from `wants_keyboard` (`kiss3d_backend.rs:165`) but its height
   is not queryable, so nothing can move out from under it; `input.typed`
   is raw characters, so composed input never arrives.
-- **Render components cannot hide.** `visible` exists on `widget` only
-  (`docs/generated/components.md`). Hiding a sprite means removing the
-  component.
+- **A component cannot hide alone.** `visible` is the node's. Hiding one
+  sprite on a node that carries more means removing the component.
 - **Draw order is global z.** Scene-tree order stably sorted by the global
   z position (`kiss3d_backend.rs:945-982`); no layer index a subtree
   carries, no clipping to a node's bounds, no atlas region on a sprite

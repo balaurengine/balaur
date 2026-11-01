@@ -6,11 +6,11 @@
 id = "panel"
 name = "Outline"
 script = { source = "scripts/panels/outline.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
-visible = false
 
 [[nodes]]
 id = "list"

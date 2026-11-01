@@ -119,26 +119,34 @@ mod classes {
     /// drawing when there is no room for it.
     #[test]
     fn a_narrow_screen_takes_the_narrow_table() {
-        let shown = |width: f32| {
+        let drawn_width = |width: f32| {
             let (_dir, app) = app();
-            add_widget(
+            let panel = add_widget(
                 &app,
                 &toml::toml! {
                     kind = "panel" x = 0.0 y = 0.0 width = 200.0 height = 30.0
                     [narrow]
-                    visible = false
+                    width = 50.0
                 }
                 .into(),
             );
             screen(&app, width, 900.0);
             let ctx = egui::Context::default();
-            // A new Area is sized invisibly on its first frame, so the shapes
-            // of a widget that does draw arrive on a later one.
             settle(&app, &ctx);
-            !pass(&app, &ctx, vec![]).shapes.is_empty()
+            balaur_ui::widget_rect(panel)
+                .expect("the panel drew")
+                .width()
         };
-        assert!(shown(1200.0), "a wide screen hid a widget it should draw");
-        assert!(!shown(390.0), "the narrow table did not hide the widget");
+        let wide = drawn_width(1200.0);
+        assert!(
+            (wide - 200.0).abs() < 0.5,
+            "a wide screen took the narrow table: {wide}"
+        );
+        let narrow = drawn_width(390.0);
+        assert!(
+            (narrow - 50.0).abs() < 0.5,
+            "the narrow table was not taken: {narrow}"
+        );
     }
 
     /// The tables are read broad to narrow, so the narrowest word named wins

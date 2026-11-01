@@ -300,7 +300,10 @@ pub(crate) fn for_classes(
 
 /// A [`Widget`] built from the properties, its text style not yet read.
 pub(crate) fn widget_of(asked: &WidgetProperties) -> Widget {
-    let mut widget = Widget::default();
+    let mut widget = Widget {
+        visible: true,
+        ..Widget::default()
+    };
     put_every(&mut widget, asked);
     widget
 }
@@ -373,7 +376,6 @@ cache_fields! {
     alone {
         k::KIND => widget.kind = asked.kind.0.clone();
         k::TEXT => widget.text = asked.text.clone();
-        k::VISIBLE => widget.visible = asked.visible;
         k::ENABLED => widget.disabled = !asked.enabled;
         k::ANCHOR => widget.anchor = asked.anchor.0.clone();
         k::X => widget.x = asked.x;

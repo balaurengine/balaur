@@ -233,7 +233,7 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     ]);
     let filled = scene::get_node(PICKER + "/PickerScroll");
     if filled.is_valid() {
-        filled.widget.visible = true;
+        filled.set_visible(true);
         filled.widget.height = util::min(util::max(screen.y * 0.5, 160.0), options["rows_h"].as_float());
     }
     // The field takes the caret the frame the picker opens, and keeps it: a

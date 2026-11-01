@@ -22,7 +22,7 @@ impl Textedit {
         }
         let field = self.node.get_node("Field");
         if view["open"].as_bool() && !self.open {
-            self.node.widget.visible = true;
+            self.node.set_visible(true);
             self.node.widget.x = view["x"].as_float();
             self.node.widget.y = view["y"].as_float();
             field.widget.text = view["text"].as_str();
@@ -30,7 +30,7 @@ impl Textedit {
             field.widget.font_size = view["size"].as_float();
             ui::set_focus(field);
         } else if !view["open"].as_bool() {
-            self.node.widget.visible = false;
+            self.node.set_visible(false);
         }
         self.open = view["open"].as_bool();
     }

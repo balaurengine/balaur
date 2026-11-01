@@ -216,7 +216,7 @@ fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
         kind = kind text = "Target" x = 10.0 y = 10.0 width = 120.0 height = 40.0 context = "cm"
     };
     let target = add_widget(app, &target.into());
-    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
+    let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
     let menu = add_child_widget(app, app.engine.root(), "cm", &menu.into());
     let row = toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 };
     add_child_widget(app, menu, "R0", &row.into());
@@ -309,7 +309,7 @@ fn the_innermost_context_takes_the_press() {
     let child = add_child_widget(&app, panel, "child", &child.into());
     let root = app.engine.root();
     for (name, width) in [("outer", 150.0), ("inner", 173.0)] {
-        let menu = toml::toml! { kind = "menu" text = name visible = false x = 300.0 y = 300.0 };
+        let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
         let menu = add_child_widget(&app, root, name, &menu.into());
         let row = toml::toml! { kind = "button" text = "Row" width = width height = 22.0 };
         add_child_widget(&app, menu, "R0", &row.into());
@@ -485,7 +485,7 @@ fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
         row_height = 18.0 options = ["One", "\tTwo", "Three"] context = "cm"
     };
     add_widget(&app, &tree.into());
-    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
+    let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
     let menu = add_child_widget(&app, app.engine.root(), "cm", &menu.into());
     let row = toml::toml! { kind = "button" text = "Delete" width = 173.0 height = 22.0 };
     add_child_widget(&app, menu, "R0", &row.into());

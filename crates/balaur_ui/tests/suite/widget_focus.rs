@@ -67,8 +67,7 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
         "control: it is a stop while the panel is visible"
     );
 
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, panel, "widget", &hide.into()).unwrap();
+    set_shown(&app, panel, false);
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
     assert_eq!(
@@ -230,8 +229,7 @@ fn hiding_the_focused_widget_releases_focus() {
     pass(&app, &ctx, key(egui::Key::ArrowDown));
     assert_eq!(focused(&app), Some(buttons[0]));
 
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, buttons[0], "widget", &hide.into()).unwrap();
+    set_shown(&app, buttons[0], false);
     pass(&app, &ctx, vec![]);
     assert_eq!(focused(&app), None, "focus stayed on a hidden widget");
     pass(&app, &ctx, key(egui::Key::ArrowDown));

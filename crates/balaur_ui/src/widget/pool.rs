@@ -86,6 +86,8 @@ struct Ops {
     patch: Op,
     has: Op,
     remove: Op,
+    visible: Op,
+    set_visible: Op,
 }
 
 impl Ops {
@@ -105,6 +107,8 @@ impl Ops {
             patch: node_op("patch_component")?,
             has: node_op("has_component")?,
             remove: node_op("remove_component")?,
+            visible: node_op("visible")?,
+            set_visible: node_op("set_visible")?,
         })
     }
 }
@@ -204,6 +208,11 @@ impl Pool<'_> {
         let mut own = Vec::new();
         let mut beside: Vec<(&'static str, Vec<(String, Value)>)> = Vec::new();
         for (key, value) in entries {
+            // A spec's `visible` is the node's, not the widget's.
+            if key == p::VISIBLE {
+                (self.ops.set_visible)(self.eng, &[node.clone(), value])?;
+                continue;
+            }
             match crate::widget::beside::owner_of(&key) {
                 Some(name) => match beside.iter_mut().find(|(held, _)| *held == name) {
                     Some((_, rows)) => rows.push((key, value)),
@@ -212,11 +221,13 @@ impl Pool<'_> {
                 None => own.push((key, value)),
             }
         }
-        op(
-            self.eng,
-            &[node.clone(), Value::text(p::WIDGET), Value::Map(own)],
-        )?;
         let whole = std::ptr::fn_addr_eq(op, self.ops.set);
+        if whole || !own.is_empty() {
+            op(
+                self.eng,
+                &[node.clone(), Value::text(p::WIDGET), Value::Map(own)],
+            )?;
+        }
         for name in crate::widget::beside::names() {
             match beside.iter().position(|(held, _)| held == name) {
                 Some(at) => {
@@ -412,7 +423,7 @@ impl Pool<'_> {
     /// fill that shows it again decides what its new control drops.
     fn hidden(&self, key: &str, node: &Value) -> Result<()> {
         self.deaf(node);
-        let value = as_value(&table(&[(k::VISIBLE, Value::Bool(false))]));
+        let value = as_value(&table(&[(p::VISIBLE, Value::Bool(false))]));
         if !self.noted(&format!("{key}#"), &value) {
             return Ok(());
         }
@@ -425,7 +436,7 @@ impl Pool<'_> {
             matches!(want.get(k::KIND), Some(Value::Str(kind)) if kind.as_str() == w::BUTTON);
         self.listen(key, node, &want, button);
         let mut set = want;
-        set.insert(k::VISIBLE.into(), Value::Bool(true));
+        set.insert(p::VISIBLE.into(), Value::Bool(true));
         for gone in [p::ON, p::DATA, k::ON_SUBMIT] {
             set.remove(gone);
         }
@@ -446,7 +457,7 @@ impl Pool<'_> {
     fn group(&self, key: &str, node: &Value, want: Spec, inner: &Value) -> Result<()> {
         let mut set = table(&[(k::KIND, Value::text(w::ROW)), (k::GAP, both(0))]);
         set.extend(want);
-        set.insert(k::VISIBLE.into(), Value::Bool(true));
+        set.insert(p::VISIBLE.into(), Value::Bool(true));
         set.remove(p::CONTROLS);
         self.patched(key, node, &set)?;
         let inner = list(Some(inner));
@@ -567,7 +578,7 @@ impl Pool<'_> {
             &prefix,
             row,
             &table(&[
-                (k::VISIBLE, Value::Bool(true)),
+                (p::VISIBLE, Value::Bool(true)),
                 (k::KIND, Value::text(if stack { w::COLUMN } else { w::ROW })),
                 (k::GAP, both(if stack { 2 } else { 6 })),
                 (k::HEIGHT, Value::Num(tall)),
@@ -589,7 +600,7 @@ impl Pool<'_> {
                 &format!("{prefix}:L"),
                 &label,
                 &table(&[
-                    (k::VISIBLE, Value::Bool(!full && (labelled || !stacked))),
+                    (p::VISIBLE, Value::Bool(!full && (labelled || !stacked))),
                     (k::TEXT, text.clone()),
                     (k::WIDTH, width),
                     (k::HEIGHT, Value::Num(if stack { LABEL_H } else { 0.0 })),
@@ -613,7 +624,7 @@ impl Pool<'_> {
         self.patched(
             &format!("{prefix}:C"),
             &slot,
-            &table(&[(k::VISIBLE, Value::Bool(true)), (k::ROLE, role)]),
+            &table(&[(p::VISIBLE, Value::Bool(true)), (k::ROLE, role)]),
         )?;
         let controls = list(spec.get(p::CONTROLS));
         if self.children(&slot).len() < controls.len() {
@@ -693,12 +704,8 @@ fn open_node(eng: &Engine, ops: Ops, host: Value) -> Result<Option<(Pool<'_>, Va
     };
     // Read off the host rather than the memo: a script hides a whole pool
     // with a plain write, which the memo never hears.
-    if pool.widget(&host, k::VISIBLE) == Value::Bool(false) {
-        pool.write(
-            ops.patch,
-            &host,
-            as_value(&table(&[(k::VISIBLE, Value::Bool(true))])),
-        )?;
+    if (ops.visible)(eng, std::slice::from_ref(&host))? == Value::Bool(false) {
+        (ops.set_visible)(eng, &[host.clone(), Value::Bool(true)])?;
     }
     Ok(Some((pool, host)))
 }

@@ -205,7 +205,7 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
         &app.engine,
         root,
         "widget",
-        &toml::toml! { visible = true }.into(),
+        &toml::toml! { enabled = true }.into(),
     )
     .unwrap();
     settle(&app, &ctx);

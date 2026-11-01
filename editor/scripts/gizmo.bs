@@ -884,7 +884,7 @@ pub fn fill_marquee(state: editor::State) {
     let height = util::abs(marquee.end_y - marquee.start_y);
     let filled = scene::get_node(MARQUEE);
     if filled.is_valid() {
-        filled.widget.visible = state.viewport_live && (width >= 2.0 || height >= 2.0);
+        filled.set_visible(state.viewport_live && (width >= 2.0 || height >= 2.0));
         filled.widget.x = util::min(marquee.start_x, marquee.end_x);
         filled.widget.y = util::min(marquee.start_y, marquee.end_y);
         filled.widget.width = width;

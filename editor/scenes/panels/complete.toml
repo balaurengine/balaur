@@ -6,6 +6,7 @@
 id = "complete"
 name = "Complete"
 script = { source = "scripts/panels/complete.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
@@ -13,7 +14,6 @@ anchor = "top_left"
 width = 320
 padding = [6, 6, 6, 6]
 layer = "shell"
-visible = false
 
 [[nodes]]
 id = "list"
@@ -29,12 +29,12 @@ font_size = 11
 id = "doc"
 name = "Doc"
 parent = "complete"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
 truncate = true
-visible = false
 
 # A scroll with no room in it: the keys are laid out, so their chords fire,
 # and clipped, so nothing of them shows.

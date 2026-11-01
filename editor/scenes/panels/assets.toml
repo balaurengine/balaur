@@ -5,12 +5,12 @@
 id = "panel"
 name = "Assets"
 script = { source = "scripts/panels/assets.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "tools"
@@ -26,13 +26,13 @@ gap = [6, 6]
 id = "up"
 name = "Up"
 parent = "tools"
+visible = false
 [nodes.widget]
 on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "↑"
 tooltip = "Up one folder"
-visible = false
 
 [[nodes]]
 id = "where"
@@ -48,12 +48,12 @@ text = "res://"
 id = "name"
 name = "Name"
 parent = "tools"
+visible = false
 [nodes.widget]
 on_submit = "name_submitted"
 kind = "text_field"
 role = "input_dock"
 width = 180
-visible = false
 [nodes.widget_field]
 placeholder = "new name"
 
@@ -102,25 +102,25 @@ tooltip = "Make a folder here"
 id = "local"
 name = "Local"
 parent = "tools"
+visible = false
 [nodes.widget]
 on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "make local"
 tooltip = "Copy into the game and point the game at the copy"
-visible = false
 
 # The game's file into a `path` dependency kept for later.
 [[nodes]]
 id = "move"
 name = "Move"
 parent = "tools"
+visible = false
 [nodes.widget]
 on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "move to project"
-visible = false
 
 # The dependency's own project: its folder in a second editor, or its page
 # on Forge.
@@ -128,25 +128,25 @@ visible = false
 id = "source"
 name = "Source"
 parent = "tools"
+visible = false
 [nodes.widget]
 on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "edit dependency"
-visible = false
 
 # A Forge dependency to the newest commit of its branch or tag.
 [[nodes]]
 id = "update"
 name = "Update"
 parent = "tools"
+visible = false
 [nodes.widget]
 on_click = "verb"
 kind = "button"
 role = "action_dock"
 text = "update"
 tooltip = "Fetch the newest commit of each dependency's branch or tag"
-visible = false
 
 [[nodes]]
 id = "rename"

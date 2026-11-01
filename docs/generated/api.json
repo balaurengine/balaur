@@ -8521,7 +8521,6 @@
     "widget": [
       "kind",
       "text",
-      "visible",
       "enabled",
       "anchor",
       "x",
@@ -19251,11 +19250,6 @@
           "middle"
         ],
         "type": "enum"
-      },
-      "visible": {
-        "default": true,
-        "description": "Draw the widget; hidden widgets keep their state",
-        "type": "bool"
       },
       "while_typing": {
         "default": true,

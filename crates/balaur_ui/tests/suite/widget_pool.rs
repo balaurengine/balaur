@@ -78,18 +78,9 @@ impl Root {
     assert_eq!(number(&app, "frames"), Some(2.0));
     let after = kids(&app);
     assert_eq!(after, made, "the nodes are reused, not made again");
-    assert_eq!(
-        prop(&app, after[0], "visible"),
-        Some(toml::Value::Boolean(true))
-    );
-    assert_eq!(
-        prop(&app, after[1], "visible"),
-        Some(toml::Value::Boolean(false))
-    );
-    assert_eq!(
-        prop(&app, after[2], "visible"),
-        Some(toml::Value::Boolean(false))
-    );
+    assert!(crate::support::own_visible(&app, after[0]));
+    assert!(!crate::support::own_visible(&app, after[1]));
+    assert!(!crate::support::own_visible(&app, after[2]));
 }
 
 #[test]
@@ -150,7 +141,7 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         if self.frames % 2 == 0 {
-            scene::get_node(\"Root/Bar\").widget.visible = false;
+            scene::get_node(\"Root/Bar\").set_visible(false);
         } else {
             let label: [any] = [{ \"kind\": \"label\", \"text\": \"x\" }];
             let rows: [any] = [{ \"label\": \"a\", \"controls\": label }];
@@ -164,8 +155,8 @@ impl Root {
         app.tick(1.0 / 60.0);
         let shown = frame % 2 == 1;
         assert_eq!(
-            prop(&app, bar(&app), "visible"),
-            Some(toml::Value::Boolean(shown)),
+            crate::support::own_visible(&app, bar(&app)),
+            shown,
             "frame {frame}: {}",
             if shown {
                 "filled, so shown"

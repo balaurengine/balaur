@@ -556,7 +556,6 @@ pub(crate) mod keys {
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
     pub(crate) const SAFE_AREA: &str = "safe_area";
-    pub(crate) const VISIBLE: &str = "visible";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
     pub(crate) const WIDTH: &str = "width";
     pub(crate) const WRAP: &str = "wrap";
@@ -607,6 +606,8 @@ pub(crate) mod keys {
 pub(crate) mod pool {
     /// The component every pooled node carries.
     pub(crate) const WIDGET: &str = "widget";
+    /// A control's `visible`, written to its node rather than its widget.
+    pub(crate) const VISIBLE: &str = "visible";
     /// What hears the reader's edit: a callback, or the name of a method.
     pub(crate) const ON: &str = "on";
     /// What a named `on` is handed first, before the edit.
