@@ -142,15 +142,8 @@ pub fn keep(session: any) {
 
 /// The session the last run kept, or nil.
 pub fn saved() -> any {
-    for slot in save::slots() {
-        if slot == SLOT {
-            let kept = save::read(SLOT);
-            if kept.kind() == "map" {
-                return kept;
-            }
-        }
-    }
-    nil()
+    let kept = save::read(SLOT);
+    if kept.kind() == "map" { kept } else { nil() }
 }
 
 /// Sign out here: the saved session is dropped. The server's own logout is

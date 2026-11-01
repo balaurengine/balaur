@@ -484,32 +484,28 @@ fn spool(sink: &mut Sink) {
 }
 
 fn forget_spool() {
-    for slot in save::slots() {
-        if slot == SPOOL {
-            save::remove(SPOOL);
-        }
-    }
+    // Not an error when it was never written.
+    save::remove(SPOOL);
 }
 
 /// The lines the last run spooled and never saw delivered.
 fn recovered() -> [Line] {
     let out: [Line] = [];
-    for slot in save::slots() {
-        if slot == SPOOL {
-            let entries = save::read(SPOOL)["entries"];
-            for i in 0..entries.len() {
-                let kept = entries[i];
-                out.push(Line {
-                    seq: kept["seq"].as_int(),
-                    at: kept["at"].as_float(),
-                    level: kept["level"].text(),
-                    category: "recovered",
-                    message: kept["message"].text(),
-                    lobby_id: kept["lobby_id"].text(),
-                    screen: kept["screen"].text(),
-                    repeat: 1,
-                });
-            }
+    let spool = save::read(SPOOL);
+    if spool.kind() == "map" {
+        let entries = spool["entries"];
+        for i in 0..entries.len() {
+            let kept = entries[i];
+            out.push(Line {
+                seq: kept["seq"].as_int(),
+                at: kept["at"].as_float(),
+                level: kept["level"].text(),
+                category: "recovered",
+                message: kept["message"].text(),
+                lobby_id: kept["lobby_id"].text(),
+                screen: kept["screen"].text(),
+                repeat: 1,
+            });
         }
     }
     forget_spool();

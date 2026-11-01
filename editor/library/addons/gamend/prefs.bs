@@ -7,15 +7,9 @@ pub const SLOT: str = "gamend_prefs";
 
 /// Every pref, as a map: empty before the first is set.
 pub fn all() -> any {
-    for slot in save::slots() {
-        if slot == SLOT {
-            let kept = save::read(SLOT);
-            if kept.kind() == "map" {
-                return kept;
-            }
-        }
-    }
-    {}
+    // Nil where the slot was never written: no listing of the folder first.
+    let kept = save::read(SLOT);
+    if kept.kind() == "map" { kept } else { {} }
 }
 
 /// One pref, or `fallback` when it was never set.
