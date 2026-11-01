@@ -146,11 +146,11 @@ fn add_all(state: &mut editor::State, owner: Node, declared: any) {
     // A property editor answers a row's controls for a value of its type.
     let editors = util::map_or_empty(declared["property_editors"]);
     for datatype in editors.keys() {
-        state.registry.property_editors.set(datatype, { "controls": editors[datatype], "owner": owner });
+        state.registry.property_editors[datatype] = { "controls": editors[datatype], "owner": owner };
     }
     let states = util::map_or_empty(declared["startup_states"]);
     for name in states.keys() {
-        state.registry.startup_states.set(name, { "run": states[name], "owner": owner });
+        state.registry.startup_states[name] = { "run": states[name], "owner": owner };
     }
 }
 
@@ -207,7 +207,7 @@ fn calls_back(entry: any, row: any) -> any {
         }
     }
     let out = util::copy(row);
-    out.set("controls", controls);
+    out["controls"] = controls;
     out
 }
 
@@ -271,7 +271,7 @@ pub fn fill_dialogs(state: &mut editor::State) {
 }
 
 fn close_dialog(state: &mut editor::State, data: any, _value: any) {
-    state.registry.open.set(data["id"].as_str(), false);
+    state.registry.open[data["id"].as_str()] = false;
     changed(state);
 }
 

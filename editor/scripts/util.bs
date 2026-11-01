@@ -351,7 +351,7 @@ pub fn copy(value: any) -> any {
     if value.kind() == "map" {
         let out: any = {};
         for key in value.keys() {
-            out.set(key, value[key]);
+            out[key] = value[key];
         }
         return out;
     }
@@ -370,7 +370,7 @@ pub fn deep(value: any) -> any {
     if value.kind() == "map" {
         let out: any = {};
         for key in value.keys() {
-            out.set(key, deep(value[key]));
+            out[key] = deep(value[key]);
         }
         return out;
     }

@@ -113,7 +113,7 @@ fn scopes() -> any {
     let out: any = {};
     for setting in settings::all() {
         if setting.scope == "project" || !out.has(setting.category) {
-            out.set(setting.category, setting.scope);
+            out[setting.category] = setting.scope;
         }
     }
     out

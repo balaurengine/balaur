@@ -87,7 +87,7 @@ pub fn apply_workspace(state: &mut editor::State, id: str) {
     for side in sides() {
         // A dock the reader folded away stays folded: the workspace says which
         // panels, not whether the sheet is up.
-        want[side].set("shut", state.docks[side]["shut"]);
+        want[side]["shut"] = state.docks[side]["shut"];
     }
     state.docks = want;
     signals::docks(state);
@@ -122,7 +122,7 @@ pub fn follow_screen(state: &mut editor::State) {
         // Into a local first: a field assigned a branch of the loop's own
         // variables is the pitfall AGENTS.md names.
         let fold = if side == "bottom" { only_one } else { only_one || tight };
-        state.docks[side].shut = fold;
+        state.docks[side]["shut"] = fold;
         signals::docks(state);
     }
 }
@@ -139,14 +139,14 @@ pub fn one_at_a_time(state: editor::State) -> bool {
 
 /// Open a side dock, folding the other where there is only room for one.
 fn unfold(state: &mut editor::State, side: str) {
-    state.docks[side].shut = false;
+    state.docks[side]["shut"] = false;
     signals::docks(state);
     if !one_at_a_time(state) {
         return;
     }
     for other in sides() {
         if other != side {
-            state.docks[other].shut = true;
+            state.docks[other]["shut"] = true;
             signals::docks(state);
         }
     }
@@ -201,7 +201,7 @@ pub fn panels(state: &mut editor::State) -> any {
     };
     for entry in state.registry.panels {
         let icon = if entry["icon"] == "" { icons::panel(entry["id"]) } else { entry["icon"] };
-        table.set(entry["id"], Table { name: entry["title"], icon: icon, tall: entry["tall"] });
+        table[entry["id"]] = Table { name: entry["title"], icon: icon, tall: entry["tall"] };
     }
     state.panels = Panels { at: state.frame, workspace: state.workspace, table: table };
     table
@@ -232,10 +232,10 @@ pub fn close(state: &mut editor::State, id: str) {
             kept.push(tab);
         }
     }
-    state.docks[side].tabs = kept;
+    state.docks[side]["tabs"] = kept;
     signals::docks(state);
     if state.docks[side]["active"] == id {
-        state.docks[side].active = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.unwrap_or("");
+        state.docks[side]["active"] = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.unwrap_or("");
         signals::docks(state);
     }
 }
@@ -293,7 +293,7 @@ pub fn show(state: &mut editor::State, id: str) {
     let found = side_of(state, id);
     if found.is_some() {
         let side = found.unwrap();
-        state.docks[side].active = id;
+        state.docks[side]["active"] = id;
         signals::docks(state);
         unfold(state, side);
     }
@@ -313,16 +313,16 @@ pub fn move_to(state: &mut editor::State, id: str, side: str) {
                 kept.push(tab);
             }
         }
-        state.docks[old].tabs = kept;
+        state.docks[old]["tabs"] = kept;
         signals::docks(state);
         if state.docks[old]["active"] == id {
-            state.docks[old].active = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.unwrap_or("");
+            state.docks[old]["active"] = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.unwrap_or("");
             signals::docks(state);
         }
     }
     state.docks[side]["tabs"].push(id);
     signals::docks(state);
-    state.docks[side].active = id;
+    state.docks[side]["active"] = id;
     signals::docks(state);
     unfold(state, side);
 }
@@ -651,7 +651,7 @@ fn tail_controls(state: editor::State, side: str) -> [any] {
 
 fn on_fold_pressed(state: &mut editor::State, data: any, _value: any) {
     let side: str = data["side"];
-    state.docks[side].shut = true;
+    state.docks[side]["shut"] = true;
     signals::docks(state);
 }
 
@@ -730,7 +730,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
 fn on_tab_picked(state: &mut editor::State, data: any, _value: any) {
     let side: str = data["side"];
     let held: str = data["held"];
-    state.docks[side].active = held;
+    state.docks[side]["active"] = held;
     signals::docks(state);
 }
 
@@ -798,7 +798,7 @@ fn has(list: [any], id: str) -> bool {
 fn show_named(state: &mut editor::State, side: str, name: any) {
     for id in state.docks[side]["tabs"] {
         if panel(state, id)["name"] == name {
-            state.docks[side].active = id;
+            state.docks[side]["active"] = id;
             signals::docks(state);
         }
     }
@@ -961,7 +961,7 @@ fn handle(state: editor::State, hidden: bool, side: str) -> Handle {
 /// Open a folded dock from its handle.
 pub fn open_from_handle(state: &mut editor::State, side: str) {
     if side == "bottom" {
-        state.docks["bottom"].shut = false;
+        state.docks["bottom"]["shut"] = false;
         signals::docks(state);
         return;
     }

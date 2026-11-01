@@ -176,7 +176,7 @@ fn node(state: editor::State, id: any) -> any {
     // A miss is not remembered: one transient failure would leave the box
     // inert for the rest of the session.
     if !util::is_nil(found) {
-        layout_state["nodes"].set(id, found);
+        layout_state["nodes"][id] = found;
     }
     found
 }
@@ -246,15 +246,15 @@ fn adopt(state: editor::State) {
     }
     // The shell's gutter and seam are the theme's, so one file holds them and
     // a role a node takes cannot drift from the number this arithmetic uses.
-    layout_state.set("gutter", role_number(state, "layout_shell", "padding", 14.0));
-    layout_state.set("gap", role_number(state, "layout_shell", "gap", 12.0));
-    layout_state.set("padding", stated(state, "leftsheet", "padding"));
-    layout_state.set("tree_width", stated(state, "left", "width"));
-    layout_state.set("inspector_width", stated(state, "right", "width"));
-    layout_state.set("status_height", stated(state, "status", "height"));
-    layout_state.set("dock_height", stated(state, "bottom", "height") - layout_state["status_height"].as_float());
-    layout_state.set("hooks_width", stated(state, "hooks", "width"));
-    layout_state.set("asked", true);
+    layout_state["gutter"] = role_number(state, "layout_shell", "padding", 14.0);
+    layout_state["gap"] = role_number(state, "layout_shell", "gap", 12.0);
+    layout_state["padding"] = stated(state, "leftsheet", "padding");
+    layout_state["tree_width"] = stated(state, "left", "width");
+    layout_state["inspector_width"] = stated(state, "right", "width");
+    layout_state["status_height"] = stated(state, "status", "height");
+    layout_state["dock_height"] = stated(state, "bottom", "height") - layout_state["status_height"].as_float();
+    layout_state["hooks_width"] = stated(state, "hooks", "width");
+    layout_state["asked"] = true;
 }
 
 /// State a box's size, when it has moved. A component write rebuilds the
@@ -343,8 +343,8 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
     }
     let now = stated(state, id, key);
     if now > 0.0 && layout_state["sent"][mark] != now {
-        layout_state.set(into, now);
-        layout_state["sent"].set(mark, now);
+        layout_state[into] = now;
+        layout_state["sent"][mark] = now;
     }
 }
 
@@ -353,7 +353,7 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
 // on from where this one stopped instead of from where the pointer went.
 fn held(state: editor::State, key: str, floor: float, ceiling: float) -> any {
     let layout_state: any = state.layout;
-    layout_state.set(key, util::clamp(layout_state[key].as_float(), floor, util::max(floor, ceiling)));
+    layout_state[key] = util::clamp(layout_state[key].as_float(), floor, util::max(floor, ceiling));
     layout_state[key]
 }
 
@@ -371,19 +371,19 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     // would mean watching the shell assemble itself on every start, and so
     // would easing the corrections it takes before the shell is formed.
     let settled = layout_state["sent"].has(mark) && state.formed;
-    layout_state["sent"].set(mark, value);
-    layout_state.set("quiet", 0);
+    layout_state["sent"][mark] = value;
+    layout_state["quiet"] = 0;
     if settled && eased(mark) {
         let running = layout_state["tweens"][mark];
         if !running.is_nil() {
             let handle = running;
             animation::stop(handle);
         }
-        layout_state["tweens"].set(mark, animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] }));
+        layout_state["tweens"][mark] = animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] });
         return;
     }
     let parameters = util::map_or_empty(found.get_component("widget"));
-    parameters.set(key, value);
+    parameters[key] = value;
     found.set_component("widget", parameters);
 }
 
@@ -400,8 +400,8 @@ fn show(state: editor::State, id: str, on: bool) {
     if util::is_nil(found) {
         return;
     }
-    layout_state["sent"].set(mark, want);
-    layout_state.set("quiet", 0);
+    layout_state["sent"][mark] = want;
+    layout_state["quiet"] = 0;
     found.patch_component("widget", { "visible": on });
 }
 
@@ -455,7 +455,7 @@ pub fn compute(state: &mut editor::State) {
         return;
     }
     // Counted before the writes below, each of which puts it back to zero.
-    layout_state.set("quiet", layout_state["quiet"].as_float() + 1);
+    layout_state["quiet"] = layout_state["quiet"].as_float() + 1;
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.
@@ -529,41 +529,41 @@ pub fn compute(state: &mut editor::State) {
     };
     // The sheet is its own box now, so a folded dock's rect is the square the
     // widget layer placed rather than one this module has to work out.
-    layout_state.set("left", boxes.left);
-    layout_state.set("right", boxes.right);
-    layout_state.set("bottom", boxes.bottom);
-    layout_state.set("hooks", boxes.hooks);
-    layout_state.set("upper", boxes.upperrow);
+    layout_state["left"] = boxes.left;
+    layout_state["right"] = boxes.right;
+    layout_state["bottom"] = boxes.bottom;
+    layout_state["hooks"] = boxes.hooks;
+    layout_state["upper"] = boxes.upperrow;
     // The two strips over the stage, as their nodes were laid out: a box the
     // pointer is over is chrome, not scene.
     let strips = state.viewport_live && state.stage_chrome;
     let foot = strips && !state.chrome_off;
-    layout_state.set("chips", if strips { boxes.chips } else { rect(0.0, 0.0, 0.0, 0.0) });
-    layout_state.set("hud", if foot { boxes.hud } else { rect(0.0, 0.0, 0.0, 0.0) });
-    layout_state.set("rail", boxes.rail);
-    layout_state.set("railtop", boxes.railtop);
+    layout_state["chips"] = if strips { boxes.chips } else { rect(0.0, 0.0, 0.0, 0.0) };
+    layout_state["hud"] = if foot { boxes.hud } else { rect(0.0, 0.0, 0.0, 0.0) };
+    layout_state["rail"] = boxes.rail;
+    layout_state["railtop"] = boxes.railtop;
     // The column the rail is in, not the whole centre: the dock below takes
     // its share of the centre, and a rail measured against that overran it.
     let column: float = if boxes.railslot["height"] > 0.0 { boxes.railslot["height"] } else { boxes.centre["height"] };
     // Less the folded dock's handle above it and the HUD strip under its foot.
     let hud = if state.stage_chrome && !state.chrome_off { center::hud_height(state) } else { 0.0 };
-    layout_state.set("rail_room", util::max(120.0, column - docks::rail_top_height(state) - hud));
-    layout_state.set("bar", boxes.head);
+    layout_state["rail_room"] = util::max(120.0, column - docks::rail_top_height(state) - hud);
+    layout_state["bar"] = boxes.head;
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
     // with the scene puts the code on the right and the scene on the left.
     let box: Box = boxes.stage;
-    layout_state.set("stage_box", box);
+    layout_state["stage_box"] = box;
     if state.doc_open && state.viewport_live {
         let code_width = util::clamp(layout_state["split_width"].as_float(), 260.0, util::max(260.0, box.width - 260.0));
-        layout_state.set("doc", rect(box.x + box.width - code_width, box.y, code_width, box.height));
-        layout_state.set("stage", rect(box.x, box.y, box.width - code_width - layout_state["gap"].as_float(), box.height));
+        layout_state["doc"] = rect(box.x + box.width - code_width, box.y, code_width, box.height);
+        layout_state["stage"] = rect(box.x, box.y, box.width - code_width - layout_state["gap"].as_float(), box.height);
     } else if state.doc_open {
-        layout_state.set("doc", box);
-        layout_state.set("stage", box);
+        layout_state["doc"] = box;
+        layout_state["stage"] = box;
     } else {
         // Nothing to read, so the scene takes the hooks list's width too.
-        layout_state.set("stage", boxes.canvas);
-        layout_state.set("doc", layout_state["stage"]);
+        layout_state["stage"] = boxes.canvas;
+        layout_state["doc"] = layout_state["stage"];
     }
     // The scene's rect under its old name; `at` is the frame it was set on, so
     // a self-test can tell a headless run from a drawn one. An unplaced stage

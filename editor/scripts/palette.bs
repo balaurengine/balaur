@@ -429,7 +429,7 @@ fn run_plugin(state: &mut editor::State, data: any) {
 }
 
 fn run_dialog(state: &mut editor::State, data: any) {
-    state.registry.open.set(data.as_str(), true);
+    state.registry.open[data.as_str()] = true;
     plugins::changed(state);
 }
 

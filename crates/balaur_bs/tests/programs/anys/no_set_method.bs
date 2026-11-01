@@ -1,0 +1,3 @@
+fn f(a: any) { a.set("k", 1); }
+
+// error: 1:17: an `any` writes a key as `a["k"] = v`, not `a.set("k", v)`

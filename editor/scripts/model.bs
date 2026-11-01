@@ -52,7 +52,7 @@ pub fn source(state: &mut editor::State, rel: str) -> any {
         }
     }
     let text: any = fs::read(state.game_root + "/" + rel);
-    state.sources.set(rel, { "text": text, "at": now });
+    state.sources[rel] = { "text": text, "at": now };
     text
 }
 
@@ -65,7 +65,7 @@ pub fn line_count(state: &mut editor::State, rel: str) -> any {
     }
     let entry = state.sources[rel];
     if entry["lines"].is_nil() {
-        entry.set("lines", util::count_lines(text.as_str()));
+        entry["lines"] = util::count_lines(text.as_str());
     }
     entry["lines"]
 }
@@ -86,7 +86,7 @@ pub fn hooks(state: &mut editor::State, rel: str) -> any {
                 hooks.push({ "name": one.name, "line": one.line, "detail": one.detail });
             }
         }
-        entry.set("hooks", hooks);
+        entry["hooks"] = hooks;
     }
     entry["hooks"]
 }
@@ -105,7 +105,7 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
         }
     }
     let files = util::list_or_empty(fs::list(state.game_root + "/" + rel));
-    state.listings.set(rel, { "files": files, "at": now });
+    state.listings[rel] = { "files": files, "at": now };
     files
 }
 
@@ -143,7 +143,7 @@ pub fn exports(state: &mut editor::State, rel: str) -> any {
     }
     let entry = state.sources[rel];
     if entry["exports"].is_nil() {
-        entry.set("exports", script::exports(state.game_root + "/" + rel));
+        entry["exports"] = script::exports(state.game_root + "/" + rel);
     }
     entry["exports"]
 }
@@ -162,7 +162,7 @@ pub fn set_script_property(state: &mut editor::State, property: str, value: any)
     if same_as_default(state, rel.as_str(), property, stored) {
         properties.remove(property);
     } else {
-        properties.set(property, stored);
+        properties[property] = stored;
     }
     found.set_script(rel, properties);
 }
@@ -304,7 +304,7 @@ pub fn fresh_id(state: editor::State, name: str) -> str {
     let taken: any = {};
     for found in state.nodes {
         if found.is_valid() {
-            taken.set(found.stable_id(), true);
+            taken[found.stable_id()] = true;
         }
     }
     let base = slug(name);
@@ -713,7 +713,7 @@ pub fn scene_text(state: &mut editor::State) -> str {
     let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), scene::ToTomlOptions { root: state.game_root }));
     let assets = state.scene_doc["assets"];
     if !assets.is_nil() {
-        written.set("assets", assets);
+        written["assets"] = assets;
     }
     toml::encode(written)
 }
@@ -883,7 +883,7 @@ pub fn schema(state: &mut editor::State, name: str) -> any {
         cached
     } else {
         let fresh = util::map_or_empty(scene::component_schema(name));
-        state.schemas.set(name, fresh);
+        state.schemas[name] = fresh;
         fresh
     }
 }
@@ -896,7 +896,7 @@ pub fn expects(state: &mut editor::State, name: str) -> any {
         cached
     } else {
         let fresh = util::list_or_empty(scene::component_expects(name));
-        state.expects.set(name, fresh);
+        state.expects[name] = fresh;
         fresh
     }
 }
@@ -992,7 +992,7 @@ pub fn write(state: &mut editor::State) {
     if state.assets_touched {
         let assets = state.scene_doc["assets"];
         if !assets.is_nil() {
-            written.set("assets", assets);
+            written["assets"] = assets;
         }
         state.assets_touched = false;
     }
@@ -1187,14 +1187,14 @@ fn landing(state: editor::State, parent: Node) -> [float] {
 /// play. The rows are the caller's to list again, once it has made them all.
 pub fn spawn(state: &mut editor::State, parent: Node, name: str, entry: any) -> Node {
     let unique = unique_name(state, name);
-    entry.set("id", fresh_id(state, unique));
-    entry.set("name", unique);
+    entry["id"] = fresh_id(state, unique);
+    entry["name"] = unique;
     entry.remove("parent");
     let document: any = { "nodes": [entry] };
     // The scene's own blocks, so a `#id` the node names resolves.
     let assets = state.scene_doc["assets"];
     if !assets.is_nil() {
-        document.set("assets", assets);
+        document["assets"] = assets;
     }
     scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
     let made = parent.children();
@@ -1426,7 +1426,7 @@ pub fn undo_change(state: &mut editor::State, change: any) {
         // The scene's own blocks, so a `#id` the node names resolves.
         let assets = state.scene_doc["assets"];
         if !assets.is_nil() {
-            document.set("assets", assets);
+            document["assets"] = assets;
         }
         scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
         let made = parent.children();
@@ -1473,7 +1473,7 @@ pub fn row_of(found: Node) -> any {
         return row;
     }
     for name in found.component_names() {
-        row.set(name, util::map_or_empty(found.authored(name)));
+        row[name] = util::map_or_empty(found.authored(name));
     }
     row
 }

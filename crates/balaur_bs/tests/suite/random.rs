@@ -119,8 +119,6 @@ enum E {
     Method(Box<E>, &'static str, Vec<E>),
     /// `r[k]` of an `any`: `get` for a str key, `at` for an int.
     Index(Box<E>, Box<E>),
-    /// `r.k` of an `any`, written.
-    Dot(Box<E>, &'static str),
     /// `nil()`: an `any` holding nothing.
     NilAny,
     /// `any_map()`: a new, empty `any` map, which `DECLARATIONS` builds.
@@ -143,7 +141,7 @@ enum S {
     SetField(String, &'static str, E),
     /// `m["k"] = e;`
     SetKey(String, &'static str, E),
-    /// `r[k] = e;` or `r.k = e;` on an `any`: `set`, or `put` for an int key.
+    /// `r[k] = e;` on an `any`: `set`, or `put` for an int key.
     Put(E, E),
     /// `e;`, a method that changes its `any`.
     Do(E),

@@ -10,7 +10,7 @@ pub fn cache(user: any) {
         return;
     }
     let roster = all();
-    roster.set(user["id"].text(), user);
+    roster[user["id"].text()] = user;
     script::store(ROSTER_KEY, roster);
 }
 

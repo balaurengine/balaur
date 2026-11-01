@@ -485,11 +485,11 @@ impl Cx<'_> {
             ("insert", Ty::Any) if args.first().is_some_and(|k| k.t == Ty::Int) => {
                 same(format!("{r}.insert({joined})"), Ty::Bool)
             }
-            ("insert", Ty::Any) => same(format!("{r}.set({joined})"), Ty::Bool),
+            ("insert", Ty::Any) => same(write_key(&r, &args), Ty::Void),
             ("insert", Ty::Shape(id)) => {
                 let id = *id;
                 self.dynamic_use(id, span, "keys are inserted");
-                same(format!("{r}.set({joined})"), Ty::Void)
+                same(write_key(&r, &args), Ty::Void)
             }
             ("remove", Ty::Array(e)) => same(format!("{r}.remove({joined})"), (**e).clone()),
             ("remove", Ty::Shape(id)) => {
@@ -765,4 +765,12 @@ impl Cx<'_> {
 fn is_simple(s: &str) -> bool {
     s.chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+}
+
+/// `r[k] = v`, from a two-argument `insert`.
+fn write_key(r: &str, args: &[Ex]) -> String {
+    match args {
+        [k, v] => format!("{r}[{}] = {}", k.s, v.s),
+        _ => format!("{r}[] = nil"),
+    }
 }

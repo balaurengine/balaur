@@ -1074,11 +1074,11 @@ pub fn edit(state: &mut editor::State, path: [str], key: str, value: any) {
     let table: any = own;
     for part in path {
         if !(table.has(part) && table[part].kind() == "map") {
-            table.set(part, {});
+            table[part] = {};
         }
         table = table[part];
     }
-    table.set(key, value);
+    table[key] = value;
     changed(state);
 }
 
@@ -1110,7 +1110,7 @@ fn rebase(state: &mut editor::State, picked: any) {
     if util::is_nil(own) {
         return;
     }
-    own.set("base", picked);
+    own["base"] = picked;
     changed(state);
 }
 
@@ -1134,8 +1134,8 @@ pub fn save(state: &mut editor::State) {
     let base_name = theme::base_of(own);
     let base = theme::bundled(base_name, half);
     let out = theme::diff(base, theme::merge(base, own));
-    out.set("type", "widget_theme");
-    out.set("base", base_name);
+    out["type"] = "widget_theme";
+    out["base"] = base_name;
     fs::create_directory(theme::folder_of(state.theme["name"].as_str()));
     fs::write(theme::path_of(state.theme["name"].as_str(), half), toml::encode(out));
     state.themewin.own = out;
@@ -1186,7 +1186,7 @@ pub fn duplicate(state: &mut editor::State) -> str {
             nil
         };
         if copy.kind() == "map" {
-            copy.set("type", "widget_theme");
+            copy["type"] = "widget_theme";
             fs::write(theme::path_of(name, half), toml::encode(copy));
         }
     }

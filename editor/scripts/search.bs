@@ -21,7 +21,7 @@ pub fn control(state: editor::State, id: str, placeholder: str, width: float) ->
 
 /// What a search control's edit writes: the query under its `id`.
 pub fn typed(state: &mut editor::State, id: str, text: str) {
-    state.search.set(id, text);
+    state.search[id] = text;
 }
 
 /// The query a dock is filtering by, "" when it is not.

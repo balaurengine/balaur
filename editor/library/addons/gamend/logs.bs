@@ -241,7 +241,7 @@ pub fn headers(sink: Sink) -> any {
     let out: any = { "content-type": "application/json", "x-gamend-session": sink.run };
     let session = gamend::session();
     if session.is_some() && session.unwrap().access_token != "" {
-        out.set("authorization", "Bearer " + session.unwrap().access_token);
+        out["authorization"] = "Bearer " + session.unwrap().access_token;
     }
     out
 }
@@ -284,7 +284,7 @@ pub fn apply_policy(sink: &mut Sink, policy: any) {
     let floors: any = {};
     let categories = policy["categories"];
     for name in categories.keys() {
-        floors.set(name, categories[name].text());
+        floors[name] = categories[name].text();
     }
     sink.categories = floors;
     if !sink.enabled {

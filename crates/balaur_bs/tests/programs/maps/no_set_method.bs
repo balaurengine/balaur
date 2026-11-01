@@ -1,0 +1,3 @@
+fn f(m: { str: int }) { m.set("k", 1); }
+
+// error: 1:26: a map writes a key as `m[k] = v`, not `m.set(k, v)`

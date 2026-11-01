@@ -137,7 +137,7 @@ fn drop_point(state: &mut editor::State) -> [float] {
 fn place(state: &mut editor::State, name: str, parts: any) -> Node {
     let entry: any = { "transform": { "position": drop_point(state) } };
     for key in parts.keys() {
-        entry.set(key, parts[key]);
+        entry[key] = parts[key];
     }
     model::spawn(state, state.scene_root.unwrap(), name, entry)
 }
@@ -314,9 +314,9 @@ fn ended(state: &mut editor::State, source: str, over: str) {
     if job.is_nil() {
         job = new_job(source, 0);
     }
-    job.set("over", over);
-    job.set("at", engine::unix_time());
-    state.jobs.set(source, job);
+    job["over"] = over;
+    job["at"] = engine::unix_time();
+    state.jobs[source] = job;
 }
 
 // One import's line in the list, as it starts.
@@ -333,12 +333,12 @@ pub fn report(state: &mut editor::State, event: any) {
     if kind == "started" {
         // Keyed by the source, because several can run at once and each
         // reports its own steps.
-        state.jobs.set(source, new_job(source, import_event["files"].as_int()));
+        state.jobs[source] = new_job(source, import_event["files"].as_int());
     } else if kind == "wrote" {
         let job = state.jobs[source];
         if !job.is_nil() {
-            job.set("done", import_event["done"].as_int());
-            job.set("files", import_event["files"].as_int());
+            job["done"] = import_event["done"].as_int();
+            job["files"] = import_event["files"].as_int();
         }
     } else if kind == "done" {
         let written = written_by(state, source);
@@ -356,7 +356,7 @@ pub fn report(state: &mut editor::State, event: any) {
         let written = import_event["done"].as_int();
         ended(state, source, "stopped");
         // This run's count, not one an earlier import of the same file left.
-        state.jobs[source].set("done", written);
+        state.jobs[source]["done"] = written;
         model::forget(state, nil);
         log::info("stopped importing {file_name(source)} after {written} files");
     } else if kind == "failed" {

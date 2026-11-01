@@ -119,7 +119,7 @@ fn method_type(name: &str) -> Option<T> {
     Some(match name {
         "as_int" | "len" => T::Int,
         "as_float" => T::Float,
-        "as_bool" | "is_nil" | "has" | "equals" | "set" | "push" | "put" | "insert" => T::Bool,
+        "as_bool" | "is_nil" | "has" | "equals" | "push" | "insert" => T::Bool,
         "as_str" | "kind" | "text" => T::Str,
         "remove" | "sorted" => T::Any,
         _ => return None,
@@ -165,7 +165,7 @@ pub(super) fn type_of(
         E::Ages(_) => T::Ages,
         E::Nil => T::Maybe,
         E::Method(_, name, _) => method_type(name)?,
-        E::Index(..) | E::Dot(..) | E::NilAny | E::MapAny => T::Any,
+        E::Index(..) | E::NilAny | E::MapAny => T::Any,
     })
 }
 
@@ -406,7 +406,6 @@ impl Interp<'_> {
                     V::Any(anys::at(&a, at))
                 }
             }
-            E::Dot(r, k) => V::Any(anys::get(&self.receiver(r)?, k)),
             E::NilAny => V::Any(A::Nil),
             E::MapAny => V::Any(A::Map(Rc::default())),
             _ => return bad(format!("not a held kind: {e:?}")),
@@ -437,7 +436,7 @@ impl Interp<'_> {
     fn method(&mut self, r: &E, name: &str, args: &[E]) -> Run<V> {
         let arity = match name {
             "has" | "push" | "remove" | "equals" => 1,
-            "set" | "put" | "insert" => 2,
+            "insert" => 2,
             _ => 0,
         };
         if args.len() != arity {
@@ -455,15 +454,7 @@ impl Interp<'_> {
             "text" => V::Str(anys::text(&a)),
             "sorted" => V::Any(anys::sorted(&a)),
             "has" => V::Bool(anys::has(&a, &self.text_arg(&args[0])?)),
-            "set" => {
-                let key = self.text_arg(&args[0])?;
-                V::Bool(anys::set(&a, &key, self.any_arg(&args[1])?))
-            }
             "push" => V::Bool(anys::push(&a, self.any_arg(&args[0])?)),
-            "put" => {
-                let at = self.int_arg(&args[0])?;
-                V::Bool(anys::put(&a, at, self.any_arg(&args[1])?))
-            }
             "insert" => {
                 let at = self.int_arg(&args[0])?;
                 V::Bool(anys::insert(&a, at, self.any_arg(&args[1])?))
@@ -632,7 +623,6 @@ impl Interp<'_> {
                 S::Put(target, e) => {
                     let (r, key) = match target {
                         E::Index(r, k) => (&**r, (**k).clone()),
-                        E::Dot(r, k) => (&**r, E::Str((*k).to_string())),
                         _ => return bad("a write to no key"),
                     };
                     let a = self.receiver(r)?;

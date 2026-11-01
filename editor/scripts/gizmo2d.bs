@@ -634,10 +634,10 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let marquee: any = state.gizmo.marquee;
     if marquee.is_some() {
         let box_drag = marquee.unwrap();
-        box_drag.end_x = pointer.x;
-        box_drag.end_y = pointer.y;
-        box_drag.world_end_x = world_x;
-        box_drag.world_end_y = world_y;
+        box_drag["end_x"] = pointer.x;
+        box_drag["end_y"] = pointer.y;
+        box_drag["world_end_x"] = world_x;
+        box_drag["world_end_y"] = world_y;
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;

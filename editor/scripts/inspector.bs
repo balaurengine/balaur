@@ -104,7 +104,7 @@ fn folded(state: &mut editor::State, data: any, _value: any) {
     // Shutting writes the key into `collapsed` and out of `opened`.
     let mark = data["open"].as_bool() == (data["store"].as_str() == "collapsed");
     if mark {
-        held.set(key, true);
+        held[key] = true;
     } else {
         held.remove(key);
     }
@@ -483,7 +483,7 @@ fn promote_asset(state: &mut editor::State, at: AtTop, asset_type: str, director
         log::warn("cannot read the embedded {asset_type}: {definition}");
         return;
     }
-    definition.set("type", asset_type);
+    definition["type"] = asset_type;
     let rel = "{directory}/{node.name().to_lower()}.toml";
     assets::save(state.game_root + "/" + rel, definition);
     write_at(state, at, rel);
@@ -582,7 +582,7 @@ fn write_whole(state: &mut editor::State, at: AtTop, whole: any) {
         write(state, at.component, at.property, whole);
         return;
     }
-    whole.set("type", record);
+    whole["type"] = record;
     assets::save(reference, whole);
     reread_rows(at.component, [at.property]);
 }
@@ -628,9 +628,9 @@ pub fn write_at(state: &mut editor::State, at: AtTop, value: any) {
         return;
     }
     if step.kind() == "int" {
-        holder.put(step.as_int(), value);
+        holder[step.as_int()] = value;
     } else {
-        holder.set(step.as_str(), value);
+        holder[step.as_str()] = value;
     }
     write_whole(state, at, whole);
 }
@@ -658,7 +658,7 @@ pub fn add_entry(state: &mut editor::State, at: AtTop, of: any, key: str) {
     if holder.kind() == "list" {
         holder.push(fresh);
     } else {
-        holder.set(key, fresh);
+        holder[key] = fresh;
     }
     write_whole(state, at, whole);
 }
@@ -1416,7 +1416,7 @@ fn write_material_key(state: editor::State, reference: str, key: str, value: any
         log::warn("cannot read the material {reference}");
         return;
     }
-    definition.set(key, value);
+    definition[key] = value;
     assets::save(reference, definition);
 }
 
@@ -1426,8 +1426,8 @@ fn write_material_feature(state: editor::State, reference: str, name: str, on: a
         return;
     }
     let features = util::map_or_empty(definition["features"]);
-    features.set(name, on);
-    definition.set("features", features);
+    features[name] = on;
+    definition["features"] = features;
     assets::save(reference, definition);
 }
 
@@ -1536,9 +1536,9 @@ fn write_material_parameter(state: editor::State, reference: str, name: str, val
     if value.kind() == "str" && value.as_str() == "" {
         parameters.remove(name);
     } else {
-        parameters.set(name, value);
+        parameters[name] = value;
     }
-    definition.set("params", parameters);
+    definition["params"] = parameters;
     assets::save(reference, definition);
 }
 
@@ -1656,13 +1656,13 @@ pub fn node_components(state: &mut editor::State) -> [str] {
 fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
     let waiting: any = {};
     for name in names {
-        waiting.set(name, 0);
+        waiting[name] = 0;
     }
     for name in names {
         for need in util::list_or_empty(model::expects(state, name)) {
             let key = need.as_str();
             if waiting.has(key) {
-                waiting.set(key, waiting[key].as_int() + 1);
+                waiting[key] = waiting[key].as_int() + 1;
             }
         }
     }
@@ -1692,7 +1692,7 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
             for need in util::list_or_empty(model::expects(state, name)) {
                 let key = need.as_str();
                 if waiting.has(key) {
-                    waiting.set(key, waiting[key].as_int() - 1);
+                    waiting[key] = waiting[key].as_int() - 1;
                 }
             }
         }
@@ -1718,7 +1718,7 @@ fn component_sections(state: &mut editor::State, tokens: any) {
         let into = if warning["property"].is_nil() { whole } else { by_property };
         if !into.has(key) {
             let none: [any] = [];
-            into.set(key, none);
+            into[key] = none;
         }
         into[key].push(warning["message"]);
     }
@@ -1816,7 +1816,7 @@ fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
         }
         if !grouped.has(group) {
             let none: [str] = [];
-            grouped.set(group, none);
+            grouped[group] = none;
             order.push(group);
         }
         grouped[group].push(property);
@@ -1830,7 +1830,7 @@ fn layout_of(state: &mut editor::State, component: str, editors: str) -> any {
         groups.push({ "name": group, "count": properties.len(), "parts": parts_of(state, schema, properties) });
     }
     let laid: any = { "editors": editors, "loose": parts_of(state, schema, loose), "groups": groups };
-    state.inspect_layout.set(component, laid);
+    state.inspect_layout[component] = laid;
     laid
 }
 
@@ -1985,7 +1985,7 @@ pub fn view(state: editor::State) -> View {
 
 /// Fill the Inspector panel's form for the selection, filtered by `query`.
 pub fn fill(state: &mut editor::State, query: str) {
-    state.search.inspector = query;
+    state.search["inspector"] = query;
     if !model::has_selection(state) {
         pool::hide(state, INSPECTOR_FORM);
         return;

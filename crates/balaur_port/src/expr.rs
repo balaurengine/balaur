@@ -894,16 +894,11 @@ impl Cx<'_> {
         if let ast::Expr::Index(ix) = &*a.lhs
             && !matches!(self.peek_ty(&ix.target), Ty::Array(_) | Ty::Shape(_))
         {
-            // An `any` map or list: a map written with `set`, a list with `put`.
+            // An `any` map or list, written by key or index.
             let base = self.expr(&ix.target);
             let k = self.expr(&ix.index);
             if base.t == Ty::Any || !base.t.known() {
-                let m = if k.t == Ty::Int { "put" } else { "set" };
-                return Ex::new(
-                    format!("{}.{m}({}, {})", base.at(ATOM), k.s, r.s),
-                    Ty::Void,
-                    0,
-                );
+                return Ex::new(format!("{}[{}] = {}", base.at(ATOM), k.s, r.s), Ty::Void, 0);
             }
         }
         let rhs = self.coerce_at(&r, &l.t, a.span());

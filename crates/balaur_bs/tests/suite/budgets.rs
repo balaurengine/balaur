@@ -42,7 +42,7 @@ const CASES: &[(&str, u64)] = &[
     ("total += wide.chars().len();", 10800),
     (r#"total += "-12345".parse_int();"#, 2400),
     (r#"total += scores["e"].as_int();"#, 1550),
-    (r#"scores.set("e", step);"#, 1600),
+    (r#"scores["e"] = step;"#, 1600),
     (r#"if scores.has("h") { total += scores.len(); }"#, 1950),
     ("total += scores.keys().len();", 2200),
     (r#"total += typed["e"].or(0);"#, 700),

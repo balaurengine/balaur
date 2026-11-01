@@ -199,7 +199,7 @@ pub fn fresh() {
 "#,
     );
     has(&out, "seen: any,");
-    has(&out, "S.seen.set(key, value);");
+    has(&out, "S.seen[key] = value;");
     has(&out, "State { seen: {} }");
 }
 

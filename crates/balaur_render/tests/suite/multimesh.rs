@@ -495,8 +495,8 @@ fn instances_read_off_one_node_set_another_whole() {
 impl Scenario {
     fn init() {
         let mine = self.node.multimesh3d.instances();
-        mine[0].set("position", [0.0, 5.0, 0.0]);
-        mine[1].set("custom", [1.0, 2.0, 3.0, 4.0]);
+        mine[0]["position"] = [0.0, 5.0, 0.0];
+        mine[1]["custom"] = [1.0, 2.0, 3.0, 4.0];
         self.node.get_node("../B").multimesh3d.set_instances(mine);
     }
 }

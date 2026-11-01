@@ -204,8 +204,8 @@ pub fn toggle_focus(state: &mut editor::State) {
     }
     let was: any = { "split": state.split };
     for side in docks::sides() {
-        was.set(side, state.docks[side]["shut"]);
-        state.docks[side].shut = true;
+        was[side] = state.docks[side]["shut"];
+        state.docks[side]["shut"] = true;
         signals::docks(state);
     }
     state.focus_was = was;
@@ -226,7 +226,7 @@ pub fn leave_focus(state: &mut editor::State) {
         return;
     }
     for side in docks::sides() {
-        state.docks[side].shut = was[side].as_bool();
+        state.docks[side]["shut"] = was[side].as_bool();
         signals::docks(state);
     }
     state.split = was["split"].as_bool();
@@ -421,7 +421,7 @@ pub fn toggle_breakpoint(state: &mut editor::State, rel: str, line: int) {
     }
     // The host reports where each request landed: a blank line moves to the
     // next line with code.
-    state.debug.breakpoints.set(rel, debugger::set_breakpoints(state.game_root + "/" + rel, kept));
+    state.debug.breakpoints[rel] = debugger::set_breakpoints(state.game_root + "/" + rel, kept);
 }
 
 // Game-relative path of a script the host reports by absolute key.
@@ -589,7 +589,7 @@ fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
     let absolute_path = state.game_root + "/" + rel;
     let buffer = state.script_buffers[old_absolute_path];
     if !buffer.is_nil() {
-        state.script_buffers.set(absolute_path, buffer);
+        state.script_buffers[absolute_path] = buffer;
         state.script_buffers.remove(old_absolute_path);
     }
     if state.script_dirty.has(old_absolute_path) {
@@ -599,7 +599,7 @@ fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
     if state.debug.breakpoints.has(old) {
         let lines = breakpoint_lines(state, old);
         state.debug.breakpoints.remove(old);
-        state.debug.breakpoints.set(rel, debugger::set_breakpoints(absolute_path, lines));
+        state.debug.breakpoints[rel] = debugger::set_breakpoints(absolute_path, lines);
     }
 }
 
@@ -712,8 +712,8 @@ pub fn format_active(state: &mut editor::State) {
     if formatted == source {
         return;
     }
-    state.script_buffers.set(absolute_path, formatted);
-    state.script_dirty.set(absolute_path, engine::unix_time());
+    state.script_buffers[absolute_path] = formatted;
+    state.script_dirty[absolute_path] = engine::unix_time();
     lint::touched(state);
     signals::bars(state);
     // The code sheet writes its text again only when told the buffer moved.
@@ -806,7 +806,7 @@ pub fn reload_scripts(state: &mut editor::State) {
     for found in state.nodes {
         let rel = model::script_rel(found);
         if !rel.is_nil() {
-            paths.set(rel.as_str(), true);
+            paths[rel.as_str()] = true;
         }
     }
     session::end(state, "reload");
@@ -1108,7 +1108,7 @@ fn state_page(state: &mut editor::State, argument: str) {
     if state.kit_state.is_nil() {
         state.kit_state = {};
     }
-    state.kit_state.set("tab:" + parts[0], parts[1]);
+    state.kit_state["tab:" + parts[0]] = parts[1];
 }
 
 fn state_fontdemo(state: &mut editor::State) {
@@ -1139,7 +1139,7 @@ fn state_shut(state: &mut editor::State, side: str) {
         state.chrome_off = true;
         return;
     }
-    state.docks[side].shut = true;
+    state.docks[side]["shut"] = true;
     signals::docks(state);
 }
 

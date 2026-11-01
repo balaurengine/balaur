@@ -33,7 +33,7 @@ pub fn changed(state: &mut editor::State) {
 
 /// Put a plugin's dialog up, by the id it registered it under.
 pub fn open_dialog(state: &mut editor::State, id: str) {
-    state.registry.open.set(id, true);
+    state.registry.open[id] = true;
     changed(state);
 }
 
@@ -126,7 +126,7 @@ fn pick_button(state: &mut editor::State, id: str, name: str, role: str, on: boo
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
-    memory(state).set(data["key"].as_str(), data["name"]);
+    memory(state)[data["key"].as_str()] = data["name"];
     changed(state);
 }
 
@@ -153,7 +153,7 @@ pub fn tabs(state: &mut editor::State, host: str, id: str, names: any) -> str {
         controls.push(pick_button(state, id, name, "chip", name == current));
     }
     bar(state, host, "head", controls);
-    memory(state).set("tab:" + id, current);
+    memory(state)["tab:" + id] = current;
     current
 }
 
@@ -184,7 +184,7 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
     }
     bar(state, host, "side", controls);
     util::fill(host + "/Split/Side", { "visible": true });
-    memory(state).set("tab:" + id, current);
+    memory(state)["tab:" + id] = current;
     current
 }
 
@@ -258,7 +258,7 @@ pub fn field(state: &mut editor::State, label: str, value: any, options: any) ->
 fn field_toggled(state: &mut editor::State, data: any, _value: any) {
     let key = data["key"].as_str();
     let remembered = memory(state);
-    remembered.set(key, !remembered[key].as_bool());
+    remembered[key] = !remembered[key].as_bool();
     changed(state);
 }
 
@@ -368,7 +368,7 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
 }
 
 fn folded(state: &mut editor::State, data: any, _value: any) {
-    memory(state).set(data["key"].as_str(), !data["open"].as_bool());
+    memory(state)[data["key"].as_str()] = !data["open"].as_bool();
     changed(state);
 }
 
@@ -413,9 +413,9 @@ fn typed(state: &mut editor::State, data: any, now: any) {
 // An edited leaf, written into the whole value at its keys and the whole
 // handed to whatever keeps it.
 fn put(out: any, keys: [any], now: any) {
-    out.set("changed", true);
+    out["changed"] = true;
     if keys.len() == 0 {
-        out.set("value", now);
+        out["value"] = now;
     } else {
         let at = out["value"];
         for index in 0..keys.len() - 1 {
@@ -423,9 +423,9 @@ fn put(out: any, keys: [any], now: any) {
         }
         let last = keys[keys.len() - 1];
         if last.kind() == "int" {
-            at.put(last.as_int(), now);
+            at[last.as_int()] = now;
         } else {
-            at.set(last.as_str(), now);
+            at[last.as_str()] = now;
         }
     }
     let write = out["write"];

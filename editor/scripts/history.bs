@@ -106,7 +106,7 @@ fn restore(state: &mut editor::State, into: [Step], from: [Step]) -> str? {
     held.changes = scene::take_changes();
     into.push(held);
     if !top.assets.is_nil() && blocks_text(top.assets) != blocks_text(state.scene_doc["assets"]) {
-        state.scene_doc.assets = top.assets;
+        state.scene_doc["assets"] = top.assets;
         // A scene's blocks are read when it is built, so it is built again.
         model::build(state, model::scene_text(state));
     }

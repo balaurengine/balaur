@@ -1,0 +1,3 @@
+fn f(a: any) { a.put(0, 1); }
+
+// error: 1:17: an `any` list writes an element as `a[i] = v`, not `a.put(i, v)`

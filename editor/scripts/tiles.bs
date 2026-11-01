@@ -191,7 +191,7 @@ fn flood(state: editor::State, column: int, row: int) -> [Cell] {
         if seen.has(key) {
             continue;
         }
-        seen.set(key, true);
+        seen[key] = true;
         if at.x < start.x || at.y < start.y || at.x >= start.x + wide || at.y >= start.y + tall {
             continue;
         }
@@ -295,16 +295,16 @@ pub fn paint_terrain(state: &mut editor::State, column: int, row: int, value: in
         return false;
     }
     if !table["cells"].is_nil() {
-        edited_component.set("cells", table["cells"]);
+        edited_component["cells"] = table["cells"];
     }
-    edited_component.set("terrain", table["terrain"]);
+    edited_component["terrain"] = table["terrain"];
     let start = table["origin"];
     if start.is_nil() {
         start = [0.0, 0.0];
     }
-    edited_component.set("origin", start);
+    edited_component["origin"] = start;
     if table["flags"].kind() == "list" {
-        edited_component.set("flags", table["flags"]);
+        edited_component["flags"] = table["flags"];
     }
     apply(state);
     true
@@ -596,8 +596,8 @@ pub fn write_cells(state: &mut editor::State, cells: [Cell], tile: int, label: s
     // step this undoes. Every row is as wide as the widest: a ragged grid
     // draws the same, but a diff of one reads badly; `grown` already is.
     history::record(state, label, key);
-    edited_component.set("cells", inline(grown));
-    edited_component.set("origin", [low_x as float, low_y as float]);
+    edited_component["cells"] = inline(grown);
+    edited_component["origin"] = [low_x as float, low_y as float];
     apply(state);
     true
 }
@@ -652,7 +652,7 @@ pub fn add_layer(state: &mut editor::State) -> bool {
         return false;
     }
     let none: [[int]] = [];
-    edited_component.set("cells", inline(none));
+    edited_component["cells"] = inline(none);
     apply(state);
     true
 }
@@ -858,10 +858,10 @@ fn edit_tile(state: &mut editor::State, key: str, value: any) -> bool {
     if value.is_nil() {
         tile.remove(key);
     } else {
-        tile.set(key, value);
+        tile[key] = value;
     }
-    tiles.set(id, tile);
-    definition.set("tiles", tiles);
+    tiles[id] = tile;
+    definition["tiles"] = tiles;
     assets::save(path, definition);
     // The map is built from the file, so it has to be read again.
     apply(state);

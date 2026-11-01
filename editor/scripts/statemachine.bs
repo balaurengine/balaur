@@ -156,10 +156,10 @@ pub fn add_state(state: &mut editor::State, name: str) {
     let clips = anim::clip_names(state);
     let held = states(found.doc);
     let own = clips.len() == 0 || util::contains(clips, name);
-    held.set(name, if own { "" } else { clips[0] });
-    found.doc.set("states", held);
+    held[name] = if own { "" } else { clips[0] };
+    found.doc["states"] = held;
     if found.doc["start"].as_str() == "" {
-        found.doc.set("start", name);
+        found.doc["start"] = name;
     }
     write(state, found, "add state");
 }
@@ -173,16 +173,16 @@ pub fn remove_state(state: &mut editor::State, name: str) {
     let found = copy.unwrap();
     let held = states(found.doc);
     held.remove(name);
-    found.doc.set("states", held);
+    found.doc["states"] = held;
     let kept: [any] = [];
     for transition in transitions(found.doc) {
         if transition["from"].as_str() != name && transition["to"].as_str() != name {
             kept.push(transition);
         }
     }
-    found.doc.set("transitions", kept);
+    found.doc["transitions"] = kept;
     if found.doc["start"].as_str() == name {
-        found.doc.set("start", "");
+        found.doc["start"] = "";
     }
     state.machine.open = nil;
     write(state, found, "remove state");
@@ -195,8 +195,8 @@ fn set_state_clip(state: &mut editor::State, name: str, clip: any) {
     }
     let found = copy.unwrap();
     let held = states(found.doc);
-    held.set(name, if clip.as_str() == name { "" } else { clip.as_str() });
-    found.doc.set("states", held);
+    held[name] = if clip.as_str() == name { "" } else { clip.as_str() };
+    found.doc["states"] = held;
     write(state, found, "state clip");
 }
 
@@ -206,7 +206,7 @@ fn set_start(state: &mut editor::State, name: str) {
         return;
     }
     let found = copy.unwrap();
-    found.doc.set("start", name);
+    found.doc["start"] = name;
     write(state, found, "start state");
 }
 
@@ -225,7 +225,7 @@ pub fn add_transition(state: &mut editor::State) {
     let held = transitions(found.doc);
     held.push({ "from": names[0], "to": to, "advance_mode": animation::ADVANCE_MODE_ENABLED });
     state.machine.open = held.len() - 1;
-    found.doc.set("transitions", held);
+    found.doc["transitions"] = held;
     write(state, found, "add transition");
 }
 
@@ -240,7 +240,7 @@ pub fn remove_transition(state: &mut editor::State, at: int) {
         return;
     }
     held.remove(at);
-    found.doc.set("transitions", held);
+    found.doc["transitions"] = held;
     state.machine.open = nil;
     write(state, found, "remove transition");
 }
@@ -259,9 +259,9 @@ pub fn set_field(state: &mut editor::State, at: int, key: str, value: any) {
     if value.kind() == "str" && value.as_str() == "" {
         held[at].remove(key);
     } else {
-        held[at].set(key, value);
+        held[at][key] = value;
     }
-    found.doc.set("transitions", held);
+    found.doc["transitions"] = held;
     write(state, found, "edit transition");
 }
 

@@ -183,7 +183,7 @@ impl Inputview {
         if name == "" {
             return;
         }
-        self.chips.set(name, 0.0);
+        self.chips[name] = 0.0;
         self.chips();
     }
 
@@ -191,7 +191,7 @@ impl Inputview {
         if !self.chips.has(name) {
             return;
         }
-        self.chips.set(name, engine::unix_time() + HOLD);
+        self.chips[name] = engine::unix_time() + HOLD;
         ui::request_repaint(ui::RepaintOptions { after: HOLD + 0.05 });
     }
 

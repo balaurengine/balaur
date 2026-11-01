@@ -100,11 +100,11 @@ pub fn arrays() -> int {
 }
 pub fn anys() -> str {
     let m: any = { "hp": 3 };
-    m.set("name", "imp");
+    m["name"] = "imp";
     let tags: [any] = ["a"];
     let l: any = tags;
     l.push(2.5);
-    m.set("tags", l);
+    m["tags"] = l;
     "{m.text()} {m["hp"].as_int()} {m.len()}"
 }
 pub fn walk_a_mover(n: int) -> float {

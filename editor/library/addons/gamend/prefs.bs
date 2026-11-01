@@ -27,7 +27,7 @@ pub fn get(key: str, fallback: any) -> any {
 /// Set one pref and write the slot.
 pub fn set(key: str, value: any) {
     let held = all();
-    held.set(key, value);
+    held[key] = value;
     save::write(SLOT, held);
 }
 
@@ -37,7 +37,7 @@ pub fn remove(key: str) {
     let left: any = {};
     for name in kept.keys() {
         if name != key {
-            left.set(name, kept[name]);
+            left[name] = kept[name];
         }
     }
     save::write(SLOT, left);

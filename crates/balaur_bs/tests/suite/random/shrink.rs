@@ -188,8 +188,7 @@ fn parts_mut(e: &mut E) -> Vec<&mut E> {
         | E::StrLen(a)
         | E::Lit(a)
         | E::Get(_, _, a)
-        | E::Or(_, a)
-        | E::Dot(a, _) => vec![a],
+        | E::Or(_, a) => vec![a],
         E::If(c, a, b) => vec![c, a, b],
         E::Call(_, args) | E::Array(args) => args.iter_mut().collect(),
         E::Ages(pairs) => pairs.iter_mut().map(|(_, e)| e).collect(),
@@ -209,8 +208,7 @@ fn parts(e: &E) -> Vec<&E> {
         | E::StrLen(a)
         | E::Lit(a)
         | E::Get(_, _, a)
-        | E::Or(_, a)
-        | E::Dot(a, _) => vec![a],
+        | E::Or(_, a) => vec![a],
         E::If(c, a, b) => vec![c, a, b],
         E::Call(_, args) | E::Array(args) => args.iter().collect(),
         E::Ages(pairs) => pairs.iter().map(|(_, e)| e).collect(),

@@ -217,7 +217,7 @@ impl Bench {
         if self.samples.has(key) {
             self.samples[key].push(value);
         } else {
-            self.samples.set(key, [value]);
+            self.samples[key] = [value];
         }
     }
 

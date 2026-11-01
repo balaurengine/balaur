@@ -168,7 +168,7 @@ impl FnGen<'_> {
     /// A spelling a value has no more, refused by name with the one it keeps.
     /// A prelude function may call what its own code needs by any name.
     pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
-        if self.prelude || !matches!(name, "get" | "at") {
+        if self.prelude || !matches!(name, "get" | "at" | "set" | "put") {
             return Ok(());
         }
         let msg = match (&self.type_of(base)?, name) {
@@ -177,6 +177,12 @@ impl FnGen<'_> {
             }
             (Ty::Any, "at") => {
                 "an `any` list reads an element as `a[i]`, not `a.at(i)`".to_string()
+            }
+            (Ty::Any, "set") => {
+                "an `any` writes a key as `a[\"k\"] = v`, not `a.set(\"k\", v)`".to_string()
+            }
+            (Ty::Any, "put") => {
+                "an `any` list writes an element as `a[i] = v`, not `a.put(i, v)`".to_string()
             }
             (Ty::Array(_), "at") => {
                 "a list reads an element as `xs[i]`, not `xs.at(i)`".to_string()
@@ -189,6 +195,9 @@ impl FnGen<'_> {
             }
             (Ty::Struct(s), "get") if crate::maps::is_map(s) => {
                 "a map reads a key as `m[k]`, not `m.get(k)`".to_string()
+            }
+            (Ty::Struct(s), "set") if crate::maps::is_map(s) => {
+                "a map writes a key as `m[k] = v`, not `m.set(k, v)`".to_string()
             }
             _ => return Ok(()),
         };

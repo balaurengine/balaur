@@ -354,10 +354,10 @@ fn track_for(clip_definition: any, property: str, target: str) -> any {
     }
     let track: any = { "property": property, "interpolation": animation::INTERPOLATION_LINEAR, "keys": [] };
     if target != "" {
-        track.set("target", target);
+        track["target"] = target;
     }
     if clip_definition["tracks"].kind() != "list" {
-        clip_definition.set("tracks", []);
+        clip_definition["tracks"] = [];
     }
     clip_definition["tracks"].push(track);
     track
@@ -385,7 +385,7 @@ fn put_key(track: any, time: float, value: any) {
     if !placed {
         out.push(key);
     }
-    track.set("keys", out);
+    track["keys"] = out;
 }
 
 /// Insert (or replace) a key at `time` from the selection's current transform,
@@ -409,7 +409,7 @@ pub fn add_key(state: &mut editor::State, time: float) {
         put_key(track_for(clip_definition, animation::PROPERTY_POSITION, target), time, util::xyz(found.transform.position));
     }
     if time > length(clip_definition) {
-        clip_definition.set("length", time);
+        clip_definition["length"] = time;
     }
     touch(state);
     log::info("key at {seconds(time)}s ({key_count(clip_definition)} keys)");
@@ -435,7 +435,7 @@ pub fn key_property(state: &mut editor::State, time: float, property: str, value
     history::record(state, "key {property}", nil);
     put_key(track_for(clip_definition, property, target_path(state, player_node_index)), time, value);
     if time > length(clip_definition) {
-        clip_definition.set("length", time);
+        clip_definition["length"] = time;
     }
     touch(state);
     log::info("{property} keyed at {seconds(time)}s");
@@ -457,7 +457,7 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
                 keys.push(key);
             }
         }
-        track.set("keys", keys);
+        track["keys"] = keys;
         // A track with no keys is not a track: the engine rejects one, so
         // the editor never writes one.
         if keys.len() > 0 {
@@ -465,7 +465,7 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
         }
     }
     if kept.len() > 0 {
-        clip_definition.set("tracks", kept);
+        clip_definition["tracks"] = kept;
     } else {
         clip_definition.remove("tracks");
     }
@@ -496,10 +496,10 @@ pub fn promote(state: &mut editor::State) {
         return;
     }
     let rel = "animations/" + owner.found.name().to_lower() + ".toml";
-    doc.set("type", CLIP_TYPE);
+    doc["type"] = CLIP_TYPE;
     fs::write(util::engine_path(state.game_root, rel), toml::encode(doc));
     assets::reload(util::engine_path(state.game_root, rel));
-    animation_component.set("library", rel);
+    animation_component["library"] = rel;
     state.clip = nil;
     signals::inspector(state);
     arm(state);
@@ -527,10 +527,10 @@ pub fn make_inline(state: &mut editor::State) {
     let parts = rel.unwrap().split_once("#");
     if parts.len() == 2 {
         copy = { GROUP: { parts[1]: copy } };
-        animation_component.set("autoplay", parts[1]);
+        animation_component["autoplay"] = parts[1];
     }
-    copy.set("type", CLIP_TYPE);
-    animation_component.set("library", copy);
+    copy["type"] = CLIP_TYPE;
+    animation_component["library"] = copy;
     state.clip = nil;
     signals::inspector(state);
     arm(state);

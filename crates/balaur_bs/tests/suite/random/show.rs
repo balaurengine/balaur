@@ -26,13 +26,7 @@ fn list(items: &[E]) -> String {
 // than `.`, else in parentheses.
 fn receiver(e: &E) -> String {
     match e {
-        E::Var(_)
-        | E::Call(..)
-        | E::Method(..)
-        | E::Index(..)
-        | E::Dot(..)
-        | E::NilAny
-        | E::MapAny => expr(e),
+        E::Var(_) | E::Call(..) | E::Method(..) | E::Index(..) | E::NilAny | E::MapAny => expr(e),
         _ => format!("({})", expr(e)),
     }
 }
@@ -98,7 +92,6 @@ pub(super) fn expr(e: &E) -> String {
         E::Or(v, d) => format!("{v}.or({})", expr(d)),
         E::Method(r, name, args) => format!("{}.{name}({})", receiver(r), list(args)),
         E::Index(r, k) => format!("{}[{}]", receiver(r), expr(k)),
-        E::Dot(r, k) => format!("{}.{k}", receiver(r)),
         E::NilAny => "nil()".into(),
         E::MapAny => "any_map()".into(),
     }

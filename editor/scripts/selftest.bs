@@ -306,8 +306,8 @@ pub fn autosaving(state: &mut editor::State) {
     // A script typed into is written once the typing rests, and compiled.
     let path = state.game_root + "/scripts/autosaved_probe.bs";
     let source = "pub fn probe() -> int {{\n    1\n}}\n";
-    state.script_buffers.set(path, source);
-    state.script_dirty.set(path, engine::unix_time());
+    state.script_buffers[path] = source;
+    state.script_dirty[path] = engine::unix_time();
     check(autosave::write_typed(state, engine::unix_time()) == 0, "a buffer still being typed into waits");
     check(autosave::write_typed(state, engine::unix_time() + autosave::TYPING_SETTLE + 0.1) == 1, "and is written once the typing rests");
     check(fs::read(path).or("") == source && !state.script_dirty.has(path), "leaving nothing to save");
@@ -362,7 +362,7 @@ pub fn node_picker(state: &mut editor::State) {
         if row.group != "" {
             placed += 1;
         }
-        groups.set(row.group, true);
+        groups[row.group] = true;
         if row.name == "camera2d" {
             check(row.group == "2D", "camera2d is filed under 2D (got {row.group})");
         }
@@ -405,7 +405,7 @@ pub fn node_picker(state: &mut editor::State) {
         if seen.has(row.name) {
             twice.push(row.name);
         }
-        seen.set(row.name, true);
+        seen[row.name] = true;
     }
     check(twice.len() == 0, "no row is offered twice ({twice})");
     // A text added is named for what it is and opens ready to type over.
@@ -1389,7 +1389,7 @@ pub fn bonemap_panel(state: &mut editor::State) {
     // that invents a path would write a map the engine silently ignores.
     let paths: any = {};
     for bone in skeleton::bones(model::node(state, rig_index)) {
-        paths.set(bone.path(), true);
+        paths[bone.path()] = true;
     }
     let base = model::node(state, rig_index).path();
     let sound = true;
@@ -1915,7 +1915,7 @@ pub fn composite_props(state: &mut editor::State) {
     // Left where a picture of it is worth taking: three entries, the fold
     // they sit in open, and the rest of the schema searched away.
     model::set_component_property(state, component, property, ["ssao", "bloom", "tonemap"]);
-    state.search.set("inspector", property);
+    state.search["inspector"] = property;
     log::info("selftest composites: done");
 }
 
@@ -2023,7 +2023,7 @@ fn answer(state: &mut editor::State, purpose: str, extra: any) -> bool {
     }
     let reply: any = { "kind": http::EVENT_RESPONSE, "request": id, "status": 200 };
     for key in extra.keys() {
-        reply.set(key, extra[key]);
+        reply[key] = extra[key];
     }
     fonts::on_response(state, reply);
     true
@@ -2099,7 +2099,7 @@ pub fn linting(state: &mut editor::State) {
     let rel = script.unwrap();
     let abs = state.game_root + "/" + rel;
     let original = model::source(state, rel).as_str();
-    state.script_buffers.set(abs, "fn probe() {{\n    input::just_pressd(\"jump\");\n}}\n");
+    state.script_buffers[abs] = "fn probe() {{\n    input::just_pressd(\"jump\");\n}}\n";
     lint::run(state);
     let errors = found_in(state, rel, "error");
     if check(errors.len() > 0, "a misspelled engine call is an error") {
@@ -2113,10 +2113,10 @@ pub fn linting(state: &mut editor::State) {
         }
         check(marked, "the gutter is given line 2");
     }
-    state.script_buffers.set(abs, "fn probe() {{\n    let unused = 1;\n}}\n");
+    state.script_buffers[abs] = "fn probe() {{\n    let unused = 1;\n}}\n";
     lint::run(state);
     check(found_in(state, rel, "error").len() == 0, "a script that compiles has no errors");
-    state.script_buffers.set(abs, original);
+    state.script_buffers[abs] = original;
     lint::run(state);
     check(found_in(state, rel, "error").len() == 0, "restoring the buffer clears the findings");
     state.script_buffers.remove(abs);
@@ -3021,7 +3021,7 @@ fn open_user_files(state: &mut editor::State) {
         state.kit_state = {};
     }
     fs::write(kit::game_data(state) + "/" + PROBE_FILE, "alpha = 1\nbeta = \"two\"\n");
-    state.kit_state.set("file:userdata:" + PROBE_FILE, true);
+    state.kit_state["file:userdata:" + PROBE_FILE] = true;
 }
 
 // Two frames: the host is made and filled on the first draw after this, and a
@@ -3168,7 +3168,7 @@ pub fn focusing(state: &mut editor::State) {
     }
     let was: any = {};
     for side in docks::sides() {
-        was.set(side, state.docks[side]["shut"]);
+        was[side] = state.docks[side]["shut"];
     }
     check(shell::focus_target(state), "the selection has a script to focus");
     shell::toggle_focus(state);
@@ -3201,7 +3201,7 @@ pub fn focusing(state: &mut editor::State) {
     check(!state.focus, "a panel opened under focus ends it");
     check(!docks::folded(state, "bottom"), "and stays open");
     for side in docks::sides() {
-        state.docks[side].set("shut", was[side]);
+        state.docks[side]["shut"] = was[side];
     }
     log::info("selftest focus: done");
 }
@@ -3494,18 +3494,18 @@ fn doc_x(state: editor::State, index: int) -> float {
 // The Snap chip a drag reads is the one the strip toggles.
 fn snap_chip(state: &mut editor::State) {
     if !state.chip_state.has(defs::WORKSPACE_SCENE) {
-        state.chip_state.set(defs::WORKSPACE_SCENE, {});
+        state.chip_state[defs::WORKSPACE_SCENE] = {};
     }
     let chips = state.chip_state[defs::WORKSPACE_SCENE];
     let was = chips[defs::CHIP_SNAP];
-    chips.set(defs::CHIP_SNAP, true);
+    chips[defs::CHIP_SNAP] = true;
     check(viewport::snapping(state), "a drag snaps once the Snap chip is on");
-    chips.set(defs::CHIP_SNAP, false);
+    chips[defs::CHIP_SNAP] = false;
     check(!viewport::snapping(state), "and not once it is off");
     if was.is_nil() {
         chips.remove(defs::CHIP_SNAP);
     } else {
-        chips.set(defs::CHIP_SNAP, was);
+        chips[defs::CHIP_SNAP] = was;
     }
 }
 
@@ -4271,7 +4271,7 @@ fn rows_drawn(state: editor::State, widget: any, rows: any) {
         if seen.has(row.as_str()) {
             alike += 1;
         }
-        seen.set(row.as_str(), true);
+        seen[row.as_str()] = true;
     }
     check(alike == 0, "no two rows are the same string ({alike} repeat)");
 }

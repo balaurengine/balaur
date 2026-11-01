@@ -177,7 +177,7 @@ pub fn write(state: editor::State, rel: str, key: str, value: any) {
     if cleared {
         table.remove(key);
     } else {
-        table.set(key, value);
+        table[key] = value;
     }
     if table.len() == 0 {
         if fs::exists(path) {

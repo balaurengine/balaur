@@ -141,7 +141,7 @@ pub fn autofill(state: &mut editor::State) {
     for name in HUMANOID() {
         let matched = guess(name, paths);
         if matched.is_some() {
-            state.bonemap.bones.set(name, matched.unwrap());
+            state.bonemap.bones[name] = matched.unwrap();
             found += 1;
         }
     }
@@ -168,7 +168,7 @@ pub fn save(state: &mut editor::State) {
     for name in bones.keys() {
         let path = bones[name];
         if path.as_str() != "" {
-            mapped.set(name, path);
+            mapped[name] = path;
         }
     }
     if mapped.len() == 0 {
@@ -302,14 +302,14 @@ fn toggle_picker(state: &mut editor::State, data: any, _value: any) {
 
 fn leave_row_empty(state: &mut editor::State, data: any, _value: any) {
     let name: str = data["name"];
-    state.bonemap.bones.set(name, "");
+    state.bonemap.bones[name] = "";
     signals::changed(state, "bonemap");
 }
 
 fn pick_bone_path(state: &mut editor::State, data: any, _value: any) {
     let name: str = data["name"];
     let path: str = data["path"];
-    state.bonemap.bones.set(name, path);
+    state.bonemap.bones[name] = path;
     state.bonemap.picking = nil;
     signals::changed(state, "bonemap");
 }

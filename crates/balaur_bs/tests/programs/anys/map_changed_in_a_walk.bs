@@ -5,7 +5,7 @@ pub fn walked() -> str {
     let seen = 0;
     for block in doc["assets"] {
         if block["id"].as_str() == "a" {
-            block.set("n", 6);
+            block["n"] = 6;
             continue;
         }
         seen += 1;

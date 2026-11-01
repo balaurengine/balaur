@@ -529,7 +529,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         let at = model::index_of_node(state, found);
         if at.is_some() {
             let key = if found.has_component("bone3d") { "bone3d" } else { "bone2d" };
-            was.set(found.path(), Was { index: at.unwrap(), key: key, data: util::map_or_empty(found.authored(key)) });
+            was[found.path()] = Was { index: at.unwrap(), key: key, data: util::map_or_empty(found.authored(key)) };
         }
     }
     let moved = 0;
@@ -576,21 +576,21 @@ fn reflect_rest(data: any, axis: str) -> any {
             let sign = if (axis == "x" && coordinate == 0) || (axis == "y" && coordinate == 1) { -1.0 } else { 1.0 };
             flipped.push(value.as_float() * sign);
         }
-        out.set("rest_position", flipped);
+        out["rest_position"] = flipped;
     }
     let rotation = out["rest_rotation"];
     if rotation.kind() == "list" {
         let turned = util::vec3(rotation, [0.0, 0.0, 0.0]);
-        out.set("rest_rotation", [turned[0], turned[1], -turned[2]]);
+        out["rest_rotation"] = [turned[0], turned[1], -turned[2]];
     } else {
-        out.set("rest_rotation", -rotation.as_float());
+        out["rest_rotation"] = -rotation.as_float();
     }
     // The gizmo angle is measured from +x; a mirror over y leaves it negated,
     // and one over x reflects it about the vertical instead.
     let was = out["angle"];
     if !was.is_nil() {
         let angle = -was.as_float();
-        out.set("angle", if axis == "x" { math::PI.as_float() + angle } else { angle });
+        out["angle"] = if axis == "x" { math::PI.as_float() + angle } else { angle };
     } else {
         nil
     }

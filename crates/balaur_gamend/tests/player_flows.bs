@@ -156,7 +156,7 @@ async fn profile(r: Run, me: str) {
     // A token the server will not take heals: a call refreshes on its 401,
     // and a socket renews a token it cannot read before connecting.
     let stale = kept_session();
-    stale.set("access_token", "stale");
+    stale["access_token"] = "stale";
     gamend::restore(stale);
     await call0(r, "healed", users::get_current_user);
     let token = access_token();
@@ -611,11 +611,11 @@ async fn as_b(r: Run, name: str, method: str, path: str, payload: any) -> any {
 async fn send(r: Run, name: str, token: str, method: str, path: str, payload: any) -> any {
     let headers: any = { "content-type": "application/json" };
     if token != "" {
-        headers.set("authorization", "Bearer " + token);
+        headers["authorization"] = "Bearer " + token;
     }
     let opts: any = { "method": method, "headers": headers };
     if !payload.is_nil() {
-        opts.set("body", json::encode(payload));
+        opts["body"] = json::encode(payload);
     }
     let reply = await task::wait(http::request(URL + path, opts));
     let tries = 0;

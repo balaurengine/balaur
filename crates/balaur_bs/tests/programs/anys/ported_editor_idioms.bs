@@ -7,7 +7,7 @@ fn none(a: any) -> any { nil }
 pub fn run(a: any) -> str {
     let b = Box2 { size: [] };
     let v = vec3(1.0, 2.0, 3.0);
-    a.name = "elf";
+    a["name"] = "elf";
     a["hp"] = 7;
     let o: str? = if a.has("name") { a["name"] } else { nil };
     let log = 0;

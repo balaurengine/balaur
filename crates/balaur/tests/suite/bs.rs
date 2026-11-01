@@ -1099,7 +1099,7 @@ impl Check {
         let cells = util::cells([\"a\", \"b\"]);
         let table: any = { \"b\": 1, \"a\": 2 };
         let copy = util::deep(table);
-        copy.set(\"c\", 3);
+        copy[\"c\"] = 3;
         self.said = \"{util::property_label(\\\"edge_radius\\\")}|{util::property_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::distance([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on({}, \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
     }
 }

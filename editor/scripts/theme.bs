@@ -130,16 +130,16 @@ pub fn merge(base: any, over: any) -> any {
     let out: any = {};
     for key in base.keys() {
         let value = base[key];
-        out.set(key, value);
+        out[key] = value;
     }
     for key in over.keys() {
         let value = over[key];
         let nested = value.kind() == "map" && out.has(key) && out[key].kind() == "map";
         if nested {
             let below = out[key];
-            out.set(key, merge(below, value));
+            out[key] = merge(below, value);
         } else {
-            out.set(key, value);
+            out[key] = value;
         }
     }
     out
@@ -156,10 +156,10 @@ pub fn diff(base: any, doc: any) -> any {
             let below: any = if had && base[key].kind() == "map" { base[key] } else { {} };
             let inner = diff(below, value);
             if inner.len() > 0 {
-                out.set(key, inner);
+                out[key] = inner;
             }
         } else if !had || !same(base[key], value) {
-            out.set(key, value);
+            out[key] = value;
         }
     }
     out
@@ -221,7 +221,7 @@ pub fn flat(name: str, half: str, doc: any) -> any {
     let colors = done["colors"];
     for key in colors.keys() {
         let value = colors[key];
-        flattened.set(key, value);
+        flattened[key] = value;
     }
     flattened
 }
@@ -266,24 +266,24 @@ fn worn(tokens: any) -> any {
     let own = tokens["doc"];
     for key in own.keys() {
         let value = own[key];
-        doc.set(key, value);
+        doc[key] = value;
     }
     let colors: any = {};
     let own_colors = tokens["doc"]["colors"];
     let own_color_table = util::map_or_empty(if own_colors.is_nil() { {} } else { own_colors });
     for key in own_color_table.keys() {
         let value = own_color_table[key];
-        colors.set(key, value);
+        colors[key] = value;
     }
     for pair in CODE_COLORS() {
         if !colors.has(pair[0]) {
             let token = tokens["colors"][pair[1]];
             if !token.is_nil() {
-                colors.set(pair[0], token);
+                colors[pair[0]] = token;
             }
         }
     }
-    doc.set("colors", colors);
+    doc["colors"] = colors;
     doc
 }
 

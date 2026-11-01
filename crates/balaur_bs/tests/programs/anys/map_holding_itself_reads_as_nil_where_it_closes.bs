@@ -4,8 +4,8 @@
 pub fn cyclic() -> any {
     let m: any = { "a": 1 };
     let l: any = [m];
-    m.set("me", m);
-    m.set("list", l);
+    m["me"] = m;
+    m["list"] = l;
     m
 }
 

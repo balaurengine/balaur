@@ -164,7 +164,7 @@ pub fn set_locked(state: &mut editor::State, row: int, locked: bool) {
         return;
     }
     if locked {
-        state.locks.set(id, true);
+        state.locks[id] = true;
     } else {
         state.locks.remove(id);
     }

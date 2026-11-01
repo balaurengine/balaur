@@ -2,7 +2,7 @@
 
 fn mark(doc: [any]) {
     for node in doc {
-        node.set("id", "x");
+        node["id"] = "x";
     }
 }
 pub fn marked() -> str {

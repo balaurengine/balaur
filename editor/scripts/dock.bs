@@ -501,7 +501,7 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
             picked = item;
         }
         if !is_directory {
-            cards.set(item, relative_path);
+            cards[item] = relative_path;
         }
         items.push(item);
         paths.push(relative_path);
@@ -802,9 +802,9 @@ pub fn timeline_clip(state: &mut editor::State, setting: str, value: any) {
     }
     history::record(state, "clip {setting.to_lower()}", "clip:{setting}");
     if setting == "Length" {
-        definition.set("length", util::max(0.1, value.as_float()));
+        definition["length"] = util::max(0.1, value.as_float());
     } else {
-        definition.set("loop_mode", value.as_str());
+        definition["loop_mode"] = value.as_str();
     }
     anim::touch(state);
 }

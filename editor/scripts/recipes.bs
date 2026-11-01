@@ -226,7 +226,7 @@ fn switch(node: any, parts: any) {
                 for key in carried() {
                     let value = held[key];
                     if !value.is_nil() && accepts.has(key) && !own.has(key) {
-                        own.set(key, value);
+                        own[key] = value;
                     }
                 }
                 take_off(node, other);
@@ -234,9 +234,9 @@ fn switch(node: any, parts: any) {
         }
         let parameters = util::map_or_empty(parts[component]);
         for key in parameters.keys() {
-            own.set(key, parameters[key]);
+            own[key] = parameters[key];
         }
-        node.set(component, own);
+        node[component] = own;
     }
     // A soft body collides as its own particles; a rigid shape beside it
     // would be a second body in the same place.
@@ -260,8 +260,8 @@ fn fit_collider(state: editor::State, node: any, component: str, parts: any) {
         return;
     }
     let own = util::map_or_empty(node[component]);
-    own.set("shape", shape);
-    node.set(component, own);
+    own["shape"] = shape;
+    node[component] = own;
 }
 
 fn fitted_2d(state: editor::State, node: any) -> any {
@@ -364,7 +364,7 @@ fn to_polygon(state: &mut editor::State, index: int) -> bool {
         "color": if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color },
     };
     node.remove("shape2d");
-    node.set("polygon", polygon);
+    node["polygon"] = polygon;
     model::write_row(found, node);
     selection::only(state, index);
     true
@@ -579,7 +579,7 @@ fn replace(node: any, gone: [str], parts: any) {
         if key.starts_with("-") {
             node.remove(key.slice(1, key.len()));
         } else {
-            node.set(key, parts[key]);
+            node[key] = parts[key];
         }
     }
 }
@@ -605,7 +605,7 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
         let body: any = { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": util::copy(mesh) };
         let parts: any = { "softbody2d": body };
         if mesh.kind() == "map" {
-            parts.set("soft_volumetric2d", { "cell_size": cell_size(mesh["positions"]) });
+            parts["soft_volumetric2d"] = { "cell_size": cell_size(mesh["positions"]) };
         }
         return parts;
     }

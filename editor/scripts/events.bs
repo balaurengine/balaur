@@ -82,7 +82,7 @@ fn set_field(state: &mut editor::State, at: int, key: str, value: str) {
     if value == "" && key != "value" {
         rows[at].remove(key);
     } else {
-        rows[at].set(key, value);
+        rows[at][key] = value;
     }
     write(state, rows, "edit binding");
 }
@@ -254,7 +254,7 @@ pub fn script_of(class_name: str, rows: any) -> str {
         let hook = HOOK_PREFIX + name;
         if !byhook.has(hook) {
             let none: [any] = [];
-            byhook.set(hook, none);
+            byhook[hook] = none;
         }
         byhook[hook].push(row);
     }

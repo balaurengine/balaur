@@ -53,7 +53,7 @@ fn roots(state: editor::State) -> [any] {
         let rel = model::script_rel(found);
         if !rel.is_nil() {
             if !seen.has(rel) {
-                seen.set(rel, true);
+                seen[rel] = true;
                 out.push(rel);
             }
         } else {
@@ -177,7 +177,7 @@ pub fn node_warnings(state: &mut editor::State) {
         if live.is_valid() {
             let found = util::list_or_empty(scene::warnings(live));
             if found.len() > 0 {
-                out.set(live.stable_id(), found);
+                out[live.stable_id()] = found;
             }
         }
     }

@@ -288,7 +288,7 @@ fn ensure_mesh(state: editor::State) -> any {
     }
     let edited_component = component(state, model::selected_node(state));
     let none: [any] = [];
-    edited_component.set("mesh", { "positions": none });
+    edited_component["mesh"] = { "positions": none };
     edited_component["mesh"]
 }
 
@@ -334,7 +334,7 @@ fn remove_at(mesh: any, at: int) {
         }
     }
     if at >= outline_count(mesh) {
-        mesh.set("internal", internal_count(mesh) - 1);
+        mesh["internal"] = internal_count(mesh) - 1;
     }
     let kept: [any] = [];
     for ring in util::list_or_empty(mesh["polygons"]) {
@@ -352,7 +352,7 @@ fn remove_at(mesh: any, at: int) {
         }
     }
     if kept.len() > 0 {
-        mesh.set("polygons", kept);
+        mesh["polygons"] = kept;
     } else {
         mesh.remove("polygons");
     }
@@ -374,7 +374,7 @@ pub fn add_vertex(state: &mut editor::State, world_x: float, world_y: float, int
     let at = if internal { mesh["positions"].len() } else { outline_count(mesh) };
     insert_vertex(state, mesh, at, local.x, local.y);
     if internal {
-        mesh.set("internal", internal_count(mesh) + 1);
+        mesh["internal"] = internal_count(mesh) + 1;
     }
     write(state);
     at
@@ -437,7 +437,7 @@ pub fn close_loop(state: &mut editor::State) {
     let mesh = mesh(state);
     if mesh["polygons"].kind() != "list" {
         let none: [any] = [];
-        mesh.set("polygons", none);
+        mesh["polygons"] = none;
     }
     mesh["polygons"].push(ring);
     state.polygon.chain = nil;
@@ -467,7 +467,7 @@ fn ensure_uvs(state: &mut editor::State, mesh: any) -> any {
         let local = xy(point);
         made.push(default_uv(state, local[0], local[1]));
     }
-    mesh.set("uvs", made);
+    mesh["uvs"] = made;
     mesh["uvs"]
 }
 
@@ -520,7 +520,7 @@ pub fn sync_bones(state: &mut editor::State) {
     }
     let had: any = {};
     for bone in bone_list(mesh) {
-        had.set(bone["path"].as_str(), util::list_or_empty(bone["weights"]));
+        had[bone["path"].as_str()] = util::list_or_empty(bone["weights"]);
     }
     let count = mesh["positions"].len();
     let bones: [any] = [];
@@ -534,7 +534,7 @@ pub fn sync_bones(state: &mut editor::State) {
         }
         bones.push({ "path": path, "weights": weights });
     }
-    mesh.set("skin", { "bones": bones });
+    mesh["skin"] = { "bones": bones };
     state.polygon.bone = if bones.len() > 0 { 0 } else { nil };
     signals::inspector(state);
     write(state);
@@ -560,7 +560,7 @@ pub fn paint(state: &mut editor::State, at: int, amount: float) {
     begin(state, "paint weights", "poly:paint:{state.selected}");
     if bone["weights"].kind() != "list" {
         let none: [float] = [];
-        bone.set("weights", none);
+        bone["weights"] = none;
     }
     let weights = bone["weights"];
     while weights.len() <= at {
@@ -722,7 +722,7 @@ fn mirror_weights(mesh: any) {
     let bones = bone_list(mesh);
     let by_path: any = {};
     for index in 0..bones.len() {
-        by_path.set(bones[index]["path"].as_str(), index);
+        by_path[bones[index]["path"].as_str()] = index;
     }
     let taken: [any] = [];
     for bone in bones {
@@ -733,7 +733,7 @@ fn mirror_weights(mesh: any) {
         if other.is_some() {
             let from = by_path[other.unwrap()];
             if !from.is_nil() {
-                bone.set("weights", taken[from.as_int()]);
+                bone["weights"] = taken[from.as_int()];
             }
         }
     }
@@ -774,13 +774,13 @@ pub fn trace(state: &mut editor::State) {
     for point in loops[0] {
         points.push([point.x, point.y]);
     }
-    mesh.set("positions", points);
+    mesh["positions"] = points;
     // The old UVs, weights and drawn polygons indexed vertices that are gone;
     // a trace is a new shape, not an edit of the one that was there.
     mesh.remove("uvs");
     mesh.remove("polygons");
     mesh.remove("skin");
-    mesh.set("internal", 0);
+    mesh["internal"] = 0;
     state.polygon.picked = [];
     state.polygon.bone = nil;
     signals::inspector(state);

@@ -255,15 +255,15 @@ pub fn fill_rail(state: editor::State) {
 fn rail_mark(state: editor::State, mark: str, diameter: float) -> any {
     let round: any = { "kind": "button", "role": "icon_action", "text": "", "width": diameter, "height": diameter, "padding": 0, "corner_radius": diameter / 2.0 };
     if mark == "restore" {
-        round.set("icon", icons::ui("restore"));
-        round.set("tooltip", "Show the tools");
+        round["icon"] = icons::ui("restore");
+        round["tooltip"] = "Show the tools";
     } else if mark == "collapse" {
-        round.set("icon", icons::ui("collapse"));
-        round.set("tooltip", "Hide the tools");
+        round["icon"] = icons::ui("collapse");
+        round["tooltip"] = "Hide the tools";
     } else {
-        round.set("icon", defs::tool_icon(mark));
-        round.set("tooltip", defs::tool_name(mark));
-        round.set("checked", state.tool == mark);
+        round["icon"] = defs::tool_icon(mark);
+        round["tooltip"] = defs::tool_name(mark);
+        round["checked"] = state.tool == mark;
     }
     pool::on(round, rail_marked, { "mark": mark })
 }
@@ -400,14 +400,14 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
 
 fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near: bool) -> any {
     if !state.chip_state.has(state.workspace) {
-        state.chip_state.set(state.workspace, {});
+        state.chip_state[state.workspace] = {};
     }
     let chips = state.chip_state[state.workspace];
     // Engine-backed chips (no declared default, see defs::chips) read their
     // value back from the engine; the rest live in `chip_state`.
     let live = shell::chip_value(state, state.workspace, key);
     if live.is_none() && !chips.has(key) {
-        chips.set(key, default_on.is_some() && default_on.unwrap());
+        chips[key] = default_on.is_some() && default_on.unwrap();
     }
     let on = if live.is_some() { live.unwrap() } else { chips[key].as_bool() };
     let button: any = {
@@ -424,7 +424,7 @@ fn chip_pressed(state: &mut editor::State, data: any, _value: any) {
     let key = data["key"].as_str();
     let now = !data["on"].as_bool();
     if !data["live"].as_bool() {
-        state.chip_state[workspace].set(key, now);
+        state.chip_state[workspace][key] = now;
     }
     shell::on_chip(state, workspace, key, now);
     signals::bars(state);
@@ -516,7 +516,7 @@ fn bookmark(state: &mut editor::State, key: str) {
         let target_x = camera[3];
         let target_y = camera[4];
         let target_z = camera[5];
-        state.bookmarks.set(key, [eye_x, eye_y, eye_z, target_x, target_y, target_z]);
+        state.bookmarks[key] = [eye_x, eye_y, eye_z, target_x, target_y, target_z];
         log::info("stored view " + key);
         signals::bars(state);
         return;
@@ -683,8 +683,8 @@ pub fn code_typed(state: &mut editor::State, text: str) {
         return;
     }
     let path = state.game_root + "/" + file.relative_path;
-    state.script_buffers.set(path, text);
-    state.script_dirty.set(path, engine::unix_time());
+    state.script_buffers[path] = text;
+    state.script_dirty[path] = engine::unix_time();
     lint::touched(state);
     signals::bars(state);
     if !file.shading && read_hooks(state, file.relative_path, text) {

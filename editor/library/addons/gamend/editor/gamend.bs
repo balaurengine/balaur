@@ -269,7 +269,7 @@ impl Gamend {
             out.push(field("status", one["status"].as_str() + " · " + one["size"].as_str(), {}));
             let picked = url == current;
             let pick = button(self.node, if picked { "This project's server" } else { "Use for this project" }, "cloud_pick", { "url": url });
-            pick.set("checked", picked);
+            pick["checked"] = picked;
             out.push(buttons([pick]));
         }
         out.push(buttons([
@@ -321,11 +321,11 @@ impl Gamend {
         let headers: any = { "content-type": "application/json", "accept": "application/json" };
         let token = cloud_token();
         if token != "" {
-            headers.set("authorization", "Bearer " + token);
+            headers["authorization"] = "Bearer " + token;
         }
         let opts: any = { "method": method, "headers": headers, "timeout_seconds": seconds };
         if !body.is_nil() {
-            opts.set("body", body);
+            opts["body"] = body;
         }
         let asked = http::request(self.node, cloud_url() + path, opts);
         self.cloud_asked[kind] = asked;
@@ -451,7 +451,7 @@ impl Gamend {
         let chips: [any] = [];
         for name in ["all", "calls", "messages", "errors"] {
             let chip = button(self.node, name, "filter_by", { "filter": name });
-            chip.set("checked", self.filter == name);
+            chip["checked"] = self.filter == name;
             chips.push(chip);
         }
         chips.push(button(self.node, "Clear", "clear_activity", {}));
@@ -479,8 +479,8 @@ impl Gamend {
         let mark = if open { "▾" } else { "▸" };
         let role = if failed(row) { FAILED } else if row.kind == "message" { QUIET } else { MUTED };
         let what = label(row.what + "  " + row.status + "  " + took, role);
-        what.set("grow", 1);
-        what.set("truncate", true);
+        what["grow"] = 1;
+        what["truncate"] = true;
         out.push(buttons([button(self.node, mark + " " + row.kind, "toggle_row", { "key": key }), what]));
         if open {
             let both: any = { "args": row.args, "reply": row.reply };
@@ -713,15 +713,15 @@ fn header(to: Node) -> [any] {
         let at = if name == "production" { target.production } else { target.local };
         let on = target.name == name && url == at;
         let pick = button(to, name + " · " + host_of(at), "pick_server", { "server": name });
-        pick.set("checked", on);
-        pick.set("tooltip", at);
+        pick["checked"] = on;
+        pick["tooltip"] = at;
         out.push(pick);
     }
     let site = button(to, "Open", "open_site", { "url": url });
-    site.set("tooltip", url);
+    site["tooltip"] = url;
     out.push(site);
     let admin = button(to, "Admin", "open_site", { "url": url + "/admin" });
-    admin.set("tooltip", url + "/admin");
+    admin["tooltip"] = url + "/admin";
     out.push(admin);
     out
 }
@@ -741,8 +741,8 @@ fn status_line() -> any {
     }
     let sockets = if open > 0 { "socket open, {topics} topics" } else { "no socket open" };
     let line = label(who + "  ·  " + sockets, if signed { SIGNED_IN } else { MUTED });
-    line.set("grow", 1);
-    line.set("truncate", true);
+    line["grow"] = 1;
+    line["truncate"] = true;
     line
 }
 
@@ -778,7 +778,7 @@ fn newest_messages() -> any {
         let parts = row.what.split(" ");
         let topic = parts[0];
         if !out.has(topic) {
-            out.set(topic, row.seq);
+            out[topic] = row.seq;
         }
     }
     out
@@ -974,8 +974,8 @@ fn label(text: str, role: str) -> any {
 /// A line of text across the dock, wrapped.
 fn line(text: str, role: str) -> any {
     let words = label(text, role);
-    words.set("grow", 1);
-    words.set("wrap", true);
+    words["grow"] = 1;
+    words["wrap"] = true;
     { "full": true, "height": 0, "controls": [words] }
 }
 
@@ -999,10 +999,10 @@ fn button(to: Node, text: str, method: str, data: any) -> any {
 fn relayed(data: any, to: Node, method: str) -> any {
     let out: any = {};
     for key in data.keys() {
-        out.set(key, data[key]);
+        out[key] = data[key];
     }
-    out.set("to", to);
-    out.set("method", method);
+    out["to"] = to;
+    out["method"] = method;
     out
 }
 

@@ -131,7 +131,7 @@ fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
     }
     let parameters: any = { "mesh": source };
     for key in properties.keys() {
-        parameters.set(key, properties[key]);
+        parameters[key] = properties[key];
     }
     parameters
 }

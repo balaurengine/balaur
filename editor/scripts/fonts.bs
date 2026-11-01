@@ -72,7 +72,7 @@ fn installed_faces(state: &mut editor::State) -> any {
     if state.system_fonts.is_nil() {
         let found: any = {};
         for face in project::system_fonts() {
-            found.set("{face.family} {face.style} · system", face.path);
+            found["{face.family} {face.style} · system"] = face.path;
         }
         state.system_fonts = found;
     }
@@ -129,7 +129,7 @@ fn waiting_on(state: editor::State, purpose: str) -> bool {
 /// One request to Forge, its answer kept for `on_response` by its id.
 fn ask(state: &mut editor::State, url: str, waiting: Waiting, options: any) {
     let id = http::request(scene::get_node("Editor"), url, options);
-    state.font_requests.set("{id}", waiting);
+    state.font_requests["{id}"] = waiting;
 }
 
 /// Fill the picker with the families matching what is typed.

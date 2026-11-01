@@ -58,7 +58,7 @@ impl Game {
         self.capture(self.root, nil);
         for entry in self.level {
             if entry.owner.starts_with("Pig") && entry.name == entry.owner {
-                self.pigs.set(entry.owner, true);
+                self.pigs[entry.owner] = true;
             }
         }
         self.bird = self.root.get_node("Bird");
@@ -90,7 +90,7 @@ impl Game {
         }
         let w = node.get_component("widget");
         if w.kind() == "map" {
-            w.set("text", text);
+            w["text"] = text;
             node.set_component("widget", w);
         }
     }
@@ -122,7 +122,7 @@ impl Game {
                 node.set_component("collider2d", entry.collider2d);
             }
             if entry.name.starts_with("Pig") {
-                self.pigs.set(entry.name, true);
+                self.pigs[entry.name] = true;
             }
         }
         self.score = 0;
@@ -215,7 +215,7 @@ impl Game {
             }
             let pig = self.root.get_node(name);
             if !pig.is_valid() {
-                self.pigs.set(name, false);
+                self.pigs[name] = false;
                 continue;
             }
             let p = pig.transform.position;
@@ -226,7 +226,7 @@ impl Game {
                         pop(entry);
                     }
                 }
-                self.pigs.set(name, false);
+                self.pigs[name] = false;
                 self.score += 500;
                 self.set_widget_text("Score", "Score {self.score}");
                 log::info("{name} popped (impulse {tenths(impulse)})");

@@ -41,16 +41,16 @@ pub fn built() -> any {
 pub fn shared() -> str {
     let a: any = {};
     let b = a;
-    a.set("hp", 10);
-    b.set("hp", 12);
-    b.set("name", "imp");
+    a["hp"] = 10;
+    b["hp"] = 12;
+    b["name"] = "imp";
     let l: [any] = [];
     let list: any = l;
     for i in 0..9 {
         list.push(i);
     }
-    a.set("list", list);
-    let changed = nil().set("x", 1) || a.push(1) || list.set("x", 1);
+    a["list"] = list;
+    let changed = a.push(1);
     "{a.text()} {list.len()} {changed}"
 }
 

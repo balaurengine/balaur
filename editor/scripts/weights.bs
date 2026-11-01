@@ -57,7 +57,7 @@ fn weight_of(bone: any, at: int) -> float {
 fn set_weight(bone: any, at: int, value: float) {
     if bone["weights"].kind() != "list" {
         let none: [float] = [];
-        bone.set("weights", none);
+        bone["weights"] = none;
     }
     let weights = bone["weights"];
     while weights.len() <= at {
@@ -251,7 +251,7 @@ fn join(out: any, first: int, second: int) {
         let key = "{pair[0]}";
         if out[key].kind() != "list" {
             let none: [int] = [];
-            out.set(key, none);
+            out[key] = none;
         }
         let ring = out[key];
         let seen = false;

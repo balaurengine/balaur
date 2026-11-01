@@ -197,7 +197,7 @@ fn over_ui(sequence: Sequence, from: int, to: int, run: fn(&mut editor::State, a
 // One of `verb`'s verbs as an act, with what else it reads.
 fn act_verb(sequence: Sequence, frame: int, name: str, data: any) {
     let carried = util::copy(data);
-    carried.set("verb", name);
+    carried["verb"] = name;
     act(sequence, frame, verb, carried);
 }
 
@@ -234,9 +234,9 @@ fn gliding(state: &mut editor::State, segment: any, progress: float) {
         // Nothing has placed the pointer yet: start at the target rather
         // than sweeping in from the window's corner.
         let unplaced = was[0] == 0.0 && was[1] == 0.0;
-        segment.set("ready", true);
-        segment.set("from", if unplaced { target } else { was });
-        segment.set("to", target);
+        segment["ready"] = true;
+        segment["from"] = if unplaced { target } else { was };
+        segment["to"] = target;
     }
     let eased = ease(progress);
     feed_pointer(state, lerp(segment["from"][0].as_float(), segment["to"][0].as_float(), eased), lerp(segment["from"][1].as_float(), segment["to"][1].as_float(), eased));
@@ -511,9 +511,9 @@ fn line_of(state: &mut editor::State, rel: str, needle: str) -> int {
 // Change the open buffer the way typing would; `save_active` writes it.
 fn edit_source(state: &mut editor::State, rel: str, from: str, to: str) {
     let absolute_path = state.game_root + "/" + rel;
-    state.script_buffers.set(absolute_path, source_of(state, rel).replace(from, to));
+    state.script_buffers[absolute_path] = source_of(state, rel).replace(from, to);
     center::code_written(state);
-    state.script_dirty.set(absolute_path, true);
+    state.script_dirty[absolute_path] = true;
     lint::touched(state);
     signals::bars(state);
 }
@@ -523,7 +523,7 @@ fn restore_source(state: &mut editor::State, rel: str) {
     if original == "" {
         return;
     }
-    state.script_buffers.set(state.game_root + "/" + rel, original);
+    state.script_buffers[state.game_root + "/" + rel] = original;
     center::code_written(state);
     shell::save_active(state);
 }
@@ -564,7 +564,7 @@ fn verb(state: &mut editor::State, data: any) {
     } else if name == "zoom" {
         shell::set_zoom(state, data["to"].as_float());
     } else if name == "keep" {
-        state.showcase.unwrap().kept.set(data["rel"].as_str(), model::source(state, data["rel"].as_str()).as_str());
+        state.showcase.unwrap().kept[data["rel"].as_str()] = model::source(state, data["rel"].as_str()).as_str();
     } else if name == "edit" {
         edit_source(state, data["rel"].as_str(), data["from"].as_str(), data["to"].as_str());
     } else if name == "restore" {
@@ -793,7 +793,7 @@ fn completing(state: &mut editor::State, data: any, _progress: float) {
     }
     let joined = util::join(out, "\n");
     let index = util::join(head, "\n").chars().len() + 1 + text.chars().len();
-    state.script_buffers.set(state.game_root + "/" + rel, joined);
+    state.script_buffers[state.game_root + "/" + rel] = joined;
     let at = gutter_spot(state, line + 1);
     complete::update(state, rel, joined, complete::Caret {
         index: index,
@@ -981,7 +981,7 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", {});
     let put_back: any = { "verb": "theme_put_back", "prefs": preferences };
     if was.is_some() {
-        put_back.set("kept", was.unwrap());
+        put_back["kept"] = was.unwrap();
     }
     at(sequence, 1030, verb, put_back);
 }

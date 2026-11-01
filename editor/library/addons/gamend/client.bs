@@ -74,7 +74,7 @@ pub fn login_email(node: Node, email: str, password: str) -> int {
 pub fn register_email(node: Node, email: str, username: str) -> any {
     let account: any = { "email": email };
     if username != "" {
-        account.set("username", username);
+        account["username"] = username;
     }
     authentication::register(node, account)
 }
@@ -292,7 +292,7 @@ pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: a
         return Write { skipped: true, reply: HookReply { ok: true, data: nil(), error: "" } };
     }
     let held = writes();
-    held.set(key, sent);
+    held[key] = sent;
     script::store(WRITES_KEY, held);
     let reply = await call(socket, hook, args);
     if writes()[key].text() == sent {
@@ -320,7 +320,7 @@ pub fn sync_lobby_channel(socket: int, lobby_id: str) -> str {
 /// its own fetch, a hook rather than `kv`, keeps its answer with.
 pub fn keep_row(key: str, value: any) {
     let held = rows();
-    held.set(key, value);
+    held[key] = value;
     script::store(ROWS_KEY, held);
 }
 
@@ -409,7 +409,7 @@ fn dropped(table: any, key: str) -> any {
     let out: any = {};
     for name in table.keys() {
         if name != key {
-            out.set(name, table[name]);
+            out[name] = table[name];
         }
     }
     out

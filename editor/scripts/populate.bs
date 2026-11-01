@@ -377,7 +377,7 @@ pub fn apply(state: &mut editor::State) {
             state.populate.said = "Pick the surface to populate.";
             return;
         }
-        asked.set("surface", surface);
+        asked["surface"] = surface;
     }
     let instances = render::populate(found, asked);
     let wrote = write(state, node, name, instances);
@@ -403,7 +403,7 @@ fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> st
     let asked = util::map_or_empty(node.authored(name));
     if asked["source"].kind() == "map" {
         history::record(state, "Populate", nil);
-        asked["source"].set("instances", instances);
+        asked["source"]["instances"] = instances;
         node.set_component(name, asked);
         return "this node's asset";
     }
@@ -413,7 +413,7 @@ fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> st
         history::record(state, "Populate", nil);
         for block in util::list_or_empty(state.scene_doc["assets"]) {
             if block["id"].as_str() == id {
-                block.set("instances", instances);
+                block["instances"] = instances;
             }
         }
         state.assets_touched = true;
@@ -422,7 +422,7 @@ fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> st
         return source;
     }
     let definition = assets::duplicate(source);
-    definition.set("instances", instances);
+    definition["instances"] = instances;
     assets::save(source, definition);
     // The node reads its file again when it is given the same table.
     node.set_component(name, asked);

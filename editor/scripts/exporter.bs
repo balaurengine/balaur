@@ -48,21 +48,21 @@ pub fn report(state: &mut editor::State, event: any) {
         return;
     }
     let status: any = state.exporter.status;
-    status.set(target, kind);
+    status[target] = kind;
     let said: any = state.exporter.said;
     if kind == "done" {
         let exported_path = export_event["path"].as_str();
-        said.set(target, exported_path);
+        said[target] = exported_path;
         state.exporter.landed = exported_path;
         log::info("exported {target} -> {exported_path}");
         // A runtime that was downloaded on the way is installed now.
         refresh(state);
     } else if kind == "failed" {
         let why = export_event["message"].as_str();
-        said.set(target, why);
+        said[target] = why;
         log::warn("{target}: {why}");
     } else {
-        said.set(target, "");
+        said[target] = "";
     }
     window::changed(state);
 }
@@ -270,5 +270,5 @@ fn on_export_clicked(state: &mut editor::State, data: any, _value: any) {
         return;
     }
     let status_map: any = state.exporter.status;
-    status_map.set(name, "started");
+    status_map[name] = "started";
 }

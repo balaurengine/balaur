@@ -89,13 +89,12 @@ impl FnGen<'_> {
     // prelude's function that sets it.
     fn any_slot(&mut self, target: &Expr) -> R<Option<(Expr, Expr, &'static str)>> {
         let (base, key) = match &target.kind {
-            ExprKind::Field(b, f) => (
-                b,
-                Expr {
-                    kind: ExprKind::Str(f.clone()),
-                    pos: target.pos,
-                },
-            ),
+            ExprKind::Field(b, f) if self.type_of(b).ok() == Some(Ty::Any) => {
+                return err(
+                    target.pos,
+                    format!("an `any` has no fields: write the key as `[\"{f}\"] = ..`"),
+                );
+            }
             ExprKind::Index(b, k) => (b, (**k).clone()),
             ExprKind::Method(b, m, _) => {
                 self.dropped_form(b, m, target.pos)?;
@@ -108,9 +107,9 @@ impl FnGen<'_> {
         }
         // A whole number is a list's index; anything else is a map's key.
         let method = if self.type_of(&key)? == Ty::Int {
-            "put"
+            "#put"
         } else {
-            "set"
+            "#set"
         };
         Ok(Some(((**base).clone(), key, method)))
     }

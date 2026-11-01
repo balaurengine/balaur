@@ -96,7 +96,7 @@ fn open_rows(state: &mut editor::State) -> [any] {
         let id = found.stable_id();
         let parent = model::parent_id(state, found);
         let depth = if parent == "" { 0 } else { depth_of[parent].as_int() + 1 };
-        depth_of.set(id, depth);
+        depth_of[id] = depth;
         let has_kids = found.children().len() > 0;
         let is_last = model::is_scene_root(state, found) || found.sibling_index() == found.parent().children().len() - 1;
         rows.push({ "index": index, "depth": depth, "is_last": is_last, "has_kids": has_kids });

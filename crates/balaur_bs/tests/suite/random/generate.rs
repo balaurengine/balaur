@@ -317,17 +317,9 @@ impl Gen {
     /// that answers a bool.
     fn change(&mut self, r: E, s: &Scope, d: u32, answers: bool) -> E {
         let r = Box::new(r);
-        match self.rng.below(if answers { 4 } else { 5 }) {
-            0 => {
-                let k = self.key();
-                E::Method(r, "set", vec![k, self.fresh(s, d)])
-            }
-            1 => E::Method(r, "push", vec![self.fresh(s, d)]),
-            2 => {
-                let at = self.small(s, d);
-                E::Method(r, "put", vec![at, self.fresh(s, d)])
-            }
-            3 => {
+        match self.rng.below(if answers { 2 } else { 3 }) {
+            0 => E::Method(r, "push", vec![self.fresh(s, d)]),
+            1 => {
                 let at = self.small(s, d);
                 E::Method(r, "insert", vec![at, self.fresh(s, d)])
             }
@@ -738,10 +730,10 @@ impl Gen {
             }
             10 => {
                 if let Some(r) = self.any_place(s) {
-                    let target = match self.rng.below(3) {
-                        0 => E::Dot(Box::new(r), self.pick(&ANY_KEYS)),
-                        1 => E::Index(Box::new(r), Box::new(self.small(s, 2))),
-                        _ => E::Index(Box::new(r), Box::new(self.key())),
+                    let target = if self.rng.chance(2) {
+                        E::Index(Box::new(r), Box::new(self.small(s, 2)))
+                    } else {
+                        E::Index(Box::new(r), Box::new(self.key()))
                     };
                     out.push(S::Put(target, self.fresh(s, 2)));
                 }
@@ -851,12 +843,8 @@ impl Gen {
                     E::Var(r)
                 }
                 _ => {
-                    let set = E::Method(
-                        Box::new(E::Var(r.clone())),
-                        "set",
-                        vec![E::Str("c".into()), sum],
-                    );
-                    body.push(S::Do(set));
+                    let key = E::Index(Box::new(E::Var(r.clone())), Box::new(E::Str("c".into())));
+                    body.push(S::Put(key, sum));
                     E::Var(r)
                 }
             }

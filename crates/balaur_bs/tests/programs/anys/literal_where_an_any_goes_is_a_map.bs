@@ -11,7 +11,7 @@ pub fn built() -> str {
     let empty: any = {};
     let rows: [any] = [spec("one"), { "name": "two", "open": true }];
     rows.push({ "nested": { "deep": 1 } });
-    empty.set("late", 3);
+    empty["late"] = 3;
     "{rows} {empty} {rows[0]["tags"].len()} {rows[2]["nested"]["deep"]}"
 }
 

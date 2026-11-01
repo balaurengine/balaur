@@ -207,7 +207,7 @@ fn copy(shape: any) -> any {
     let out: any = {};
     for key in ["kind", "radius", "height", "size"] {
         if shape.has(key) {
-            out.set(key, shape[key]);
+            out[key] = shape[key];
         }
     }
     out

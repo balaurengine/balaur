@@ -3,15 +3,15 @@ pub fn edited() -> str {
     let l = doc["xs"];
     let held = l;
     l[1] = "two";
-    let put = l.put(0, 10);
-    let past = l.put(3, 4);
+    l[0] = 10;
+    l[3] = 4;
     let mid = l.insert(1, 1.5);
     let end = l.insert(4, "end");
     let beyond = l.insert(9, 0);
     let cell: any = { "n": 0 };
     let first = cell["n"].insert(0, 1);
-    "{held} {put} {past} {mid} {end} {beyond} {first}"
+    "{held} {mid} {end} {beyond} {first}"
 }
 
-// expect: edited() == "[10, 1.5, \"two\", 3, \"end\"] true false true true false false"
+// expect: edited() == "[10, 1.5, \"two\", 3, \"end\"] true true false false"
 // live: 0
