@@ -23,9 +23,8 @@ parent = "n_editor"
 kind = "column"
 interactive = false
 layer = "shell"
-# What a notch or a home bar covers is not the shell's to draw in. Anchored
-# `fill`, the engine sizes and places it, insets and all; nothing patches it.
-safe_area = ["left", "top", "right", "bottom"]
+# Anchored `fill`, the engine sizes and places it, insets and all; nothing
+# patches it.
 anchor = "fill"
 role = "layout_shell"
 
@@ -39,7 +38,6 @@ parent = "shell"
 script = { source = "scripts/panels/topbar.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 # The bar's own row is 30, and this sheet keeps 5 inside each edge: the one
 # strip that is chrome from edge to edge takes less than a panel would.
 height = 40
@@ -126,7 +124,6 @@ parent = "left"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 grow = 1
 # What a sheet keeps inside its edge. Stated rather than left to the widget
 # theme because a folded dock writes a smaller one and needs this back.
@@ -235,7 +232,6 @@ parent = "right"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 grow = 1
 padding = 8
 
@@ -336,7 +332,6 @@ parent = "railtop"
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 visible = false
 
 [[nodes]]
@@ -346,7 +341,6 @@ parent = "rail_handle"
 [nodes.widget]
 kind = "button"
 role = "icon_action"
-text = ""
 padding = 0
 
 # The rail is only as tall as its tools, so it takes the top of the slot
@@ -358,7 +352,6 @@ parent = "railslot"
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 height = 42
 
 # The scene and the dock, stacked beside the rail.
@@ -397,7 +390,6 @@ parent = "centre"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 height = 174
 gap = [0, 0]
 
@@ -625,7 +617,6 @@ script = { source = "scripts/panels/events.bs" }
 kind = "panel"
 role = "sheet_doc"
 # A `panel` draws its caption, and the default one is the word "label".
-text = ""
 visible = false
 grow = 1
 
@@ -666,7 +657,6 @@ script = { source = "scripts/panels/hooks.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 width = 172
 padding = [12, 0, 12, 0]
 gap = [0, 6]
@@ -710,7 +700,6 @@ script = { source = "scripts/panels/manager.bs" }
 kind = "column"
 layer = "shell"
 anchor = "fill"
-safe_area = ["left", "top", "right", "bottom"]
 role = "sheet_manager"
 align_items = "center"
 visible = false
@@ -753,7 +742,6 @@ kind = "label"
 role = "text_code_quiet"
 font_size = 11
 wrap = true
-text = ""
 visible = false
 
 [[nodes]]
@@ -785,7 +773,6 @@ parent = "manager_tools"
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
-text = ""
 grow = 1
 min_width = 240
 [nodes.widget_field]
@@ -839,7 +826,6 @@ kind = "dialog"
 layer = "shell"
 role = "sheet_picker"
 # A `dialog` draws its caption, and the default one is the word "label".
-text = ""
 anchor = "center_top"
 y = 96
 open = false
@@ -883,7 +869,6 @@ kind = "dialog"
 layer = "shell"
 role = "sheet_dialog"
 # A `dialog` draws its caption, and the default one is the word "label".
-text = ""
 open = false
 
 [[nodes]]
@@ -969,7 +954,6 @@ name = "FontSheet"
 parent = "n_editor"
 [nodes.widget]
 kind = "panel"
-text = ""
 role = "sheet"
 anchor = "top_left"
 layer = "shell"
@@ -984,7 +968,6 @@ name = "Marquee"
 parent = "n_editor"
 [nodes.widget]
 kind = "panel"
-text = ""
 anchor = "top_left"
 layer = "shell"
 fill = "none"

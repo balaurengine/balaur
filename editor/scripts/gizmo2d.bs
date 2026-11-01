@@ -412,7 +412,7 @@ fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, 
         anchor: [0.0, 0.0],
         angle: geometry.angle,
         half_extents: [geometry.half_extents[0], geometry.half_extents[1]],
-        start_angle: math::atan((world_y - geometry.center[1]).as_float(), world_x - geometry.center[0]),
+        start_angle: math::atan2((world_y - geometry.center[1]).as_float(), world_x - geometry.center[0]),
     };
     if part.kind == "handle" {
         // The opposite corner/edge stays fixed in world space.
@@ -431,7 +431,7 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
         let delta = [world_x - drag.mouse[0], world_y - drag.mouse[1], 0.0];
         selection::move_by(state, drag.set, delta, viewport::snapping(state));
     } else if drag.part.kind == "ring" {
-        let current_angle = math::atan((world_y - drag.center[1]).as_float(), world_x - drag.center[0]);
+        let current_angle = math::atan2((world_y - drag.center[1]).as_float(), world_x - drag.center[0]);
         selection::rotate_by(state, drag.set, 2, current_angle - drag.start_angle, pivot);
     } else if drag.part.kind == "handle" {
         // steadyum drive_single_drag: per-axis factor from the cursor's

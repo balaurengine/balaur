@@ -15,7 +15,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 anchor = "center"
 x = 0
 y = 0
@@ -191,7 +190,6 @@ name = "canvas_menu"
 parent = "sheet"
 [nodes.widget]
 kind = "menu"
-text = ""
 visible = false
 
 [[nodes]]
@@ -222,7 +220,6 @@ name = "Canvas"
 parent = "sheet"
 [nodes.widget]
 kind = "panel"
-text = ""
 grow = 1
 padding = 16
 gap = [6, 6]
@@ -257,7 +254,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "toast"
-text = ""
 anchor = "top_right"
 x = 18
 y = 18

@@ -18,7 +18,6 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 grow = 1
-text = ""
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
 
@@ -32,5 +31,4 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 visible = false

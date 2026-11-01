@@ -949,8 +949,8 @@ fn apply_gizmo_drag(state: &mut editor::State, camera: Camera, pointer_x: float,
         // Screen-angle delta around the projected center, applied about the
         // node's LOCAL axis (the rings rotate with the object), signed by
         // whether that axis points toward the camera.
-        let start_angle = math::atan((drag.mouse[1] - drag.center[1]).as_float(), drag.mouse[0] - drag.center[0]);
-        let current_angle = math::atan(pointer_y - drag.center[1].as_float(), pointer_x - drag.center[0].as_float());
+        let start_angle = math::atan2((drag.mouse[1] - drag.center[1]).as_float(), drag.mouse[0] - drag.center[0]);
+        let current_angle = math::atan2(pointer_y - drag.center[1].as_float(), pointer_x - drag.center[0].as_float());
         let axis_direction = drag.basis[drag.part.axis.or(0)];
         let toward = util::vector_dot(axis_direction, util::vector_subtract(camera.eye, drag.world_center));
         let delta = (current_angle - start_angle) * (if toward.as_float() >= 0.0 { -1.0 } else { 1.0 });

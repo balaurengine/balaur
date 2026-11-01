@@ -19,7 +19,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 # Centred and hugging: the sheet is as tall as what is in it, which is what
 # a gallery wants and what a root with no `fill` anchor does.
 anchor = "center"
@@ -576,7 +575,6 @@ name = "Ripple"
 parent = "n_screen"
 [nodes.widget]
 kind = "panel"
-text = ""
 anchor = "top_left"
 x = 0
 y = 0

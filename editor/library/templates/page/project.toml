@@ -8,9 +8,8 @@ main_scene = "scenes/main.toml"
 width = "{{width}}"
 height = "{{height}}"
 
-# What an export re-encodes on the way into the pack. Every one is off, so a
-# build ships the bytes you gave it.
+# What an export re-encodes on the way into the pack, kept only where it comes
+# out smaller. Images go to lossless WebP and uncompressed audio to FLAC with no
+# row here.
 [export]
-image_recode = "original"
 font_recode = "original"
-audio_recode = "original"

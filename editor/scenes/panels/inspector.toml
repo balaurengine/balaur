@@ -32,7 +32,6 @@ parent = "head"
 [nodes.widget]
 kind = "button"
 role = "text_title"
-text = ""
 interactive = false
 
 [[nodes]]
@@ -42,7 +41,6 @@ parent = "head"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
-text = ""
 truncate = true
 
 [[nodes]]
@@ -52,7 +50,6 @@ parent = "panel"
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
-text = ""
 [nodes.widget_field]
 placeholder = "Search"
 

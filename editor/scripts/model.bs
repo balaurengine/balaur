@@ -1558,9 +1558,6 @@ fn restore_keys(found: Node, was: any) {
     if found.process() != was.process.as_str() {
         found.set_process(was.process.as_str());
     }
-    if !was.interpolate.is_nil() {
-        found.set_interpolate(was.interpolate.as_bool());
-    }
     let tags = util::list_or_empty(was.tags);
     for tag in found.tags() {
         if !util::contains(tags, tag) {

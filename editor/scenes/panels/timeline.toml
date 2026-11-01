@@ -33,7 +33,6 @@ parent = "missing"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
-text = ""
 
 [[nodes]]
 id = "create"
@@ -124,7 +123,6 @@ parent = "head"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 [[nodes]]
 id = "time"
@@ -134,7 +132,6 @@ parent = "head"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 # The ticks along the top, placed by time.
 [[nodes]]

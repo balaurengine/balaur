@@ -1567,7 +1567,7 @@ fn on_text_edited(state: &mut editor::State, data: any, text: any) {
     write_at(state, at, text);
 }
 
-// A `readonly` property is engine output (widget.clicked): a write here would
+// A `readonly` property is engine output: a write here would
 // be overwritten next frame, so it renders as a plain value with nothing to
 // focus.
 fn readonly_text(spec: any, value: any) -> str {

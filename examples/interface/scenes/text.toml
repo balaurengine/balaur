@@ -14,7 +14,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 anchor = "center"
 x = 0
 y = 0
@@ -114,7 +113,6 @@ name = "Note"
 parent = "typing"
 [nodes.widget]
 kind = "text_field"
-text = ""
 width = 260
 height = 26
 [nodes.widget_field]

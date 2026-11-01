@@ -73,7 +73,6 @@ parent = "head"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 [[nodes]]
 id = "parted"
@@ -82,7 +81,6 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_caption_primary"
-text = ""
 padding = [8, 0, 8, 0]
 visible = false
 

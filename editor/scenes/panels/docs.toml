@@ -29,7 +29,6 @@ parent = "tools"
 [nodes.widget]
 kind = "dropdown"
 role = "choice"
-text = ""
 options = []
 width = 150
 
@@ -40,7 +39,6 @@ parent = "tools"
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
-text = ""
 width = 150
 [nodes.widget_field]
 placeholder = "Search"
@@ -52,7 +50,6 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 grow = 1
-text = ""
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
 
@@ -63,5 +60,4 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 visible = false

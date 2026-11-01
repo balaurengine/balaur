@@ -50,7 +50,6 @@ parent = "tools"
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
-text = ""
 width = 180
 visible = false
 [nodes.widget_field]
@@ -72,7 +71,6 @@ parent = "tools"
 [nodes.widget]
 kind = "label"
 role = "text_caption"
-text = ""
 
 # One button, two jobs: an import to start, or the one running to stop.
 [[nodes]]
@@ -169,7 +167,6 @@ parent = "tools"
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
-text = ""
 width = 140
 [nodes.widget_field]
 placeholder = "Search"
@@ -182,7 +179,6 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 grow = 1
-text = ""
 grid_columns = "repeat(6, 1fr)"
 [nodes.widget_list]
 draggable = true

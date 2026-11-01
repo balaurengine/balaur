@@ -19,7 +19,6 @@ name = "Safe"
 parent = "chrome"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 inset = [34.0, 34.0, 34.0, 34.0]
 fill = "none"
@@ -34,7 +33,6 @@ name = "Resolution"
 parent = "chrome"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "border_default"
@@ -75,7 +73,6 @@ parent = "chrome"
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 absolute = true
 inset = [0.0, 0.0, -1.0, -1.0]
 visible = false
@@ -87,7 +84,6 @@ parent = "left"
 [nodes.widget]
 kind = "button"
 role = "icon_action"
-text = ""
 padding = 0
 
 [[nodes]]
@@ -97,7 +93,6 @@ parent = "chrome"
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 absolute = true
 inset = [-1.0, 0.0, 0.0, -1.0]
 visible = false
@@ -109,5 +104,4 @@ parent = "right"
 [nodes.widget]
 kind = "button"
 role = "icon_action"
-text = ""
 padding = 0

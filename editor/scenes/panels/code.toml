@@ -8,7 +8,6 @@ name = "Code"
 script = { source = "scripts/panels/code.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 inset = [0.0, 0.0, 0.0, 0.0]
 fill = "bg_control"
@@ -24,7 +23,6 @@ parent = "code"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 visible = false
 
 [[nodes]]
@@ -42,7 +40,6 @@ name = "Editor"
 parent = "scroll"
 [nodes.widget]
 kind = "code"
-text = ""
 font_size = 13
 [nodes.widget_code]
 gutter_width = 34

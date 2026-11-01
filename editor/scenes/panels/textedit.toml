@@ -8,7 +8,6 @@ script = { source = "scripts/panels/textedit.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 anchor = "top_left"
 padding = [8, 4, 8, 4]
 layer = "shell"
@@ -21,4 +20,3 @@ parent = "textedit"
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
-text = ""

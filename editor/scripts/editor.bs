@@ -573,9 +573,6 @@ pub fn boot(state: &mut State, editor: Node, listen: bool) {
     state.touchscreen = engine::target().touchscreen;
     signals::inspector(state);
     shell::set_ui_scale(state, shell::scale_for_screen(state));
-    // The shell redraws when something asks, not every frame: on the web the
-    // pass is most of the frame, and nothing in it moves untouched.
-    ui::set_lazy(true);
     render::set_grid(true, 1.0, 5, 20);
     shell::apply_camera(state);
     log::info("editing {state.game_name} ({state.nodes.len()} nodes)");

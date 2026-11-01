@@ -32,7 +32,6 @@ name = "Wash0"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
@@ -45,7 +44,6 @@ name = "Ring0"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
@@ -59,7 +57,6 @@ name = "Wash1"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
@@ -72,7 +69,6 @@ name = "Ring1"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
@@ -86,7 +82,6 @@ name = "Wash2"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
@@ -99,7 +94,6 @@ name = "Ring2"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
@@ -113,7 +107,6 @@ name = "Wash3"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
@@ -126,7 +119,6 @@ name = "Ring3"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
@@ -141,7 +133,6 @@ name = "Press"
 parent = "view"
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 width = 22
 height = 22

@@ -9,7 +9,6 @@ script = { source = "scripts/panels/complete.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 anchor = "top_left"
 width = 320
 padding = [6, 6, 6, 6]
@@ -22,7 +21,6 @@ name = "List"
 parent = "complete"
 [nodes.widget]
 kind = "list"
-text = ""
 row_height = 22
 font_size = 11
 
@@ -35,7 +33,6 @@ kind = "label"
 role = "text_code_quiet"
 font_size = 11
 truncate = true
-text = ""
 visible = false
 
 # A scroll with no room in it: the keys are laid out, so their chords fire,
@@ -65,7 +62,6 @@ name = "Up"
 parent = "keys_row"
 [nodes.widget]
 kind = "button"
-text = ""
 focusable = false
 shortcut = "arrowup"
 takes_typing = true
@@ -76,7 +72,6 @@ name = "Down"
 parent = "keys_row"
 [nodes.widget]
 kind = "button"
-text = ""
 focusable = false
 shortcut = "arrowdown"
 takes_typing = true
@@ -87,7 +82,6 @@ name = "Accept"
 parent = "keys_row"
 [nodes.widget]
 kind = "button"
-text = ""
 focusable = false
 shortcut = "enter"
 takes_typing = true
@@ -98,7 +92,6 @@ name = "Tab"
 parent = "keys_row"
 [nodes.widget]
 kind = "button"
-text = ""
 focusable = false
 shortcut = "tab"
 takes_typing = true
@@ -109,7 +102,6 @@ name = "Close"
 parent = "keys_row"
 [nodes.widget]
 kind = "button"
-text = ""
 focusable = false
 shortcut = "escape"
 takes_typing = true

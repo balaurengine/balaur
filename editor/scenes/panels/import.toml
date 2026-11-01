@@ -19,7 +19,6 @@ parent = "panel"
 kind = "label"
 role = "text_title"
 font_size = 13
-text = ""
 padding = [10, 6, 10, 0]
 
 [[nodes]]
@@ -30,7 +29,6 @@ parent = "panel"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 padding = [10, 0, 10, 4]
 
 [[nodes]]
@@ -40,7 +38,6 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 visible = false
 
 [[nodes]]

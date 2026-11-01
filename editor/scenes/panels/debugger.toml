@@ -89,7 +89,6 @@ parent = "tools"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
-text = ""
 
 [[nodes]]
 id = "threw"
@@ -98,7 +97,6 @@ parent = "tools"
 [nodes.widget]
 kind = "label"
 role = "text_caption_primary"
-text = ""
 visible = false
 
 [[nodes]]
@@ -127,7 +125,6 @@ parent = "panel"
 [nodes.widget]
 kind = "tree"
 grow = 1
-text = ""
 font = "fonts/JetBrainsMono-Regular.ttf"
 visible = false
 

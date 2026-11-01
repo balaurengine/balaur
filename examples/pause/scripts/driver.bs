@@ -46,8 +46,8 @@ impl Driver {
     }
 }
 
-// One falling box. Dynamic, so it asks to be drawn between fixed steps on
-// its own; nothing here says `interpolate`.
+// One falling box. Dynamic, so a display faster than the tick draws it
+// between fixed steps.
 fn drop_box(parent: Node, n: int) {
     let box = parent.add_child("Box{n}");
     let col = (n % 6) as float;

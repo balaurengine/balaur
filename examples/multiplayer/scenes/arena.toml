@@ -42,5 +42,4 @@ tags = ["local"]
 
 [nodes.widget]
 kind = "label"
-text = ""
 anchor = "top_left"

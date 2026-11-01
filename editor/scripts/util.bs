@@ -144,7 +144,7 @@ pub fn fixed(value: float, places: int) -> str {
     for _ in 0..places {
         scale *= 10;
     }
-    let scaled = math::round(abs(value) * (scale as float)) as int;
+    let scaled = math::round(math::abs(value) * (scale as float)) as int;
     let sign = if value < 0.0 && scaled != 0 { "-" } else { "" };
     if places == 0 {
         return "{sign}{scaled}";
@@ -434,8 +434,8 @@ pub fn basis_from_euler(euler: [float]) -> [[float]] {
 
 pub fn euler_from_basis(basis: [[float]]) -> [float] {
     let pitch = math::asin(clamp(-basis[0][2], -1.0, 1.0));
-    let yaw = math::atan(basis[0][1], basis[0][0]);
-    let roll = math::atan(basis[1][2], basis[2][2]);
+    let yaw = math::atan2(basis[0][1], basis[0][0]);
+    let roll = math::atan2(basis[1][2], basis[2][2]);
     [roll, pitch, yaw]
 }
 
@@ -495,8 +495,8 @@ pub fn to_local(frame: Frame, world_x: float, world_y: float) -> Vec2 {
     let offset_y = world_y - frame.y;
     let rotated_x = frame.cosine * offset_x + frame.sine * offset_y;
     let rotated_y = -frame.sine * offset_x + frame.cosine * offset_y;
-    let scale_x = if abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
-    let scale_y = if abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
+    let scale_x = if math::abs(frame.scale_x) > 1e-6 { frame.scale_x } else { 1.0 };
+    let scale_y = if math::abs(frame.scale_y) > 1e-6 { frame.scale_y } else { 1.0 };
     Vec2 { x: rotated_x / scale_x, y: rotated_y / scale_y }
 }
 

@@ -14,7 +14,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 anchor = "center"
 x = 0
 y = 0

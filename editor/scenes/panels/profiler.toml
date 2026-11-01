@@ -39,7 +39,6 @@ parent = "tools"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 grow = 1
 
 [[nodes]]
@@ -64,5 +63,4 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 visible = false

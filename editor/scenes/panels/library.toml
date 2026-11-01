@@ -114,7 +114,6 @@ parent = "panel"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 visible = false
 
 [[nodes]]
@@ -124,7 +123,6 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 grow = 1
-text = ""
 grid_columns = "repeat(5, 1fr)"
 
 [nodes.widget.touch]
@@ -138,7 +136,6 @@ parent = "panel"
 [nodes.widget]
 kind = "table"
 grow = 1
-text = ""
 visible = false
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"

@@ -78,5 +78,4 @@ parent = "n_menu"
 
 [nodes.widget]
 kind = "label"
-text = ""
 role = "caption"

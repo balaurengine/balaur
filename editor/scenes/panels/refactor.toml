@@ -8,7 +8,6 @@ script = { source = "scripts/panels/refactor.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 absolute = true
 inset = [-1.0, 16.0, 20.0, -1.0]
 width = 420
@@ -32,7 +31,6 @@ parent = "panel"
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
-text = ""
 [nodes.widget_field]
 placeholder = "name"
 
@@ -43,7 +41,6 @@ parent = "panel"
 [nodes.widget]
 kind = "text_field"
 role = "input_form"
-text = ""
 [nodes.widget_field]
 placeholder = "new name"
 
@@ -55,7 +52,6 @@ parent = "panel"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 [[nodes]]
 id = "hits"
@@ -63,7 +59,6 @@ name = "Hits"
 parent = "panel"
 [nodes.widget]
 kind = "list"
-text = ""
 height = 120
 row_height = 20
 font = "fonts/JetBrainsMono-Regular.ttf"

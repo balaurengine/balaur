@@ -30,7 +30,6 @@ parent = "find"
 [nodes.widget]
 kind = "text_field"
 role = "input_dock"
-text = ""
 grow = 1
 [nodes.widget_field]
 placeholder = "Search"
@@ -42,7 +41,6 @@ parent = "find"
 [nodes.widget]
 kind = "button"
 role = "icon_action_primary"
-text = ""
 tooltip = "Add child node"
 width = 24
 
@@ -76,7 +74,6 @@ parent = "panel"
 kind = "tree"
 grow = 1
 # The row a click landed on, which the script reads once and clears.
-text = ""
 multi_select = true
 row_height = 23
 # A right click or a long press picks the row it lands on and opens these.
@@ -97,7 +94,6 @@ name = "tree_menu"
 parent = "panel"
 [nodes.widget]
 kind = "menu"
-text = ""
 visible = false
 
 [[nodes]]
