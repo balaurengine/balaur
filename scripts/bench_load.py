@@ -38,7 +38,7 @@ def binary() -> Path:
     if not path.exists():
         print(
             "no target/release/balaur — run "
-            "`cargo build --release -p balaur_cli --features window --bin balaur`",
+            "`cargo build --release -p balaur_cli --bin balaur`",
             file=sys.stderr,
         )
         raise SystemExit(1)

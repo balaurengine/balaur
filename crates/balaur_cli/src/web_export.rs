@@ -151,7 +151,8 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
 /// nothing to install, because the pack is built here and the runtime a
 /// bundle ships is served beside this page.
 fn targets(project: &Path) -> Value {
-    let web = balaur_export::runtime_of(project, "web").unwrap_or_else(|_| "web".into());
+    let web = balaur_export::runtime_of(project, "web", &balaur_export::SmallestRuntime::default())
+        .unwrap_or_else(|_| "web".into());
     let rows = [
         (
             "pack",
@@ -242,7 +243,8 @@ fn build(project: &Path) -> Result<balaur::Pack> {
 /// static host.
 async fn bundle(project: &Path, runtimes: &str) -> Result<(String, Vec<u8>)> {
     let pack = build(project)?;
-    let runtime = balaur_export::runtime_of(project, "web")?;
+    let runtime =
+        balaur_export::runtime_of(project, "web", &balaur_export::SmallestRuntime::default())?;
     balaur_export::fits(project, &pack, &runtime)?;
     let served = beside(runtimes, &runtime);
     let name = name_of(project);

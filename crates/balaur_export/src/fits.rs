@@ -8,19 +8,12 @@ use anyhow::Result;
 use balaur::Pack;
 use balaur::physics::worlds;
 
-/// Fail when `runtime`, a resolved runtime name such as `web-2d`, leaves out
-/// a physics world a scene or script in `pack` uses.
+use crate::config::Runtime;
+
+/// Where `pack`'s scenes and scripts name one of `components` or `modules`.
 ///
 /// Scripts are read from `project`, since a pack keeps their bytecode.
-///
-/// # Errors
-/// Naming every place the missing world is used, and the setting to change.
-pub fn fits(project: &Path, pack: &Pack, runtime: &str) -> Result<()> {
-    let (missing, components, modules) = match crate::split_variant(runtime).1 {
-        Some("2d") => ("3D", worlds::COMPONENTS_3D, worlds::MODULES_3D),
-        Some("3d") => ("2D", worlds::COMPONENTS_2D, worlds::MODULES_2D),
-        _ => return Ok(()),
-    };
+fn named_in(project: &Path, pack: &Pack, components: &[&str], modules: &[&str]) -> Vec<String> {
     let mut found = in_scenes(pack, components);
     let fs = balaur::files::default_backend();
     for path in pack.scripts.keys() {
@@ -39,6 +32,21 @@ pub fn fits(project: &Path, pack: &Pack, runtime: &str) -> Result<()> {
             }
         }
     }
+    found
+}
+
+/// Fail when `runtime`, a resolved runtime name such as `web-2d`, leaves out
+/// a physics world a scene or script in `pack` uses.
+///
+/// # Errors
+/// Naming every place the missing world is used, and the setting to change.
+pub fn fits(project: &Path, pack: &Pack, runtime: &str) -> Result<()> {
+    let (missing, components, modules) = match crate::split_variant(runtime).1 {
+        Some("2d") => ("3D", worlds::COMPONENTS_3D, worlds::MODULES_3D),
+        Some("3d") => ("2D", worlds::COMPONENTS_2D, worlds::MODULES_2D),
+        _ => return Ok(()),
+    };
+    let found = named_in(project, pack, components, modules);
     if found.is_empty() {
         return Ok(());
     }
@@ -47,6 +55,64 @@ pub fn fits(project: &Path, pack: &Pack, runtime: &str) -> Result<()> {
          set `[export] runtime` to \"full\", or to the world the game uses",
         found.join("\n  ")
     )
+}
+
+/// The smallest runtime `pack` fits: one physics world where it names at most
+/// one, the 2D world being the lighter where it names neither.
+#[must_use]
+pub fn smallest(project: &Path, pack: &Pack) -> Runtime {
+    let names_3d = !named_in(project, pack, worlds::COMPONENTS_3D, worlds::MODULES_3D).is_empty();
+    let names_2d = !named_in(project, pack, worlds::COMPONENTS_2D, worlds::MODULES_2D).is_empty();
+    match (names_2d, names_3d) {
+        (true, true) => Runtime::Full,
+        (false, true) => Runtime::World3d,
+        (_, false) => Runtime::World2d,
+    }
+}
+
+/// What a pack of `project` would hold of what [`fits`] reads: its scenes, and
+/// its scripts by path. For a caller with no pack in hand, such as a sheet
+/// listing what each target builds on.
+#[must_use]
+pub(crate) fn sources(project: &Path) -> Pack {
+    let fs = balaur::files::default_backend();
+    let ignored = fs
+        .read(&project.join("project.toml"))
+        .ok()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .map_or_else(Vec::new, |manifest| {
+            balaur::ignore::from_manifest(&manifest)
+        });
+    let mut pack = Pack::default();
+    let mut pending = vec![String::new()];
+    while let Some(dir) = pending.pop() {
+        for (name, is_dir) in fs.list(&project.join(&dir)) {
+            let rel = if dir.is_empty() {
+                name.clone()
+            } else {
+                format!("{dir}/{name}")
+            };
+            if name.starts_with('.') || balaur::ignore::ignored(&ignored, &rel) {
+                continue;
+            }
+            let extension = std::path::Path::new(&name)
+                .extension()
+                .and_then(|extension| extension.to_str());
+            if is_dir {
+                pending.push(rel);
+            } else if extension == Some("bs") {
+                pack.scripts.insert(rel, Vec::new());
+            } else if extension == Some("toml")
+                && let Some(text) = fs
+                    .read(&project.join(&rel))
+                    .ok()
+                    .and_then(|bytes| String::from_utf8(bytes).ok())
+            {
+                pack.scenes.insert(rel, text);
+            }
+        }
+    }
+    pack
 }
 
 /// Each node in a scene of `pack` carrying one of `components`.

@@ -35,7 +35,7 @@ ios | ios-sim)
   if [ -n "$variant" ]; then
     flags=(--no-default-features --features "window,apple,$(game_features "$variant")")
   else
-    flags=(--features "window,apple")
+    flags=(--features "apple")
   fi
   step "build ($target, windowed, min iOS $ios_min${variant:+, $variant})"
   rustup target add "$target"

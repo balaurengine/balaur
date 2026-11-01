@@ -64,8 +64,9 @@ pub struct ExportConfig {
     /// libvorbis's -0.1 to 1.0 quality, which `audio_recode = "vorbis"`
     /// reads and every other mode ignores.
     pub audio_quality: f32,
-    /// Which of a target's runtimes the game is put on: `full`, or `2d` and
-    /// `3d`, which carry one physics world each and weigh less.
+    /// Which of a target's runtimes the game is put on: `auto`, the smallest it
+    /// fits, or `full`, `2d` or `3d`, where a script builds a name the scan
+    /// cannot see.
     pub runtime: Runtime,
     /// Whether the scripts ship as native code built from their C.
     pub native_scripts: NativeScripts,
@@ -89,6 +90,8 @@ pub enum NativeScripts {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Deserialize)]
 pub enum Runtime {
     #[default]
+    #[serde(rename = "auto")]
+    Auto,
     #[serde(rename = "full")]
     Full,
     #[serde(rename = "2d")]
@@ -102,7 +105,7 @@ impl Runtime {
     #[must_use]
     pub fn variant(self) -> Option<&'static str> {
         match self {
-            Self::Full => None,
+            Self::Auto | Self::Full => None,
             Self::World2d => Some("2d"),
             Self::World3d => Some("3d"),
         }
@@ -116,15 +119,15 @@ impl Default for ExportConfig {
             strip: false,
             include: Vec::new(),
             tags: Vec::new(),
-            image_recode: crate::recode::ImageMode::Original,
+            image_recode: crate::recode::ImageMode::Webp,
             image_quality: crate::recode::DEFAULT_IMAGE_QUALITY,
             max_size: 0,
             font_recode: crate::recode::FontMode::Original,
             font_ranges: Vec::new(),
             font_original: Vec::new(),
-            audio_recode: crate::recode::AudioMode::Original,
+            audio_recode: crate::recode::AudioMode::Flac,
             audio_quality: crate::recode::DEFAULT_AUDIO_QUALITY,
-            runtime: Runtime::Full,
+            runtime: Runtime::Auto,
             native_scripts: NativeScripts::Auto,
         }
     }
@@ -353,7 +356,7 @@ mod tests {
 
         let desktop = ExportConfig::load(dir.path(), Some("linux-x64")).unwrap();
         let phone = ExportConfig::load(dir.path(), Some("android")).unwrap();
-        assert_eq!(desktop.image_recode, crate::recode::ImageMode::Original);
+        assert_eq!(desktop.image_recode, crate::recode::ImageMode::Webp);
         assert_eq!(phone.image_recode, crate::recode::ImageMode::Quantized);
         assert_eq!(
             phone.output, "builds",

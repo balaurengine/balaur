@@ -35,9 +35,9 @@ step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 # addon compiles against, and a runtime that cannot dlopen one makes that a
 # promise the binary does not keep. BALAUR_FEATURES replaces the whole set.
 if [ "$target" = macos-universal ]; then
-  features=${BALAUR_FEATURES:-window,apple,extensions}
+  features=${BALAUR_FEATURES:-apple,extensions}
 else
-  features=${BALAUR_FEATURES:-window,extensions}
+  features=${BALAUR_FEATURES:-extensions}
 fi
 # A variant builds only balaur-runtime-<target>-<variant>, a game template
 # with no editor, and plays a game the BALAUR_EXPORTER editor exports onto it.

@@ -15,7 +15,7 @@ work=$PWD/target/views/full
 mkdir -p "$out" "$work"
 
 if [ -z "${BALAUR_BIN:-}" ]; then
-  cargo build -q --release -p balaur_cli --features window --bin balaur || exit 1
+  cargo build -q --release -p balaur_cli --bin balaur || exit 1
   BALAUR_BIN=target/release/balaur
 fi
 editor=${BALAUR_EDITOR:-$PWD/editor}

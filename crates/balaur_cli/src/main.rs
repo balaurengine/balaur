@@ -259,8 +259,8 @@ enum Command {
     Check {
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// Report warnings too, and fail on them. `[check] strict = true` in
-        /// `project.toml` says the same thing for every run.
+        /// Fail on a warning too. `[check] strict = true` in `project.toml`
+        /// says the same thing for every run.
         #[arg(long)]
         strict: bool,
     },

@@ -55,10 +55,6 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Default features
         run: cargo clippy --workspace --all-targets -- -D warnings
-      # The windowed backend — kiss3d, wgpu, egui, and the macOS objc2
-      # dock-icon path — is off by default, so the sweep above never reaches it.
-      - name: Feature `window`
-        run: cargo clippy -p balaur_cli --features window --all-targets -- -D warnings
       # Extensions are off by default too: the dlopen path, the cdylib, and the
       # tests that load one at run time.
       - name: Feature `extensions`
@@ -77,8 +73,6 @@ jobs:
           cargo clippy --target wasm32-unknown-unknown -p balaur_cli \
             --no-default-features --features audio,flac,mp3,mp4,vorbis,wav,http,websocket,webtransport,gamend,multiplayer,browser,window,physics2d,physics3d,import,editor,bs-wasmi,bs-web \
             -- -D warnings
-      # The default features, where `window` is off: code gated on it alone
-      # cannot be what an ungated module calls.
       - name: Target `wasm32`, default features
         if: runner.os == 'Linux'
         run: cargo clippy --target wasm32-unknown-unknown -p balaur_cli -- -D warnings
@@ -104,7 +98,7 @@ jobs:
           export CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++
           export AR_aarch64_linux_android=$bin/llvm-ar
           cargo clippy --workspace --all-targets --target aarch64-linux-android -- -D warnings
-      # iOS's cfg code, then the iOS template's features, `window` and `apple`.
+      # iOS's cfg code, then the iOS template's features, the defaults and `apple`.
       - name: Target `aarch64-apple-ios`
         if: runner.os == 'macOS'
         env:
@@ -112,7 +106,7 @@ jobs:
         run: |
           rustup target add aarch64-apple-ios
           cargo clippy --workspace --all-targets --target aarch64-apple-ios -- -D warnings
-          cargo clippy -p balaur_cli --features window,apple --target aarch64-apple-ios -- -D warnings
+          cargo clippy -p balaur_cli --features apple --target aarch64-apple-ios -- -D warnings
       # extension_greeter is deliberately outside the workspace, so nothing
       # above reaches it. It is the only thing proving an extension builds
       # without the engine's build tree.

@@ -30,9 +30,9 @@ pub const DEFAULT_AUDIO_QUALITY: f32 = 0.5;
 #[serde(rename_all = "lowercase")]
 pub enum ImageMode {
     /// Ship the author's bytes.
-    #[default]
     Original,
     /// Write the pixels as lossless WebP.
+    #[default]
     Webp,
     /// Cut the image to a 256-colour palette with alpha, then write it as a
     /// PNG. Lossy.
@@ -55,9 +55,9 @@ pub enum FontMode {
 #[serde(rename_all = "lowercase")]
 pub enum AudioMode {
     /// Ship the author's bytes.
-    #[default]
     Original,
     /// Re-encode uncompressed PCM as FLAC, sample for sample.
+    #[default]
     Flac,
     /// Re-encode uncompressed PCM as Ogg Vorbis, which the runtime decodes
     /// through rodio's symphonia. Lossy.
@@ -90,9 +90,12 @@ pub fn image(bytes: &[u8], mode: ImageMode) -> Result<Option<Vec<u8>>> {
 /// The image re-encoded under `mode`, or `None` to keep the source bytes.
 ///
 /// `quality` is imagequant's 0-100 target, which only `Quantized` reads. A
-/// JPEG is always kept: re-encoding one loses a second time.
+/// JPEG is always kept: re-encoding one loses a second time. So is what no
+/// raster format claims, an SVG among them.
 pub fn image_at(bytes: &[u8], mode: ImageMode, quality: u8) -> Result<Option<Vec<u8>>> {
-    let format = image::guess_format(bytes).map_err(|why| anyhow!("reading the image: {why}"))?;
+    let Ok(format) = image::guess_format(bytes) else {
+        return Ok(None);
+    };
     if mode == ImageMode::Original || format == ImageFormat::Jpeg {
         return Ok(None);
     }
@@ -554,7 +557,11 @@ mod tests {
 
     #[test]
     fn bytes_that_are_not_an_image_are_an_error() {
-        assert!(image(b"not an image at all", ImageMode::Webp).is_err());
+        assert!(
+            image(b"not an image at all", ImageMode::Webp)
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// One second of a quiet sine, the shape a game's sound effect has.

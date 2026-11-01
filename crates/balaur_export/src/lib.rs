@@ -35,7 +35,7 @@ use apple::AppleConfig;
 pub use bundle::web_shell;
 use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
 pub use config::{DEFAULT_OUTPUT, ExportConfig, NativeScripts, Runtime};
-pub use fits::fits;
+pub use fits::{fits, smallest};
 
 /// Everything an export was asked for.
 #[derive(Default)]
@@ -160,16 +160,30 @@ pub fn runtime_for(target: &str, runtime: Runtime) -> String {
     }
 }
 
+/// What `auto` comes to for a project, worked out once for however many
+/// targets ask.
+#[derive(Default)]
+pub struct SmallestRuntime(std::cell::OnceCell<Runtime>);
+
+impl SmallestRuntime {
+    fn of(&self, project: &Path) -> Runtime {
+        *self
+            .0
+            .get_or_init(|| smallest(project, &fits::sources(project)))
+    }
+}
+
 /// [`runtime_for`] with the project's own `[export] runtime`, as `target`
-/// resolves it.
+/// resolves it. `auto` comes to the smallest its sources fit.
 ///
 /// # Errors
 /// If `project.toml` does not parse.
-pub fn runtime_of(project: &Path, target: &str) -> Result<String> {
-    Ok(runtime_for(
-        target,
-        ExportConfig::load(project, Some(target))?.runtime,
-    ))
+pub fn runtime_of(project: &Path, target: &str, smallest: &SmallestRuntime) -> Result<String> {
+    let runtime = match ExportConfig::load(project, Some(target))?.runtime {
+        Runtime::Auto => smallest.of(project),
+        named => named,
+    };
+    Ok(runtime_for(target, runtime))
 }
 
 /// A target and the variant it names, if any: `ios-2d` is `("ios", Some("2d"))`.
@@ -272,6 +286,10 @@ fn runtime_name(
              `[export] runtime = \"{variant}\"`, or `[override.{base}.export] runtime` for {base} alone"
         );
     }
+    let runtime = match runtime {
+        Runtime::Auto => smallest(project, pack),
+        named => named,
+    };
     let name = runtime_for(target, runtime);
     fits(project, pack, &name)?;
     Ok(name)

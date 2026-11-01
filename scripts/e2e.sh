@@ -17,8 +17,8 @@ shift || true
 only=("$@")
 mkdir -p "$out_dir"
 
-# Built once, then run directly: `cargo run` takes the build lock on every
-# call. `--features window`, or `--offscreen` runs headless and checks nothing.
+# Built once, then run directly: `cargo run` takes the build lock on every call.
+# Built without the renderer, `--offscreen` runs headless and checks nothing.
 # `BALAUR_BIN` names one already built, as uiaudit.sh and views.sh take it.
 if [ -n "${BALAUR_BIN:-}" ]; then
   built=${BALAUR_BIN%.exe}
@@ -101,7 +101,7 @@ render_step() { # render_step <label> <balaur args...>
   set -e
   check_run "$label" "$rc" "$out"
   grep -qE "$RENDERED" <<<"$out" ||
-    fail "$label rendered nothing: build balaur with --features window"
+    fail "$label rendered nothing: this balaur was built with no window feature"
 }
 
 # An invariant the log states but does not call an error: every editor

@@ -199,15 +199,21 @@ pub(crate) fn smaller(
     let images = image_mode(own, config.image_recode);
     let audio = audio_mode(own, config.audio_recode);
     match kind_of(path) {
-        // The mode is read before the bytes are: an export that asked for no
-        // re-encoding must not fail over a file that does not decode.
+        // A file that does not decode ships as it is, said here: an export
+        // that stated nothing must not fail over a picture nothing may draw.
         Some(kinds::TEXTURE) if images != ImageMode::Original => {
             let quality = number(settings, keys::QUALITY, f64::from(config.image_quality));
-            recode::image_at(bytes, images, quality.clamp(0.0, 100.0) as u8)
+            recode::image_at(bytes, images, quality.clamp(0.0, 100.0) as u8).or_else(|why| {
+                tracing::warn!("{path} ships as it is: {why:#}");
+                Ok(None)
+            })
         }
         Some(kinds::AUDIO) if audio != AudioMode::Original => {
             let quality = number(settings, keys::QUALITY, f64::from(config.audio_quality));
-            recode::audio_at(bytes, audio, quality.clamp(-0.1, 1.0) as f32)
+            recode::audio_at(bytes, audio, quality.clamp(-0.1, 1.0) as f32).or_else(|why| {
+                tracing::warn!("{path} ships as it is: {why:#}");
+                Ok(None)
+            })
         }
         // A `.fnt` is a text descriptor and a page image, neither of them a
         // face a subsetter can read.

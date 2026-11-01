@@ -39,13 +39,26 @@ fn editor_pack() -> Pack {
     pack
 }
 
-/// Nothing is touched until a key asks for it, so an export that states no
-/// policy ships exactly the bytes the author wrote.
+/// An export told to keep what it was given ships exactly the bytes the author
+/// wrote.
 #[test]
-fn an_export_that_asks_for_nothing_changes_nothing() {
+fn an_export_that_keeps_the_originals_changes_nothing() {
     let mut pack = editor_pack();
     let before = pack.encode();
-    let summary = size::prepare(&mut pack, &ExportConfig::default()).expect("the size pass");
+    let config = ExportConfig {
+        image_recode: balaur_export::recode::ImageMode::Original,
+        audio_recode: balaur_export::recode::AudioMode::Original,
+        ..ExportConfig::default()
+    };
+    let summary = size::prepare(&mut pack, &config).expect("the size pass");
     assert_eq!(pack.encode(), before);
     assert_eq!(summary.total_saved(), 0);
+}
+
+/// With nothing stated an image goes to lossless WebP where that is smaller.
+#[test]
+fn an_export_that_states_nothing_recodes_what_it_can_without_loss() {
+    let mut pack = editor_pack();
+    let summary = size::prepare(&mut pack, &ExportConfig::default()).expect("the size pass");
+    assert!(summary.total_saved() > 0, "the logo came out no smaller");
 }

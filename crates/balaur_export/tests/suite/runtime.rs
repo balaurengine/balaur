@@ -55,15 +55,30 @@ fn a_server_keeps_its_own_runtime() {
 fn a_target_override_picks_a_runtime_for_that_target_alone() {
     let dir = project("[export]\nruntime = \"2d\"\n\n[override.web.export]\nruntime = \"3d\"\n");
     assert_eq!(
-        balaur_export::runtime_of(dir.path(), "web").unwrap(),
+        balaur_export::runtime_of(
+            dir.path(),
+            "web",
+            &balaur_export::SmallestRuntime::default()
+        )
+        .unwrap(),
         "web-3d"
     );
     assert_eq!(
-        balaur_export::runtime_of(dir.path(), "android").unwrap(),
+        balaur_export::runtime_of(
+            dir.path(),
+            "android",
+            &balaur_export::SmallestRuntime::default()
+        )
+        .unwrap(),
         "android-2d"
     );
     assert_eq!(
-        balaur_export::runtime_of(dir.path(), "linux-x64-server").unwrap(),
+        balaur_export::runtime_of(
+            dir.path(),
+            "linux-x64-server",
+            &balaur_export::SmallestRuntime::default()
+        )
+        .unwrap(),
         "linux-x64-server"
     );
 }
@@ -88,4 +103,29 @@ fn a_2d_runtime_refuses_a_game_with_a_3d_body() {
     let why = format!("{:#}", export_for(dir.path(), "linux-x64").unwrap_err());
     assert!(why.contains("node \"Crate\" has body3d"), "{why}");
     assert!(!dir.path().join("game").exists());
+}
+
+#[test]
+fn a_game_goes_on_the_smallest_runtime_it_fits() {
+    let with_scene = |nodes: &str| {
+        let dir = project("");
+        std::fs::write(dir.path().join("main.toml"), nodes).unwrap();
+        dir
+    };
+    let runtime = |dir: &tempfile::TempDir| {
+        balaur_export::runtime_of(
+            dir.path(),
+            "web",
+            &balaur_export::SmallestRuntime::default(),
+        )
+        .unwrap()
+    };
+    assert_eq!(runtime(&with_scene("")), "web-2d", "no physics at all");
+    let flat = "[[nodes]]\nid = \"a\"\nname = \"A\"\n[nodes.body2d]\nkind = \"dynamic\"\n";
+    assert_eq!(runtime(&with_scene(flat)), "web-2d");
+    let deep = "[[nodes]]\nid = \"b\"\nname = \"B\"\n[nodes.body3d]\nkind = \"dynamic\"\n";
+    assert_eq!(runtime(&with_scene(deep)), "web-3d");
+    assert_eq!(runtime(&with_scene(&format!("{flat}{deep}"))), "web");
+    let named = project("[export]\nruntime = \"full\"\n");
+    assert_eq!(runtime(&named), "web", "a project may still name one");
 }

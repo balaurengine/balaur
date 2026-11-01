@@ -415,7 +415,7 @@ def report(results, godot, nodes, args, shots):
         "the tables show the median physics tick.\n",
         "## Running it\n",
         "```bash\n"
-        "cargo build --release -p balaur_cli --features window --bin balaur\n"
+        "cargo build --release -p balaur_cli --bin balaur\n"
         "python3 scripts/bench_compare.py --shots --godot-results <benchmarks-repo>/results\n"
         "```\n",
         "One case on its own, or in the editor:\n",

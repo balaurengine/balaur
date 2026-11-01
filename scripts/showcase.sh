@@ -104,7 +104,7 @@ esac
 command -v ffmpeg >/dev/null || { echo "ffmpeg is needed (brew install ffmpeg)" >&2; exit 1; }
 # BALAUR_BIN names a built editor binary to use instead of building one.
 if [ -z "${BALAUR_BIN:-}" ]; then
-  cargo build -q --release -p balaur_cli --features window --bin balaur
+  cargo build -q --release -p balaur_cli --bin balaur
   BALAUR_BIN=target/release/balaur
 fi
 balaur() { "$BALAUR_BIN" "$@"; }

@@ -11,7 +11,7 @@ out=$PWD/target/uiaudit
 mkdir -p "$out"
 
 if [ -z "${BALAUR_BIN:-}" ]; then
-  cargo build -q --release -p balaur_cli --features window --bin balaur || exit 1
+  cargo build -q --release -p balaur_cli --bin balaur || exit 1
   BALAUR_BIN=target/release/balaur
 fi
 # BALAUR_EDITOR points at a copy when auditing an editor other than this tree's.

@@ -142,11 +142,12 @@ static RUNNING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize:
 /// What the sheet draws one row from.
 fn targets(project: &std::path::Path) -> Value {
     let roots = ExportState::roots();
+    let smallest = balaur_export::SmallestRuntime::default();
     let rows = balaur_export::TARGETS
         .iter()
         .map(|name| {
-            let runtime =
-                balaur_export::runtime_of(project, name).unwrap_or_else(|_| (*name).to_string());
+            let runtime = balaur_export::runtime_of(project, name, &smallest)
+                .unwrap_or_else(|_| (*name).to_string());
             let installed = balaur_export::runtime_installed(&runtime, &roots);
             Value::Map(vec![
                 ("name".into(), Value::Str((*name).into())),

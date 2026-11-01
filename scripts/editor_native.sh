@@ -14,7 +14,8 @@ root=$PWD
 if [ -n "${BALAUR_BIN:-}" ]; then
   bin=$BALAUR_BIN
 else
-  cargo build -q -p balaur_cli
+  # These states need no renderer, and the runner has no display to open on.
+  cargo build -q -p balaur_cli --no-default-features --features headless
   bin="${CARGO_TARGET_DIR:-target}/debug/balaur"
 fi
 case "$(uname -s)-$(uname -m)" in
