@@ -59,10 +59,7 @@ impl Project {
         let dir = tempfile::tempdir()?;
         std::fs::write(
             dir.path().join("project.toml"),
-            format!(
-                "[application]\nname = \"bench\"\nmain_scene = \"main.toml\"\nscript_language = \"{}\"\n",
-                backend.name()
-            ),
+            "[application]\nname = \"bench\"\nmain_scene = \"main.toml\"\n",
         )?;
         std::fs::write(
             dir.path().join("main.toml"),

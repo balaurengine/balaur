@@ -72,19 +72,28 @@ impl FnGen<'_> {
         if !self.prelude && crate::prelude::owns(name) {
             return err(pos, format!("unknown function `{name}`"));
         }
-        let native = match name {
-            "sqrt" => Some((I::F64Sqrt, 1)),
-            "abs" => Some((I::F64Abs, 1)),
-            "floor" => Some((I::F64Floor, 1)),
-            "ceil" => Some((I::F64Ceil, 1)),
-            "min" => Some((I::F64Min, 2)),
-            "max" => Some((I::F64Max, 2)),
-            _ => self
+        // `math::sqrt` is wasm's own instruction, and the rest of `math`'s
+        // functions of a float fixed imports, unless a module of the project's
+        // goes by that name.
+        let scripted = self
+            .g
+            .sigs
+            .get(name)
+            .is_some_and(|sig| !matches!(sig.kind, Kind::Extern | Kind::Host));
+        let native = match name.strip_prefix("math::").filter(|_| !scripted) {
+            Some("sqrt") => Some((I::F64Sqrt, 1)),
+            Some("abs") => Some((I::F64Abs, 1)),
+            Some("floor") => Some((I::F64Floor, 1)),
+            Some("ceil") => Some((I::F64Ceil, 1)),
+            Some("min") => Some((I::F64Min, 2)),
+            Some("max") => Some((I::F64Max, 2)),
+            Some(function) => self
                 .g
                 .imp
                 .math
-                .get(name)
+                .get(if function == "log" { "ln" } else { function })
                 .map(|(idx, n)| (I::Call(*idx), *n)),
+            None => None,
         };
         if let Some((i, n)) = native {
             self.args(&vec![Ty::Float; n], args, pos, name)?;

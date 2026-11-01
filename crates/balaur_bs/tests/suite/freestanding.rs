@@ -5,9 +5,9 @@ use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value, load_nativ
 use balaur_bs::{Compiled, Options, compile};
 
 const SRC: &str = r#"
-pub fn floors(x: float) -> float { floor(x) }
-pub fn ceils(x: float) -> float { ceil(x) }
-pub fn root(x: float) -> float { sqrt(x) }
+pub fn floors(x: float) -> float { math::floor(x) }
+pub fn ceils(x: float) -> float { math::ceil(x) }
+pub fn root(x: float) -> float { math::sqrt(x) }
 pub fn divide(a: int, b: int) -> int { a / b }
 pub fn index(i: int) -> int { let xs = [1, 2, 3]; xs[i] }
 pub fn grow(n: int) -> int { let xs = [0; n]; xs[n - 1] = 7; xs.len() + xs[n - 1] }

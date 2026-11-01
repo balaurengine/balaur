@@ -67,7 +67,7 @@ pub class Mover { x: float, steps: int, name: str }
 impl Mover {
     pub fn walk(n: int) -> float {
         for i in 0..n {
-            self.x += sqrt(i * 2.0) + floor(1.5) - min(3.0, i) + max(-0.0, 0.0);
+            self.x += math::sqrt(i * 2.0) + math::floor(1.5) - math::min(3.0, i) + math::max(-0.0, 0.0);
             self.steps += 1;
         }
         self.name = "walked {self.steps}";
@@ -79,7 +79,7 @@ pub fn numbers(a: int, b: int) -> str {
     let q = a / b;
     let r = a % b;
     let f = a as float / b as float;
-    "{q} {r} {f} {fib(15)} {-7 / 2} {-7 % 2} {abs(-2.5)} {ceil(1.2)}"
+    "{q} {r} {f} {fib(15)} {-7 / 2} {-7 % 2} {math::abs(-2.5)} {math::ceil(1.2)}"
 }
 pub fn text(s: str) -> str {
     let parts = s.split(",");

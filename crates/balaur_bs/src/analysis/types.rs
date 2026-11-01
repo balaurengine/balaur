@@ -11,13 +11,7 @@ pub(crate) const PRELUDE: [(&str, &[&str]); 3] = [
     ("Color", &["r", "g", "b", "a"]),
 ];
 
-pub(crate) const NATIVES: [(&str, &str); 10] = [
-    ("sqrt", "fn sqrt(x: float) -> float"),
-    ("abs", "fn abs(x: float) -> float"),
-    ("floor", "fn floor(x: float) -> float"),
-    ("ceil", "fn ceil(x: float) -> float"),
-    ("min", "fn min(a: float, b: float) -> float"),
-    ("max", "fn max(a: float, b: float) -> float"),
+pub(crate) const NATIVES: [(&str, &str); 4] = [
     ("vec2", "fn vec2(x: float, y: float) -> Vec2"),
     ("vec3", "fn vec3(x: float, y: float, z: float) -> Vec3"),
     (
@@ -139,7 +133,6 @@ impl Scope<'_> {
             "vec3" => Ty::Struct("Vec3".into()),
             "color" => Ty::Struct("Color".into()),
             "nil" => Ty::Any,
-            _ if NATIVES.iter().any(|(n, _)| *n == name) => Ty::Float,
             _ => return None,
         })
     }
