@@ -549,10 +549,12 @@ how maps are built, not how they are read. One edit in the editor
 5.1 (colour), 3.4 to 3.0 (position) and 5.0 to 4.3 (engine text).
 
 Measured 2026-11-01, one edit once the specs were records and the patches
-property writes, at the same 400 frames: 3.3 to 3.3 (text), 3.4 to 3.3
-(colour), 1.8 to 1.7 (position), 3.1 to 2.8 (engine text). The edit fills few
-strips, so little of the record's saving shows there; what `any.get` and
-`s.contains(t)` cost did not move, at 1,234 and 2,413.
+property writes, two runs each at 400 frames on a quiet machine: 3.2 to 3.4 M
+before and 3.2 to 3.3 after (text), 3.3 to 3.4 and 3.2 to 3.3 (colour), 1.7 to
+1.8 and 1.5 to 1.7 (position), 2.7 to 2.9 and 2.6 to 2.8 (engine text): within
+what two runs differ by, since an edit fills few strips and the pool's key spares
+the rest. What `a["k"]` and `s.contains(t)` cost did not move, at 1,234 and
+2,413.
 
 Measured again 2026-10-31, per engine call from a script on wasmtime, the
 dev build: instructions retired over 200 frames of a thousand calls, less a
