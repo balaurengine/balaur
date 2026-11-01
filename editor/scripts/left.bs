@@ -442,17 +442,17 @@ pub fn rename_fill(state: &mut editor::State) {
         "data": { "fn": on_rename_typed, "submit": on_rename_submitted },
     });
     pool::sync(state, host, [
-        {
-            "full": true,
-            "height": row_height,
-            "controls": [
-                {
-                    "kind": "button",
-                    "role": "action_form_primary",
-                    "grow": 1,
-                    "text": "Rename",
-                    "on": "handle",
-                    "data": { "fn": on_rename_clicked },
+        ui::Row {
+            full: true,
+            height: row_height,
+            controls: [
+                ui::Control {
+                    kind: "button",
+                    role: "action_form_primary",
+                    grow: 1,
+                    text: "Rename",
+                    on: "handle",
+                    data: { "fn": on_rename_clicked },
                 },
             ],
         },

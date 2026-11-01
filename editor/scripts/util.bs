@@ -97,6 +97,22 @@ pub fn fill(id: str, parameters: any) {
     found.patch_component("widget", parameters);
 }
 
+/// Whether a widget node draws, for a node that may not be there.
+pub fn set_visible(id: str, visible: bool) {
+    let found = scene::get_node(id);
+    if found.is_valid() {
+        found.widget.visible = visible;
+    }
+}
+
+/// A widget node's text, for a node that may not be there.
+pub fn set_text(id: str, text: str) {
+    let found = scene::get_node(id);
+    if found.is_valid() {
+        found.widget.text = text;
+    }
+}
+
 /// Fill one of the components beside a widget node, `widget_range` or the
 /// rest, from a table, as `fill` fills the widget.
 pub fn fill_beside(id: str, component: str, parameters: any) {

@@ -33,19 +33,6 @@ pub struct ActiveTabBox {
     strip: ui::Rect,
 }
 
-pub struct TabSpacer {
-    kind: str,
-    width: int,
-}
-
-pub struct TabTile {
-    height: float,
-    corner_radius: int,
-    controls: [any],
-    align_items: str,
-    fill: str,
-}
-
 pub struct Handle {
     shown: bool,
     icon: str,
@@ -341,8 +328,8 @@ fn body(state: editor::State, id: str) {
         // An open recording's lanes take the list's room.
         if id == "recordings" {
             let open = session::loaded(state);
-            util::fill(BOTTOM + "Recordings", { "visible": !open });
-            util::fill(BOTTOM + "Lanes", { "visible": open });
+            util::set_visible(BOTTOM + "Recordings", !open);
+            util::set_visible(BOTTOM + "Lanes", open);
             return;
         }
         show_panel(own_node(id));
@@ -355,7 +342,7 @@ fn body(state: editor::State, id: str) {
     } else if id == "inspector" {
         inspector::show_panel();
     } else if id == "import" {
-        util::fill("Editor/Shell/Body/Right/RightSheet/Import", { "visible": true });
+        util::set_visible("Editor/Shell/Body/Right/RightSheet/Import", true);
     } else {
         fill_plugin(state, id);
     }
@@ -409,15 +396,15 @@ fn filled_by_itself(id: str) -> bool {
 }
 
 fn show_panel(name: str) {
-    util::fill(BOTTOM + name, { "visible": true });
+    util::set_visible(BOTTOM + name, true);
 }
 
 /// Fill a panel's strip of chips at `path`: `rows` is a list of controls a
 /// row, made into nodes by the pool.
-pub fn toolbar(state: editor::State, path: str, rows: [[any]]) {
-    let groups: [any] = [];
+pub fn toolbar(state: editor::State, path: str, rows: [[ui::Control]]) {
+    let groups: [ui::Control] = [];
     for row in rows {
-        groups.push({ "kind": "row", "role": "toolbar_dock", "gap": [6, 6], "align_items": "center", "controls": row });
+        groups.push(ui::Control { kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
     }
     pool::strip(state, path, groups);
 }
@@ -530,8 +517,8 @@ pub fn plugin_host(state: editor::State, side: str, id: str) -> str {
         }
         scene::instantiate(host_fragment(host_name(id)), under);
     }
-    util::fill(parent, { "visible": true });
-    util::fill(path, { "visible": true });
+    util::set_visible(parent, true);
+    util::set_visible(path, true);
     path
 }
 
@@ -631,18 +618,18 @@ fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
 
 /// The panel's own controls and the fold, in that order: where they have
 /// always been, at the end of the head rather than the end of the tabs.
-fn tail_controls(state: editor::State, side: str) -> [any] {
-    let fold: any = {
-        "kind": "button",
-        "height": tab_height(state),
-        "width": tab_height(state),
-        "padding": 0,
-        "text": "",
-        "icon": icons::ui(shut_icon(side)),
-        "role": "icon_action",
-        "tooltip": "Minimize",
-        "on": "handle",
-        "data": { "fn": on_fold_pressed, "side": side },
+fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
+    let fold: ui::Control = ui::Control {
+        kind: "button",
+        height: tab_height(state),
+        width: tab_height(state),
+        padding: 0,
+        text: "",
+        icon: icons::ui(shut_icon(side)),
+        role: "icon_action",
+        tooltip: "Minimize",
+        on: "handle",
+        data: { "fn": on_fold_pressed, "side": side },
     };
     // Every panel carries its own tools in its own scene.
     let controls = [fold];
@@ -657,9 +644,9 @@ fn on_fold_pressed(state: &mut editor::State, data: any, _value: any) {
 
 // One control a tab, the mark that closes it, and the fold at the end. The
 // panel's own tools are the hatch beside this strip.
-fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) -> [any] {
+fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) -> [ui::Control] {
     let height = tab_height(state);
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     let shown: [any] = shown_tabs(state, side);
     for id in shown {
         let held = id;
@@ -668,36 +655,36 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
         let label = tab_label(state, held.as_str());
         // One tile: the row carries the fill and the corners, and the two
         // halves inside it paint nothing, so the pair reads as one control.
-        let inner: [any] = [];
-        inner.push({
-            "kind": "button",
-            "height": height,
-            "text": label,
-            "padding": [6, -1, 6, -1],
-            "corner_radius": 4,
-            "fill": "none",
-            "role": "tab",
-            "checked": active,
-            "on": "handle",
-            "data": { "fn": on_tab_picked, "side": side, "held": held },
+        let inner: [ui::Control] = [];
+        inner.push(ui::Control {
+            kind: "button",
+            height: height,
+            text: label,
+            padding: [6, -1, 6, -1],
+            corner_radius: 4,
+            fill: "none",
+            role: "tab",
+            checked: active,
+            on: "handle",
+            data: { "fn": on_tab_picked, "side": side, "held": held },
         });
         // Its own role, so the half of the tile under the pointer is the half
         // that lights up: a mark that looked the same either way was aimed at
         // and missed, and the click landed on the name beside it.
-        inner.push({
-            "kind": "button",
-            "height": height,
-            "width": 22,
-            "text": "",
-            "corner_radius": 4,
-            "role": "icon_action_tab",
-            "icon": icons::ui("close"),
-            "tooltip": "Close {info["name"]}",
-            "on": "handle",
-            "data": { "fn": on_tab_close_pressed, "held": held },
+        inner.push(ui::Control {
+            kind: "button",
+            height: height,
+            width: 22,
+            text: "",
+            corner_radius: 4,
+            role: "icon_action_tab",
+            icon: icons::ui("close"),
+            tooltip: "Close {info["name"]}",
+            on: "handle",
+            data: { "fn": on_tab_close_pressed, "held": held },
         });
-        inner.push(TabSpacer { kind: "row", width: 3 });
-        out.push(TabTile {
+        inner.push(ui::Control { kind: "row", width: 3 });
+        out.push(ui::Control {
             height: height,
             corner_radius: 4,
             controls: inner,
@@ -705,23 +692,23 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             fill: if active { "primary_bg" } else { "none" },
         });
     }
-    let hidden: [any] = [];
+    let hidden: [str] = [];
     for id in dock["tabs"] {
         if !has(shown, id.as_str()) {
-            hidden.push(panel(state, id.as_str())["name"]);
+            hidden.push(panel(state, id.as_str())["name"].as_str());
         }
     }
     if hidden.len() > 0 {
-        out.push({
-            "kind": "dropdown",
-            "role": "choice",
-            "height": height,
-            "width": MORE_WIDTH,
-            "text": "+{hidden.len()}",
-            "options": hidden,
-            "tooltip": "More tabs",
-            "on": "handle",
-            "data": { "fn": on_more_tab_picked, "side": side },
+        out.push(ui::Control {
+            kind: "dropdown",
+            role: "choice",
+            height: height,
+            width: MORE_WIDTH,
+            text: "+{hidden.len()}",
+            options: hidden,
+            tooltip: "More tabs",
+            on: "handle",
+            data: { "fn": on_more_tab_picked, "side": side },
         });
     }
     out

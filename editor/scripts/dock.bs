@@ -647,57 +647,64 @@ pub fn timeline_fill(state: &mut editor::State) {
         } else {
             "{named}: clip '{anim::clip_name(state, node)}' is not in its library"
         };
-        util::fill(TIMELINE + "/Missing", { "visible": true });
-        util::fill(TIMELINE + "/Missing/Says", { "text": missing });
-        util::fill(TIMELINE + "/Missing/Create", { "icon": icons::ui("add") });
-        util::fill(TIMELINE + "/Body", { "visible": false });
+        util::set_visible(TIMELINE + "/Missing", true);
+        util::set_text(TIMELINE + "/Missing/Says", missing);
+        let filled = scene::get_node(TIMELINE + "/Missing/Create");
+        if filled.is_valid() {
+            filled.widget.icon = icons::ui("add");
+        }
+        util::set_visible(TIMELINE + "/Body", false);
         return;
     }
     let definition = found;
-    util::fill(TIMELINE + "/Missing", { "visible": false });
-    util::fill(TIMELINE + "/Body", { "visible": true });
+    util::set_visible(TIMELINE + "/Missing", false);
+    util::set_visible(TIMELINE + "/Body", true);
     let length = util::max(anim::length(definition), 1e-4);
     let tracks = anim::tracks(definition);
     let lane_x = NAME_WIDTH + 14.0;
     let lane_width = util::max(120.0, width_of(TIMELINE) - lane_x - 24.0);
     let name = anim::clip_name(state, node);
-    util::fill(TIMELINE + "/Body/Head/AddKey", { "icon": icons::ui("add") });
+    let filled = scene::get_node(TIMELINE + "/Body/Head/AddKey");
+    if filled.is_valid() {
+        filled.widget.icon = icons::ui("add");
+    }
     let library = anim::library_path(state, node);
     let clip = if name == "" { "unnamed" } else { name };
     let place = if library == nil { "inline" } else { library.unwrap() };
-    util::fill(TIMELINE + "/Body/Head/Clip", { "text": "{clip} · {place}" });
-    util::fill(TIMELINE + "/Body/Head/Time", { "text": "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s" });
+    util::set_text(TIMELINE + "/Body/Head/Clip", "{clip} · {place}");
+    util::set_text(TIMELINE + "/Body/Head/Time", "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s");
     // The engine's own vocabulary, not a boolean: pingpong is a third answer
     // and a toggle cannot say it.
     let loop_mode = definition["loop_mode"];
     util::fill_beside(TIMELINE + "/Body/Head/Length", "widget_range", { "value": anim::length(definition) });
-    util::fill(TIMELINE + "/Body/Head/Loop", {
-        "text": if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() },
-        "options": [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG],
-    });
+    let filled = scene::get_node(TIMELINE + "/Body/Head/Loop");
+    if filled.is_valid() {
+        filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
+        filled.widget.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
+    }
     // The ruler carries the scale the lanes are read against: a label and a
     // rule per tick straight down through the lanes.
     let step = tick_step(length);
-    let ticks: [any] = [];
-    let rules: [any] = [];
+    let ticks: [ui::Control] = [];
+    let rules: [ui::Control] = [];
     let seconds = 0.0;
     while seconds <= length + 1e-4 {
         let tick_x = lane_at(lane_x, length, lane_width, seconds);
-        ticks.push({
-            "kind": "label",
-            "role": "text_code_quiet",
-            "font_size": 11,
-            "absolute": true,
-            "inset": [tick_x, 2.0, -1.0, -1.0],
-            "text": util::fixed(seconds, 2),
+        ticks.push(ui::Control {
+            kind: "label",
+            role: "text_code_quiet",
+            font_size: 11,
+            absolute: true,
+            inset: [tick_x, 2.0, -1.0, -1.0],
+            text: util::fixed(seconds, 2),
         });
-        rules.push({
-            "kind": "row",
-            "absolute": true,
-            "inset": [tick_x, 0.0, -1.0, 0.0],
-            "width": 1,
-            "fill": "border_default",
-            "interactive": false,
+        rules.push(ui::Control {
+            kind: "row",
+            absolute: true,
+            inset: [tick_x, 0.0, -1.0, 0.0],
+            width: 1,
+            fill: "border_default",
+            interactive: false,
         });
         seconds += step;
     }
@@ -706,63 +713,66 @@ pub fn timeline_fill(state: &mut editor::State) {
     util::fill(TIMELINE + "/Body/Lanes/Playhead", {
         "inset": [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
     });
-    let rows: [any] = [];
+    let rows: [ui::Row] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
         let color = (if index % 2 == 0 { tokens["primary_text"] } else { tokens["secondary_text"] }).as_str();
-        let keys: [any] = [];
+        let keys: [ui::Control] = [];
         for key in util::list_or_empty(track["keys"]) {
             let when = key["time"].as_float();
             let before = when <= state.anim.time + 1e-4;
             // A key is its mark: filled once the playhead has passed it.
-            keys.push({
-                "kind": "button",
-                "role": "chip_quiet",
-                "text": if before { "●" } else { "○" },
-                "font_size": 13,
-                "padding": 0,
-                "text_color": color,
-                "absolute": true,
-                "inset": [(when / length) * lane_width - 6.0, 2.0, -1.0, -1.0],
-                "tooltip": "{util::fixed(when, 2)} s",
-                "on": "handle",
-                "data": { "fn": on_key_pressed, "when": when },
+            keys.push(ui::Control {
+                kind: "button",
+                role: "chip_quiet",
+                text: if before { "●" } else { "○" },
+                font_size: 13,
+                padding: 0,
+                text_color: color,
+                absolute: true,
+                inset: [(when / length) * lane_width - 6.0, 2.0, -1.0, -1.0],
+                tooltip: "{util::fixed(when, 2)} s",
+                on: "handle",
+                data: { "fn": on_key_pressed, "when": when },
             });
         }
-        rows.push({
-            "full": true,
-            "height": LANE_HEIGHT,
-            "controls": [
-                {
-                    "kind": "row",
-                    "width": NAME_WIDTH,
-                    "gap": [6, 6],
-                    "align_items": "center",
-                    "padding": [8, 0, 0, 0],
-                    "controls": [
-                        { "kind": "row", "width": 6, "height": 6, "corner_radius": 3, "fill": color },
-                        {
-                            "kind": "label",
-                            "corner_radius": 0,
-                            "role": "text_code",
-                            "font_size": 11,
-                            "text": anim::track_label(track),
+        rows.push(ui::Row {
+            full: true,
+            height: LANE_HEIGHT,
+            controls: [
+                ui::Control {
+                    kind: "row",
+                    width: NAME_WIDTH,
+                    gap: [6, 6],
+                    align_items: "center",
+                    padding: [8, 0, 0, 0],
+                    controls: [
+                        ui::Control { kind: "row", width: 6, height: 6, corner_radius: 3, fill: color },
+                        ui::Control {
+                            kind: "label",
+                            corner_radius: 0,
+                            role: "text_code",
+                            font_size: 11,
+                            text: anim::track_label(track),
                         },
                     ],
                 },
-                {
-                    "kind": "row",
-                    "width": lane_width,
-                    "controls": keys,
-                    "height": LANE_HEIGHT,
-                    "margin": [14, 0, 0, 0],
+                ui::Control {
+                    kind: "row",
+                    width: lane_width,
+                    controls: keys,
+                    height: LANE_HEIGHT,
+                    margin: [14, 0, 0, 0],
                 },
             ],
         });
     }
     pool::sync(state, TIMELINE + "/Body/Lanes/Scroll/Tracks", rows, 0.0, false);
     util::fill(TIMELINE + "/Body/ScrubRow", { "padding": [8.0 + lane_x, 0.0, 0.0, 0.0] });
-    util::fill(TIMELINE + "/Body/ScrubRow/Scrub", { "width": lane_width });
+    let filled = scene::get_node(TIMELINE + "/Body/ScrubRow/Scrub");
+    if filled.is_valid() {
+        filled.widget.width = lane_width;
+    }
     util::fill_beside(TIMELINE + "/Body/ScrubRow/Scrub", "widget_range", { "value": state.anim.time, "max": anim::length(definition) });
 }
 
@@ -1010,53 +1020,57 @@ pub fn lanes_fill(state: editor::State) {
     let span = util::max(1.0, (last - first) as float);
     let lane_width = util::max(120.0, width_of(LANES) - LANE_NAME_WIDTH - 60.0);
     let playing = replay::state() == replay::STATE_PLAYING;
-    util::fill(LANES + "/Head/Play", { "text": if playing { "⏸ Pause" } else { "▶ Play" } });
+    util::set_text(LANES + "/Head/Play", if playing { "⏸ Pause" } else { "▶ Play" });
     // Before the first frame is fed the position is one tick short of the
     // session's start, which is off the near end of the ruler.
     let at = util::max(0.0, (replay::position() - first) as float);
     util::fill_beside(LANES + "/Head/Scrub", "widget_range", { "value": at, "max": span });
-    util::fill(LANES + "/Head/At", { "text": "{replay::position()} / {last}" });
+    util::set_text(LANES + "/Head/At", "{replay::position()} / {last}");
     // A divergence is information, not a failure: the replay ran, and this is
     // the tick at which it stopped reproducing what was recorded.
     let parted = if split != nil { "parted from the recording at tick {split.unwrap().tick}" } else { "" };
-    util::fill(LANES + "/Parted", { "visible": parted != "", "text": parted });
-    let rows: [any] = [];
+    let filled = scene::get_node(LANES + "/Parted");
+    if filled.is_valid() {
+        filled.widget.visible = parted != "";
+        filled.widget.text = parted;
+    }
+    let rows: [ui::Row] = [];
     for lane in state.session.lanes {
-        let marks: [any] = [];
+        let marks: [ui::Control] = [];
         for mark in lane.marks {
             let tick = mark.tick;
             let mark_x = util::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
-            marks.push({
-                "kind": "button",
-                "role": "chip_quiet",
-                "text": "▮",
-                "font_size": 9,
-                "padding": 0,
-                "absolute": true,
-                "inset": [mark_x, -1.0, -1.0, -1.0],
-                "text_color": if tick.as_int() <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
-                "tooltip": "{tick}: {mark.label}",
-                "on": "handle",
-                "data": { "fn": on_mark_pressed, "tick": tick },
+            marks.push(ui::Control {
+                kind: "button",
+                role: "chip_quiet",
+                text: "▮",
+                font_size: 9,
+                padding: 0,
+                absolute: true,
+                inset: [mark_x, -1.0, -1.0, -1.0],
+                text_color: if tick.as_int() <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
+                tooltip: "{tick}: {mark.label}",
+                on: "handle",
+                data: { "fn": on_mark_pressed, "tick": tick },
             });
         }
-        rows.push({
-            "full": true,
-            "height": 20,
-            "controls": [
-                {
-                    "kind": "label",
-                    "width": LANE_NAME_WIDTH - 12.0,
-                    "padding": [8, 0, 0, 0],
-                    "role": "text_code_quiet",
-                    "font_size": 11,
-                    "text": lane.name,
+        rows.push(ui::Row {
+            full: true,
+            height: 20,
+            controls: [
+                ui::Control {
+                    kind: "label",
+                    width: LANE_NAME_WIDTH - 12.0,
+                    padding: [8, 0, 0, 0],
+                    role: "text_code_quiet",
+                    font_size: 11,
+                    text: lane.name,
                 },
-                {
-                    "kind": "row",
-                    "width": lane_width,
-                    "controls": marks,
-                    "height": 20,
+                ui::Control {
+                    kind: "row",
+                    width: lane_width,
+                    controls: marks,
+                    height: 20,
                 },
             ],
         });
@@ -1064,28 +1078,28 @@ pub fn lanes_fill(state: editor::State) {
     // Everything recorded at the tick the playhead is on, in the order it
     // happened.
     for event in replay::events(state.session.at, state.session.at) {
-        rows.push({
-            "full": true,
-            "height": 20,
-            "controls": [
-                {
-                    "kind": "label",
-                    "padding": [8, 0, 0, 0],
-                    "role": "text_code_quiet",
-                    "font_size": 11,
-                    "text": "{event.tick}",
+        rows.push(ui::Row {
+            full: true,
+            height: 20,
+            controls: [
+                ui::Control {
+                    kind: "label",
+                    padding: [8, 0, 0, 0],
+                    role: "text_code_quiet",
+                    font_size: 11,
+                    text: "{event.tick}",
                 },
-                {
-                    "kind": "label",
-                    "role": "text_code_quiet",
-                    "font_size": 11,
-                    "text": event.kind,
+                ui::Control {
+                    kind: "label",
+                    role: "text_code_quiet",
+                    font_size: 11,
+                    text: event.kind,
                 },
-                {
-                    "kind": "label",
-                    "role": "text_code",
-                    "font_size": 11,
-                    "text": event.label,
+                ui::Control {
+                    kind: "label",
+                    role: "text_code",
+                    font_size: 11,
+                    text: event.label,
                 },
             ],
         });
@@ -1124,9 +1138,9 @@ const RECORDINGS: str = "Editor/Shell/Body/Centre/Bottom/Recordings/Rows/Column"
 /// returning to survives the next ten runs.
 pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
     let rows = session::listing(state);
-    let specs: [any] = [];
+    let specs: [ui::Row] = [];
     for recording in rows {
-        specs.push({ "full": true, "height": 24, "slot_role": "layout_actions", "controls": session_row(state, recording) });
+        specs.push(ui::Row { full: true, height: 24, slot_role: "layout_actions", controls: session_row(state, recording) });
     }
     pool::sync(state, RECORDINGS, specs, 0.0, false);
     RecordingsFill { verify: state.session.verify, count: rows.len() }
@@ -1140,54 +1154,54 @@ pub fn recordings_verify(state: &mut editor::State) {
 
 // One recording: the verb that plays it, what it is, and the three that keep,
 // copy or drop it.
-fn session_row(state: editor::State, recording: session::Row) -> [any] {
-    let out: [any] = [
-        {
-            "kind": "button",
-            "role": "action_form_primary",
-            "text": "▶",
-            "tooltip": "Replay this recording",
-            "on": "handle",
-            "data": { "fn": on_replay_pressed, "recording": recording },
+fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
+    let out: [ui::Control] = [
+        ui::Control {
+            kind: "button",
+            role: "action_form_primary",
+            text: "▶",
+            tooltip: "Replay this recording",
+            on: "handle",
+            data: { "fn": on_replay_pressed, "recording": recording },
         },
-        { "kind": "label", "role": "text_code", "text": if recording.started == "" { recording.name } else { recording.started } },
-        {
-            "kind": "label",
-            "role": "text_caption",
-            "text": "{recording.ticks} ticks · {util::fixed(recording.seconds, 1)}s",
+        ui::Control { kind: "label", role: "text_code", text: if recording.started == "" { recording.name } else { recording.started } },
+        ui::Control {
+            kind: "label",
+            role: "text_caption",
+            text: "{recording.ticks} ticks · {util::fixed(recording.seconds, 1)}s",
         },
     ];
     // How it ended, and whether its code has moved on since.
     if recording.reason != "stop" {
-        out.push({ "kind": "label", "role": "note_danger", "text": recording.reason });
+        out.push(ui::Control { kind: "label", role: "note_danger", text: recording.reason });
     }
     if recording.stale {
-        out.push({ "kind": "label", "role": "note_warning", "text": "scripts changed" });
+        out.push(ui::Control { kind: "label", role: "note_warning", text: "scripts changed" });
     }
-    out.push({ "kind": "row", "grow": 1 });
-    out.push({
-        "kind": "button",
-        "role": "action_form",
-        "text": "delete",
-        "on": "handle",
-        "data": { "fn": on_delete_pressed, "recording": recording },
+    out.push(ui::Control { kind: "row", grow: 1 });
+    out.push(ui::Control {
+        kind: "button",
+        role: "action_form",
+        text: "delete",
+        on: "handle",
+        data: { "fn": on_delete_pressed, "recording": recording },
     });
-    out.push({
-        "kind": "button",
-        "role": "action_form",
-        "text": "copy to project",
-        "tooltip": "Copy into the project, for a bug report or `balaur replay`",
-        "on": "handle",
-        "data": { "fn": on_copy_pressed, "recording": recording },
+    out.push(ui::Control {
+        kind: "button",
+        role: "action_form",
+        text: "copy to project",
+        tooltip: "Copy into the project, for a bug report or `balaur replay`",
+        on: "handle",
+        data: { "fn": on_copy_pressed, "recording": recording },
     });
     if !recording.name.starts_with("kept-") {
-        out.push({
-            "kind": "button",
-            "role": "action_form",
-            "text": "keep",
-            "tooltip": "Never prune this one",
-            "on": "handle",
-            "data": { "fn": on_keep_pressed, "recording": recording },
+        out.push(ui::Control {
+            kind: "button",
+            role: "action_form",
+            text: "keep",
+            tooltip: "Never prune this one",
+            on: "handle",
+            data: { "fn": on_keep_pressed, "recording": recording },
         });
     }
     out

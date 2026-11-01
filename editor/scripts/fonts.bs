@@ -154,13 +154,13 @@ fn typed(state: &mut editor::State, _data: any, text: any) {
     state.font_finding = Finding { at: finding.at, query: text.as_str() };
 }
 
-fn rows(state: &mut editor::State, row_height: float) -> [any] {
+fn rows(state: &mut editor::State, row_height: float) -> [ui::Row] {
     if state.font_families == nil {
         let said = if waiting_on(state, "families") { "Asking Forge for its fonts…" } else { "The catalogue did not answer." };
         return [caption_row(said)];
     }
     let query = state.font_finding.unwrap().query.to_lower();
-    let out: [any] = [];
+    let out: [ui::Row] = [];
     for family in util::list_or_empty(state.font_families) {
         if out.len() >= SHOWN {
             break;
@@ -170,13 +170,13 @@ fn rows(state: &mut editor::State, row_height: float) -> [any] {
         if query != "" && !(name + " " + category).to_lower().contains(query) {
             continue;
         }
-        let button = pool::on({
-            "kind": "button",
-            "role": "item_picker",
-            "grow": 1,
-            "text": "{name}  ·  {category}",
+        let button = pool::on(ui::Control {
+            kind: "button",
+            role: "item_picker",
+            grow: 1,
+            text: "{name}  ·  {category}",
         }, take_family, { "family": family });
-        out.push({ "full": true, "height": row_height, "controls": [button] });
+        out.push(ui::Row { full: true, height: row_height, controls: [button] });
     }
     if out.len() == 0 {
         out.push(caption_row(search::nothing_says(state.font_finding.unwrap().query)));
@@ -184,9 +184,9 @@ fn rows(state: &mut editor::State, row_height: float) -> [any] {
     out
 }
 
-fn caption_row(text: str) -> any {
-    let label: any = { "kind": "label", "role": "text_caption", "grow": 1, "text": text, "wrap": true };
-    { "full": true, "height": 0.0, "controls": [label] }
+fn caption_row(text: str) -> ui::Row {
+    let label: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, text: text, wrap: true };
+    ui::Row { full: true, height: 0.0, controls: [label] }
 }
 
 fn take_family(state: &mut editor::State, data: any, _value: any) {

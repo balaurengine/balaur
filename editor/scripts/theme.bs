@@ -82,7 +82,7 @@ pub fn path_of(name: str, half: str) -> str {
 }
 
 /// Every pair there is to pick: the bundled ones, then the person's, by name.
-pub fn names() -> [any] {
+pub fn names() -> [str] {
     let out: [any] = copy_names(BUNDLED());
     for entry in util::list_or_empty(fs::list(user_directory())) {
         if entry["is_dir"].as_bool() && !is_bundled(entry["name"].as_str()) {

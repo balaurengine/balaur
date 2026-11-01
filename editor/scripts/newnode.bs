@@ -193,10 +193,10 @@ fn on_query_submitted(state: &mut editor::State, data: any, text: any) {
 
 /// Every row the picker shows: the empty node ahead of the groups, then a
 /// heading and its matches per group.
-fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any] {
+fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::Row] {
     let query = state.newnode_query.to_lower();
     let rows = catalogue(state);
-    let out: [any] = [];
+    let out: [ui::Row] = [];
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
@@ -231,9 +231,9 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any]
     out
 }
 
-fn caption_row(text: str, height: float, wrap: bool) -> any {
-    let label: any = { "kind": "label", "role": "text_caption", "grow": 1, "text": text, "wrap": wrap };
-    { "full": true, "height": height, "controls": [label] }
+fn caption_row(text: str, height: float, wrap: bool) -> ui::Row {
+    let label: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, text: text, wrap: wrap };
+    ui::Row { full: true, height: height, controls: [label] }
 }
 
 // A component's own colour token, or the plain text colour.
@@ -254,7 +254,7 @@ fn place_row(state: &mut editor::State, data: any, _value: any) {
 
 /// The soft body's second step: a shape, or a file in the project, to build
 /// it from.
-fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [any] {
+fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::Row] {
     let query = state.newnode_query.to_lower();
     let out = [caption_row("Soft body from", 20.0, false)];
     for source in catalogue(state) {
@@ -276,14 +276,14 @@ fn place_source_row(state: &mut editor::State, data: any, _value: any) {
 
 // `icon_color` is the component's own mark colour, which is data rather than
 // styling: the tree and the inspector draw the same pair.
-fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> any {
-    let button = pool::on({
-        "kind": "button",
-        "role": "item_picker",
-        "grow": 1,
-        "text": caption,
-        "icon": mark,
-        "icon_color": color,
+fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Row {
+    let button = pool::on(ui::Control {
+        kind: "button",
+        role: "item_picker",
+        grow: 1,
+        text: caption,
+        icon: mark,
+        icon_color: color,
     }, handler, data);
-    { "full": true, "height": row_height, "controls": [button] }
+    ui::Row { full: true, height: row_height, controls: [button] }
 }

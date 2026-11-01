@@ -290,20 +290,18 @@ const PANEL: str = "Editor/Shell/Body/Centre/Bottom/Weights";
 pub fn fill(state: editor::State) {
     let maybe_listing = table(state);
     if maybe_listing == nil {
-        util::fill(PANEL + "/Missing", { "visible": true });
-        util::fill(PANEL + "/Body", { "visible": false });
+        util::set_visible(PANEL + "/Missing", true);
+        util::set_visible(PANEL + "/Body", false);
         return;
     }
     let listing = maybe_listing.unwrap();
-    util::fill(PANEL + "/Missing", { "visible": false });
-    util::fill(PANEL + "/Body", { "visible": true });
+    util::set_visible(PANEL + "/Missing", false);
+    util::set_visible(PANEL + "/Body", true);
     let picked = polygon::has_pick(state);
-    util::fill(PANEL + "/Body/Verbs/Scope", {
-        "text": if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" },
-    });
-    util::fill(PANEL + "/Body/Verbs/all", { "visible": picked });
+    util::set_text(PANEL + "/Body/Verbs/Scope", if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" });
+    util::set_visible(PANEL + "/Body/Verbs/all", picked);
     pool::strip(state, PANEL + "/Body/Header", header(state, listing));
-    let rows: [any] = [];
+    let rows: [ui::Row] = [];
     for at in listing.at {
         rows.push(vertex_row(state, listing, at));
     }
@@ -327,27 +325,27 @@ pub fn verb(state: &mut editor::State, name: str) {
     }
 }
 
-fn label(text: str, width: float, role: str) -> any {
-    { "kind": "label", "role": role, "font_size": 11, "width": width, "text": text }
+fn label(text: str, width: float, role: str) -> ui::Control {
+    ui::Control { kind: "label", role: role, font_size: 11, width: width, text: text }
 }
 
-fn header(state: editor::State, listing: Table) -> [any] {
+fn header(state: editor::State, listing: Table) -> [ui::Control] {
     let out = [label("vertex", NAME_WIDTH, "text_code_quiet")];
     let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { -1 };
     for bone_index in 0..listing.bones.len() {
         let path = listing.bones[bone_index]["path"].as_str();
         // The bone's own last segment: a full path is wider than the column
         // and the tooltip carries the rest.
-        out.push({
-            "kind": "button",
-            "role": "chip",
-            "width": CELL_WIDTH,
-            "height": 20,
-            "text": util::leaf(path),
-            "tooltip": path,
-            "checked": active == bone_index,
-            "on": "handle",
-            "data": { "fn": pick_bone, "at": bone_index },
+        out.push(ui::Control {
+            kind: "button",
+            role: "chip",
+            width: CELL_WIDTH,
+            height: 20,
+            text: util::leaf(path),
+            tooltip: path,
+            checked: active == bone_index,
+            on: "handle",
+            data: { "fn": pick_bone, "at": bone_index },
         });
     }
     out.push(label("sum", CELL_WIDTH, "text_code_quiet"));
@@ -359,43 +357,43 @@ fn pick_bone(state: &mut editor::State, data: any, _value: any) {
     signals::inspector(state);
 }
 
-fn vertex_row(state: editor::State, listing: Table, at: int) -> any {
+fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
     let hover = state.polygon.hover != nil && state.polygon.hover.unwrap() == at;
-    let controls: [any] = [
-        {
-            "kind": "button",
-            "role": "chip",
-            "width": NAME_WIDTH - 6.0,
-            "height": 20,
-            "text": "{at}",
-            "tooltip": "Show this vertex alone in the viewport",
-            "checked": hover,
-            "on": "handle",
-            "data": { "fn": show_vertex_alone, "at": at },
+    let controls: [ui::Control] = [
+        ui::Control {
+            kind: "button",
+            role: "chip",
+            width: NAME_WIDTH - 6.0,
+            height: 20,
+            text: "{at}",
+            tooltip: "Show this vertex alone in the viewport",
+            checked: hover,
+            on: "handle",
+            data: { "fn": show_vertex_alone, "at": at },
         },
     ];
     let total = 0.0;
     for bone_at in 0..listing.bones.len() {
         let was = weight_of(listing.bones[bone_at], at);
         total += was;
-        controls.push({
-            "kind": "number_field",
-            "width": CELL_WIDTH - 6.0,
-            "value": was,
-            "drag_speed": 0.01,
-            "decimals": 2,
-            "min": 0.0,
-            "max": 1.0,
-            "fill": if was > 0.0 { "bg_control" } else { "bg_panel" },
-            "on": "handle",
-            "data": { "fn": type_weight, "bone": bone_at, "at": at },
+        controls.push(ui::Control {
+            kind: "number_field",
+            width: CELL_WIDTH - 6.0,
+            value: was,
+            drag_speed: 0.01,
+            decimals: 2,
+            min: 0.0,
+            max: 1.0,
+            fill: if was > 0.0 { "bg_control" } else { "bg_panel" },
+            on: "handle",
+            data: { "fn": type_weight, "bone": bone_at, "at": at },
         });
     }
     // A sum that is not one is what a Normalise is for, so it is said rather
     // than silently corrected.
     let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
     controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { "text_code_quiet" }));
-    { "full": true, "height": ROW_HEIGHT, "controls": controls }
+    ui::Row { full: true, height: ROW_HEIGHT, controls: controls }
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {

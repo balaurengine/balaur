@@ -249,9 +249,9 @@ pub fn fill(state: &mut editor::State) {
     // Narrow, the categories go above the rows rather than beside them: a
     // sidebar and a column of settings leave neither enough room.
     if pool::strip_due(state, hosts.side_rows, key) {
-        pool::strip_keyed(state, hosts.side_rows, key, if stacked { util::list_or_empty(nil) } else { side_controls(state, tokens) });
+        pool::strip_keyed(state, hosts.side_rows, key, if stacked { [] } else { side_controls(state, tokens) });
     }
-    util::fill(hosts.side, { "visible": !stacked });
+    util::set_visible(hosts.side, !stacked);
     let label_width = label_column_width(state);
     if pool::sync_due(state, hosts.form, key, label_width, stacked) {
         let specs = form_specs(state, tokens);
@@ -268,15 +268,15 @@ fn label_column_width(state: editor::State) -> float {
     util::clamp(row_width(state) * 0.42, 120.0, 260.0)
 }
 
-fn picker_spec(state: editor::State) -> any {
-    let picker: any = {
-        "kind": "dropdown",
-        "role": "choice_form",
-        "grow": 1,
-        "text": current(state),
-        "options": categories(),
+fn picker_spec(state: editor::State) -> ui::Row {
+    let picker: ui::Control = ui::Control {
+        kind: "dropdown",
+        role: "choice_form",
+        grow: 1,
+        text: current(state),
+        options: categories(),
     };
-    { "full": true, "height": style::row_height(state), "controls": [pool::on(picker, on_category_picked, {})] }
+    ui::Row { full: true, height: style::row_height(state), controls: [pool::on(picker, on_category_picked, {})] }
 }
 
 fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
@@ -285,17 +285,17 @@ fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
 }
 
 // Save, beside the close, while there is something to save.
-fn save_button(state: editor::State) -> [any] {
+fn save_button(state: editor::State) -> [ui::Control] {
     if !state.settings.dirty {
         return [];
     }
-    let save: [any] = [
-        {
-            "kind": "button",
-            "role": "action_form_primary",
-            "text": "Save",
-            "on": "handle",
-            "data": { "fn": on_save_clicked },
+    let save: [ui::Control] = [
+        ui::Control {
+            kind: "button",
+            role: "action_form_primary",
+            text: "Save",
+            on: "handle",
+            data: { "fn": on_save_clicked },
         },
     ];
     save
@@ -307,7 +307,7 @@ fn on_save_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// The column down the left: the search box, and a row per category under
 /// the scope it belongs to.
-fn side_controls(state: editor::State, tokens: any) -> [any] {
+fn side_controls(state: editor::State, tokens: any) -> [ui::Control] {
     let out = [search::control(state, FIELD, "Search", SIDEBAR_WIDTH)];
     let scope = "";
     let at = current(state);
@@ -319,20 +319,20 @@ fn side_controls(state: editor::State, tokens: any) -> [any] {
         let here = if held == nil { "project" } else { held.as_str() };
         if here != scope {
             scope = here;
-            out.push({
-                "kind": "label",
-                "role": "text_caption",
-                "text": if scope == "project" { "PROJECT" } else { "THIS EDITOR" },
+            out.push(ui::Control {
+                kind: "label",
+                role: "text_caption",
+                text: if scope == "project" { "PROJECT" } else { "THIS EDITOR" },
             });
         }
         let on = query(state) == "" && category == at;
-        out.push({
-            "kind": "button",
-            "text": category,
-            "role": "item_sidebar",
-            "checked": on,
-            "on": "handle",
-            "data": { "fn": on_category_clicked, "category": category },
+        out.push(ui::Control {
+            kind: "button",
+            text: category,
+            role: "item_sidebar",
+            checked: on,
+            on: "handle",
+            data: { "fn": on_category_clicked, "category": category },
         });
     }
     out
@@ -346,26 +346,26 @@ fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// Every row the form shows: a note at its head, a heading per group, and a
 /// row per setting with its help under it.
-fn form_specs(state: editor::State, tokens: any) -> [any] {
+fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
     let rows = showing(state);
-    let out: [any] = [];
+    let out: [ui::Row] = [];
     let row_height = style::row_height(state);
     if query(state) != "" {
         out.push(note_spec("{rows.len()} matching \"{query(state)}\""));
     } else if scope_of(current(state)) == "project" {
-        out.push({
-            "full": true,
-            "height": 34,
-            "controls": [
-                {
-                    "kind": "label",
-                    "role": "text_caption",
-                    "grow": 1,
-                    "text": "Written to project.toml, and shipped with the game.",
+        out.push(ui::Row {
+            full: true,
+            height: 34,
+            controls: [
+                ui::Control {
+                    kind: "label",
+                    role: "text_caption",
+                    grow: 1,
+                    text: "Written to project.toml, and shipped with the game.",
                 },
                 target_control(state),
             ],
-            "slot_role": "layout_actions",
+            slot_role: "layout_actions",
         });
     } else {
         out.push(note_spec("Kept in this editor only, and never written to the project."));
@@ -396,21 +396,21 @@ fn form_specs(state: editor::State, tokens: any) -> [any] {
         let path = setting.path;
         let controls = [editor_control(state, setting, path)];
         if path == theme::SETTING {
-            controls.push({
-                "kind": "button",
-                "role": "action_form_primary",
-                "text": "Edit…",
-                "tooltip": "Open the Theme dialog",
-                "on": "handle",
-                "data": { "fn": on_theme_edit_clicked },
+            controls.push(ui::Control {
+                kind: "button",
+                role: "action_form_primary",
+                text: "Edit…",
+                tooltip: "Open the Theme dialog",
+                on: "handle",
+                data: { "fn": on_theme_edit_clicked },
             });
         }
-        out.push({
-            "full": false,
-            "height": row_height,
-            "controls": controls,
-            "slot_role": "layout_actions",
-            "label": if searching { path } else { key_of(setting) },
+        out.push(ui::Row {
+            full: false,
+            height: row_height,
+            controls: controls,
+            slot_role: "layout_actions",
+            label: if searching { path } else { key_of(setting) },
         });
         let help = setting.spec["help"].as_str();
         if help != "" {
@@ -419,22 +419,22 @@ fn form_specs(state: editor::State, tokens: any) -> [any] {
         }
         for on in settings::overrides(path) {
             let at = override_path(on, path);
-            out.push({
-                "full": false,
-                "height": row_height,
-                "controls": [
+            out.push(ui::Row {
+                full: false,
+                height: row_height,
+                controls: [
                     editor_control(state, setting, at),
-                    {
-                        "kind": "button",
-                        "role": "chip_quiet",
-                        "text": "×",
-                        "tooltip": "Reset this override",
-                        "on": "handle",
-                        "data": { "fn": on_override_reset_clicked, "at": at },
+                    ui::Control {
+                        kind: "button",
+                        role: "chip_quiet",
+                        text: "×",
+                        tooltip: "Reset this override",
+                        on: "handle",
+                        data: { "fn": on_override_reset_clicked, "at": at },
                     },
                 ],
-                "slot_role": "layout_actions",
-                "label": "  on " + on,
+                slot_role: "layout_actions",
+                label: "  on " + on,
             });
         }
     }
@@ -451,32 +451,32 @@ fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) 
 }
 
 /// A line of prose across both columns, and a group's heading.
-fn note_spec(text: str) -> any {
-    {
-        "full": true,
-        "height": 0,
-        "controls": [
-            {
-                "kind": "label",
-                "role": "text_caption",
-                "grow": 1,
-                "wrap": true,
-                "text": text,
+fn note_spec(text: str) -> ui::Row {
+    ui::Row {
+        full: true,
+        height: 0,
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_caption",
+                grow: 1,
+                wrap: true,
+                text: text,
             },
         ],
     }
 }
 
-fn head_spec(text: str) -> any {
-    {
-        "full": true,
-        "height": 24,
-        "controls": [
-            {
-                "kind": "label",
-                "role": "text_caption",
-                "grow": 1,
-                "text": text,
+fn head_spec(text: str) -> ui::Row {
+    ui::Row {
+        full: true,
+        height: 24,
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_caption",
+                grow: 1,
+                text: text,
             },
         ],
     }
@@ -485,19 +485,19 @@ fn head_spec(text: str) -> any {
 // The page's one override choice. The dropdown draws what it is handed, so the
 // prompt is its own text until a tag is picked.
 /// Which override a project setting is written to, or none.
-fn target_control(state: editor::State) -> any {
+fn target_control(state: editor::State) -> ui::Control {
     let options = ["none"];
     for tag in settings::known_tags() {
         options.push(tag);
     }
-    {
-        "kind": "dropdown",
-        "role": "choice_form",
-        "width": 170,
-        "text": if state.settings.target == "" { "override for…" } else { "override for " + state.settings.target },
-        "options": options,
-        "on": "handle",
-        "data": { "fn": on_override_target_picked },
+    ui::Control {
+        kind: "dropdown",
+        role: "choice_form",
+        width: 170,
+        text: if state.settings.target == "" { "override for…" } else { "override for " + state.settings.target },
+        options: options,
+        on: "handle",
+        data: { "fn": on_override_target_picked },
     }
 }
 
@@ -513,30 +513,30 @@ fn override_path(tag: str, path: str) -> str {
 // the override this machine happened to match would write it onto the key it
 // overrides.
 /// The control one setting's row carries, by the schema's datatype.
-fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> any {
+fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> ui::Control {
     let spec = util::map_or_empty(setting.spec);
     let datatype = if spec["type"] == nil { "string" } else { spec["type"].as_str() };
     let value = settings::base(path);
     if datatype == "bool" {
-        return {
-            "kind": "switch",
-            "role": "switch_form",
-            "checked": value.as_bool(),
-            "on": "handle",
-            "data": { "fn": on_switch_toggled, "path": path },
+        return ui::Control {
+            kind: "switch",
+            role: "switch_form",
+            checked: value.as_bool(),
+            on: "handle",
+            data: { "fn": on_switch_toggled, "path": path },
         };
     }
     if datatype == "enum" {
         // The person's own themes are folders, so the list is read, not declared.
         let named = path == theme::SETTING;
-        return {
-            "kind": "dropdown",
-            "role": "choice_form",
-            "grow": 1,
-            "text": if value.kind() == "str" { value.as_str() } else { "" },
-            "options": if named { theme::names() } else { util::list_or_empty(spec["options"]) },
-            "on": "handle",
-            "data": { "fn": on_choice_picked, "path": path },
+        return ui::Control {
+            kind: "dropdown",
+            role: "choice_form",
+            grow: 1,
+            text: if value.kind() == "str" { value.as_str() } else { "" },
+            options: if named { theme::names() } else { util::list_or_empty(spec["options"]) },
+            on: "handle",
+            data: { "fn": on_choice_picked, "path": path },
         };
     }
     if datatype == "int" || datatype == "float" {
@@ -546,16 +546,16 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
         // at its floor instead.
         let now = if value == nil { low } else { value.as_float() };
         let whole = datatype == "int";
-        return {
-            "kind": "number_field",
-            "role": "input_number",
-            "grow": 1,
-            "value": now,
-            "min": low,
-            "max": high,
-            "drag_speed": if whole { 1.0 } else { 0.01 },
-            "on": "handle",
-            "data": { "fn": on_number_changed, "path": path, "whole": whole },
+        return ui::Control {
+            kind: "number_field",
+            role: "input_number",
+            grow: 1,
+            value: now,
+            min: low,
+            max: high,
+            drag_speed: if whole { 1.0 } else { 0.01 },
+            on: "handle",
+            data: { "fn": on_number_changed, "path": path, "whole": whole },
         };
     }
     // Everything else reads and writes as text, a comma-separated list
@@ -569,14 +569,14 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
     } else {
         "{value}"
     };
-    {
-        "kind": "text_field",
-        "role": "input_form",
-        "grow": 1,
-        "text": shown,
-        "secret": spec["secret"].as_bool(),
-        "on_submit": "handle_submit",
-        "data": { "submit": on_text_submitted, "path": path, "datatype": datatype },
+    ui::Control {
+        kind: "text_field",
+        role: "input_form",
+        grow: 1,
+        text: shown,
+        secret: spec["secret"].as_bool(),
+        on_submit: "handle_submit",
+        data: { "submit": on_text_submitted, "path": path, "datatype": datatype },
     }
 }
 

@@ -62,11 +62,10 @@ impl Inspector {
         for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
             one.widget.visible = true;
         }
-        head.get_node("Name").patch_component("widget", {
-            "text": view["name"],
-            "icon": view["icon"],
-            "icon_color": view["icon_color"],
-        });
+        let patched = head.get_node("Name");
+        patched.widget.text = view["name"].as_str();
+        patched.widget.icon = view["icon"].as_str();
+        patched.widget.icon_color = view["icon_color"].as_str();
         head.get_node("Type").widget.text = view["kind"].as_str();
         self.node.get_node("Foot").get_node("Add").widget.icon = view["add_icon"].as_str();
         self.editor.call("inspector_fill", self.query);

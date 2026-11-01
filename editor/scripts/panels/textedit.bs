@@ -22,8 +22,12 @@ impl Textedit {
         }
         let field = self.node.get_node("Field");
         if view["open"].as_bool() && !self.open {
-            self.node.patch_component("widget", { "visible": true, "x": view["x"], "y": view["y"] });
-            field.patch_component("widget", { "text": view["text"], "width": view["width"].as_float() - 20.0, "font_size": view["size"] });
+            self.node.widget.visible = true;
+            self.node.widget.x = view["x"].as_float();
+            self.node.widget.y = view["y"].as_float();
+            field.widget.text = view["text"].as_str();
+            field.widget.width = view["width"].as_float() - 20.0;
+            field.widget.font_size = view["size"].as_float();
             ui::set_focus(field);
         } else if !view["open"].as_bool() {
             self.node.widget.visible = false;

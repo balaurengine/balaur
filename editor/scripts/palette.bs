@@ -455,8 +455,11 @@ pub fn fill(state: &mut editor::State) {
         "placeholder": "Nodes, commands, workspaces…",
         "query": state.palette_query,
         "rows_h": (matched.len() as float) * (row_height + 2.0) + 4.0,
+        "on": "handle",
+        "on_submit": "handle_submit",
+        "data": { "fn": typed, "submit": submitted },
     };
-    let host = window::picker(state, pool::on_submit(pool::on(field, typed, {}), submitted, {}));
+    let host = window::picker(state, field);
     pool::sync(state, host, row_specs(state, matched, row_height), 0.0, false);
 }
 
@@ -483,11 +486,11 @@ fn matches(state: &mut editor::State) -> [Command] {
     out
 }
 
-fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [any] {
-    let out: [any] = [];
+fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [ui::Row] {
+    let out: [ui::Row] = [];
     if matched.len() == 0 {
-        let none: any = { "kind": "label", "role": "text_caption", "grow": 1, "wrap": true, "text": "no matches" };
-        out.push({ "full": true, "controls": [none] });
+        let none: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, wrap: true, text: "no matches" };
+        out.push(ui::Row { full: true, controls: [none] });
         state.palette_submit = false;
         return out;
     }
@@ -502,22 +505,22 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
     }
     for at in 0..matched.len() {
         let command_entry = matched[at];
-        let button: any = {
-            "kind": "button",
-            "grow": 1,
-            "text": command_entry.label,
-            "icon": command_entry.icon,
-            "role": "item_picker",
-            "checked": at == 0,
-            "tooltip": command_entry.key,
+        let button: ui::Control = ui::Control {
+            kind: "button",
+            grow: 1,
+            text: command_entry.label,
+            icon: command_entry.icon,
+            role: "item_picker",
+            checked: at == 0,
+            tooltip: command_entry.key,
         };
-        out.push({
-            "full": true,
-            "height": row_height,
-            "slot_role": "layout_actions",
-            "controls": [
+        out.push(ui::Row {
+            full: true,
+            height: row_height,
+            slot_role: "layout_actions",
+            controls: [
                 pool::on(button, picked, { "run": command_entry.run, "arg": command_entry.data }),
-                { "kind": "label", "role": "text_caption", "text": command_entry.key },
+                ui::Control { kind: "label", role: "text_caption", text: command_entry.key },
             ],
         });
     }

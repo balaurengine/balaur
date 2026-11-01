@@ -87,7 +87,10 @@ pub fn show(state: &mut editor::State, id: str) {
 pub fn hide(state: &mut editor::State) {
     state.window.open = "";
     state.window.drawn = "";
-    util::fill(SHEET, { "open": false });
+    let filled = scene::get_node(SHEET);
+    if filled.is_valid() {
+        filled.widget.open = false;
+    }
 }
 
 pub fn showing(state: editor::State, id: str) -> bool {
@@ -128,20 +131,20 @@ pub fn closed(state: &mut editor::State) {
 }
 
 /// The bar across a sheet: its name, the verbs it carries, and the close.
-fn bar_controls(state: editor::State, title: str, actions: [any]) -> [any] {
-    let out: [any] = [
-        { "kind": "label", "role": "text_title_dialog", "text": title },
-        { "kind": "row", "grow": 1 },
+fn bar_controls(state: editor::State, title: str, actions: [ui::Control]) -> [ui::Control] {
+    let out: [ui::Control] = [
+        ui::Control { kind: "label", role: "text_title_dialog", text: title },
+        ui::Control { kind: "row", grow: 1 },
     ];
     for one in actions {
         out.push(one);
     }
-    out.push({
-        "kind": "button",
-        "role": "icon_action_dialog",
-        "text": "Close",
-        "on": "handle",
-        "data": { "fn": on_close_clicked },
+    out.push(ui::Control {
+        kind: "button",
+        role: "icon_action_dialog",
+        text: "Close",
+        on: "handle",
+        data: { "fn": on_close_clicked },
     });
     out
 }
@@ -153,7 +156,7 @@ fn on_close_clicked(state: &mut editor::State, data: any, _value: any) {
 /// The hosts a screen fills: its own column down the left, and the rows
 /// beside it. Opens the sheet for `id`, with `actions`, control specs, beside
 /// its close; `()` when another screen is up.
-pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [any]) -> Hosts? {
+pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::Control]) -> Hosts? {
     if !showing(state, id) {
         return nil;
     }
@@ -165,7 +168,12 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [any]
         state.window.drawn = id;
     }
     let box = size(state);
-    util::fill(SHEET, { "open": true, "width": box.width, "height": box.height });
+    let filled = scene::get_node(SHEET);
+    if filled.is_valid() {
+        filled.widget.open = true;
+        filled.widget.width = box.width;
+        filled.widget.height = box.height;
+    }
     pool::strip(state, SHEET + "/SheetBar", bar_controls(state, title, actions));
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
@@ -186,7 +194,10 @@ const PICKER: str = "Editor/Picker";
 
 /// Shut the picker, for the screen that was using it.
 pub fn picker_shut(state: &mut editor::State) {
-    util::fill(PICKER, { "open": false });
+    let filled = scene::get_node(PICKER);
+    if filled.is_valid() {
+        filled.widget.open = false;
+    }
     state.picker_focused = false;
 }
 
@@ -200,26 +211,31 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
     let width = util::min(options["width"].as_float(), util::max(screen.x - 32.0, 240.0));
-    util::fill(PICKER, { "open": true, "width": width });
-    let field: any = {
-        "kind": "text_field",
-        "role": "input_picker",
-        "text": options["query"].as_str(),
-        "grow": 1,
-        "placeholder": options["placeholder"],
-        "on": options["on"],
-        "on_submit": options["on_submit"],
-        "data": options["data"],
+    let filled = scene::get_node(PICKER);
+    if filled.is_valid() {
+        filled.widget.open = true;
+        filled.widget.width = width;
+    }
+    let field: ui::Control = ui::Control {
+        kind: "text_field",
+        role: "input_picker",
+        text: options["query"].as_str(),
+        grow: 1,
+        placeholder: options["placeholder"],
+        on: options["on"],
+        on_submit: options["on_submit"],
+        data: options["data"],
     };
     pool::strip(state, PICKER + "/PickerHead", [
-        { "kind": "label", "role": "text_mark_picker", "text": options["mark"].as_str() },
+        ui::Control { kind: "label", role: "text_mark_picker", text: options["mark"].as_str() },
         field,
-        { "kind": "label", "role": "chip", "text": "esc" },
+        ui::Control { kind: "label", role: "chip", text: "esc" },
     ]);
-    util::fill(PICKER + "/PickerScroll", {
-        "visible": true,
-        "height": util::min(util::max(screen.y * 0.5, 160.0), options["rows_h"].as_float()),
-    });
+    let filled = scene::get_node(PICKER + "/PickerScroll");
+    if filled.is_valid() {
+        filled.widget.visible = true;
+        filled.widget.height = util::min(util::max(screen.y * 0.5, 160.0), options["rows_h"].as_float());
+    }
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.
     if !state.picker_focused {

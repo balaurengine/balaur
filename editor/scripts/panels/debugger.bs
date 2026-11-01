@@ -73,13 +73,14 @@ impl Debugger {
             tools.get_node(step).patch_component("widget", shown);
         }
         tools.get_node("Where").widget.text = view["where"].as_str();
-        tools.get_node("Threw").patch_component("widget", { "visible": view["threw"].as_str() != "", "text": view["threw"] });
+        let patched = tools.get_node("Threw");
+        patched.widget.visible = view["threw"].as_str() != "";
+        patched.widget.text = view["threw"].as_str();
         tools.get_node("BreakOnError").widget.checked = view["break_on_error"].as_bool();
-        self.node.get_node("Stack").patch_component("widget", {
-            "visible": view["stopped"],
-            "options": view["frames"],
-            "text": view["picked"],
-        });
+        let patched = self.node.get_node("Stack");
+        patched.widget.visible = view["stopped"].as_bool();
+        patched.widget.options = view["frames"];
+        patched.widget.text = view["picked"].as_str();
     }
 }
 

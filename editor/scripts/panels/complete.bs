@@ -38,16 +38,19 @@ impl Complete {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view["open"], "x": view["x"], "y": view["y"] });
+        self.node.widget.visible = view["open"].as_bool();
+        self.node.widget.x = view["x"].as_float();
+        self.node.widget.y = view["y"].as_float();
         if !view["open"].as_bool() {
             return;
         }
-        self.node.get_node("List").patch_component("widget", {
-            "options": view["items"],
-            "text": view["picked"],
-            "height": view["list_h"],
-        });
-        self.node.get_node("Doc").patch_component("widget", { "visible": view["doc"].as_str() != "", "text": view["doc"] });
+        let patched = self.node.get_node("List");
+        patched.widget.options = view["items"];
+        patched.widget.text = view["picked"].as_str();
+        patched.widget.height = view["list_h"].as_float();
+        let patched = self.node.get_node("Doc");
+        patched.widget.visible = view["doc"].as_str() != "";
+        patched.widget.text = view["doc"].as_str();
     }
 }
 

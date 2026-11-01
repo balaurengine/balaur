@@ -99,7 +99,9 @@ impl Inputview {
         let design_x = design_point.x;
         let design_y = design_point.y;
         self.at = At { x: design_x.as_float(), y: design_y.as_float() };
-        self.node.get_node("Pointer").patch_component("widget", { "visible": true, "inset": [design_x, design_y, -1.0, -1.0] });
+        let patched = self.node.get_node("Pointer");
+        patched.widget.visible = true;
+        patched.patch_component("widget", { "inset": [design_x, design_y, -1.0, -1.0] });
         self.node.get_node("Press").patch_component("widget", {
             "inset": [design_x.as_float() - PRESS / 2.0, design_y.as_float() - PRESS / 2.0, -1.0, -1.0],
         });
@@ -115,10 +117,9 @@ impl Inputview {
         let design_y = design_point.y;
         self.ripple(design_x, design_y);
         if event["button"].as_str() == "left" {
-            self.node.get_node("Press").patch_component("widget", {
-                "visible": true,
-                "inset": [design_x.as_float() - PRESS / 2.0, design_y.as_float() - PRESS / 2.0, -1.0, -1.0],
-            });
+            let patched = self.node.get_node("Press");
+            patched.widget.visible = true;
+            patched.patch_component("widget", { "inset": [design_x.as_float() - PRESS / 2.0, design_y.as_float() - PRESS / 2.0, -1.0, -1.0] });
         }
     }
 
@@ -228,13 +229,11 @@ impl Inputview {
         self.next_ring += 1;
         for name in ["Wash{slot}", "Ring{slot}"] {
             let node = self.node.get_node(name);
-            node.patch_component("widget", {
-                "visible": true,
-                "width": RIPPLE_FROM,
-                "height": RIPPLE_FROM,
-                "corner_radius": RIPPLE_FROM / 2.0,
-                "inset": [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0],
-            });
+            node.widget.visible = true;
+            node.widget.width = RIPPLE_FROM;
+            node.widget.height = RIPPLE_FROM;
+            node.widget.corner_radius = RIPPLE_FROM / 2.0;
+            node.patch_component("widget", { "inset": [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0] });
             // Centred on the click as it grows, so the box's corner moves too.
             let from = [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0];
             let to = [click_x.as_float() - RIPPLE_TO / 2.0, click_y.as_float() - RIPPLE_TO / 2.0, -1.0, -1.0];

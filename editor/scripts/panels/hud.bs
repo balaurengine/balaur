@@ -40,7 +40,9 @@ impl Hud {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view["shown"], "inset": view["inset"], "height": view["height"] });
+        self.node.widget.visible = view["shown"].as_bool();
+        self.node.widget.height = view["height"].as_float();
+        self.node.patch_component("widget", { "inset": view["inset"] });
         if !view["shown"].as_bool() {
             return;
         }
@@ -49,21 +51,19 @@ impl Hud {
         axes.get_node("Y").patch_component("widget", { "text_color": view["y_ink"].as_str() });
         let zoom = self.node.get_node("Zoom/Row");
         for name in ["Out", "In"] {
-            zoom.get_node(name).patch_component("widget", {
-                "width": view["step"],
-                "height": view["step"],
-                "text_color": view["quiet_ink"],
-            });
+            let patched = zoom.get_node(name);
+            patched.widget.width = view["step"].as_float();
+            patched.widget.height = view["step"].as_float();
+            patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
         }
         zoom.get_node("In").widget.icon = view["add_icon"].as_str();
         zoom.get_node("Reading").widget.text = view["zoom"].as_str();
         let bottom = self.node.get_node("Bottom");
         bottom.widget.visible = view["bottom"].as_bool();
-        bottom.get_node("Open").patch_component("widget", {
-            "icon": view["bottom_icon"],
-            "width": view["step"].as_float() + 6.0,
-            "height": view["step"].as_float() + 6.0,
-            "text_color": view["quiet_ink"],
-        });
+        let patched = bottom.get_node("Open");
+        patched.widget.icon = view["bottom_icon"].as_str();
+        patched.widget.width = view["step"].as_float() + 6.0;
+        patched.widget.height = view["step"].as_float() + 6.0;
+        patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
     }
 }

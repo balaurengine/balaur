@@ -194,8 +194,8 @@ pub fn section_rows(state: &mut editor::State, tokens: any, node: Node) {
 
 // A control naming a `call` presses back into the plugin: that method runs
 // on the plugin's node with the control's `data`.
-fn calls_back(entry: any, row: any) -> any {
-    let controls: [any] = [];
+fn calls_back(entry: any, row: any) -> ui::Row {
+    let controls: [ui::Control] = [];
     for control in util::list_or_empty(row["controls"]) {
         let call = control["call"];
         if call.kind() == "str" {
@@ -232,41 +232,46 @@ const DIALOG_WIDTH: float = 260.0;
 /// the rows the plugin hands back, and place them against the stage.
 pub fn fill_dialogs(state: &mut editor::State) {
     let tokens = state.theme;
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for entry in state.registry.dialogs {
         if !state.registry.open[entry["id"].as_str()].as_bool() {
             continue;
         }
-        let close = pool::on({
-            "kind": "button",
-            "role": "icon_action",
-            "text": "",
-            "icon": icons::ui("close"),
-            "tooltip": "Close",
+        let close = pool::on(ui::Control {
+            kind: "button",
+            role: "icon_action",
+            text: "",
+            icon: icons::ui("close"),
+            tooltip: "Close",
         }, close_dialog, { "id": entry["id"] });
-        let head: [any] = [
-            { "kind": "label", "role": "text_title_dialog", "text": entry["title"] },
-            { "kind": "row", "grow": 1 },
+        let head: [ui::Control] = [
+            ui::Control { kind: "label", role: "text_title_dialog", text: entry["title"] },
+            ui::Control { kind: "row", grow: 1 },
             close,
         ];
-        let body: [any] = [
-            { "kind": "row", "align_items": "center", "controls": head },
-            { "kind": "separator" },
+        let body: [ui::Control] = [
+            ui::Control { kind: "row", align_items: "center", controls: head },
+            ui::Control { kind: "separator" },
         ];
         for row in util::list_or_empty(ask(entry, "rows", { "theme": tokens })) {
             body.push(row_controls(util::map_or_empty(row)));
         }
-        out.push({
-            "kind": "panel",
-            "role": "sheet",
-            "width": DIALOG_WIDTH,
-            "padding": [12, 6, 12, 8],
-            "gap": [6, 6],
-            "controls": body,
+        out.push(ui::Control {
+            kind: "panel",
+            role: "sheet",
+            width: DIALOG_WIDTH,
+            padding: [12, 6, 12, 8],
+            gap: [6, 6],
+            controls: body,
         });
     }
     let viewport_rect = state.layout["stage"];
-    util::fill(DIALOGS, { "visible": out.len() > 0, "x": viewport_rect["x"].as_float() + 12.0, "y": viewport_rect["y"].as_float() + 12.0 });
+    let filled = scene::get_node(DIALOGS);
+    if filled.is_valid() {
+        filled.widget.visible = out.len() > 0;
+        filled.widget.x = viewport_rect["x"].as_float() + 12.0;
+        filled.widget.y = viewport_rect["y"].as_float() + 12.0;
+    }
     pool::strip(state, DIALOGS, out);
 }
 
@@ -277,16 +282,16 @@ fn close_dialog(state: &mut editor::State, data: any, _value: any) {
 
 // A row a plugin hands back, as the pool's row specs read, laid out as one
 // line: its label, then its controls.
-fn row_controls(row: any) -> any {
-    let controls: [any] = [];
+fn row_controls(row: any) -> ui::Control {
+    let controls: [ui::Control] = [];
     let label = row["label"];
     if label != nil {
-        controls.push({ "kind": "label", "role": "text_caption", "text": label });
+        controls.push(ui::Control { kind: "label", role: "text_caption", text: label });
     }
     for one in util::list_or_empty(row["controls"]) {
         controls.push(one);
     }
-    { "kind": "row", "gap": [6, 6], "align_items": "center", "controls": controls }
+    ui::Control { kind: "row", gap: [6, 6], align_items: "center", controls: controls }
 }
 
 /// What a plugin's docks and dialogs show moved.

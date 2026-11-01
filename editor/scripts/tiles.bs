@@ -883,7 +883,7 @@ fn tile_table(state: editor::State) -> any {
 }
 
 /// The Set rows: what the selected tile is, written back to the tile set.
-fn set_rows(state: editor::State, out: [[any]]) {
+fn set_rows(state: editor::State, out: [[ui::Control]]) {
     let tile = tile_table(state);
     let solid = tile["collision"].as_str() == "full";
     let one_way = tile["one_way"].as_bool();
@@ -907,7 +907,7 @@ fn set_rows(state: editor::State, out: [[any]]) {
 }
 
 // One of the tile's own flags, written back as it is pressed.
-fn flag_chip(text: str, on: bool, key: str, value: any) -> any {
+fn flag_chip(text: str, on: bool, key: str, value: any) -> ui::Control {
     chip(text, on, on_flag_chip_clicked, { "key": key, "value": value })
 }
 
@@ -917,8 +917,8 @@ fn on_flag_chip_clicked(state: &mut editor::State, data: any, _value: any) {
 
 /// A chip that is on or off, and what pressing it does: `handler` with `data`. The
 /// theme dresses both states; nothing here names a colour.
-fn chip(text: str, on: bool, handler: fn(&mut editor::State, any, any), data: any) -> any {
-    pool::on({ "kind": "button", "text": text, "role": "chip", "checked": on }, handler, data)
+fn chip(text: str, on: bool, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
+    pool::on(ui::Control { kind: "button", text: text, role: "chip", checked: on }, handler, data)
 }
 
 // The Tiles panel's strip of chips, which the pool makes into nodes.
@@ -939,7 +939,7 @@ pub fn palette(state: &mut editor::State) -> Palette {
         return none;
     }
     let set = set_or.unwrap();
-    let rows: [[any]] = [];
+    let rows: [[ui::Control]] = [];
     mode_row(state, rows);
     if state.tiles.mode == "stamp" {
         stamp_row(state, rows);
@@ -964,19 +964,19 @@ pub fn palette(state: &mut editor::State) -> Palette {
     swatches(state, set, count)
 }
 
-fn note(text: str) -> any {
-    { "kind": "label", "role": "text_caption", "text": text }
+fn note(text: str) -> ui::Control {
+    ui::Control { kind: "label", role: "text_caption", text: text }
 }
 
 // The row every mode is on: the tools, the two verbs, and which tile is held.
-fn mode_row(state: editor::State, out: [[any]]) {
-    let row: [any] = [];
+fn mode_row(state: editor::State, out: [[ui::Control]]) {
+    let row: [ui::Control] = [];
     for id in MODES() {
         row.push(chip(mode_name(id), state.tiles.mode == id, on_mode_chip_clicked, { "id": id }));
     }
     row.push(chip("Add layer", false, on_add_layer_clicked, {}));
     row.push(chip("Set", state.tiles.editing, on_set_clicked, {}));
-    row.push({ "kind": "row", "grow": 1 });
+    row.push(ui::Control { kind: "row", grow: 1 });
     row.push(note("tile {state.tiles.tile}"));
     out.push(row);
 }
@@ -994,7 +994,7 @@ fn on_set_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 // How many cells the stamp lays down, across and down.
-fn stamp_row(state: editor::State, out: [[any]]) {
+fn stamp_row(state: editor::State, out: [[ui::Control]]) {
     let row = [note("block")];
     for wide in [1, 2, 3, 4] {
         row.push(chip("{wide} wide", state.tiles.stamp.wide == wide, on_stamp_size_clicked, { "wide": wide, "tall": state.tiles.stamp.tall }));
@@ -1009,13 +1009,13 @@ fn on_stamp_size_clicked(state: &mut editor::State, data: any, _value: any) {
     state.tiles.stamp = Block { wide: data["wide"].as_int(), tall: data["tall"].as_int() };
 }
 
-fn terrain_row(state: editor::State, out: [[any]]) {
+fn terrain_row(state: editor::State, out: [[ui::Control]]) {
     let named = terrains(state);
     if named.len() == 0 {
         out.push([note("This tile set names no terrains, so there is nothing to paint.")]);
         return;
     }
-    let row: [any] = [];
+    let row: [ui::Control] = [];
     for entry in named {
         row.push(chip(entry.name, state.tiles.terrain == entry.value, on_terrain_clicked, { "value": entry.value }));
     }
@@ -1027,7 +1027,7 @@ fn on_terrain_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 // Which layer of the map is being painted, where the node has more than one.
-fn layer_row(state: editor::State, found: [Layer], out: [[any]]) {
+fn layer_row(state: editor::State, found: [Layer], out: [[ui::Control]]) {
     let row = [note("layers")];
     for layer in found {
         row.push(chip(layer.name, layer.index == state.selected, on_layer_clicked, { "index": layer.index }));

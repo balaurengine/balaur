@@ -73,11 +73,14 @@ impl Code {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view["shown"], "inset": view["inset"] });
+        self.node.widget.visible = view["shown"].as_bool();
+        self.node.patch_component("widget", { "inset": view["inset"] });
         if !view["shown"].as_bool() {
             return;
         }
-        self.node.get_node("Note").patch_component("widget", { "visible": view["note"].as_str() != "", "text": view["note"] });
+        let patched = self.node.get_node("Note");
+        patched.widget.visible = view["note"].as_str() != "";
+        patched.widget.text = view["note"].as_str();
         let scroll = self.node.get_node("Scroll");
         scroll.widget.visible = view["note"].as_str() == "";
         if view["note"].as_str() != "" {

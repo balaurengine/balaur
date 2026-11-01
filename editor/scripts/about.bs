@@ -37,27 +37,27 @@ pub fn fill(state: &mut editor::State) {
 
 /// Every row the sheet shows: which build this is, the line it follows, and
 /// where to read more.
-fn specs(state: editor::State) -> [any] {
+fn specs(state: editor::State) -> [ui::Row] {
     let mine = util::map_or_empty(release::installed());
-    let out: [any] = [
-        {
-            "full": true,
-            "height": 56,
-            "slot_role": "layout_actions",
-            "controls": [
-                {
-                    "kind": "panel",
-                    "role": "sheet_logo",
-                    "controls": [
-                        { "kind": "image", "image": manager::LOGO, "width": 44 },
+    let out: [ui::Row] = [
+        ui::Row {
+            full: true,
+            height: 56,
+            slot_role: "layout_actions",
+            controls: [
+                ui::Control {
+                    kind: "panel",
+                    role: "sheet_logo",
+                    controls: [
+                        ui::Control { kind: "image", image: manager::LOGO, width: 44 },
                     ],
                 },
-                {
-                    "kind": "column",
-                    "role": "layout_about",
-                    "controls": [
-                        { "kind": "label", "role": "text_title", "text": "Balaur " + mine["version"].as_str() },
-                        { "kind": "label", "role": "text_caption", "text": manager::build_line(mine) },
+                ui::Control {
+                    kind: "column",
+                    role: "layout_about",
+                    controls: [
+                        ui::Control { kind: "label", role: "text_title", text: "Balaur " + mine["version"].as_str() },
+                        ui::Control { kind: "label", role: "text_caption", text: manager::build_line(mine) },
                     ],
                 },
             ],
@@ -72,11 +72,11 @@ fn specs(state: editor::State) -> [any] {
     if !manager::in_tab() {
         update_rows(state, mine, out);
     }
-    out.push({
-        "full": true,
-        "height": 30,
-        "slot_role": "layout_actions",
-        "controls": [
+    out.push(ui::Row {
+        full: true,
+        height: 30,
+        slot_role: "layout_actions",
+        controls: [
             link("balaurengine.org", SITE),
             link("Source", SOURCE),
         ],
@@ -85,30 +85,30 @@ fn specs(state: editor::State) -> [any] {
 }
 
 // One label and its value, the value in the monospace a build id reads in.
-fn fact(out: [any], name: str, value: str) {
-    out.push({
-        "full": false,
-        "height": 22,
-        "controls": [
-            {
-                "kind": "label",
-                "role": "text_code",
-                "grow": 1,
-                "text": value,
+fn fact(out: [ui::Row], name: str, value: str) {
+    out.push(ui::Row {
+        full: false,
+        height: 22,
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_code",
+                grow: 1,
+                text: value,
             },
         ],
-        "label": name,
+        label: name,
     });
 }
 
-fn link(text: str, url: str) -> any {
-    {
-        "kind": "button",
-        "role": "chip",
-        "text": text,
-        "tooltip": url,
-        "on": "handle",
-        "data": { "fn": on_link_clicked, "url": url },
+fn link(text: str, url: str) -> ui::Control {
+    ui::Control {
+        kind: "button",
+        role: "chip",
+        text: text,
+        tooltip: url,
+        on: "handle",
+        data: { "fn": on_link_clicked, "url": url },
     }
 }
 
@@ -120,37 +120,37 @@ fn on_link_clicked(state: any, data: any, _value: any) {
 // Where this build's line stands, the press that asks again, and the newest
 // release on it when there is one to move to; then what the check said and
 // how far an install has got.
-fn update_rows(state: editor::State, mine: any, out: [any]) {
+fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
     let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine["channel"].as_str() == "" { "nightly" } else { mine["channel"].as_str() };
     let newest = manager::newest_on(state, line.as_str());
     let fresh = newest["order"].as_str() == "newer";
-    let controls: [any] = [
-        {
-            "kind": "label",
-            "role": "text_code",
-            "font_size": 11,
-            "grow": 1,
-            "text": line.as_str() + ": " + manager::standing(state, line.as_str()),
-            "text_color": (if fresh { tokens["success_text"] } else { tokens["text_subtle"] }).as_str(),
+    let controls: [ui::Control] = [
+        ui::Control {
+            kind: "label",
+            role: "text_code",
+            font_size: 11,
+            grow: 1,
+            text: line.as_str() + ": " + manager::standing(state, line.as_str()),
+            text_color: (if fresh { tokens["success_text"] } else { tokens["text_subtle"] }).as_str(),
         },
     ];
     // Up to date already says it; only a release to move to gets a press.
     if newest["id"].as_str() != "" && newest["order"].as_str() != "same" {
         let press = manager::press_spec(state, newest, mine);
-        if press.kind() == "map" {
-            controls.push(press);
+        if press != nil {
+            controls.push(press.unwrap());
         }
     }
-    controls.push({
-        "kind": "button",
-        "role": "action_form",
-        "text": if state.manager.reading { "Checking" } else { "Check" },
-        "on": "handle",
-        "data": { "fn": on_check_clicked },
+    controls.push(ui::Control {
+        kind: "button",
+        role: "action_form",
+        text: if state.manager.reading { "Checking" } else { "Check" },
+        on: "handle",
+        data: { "fn": on_check_clicked },
     });
-    out.push({ "full": true, "height": 30, "slot_role": "layout_actions", "controls": controls });
+    out.push(ui::Row { full: true, height: 30, slot_role: "layout_actions", controls: controls });
     if mine["held"].as_str() != "" {
         out.push(say(mine["held"].as_str(), tokens["text_subtle"].as_str()));
     }
@@ -159,11 +159,11 @@ fn update_rows(state: editor::State, mine: any, out: [any]) {
         out.push(say(said, (if state.manager.failed != "" { tokens["warning_text"] } else { tokens["text_subtle"] }).as_str()));
     }
     if manager::installing(state) {
-        out.push({
-            "full": true,
-            "height": 22,
-            "slot_role": "layout_actions",
-            "controls": manager::progress_controls(state),
+        out.push(ui::Row {
+            full: true,
+            height: 22,
+            slot_role: "layout_actions",
+            controls: manager::progress_controls(state),
         });
     }
 }
@@ -172,19 +172,19 @@ fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
     manager::check(state);
 }
 
-fn say(text: str, ink: str) -> any {
-    {
-        "full": true,
-        "height": 0,
-        "controls": [
-            {
-                "kind": "label",
-                "role": "text_code_quiet",
-                "font_size": 11,
-                "grow": 1,
-                "wrap": true,
-                "text": text,
-                "text_color": ink,
+fn say(text: str, ink: str) -> ui::Row {
+    ui::Row {
+        full: true,
+        height: 0,
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_code_quiet",
+                font_size: 11,
+                grow: 1,
+                wrap: true,
+                text: text,
+                text_color: ink,
             },
         ],
     }

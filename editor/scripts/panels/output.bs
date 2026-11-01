@@ -56,10 +56,9 @@ impl Output {
             return;
         }
         self.node.get_node("Log").widget.options = view["items"];
-        self.node.get_node("Nothing").patch_component("widget", {
-            "visible": view["says"].as_str() != "",
-            "text": view["says"],
-        });
+        let patched = self.node.get_node("Nothing");
+        patched.widget.visible = view["says"].as_str() != "";
+        patched.widget.text = view["says"].as_str();
         let tools = self.node.get_node("Tools");
         for level in LEVELS() {
             let on = level == self.level;

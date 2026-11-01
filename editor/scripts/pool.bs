@@ -14,7 +14,7 @@ use util;
 /// The strip the chrome is made of: how many workspaces, documents and tools
 /// there are changes with the workspace and with what is open, so the bar can
 /// no more be authored than the inspector's form can.
-pub fn strip(state: editor::State, host_path: str, controls: any) {
+pub fn strip(state: editor::State, host_path: str, controls: [ui::Control]) {
     ui::fill_strip(host_path, controls);
 }
 
@@ -27,7 +27,7 @@ pub fn strip(state: editor::State, host_path: str, controls: any) {
 ///
 /// The rows are as wide as the host: `stacked` puts each label above its
 /// control column instead of beside it, for a host too narrow for both.
-pub fn sync(state: editor::State, host_path: str, specs: any, label_width: float, stacked: bool) {
+pub fn sync(state: editor::State, host_path: str, specs: [ui::Row], label_width: float, stacked: bool) {
     ui::fill_rows(host_path, specs, label_width, stacked);
 }
 
@@ -37,7 +37,7 @@ pub fn sync(state: editor::State, host_path: str, specs: any, label_width: float
 ///
 /// A self-test run builds and fills anyway, and warns when the controls
 /// changed under a key that did not: an input the key left out.
-pub fn strip_when(state: &mut editor::State, host_path: str, key: any, build: fn(&mut editor::State) -> any) {
+pub fn strip_when(state: &mut editor::State, host_path: str, key: any, build: fn(&mut editor::State) -> [ui::Control]) {
     if state.pool_keys[host_path] == key {
         if state.start_states != "" && ui::fill_strip(host_path, build(state)) {
             log::warn("the strip at {host_path} changed while its key did not");
@@ -57,7 +57,7 @@ pub fn strip_due(state: editor::State, host_path: str, key: any) -> bool {
 }
 
 /// `strip_when`'s fill, for controls built after `strip_due` said so.
-pub fn strip_keyed(state: &mut editor::State, host_path: str, key: any, controls: any) {
+pub fn strip_keyed(state: &mut editor::State, host_path: str, key: any, controls: [ui::Control]) {
     if state.pool_keys[host_path] == key {
         if ui::fill_strip(host_path, controls) {
             log::warn("the strip at {host_path} changed while its key did not");
@@ -75,7 +75,7 @@ pub fn sync_when(
     key: any,
     label_width: float,
     stacked: bool,
-    build: fn(&mut editor::State) -> any,
+    build: fn(&mut editor::State) -> [ui::Row],
 ) {
     let full: any = [key, label_width, stacked];
     if state.pool_keys[host_path] == full {
@@ -97,7 +97,7 @@ pub fn sync_due(state: editor::State, host_path: str, key: any, label_width: flo
 }
 
 /// `sync_when`'s fill, for rows built after `sync_due` said so.
-pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_width: float, stacked: bool, specs: any) {
+pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_width: float, stacked: bool, specs: [ui::Row]) {
     let full: any = [key, label_width, stacked];
     if state.pool_keys[host_path] == full {
         if ui::fill_rows(host_path, specs, label_width, stacked) {
@@ -111,25 +111,23 @@ pub fn sync_keyed(state: &mut editor::State, host_path: str, key: any, label_wid
 
 /// `spec`, whose edit `handler` hears with `data` and the edit: what a closure over
 /// the locals in `data` was. The Editor's `handle` makes the call.
-pub fn on(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
+pub fn on(spec: ui::Control, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
     let carried = util::copy(util::map_or_empty(data));
     carried["fn"] = handler;
-    let out = util::copy(spec);
-    out["on"] = "handle";
-    out["data"] = carried;
-    out
+    spec.on = "handle";
+    spec.data = carried;
+    spec
 }
 
 /// `on` for Enter in a field, beside or instead of its edit.
-pub fn on_submit(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
-    let held = spec["data"];
+pub fn on_submit(spec: ui::Control, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
+    let held = spec.data;
     let carried = if held == nil { data } else { held };
     let kept = util::copy(util::map_or_empty(carried));
     kept["submit"] = handler;
-    let out = util::copy(spec);
-    out["on_submit"] = "handle_submit";
-    out["data"] = kept;
-    out
+    spec.on_submit = "handle_submit";
+    spec.data = kept;
+    spec
 }
 
 /// Stop drawing the whole pool, for a panel that has nothing to show. What it

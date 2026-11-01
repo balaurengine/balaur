@@ -67,7 +67,9 @@ impl Assets {
         }
         let tools = self.node.get_node("Tools");
         tools.get_node("Up").widget.visible = view["dir"].as_str() != "";
-        tools.get_node("Where").patch_component("widget", { "visible": !view["renaming"].as_bool(), "text": view["where"] });
+        let patched = tools.get_node("Where");
+        patched.widget.visible = !view["renaming"].as_bool();
+        patched.widget.text = view["where"].as_str();
         // The field's text only as it opens: a refresh while it is up would take
         // the typing back.
         let field = Field { visible: view["renaming"], text: nil };
@@ -77,31 +79,28 @@ impl Assets {
         self.renaming = view["renaming"].as_bool();
         tools.get_node("Name").patch_component("widget", field);
         tools.get_node("Count").widget.text = view["count"].as_str();
-        tools.get_node("Import").patch_component("widget", {
-            "text": view["import_text"],
-            "tooltip": view["import_tip"],
-            "checked": view["importing"],
-        });
+        let patched = tools.get_node("Import");
+        patched.widget.text = view["import_text"].as_str();
+        patched.widget.tooltip = view["import_tip"].as_str();
+        patched.widget.checked = view["importing"].as_bool();
         tools.get_node("Folder").widget.text = view["folder_text"].as_str();
         tools.get_node("Local").widget.visible = view["local"].as_bool();
-        tools.get_node("Move").patch_component("widget", {
-            "visible": view["move_to"].as_str() != "",
-            "tooltip": "Move the selected item into deps/{view["move_to"].as_str()}",
-        });
+        let patched = tools.get_node("Move");
+        patched.widget.visible = view["move_to"].as_str() != "";
+        patched.widget.tooltip = "Move the selected item into deps/{view["move_to"].as_str()}";
         tools.get_node("Update").widget.visible = view["update"].as_bool();
-        tools.get_node("Source").patch_component("widget", {
-            "visible": view["source_tip"].as_str() != "",
-            "tooltip": view["source_tip"],
-        });
-        tools.get_node("Rename").patch_component("widget", {
-            "role": if view["chosen"].as_bool() { "action_dock" } else { "action_dock_quiet" },
-            "tooltip": if view["chosen"].as_bool() { "Rename the selected item" } else { "Select an item first" },
-        });
-        tools.get_node("Delete").patch_component("widget", {
-            "role": if view["chosen"].as_bool() { "action_dock_danger" } else { "action_dock_quiet" },
-            "tooltip": if view["chosen"].as_bool() { "Delete the selected item" } else { "Select an item first" },
-        });
-        self.node.get_node("Cards").patch_component("widget", { "options": view["items"], "text": view["picked"] });
+        let patched = tools.get_node("Source");
+        patched.widget.visible = view["source_tip"].as_str() != "";
+        patched.widget.tooltip = view["source_tip"].as_str();
+        let patched = tools.get_node("Rename");
+        patched.widget.role = if view["chosen"].as_bool() { "action_dock" } else { "action_dock_quiet" };
+        patched.widget.tooltip = if view["chosen"].as_bool() { "Rename the selected item" } else { "Select an item first" };
+        let patched = tools.get_node("Delete");
+        patched.widget.role = if view["chosen"].as_bool() { "action_dock_danger" } else { "action_dock_quiet" };
+        patched.widget.tooltip = if view["chosen"].as_bool() { "Delete the selected item" } else { "Select an item first" };
+        let patched = self.node.get_node("Cards");
+        patched.widget.options = view["items"];
+        patched.widget.text = view["picked"].as_str();
     }
 }
 

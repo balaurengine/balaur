@@ -58,17 +58,17 @@ impl Library {
         for kind in KINDS() {
             kinds.get_node(kind).widget.checked = kind == view["kind"].as_str();
         }
-        self.node.get_node("Note").patch_component("widget", { "visible": view["says"].as_str() != "", "text": view["says"] });
+        let patched = self.node.get_node("Note");
+        patched.widget.visible = view["says"].as_str() != "";
+        patched.widget.text = view["says"].as_str();
         let cards = !view["templates"].as_bool() && view["items"].len() > 0;
         let table = view["templates"].as_bool() && view["items"].len() > 0;
-        self.node.get_node("Cards").patch_component("widget", {
-            "visible": cards,
-            "options": if cards { view["items"] } else { [] },
-        });
-        self.node.get_node("Table").patch_component("widget", {
-            "visible": table,
-            "options": if table { view["items"] } else { [] },
-        });
+        let patched = self.node.get_node("Cards");
+        patched.widget.visible = cards;
+        patched.widget.options = if cards { view["items"] } else { [] };
+        let patched = self.node.get_node("Table");
+        patched.widget.visible = table;
+        patched.widget.options = if table { view["items"] } else { [] };
     }
 }
 

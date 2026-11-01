@@ -218,62 +218,62 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     }
     let whole = spec["whole"].as_bool();
     let kind_of_row = spec["kind"].as_str();
-    let control: any = if kind_of_row == "number" {
-        {
-            "kind": "number_field",
-            "grow": 1,
-            "tooltip": spec["help"],
-            "arrows": true,
-            "value": shown,
-            "step": spec["step"],
-            "drag_speed": spec["step"],
-            "on": "handle",
-            "data": { "fn": on_number_changed, "rel": rel, "key": key, "whole": whole },
+    let control: ui::Control = if kind_of_row == "number" {
+        ui::Control {
+            kind: "number_field",
+            grow: 1,
+            tooltip: spec["help"],
+            arrows: true,
+            value: shown,
+            step: spec["step"],
+            drag_speed: spec["step"],
+            on: "handle",
+            data: { "fn": on_number_changed, "rel": rel, "key": key, "whole": whole },
         }
     } else if kind_of_row == "bool" {
-        {
-            "kind": "checkbox",
-            "text": "",
-            "tooltip": spec["help"],
-            "checked": effective.as_bool(),
-            "on": "handle",
-            "data": { "fn": on_flag_toggled, "rel": rel, "key": key },
+        ui::Control {
+            kind: "checkbox",
+            text: "",
+            tooltip: spec["help"],
+            checked: effective.as_bool(),
+            on: "handle",
+            data: { "fn": on_flag_toggled, "rel": rel, "key": key },
         }
     } else if kind_of_row == "count" {
         let count = if effective.kind() == "int" { effective } else { spec["fallback"] };
-        {
-            "kind": "dropdown",
-            "grow": 1,
-            "tooltip": spec["help"],
-            "text": "{count.as_int()}",
-            "options": spec["options"],
-            "on": "handle",
-            "data": { "fn": on_count_picked, "rel": rel, "key": key, "spec": spec },
+        ui::Control {
+            kind: "dropdown",
+            grow: 1,
+            tooltip: spec["help"],
+            text: "{count.as_int()}",
+            options: spec["options"],
+            on: "handle",
+            data: { "fn": on_count_picked, "rel": rel, "key": key, "spec": spec },
         }
     } else {
-        {
-            "kind": "dropdown",
-            "grow": 1,
-            "tooltip": spec["help"],
-            "text": if effective.kind() == "str" { effective.as_str() } else { spec["fallback"].as_str() },
-            "options": spec["options"],
-            "on": "handle",
-            "data": { "fn": on_choice_picked, "rel": rel, "key": key },
+        ui::Control {
+            kind: "dropdown",
+            grow: 1,
+            tooltip: spec["help"],
+            text: if effective.kind() == "str" { effective.as_str() } else { spec["fallback"].as_str() },
+            options: spec["options"],
+            on: "handle",
+            data: { "fn": on_choice_picked, "rel": rel, "key": key },
         }
     };
     // What the value is following, or the way back to following it.
-    let note: any = if has_own {
-        {
-            "kind": "button",
-            "text": "reset",
-            "role": "chip",
-            "width": 52,
-            "tooltip": "Drop this key and follow the project again",
-            "on": "handle",
-            "data": { "fn": on_reset_clicked, "rel": rel, "key": key },
+    let note: ui::Control = if has_own {
+        ui::Control {
+            kind: "button",
+            text: "reset",
+            role: "chip",
+            width: 52,
+            tooltip: "Drop this key and follow the project again",
+            on: "handle",
+            data: { "fn": on_reset_clicked, "rel": rel, "key": key },
         }
     } else {
-        { "kind": "label", "text": source, "role": "text_caption", "width": 52 }
+        ui::Control { kind: "label", text: source, role: "text_caption", width: 52 }
     };
     inspector::form_row(state, key, [control, note]);
 }
@@ -413,7 +413,7 @@ pub fn fill(state: &mut editor::State) -> Fill {
     }
     if kind == "texture" || kind == "audio" {
         for pair in shipped(state, image) {
-            inspector::form_row(state, pair[0], [{ "kind": "label", "text": pair[1], "tooltip": pair[2], "role": "text_caption", "grow": 1 }]);
+            inspector::form_row(state, pair[0], [ui::Control { kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }]);
         }
     }
     inspector::close_pool_into(state, FORM);

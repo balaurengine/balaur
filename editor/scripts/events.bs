@@ -127,15 +127,15 @@ fn targets_a_variable(action: str) -> bool {
 }
 
 // A dropdown over one of a row's fields.
-fn pick(state: editor::State, at: int, key: str, current: str, choices: [str], width: float) -> any {
-    {
-        "kind": "dropdown",
-        "role": "choice_form",
-        "width": width,
-        "text": current,
-        "options": choices,
-        "on": "handle",
-        "data": { "fn": on_field_picked, "at": at, "key": key },
+fn pick(state: editor::State, at: int, key: str, current: str, choices: [str], width: float) -> ui::Control {
+    ui::Control {
+        kind: "dropdown",
+        role: "choice_form",
+        width: width,
+        text: current,
+        options: choices,
+        on: "handle",
+        data: { "fn": on_field_picked, "at": at, "key": key },
     }
 }
 
@@ -144,15 +144,15 @@ fn on_field_picked(state: &mut editor::State, data: any, picked: any) {
 }
 
 // A field over one of a row's fields, written on Enter rather than per key.
-fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str, width: float) -> any {
-    {
-        "kind": "text_field",
-        "role": "input_form",
-        "width": width,
-        "text": current,
-        "placeholder": placeholder,
-        "on_submit": "handle_submit",
-        "data": { "submit": on_field_typed, "current": current, "at": at, "key": key },
+fn typed(state: editor::State, at: int, key: str, current: str, placeholder: str, width: float) -> ui::Control {
+    ui::Control {
+        kind: "text_field",
+        role: "input_form",
+        width: width,
+        text: current,
+        placeholder: placeholder,
+        on_submit: "handle_submit",
+        data: { "submit": on_field_typed, "current": current, "at": at, "key": key },
     }
 }
 
@@ -169,40 +169,40 @@ fn offered(state: editor::State) -> [str] {
 }
 
 /// One binding: what happens, when, and what it does.
-fn row_spec(state: editor::State, at: int, row: any) -> any {
+fn row_spec(state: editor::State, at: int, row: any) -> ui::Row {
     let event = event_of(row);
     let action = action_of(row);
     let target = row["target"].as_str();
-    let controls: [any] = [
-        { "kind": "label", "role": "text_caption", "width": 18, "text": "{at + 1}" },
+    let controls: [ui::Control] = [
+        ui::Control { kind: "label", role: "text_caption", width: 18, text: "{at + 1}" },
         pick(state, at, "event", event, offered(state), 150.0),
         typed(state, at, "when", row["when"].as_str(), "always", 130.0),
-        { "kind": "label", "role": "text_caption", "text": "→" },
+        ui::Control { kind: "label", role: "text_caption", text: "→" },
         pick(state, at, "action", action, scene::binding_actions(), 130.0),
     ];
     if targets_a_variable(action) {
         controls.push(pick(state, at, "target", if target == "" { "—" } else { target }, variable_names(state), 120.0));
     } else {
-        controls.push({
-            "kind": "dropdown",
-            "role": "choice_form",
-            "width": 140,
-            "text": if target == "" { "(this node)" } else { target },
-            "options": target_paths(state),
-            "on": "handle",
-            "data": { "fn": on_target_picked, "at": at },
+        controls.push(ui::Control {
+            kind: "dropdown",
+            role: "choice_form",
+            width: 140,
+            text: if target == "" { "(this node)" } else { target },
+            options: target_paths(state),
+            on: "handle",
+            data: { "fn": on_target_picked, "at": at },
         });
     }
     controls.push(typed(state, at, "value", as_text(row["value"]), "value", 110.0));
-    controls.push({
-        "kind": "button",
-        "role": "chip_quiet",
-        "text": icons::ui("close"),
-        "tooltip": "Remove this binding",
-        "on": "handle",
-        "data": { "fn": on_remove_clicked, "at": at },
+    controls.push(ui::Control {
+        kind: "button",
+        role: "chip_quiet",
+        text: icons::ui("close"),
+        tooltip: "Remove this binding",
+        on: "handle",
+        data: { "fn": on_remove_clicked, "at": at },
     });
-    { "full": true, "height": ROW_HEIGHT, "slot_role": "layout_actions", "controls": controls }
+    ui::Row { full: true, height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
 }
 
 fn on_target_picked(state: &mut editor::State, data: any, picked: any) {
@@ -443,29 +443,29 @@ pub fn rows_host() -> str {
 /// the tab moved.
 pub fn fill(state: &mut editor::State) {
     let up = state.doc_open && state.doctab == "events";
-    util::fill(PANEL, { "visible": up });
+    util::set_visible(PANEL, up);
     if !up {
         return;
     }
     let node = model::selected_node(state);
     pool::strip(state, PANEL + "/DocHead", [
-        { "kind": "label", "role": "text_heading", "grow": 1, "text": "EVENT BINDINGS · {node.name()}" },
-        {
-            "kind": "button",
-            "role": "action_form_secondary",
-            "text": "‹›  Convert to script",
-            "on": "handle",
-            "data": { "fn": on_convert_clicked },
+        ui::Control { kind: "label", role: "text_heading", grow: 1, text: "EVENT BINDINGS · {node.name()}" },
+        ui::Control {
+            kind: "button",
+            role: "action_form_secondary",
+            text: "‹›  Convert to script",
+            on: "handle",
+            data: { "fn": on_convert_clicked },
         },
-        {
-            "kind": "button",
-            "role": "action_form_primary",
-            "text": icons::ui("add") + "  Add row",
-            "on": "handle",
-            "data": { "fn": on_add_row_clicked },
+        ui::Control {
+            kind: "button",
+            role: "action_form_primary",
+            text: icons::ui("add") + "  Add row",
+            on: "handle",
+            data: { "fn": on_add_row_clicked },
         },
     ]);
-    let specs: [any] = [];
+    let specs: [ui::Row] = [];
     let held = rows(state);
     if held.len() == 0 {
         specs.push(note("no bindings on this node yet"));
@@ -486,32 +486,32 @@ fn on_add_row_clicked(state: &mut editor::State, data: any, _value: any) {
     add_row(state);
 }
 
-fn note(text: str) -> any {
-    {
-        "full": true,
-        "height": 0,
-        "controls": [
-            {
-                "kind": "label",
-                "role": "text_caption",
-                "grow": 1,
-                "wrap": true,
-                "text": text,
+fn note(text: str) -> ui::Row {
+    ui::Row {
+        full: true,
+        height: 0,
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_caption",
+                grow: 1,
+                wrap: true,
+                text: text,
             },
         ],
     }
 }
 
-fn head(text: str) -> any {
-    {
-        "full": true,
-        "height": 26,
-        "controls": [
-            {
-                "kind": "label",
-                "role": "text_heading",
-                "grow": 1,
-                "text": text.to_upper(),
+fn head(text: str) -> ui::Row {
+    ui::Row {
+        full: true,
+        height: 26,
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_heading",
+                grow: 1,
+                text: text.to_upper(),
             },
         ],
     }
@@ -519,7 +519,7 @@ fn head(text: str) -> any {
 
 /// What the scene declares, so a `when` has something to name. Read-only: a
 /// variable is declared in the scene file's `[variables]`.
-fn variable_specs(state: editor::State, out: [any]) {
+fn variable_specs(state: editor::State, out: [ui::Row]) {
     out.push(head("scene variables"));
     let declared = scene::variables();
     if declared.len() == 0 {
@@ -527,15 +527,15 @@ fn variable_specs(state: editor::State, out: [any]) {
         return;
     }
     for entry in declared {
-        out.push({
-            "full": true,
-            "height": 24,
-            "slot_role": "layout_actions",
-            "controls": [
-                { "kind": "label", "role": "text_code", "text": entry.name },
-                { "kind": "label", "role": "text_caption", "text": entry.type },
-                { "kind": "row", "grow": 1 },
-                { "kind": "label", "role": "text_code_success", "text": "{entry.value}" },
+        out.push(ui::Row {
+            full: true,
+            height: 24,
+            slot_role: "layout_actions",
+            controls: [
+                ui::Control { kind: "label", role: "text_code", text: entry.name },
+                ui::Control { kind: "label", role: "text_caption", text: entry.type },
+                ui::Control { kind: "row", grow: 1 },
+                ui::Control { kind: "label", role: "text_code_success", text: "{entry.value}" },
             ],
         });
     }
@@ -543,7 +543,7 @@ fn variable_specs(state: editor::State, out: [any]) {
 
 /// The hooks the node's own script declares, which is what this view used to
 /// be and is still worth showing beside the rows.
-fn hook_specs(state: &mut editor::State, out: [any]) {
+fn hook_specs(state: &mut editor::State, out: [ui::Row]) {
     let node = model::selected_node(state);
     let script_or = model::script_rel(node);
     if script_or == nil {
@@ -554,22 +554,22 @@ fn hook_specs(state: &mut editor::State, out: [any]) {
     for hook in model::hooks(state, script) {
         let name = hook["name"].as_str();
         let lifecycle = name == "init" || name == "update";
-        out.push({
-            "full": true,
-            "height": 28,
-            "controls": [
-                {
-                    "kind": "row",
-                    "role": "sheet_hook",
-                    "controls": [
-                        {
-                            "kind": "label",
-                            "text": "•",
-                            "role": if lifecycle { "text_mark_primary" } else { "text_mark_secondary" },
+        out.push(ui::Row {
+            full: true,
+            height: 28,
+            controls: [
+                ui::Control {
+                    kind: "row",
+                    role: "sheet_hook",
+                    controls: [
+                        ui::Control {
+                            kind: "label",
+                            text: "•",
+                            role: if lifecycle { "text_mark_primary" } else { "text_mark_secondary" },
                         },
-                        { "kind": "label", "text": "{node.name()}.{name}()", "role": "text_code" },
-                        { "kind": "row", "grow": 1 },
-                        { "kind": "label", "text": "{script}:{hook["line"]}", "role": "text_caption" },
+                        ui::Control { kind: "label", text: "{node.name()}.{name}()", role: "text_code" },
+                        ui::Control { kind: "row", grow: 1 },
+                        ui::Control { kind: "label", text: "{script}:{hook["line"]}", role: "text_caption" },
                     ],
                 },
             ],

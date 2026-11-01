@@ -2738,66 +2738,73 @@ pub fn font_sheet(state: editor::State) {
     for script in scripts() {
         let name = script.name;
         let sample = script.sample;
-        controls.push({
-            "kind": "row",
-            "height": 24,
-            "align_items": "center",
-            "controls": [
-                { "kind": "label", "role": "text_caption", "text": name, "width": 92 },
+        controls.push(ui::Control {
+            kind: "row",
+            height: 24,
+            align_items: "center",
+            controls: [
+                ui::Control { kind: "label", role: "text_caption", text: name, width: 92 },
                 big("text_body", sample),
             ],
         });
     }
     controls.push(heading("FACES"));
-    controls.push({
-        "kind": "label",
-        "role": "text_body",
-        "text": "heading  Source Sans 3 Semibold",
-        "font_size": style::EXTRA_LARGE,
-        "font": "fonts/SourceSans3-Semibold.ttf",
+    controls.push(ui::Control {
+        kind: "label",
+        role: "text_body",
+        text: "heading  Source Sans 3 Semibold",
+        font_size: style::EXTRA_LARGE,
+        font: "fonts/SourceSans3-Semibold.ttf",
     });
-    controls.push({
-        "kind": "label",
-        "role": "text_body",
-        "text": "ui  Source Sans 3 Regular",
-        "font_size": style::LARGE,
+    controls.push(ui::Control {
+        kind: "label",
+        role: "text_body",
+        text: "ui  Source Sans 3 Regular",
+        font_size: style::LARGE,
     });
-    controls.push({
-        "kind": "label",
-        "role": "text_code",
-        "text": "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃",
+    controls.push(ui::Control {
+        kind: "label",
+        role: "text_code",
+        text: "mono  JetBrains Mono  0O1lI  ⌘⌥⇧⌃",
     });
     controls.push(heading("ICONS"));
-    let tools: [any] = [];
+    let tools: [ui::Control] = [];
     for id in ["select", "move", "rotate", "scale", "zoom", "key", "bone", "polygon"] {
         tools.push(big("text_body", icons::tool(id)));
     }
     for workspace in defs::workspaces() {
         tools.push(big("text_caption_primary", icons::workspace(workspace.id)));
     }
-    controls.push({ "kind": "row", "height": 24, "controls": tools, "gap": [8, 0] });
-    let panels: [any] = [];
+    controls.push(ui::Control { kind: "row", height: 24, controls: tools, gap: [8, 0] });
+    let panels: [ui::Control] = [];
     for id in ["output", "problems", "assets", "timeline", "debugger", "recordings", "profiler"] {
         panels.push(big("text_body", icons::panel(id)));
     }
     for id in ["add", "close", "minimize", "search", "dark", "play", "pause", "stop", "instance", "split"] {
         panels.push(big("text_caption", icons::ui(id)));
     }
-    controls.push({ "kind": "row", "height": 24, "controls": panels, "gap": [8, 0] });
-    util::fill(FONT_SHEET, { "visible": true, "x": stage["x"], "y": stage["y"], "width": stage["width"], "height": stage["height"] });
+    controls.push(ui::Control { kind: "row", height: 24, controls: panels, gap: [8, 0] });
+    let filled = scene::get_node(FONT_SHEET);
+    if filled.is_valid() {
+        filled.widget.visible = true;
+        filled.widget.x = stage["x"].as_float();
+        filled.widget.y = stage["y"].as_float();
+        filled.widget.width = stage["width"].as_float();
+        filled.widget.height = stage["height"].as_float();
+    }
     pool::strip(state, FONT_SHEET, controls);
 }
 
-fn heading(text: str) -> any {
-    {
-        "kind": "label",
-        "role": "text_heading",
-        "text": text,
+fn heading(text: str) -> ui::Control {
+    ui::Control {
+        kind: "label",
+        role: "text_heading",
+        text: text,
     }
 }
 
-fn big(role: str, text: str) -> any {
-    { "kind": "label", "role": role, "font_size": style::EXTRA_LARGE, "text": text }
+fn big(role: str, text: str) -> ui::Control {
+    ui::Control { kind: "label", role: role, font_size: style::EXTRA_LARGE, text: text }
 }
 
 const FONT_SHEET: str = "Editor/FontSheet";
@@ -3435,13 +3442,19 @@ pub fn sheet_close_step(state: &mut editor::State) {
     let at = state.window.demo;
     if at == 3 {
         check(window::showing(state, "about"), "the sheet stays up while nothing shuts it");
-        util::fill("Editor/Sheet", { "open": false });
+        let filled = scene::get_node("Editor/Sheet");
+        if filled.is_valid() {
+            filled.widget.open = false;
+        }
     } else if at == 5 {
         check(!window::showing(state, "about"), "and goes when its dialog is shut from outside");
         shell::open_palette(state, "");
     } else if at == 8 {
         check(state.palette, "the palette stays up while nothing shuts it");
-        util::fill("Editor/Picker", { "open": false });
+        let filled = scene::get_node("Editor/Picker");
+        if filled.is_valid() {
+            filled.widget.open = false;
+        }
     } else if at == 10 {
         state.window.demo = -1;
         check(!state.palette, "and goes when its dialog is shut from outside");
@@ -4158,13 +4171,13 @@ pub fn pool_check_step(state: &mut editor::State) {
     let pool_check = state.pool_check.unwrap();
     let path = POOL_HOST + "/" + POOL_CHECK;
     let heard = pool_check.heard;
-    let pick = pool::on({ "kind": "dropdown", "text": "pick", "options": ["a", "b"] }, pool_heard, {});
+    let pick = pool::on(ui::Control { kind: "dropdown", text: "pick", options: ["a", "b"] }, pool_heard, {});
     let stage = pool_check.stage;
     pool_check.stage = stage + 1;
     if stage == 0 || stage == 2 || stage == 4 {
         pool::strip(state, path, [pick]);
     } else if stage == 1 {
-        pool::strip(state, path, [{ "kind": "label", "text": "0.20 0.22 0.26 1.00" }]);
+        pool::strip(state, path, [ui::Control { kind: "label", text: "0.20 0.22 0.26 1.00" }]);
     } else if stage == 3 {
         check(heard.len() == 0, "a slot that changed kind reports nothing ({heard})");
         // The control: a pick on a slot that stayed a dropdown still reaches `on`.

@@ -40,13 +40,11 @@ impl Problems {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("List").patch_component("widget", {
-            "options": view["items"],
-            "visible": view["items"].len() > 0,
-        });
-        self.node.get_node("Nothing").patch_component("widget", {
-            "visible": view["says"].as_str() != "",
-            "text": view["says"],
-        });
+        let patched = self.node.get_node("List");
+        patched.widget.options = view["items"];
+        patched.widget.visible = view["items"].len() > 0;
+        let patched = self.node.get_node("Nothing");
+        patched.widget.visible = view["says"].as_str() != "";
+        patched.widget.text = view["says"].as_str();
     }
 }

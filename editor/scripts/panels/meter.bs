@@ -58,18 +58,16 @@ impl Meter {
             // Widths only when the columns change: stating them every time would
             // snap the reader's own drag away.
             self.titled = titled;
-            table.patch_component("widget_table", {
-                "titles": view["titles"],
-                "widths": view["widths"],
-                "sort": "",
-            });
+            table.widget_table.titles = view["titles"];
+            table.widget_table.widths = view["widths"];
+            table.widget_table.sort = "";
             table.widget.reverse = false;
         }
-        table.patch_component("widget", { "options": view["items"], "visible": view["items"].len() > 0 });
-        self.node.get_node("Nothing").patch_component("widget", {
-            "visible": view["says"].as_str() != "",
-            "text": view["says"],
-        });
+        table.widget.options = view["items"];
+        table.widget.visible = view["items"].len() > 0;
+        let patched = self.node.get_node("Nothing");
+        patched.widget.visible = view["says"].as_str() != "";
+        patched.widget.text = view["says"].as_str();
         let tools = self.node.get_node("Tools");
         tools.get_node("Headline").widget.text = view["headline"].as_str();
         if self.what == "profiler" {

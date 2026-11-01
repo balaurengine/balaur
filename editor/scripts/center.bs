@@ -55,14 +55,6 @@ pub struct SheetHandle {
     tooltip: str,
 }
 
-pub struct ViewChip {
-    kind: str,
-    role: str,
-    checked: bool,
-    text: str,
-    controls: [any],
-}
-
 pub struct HudView {
     shown: bool,
     inset: [any],
@@ -235,35 +227,39 @@ pub fn rail_key(state: editor::State) -> [any] {
 /// for, each a node a click on which runs its tool. What its script asks for.
 pub fn fill_rail(state: editor::State) {
     let grid = rail_grid(state, state.layout["rail_room"].as_float());
-    let columns: [any] = [];
-    let column: [any] = [];
+    let columns: [ui::Control] = [];
+    let column: [ui::Control] = [];
     for mark in rail_marks(state) {
         column.push(rail_mark(state, mark, grid.diameter));
         if column.len().as_float() >= grid.rows {
-            columns.push({ "kind": "column", "gap": [grid.gap, grid.gap], "controls": column });
+            columns.push(ui::Control { kind: "column", gap: [grid.gap, grid.gap], controls: column });
             column = [];
         }
     }
     if column.len() > 0 {
-        columns.push({ "kind": "column", "gap": [grid.gap, grid.gap], "controls": column });
+        columns.push(ui::Control { kind: "column", gap: [grid.gap, grid.gap], controls: column });
     }
-    util::fill(RAIL, { "padding": grid.padding, "gap": [grid.gap, grid.gap] });
+    let filled = scene::get_node(RAIL);
+    if filled.is_valid() {
+        filled.widget.gap = vec2(grid.gap, grid.gap);
+        filled.patch_component("widget", { "padding": grid.padding });
+    }
     pool::strip(state, RAIL, columns);
 }
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
-fn rail_mark(state: editor::State, mark: str, diameter: float) -> any {
-    let round: any = { "kind": "button", "role": "icon_action", "text": "", "width": diameter, "height": diameter, "padding": 0, "corner_radius": diameter / 2.0 };
+fn rail_mark(state: editor::State, mark: str, diameter: float) -> ui::Control {
+    let round: ui::Control = ui::Control { kind: "button", role: "icon_action", text: "", width: diameter, height: diameter, padding: 0, corner_radius: diameter / 2.0 };
     if mark == "restore" {
-        round["icon"] = icons::ui("restore");
-        round["tooltip"] = "Show the tools";
+        round.icon = icons::ui("restore");
+        round.tooltip = "Show the tools";
     } else if mark == "collapse" {
-        round["icon"] = icons::ui("collapse");
-        round["tooltip"] = "Hide the tools";
+        round.icon = icons::ui("collapse");
+        round.tooltip = "Hide the tools";
     } else {
-        round["icon"] = defs::tool_icon(mark);
-        round["tooltip"] = defs::tool_name(mark);
-        round["checked"] = state.tool == mark;
+        round.icon = defs::tool_icon(mark);
+        round.tooltip = defs::tool_name(mark);
+        round.checked = state.tool == mark;
     }
     pool::on(round, rail_marked, { "mark": mark })
 }
@@ -363,7 +359,7 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     if !(state.viewport_live && state.stage_chrome) {
         return false;
     }
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for definition in defs::chips(state.workspace) {
         let label = if definition.key == defs::CHIP_PROJECTION && state.mode2d { "2D · Orthographic" } else { definition.label };
         out.push(chip(state, definition.key, label, definition.starts, near));
@@ -371,7 +367,7 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     // The Polygon tool's modes sit with the chips: Godot's UV editor tabs, in
     // the viewport rather than a window.
     if state.tool == "polygon" {
-        out.push({ "kind": "row", "width": 2 });
+        out.push(ui::Control { kind: "row", width: 2 });
         for spec in polygon::mode_specs(state) {
             out.push(spec);
         }
@@ -380,25 +376,32 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
         }
     }
     if state.workspace == defs::WORKSPACE_SCENE {
-        out.push({ "kind": "row", "width": 2 });
+        out.push(ui::Control { kind: "row", width: 2 });
         out.push(view_chip(state));
         // The camera slots are the first thing a small window drops: four
         // numbered pills for what ⌥1-4 already does.
         if !state.compact {
-            out.push({ "kind": "row", "width": 0 });
+            out.push(ui::Control { kind: "row", width: 0 });
             for spec in bookmark_chips(state) {
                 out.push(spec);
             }
         }
     }
     pool::strip(state, CHIPS, out);
-    util::fill(CHIPS, { "height": hud_height(state) });
+    let filled = scene::get_node(CHIPS);
+    if filled.is_valid() {
+        filled.widget.height = hud_height(state);
+    }
     // Clear of the folded left dock's handle, which shares this row.
-    util::fill(CHIPS_BOX, { "inset": [docks::fold_inset(state), 0.0, 0.0, -1.0], "height": hud_height(state) });
+    let filled = scene::get_node(CHIPS_BOX);
+    if filled.is_valid() {
+        filled.widget.height = hud_height(state);
+        filled.patch_component("widget", { "inset": [docks::fold_inset(state), 0.0, 0.0, -1.0] });
+    }
     true
 }
 
-fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near: bool) -> any {
+fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near: bool) -> ui::Control {
     if !state.chip_state.has(state.workspace) {
         state.chip_state[state.workspace] = {};
     }
@@ -410,11 +413,11 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
         chips[key] = default_on != nil && default_on.unwrap();
     }
     let on = if live != nil { live.unwrap() } else { chips[key].as_bool() };
-    let button: any = {
-        "kind": "button",
-        "text": label,
-        "role": if near { "chip" } else { "chip_quiet" },
-        "checked": on,
+    let button: ui::Control = ui::Control {
+        kind: "button",
+        text: label,
+        role: if near { "chip" } else { "chip_quiet" },
+        checked: on,
     };
     pool::on(button, chip_pressed, { "live": live != nil, "workspace": state.workspace, "key": key, "on": on })
 }
@@ -442,27 +445,27 @@ fn view_modes() -> [[str]] {
 
 /// The view-mode chip: shaded, or one channel drawn instead. Never a game
 /// feature; `render.set_debug_view` is the same call the palette makes.
-fn view_chip(state: editor::State) -> ViewChip {
+fn view_chip(state: editor::State) -> ui::Control {
     let tokens = state.theme;
     let current = render::debug_view();
     let label = "Shaded";
-    let rows: [any] = [];
+    let rows: [ui::Control] = [];
     for mode in view_modes() {
         if mode[0] == current {
             label = mode[1];
         }
         // Bound afresh: a closure made in a loop captures the binding.
         let name = mode[0];
-        rows.push({
-            "kind": "button",
-            "role": "item_menu",
-            "text": mode[1],
-            "text_color": if name == current { tokens["primary_text"] } else { tokens["text_default"] },
-            "on": "handle",
-            "data": { "fn": on_view_mode_picked, "name": name },
+        rows.push(ui::Control {
+            kind: "button",
+            role: "item_menu",
+            text: mode[1],
+            text_color: if name == current { tokens["primary_text"] } else { tokens["text_default"] },
+            on: "handle",
+            data: { "fn": on_view_mode_picked, "name": name },
         });
     }
-    ViewChip {
+    ui::Control {
         kind: "menu",
         role: "chip",
         checked: current != "",
@@ -479,24 +482,24 @@ fn on_view_mode_picked(state: &mut editor::State, data: any, _value: any) {
 
 /// Four camera slots on the chip row: click to go, hold ⇧ to store where the
 /// camera is now. Editor state, kept nowhere: a view is not the scene.
-fn bookmark_chips(state: editor::State) -> [any] {
+fn bookmark_chips(state: editor::State) -> [ui::Control] {
     let tokens = state.theme;
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for slot in 1..5 {
         let key = "{slot}";
         let held = state.bookmarks[key] != nil;
-        out.push({
-            "kind": "button",
-            "text": key,
-            "height": 20,
-            "font_size": style::SMALL,
-            "min_width": 20,
-            "corner_radius": 4,
-            "fill": if held { tokens["primary_bg"] } else { tokens["bg_control"] },
-            "text_color": if held { tokens["primary_text"] } else { tokens["text_subtle"] },
-            "tooltip": if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
-            "on": "handle",
-            "data": { "fn": on_bookmark_pressed, "key": key },
+        out.push(ui::Control {
+            kind: "button",
+            text: key,
+            height: 20,
+            font_size: style::SMALL,
+            min_width: 20,
+            corner_radius: 4,
+            fill: if held { tokens["primary_bg"] } else { tokens["bg_control"] },
+            text_color: if held { tokens["primary_text"] } else { tokens["text_subtle"] },
+            tooltip: if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
+            on: "handle",
+            data: { "fn": on_bookmark_pressed, "key": key },
         });
     }
     out
@@ -751,8 +754,8 @@ const HOOKS: str = "Editor/Shell/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Ho
 pub fn fill_hooks(state: &mut editor::State) {
     let tokens = state.theme;
     let file = open_file(state);
-    util::fill(HOOKS + "/Title", { "text": if file.shading { "SHADER" } else { "HOOKS IN FILE" } });
-    let pills: [any] = [];
+    util::set_text(HOOKS + "/Title", if file.shading { "SHADER" } else { "HOOKS IN FILE" });
+    let pills: [ui::Control] = [];
     if !file.shading && file.relative_path != "" {
         // The file as it is open, buffer or disk: what the list was read off
         // may be the last file's.
@@ -762,19 +765,19 @@ pub fn fill_hooks(state: &mut editor::State) {
         read_hooks(state, file.relative_path, text);
         for hook in state.hooks_live {
             let lifecycle = hook.name == "init" || hook.name == "update";
-            pills.push({
-                "kind": "panel",
-                "fill": tokens["bg_control"],
-                "corner_radius": 15,
-                "padding": [11, 6, 11, 6],
-                "controls": [
-                    {
-                        "kind": "row",
-                        "gap": [4, 4],
-                        "align_items": "center",
-                        "controls": [
-                            { "kind": "row", "width": 6, "height": 6, "corner_radius": 3, "fill": if lifecycle { tokens["primary_text"] } else { tokens["secondary_text"] } },
-                            { "kind": "label", "role": "text_code", "text": hook.name },
+            pills.push(ui::Control {
+                kind: "panel",
+                fill: tokens["bg_control"],
+                corner_radius: 15,
+                padding: [11, 6, 11, 6],
+                controls: [
+                    ui::Control {
+                        kind: "row",
+                        gap: [4, 4],
+                        align_items: "center",
+                        controls: [
+                            ui::Control { kind: "row", width: 6, height: 6, corner_radius: 3, fill: if lifecycle { tokens["primary_text"] } else { tokens["secondary_text"] } },
+                            ui::Control { kind: "label", role: "text_code", text: hook.name },
                         ],
                     },
                 ],
@@ -783,5 +786,5 @@ pub fn fill_hooks(state: &mut editor::State) {
     }
     pool::strip(state, HOOKS + "/Pills", pills);
     let dirty = file.relative_path != "" && state.script_dirty.has(state.game_root + "/" + file.relative_path);
-    util::fill(HOOKS + "/Unsaved", { "visible": dirty });
+    util::set_visible(HOOKS + "/Unsaved", dirty);
 }

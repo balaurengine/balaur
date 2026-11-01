@@ -1124,23 +1124,23 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
     }
 }
 
-pub fn mode_specs(state: editor::State) -> [any] {
+pub fn mode_specs(state: editor::State) -> [ui::Control] {
     let tokens = state.theme;
     let mode = state.polygon.mode;
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for id in modes(state) {
         let on = mode == id;
-        out.push({
-            "kind": "button",
-            "text": mode_name(id),
-            "height": 24,
-            "font_size": style::SMALL,
-            "font_weight": 700,
-            "fill": if on { tokens["primary_bg"] } else { tokens["bg_panel"] },
-            "stroke": tokens["border_default"],
-            "text_color": if on { tokens["primary_text"] } else { tokens["text_muted"] },
-            "on": "handle",
-            "data": { "fn": on_mode_picked, "picked": id },
+        out.push(ui::Control {
+            kind: "button",
+            text: mode_name(id),
+            height: 24,
+            font_size: style::SMALL,
+            font_weight: 700,
+            fill: if on { tokens["primary_bg"] } else { tokens["bg_panel"] },
+            stroke: tokens["border_default"],
+            text_color: if on { tokens["primary_text"] } else { tokens["text_muted"] },
+            on: "handle",
+            data: { "fn": on_mode_picked, "picked": id },
         });
     }
     out
@@ -1154,8 +1154,8 @@ fn on_mode_picked(state: &mut editor::State, data: any, _value: any) {
 /// The mode's own settings, after the modes in the viewport's strip: the
 /// trace's tolerance for the points, and in weights the bone painted and
 /// the brush. Tool state, never a property, so never the Inspector's.
-pub fn option_specs(state: editor::State) -> [any] {
-    let out: [any] = [];
+pub fn option_specs(state: editor::State) -> [ui::Control] {
+    let out: [ui::Control] = [];
     if state.polygon.mode == "weights" {
         let names: [str] = [];
         for bone in bones(state) {
@@ -1163,15 +1163,15 @@ pub fn option_specs(state: editor::State) -> [any] {
         }
         if names.len() > 0 {
             let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { 0 };
-            out.push({
-                "kind": "dropdown",
-                "width": 140,
-                "height": 24,
-                "text": names[util::int_min(active, names.len() - 1)],
-                "options": names,
-                "tooltip": "The bone the brush paints",
-                "on": "handle",
-                "data": { "fn": option_bone, "names": names },
+            out.push(ui::Control {
+                kind: "dropdown",
+                width: 140,
+                height: 24,
+                text: names[util::int_min(active, names.len() - 1)],
+                options: names,
+                tooltip: "The bone the brush paints",
+                on: "handle",
+                data: { "fn": option_bone, "names": names },
             });
         }
         out.push(option_field(state.polygon.radius, 0.5, 2.0, 400.0, "px", "How far the brush reaches", option_radius));
@@ -1182,19 +1182,19 @@ pub fn option_specs(state: editor::State) -> [any] {
     out
 }
 
-fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> any {
-    {
-        "kind": "number_field",
-        "width": 76,
-        "height": 24,
-        "value": value,
-        "drag_speed": step,
-        "min": low,
-        "max": high,
-        "prefix": prefix,
-        "tooltip": tooltip,
-        "on": "handle",
-        "data": { "fn": then },
+fn option_field(value: float, step: float, low: float, high: float, prefix: str, tooltip: str, then: fn(&mut editor::State, any, any)) -> ui::Control {
+    ui::Control {
+        kind: "number_field",
+        width: 76,
+        height: 24,
+        value: value,
+        drag_speed: step,
+        min: low,
+        max: high,
+        prefix: prefix,
+        tooltip: tooltip,
+        on: "handle",
+        data: { "fn": then },
     }
 }
 

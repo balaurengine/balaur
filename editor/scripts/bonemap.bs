@@ -191,12 +191,12 @@ const PANEL: str = "Editor/Shell/Body/Centre/Bottom/Bonemap";
 pub fn fill(state: editor::State) {
     let paths = bone_paths(state);
     if paths.len() == 0 {
-        util::fill(PANEL + "/Missing", { "visible": true });
-        util::fill(PANEL + "/Body", { "visible": false });
+        util::set_visible(PANEL + "/Missing", true);
+        util::set_visible(PANEL + "/Body", false);
         return;
     }
-    util::fill(PANEL + "/Missing", { "visible": false });
-    util::fill(PANEL + "/Body", { "visible": true });
+    util::set_visible(PANEL + "/Missing", false);
+    util::set_visible(PANEL + "/Body", true);
     let filled = 0;
     let bones = state.bonemap.bones;
     for name in bones.keys() {
@@ -204,10 +204,8 @@ pub fn fill(state: editor::State) {
             filled += 1;
         }
     }
-    util::fill(PANEL + "/Body/Verbs/Count", {
-        "text": "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig",
-    });
-    let rows: [any] = [];
+    util::set_text(PANEL + "/Body/Verbs/Count", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig");
+    let rows: [ui::Row] = [];
     for name in HUMANOID() {
         for spec in row(state, paths, name) {
             rows.push(spec);
@@ -230,62 +228,62 @@ pub fn verb(state: &mut editor::State, name: str) {
 // A canonical bone's row, and the rig's bones under it while it is the one
 // being picked for: a dock this narrow has nowhere to put a floating list,
 // and the row it belongs to is the one thing a reader has to keep track of.
-fn row(state: editor::State, paths: [str], name: str) -> [any] {
+fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
     let picked = state.bonemap.bones[name].as_str();
     let open = state.bonemap.picking == name;
-    let controls: [any] = [
-        {
-            "kind": "label",
-            "role": if picked == "" { "text_code_quiet" } else { "text_code" },
-            "font_size": 12,
-            "width": NAME_WIDTH,
-            "text": name,
+    let controls: [ui::Control] = [
+        ui::Control {
+            kind: "label",
+            role: if picked == "" { "text_code_quiet" } else { "text_code" },
+            font_size: 12,
+            width: NAME_WIDTH,
+            text: name,
         },
-        {
-            "kind": "button",
-            "role": "chip",
-            "width": PICK_WIDTH,
-            "height": 22,
-            "text": if picked == "" { "—" } else { picked },
-            "text_align": "start",
-            "checked": open,
-            "tooltip": "Pick the bone this canonical name means on this rig",
-            "on": "handle",
-            "data": { "fn": toggle_picker, "open": open, "name": name },
+        ui::Control {
+            kind: "button",
+            role: "chip",
+            width: PICK_WIDTH,
+            height: 22,
+            text: if picked == "" { "—" } else { picked },
+            text_align: "start",
+            checked: open,
+            tooltip: "Pick the bone this canonical name means on this rig",
+            on: "handle",
+            data: { "fn": toggle_picker, "open": open, "name": name },
         },
     ];
     if picked != "" {
-        controls.push({
-            "kind": "button",
-            "role": "chip_quiet",
-            "text": "×",
-            "tooltip": "Leave this row empty",
-            "on": "handle",
-            "data": { "fn": leave_row_empty, "name": name },
+        controls.push(ui::Control {
+            kind: "button",
+            role: "chip_quiet",
+            text: "×",
+            tooltip: "Leave this row empty",
+            on: "handle",
+            data: { "fn": leave_row_empty, "name": name },
         });
     }
-    let out: [any] = [{ "full": true, "height": 24, "controls": controls }];
+    let out: [ui::Row] = [ui::Row { full: true, height: 24, controls: controls }];
     if !open {
         return out;
     }
     for bone_path in paths {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = bone_path;
-        out.push({
-            "full": true,
-            "height": 20,
-            "controls": [
-                { "kind": "label", "width": NAME_WIDTH, "text": "" },
-                {
-                    "kind": "button",
-                    "role": "chip",
-                    "width": PICK_WIDTH,
-                    "height": 20,
-                    "text": path,
-                    "text_align": "start",
-                    "checked": path == picked,
-                    "on": "handle",
-                    "data": { "fn": pick_bone_path, "name": name, "path": path },
+        out.push(ui::Row {
+            full: true,
+            height: 20,
+            controls: [
+                ui::Control { kind: "label", width: NAME_WIDTH, text: "" },
+                ui::Control {
+                    kind: "button",
+                    role: "chip",
+                    width: PICK_WIDTH,
+                    height: 20,
+                    text: path,
+                    text_align: "start",
+                    checked: path == picked,
+                    on: "handle",
+                    data: { "fn": pick_bone_path, "name": name, "path": path },
                 },
             ],
         });

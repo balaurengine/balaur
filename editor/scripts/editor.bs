@@ -114,7 +114,7 @@ pub class State {
     code_scroll: float,
     code_revision: int,
     layout_seen: float,
-    form: [any],
+    form: [ui::Row],
     pool_keys: any,
     /// When the Inspector's whole form is filled again after a run of edits
     /// its rows followed alone; 0 for none pending.
@@ -268,7 +268,7 @@ pub class State {
     font_families: any,
     /// What each request to the catalogue is for, by its id.
     font_requests: any,
-    row_after: any,
+    row_after: ui::Control?,
     kit_state: any,
     rows_query: str,
     suite: suite::Run?,
@@ -1212,11 +1212,11 @@ impl Editor {
 
     /// The kit, for a plugin filling its dock: see kit.bs. `part` names
     /// where on the dock `host`: "head", "foot", "side" or the body.
-    pub fn kit_bar(host: str, part: str, controls: any) {
+    pub fn kit_bar(host: str, part: str, controls: [ui::Control]) {
         kit::bar(self.state, host, part, controls);
     }
 
-    pub fn kit_rows(host: str, part: str, specs: any) {
+    pub fn kit_rows(host: str, part: str, specs: [ui::Row]) {
         kit::rows(self.state, host, part, specs);
     }
 
@@ -1232,15 +1232,15 @@ impl Editor {
         kit::pages(self.state, host, id, groups)
     }
 
-    pub fn kit_heading(title: str) -> any {
+    pub fn kit_heading(title: str) -> ui::Row {
         kit::heading(title)
     }
 
-    pub fn kit_empty(text: str) -> any {
+    pub fn kit_empty(text: str) -> ui::Row {
         kit::empty(text)
     }
 
-    pub fn kit_field(label: str, value: any, options: any) -> any {
+    pub fn kit_field(label: str, value: any, options: any) -> ui::Row {
         kit::field(self.state, label, value, options)
     }
 
@@ -1248,7 +1248,7 @@ impl Editor {
         kit::tree(self.state, id, value, options)
     }
 
-    pub fn kit_files(id: str, options: any) -> any {
+    pub fn kit_files(id: str, options: any) -> [ui::Row] {
         kit::files(self.state, id, options)
     }
 

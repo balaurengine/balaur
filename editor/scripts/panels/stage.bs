@@ -33,21 +33,20 @@ impl Stage {
             return;
         }
         self.node.get_node("Safe").widget.visible = view["safe"].as_bool();
-        self.node.get_node("Resolution").patch_component("widget", {
-            "visible": view["resolution"],
-            "inset": view["res_inset"],
-        });
+        let patched = self.node.get_node("Resolution");
+        patched.widget.visible = view["resolution"].as_bool();
+        patched.patch_component("widget", { "inset": view["res_inset"] });
         for side in ["Left", "Right"] {
             let handle = if side == "Left" { view["left"] } else { view["right"] };
             let sheet = self.node.get_node(side);
-            sheet.patch_component("widget", { "visible": handle["shown"], "padding": view["pad"] });
-            sheet.get_node("Open").patch_component("widget", {
-                "icon": handle["icon"],
-                "tooltip": handle["tooltip"],
-                "width": view["diameter"],
-                "height": view["diameter"],
-                "corner_radius": view["diameter"].as_float() / 2.0,
-            });
+            sheet.widget.visible = handle["shown"].as_bool();
+            sheet.patch_component("widget", { "padding": view["pad"] });
+            let patched = sheet.get_node("Open");
+            patched.widget.icon = handle["icon"].as_str();
+            patched.widget.tooltip = handle["tooltip"].as_str();
+            patched.widget.width = view["diameter"].as_float();
+            patched.widget.height = view["diameter"].as_float();
+            patched.widget.corner_radius = view["diameter"].as_float() / 2.0;
         }
     }
 }

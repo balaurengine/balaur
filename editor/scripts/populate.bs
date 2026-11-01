@@ -83,25 +83,25 @@ pub fn fill(state: &mut editor::State) {
     pool::sync(state, hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
 }
 
-fn specs(state: editor::State) -> [any] {
+fn specs(state: editor::State) -> [ui::Row] {
     let fields = state.populate;
     let node = model::selected_node(state);
     let name = component(node).or(MULTIMESH3D);
-    let out: [any] = [];
-    out.push({
-        "full": false,
-        "height": 24,
-        "controls": [
-            {
-                "kind": "dropdown",
-                "grow": 1,
-                "text": fields.kind,
-                "options": [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID],
-                "on": "handle",
-                "data": { "fn": on_layout_picked },
+    let out: [ui::Row] = [];
+    out.push(ui::Row {
+        full: false,
+        height: 24,
+        controls: [
+            ui::Control {
+                kind: "dropdown",
+                grow: 1,
+                text: fields.kind,
+                options: [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID],
+                on: "handle",
+                data: { "fn": on_layout_picked },
             },
         ],
-        "label": "Layout",
+        label: "Layout",
     });
     if fields.kind == render::POPULATE_SURFACE {
         let paths = [NONE];
@@ -110,20 +110,20 @@ fn specs(state: editor::State) -> [any] {
                 paths.push("/" + model::path_in_scene(state, other));
             }
         }
-        out.push({
-            "full": false,
-            "height": 24,
-            "controls": [
-                {
-                    "kind": "dropdown",
-                    "grow": 1,
-                    "text": if fields.surface == "" { NONE } else { fields.surface },
-                    "options": paths,
-                    "on": "handle",
-                    "data": { "fn": on_surface_picked },
+        out.push(ui::Row {
+            full: false,
+            height: 24,
+            controls: [
+                ui::Control {
+                    kind: "dropdown",
+                    grow: 1,
+                    text: if fields.surface == "" { NONE } else { fields.surface },
+                    options: paths,
+                    on: "handle",
+                    data: { "fn": on_surface_picked },
                 },
             ],
-            "label": "Surface",
+            label: "Surface",
         });
     }
     if fields.kind == render::POPULATE_GRID {
@@ -145,36 +145,36 @@ fn specs(state: editor::State) -> [any] {
     out.push(number(state, "Scale", fields.scale, 0.05, write_scale));
     out.push(fraction(state, "Random scale", fields.random_scale, write_random_scale));
     out.push(whole(state, "Seed", fields.seed, write_seed));
-    out.push({
-        "full": false,
-        "height": 24,
-        "controls": [
-            { "kind": "label", "role": "text_caption", "grow": 1, "text": target_text(state, node, name) },
+    out.push(ui::Row {
+        full: false,
+        height: 24,
+        controls: [
+            ui::Control { kind: "label", role: "text_caption", grow: 1, text: target_text(state, node, name) },
         ],
-        "label": "Writes",
+        label: "Writes",
     });
     if fields.said != "" {
-        out.push({
-            "full": false,
-            "height": 24,
-            "controls": [
-                { "kind": "label", "role": "text_caption", "grow": 1, "text": fields.said },
+        out.push(ui::Row {
+            full: false,
+            height: 24,
+            controls: [
+                ui::Control { kind: "label", role: "text_caption", grow: 1, text: fields.said },
             ],
         });
     }
-    out.push({
-        "full": true,
-        "height": 30,
-        "slot_role": "layout_actions",
-        "controls": [
-            {
-                "kind": "button",
-                "role": "action_form_primary",
-                "grow": 1,
-                "text": "Populate",
-                "tooltip": "Replace the asset's instances with this layout, as one undo step",
-                "on": "handle",
-                "data": { "fn": on_populate_pressed },
+    out.push(ui::Row {
+        full: true,
+        height: 30,
+        slot_role: "layout_actions",
+        controls: [
+            ui::Control {
+                kind: "button",
+                role: "action_form_primary",
+                grow: 1,
+                text: "Populate",
+                tooltip: "Replace the asset's instances with this layout, as one undo step",
+                on: "handle",
+                data: { "fn": on_populate_pressed },
             },
         ],
     });
@@ -233,21 +233,21 @@ fn on_populate_pressed(state: &mut editor::State, data: any, _value: any) {
     apply(state);
 }
 
-fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> any {
-    {
-        "full": false,
-        "height": 24,
-        "controls": [
-            {
-                "kind": "number_field",
-                "grow": 1,
-                "value": value as float,
-                "drag_speed": 1.0,
-                "on": "handle",
-                "data": { "fn": on_whole_changed, "write": write },
+fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> ui::Row {
+    ui::Row {
+        full: false,
+        height: 24,
+        controls: [
+            ui::Control {
+                kind: "number_field",
+                grow: 1,
+                value: value as float,
+                drag_speed: 1.0,
+                on: "handle",
+                data: { "fn": on_whole_changed, "write": write },
             },
         ],
-        "label": label,
+        label: label,
     }
 }
 
@@ -256,21 +256,21 @@ fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
     write(state, util::max(math::round(value.as_float()), 0.0) as int);
 }
 
-fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> any {
-    {
-        "full": false,
-        "height": 24,
-        "controls": [
-            {
-                "kind": "number_field",
-                "grow": 1,
-                "value": value,
-                "drag_speed": step,
-                "on": "handle",
-                "data": { "fn": on_number_changed, "write": write },
+fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> ui::Row {
+    ui::Row {
+        full: false,
+        height: 24,
+        controls: [
+            ui::Control {
+                kind: "number_field",
+                grow: 1,
+                value: value,
+                drag_speed: step,
+                on: "handle",
+                data: { "fn": on_number_changed, "write": write },
             },
         ],
-        "label": label,
+        label: label,
     }
 }
 
@@ -281,23 +281,23 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
 
 // A share from nothing to all of it: of a half turn for rotation and tilt, of
 // `scale` for its variation.
-fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> any {
-    {
-        "full": false,
-        "height": 24,
-        "controls": [
-            {
-                "kind": "number_field",
-                "grow": 1,
-                "value": value,
-                "drag_speed": 0.05,
-                "min": 0.0,
-                "max": 1.0,
-                "on": "handle",
-                "data": { "fn": on_fraction_changed, "write": write },
+fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> ui::Row {
+    ui::Row {
+        full: false,
+        height: 24,
+        controls: [
+            ui::Control {
+                kind: "number_field",
+                grow: 1,
+                value: value,
+                drag_speed: 0.05,
+                min: 0.0,
+                max: 1.0,
+                on: "handle",
+                data: { "fn": on_fraction_changed, "write": write },
             },
         ],
-        "label": label,
+        label: label,
     }
 }
 
