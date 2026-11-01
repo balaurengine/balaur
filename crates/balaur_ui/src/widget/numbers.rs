@@ -32,7 +32,7 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     } else {
         widget.value.clamp(low, high)
     };
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let upright = widget.axis == w::VERTICAL;
     let along = if upright { want.y } else { want.x };
     let natural = slider_size(ui.ctx(), widget);
@@ -264,7 +264,7 @@ pub(crate) fn drag_value(
         eng: at.eng,
         setter: crate::widget::typing::Typesetter::Plain(face.request(None)),
     };
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     if want.x > 0.0 {
         // With arrows, the number is told what is left of the stated box, so
         // the pair sits inside it rather than in the next widget's.
@@ -456,7 +456,7 @@ pub(crate) fn progress(
     let widget = &at.arena[index].widget;
     let span = (widget.max - widget.min).abs().max(f32::EPSILON);
     let fraction = ((widget.value - widget.min) / span).clamp(0.0, 1.0);
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     // A line of the caption's face with a button's air, as it measured; egui's
     // own height ignores the face and cut the caption off.
     let height = if want.y > 0.0 {
@@ -489,7 +489,7 @@ pub(crate) fn progress(
     if !ui.is_rect_visible(outer) {
         return;
     }
-    let style = at.style_of(widget);
+    let style = at.style(index);
     paint_bar(ui, outer, fraction, &style, widget.egui.animate);
     let Some(text) = shown else {
         return;

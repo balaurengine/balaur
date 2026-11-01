@@ -79,7 +79,7 @@ pub(crate) fn image(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             return;
         }
     };
-    let style = at.style_of(widget);
+    let style = at.style(index);
     let o = &widget.egui;
     let tint = crate::widget::node::rgba_color(o.tint);
     let (uv, native) = crate::images::region_uv(

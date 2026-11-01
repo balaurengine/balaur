@@ -257,9 +257,10 @@ pub(crate) fn gap_of(widget: &Widget, style: &crate::widget::theme::Style) -> eg
 /// free to run past it, which is what makes a list in a sized panel scroll
 /// rather than stretch the panel.
 pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let placed = &at.arena[index];
-    let (entity, widget) = (placed.entity, placed.widget.clone());
-    let box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
+    let box_size = solved_of(widget, &at.style(index), at.assigned);
     let room = ui.max_rect();
     let size = vec2(
         if box_size.x > 0.0 {
@@ -273,8 +274,8 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             room.height()
         },
     );
-    let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style);
+    let style = at.style(index);
+    let pad = padding_of(widget, &style);
     let inner = (size - pad.taken()).max(egui::Vec2::ZERO);
     // The frame is painted under the box once the box is known, carrying the
     // look and no margin: `egui::Margin` is whole points, and the padding comes
@@ -298,7 +299,7 @@ pub(crate) fn scroller(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             .max_height(inner.y)
             .min_scrolled_width(inner.x)
             .min_scrolled_height(inner.y);
-        let mut area = crate::widget::scroll::dressed(ui, area, &widget, entity);
+        let mut area = crate::widget::scroll::dressed(ui, area, widget, entity);
         // With a deadzone the finger scrolls nothing until it has travelled
         // that far, so a tap on a child lands; past it, this drags the
         // offset itself.
@@ -410,12 +411,13 @@ fn tab_head(
 /// The label is a page's `text` where it has one and its node name otherwise,
 /// so a page that is a bare panel still gets a name on the strip.
 pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let placed = &at.arena[index];
-    let children = placed.children.clone();
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let children = &placed.children;
     if children.is_empty() {
         return;
     }
-    let widget = placed.widget.clone();
+    let widget = &placed.widget;
     let entity = placed.entity;
     // Each page as (index, the name `active` holds, the strip's label). Two
     // pages showing the same text are told apart by their node names.
@@ -451,13 +453,13 @@ pub(crate) fn tabs(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // The rect the layout pass gave this tab, which is the whole of it: the
     // strip takes the top and the page takes what is left.
     let rect = ui.max_rect();
-    let style = at.style_of(&widget);
+    let style = at.style(index);
     // The face the theme resolves, not the raw properties: a widget that
     // states no size or colour is asking the theme for them.
     let project = at.arena[index].project;
-    let (color, font) = crate::widget::theme::face(&at.theme, &style, (&widget, project));
-    let slant = crate::widget::theme::slanted(&style, (&widget, project));
-    let gap = gap_of(&widget, &style);
+    let (color, font) = crate::widget::theme::face(&at.theme, &style, (widget, project));
+    let slant = crate::widget::theme::slanted(&style, (widget, project));
+    let gap = gap_of(widget, &style);
 
     // The page each strip button stands for, read before the strip borrows
     // the arena, so the button can leave its box under that page's entity.
@@ -602,8 +604,7 @@ pub(crate) fn stated_of(widget: &Widget) -> egui::Vec2 {
 /// box that only lays out invisible; a `fill` or a `stroke` makes it a tile,
 /// and that is how a pair of buttons reads as one control.
 pub(crate) fn contain(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, axis: Axis) {
-    let widget = at.arena[index].widget.clone();
-    let style = at.style_of(&widget);
+    let style = at.style(index);
     if style.paints() {
         let radius = egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8);
         Brush::of(ui).add(crate::widget::frame::frame_shape(
@@ -635,7 +636,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
         Axis::Row => egui::Layout::left_to_right(cross),
         Axis::Column => egui::Layout::top_down(cross),
     };
-    let children = placed.children.clone();
+    let children = &placed.children;
     for (slot, child) in children.iter().enumerate() {
         let entity = at.arena[*child].entity;
         let Some(rect) = at.rects.get(child).copied() else {
@@ -685,7 +686,7 @@ pub(crate) fn lay_out(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize, ax
                     vec2(rect.width(), grab),
                 ),
             };
-            drag_seam(ui, at, &children, slot, axis, seam);
+            drag_seam(ui, at, children, slot, axis, seam);
         }
     }
 }

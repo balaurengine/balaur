@@ -906,7 +906,28 @@ pub fn set_property_placed(
     place: crate::components::PropertyPlace,
     value: &Value,
 ) -> Result<()> {
-    crate::components::set_property_placed(eng, entity, place, &to_toml(value)?)
+    let numbers: Option<&[f32]> = match value {
+        Value::Vec2(numbers) => Some(numbers),
+        Value::Vec3(numbers) => Some(numbers),
+        Value::Color(numbers) => Some(numbers),
+        _ => None,
+    };
+    let Some(numbers) = numbers else {
+        return crate::components::set_property_placed(eng, entity, place, &to_toml(value)?);
+    };
+    // A vector's array, kept: a script moving a node writes one every frame.
+    thread_local! {
+        static SPARE: std::cell::Cell<Vec<toml::Value>> = const { std::cell::Cell::new(Vec::new()) };
+    }
+    let mut items = SPARE.take();
+    items.clear();
+    items.extend(numbers.iter().map(|n| toml::Value::Float(f64::from(*n))));
+    let array = toml::Value::Array(items);
+    let written = crate::components::set_property_placed(eng, entity, place, &array);
+    if let toml::Value::Array(items) = array {
+        SPARE.set(items);
+    }
+    written
 }
 
 fn try_patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {

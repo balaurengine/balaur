@@ -161,7 +161,7 @@ pub(crate) fn dropdown(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let mut chosen = widget.text.clone();
     let picked = rich(chosen.as_str(), font, color, slant, &widget.text_look);
     let fold = if widget.wrap {
@@ -308,9 +308,10 @@ fn picker(
 /// A file being edited, with its gutter and its colouring: Godot's `CodeEdit`
 /// as a node.
 pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let placed = &at.arena[index];
-    let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -327,7 +328,7 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ),
     )));
     let look = crate::widget::code::CodeLook {
-        widget: &widget,
+        widget,
         theme: &at.theme,
         project: at.arena[index].project,
     };
@@ -360,10 +361,11 @@ pub(crate) fn menu(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
+    let nodes = at.arena;
+    let placed = &nodes[index];
     let entity = placed.entity;
-    let widget = placed.widget.clone();
-    let fallbacks = fallbacks_of(&widget);
+    let widget = &placed.widget;
+    let fallbacks = fallbacks_of(widget);
     // A menu drawn inside an open menu is a submenu: egui opens it to the
     // side on hover, keeps one of them open at a time, and shuts it with the
     // menu it hangs off.
@@ -378,7 +380,7 @@ pub(crate) fn menu(
                 .show(ui, &response, |ui| popup_rows(ui, at, index))
                 .is_some()
         } else {
-            dropped(&response, &widget, &fallbacks, ui)
+            dropped(&response, widget, &fallbacks, ui)
                 .show(|ui| popup_rows(ui, at, index))
                 .is_some()
         };
@@ -409,7 +411,7 @@ pub(crate) fn menu(
             .show(ui, &response, rows)
             .is_some()
     } else {
-        dropped(&response, &widget, &fallbacks, ui)
+        dropped(&response, widget, &fallbacks, ui)
             .show(rows)
             .is_some()
     };
@@ -533,11 +535,11 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
     lay_out(&mut inner, at, index, Axis::Column);
     at.rects = held;
     ui.advance_cursor_after_rect(inner.min_rect());
-    let arena = at.arena;
+    let nodes = at.arena;
     // A row that opened a submenu chose nothing, so the menu it sits in
     // stays up; every other row closes it unless it says `keep_open`.
     let closes = at.clicked[before..].iter().any(|entity| {
-        arena
+        nodes
             .iter()
             .find(|placed| placed.entity == *entity)
             .is_some_and(|placed| !placed.widget.keep_open && placed.widget.kind != w::MENU)
@@ -556,7 +558,7 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // Unit floats are sRGB here as on every other widget property, so the
     // picker is egui's sRGB one: its linear `Rgba` showed them too light.
     let mut srgba = crate::widget::node::rgba_color(widget.color);
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     // The swatch's width; the open picker is laid out by egui alone.
     if want.x > 0.0 && !widget.egui.inline {
         ui.spacing_mut().interact_size.x = want.x;
@@ -587,7 +589,7 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// A line across the parent's direction, in the theme's stroke.
 pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &at.arena[index].widget;
-    let style = at.style_of(widget);
+    let style = at.style(index);
     if let Some(color) = style.stroke {
         ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_px(), color);
     }
@@ -643,8 +645,9 @@ pub(crate) fn fold(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let widget = at.arena[index].widget.clone();
-    let style = at.style_of(&widget);
+    let nodes = at.arena;
+    let widget = &nodes[index].widget;
+    let style = at.style(index);
     let room = ui.available_rect_before_wrap();
     let strip = fold_header(ui, at, index, &style, (caption, font, color), room);
     ui.advance_cursor_after_rect(strip);
@@ -886,15 +889,16 @@ fn in_header(ui: &mut egui::Ui, at: &mut Painting<'_>, child: usize, rect: Rect)
 /// own `anchor`: Godot's MarginContainer, and a Control whose children anchor
 /// themselves rather than queue up.
 pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let placed = &at.arena[index];
-    let children = placed.children.clone();
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let children = &placed.children;
     if children.is_empty() {
         return;
     }
-    let widget = placed.widget.clone();
-    let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style);
-    let box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let widget = &placed.widget;
+    let style = at.style(index);
+    let pad = padding_of(widget, &style);
+    let box_size = solved_of(widget, &at.style(index), at.assigned);
     // The box this widget was handed, not what is left after the cursor: a
     // root reserves its box up front, and a stack fills what it was given.
     let room = ui.max_rect();
@@ -923,13 +927,13 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ));
     }
     let area = pad.inside(outer);
-    for child in &children {
+    for child in children {
         let want = {
             let mut measure = Measure::new(at.eng, at.arena, ui);
             measure.of(*child, &at.theme)
         };
-        let kid = at.arena[*child].widget.clone();
-        let rect = anchored_in(area, &kid, &at.style_of(&kid), want);
+        let nodes = at.arena;
+        let rect = anchored_in(area, &nodes[*child].widget, &at.style(*child), want);
         // This kind placed the child, so taffy has not solved what is under
         // it: its subtree is solved against the box it was just given.
         let space = crate::widget::taffy::Room::fixed(rect);

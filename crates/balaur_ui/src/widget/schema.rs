@@ -553,7 +553,7 @@ mod tests {
     fn the_shaper_is_told_the_role_s_font() {
         let widget = widget(&toml::toml! { kind = "label" role = "meta" }.into());
         let style = Style {
-            font: Some("fonts/JetBrainsMono-Regular.ttf".to_string()),
+            font: Some("fonts/JetBrainsMono-Regular.ttf".into()),
             ..Style::default()
         };
         let font = egui::FontId::new(11.0, egui::FontFamily::Proportional);
@@ -573,7 +573,7 @@ mod tests {
         let widget =
             widget(&toml::toml! { kind = "label" font = "fonts/SourceSans3-Semibold.ttf" }.into());
         let style = Style {
-            font: Some("fonts/JetBrainsMono-Regular.ttf".to_string()),
+            font: Some("fonts/JetBrainsMono-Regular.ttf".into()),
             ..Style::default()
         };
         let font = egui::FontId::new(11.0, egui::FontFamily::Proportional);

@@ -36,6 +36,7 @@ pub(crate) mod taffy;
 pub(crate) mod text;
 pub(crate) mod text_look;
 pub(crate) mod theme;
+mod theme_files;
 pub(crate) mod toast;
 pub(crate) mod typing;
 pub(crate) mod window;

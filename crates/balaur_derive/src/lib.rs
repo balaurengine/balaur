@@ -310,6 +310,7 @@ struct FieldParts {
     default: Tokens,
     spec: Tokens,
     read: Tokens,
+    vector: Tokens,
     write: Tokens,
 }
 
@@ -354,6 +355,7 @@ fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
         #toml::Value::Table(spec)
     });
     let read = quote!(#index => ::core::option::Option::Some(#derived::Property::to_value(&self.#field_ident)),);
+    let vector = quote!(#index => #derived::Property::vector(&self.#field_ident, out),);
     let write = quote!(#index => {
         self.#field_ident = #derived::Property::from_value(value)
             .map_err(|why| why.context(#name))?;
@@ -363,6 +365,7 @@ fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
         default,
         spec,
         read,
+        vector,
         write,
     })
 }
@@ -406,6 +409,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
     let mut defaults = Vec::new();
     let mut specs = Vec::new();
     let mut reads = Vec::new();
+    let mut vectors = Vec::new();
     let mut writes = Vec::new();
     for (index, field) in fields.named.iter().enumerate() {
         let parts = field_parts(index, field)?;
@@ -413,6 +417,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
         defaults.push(parts.default);
         specs.push(parts.spec);
         reads.push(parts.read);
+        vectors.push(parts.vector);
         writes.push(parts.write);
     }
     let count = names.len();
@@ -439,6 +444,13 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
             fn read(&self, index: usize) -> ::core::option::Option<#toml::Value> {
                 match index {
                     #(#reads)*
+                    _ => ::core::option::Option::None,
+                }
+            }
+
+            fn vector(&self, index: usize, out: &mut [f32; 4]) -> ::core::option::Option<usize> {
+                match index {
+                    #(#vectors)*
                     _ => ::core::option::Option::None,
                 }
             }

@@ -21,6 +21,9 @@ pub enum Value {
     Struct(SmolStr, Vec<(SmolStr, Value)>),
     /// What an `any` holds when it is a map: keys in the order they came.
     Map(Vec<(SmolStr, Value)>),
+    /// One of the engine's vectors as a binding answers it: its numbers in
+    /// field order, for the struct the call returns, with nothing to allocate.
+    Vector([f64; 4]),
 }
 
 impl Value {
@@ -213,7 +216,10 @@ pub(crate) fn read_str(m: &(impl Reader + ?Sized), p: usize) -> Value {
         return Value::Str(String::new());
     }
     let len = rd32(m, p + 4) as usize;
-    Value::Str(String::from_utf8_lossy(&m.bytes(p + 8, len)).into_owned())
+    Value::Str(
+        String::from_utf8(m.bytes(p + 8, len))
+            .unwrap_or_else(|bad| String::from_utf8_lossy(bad.as_bytes()).into_owned()),
+    )
 }
 
 /// What the `any` cell at `p` holds; nil is `Void`.
@@ -278,7 +284,8 @@ pub(crate) fn any_cell<E>(
         Ok((MAP, u64::from(k) | (u64::from(v) << 32)))
     };
     Ok(Some(match v {
-        Value::Void => return Ok(None),
+        // A binding answers a vector only for a struct, never for an `any`.
+        Value::Void | Value::Vector(_) => return Ok(None),
         Value::Bool(b) => (BOOL, u64::from(*b)),
         Value::Int(x) => (INT, *x as u64),
         Value::Node(x) => (NODE, *x as u64),

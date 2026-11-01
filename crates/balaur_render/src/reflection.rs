@@ -90,6 +90,9 @@ pub struct LitProbe {
 /// a caller counting probes sees the same list whatever is switched off.
 pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
     let mut out = Vec::new();
+    if world.query::<&ReflectionProbe>().iter().next().is_none() {
+        return out;
+    }
     for entity in balaur_core::scene::collect_subtree(world, root) {
         let (Ok(probe), Ok(global)) = (
             world.get::<&ReflectionProbe>(entity),

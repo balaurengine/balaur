@@ -172,7 +172,9 @@ fn split(path: &str) -> Option<(Vec<&str>, &str)> {
 /// else what the file set, else what its definition defaults to.
 #[must_use]
 pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
-    stated(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get("default").cloned()))
+    answered(eng, path, |answer| {
+        answer.stated.as_ref().or(answer.default.as_ref()).cloned()
+    })
 }
 
 /// What this run was told, and nothing more: the narrowest override, else what
@@ -183,6 +185,93 @@ pub fn get(eng: &Engine, path: &str) -> Option<toml::Value> {
 /// declared default would quietly become an instruction.
 #[must_use]
 pub fn stated(eng: &Engine, path: &str) -> Option<toml::Value> {
+    answered(eng, path, |answer| answer.stated.clone())
+}
+
+/// A value worked out from settings, kept until one moves, for a reader that
+/// wants a whole table's worth every frame.
+#[must_use]
+pub fn kept<T: 'static>(eng: &Engine, work_out: impl FnOnce(&Engine) -> T) -> Rc<T> {
+    let revision = revision(eng);
+    if let Some(held) = eng.try_resource::<Kept<T>>() {
+        let held = held.borrow();
+        if held.revision == revision && tags_match(eng, &held.tags) {
+            return Rc::clone(&held.value);
+        }
+    }
+    let value = Rc::new(work_out(eng));
+    eng.insert_resource(Kept {
+        revision,
+        tags: tags_now(eng),
+        value: Rc::clone(&value),
+    });
+    value
+}
+
+/// One setting as the tags and the file answer it, and its schema's default.
+struct Answer {
+    stated: Option<toml::Value>,
+    default: Option<toml::Value>,
+}
+
+impl Answer {
+    fn of(eng: &Engine, path: &str) -> Self {
+        Self {
+            stated: read_stated(eng, path),
+            default: def(eng, path).and_then(|d| d.spec.get("default").cloned()),
+        }
+    }
+}
+
+/// What reads have answered until a setting or this run's tags move: a frame
+/// reads the same few settings, and one read builds a path per tag, walks the
+/// tables and searches every definition.
+#[derive(Default)]
+pub struct SettingsAnswers {
+    revision: u64,
+    tags: Vec<String>,
+    answers: rustc_hash::FxHashMap<Box<str>, Answer>,
+}
+
+struct Kept<T> {
+    revision: u64,
+    tags: Vec<String>,
+    value: Rc<T>,
+}
+
+fn tags_match(eng: &Engine, tags: &[String]) -> bool {
+    eng.try_resource::<Tags>()
+        .map_or(tags.is_empty(), |now| now.borrow().0 == tags)
+}
+
+fn tags_now(eng: &Engine) -> Vec<String> {
+    eng.try_resource::<Tags>()
+        .map_or_else(Vec::new, |now| now.borrow().0.clone())
+}
+
+fn answered<R>(eng: &Engine, path: &str, read: impl FnOnce(&Answer) -> R) -> R {
+    let Some(held) = eng.try_resource::<SettingsAnswers>() else {
+        return read(&Answer::of(eng, path));
+    };
+    {
+        let mut held = held.borrow_mut();
+        let revision = revision(eng);
+        if held.revision != revision || !tags_match(eng, &held.tags) {
+            held.revision = revision;
+            held.tags = tags_now(eng);
+            held.answers.clear();
+        }
+        if let Some(answer) = held.answers.get(path) {
+            return read(answer);
+        }
+    }
+    let answer = Answer::of(eng, path);
+    let out = read(&answer);
+    held.borrow_mut().answers.insert(path.into(), answer);
+    out
+}
+
+fn read_stated(eng: &Engine, path: &str) -> Option<toml::Value> {
     if let Some(tags) = eng.try_resource::<Tags>() {
         let tags = tags.borrow();
         for tag in tags.narrowest_first() {

@@ -216,9 +216,10 @@ pub(super) fn overlay(
     match params {
         Some(toml::Value::Table(params)) => {
             for (k, v) in params {
-                let merged = schema
-                    .get(k)
-                    .and_then(|spec| over_variant(spec, out.get(k), v));
+                let merged = schema.get(k).and_then(|spec| {
+                    // Nothing held yet: a variant's fields fall over its default.
+                    over_variant(spec, out.get(k).or_else(|| spec.get("default")), v)
+                });
                 out.insert(k.clone(), merged.unwrap_or_else(|| v.clone()));
             }
         }
@@ -247,16 +248,21 @@ pub(super) fn overlay(
     Ok(())
 }
 
+/// Whether a property is a `variant`, whose write is merged over what is held.
+pub(super) fn is_variant(spec: &toml::Value) -> bool {
+    spec.get("type").and_then(toml::Value::as_str) == Some("variant")
+}
+
 /// A `variant` written over the one held: a table naming no `kind`, or the
 /// held one, changes only the fields it names, so a look writing a sphere's
 /// `radius` keeps it a sphere. `None` where the value replaces what was
 /// held: another kind, or a property of any other type.
-fn over_variant(
+pub(super) fn over_variant(
     spec: &toml::Value,
     held: Option<&toml::Value>,
     written: &toml::Value,
 ) -> Option<toml::Value> {
-    if spec.get("type").and_then(toml::Value::as_str) != Some("variant") {
+    if !is_variant(spec) {
         return None;
     }
     let (held, written) = (held?.as_table()?, written.as_table()?);
@@ -291,32 +297,20 @@ pub fn properties(
     Ok(toml::Value::Table(out))
 }
 
-/// [`properties`], with what the registry's facts already know of the
-/// schema: its defaults with every record filled and colour expanded, so
-/// only the properties `params` writes take those passes again, and which
-/// properties hold an asset.
+/// The table a whole write of a derived component takes: only what `params`
+/// writes, its records filled, colours expanded and assets resolved. The
+/// component's own `Default` is what its schema's defaults come from, so the
+/// rest need not be written out for it to read back.
 pub(crate) fn properties_known(
     eng: &Engine,
     schema: &toml::Value,
-    filled: &toml::map::Map<String, toml::Value>,
     passes: &Passes,
     params: Option<&toml::Value>,
 ) -> Result<toml::Value> {
-    let mut out = filled.clone();
+    let mut out = toml::map::Map::new();
     overlay(schema, &mut out, params)?;
-    if let Some(toml::Value::Table(written)) = params {
-        for prop in written.keys() {
-            let (Some(spec), Some(value)) = (schema.get(prop), out.get_mut(prop)) else {
-                continue;
-            };
-            if passes.record.contains(prop) {
-                fill_record_value(spec, value);
-            }
-            if passes.color.contains(prop) {
-                expand_color_value(prop, spec, value);
-            }
-        }
-    }
+    fill_records(schema, &passes.record, &mut out);
+    expand_colors(schema, &passes.color, &mut out);
     resolve_assets(eng, schema, &passes.asset, &mut out)?;
     Ok(toml::Value::Table(out))
 }

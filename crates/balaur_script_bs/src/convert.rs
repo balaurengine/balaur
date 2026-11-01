@@ -12,8 +12,19 @@ const VEC: [(&str, &[&str]); 3] = [
     ("Color", &["r", "g", "b", "a"]),
 ];
 
+/// The argument at `index` as the seam's value, a vector read from its slots.
+pub(crate) fn neutral_at(args: &dyn CallArgs, index: usize) -> N {
+    match args.vector(index) {
+        Some(([x, y, ..], 2)) => N::Vec2([x, y]),
+        Some(([x, y, z, _], 3)) => N::Vec3([x, y, z]),
+        Some((color, 4)) => N::Color(color),
+        _ => to_neutral(&args.value(index)),
+    }
+}
+
 pub(crate) fn to_neutral(v: &L) -> N {
     match v {
+        L::Vector(numbers) => N::List(numbers.iter().map(|n| N::Num(*n)).collect()),
         L::Void => N::Nil,
         L::Int(x) => N::Int(*x),
         L::Float(x) => N::Num(*x),
@@ -167,7 +178,7 @@ fn record(name: &str, fields: &[(String, Ty)], v: &N, structs: &Structs) -> L {
 /// that takes them all: a node operation, a raw binding.
 pub(crate) fn neutral(args: &dyn CallArgs) -> smallvec::SmallVec<[N; 4]> {
     (0..args.len())
-        .map(|index| to_neutral(&args.value(index)))
+        .map(|index| neutral_at(args, index))
         .collect()
 }
 
@@ -199,6 +210,6 @@ impl balaur_script::Args for Seam<'_> {
         self.0.is_nil(index)
     }
     fn value(&self, index: usize) -> N {
-        to_neutral(&self.0.value(index))
+        neutral_at(self.0, index)
     }
 }

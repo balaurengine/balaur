@@ -28,6 +28,8 @@ pub(crate) fn flush_debug_lines(app: &App, window: &mut Window) {
     let Some(lines) = app.engine.try_resource::<DebugLineBuffer3d>() else {
         return;
     };
+    let mut on_top_line =
+        kiss3d::renderer::Polyline3d::new(vec![Vec3::ZERO; 2]).with_depth_bias(1.0);
     for (a, b, c, width, perspective, on_top) in lines.borrow_mut().lines.drain(..) {
         let a = Vec3::new(a[0], a[1], a[2]);
         let b = Vec3::new(b[0], b[1], b[2]);
@@ -35,12 +37,13 @@ pub(crate) fn flush_debug_lines(app: &App, window: &mut Window) {
         if on_top {
             // depth_bias = 1.0 collapses depth to the near plane: the line
             // renders over everything (editor rotation ball, overlays).
-            let polyline = kiss3d::renderer::Polyline3d::new(vec![a, b])
+            on_top_line.vertices.clear();
+            on_top_line.vertices.extend([a, b]);
+            on_top_line = on_top_line
                 .with_color(color)
                 .with_width(width)
-                .with_perspective(perspective)
-                .with_depth_bias(1.0);
-            window.draw_polyline(&polyline);
+                .with_perspective(perspective);
+            window.draw_polyline(&on_top_line);
         } else {
             window.draw_line(a, b, color, width, perspective);
         }

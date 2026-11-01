@@ -136,7 +136,7 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
     {
         return;
     }
-    let settings = balaur_core::project::UiSettings::from_settings(eng);
+    let settings = balaur_core::project::UiSettings::of(eng);
     {
         let mut held = held.borrow_mut();
         held.read = true;

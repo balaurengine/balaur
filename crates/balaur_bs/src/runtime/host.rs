@@ -344,10 +344,9 @@ pub(crate) fn encode_owned(
                 ""
             };
             let p = ctx.alloc(8 + s.len())?;
-            let mut b = 1i32.to_le_bytes().to_vec();
-            b.extend((s.len() as u32).to_le_bytes());
-            b.extend(s.as_bytes());
-            ctx.write(p, &b);
+            ctx.write(p, &1i32.to_le_bytes());
+            ctx.write(p + 4, &(s.len() as u32).to_le_bytes());
+            ctx.write(p + 8, s.as_bytes());
             smallvec::smallvec![Raw::I32(p as i32)]
         }
         (Ty::Array(et), Value::Array(_) | Value::Void) => {
@@ -393,6 +392,10 @@ pub(crate) fn encode_owned(
             let mut out = encode_owned(ctx, meta, t, v)?;
             out.push(Raw::I32(1));
             out
+        }
+        (Ty::Struct(s), Value::Vector(numbers)) => {
+            let fields = meta.fields(s).map_or(0, <[_]>::len);
+            numbers.iter().take(fields).map(|n| Raw::F64(*n)).collect()
         }
         (Ty::Struct(s), Value::Struct(_, fields)) => {
             let mut out = Raws::new();

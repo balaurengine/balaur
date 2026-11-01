@@ -65,6 +65,9 @@ pub struct Strings {
     fallback: smol_str::SmolStr,
     /// Locale name to its catalogue, read once and kept.
     loaded: RefCell<BTreeMap<String, Catalogue>>,
+    /// What a key with nothing to fill in reads as now, for a caption asking
+    /// every frame. Emptied with whatever it was read from.
+    plain: RefCell<rustc_hash::FxHashMap<String, smol_str::SmolStr>>,
     /// The content root `loaded` was read under, so a new one is read again
     /// rather than answered from the last project's catalogues.
     read_under: Option<std::path::PathBuf>,
@@ -205,7 +208,10 @@ pub fn locale(eng: &Engine) -> String {
 /// key means the next frame.
 pub fn set_locale(eng: &Engine, locale: &str) {
     ensure_ready(eng);
-    eng.resource::<Strings>().borrow_mut().current = locale.into();
+    let strings = eng.resource::<Strings>();
+    let mut strings = strings.borrow_mut();
+    strings.current = locale.into();
+    strings.plain.borrow_mut().clear();
 }
 
 /// Forget the catalogues read under another content root: the editor opening
@@ -223,6 +229,7 @@ fn follow_content_root(eng: &Engine) {
         let mut held = strings.borrow_mut();
         held.read_under = crate::project::content_root(eng);
         held.loaded.borrow_mut().clear();
+        held.plain.borrow_mut().clear();
     }
 }
 
@@ -243,6 +250,23 @@ pub fn locales(eng: &Engine) -> Vec<String> {
     }
     out.sort();
     out
+}
+
+/// The string for `key` in the current locale, with nothing to fill in: what a
+/// widget's `text_key` draws, read once per locale rather than every frame.
+pub fn plain(eng: &Engine, key: &str) -> smol_str::SmolStr {
+    ensure_ready(eng);
+    follow_content_root(eng);
+    let held = eng.resource::<Strings>();
+    if let Some(text) = held.borrow().plain.borrow().get(key) {
+        return text.clone();
+    }
+    let text: smol_str::SmolStr = tr(eng, key, &[]).into();
+    held.borrow()
+        .plain
+        .borrow_mut()
+        .insert(key.to_owned(), text.clone());
+    text
 }
 
 /// The string for `key` in the current locale, with `args` interpolated.
@@ -328,7 +352,9 @@ fn interpolate(text: &str, args: &[(String, balaur_script::Value)]) -> String {
 /// watcher calls when a strings file is saved.
 pub fn reload(eng: &Engine) -> Result<()> {
     if let Some(strings) = eng.try_resource::<Strings>() {
-        strings.borrow().loaded.borrow_mut().clear();
+        let strings = strings.borrow();
+        strings.loaded.borrow_mut().clear();
+        strings.plain.borrow_mut().clear();
     }
     Ok(())
 }

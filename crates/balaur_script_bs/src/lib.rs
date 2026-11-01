@@ -88,6 +88,13 @@ pub(crate) fn bind(
             if dir == GET {
                 return Ok(Rc::new(move |args: &dyn CallArgs| {
                     let entity = entity_at(args).map_err(|e| format!("{e:#}"))?;
+                    let mut numbers = [0.0; 4];
+                    if matches!(&ret, Ty::Struct(_))
+                        && balaur_core::components::vector_placed(&eng, entity, place, &mut numbers)
+                            .is_some()
+                    {
+                        return Ok(L::Vector(numbers.map(f64::from)));
+                    }
                     let value = balaur_core::components::property_placed(&eng, entity, place)
                         .as_ref()
                         .map_or(Ok(Value::Nil), balaur_core::node_api::from_toml);
@@ -96,7 +103,7 @@ pub(crate) fn bind(
             }
             return Ok(Rc::new(move |args: &dyn CallArgs| {
                 let entity = entity_at(args).map_err(|e| format!("{e:#}"))?;
-                let value = convert::to_neutral(&args.value(1));
+                let value = convert::neutral_at(args, 1);
                 let written =
                     balaur_core::node_api::set_property_placed(&eng, entity, place, &value);
                 answer(written.map(|()| Value::Nil), &ret)

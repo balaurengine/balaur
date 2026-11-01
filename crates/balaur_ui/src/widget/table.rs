@@ -39,17 +39,18 @@ pub(crate) fn table(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
-    let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
-    let items = strings_of(&widget);
-    let (heads, first) = header(&widget, &items);
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
+    let want = solved_of(widget, &at.style(index), at.assigned);
+    let items = strings_of(widget);
+    let (heads, first) = header(widget, &items);
     // The order the rows are drawn in, which is the order given unless a
     // column was named to sort by, or the whole of it was turned round.
-    let walk = ordered(&widget, &items, &heads, first);
-    let row_h = row_pitch(ui, &widget, font);
+    let walk = ordered(widget, &items, &heads, first);
+    let row_h = row_pitch(ui, widget, font);
     let id = egui::Id::unique(("balaur-table", entity));
-    let style = at.style_of(&widget);
+    let style = at.style(index);
     let look = Look {
         row_h,
         font,
@@ -61,13 +62,13 @@ pub(crate) fn table(
         align: widget.text_align.clone(),
     };
     backdrop(ui, at, &style, ui.max_rect());
-    let mut widths = shares(&widget, heads.len());
+    let mut widths = shares(widget, heads.len());
     // The pitch is the row, with nothing between: the scroll places by the
     // one and the rows draw at the other, and a gap makes them two numbers.
     ui.spacing_mut().item_spacing.y = 0.0;
     let mut sorted = None;
     if widget.header {
-        let asked = head_row(ui, &head_of(&widget, &heads, &look, want.x), &mut widths);
+        let asked = head_row(ui, &head_of(widget, &heads, &look, want.x), &mut widths);
         if asked.moved {
             at.edits.push((entity, Edit::Widths(widths.clone())));
         }
@@ -76,7 +77,7 @@ pub(crate) fn table(
     if let Some((column, reverse)) = sorted {
         at.edits.push((entity, Edit::Sorted(column, reverse)));
     }
-    let picked = picked_set(&widget);
+    let picked = picked_set(widget);
     let mut hit = None;
     let mut aimed = None;
     let mut area = egui::ScrollArea::vertical()
@@ -89,7 +90,7 @@ pub(crate) fn table(
         let rows = (want.y - row_h).max(row_h);
         area = area.max_height(rows).min_scrolled_height(rows);
     }
-    let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
+    let area = crate::widget::scroll::dressed(ui, area, widget, entity);
     let shown = area.show_rows(ui, row_h, walk.len(), |ui, range| {
         for slot in range {
             let Some(&row) = walk.get(slot) else {

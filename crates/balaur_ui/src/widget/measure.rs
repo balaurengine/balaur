@@ -343,7 +343,7 @@ impl<'a> Measure<'a> {
         let placed = &self.arena[index];
         let widget = &placed.widget;
         let row = widget.kind == w::ROW;
-        let children = placed.children.clone();
+        let children = &placed.children;
         let caption = if widget.kind == w::PANEL {
             let text = self.text(index, widget, theme);
             vec2(text.x, self.band(index, theme))
@@ -357,7 +357,7 @@ impl<'a> Measure<'a> {
         let mut along = 0.0f32;
         let mut across: f32 = 0.0;
         let mut drawn = 0usize;
-        for child in &children {
+        for child in children {
             if crate::widget::kinds::in_title_bar(self.arena, index, *child) {
                 continue;
             }
@@ -386,23 +386,28 @@ impl<'a> Measure<'a> {
     /// A stack: its biggest child on each axis, plus its own padding, since
     /// every child is laid over the same box.
     fn stack(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let placed = &self.arena[index];
-        let widget = placed.widget.clone();
-        let children = placed.children.clone();
+        let arena = self.arena;
+        let placed = &arena[index];
+        let widget = &placed.widget;
+        let children = &placed.children;
         let mut want = egui::Vec2::ZERO;
-        for child in &children {
+        for child in children {
             want = want.max(self.of(*child, theme));
         }
-        let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
+        let pad = padding_of(
+            widget,
+            &crate::widget::arena::look_of(arena, index, theme).style,
+        );
         want + pad.taken()
     }
 
     /// A grid, estimated for a kind that measures it rather than solving it:
     /// the biggest child's cell, tiled as many wide as `grid_columns` names.
     fn grid(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let placed = &self.arena[index];
-        let widget = placed.widget.clone();
-        let children = placed.children.clone();
+        let arena = self.arena;
+        let placed = &arena[index];
+        let widget = &placed.widget;
+        let children = &placed.children;
         let columns = match crate::widget::grid::track_count(&widget.layout.grid_columns) {
             0 => 2,
             named => named,
@@ -410,7 +415,7 @@ impl<'a> Measure<'a> {
         let gap = self.gap(index, theme);
         let mut cell = egui::Vec2::ZERO;
         let mut count = 0usize;
-        for child in &children {
+        for child in children {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -427,17 +432,24 @@ impl<'a> Measure<'a> {
             across as f32 * cell.x + gap.x * (across as f32 - 1.0),
             rows as f32 * cell.y + gap.y * (rows as f32 - 1.0),
         );
-        let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
+        let pad = padding_of(
+            widget,
+            &crate::widget::arena::look_of(arena, index, theme).style,
+        );
         inner + pad.taken()
     }
 
     /// A flow: its children on one line, or wrapped to a stated width.
     fn flow(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let placed = &self.arena[index];
-        let widget = placed.widget.clone();
-        let children = placed.children.clone();
+        let arena = self.arena;
+        let placed = &arena[index];
+        let widget = &placed.widget;
+        let children = &placed.children;
         let gap = self.gap(index, theme);
-        let pad = padding_of(&widget, &crate::widget::theme::styled(theme, &widget));
+        let pad = padding_of(
+            widget,
+            &crate::widget::arena::look_of(arena, index, theme).style,
+        );
         let limit = if widget.width > 0.0 {
             widget.width - pad.taken().x
         } else {
@@ -446,7 +458,7 @@ impl<'a> Measure<'a> {
         let mut cursor = egui::Vec2::ZERO;
         let mut line = 0.0f32;
         let mut extent = egui::Vec2::ZERO;
-        for child in &children {
+        for child in children {
             let size = self.of(*child, theme);
             if size == egui::Vec2::ZERO {
                 continue;
@@ -467,8 +479,9 @@ impl<'a> Measure<'a> {
 
     /// A tab's strip: every page's label side by side, as buttons.
     fn strip(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let placed = &self.arena[index];
-        let widget = placed.widget.clone();
+        let arena = self.arena;
+        let placed = &arena[index];
+        let widget = &placed.widget;
         let gap = self.gap(index, theme).x.max(4.0);
         let padding = self.padding;
         let mut width = 0.0f32;
@@ -480,7 +493,7 @@ impl<'a> Measure<'a> {
             } else {
                 page.widget.text.as_str()
             };
-            let size = self.galley(*child, label, &widget, theme) + padding;
+            let size = self.galley(*child, label, widget, theme) + padding;
             width += size.x + if slot > 0 { gap } else { 0.0 };
             height = height.max(size.y);
         }
@@ -489,9 +502,9 @@ impl<'a> Measure<'a> {
 
     /// The biggest page, so a tab does not resize as it is clicked through.
     fn widest_child(&mut self, index: usize, theme: &Rc<WidgetTheme>) -> egui::Vec2 {
-        let children = self.arena[index].children.clone();
+        let arena = self.arena;
         let mut size = egui::Vec2::ZERO;
-        for child in &children {
+        for child in &arena[index].children {
             size = size.max(self.of(*child, theme));
         }
         size

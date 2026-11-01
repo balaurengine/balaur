@@ -16,6 +16,8 @@
 > §10, what one edit costs, measured 2026-10-27: it overturns §6g, replaces
 > §6j and the `inspector` kind, and orders the work that follows, each piece
 > in the doc that owns it.
+>
+> §11, what a frame allocates, measured and fixed 2026-11-01.
 
 # Plan: what the editor's frame costs
 
@@ -1089,6 +1091,57 @@ A tab reloaded twice failed the third boot with "Cannot allocate Wasm memory
 for new instance": every `.bs` module reserves its own memory, and a tab's
 earlier reservations are not yet freed. One memory imported by every module
 would reserve once.
+
+## 11. What a frame allocates
+
+Measured 2026-11-01 on an Apple M1, release builds of `43afabfc` and the commit
+that keeps these things. Allocations are the main thread's, counted by an
+interposed `malloc`; instructions are the whole process, the lowest of four
+runs at 300 and at 900 frames, over the 600 frames between them. The game is
+Polyglot Pirates on its first screen; a screen change is the same game
+switching every 6 frames.
+
+| run | allocations a frame | bytes a frame | instructions a frame |
+| --- | ---: | ---: | ---: |
+| game, nothing moving | 1,629 -> 650 | 546 KB -> 499 KB | 3.75 M -> 2.90 M |
+| editor, nothing moving | 8,780 -> 3,629 | 2.93 MB -> 2.61 MB | 17.56 M -> 12.61 M |
+| editor, one edit a frame | 10,014 -> 4,741 | 3.02 MB -> 2.68 MB | 18.74 M -> 13.60 M |
+| game, a screen change | 18,000 -> 4,000 | | 25.80 M -> 12.00 M |
+
+What went:
+
+- A setting is read once: the answer stays until a setting or the run's tags
+  move, and `UiSettings::of` and the render budgets are kept the same way.
+- A widget's look is kept across passes, per state, until its widget, theme,
+  classes or fonts move. A family's name allocates nothing on a hit.
+- A widget and its children are lent from the arena, never cloned for a pass.
+- `patch_component` on a derived component writes the keys it names, by place.
+- A scene instance fills its defaults once.
+
+What one engine call allocates now:
+
+| call | allocations |
+| --- | ---: |
+| `node.is_valid()` | 0 |
+| a binding with one string | 1 |
+| read `node.transform.position.x` | 0 |
+| write `node.transform.position` | 0 |
+| `patch_component` with a literal | 13 |
+| `get_component` of one key | 28 |
+
+A vector crosses the seam as numbers, in place; a string borrows a spare
+buffer. The last two rows are the forms a script no longer needs for a name it
+knows: `node.c.p` is the first row's cost.
+
+What is left in a frame is egui's and wgpu's: render 60%, UI 36%, scripts 2 to
+5% in the editor. `encode_render_pass` is 19% of the main thread,
+`Queue::write_buffer` 9%, and wgpu's error labels 13% of the allocations. Those
+are upstream of this repository.
+
+`mimalloc` as the global allocator was tried and left out: 4% fewer
+instructions in the editor, none in the game, and 32.17 s of CPU against 32.44 s
+over four runs of 600 frames. Under 1% does not pay for a C dependency on every
+desktop build.
 
 ## Phases
 

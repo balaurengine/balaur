@@ -123,7 +123,7 @@ pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 pub use derived::{Lifecycle, LifecycleFn};
 pub use property::{
     PropertyPlace, answers_alone, place_of, property, property_at, property_placed, set_property,
-    set_property_at, set_property_placed,
+    set_property_at, set_property_placed, vector_placed,
 };
 use schema::hex_rgba;
 pub use schema::{
@@ -272,9 +272,14 @@ pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings::Warning>>>;
 /// Read one property by its index in the schema, without the rest.
 pub type ReadFn = Box<dyn Fn(&Engine, Entity, usize) -> Option<toml::Value>>;
+/// Read one vector property's numbers by its index in the schema, and how many.
+pub type ReadVectorFn = Box<dyn Fn(&Engine, Entity, usize, &mut [f32; 4]) -> Option<usize>>;
 /// Write one property by its index in the schema. `false` is a node without
 /// the component, which a whole [`patch`] then adds.
 pub type WriteFn = Box<dyn Fn(&Engine, Entity, usize, &toml::Value) -> Result<bool>>;
+/// Write several properties by their indices, as one write: the component's
+/// hook runs once, and a refusal puts back every one.
+pub type WriteEachFn = Box<dyn Fn(&Engine, Entity, &[(usize, &toml::Value)]) -> Result<bool>>;
 
 pub struct ComponentDef {
     /// TOML table of property specs (see module docs), in the order it
@@ -326,9 +331,14 @@ pub struct ComponentDef {
     /// One property by its index, for a component that can answer it alone:
     /// every derived one ([`derived`]). `None` reads the whole table.
     pub read: Option<ReadFn>,
+    /// One vector property read by its index, into numbers rather than a value.
+    pub read_vector: Option<ReadVectorFn>,
     /// One property written by its index, the twin of `read`. `None` writes
     /// through a whole [`patch`].
     pub write: Option<WriteFn>,
+    /// Several properties written by their indices, what a [`patch`] of more
+    /// than one does. `None` writes through a whole [`patch`].
+    pub write_each: Option<WriteEachFn>,
     /// What is off about the component on a node, for the editor to show.
     pub warnings: WarningsFn,
     /// What it runs as it goes on, is written and comes off.
@@ -359,7 +369,9 @@ impl ComponentDef {
             remove,
             get,
             read: None,
+            read_vector: None,
             write: None,
+            write_each: None,
             warnings: None,
             lifecycle: Lifecycle::NONE,
             type_id: None,
@@ -495,12 +507,9 @@ impl ComponentDef {
 /// table has to visit. A component with no colour and no asset property --
 /// which is most of them -- visits none.
 pub struct Facts {
-    /// Every declared property at its default, ready to clone.
+    /// Every declared property at its default, for a file that leaves out what
+    /// it did not change.
     pub defaults: Rc<toml::map::Map<String, toml::Value>>,
-    /// [`Facts::defaults`] with records filled and colours expanded, which is
-    /// what an added component starts from: only what a scene writes over it
-    /// needs either pass again.
-    pub filled: Rc<toml::map::Map<String, toml::Value>>,
     /// Which properties hold a colour, an asset or a record.
     pub passes: Rc<Passes>,
 }
@@ -522,20 +531,23 @@ pub struct Passes {
 
 impl Facts {
     fn of(schema: &toml::Value) -> Self {
-        let passes = Passes::of(schema);
-        let defaults = defaults_of(schema);
-        let mut filled = defaults.clone();
-        fill_records(schema, &passes.record, &mut filled);
-        expand_colors(schema, &passes.color, &mut filled);
         Self {
-            defaults: Rc::new(defaults),
-            filled: Rc::new(filled),
-            passes: Rc::new(passes),
+            defaults: Rc::new(defaults_of(schema)),
+            passes: Rc::new(Passes::of(schema)),
         }
     }
 }
 
 impl Passes {
+    /// Whether a write of `key` is changed on its way to the component.
+    fn rewrites(&self, schema: &Schema, key: &str) -> bool {
+        let named = |props: &[String]| props.iter().any(|prop| prop == key);
+        named(&self.color)
+            || named(&self.asset)
+            || named(&self.record)
+            || schema.get(key).is_some_and(values::is_variant)
+    }
+
     /// Each property of `schema` sorted into the passes it needs.
     #[must_use]
     pub fn of(schema: &toml::Value) -> Self {
@@ -692,13 +704,24 @@ pub fn add(eng: &Engine, entity: Entity, name: &str, params: Option<&toml::Value
     let Resolved {
         index,
         schema,
-        filled,
+        derived,
         passes,
         ..
     } = resolve(eng, name)?;
-    let full = values::properties_known(eng, &schema, &filled, &passes, params)?;
-    apply_at(eng, entity, index, name, &full, None)?;
-    Ok(())
+    // Most of a scene's tables have nothing to fill or resolve: they go to the
+    // component's read as written.
+    if derived
+        && let Some(written @ toml::Value::Table(table)) = params
+        && table.keys().all(|key| !passes.rewrites(&schema, key))
+    {
+        return apply_at(eng, entity, index, name, written, None, false);
+    }
+    let full = if derived {
+        values::properties_known(eng, &schema, &passes, params)?
+    } else {
+        values::properties(eng, &schema, params)?
+    };
+    apply_at(eng, entity, index, name, &full, None, false)
 }
 
 /// Write `params` over what the component currently holds, rather than over
@@ -727,21 +750,53 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     let Resolved {
         index,
         schema,
+        derived,
         defaults,
         passes,
-        ..
     } = resolve(eng, name)?;
-    // A write of what the component already holds changes nothing, and a
-    // script setting a value every frame would otherwise rebuild it every frame.
-    // The component's own reader answers that without building its table.
+    let attached = attached_of(eng, entity).has(index);
     if let Some(asked) = params.as_table()
-        && attached_of(eng, entity).has(index)
-        && property::holds_already(eng, entity, index, asked)
+        && attached
     {
-        unchanged(eng, entity, name);
-        return Ok(());
+        // A write of what it holds changes nothing: a script setting a value
+        // every frame would otherwise rebuild it every frame.
+        if property::holds_already(eng, entity, index, asked) {
+            unchanged(eng, entity, name);
+            return Ok(());
+        }
+        // Only what is written, read and written by place: reading the whole
+        // table back to change one key was most of what a scene's override cost.
+        if derived && asked.keys().all(|key| schema.position(key).is_some()) {
+            let mut out = toml::map::Map::new();
+            for (key, value) in asked {
+                let merged = schema.get(key).and_then(|spec| {
+                    let held = values::is_variant(spec)
+                        .then(|| property::property_at(eng, entity, index, key))
+                        .flatten();
+                    values::over_variant(spec, held.as_ref(), value)
+                });
+                out.insert(key.clone(), merged.unwrap_or_else(|| value.clone()));
+            }
+            fill_records(&schema, &passes.record, &mut out);
+            expand_colors(&schema, &passes.color, &mut out);
+            values::resolve_assets(eng, &schema, &passes.asset, &mut out)?;
+            return apply_at(
+                eng,
+                entity,
+                index,
+                name,
+                &toml::Value::Table(out),
+                Some(params),
+                true,
+            );
+        }
     }
-    let current = get_at(eng, entity, index);
+    let current = if attached {
+        get_at(eng, entity, index)
+    } else {
+        None
+    };
+    // A hand-written one has no reader by place, so its table answers this.
     if let (Some(toml::Value::Table(held)), Some(asked)) = (&current, params.as_table())
         && asked
             .iter()
@@ -750,8 +805,7 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         unchanged(eng, entity, name);
         return Ok(());
     }
-    // The component's own table is the base, taken rather than copied: what
-    // `get` leaves out is filled from the request, then from the defaults.
+    // The component's own table is the base, taken rather than copied.
     let mut out = match current {
         Some(toml::Value::Table(table)) => table,
         Some(other) => {
@@ -761,9 +815,9 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
         }
         None => toml::map::Map::new(),
     };
-    // A `get` reporting every property the schema declares, which is its
-    // contract, leaves the two fills below nothing to find and a table to clone.
-    if !defaults.keys().all(|key| out.contains_key(key)) {
+    // What a derived one leaves out reads back as its own default; a hand one
+    // takes its whole table.
+    if !derived {
         for (key, value) in defaults.iter() {
             if !out.contains_key(key) {
                 out.insert(key.clone(), value.clone());
@@ -775,8 +829,7 @@ pub fn patch(eng: &Engine, entity: Entity, name: &str, params: &toml::Value) -> 
     expand_colors(&schema, &passes.color, &mut out);
     values::resolve_assets(eng, &schema, &passes.asset, &mut out)?;
     let full = toml::Value::Table(out);
-    apply_at(eng, entity, index, name, &full, Some(params))?;
-    Ok(())
+    apply_at(eng, entity, index, name, &full, Some(params), false)
 }
 
 /// What a [`patch`] that changed nothing still owes: the refusal it answers
@@ -798,10 +851,10 @@ struct Resolved {
     /// Where the component sits, which is its bit in [`Attached`].
     index: usize,
     schema: Rc<Schema>,
-    /// [`Facts::defaults`], shared rather than rebuilt.
+    /// Whether it reads a table of only some keys, the rest its own defaults.
+    derived: bool,
+    /// [`Facts::defaults`].
     defaults: Rc<toml::map::Map<String, toml::Value>>,
-    /// [`Facts::filled`].
-    filled: Rc<toml::map::Map<String, toml::Value>>,
     /// [`Facts::passes`].
     passes: Rc<Passes>,
 }
@@ -827,15 +880,16 @@ fn resolve(eng: &Engine, name: &str) -> Result<Resolved> {
     Ok(Resolved {
         index,
         schema,
+        derived: def.type_id.is_some(),
         defaults: facts.defaults.clone(),
-        filled: facts.filled.clone(),
         passes: facts.passes.clone(),
     })
 }
 
-/// Apply a component's whole table with the definition already resolved,
-/// logged as a change to the keys of `asked` or, with none, to all of it.
-/// `name` is carried for the error alone.
+/// Apply a component's table with the definition already resolved, logged as
+/// a change to the keys of `asked` or, with none, to all of it. `each` writes
+/// the keys `full` holds over what the component holds, rather than `full`
+/// over its defaults. `name` is carried for the error alone.
 fn apply_at(
     eng: &Engine,
     entity: Entity,
@@ -843,6 +897,7 @@ fn apply_at(
     name: &str,
     full: &toml::Value,
     asked: Option<&toml::Value>,
+    each: bool,
 ) -> Result<()> {
     let registry = eng
         .try_resource::<ComponentRegistry>()
@@ -863,7 +918,17 @@ fn apply_at(
         let (_, def) = registry
             .at(index)
             .ok_or_else(|| anyhow!("unknown component '{name}'"))?;
-        if let Err(why) = (def.apply)(eng, entity, full) {
+        let wrote = match (each, &def.write_each, full.as_table()) {
+            (true, Some(write_each), Some(table)) => {
+                let by_place: Vec<(usize, &toml::Value)> = table
+                    .iter()
+                    .filter_map(|(key, value)| Some((def.schema.position(key)?, value)))
+                    .collect();
+                write_each(eng, entity, &by_place).map(|_| ())
+            }
+            _ => (def.apply)(eng, entity, full),
+        };
+        if let Err(why) = wrote {
             let held = (def.get)(eng, entity);
             drop(registry);
             crate::warnings::refused(eng, entity, name, held.as_ref(), full, &why);

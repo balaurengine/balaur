@@ -20,9 +20,7 @@ use crate::widget::focus::{
 };
 use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
 use crate::widget::paint::Brush;
-use crate::widget::theme::{
-    Pointer, Style, WidgetState, WidgetTheme, face, rich, styled, theme_of,
-};
+use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, rich, theme_of};
 
 /// `area` less the part the on-screen keyboard covers. The keyboard is
 /// measured in the window's pixels, which are this pass's units.
@@ -481,8 +479,8 @@ thread_local! {
 /// project's `ui/theme`, or the built-in look.
 pub(crate) fn theme_root(eng: &Engine) -> Rc<WidgetTheme> {
     let bare = BARE.with(Rc::clone);
-    let project = balaur_core::project::UiSettings::from_settings(eng).theme;
-    theme_of(eng, &project, &bare)
+    let settings = balaur_core::project::UiSettings::of(eng);
+    theme_of(eng, &settings.theme, &bare)
 }
 
 /// What one draw pass carries down the widget tree.
@@ -583,9 +581,9 @@ impl Painting<'_> {
         self.fresh || self.touched.slots.contains(&root)
     }
 
-    /// The style a widget is drawn with, in the theme in force here.
-    pub(crate) fn style_of(&self, widget: &Widget) -> Rc<Style> {
-        self.in_state(styled(&self.theme, widget))
+    /// The style the widget at `index` is drawn with, in the state it is in here.
+    pub(crate) fn style(&self, index: usize) -> Rc<Style> {
+        Rc::clone(&self.look(index).style)
     }
 
     /// Whether egui slants the widget at `index`'s text itself, for want of
@@ -595,42 +593,44 @@ impl Painting<'_> {
         crate::widget::theme::slanted(&look.style, (&self.arena[index].widget, look.project))
     }
 
-    /// The look of the widget at `index`, resolved once a frame.
+    /// The look of the widget at `index`, in the state it is in here.
     pub(crate) fn look(&self, index: usize) -> Rc<Look> {
         let look = look_of(self.arena, index, &self.theme);
-        let styled = self.in_state(Rc::clone(&look.style));
-        if Rc::ptr_eq(&styled, &look.style) {
+        if !self.state.any() || look.style.states_nothing() {
             return look;
         }
         let placed = &self.arena[index];
-        let (ink, font) = face(&self.theme, &styled, (&placed.widget, placed.project));
-        Rc::new(Look {
-            style: styled,
+        if let Some((_, held)) = placed
+            .look
+            .borrow()
+            .in_state
+            .iter()
+            .find(|(state, _)| *state == self.state)
+        {
+            return Rc::clone(held);
+        }
+        let style = Rc::new(look.style.in_states(self.state));
+        let (ink, font) = face(&self.theme, &style, (&placed.widget, placed.project));
+        let made = Rc::new(Look {
+            style,
             font,
             ink,
             icon: look.icon.clone(),
             project: placed.project,
-        })
+            under: look.under.clone(),
+        });
+        placed
+            .look
+            .borrow_mut()
+            .in_state
+            .push((self.state, Rc::clone(&made)));
+        made
     }
 
     /// The look with no state on it, for a kind that answers the pointer with
     /// its own response rather than with the box the layout gave it.
     pub(crate) fn resting(&self, index: usize) -> Rc<Look> {
         look_of(self.arena, index, &self.theme)
-    }
-
-    /// A style with its `hover` or `active` table over it, where the pointer
-    /// put the widget in one. A style with neither answers with itself.
-    fn in_state(&self, style: Rc<Style>) -> Rc<Style> {
-        let plain = style.hover.is_none()
-            && style.active.is_none()
-            && style.disabled.is_none()
-            && style.focus.is_none()
-            && style.checked.is_none();
-        if !self.state.any() || plain {
-            return style;
-        }
-        Rc::new(style.in_states(self.state))
     }
 }
 
@@ -743,7 +743,7 @@ pub(crate) fn caption(eng: &Engine, widget: &Widget) -> SmolStr {
     if widget.text_key.is_empty() {
         return widget.text.clone();
     }
-    balaur_core::strings::tr(eng, &widget.text_key, &[]).into()
+    balaur_core::strings::plain(eng, &widget.text_key)
 }
 
 /// Everything a widget kind draws, with the theme already resolved.
@@ -1012,9 +1012,9 @@ fn panel(
     color: Color32,
 ) {
     let widget = &at.arena[index].widget;
-    let style = at.style_of(widget);
+    let style = at.style(index);
     let pad = padding_of(widget, &style);
-    let box_size = solved_of(widget, &at.style_of(widget), at.assigned);
+    let box_size = solved_of(widget, &at.style(index), at.assigned);
     let plate = Brush::of(ui).slot();
     let min = (box_size - pad.taken()).max(egui::Vec2::ZERO);
     // Top down whatever the parent runs: a caption in a centred row was

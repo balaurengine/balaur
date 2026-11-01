@@ -156,7 +156,7 @@ pub(crate) fn edit(
         style: &look.style,
     };
     let natural = face.natural(multiline);
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let pick = |want: f32, natural: f32| if want > 0.0 { want } else { natural };
     let mut size = vec2(pick(want.x, natural.x), pick(want.y, natural.y));
     if !multiline && !widget.egui.clip_text {

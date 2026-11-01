@@ -175,10 +175,10 @@ fn rows(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let row_h = pitch(ui, widget, font);
     let ink = Ink::of(ui, &at.theme);
-    backdrop(ui, at, &at.style_of(widget), ui.max_rect());
+    backdrop(ui, at, &at.style(index), ui.max_rect());
     // The pitch is the row, with nothing between: `show_rows` places by the
     // one and the rows draw at the other, and a gap makes them two numbers.
     ui.spacing_mut().item_spacing.y = 0.0;
@@ -1057,19 +1057,20 @@ fn cards(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
-    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
     let icon = at.look(index).icon.clone();
-    let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let columns = crate::widget::grid::track_count(&widget.layout.grid_columns).max(1);
     let items: Vec<String> = widget
         .options
         .iter()
         .map(smol_str::SmolStr::to_string)
         .collect();
-    let picked_rows = picked_set(&widget);
+    let picked_rows = picked_set(widget);
     let ink = Ink::of(ui, &at.theme);
-    let style = at.style_of(&widget);
+    let style = at.style(index);
     backdrop(ui, at, &style, ui.max_rect());
     // The air between cards, which the theme spells as it does a container's.
     let gap = style.gap.unwrap_or(6.0).max(0.0);
@@ -1078,15 +1079,15 @@ fn cards(
     } else {
         ui.available_width()
     };
-    let cell = card_size(&widget, room, gap, columns);
+    let cell = card_size(widget, room, gap, columns);
     let lines = items.len().div_ceil(columns);
-    let sheet = card_sheet(ui, at, &widget);
+    let sheet = card_sheet(ui, at, widget);
     let mut picked = None;
     let mut aimed = None;
     let mut took = None;
     let id = egui::Id::unique(("balaur-cards", entity));
     let area = held_to(egui::ScrollArea::vertical(), id, want);
-    let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
+    let area = crate::widget::scroll::dressed(ui, area, widget, entity);
     let shown = area.show_rows(ui, cell.y + gap, lines, |ui, range| {
         for line in range {
             ui.horizontal(|ui| {

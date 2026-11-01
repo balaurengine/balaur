@@ -577,28 +577,68 @@ pub(crate) fn budget_settings() -> String {
 /// The device budget `[render]` sets, over whichever environment draws.
 #[cfg(feature = "window")]
 fn budget_from_settings(eng: &balaur_core::Engine, env: &mut LitEnvironment) {
-    let setting = |key: &str| balaur_core::settings::get(eng, &format!("render/{key}"));
-    let whole = |key: &str, fallback: u32| {
-        setting(key)
+    let budget = balaur_core::settings::kept(eng, Budget::read);
+    env.shadow_resolution = budget
+        .shadow_resolution
+        .unwrap_or(env.shadow_resolution)
+        .max(256);
+    env.shadow_views = budget.shadow_views.unwrap_or(env.shadow_views).clamp(1, 64);
+    env.transmission.steps = budget
+        .transmission_steps
+        .unwrap_or(env.transmission.steps)
+        .max(1);
+    env.probe_capture_size = budget
+        .probe_capture_size
+        .unwrap_or(env.probe_capture_size)
+        .clamp(2, 4096);
+    env.cluster_max_lights = budget
+        .cluster_max_lights
+        .unwrap_or(env.cluster_max_lights)
+        .max(1);
+    for (slot, cell) in budget.cluster_grid.iter().enumerate() {
+        if let Some(n) = cell {
+            env.cluster_grid[slot] = n.round().clamp(1.0, 128.0) as u32;
+        }
+    }
+}
+
+/// `[render]`'s budgets as stated, read when a setting moves.
+#[cfg(feature = "window")]
+struct Budget {
+    shadow_resolution: Option<u32>,
+    shadow_views: Option<u32>,
+    transmission_steps: Option<u32>,
+    probe_capture_size: Option<u32>,
+    cluster_max_lights: Option<u32>,
+    cluster_grid: [Option<f64>; 3],
+}
+
+#[cfg(feature = "window")]
+impl Budget {
+    fn read(eng: &balaur_core::Engine) -> Self {
+        let setting = |key: &str| balaur_core::settings::get(eng, &format!("render/{key}"));
+        let whole = |key: &str| {
+            setting(key)
+                .as_ref()
+                .and_then(toml::Value::as_integer)
+                .and_then(|n| u32::try_from(n).ok())
+        };
+        let mut cluster_grid = [None; 3];
+        if let Some(grid) = setting(k::CLUSTER_GRID)
             .as_ref()
-            .and_then(toml::Value::as_integer)
-            .and_then(|n| u32::try_from(n).ok())
-            .unwrap_or(fallback)
-    };
-    env.shadow_resolution = whole(k::SHADOW_RESOLUTION, env.shadow_resolution).max(256);
-    env.shadow_views = whole(k::SHADOW_VIEWS, env.shadow_views).clamp(1, 64);
-    env.transmission.steps = whole(k::TRANSMISSION_STEPS, env.transmission.steps).max(1);
-    env.probe_capture_size =
-        whole(k::PROBE_CAPTURE_SIZE_PIXELS, env.probe_capture_size).clamp(2, 4096);
-    env.cluster_max_lights = whole(k::CLUSTER_MAX_LIGHTS, env.cluster_max_lights).max(1);
-    if let Some(grid) = setting(k::CLUSTER_GRID)
-        .as_ref()
-        .and_then(toml::Value::as_array)
-    {
-        for (slot, cell) in grid.iter().take(3).enumerate() {
-            if let Some(n) = balaur_core::components::as_f64(cell) {
-                env.cluster_grid[slot] = n.round().clamp(1.0, 128.0) as u32;
+            .and_then(toml::Value::as_array)
+        {
+            for (slot, cell) in grid.iter().take(3).enumerate() {
+                cluster_grid[slot] = balaur_core::components::as_f64(cell);
             }
+        }
+        Self {
+            shadow_resolution: whole(k::SHADOW_RESOLUTION),
+            shadow_views: whole(k::SHADOW_VIEWS),
+            transmission_steps: whole(k::TRANSMISSION_STEPS),
+            probe_capture_size: whole(k::PROBE_CAPTURE_SIZE_PIXELS),
+            cluster_max_lights: whole(k::CLUSTER_MAX_LIGHTS),
+            cluster_grid,
         }
     }
 }

@@ -6,6 +6,8 @@
 //! table and reading one key out of it, or to a whole [`super::patch`], which
 //! is what a caller would have done anyway.
 
+use std::rc::Rc;
+
 use anyhow::{Result, anyhow};
 use hecs::Entity;
 
@@ -157,6 +159,20 @@ pub fn place_of(eng: &Engine, name: &str, key: &str) -> Option<PropertyPlace> {
     })
 }
 
+/// A vector property's numbers at a place found before, and how many: a read
+/// that builds no value. `None` for a node without it or any other type.
+pub fn vector_placed(
+    eng: &Engine,
+    entity: Entity,
+    place: PropertyPlace,
+    out: &mut [f32; 4],
+) -> Option<usize> {
+    let registry = eng.try_resource::<super::ComponentRegistry>()?;
+    let registry = registry.borrow();
+    let (_, def) = registry.at(place.component)?;
+    def.read_vector.as_ref()?(eng, entity, place.position, out)
+}
+
 /// [`property`] at a place found before: the one field of a derived
 /// component, the whole table's key for any other.
 #[must_use]
@@ -183,7 +199,9 @@ pub fn set_property_placed(
     place: PropertyPlace,
     value: &toml::Value,
 ) -> Result<()> {
-    let key = {
+    // The schema, not the registry, holds the name: a write may run a hook
+    // that looks a component up.
+    let schema = {
         let registry = eng
             .try_resource::<super::ComponentRegistry>()
             .ok_or_else(|| anyhow!("component registry missing"))?;
@@ -191,17 +209,17 @@ pub fn set_property_placed(
         let (_, def) = registry
             .at(place.component)
             .ok_or_else(|| anyhow!("no component at {}", place.component))?;
-        def.schema
-            .order()
-            .get(place.position)
-            .ok_or_else(|| anyhow!("no property at {}", place.position))?
-            .clone()
+        Rc::clone(&def.schema)
     };
+    let key = schema
+        .order()
+        .get(place.position)
+        .ok_or_else(|| anyhow!("no property at {}", place.position))?;
     set_property_known(
         eng,
         entity,
         place.component,
-        &key,
+        key,
         Some(place.position),
         value,
     )

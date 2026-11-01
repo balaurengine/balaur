@@ -280,6 +280,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     }
     eng.insert_resource(crate::settings::SettingsRegistry::default());
     eng.insert_resource(crate::settings::SettingsValues::default());
+    eng.insert_resource(crate::settings::SettingsAnswers::default());
     eng.insert_resource(crate::settings::SettingsRevision::default());
     // Before any setting is read, since the tags in force decide which
     // `[override.<tag>]` a read answers from.

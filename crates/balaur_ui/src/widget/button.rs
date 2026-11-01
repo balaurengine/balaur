@@ -340,18 +340,19 @@ pub(crate) fn button(
     color: egui::Color32,
 ) -> egui::Response {
     let (entity, widget) = {
-        let placed = &at.arena[index];
-        (placed.entity, placed.widget.clone())
+        let nodes = at.arena;
+        let placed = &nodes[index];
+        (placed.entity, &placed.widget)
     };
     // Resting: a button is not always as wide as the box it was given, so it
     // reads the state off its own response rather than off that box.
     let base = at.resting(index).style.clone();
     let focused = at.focused;
-    let pad = padding_of(&widget, &base);
+    let pad = padding_of(widget, &base);
     let floor = vec2(base.width.unwrap_or(0.0), base.height.unwrap_or(0.0));
     // The box the layout handed it too: a button in a column fills its width
     // rather than hugging its caption, as it does in Godot and in CSS.
-    let given = crate::widget::arrange::solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let given = crate::widget::arrange::solved_of(widget, &at.style(index), at.assigned);
     let inside = if given.x > 0.0 {
         given.x - pad.taken().x
     } else {
@@ -376,7 +377,7 @@ pub(crate) fn button(
         pointer,
         ..at.state
     });
-    let radius = corner(&style, &widget, response.rect.height());
+    let radius = corner(&style, widget, response.rect.height());
     match style.image.as_ref() {
         Some(path) => crate::widget::kinds::nine_patch_plate(
             ui,

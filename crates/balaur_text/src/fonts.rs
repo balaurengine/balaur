@@ -248,7 +248,7 @@ pub fn faces_of(eng: &Engine, project: FontProject) -> Vec<FontFace> {
 /// system for one, from `[ui] system_fonts`. A project that says nothing may,
 /// so text in a script balaur does not vendor keeps drawing.
 fn wants_system_fonts(eng: &Engine) -> bool {
-    balaur_core::project::UiSettings::from_settings(eng).system_fonts
+    balaur_core::project::UiSettings::of(eng).system_fonts
 }
 
 /// The `widget_theme` a project starts its UI from: its `[ui] theme`, against
@@ -259,8 +259,8 @@ fn project_theme(eng: &Engine, project: FontProject) -> Option<String> {
         FontProject::Host => None,
     };
     let Some(root) = root else {
-        let theme = balaur_core::project::UiSettings::from_settings(eng).theme;
-        return (!theme.is_empty()).then_some(theme);
+        let settings = balaur_core::project::UiSettings::of(eng);
+        return (!settings.theme.is_empty()).then(|| settings.theme.clone());
     };
     let manifest = balaur_core::files::backend(eng)
         .read(&root.join("project.toml"))
@@ -319,7 +319,7 @@ impl LoadedFont {
 /// and not read yet. Apart from the font systems, so a shaping borrows both.
 #[derive(Default)]
 pub(crate) struct FontTable {
-    loaded: HashMap<String, Rc<LoadedFont>>,
+    loaded: rustc_hash::FxHashMap<String, Rc<LoadedFont>>,
     /// Asked for and not read yet: the shaper answers with the default, and
     /// the shaper's next look at the files reads them.
     wanted: RefCell<Vec<String>>,

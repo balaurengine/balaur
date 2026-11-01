@@ -13,11 +13,6 @@ const HEIGHT: f32 = 4.0;
 /// Draw the splash while its seconds last. Engine time, so a replay shows
 /// it for exactly as long as the recording did.
 pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
-    let path = balaur_core::settings::get(eng, "application/splash")
-        .as_ref()
-        .and_then(toml::Value::as_str)
-        .unwrap_or_default()
-        .to_string();
     let seconds = balaur_core::settings::get(eng, "application/splash_seconds")
         .as_ref()
         .and_then(balaur_core::components::as_f64)
@@ -29,7 +24,15 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     // Reporting a load holds the splash past its seconds. A run that reports
     // nothing has no resource, and goes when its seconds are up.
     let held = loading.as_ref().is_some_and(|l| !l.done);
-    if path.is_empty() || (eng.time() >= seconds && !held) {
+    if eng.time() >= seconds && !held {
+        return;
+    }
+    let path = balaur_core::settings::get(eng, "application/splash")
+        .as_ref()
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    if path.is_empty() {
         return;
     }
     // The pass that takes it down has to be asked for, or a loop sleeping

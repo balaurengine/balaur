@@ -325,6 +325,7 @@ pub(crate) fn show(v: &Value) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        Value::Vector(numbers) => format!("{numbers:?}"),
         Value::Map(pairs) if pairs.is_empty() => "{}".into(),
         Value::Map(pairs) => format!(
             "{{ {} }}",

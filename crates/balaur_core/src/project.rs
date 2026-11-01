@@ -259,9 +259,13 @@ impl Default for UiSettings {
 }
 
 impl UiSettings {
-    /// `[ui]` as this run resolves it.
+    /// `[ui]` as this run resolves it, worked out once per change of a setting.
     #[must_use]
-    pub fn from_settings(eng: &Engine) -> Self {
+    pub fn of(eng: &Engine) -> std::rc::Rc<Self> {
+        crate::settings::kept(eng, Self::from_settings)
+    }
+
+    fn from_settings(eng: &Engine) -> Self {
         let fallback = Self::default();
         Self {
             system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),

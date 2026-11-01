@@ -27,7 +27,7 @@ pub use balaur_derive::{Component, Enum, Record, Variant};
 use hecs::Entity;
 pub use toml;
 
-use super::{ComponentDef, Schema};
+use super::{ComponentDef, Schema, WriteEachFn, WriteFn};
 use crate::engine::Engine;
 
 /// A value a property holds: what its spec says it is, and how it is written
@@ -39,6 +39,12 @@ pub trait Property: Sized {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>);
     fn to_value(&self) -> toml::Value;
     fn from_value(value: &toml::Value) -> Result<Self>;
+    /// A vector's numbers into `out`, and how many, for a read that builds no
+    /// value. `None` for any other type.
+    fn vector(&self, out: &mut [f32; 4]) -> Option<usize> {
+        let _ = out;
+        None
+    }
 }
 
 /// The properties of a struct, a field each, by their place.
@@ -55,6 +61,8 @@ pub trait Fields: Default {
     /// Write one property, by its index. A value of the wrong shape is
     /// refused and the field keeps what it held.
     fn write(&mut self, index: usize, value: &toml::Value) -> Result<()>;
+    /// One property's numbers, where it is a vector: see [`Property::vector`].
+    fn vector(&self, index: usize, out: &mut [f32; 4]) -> Option<usize>;
 }
 
 /// A struct that is a component: [`Fields`] and the name a scene keys it by.
@@ -462,6 +470,11 @@ macro_rules! vector {
             fn from_value(value: &toml::Value) -> Result<Self> {
                 numbers::<$size>(value).map(Self::from)
             }
+
+            fn vector(&self, out: &mut [f32; 4]) -> Option<usize> {
+                out[..$size].copy_from_slice(&<[f32; $size]>::from(*self));
+                Some($size)
+            }
         }
     };
 }
@@ -639,27 +652,106 @@ impl ComponentDef {
                 let held = world.get::<&C>(entity).ok()?;
                 held.read(index)
             })),
-            write: Some(Box::new(move |eng, entity, index, value| {
-                let before = {
-                    let world = eng.world_mut();
-                    let Ok(mut held) = world.get::<&mut C>(entity) else {
-                        return Ok(false);
-                    };
-                    let before = held.read(index);
-                    held.write(index, value)?;
-                    before
-                };
-                let Some(after) = after_write else {
-                    return Ok(true);
-                };
-                after(eng, entity, Written::Property(index)).inspect_err(|_| {
-                    let world = eng.world_mut();
-                    if let (Ok(mut held), Some(before)) = (world.get::<&mut C>(entity), &before) {
-                        let _ = held.write(index, before);
-                    }
-                })?;
-                Ok(true)
+            read_vector: Some(Box::new(|eng, entity, index, out| {
+                let world = eng.world();
+                let held = world.get::<&C>(entity).ok()?;
+                held.vector(index, out)
             })),
+            write: Some(write_one::<C>(after_write)),
+            write_each: Some(write_each::<C>(after_write)),
+        }
+    }
+}
+
+/// One property of `C` written by its index, put back if the hook refuses.
+fn write_one<C: Component>(after_write: Option<AfterWriteFn>) -> WriteFn {
+    Box::new(move |eng, entity, index, value| {
+        let before = {
+            let world = eng.world_mut();
+            let Ok(mut held) = world.get::<&mut C>(entity) else {
+                return Ok(false);
+            };
+            // Only for a hook to refuse, and a vector's numbers without
+            // a value built: a script moving a node writes every frame.
+            let before = after_write.map(|_| Held::of(&*held, index));
+            held.write(index, value)?;
+            before
+        };
+        let Some(after) = after_write else {
+            return Ok(true);
+        };
+        after(eng, entity, Written::Property(index)).inspect_err(|_| {
+            let world = eng.world_mut();
+            if let (Ok(mut held), Some(before)) = (world.get::<&mut C>(entity), &before) {
+                before.put_back(&mut *held, index);
+            }
+        })?;
+        Ok(true)
+    })
+}
+
+/// Several properties of `C` written as one write, every one put back if a
+/// value or the hook refuses.
+fn write_each<C: Component>(after_write: Option<AfterWriteFn>) -> WriteEachFn {
+    Box::new(move |eng, entity, each| {
+        let put_back = |held: &mut C, before: &[Option<toml::Value>]| {
+            for ((index, _), was) in each.iter().zip(before) {
+                if let Some(was) = was {
+                    let _ = held.write(*index, was);
+                }
+            }
+        };
+        let before = {
+            let world = eng.world_mut();
+            let Ok(mut held) = world.get::<&mut C>(entity) else {
+                return Ok(false);
+            };
+            let before: Vec<_> = each.iter().map(|(index, _)| held.read(*index)).collect();
+            for (at, (index, value)) in each.iter().enumerate() {
+                if let Err(why) = held.write(*index, value) {
+                    put_back(&mut held, &before[..at]);
+                    return Err(why);
+                }
+            }
+            before
+        };
+        let Some(after) = after_write else {
+            return Ok(true);
+        };
+        after(eng, entity, Written::Whole).inspect_err(|_| {
+            let world = eng.world_mut();
+            if let Ok(mut held) = world.get::<&mut C>(entity) {
+                put_back(&mut held, &before);
+            }
+        })?;
+        Ok(true)
+    })
+}
+
+/// What one property held before a write a hook may refuse.
+enum Held {
+    Vector([f32; 4], usize),
+    Value(Option<toml::Value>),
+}
+
+impl Held {
+    fn of<F: Fields>(held: &F, index: usize) -> Self {
+        let mut numbers = [0.0; 4];
+        match held.vector(index, &mut numbers) {
+            Some(count) => Self::Vector(numbers, count),
+            None => Self::Value(held.read(index)),
+        }
+    }
+
+    fn put_back<F: Fields>(&self, held: &mut F, index: usize) {
+        match self {
+            Self::Vector(numbers, count) => {
+                let _ = held.write(index, &floats(&numbers[..*count]));
+            }
+            Self::Value(Some(was)) => {
+                let _ = held.write(index, was);
+            }
+            Self::Value(None) => {}
         }
     }
 }

@@ -15,6 +15,7 @@ use balaur_text::FontProject;
 use balaur_text::fonts::FontFace;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ThemeTokens {
@@ -241,16 +242,51 @@ thread_local! {
     /// The families egui has taken. One given to `set_fonts` is taken at the
     /// start of the next pass, and a family egui has not taken is a panic, not
     /// a fallback.
-    static BOUND: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
+    static BOUND: RefCell<Families> = RefCell::new(Families::default());
+    /// How many times `BOUND` was replaced: a look worked out before asks again.
+    static TAKEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     /// The families given this pass, taken at the start of the next.
     static GIVEN: RefCell<Option<HashSet<FontKey>>> = const { RefCell::new(None) };
     /// The fonts a widget asked for that egui has no family for yet: the next
     /// pass has the shaper read them, and egui takes their families after.
-    static WANTED: RefCell<HashSet<(FontProject, String)>> = RefCell::new(HashSet::new());
+    static WANTED: RefCell<rustc_hash::FxHashMap<FontProject, HashSet<String>>> = RefCell::default();
     static ASKED: RefCell<AskedOfEgui> = RefCell::new(AskedOfEgui::default());
     /// The fonts and weights whose italic has no face of its own, so egui
     /// slants the upright one. Written where the fonts are given.
     static SLANTED: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
+}
+
+/// The families egui has taken, each with the name egui knows it by, found
+/// without building a key: every widget of a screen asks, on every redraw.
+#[derive(Default)]
+struct Families(
+    rustc_hash::FxHashMap<(FontProject, u16, bool), rustc_hash::FxHashMap<String, Arc<str>>>,
+);
+
+impl Families {
+    fn of(given: HashSet<FontKey>) -> Self {
+        let mut families = Self::default();
+        for key in given {
+            let name: Arc<str> = family_name(&key).into();
+            let (project, reference, weight, italic) = key;
+            families
+                .0
+                .entry((project, weight, italic))
+                .or_default()
+                .insert(reference, name);
+        }
+        families
+    }
+
+    fn name(
+        &self,
+        project: FontProject,
+        reference: &str,
+        weight: u16,
+        italic: bool,
+    ) -> Option<&Arc<str>> {
+        self.0.get(&(project, weight, italic))?.get(reference)
+    }
 }
 
 /// A weight as a family is registered at: the nearest hundred, 100 to 900.
@@ -274,22 +310,33 @@ pub(crate) fn weighted(
     weight: f32,
     italic: bool,
 ) -> FontFamily {
-    let key = (project, reference.to_string(), weight_step(weight), italic);
-    let bound = BOUND.with(|bound| bound.borrow().contains(&key));
-    if bound {
-        return FontFamily::Name(family_name(&key).into());
-    }
-    if !reference.is_empty() {
-        WANTED.with(|wanted| {
-            wanted.borrow_mut().insert((project, reference.to_string()));
-        });
-    }
-    let default = (project, String::new(), key.2, italic);
-    if BOUND.with(|bound| bound.borrow().contains(&default)) {
-        FontFamily::Name(family_name(&default).into())
-    } else {
-        FontFamily::Proportional
-    }
+    let step = weight_step(weight);
+    BOUND.with(|bound| {
+        let bound = bound.borrow();
+        if let Some(name) = bound.name(project, reference, step, italic) {
+            return FontFamily::Name(Arc::clone(name));
+        }
+        if !reference.is_empty() {
+            WANTED.with(|wanted| {
+                let mut wanted = wanted.borrow_mut();
+                let asked = wanted.entry(project).or_default();
+                if !asked.contains(reference) {
+                    asked.insert(reference.to_string());
+                }
+            });
+        }
+        bound
+            .name(project, "", step, italic)
+            .map_or(FontFamily::Proportional, |name| {
+                FontFamily::Name(Arc::clone(name))
+            })
+    })
+}
+
+/// How many times egui took a new set of families. A look worked out under
+/// another count named a font that may have a family of its own by now.
+pub(crate) fn families_taken() -> u64 {
+    TAKEN.with(std::cell::Cell::get)
 }
 
 /// Whether egui has to slant `reference`'s glyphs itself to draw it italic at
@@ -307,15 +354,17 @@ pub(crate) fn slanted(project: FontProject, reference: &str, weight: f32, italic
 /// asked egui for: what the start of every pass does.
 pub(crate) fn take_fonts(eng: &balaur_core::Engine, ctx: &egui::Context) {
     if let Some(given) = GIVEN.with(|given| given.borrow_mut().take()) {
-        BOUND.with(|bound| *bound.borrow_mut() = given);
+        BOUND.with(|bound| *bound.borrow_mut() = Families::of(given));
+        TAKEN.with(|taken| taken.set(taken.get() + 1));
         // egui's own text styles name families, which may only now exist.
         let tokens = IN_FORCE.with(|theme| Rc::clone(&theme.borrow()));
         text_styles(ctx, &tokens);
     }
-    let wanted: Vec<(FontProject, String)> =
-        WANTED.with(|wanted| wanted.borrow_mut().drain().collect());
-    for (project, reference) in wanted {
-        balaur_text::load_font(eng, project, &reference);
+    let wanted = WANTED.with(|wanted| std::mem::take(&mut *wanted.borrow_mut()));
+    for (project, references) in wanted {
+        for reference in references {
+            balaur_text::load_font(eng, project, &reference);
+        }
     }
     let asked = ASKED.with(|asked| std::mem::take(&mut asked.borrow_mut().unheard));
     if !asked.is_empty() {

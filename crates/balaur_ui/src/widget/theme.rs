@@ -38,8 +38,9 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use balaur_core::Engine;
 use smol_str::SmolStr;
+
+pub(crate) use super::theme_files::theme_of;
 
 use crate::vocabulary::keys as k;
 use crate::vocabulary::looks as lk;
@@ -115,7 +116,7 @@ pub struct Style {
     pub dashed: Option<bool>,
     /// A project-relative picture drawn as the kind's background instead of
     /// `fill`, stretched by `slice`.
-    pub image: Option<String>,
+    pub image: Option<SmolStr>,
     /// Left, top, right and bottom borders of `image` kept unstretched, in
     /// the picture's own pixels.
     pub slice: [f32; 4],
@@ -125,15 +126,15 @@ pub struct Style {
     /// sheet.
     pub plate: Option<Color32>,
     /// Where a control's content sits across it: `left` for a row, else centred.
-    pub align: Option<String>,
+    pub align: Option<SmolStr>,
     /// The pointer over the widget while it is live, a `cursor` word: a
     /// hand on every control, the way the web shows one. A node's own
     /// `cursor` wins, a disabled widget keeps the arrow, unset keeps it.
-    pub cursor: Option<String>,
+    pub cursor: Option<SmolStr>,
     pub font_size: Option<f32>,
     /// The font, a token of the theme's `[fonts]` already read as the font
     /// it names. Unset on a resolved style is the theme's default font.
-    pub font: Option<String>,
+    pub font: Option<SmolStr>,
     /// Weight on the CSS scale; a role's `strong = true` is 700.
     pub weight: Option<f32>,
     /// The box a role asks for, in design pixels, for a role that carries its
@@ -171,7 +172,7 @@ pub struct Style {
     /// applies; its own `hover` and `active` win over the entry's.
     pub checked: Option<Rc<Style>>,
     /// A `fold`'s arrow picture, and the frame around its open children.
-    pub arrow: Option<String>,
+    pub arrow: Option<SmolStr>,
     pub body: Option<Rc<Style>>,
     /// The band a widget's `border` keeps clear on each side, left, top,
     /// right and bottom, which its outline is painted in; never a theme's.
@@ -276,6 +277,16 @@ impl Style {
         }
     }
 
+    /// Whether no state table is stated, so every state draws like rest.
+    #[must_use]
+    pub fn states_nothing(&self) -> bool {
+        self.hover.is_none()
+            && self.active.is_none()
+            && self.disabled.is_none()
+            && self.focus.is_none()
+            && self.checked.is_none()
+    }
+
     /// The style with the tables for the widget's state over it: `checked`
     /// under everything, then disabled, held, hovered, and focused with the
     /// pointer elsewhere.
@@ -368,7 +379,7 @@ impl WidgetTheme {
             None => base,
         };
         if settled.font.is_none() {
-            settled.font = self.fonts.get(t::FONT_DEFAULT).cloned();
+            settled.font = self.fonts.get(t::FONT_DEFAULT).map(SmolStr::new);
         }
         let made = Rc::new(in_classes(&settled, &active));
         self.settled.borrow_mut().insert(key, Rc::clone(&made));
@@ -480,6 +491,11 @@ pub(crate) fn set_pass_classes(active: &[&str]) {
     });
 }
 
+/// The number that stands for the classes in force.
+pub(crate) fn pass_classes_at() -> u32 {
+    PASS_CLASSES.with(|held| held.borrow().1)
+}
+
 /// The classes in force and the number that stands for them.
 fn pass_classes() -> (Rc<[SmolStr]>, u32) {
     PASS_CLASSES.with(|held| {
@@ -522,7 +538,7 @@ pub(crate) fn tip(response: &egui::Response, text: &str) {
         return;
     }
     if !pass_is_touch() {
-        response.clone().on_hover_text(text.to_owned());
+        response.clone().on_hover_text(text);
         return;
     }
     // Timed here rather than taken from `Response::long_touched`, which egui
@@ -599,28 +615,25 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .get(k::IMAGE)
             .and_then(toml::Value::as_str)
             .filter(|path| !path.is_empty())
-            .map(str::to_string),
+            .map(SmolStr::new),
         slice: four_of(body.get(k::SLICE)),
         text_color: colour(k::TEXT_COLOR),
         plate: colour(k::ICON_FILL),
         align: body
             .get(k::TEXT_ALIGN)
             .and_then(toml::Value::as_str)
-            .map(str::to_string),
+            .map(SmolStr::new),
         cursor: body
             .get(k::CURSOR)
             .and_then(toml::Value::as_str)
             .filter(|word| !word.is_empty())
-            .map(str::to_string),
+            .map(SmolStr::new),
         font_size: number(k::FONT_SIZE),
         // A font is written as one, or as the name of one `[fonts]` states.
-        font: body.get(k::FONT).and_then(toml::Value::as_str).map(|font| {
-            tokens
-                .fonts
-                .get(font)
-                .cloned()
-                .unwrap_or_else(|| font.to_string())
-        }),
+        font: body
+            .get(k::FONT)
+            .and_then(toml::Value::as_str)
+            .map(|font| tokens.fonts.get(font).map_or(font, String::as_str).into()),
         weight: number(k::FONT_WEIGHT),
         height: number(k::HEIGHT),
         width: number(k::WIDTH),
@@ -642,7 +655,7 @@ fn style_of(body: &toml::Table, tokens: &Tokens, what: &str) -> Style {
             .get(k::ARROW)
             .and_then(toml::Value::as_str)
             .filter(|path| !path.is_empty())
-            .map(str::to_string),
+            .map(SmolStr::new),
         body: body
             .get(k::BODY)
             .and_then(toml::Value::as_table)
@@ -1133,31 +1146,6 @@ pub(crate) fn weight_of(style: &Style, widget: &Widget) -> f32 {
         return widget.font_weight;
     }
     style.weight.unwrap_or(weights::REGULAR)
-}
-
-/// The theme in force for a widget: its own, or the nearest ancestor's.
-///
-/// Resolved once per frame per root rather than per widget, because a screen
-/// has one look and walking up the tree for every button to find it out would
-/// be work with a known answer.
-pub(crate) fn theme_of(
-    eng: &Engine,
-    reference: &str,
-    inherited: &Rc<WidgetTheme>,
-) -> Rc<WidgetTheme> {
-    if reference.is_empty() {
-        return inherited.clone();
-    }
-    match balaur_core::assets::load_typed::<WidgetTheme>(eng, reference) {
-        Ok(theme) => theme,
-        Err(err) => {
-            // A missing theme is a typo in a scene file: said once per reference.
-            if balaur_core::logbuf::first_time("widget theme", reference) {
-                tracing::warn!("widget theme '{reference}': {err:#}");
-            }
-            inherited.clone()
-        }
-    }
 }
 
 #[cfg(test)]
