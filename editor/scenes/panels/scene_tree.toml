@@ -96,7 +96,6 @@ row_height = 33
 id = "tree_menu"
 name = "tree_menu"
 parent = "panel"
-visible = false
 [nodes.widget]
 kind = "menu"
 

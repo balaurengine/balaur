@@ -252,7 +252,8 @@ impl Screen {
         let y = here.y + here.height / 2.0 + (end.y + end.height / 2.0 - here.y - here.height / 2.0) * e;
         let cursor = self.node.get_node("Cursor");
         if cursor.is_valid() {
-            cursor.patch_component("widget", { "x": x, "y": y, "visible": true });
+            cursor.patch_component("widget", { "x": x, "y": y });
+            cursor.set_visible(true);
         }
     }
 
@@ -276,8 +277,8 @@ impl Screen {
             "radius": d / 2.0,
             "fill": alpha("#6fa4d8", 0.30 * left),
             "stroke": alpha("#ffffff", left),
-            "visible": true,
         });
+        node.set_visible(true);
         held.age += 1;
         self.ring = held;
         if held.age >= RIPPLE {

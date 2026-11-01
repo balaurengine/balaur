@@ -442,13 +442,14 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
     }
 }
 
-/// A `menu` with no caption and no icon has no button: it only opens from a
-/// `context`, whose rows are its children, drawn all the same.
+/// A `menu` with no caption, icon or image has no button: it only opens from
+/// a `context`, whose rows are its children, drawn all the same.
 fn draws_itself(widget: &Widget) -> bool {
     widget.kind != crate::vocabulary::words::MENU
         || !widget.text.is_empty()
         || !widget.text_key.is_empty()
         || !widget.icon.is_empty()
+        || !widget.source.is_empty()
 }
 
 /// A widget draws only while its node does: `visible = false` on the node,

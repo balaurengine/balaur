@@ -188,7 +188,6 @@ height = 24
 id = "canvas_menu"
 name = "canvas_menu"
 parent = "sheet"
-visible = false
 [nodes.widget]
 kind = "menu"
 
