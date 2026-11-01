@@ -204,6 +204,10 @@ pub class State {
     edited: model::Edited?,
     /// The scene as play found it, which stop builds again.
     played: str,
+    /// The text the last play ran from, and what the scene reads as once
+    /// stopping has rebuilt it: while it still reads so, nothing was edited.
+    last_played: str,
+    stopped_as: str,
     theme: any,
     theme_half: str,
     gizmo: gizmo::GizmoState,
@@ -528,6 +532,8 @@ pub fn fresh_state() -> State {
         nodes: [],
         edited: nil,
         played: "",
+        last_played: "",
+        stopped_as: "",
         game_root: "",
         game_name: "",
         scene_rel: "",

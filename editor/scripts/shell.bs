@@ -351,7 +351,11 @@ pub fn release_world(state: &mut editor::State) {
 /// nothing the game does is the edited scene's to undo.
 pub fn begin_play(state: &mut editor::State) {
     history::commit(state);
-    state.played = model::scene_text(state);
+    // Writing a scene out rounds its rotations, so a text made from a scene
+    // built from text is a bit off the one before. An unedited scene plays
+    // from the same text again, or a replay starts from another world.
+    let text = model::scene_text(state);
+    state.played = if text == state.stopped_as { state.last_played } else { text };
     model::build(state, state.played);
     scene::keep_changes(nil);
 }
@@ -370,6 +374,8 @@ pub fn stop_play(state: &mut editor::State) {
     session::end(state, "stop");
     if state.played != "" {
         model::build(state, state.played);
+        state.last_played = state.played;
+        state.stopped_as = model::scene_text(state);
         state.played = "";
     }
     state.playing = false;
