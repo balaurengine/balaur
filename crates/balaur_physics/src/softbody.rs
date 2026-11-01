@@ -23,8 +23,8 @@ use balaur_script::NodeId;
 
 use crate::PhysicsState3d;
 use crate::properties::{
-    Binding, ColliderEvent, ContactPair, EdgeSpring, EdgeTearResistance, Fill, Indices,
-    Orientation, ParticlePair, SoftKind3d, SoftRegion, SoftSolver, TensionOnly,
+    Binding, ContactPair, EdgeSpring, EdgeTearResistance, Fill, Indices, Orientation, ParticlePair,
+    SoftKind3d, SoftRegion, SoftSolver, TensionOnly,
 };
 use crate::rapier3d::prelude::{SoftBodyBuilder, SoftBodyHandle, SoftBodySolver};
 use crate::scalar::{self, Real, Vector};
@@ -117,9 +117,6 @@ pub struct Softbody3d {
     /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
     #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
     pub contact_pairs: Vec<ContactPair>,
-    /// What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force
-    #[property(flags, group = "events")]
-    pub events: Vec<ColliderEvent>,
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
@@ -454,8 +451,7 @@ cap::surface!(
     rapier = rapier3d,
     body = Softbody3d,
     groups = crate::collider::groups_of,
-    pairs = crate::collider::collision_types_of,
-    events = crate::collider::events_of
+    pairs = crate::collider::collision_types_of
 );
 
 /// Which solver runs the elasticity.
@@ -858,8 +854,7 @@ pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, asked: &SoftAsked3d) 
     build_softbody(eng, entity, asked, &materials)
 }
 
-/// Build the node's soft body from rest, replacing whatever it had: what a
-/// script's `set_softbody` asks for even when nothing changed.
+/// Build the node's soft body from rest, replacing whatever it had.
 pub(super) fn build_softbody(
     eng: &Engine,
     entity: Entity,
@@ -893,6 +888,7 @@ pub(super) fn build_softbody(
             )
         });
         stamp_colliders(&mut state.world, handle, entity);
+        balaur_core::events::hearers_may_have_changed(eng, entity);
         added
     };
     if let Err(why) = added {
@@ -917,7 +913,10 @@ fn patched(eng: &Engine, entity: Entity, asked: &SoftAsked3d, materials: &cap::M
     ) else {
         return false;
     };
-    if !only_in_place(built, asked) || state.world.soft_bodies.get(handle).is_none() {
+    if !only_in_place(built, asked)
+        || materials.changes_shape_matching(eng, &built.body.soft_material)
+        || state.world.soft_bodies.get(handle).is_none()
+    {
         return false;
     }
     patch_body(&mut state.world, handle, &asked.body, materials);

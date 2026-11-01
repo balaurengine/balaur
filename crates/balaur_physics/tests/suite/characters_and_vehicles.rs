@@ -730,7 +730,7 @@ impl Scenario {
             if math::abs(wheel.wheel3d.wheel_state().get("rotation").as_float() - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
         }
         if self.ticks == 10 {
-            let speed = self.node.vehicle3d.speed();
+            let speed = self.node.vehicle3d.vehicle_speed();
             if math::abs(speed + 4.0) >= 0.5 { log::error("a car rolling backwards read {speed}"); }
             let state = wheel.wheel3d.wheel_state();
             if !state.get("in_contact").as_bool() { log::error("the wheel is off the ground"); }

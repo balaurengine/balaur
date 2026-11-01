@@ -28,7 +28,6 @@ collision_margin = 0.02
 mass = 4.0
 collision_layer = ["1", "3"]
 collision_mask = ["2"]
-events = ["collision"]
 contact_pairs = ["dynamic_dynamic", "static_static"]"#,
     )
     .unwrap();
@@ -66,7 +65,6 @@ contact_pairs = ["dynamic_dynamic", "static_static"]"#,
     }
     assert_eq!(flags("collision_layer"), ["1", "3"]);
     assert_eq!(flags("collision_mask"), ["2"]);
-    assert_eq!(flags("events"), ["collision"]);
     assert_eq!(flags("contact_pairs"), ["dynamic_dynamic", "static_static"]);
     assert!(
         (back

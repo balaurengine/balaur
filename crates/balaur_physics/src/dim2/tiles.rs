@@ -17,7 +17,7 @@ use balaur_plugin::Registry;
 use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::{add_collider_at, hooks_of, with_rows};
 use crate::dim2::events::Surface;
-use crate::properties::{ColliderEvent, ContactPair, Fit3d, LayerTest};
+use crate::properties::{ContactPair, Fit3d, LayerTest};
 use crate::rapier2d::prelude::{ColliderBuilder as ColliderBuilder2, SharedShape};
 use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
 use crate::shared::beside::{self, Beside};
@@ -100,9 +100,6 @@ pub struct TileCollision {
     /// The whole map's resistance to spin about center_of_mass, shared over its colliders by area; 0 takes the shapes' own about that centre
     #[property(group = "mass", min = 0.0)]
     pub inertia: f32,
-    /// What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force
-    #[property(flags, group = "events")]
-    pub events: Vec<ColliderEvent>,
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,

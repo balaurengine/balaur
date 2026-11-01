@@ -296,7 +296,7 @@ impl Scenario {
             physics2d::time_of_impact(n, wall, physics2d::ImpactOptions { velocity_a: [6.0, 0.0] }),
             n.collider2d.collider_mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),
             cells.collider2d.collider_mesh(), true];
-        n.collider2d.set_collider({ "shape": { "kind": "rectangle", "size": [2.0, 2.0] } });
+        n.set_component("collider2d", { "shape": { "kind": "rectangle", "size": [2.0, 2.0] } });
         found
     }
 }
@@ -340,5 +340,5 @@ impl Scenario {
     let replaced = collider(&b, "World/Ball", |c| {
         c.shape().as_cuboid().map(|s| s.half_extents.to_array())
     });
-    assert_eq!(replaced, Some([1.0, 1.0]), "set_collider left the circle");
+    assert_eq!(replaced, Some([1.0, 1.0]), "set_component left the circle");
 }

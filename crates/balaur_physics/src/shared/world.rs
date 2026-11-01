@@ -3,7 +3,65 @@
 //! pointed forwards.
 
 macro_rules! functions {
-    (state = $State:ty, component = $component:expr, prune = $prune:ident, body = $Body:ty, collider = $Collider:ty, soft = $Soft:ty) => {
+    (state = $State:ty, component = $component:expr, prune = $prune:ident, body = $Body:ty, collider = $Collider:ty, soft = $Soft:ty, events = $Events:ty) => {
+        /// Bring these nodes' colliders, every one where `everyone`, to report
+        /// what is heard from them and from the body they hang on.
+        pub(crate) fn follow_hearers(eng: &Engine, everyone: bool, nodes: &[Entity]) {
+            use crate::shared::softbody::Family;
+            use crate::vocabulary::hook;
+            use balaur_core::events::is_heard;
+            let state = eng.resource::<$State>();
+            let mut state = state.borrow_mut();
+            let state = &mut *state;
+            let mut handles = Vec::new();
+            if everyone {
+                handles.extend(state.world.colliders.iter().map(|(handle, _)| handle));
+            }
+            for node in nodes.iter().filter(|_| !everyone) {
+                handles.extend(state.colliders.get(node).into_iter().flatten().copied());
+                if let Some(body) = state
+                    .bodies
+                    .get(node)
+                    .and_then(|&handle| state.world.bodies.get(handle))
+                {
+                    handles.extend_from_slice(body.colliders());
+                }
+                if let Some(&soft) = state.soft_bodies.get(node) {
+                    for piece in state.world.soft_bodies.family(soft) {
+                        if let Some(body) = state.world.soft_bodies.get(piece) {
+                            handles.extend(body.meshes().map(|mesh| mesh.collider()));
+                        }
+                    }
+                }
+            }
+            for handle in handles {
+                let Some(collider) = state.world.colliders.get(handle) else {
+                    continue;
+                };
+                let Some(owner) = Entity::from_bits(collider.user_data as u64) else {
+                    continue;
+                };
+                let body = collider
+                    .parent()
+                    .and_then(|body| state.world.bodies.get(body))
+                    .and_then(|body| Entity::from_bits(body.user_data as u64));
+                let heard = |name: &str| {
+                    is_heard(eng, owner, name) || body.is_some_and(|body| is_heard(eng, body, name))
+                };
+                let mut wanted = <$Events>::empty();
+                wanted.set(
+                    <$Events>::COLLISION_EVENTS,
+                    heard(hook::COLLISION_ENTER) || heard(hook::COLLISION_EXIT),
+                );
+                wanted.set(<$Events>::CONTACT_FORCE_EVENTS, heard(hook::CONTACT_FORCE));
+                if collider.active_events() != wanted
+                    && let Some(collider) = state.world.colliders.get_mut(handle)
+                {
+                    collider.set_active_events(wanted);
+                }
+            }
+        }
+
         /// A parked scene's bodies, soft bodies and colliders leave the
         /// simulation with their state, and come back to what they ask for.
         pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {

@@ -154,6 +154,13 @@ impl Materials {
             body: crate::soft_material::named(eng, soft_material)?,
         })
     }
+
+    /// Whether a body built under `built` would have picked another shape
+    /// matching: chosen as a body is built, so a change takes a rebuild.
+    pub(crate) fn changes_shape_matching(&self, eng: &balaur_core::Engine, built: &str) -> bool {
+        crate::soft_material::named(eng, built)
+            .map_or(true, |was| was.shape_matching != self.body.shape_matching)
+    }
 }
 
 /// What a body with nothing of its own to deform is drawn in.
@@ -275,7 +282,6 @@ macro_rules! only_in_place {
             to.solver_mask.clone_from(&from.solver_mask);
             to.contact_pairs.clone_from(&from.contact_pairs);
             to.sensor = from.sensor;
-            to.events.clone_from(&from.events);
             to.contact_force_threshold = from.contact_force_threshold;
             kept == *asked
         }
@@ -340,14 +346,13 @@ pub(crate) use patch_in_place;
 
 /// The collider a soft body meets the world through, from its surface rows,
 /// and the same rows onto a live one: rapier's collider has a setter for each.
-/// `groups`, `pairs` and `events` are the dimension's collider readers.
+/// `groups` and `pairs` are the dimension's collider readers.
 macro_rules! surface {
     (
         rapier = $rapier:ident,
         body = $body:ty,
         groups = $groups:path,
-        pairs = $pairs:path,
-        events = $events:path
+        pairs = $pairs:path
     ) => {
         fn combine(word: &str) -> crate::$rapier::prelude::CoefficientCombineRule {
             use crate::$rapier::prelude::CoefficientCombineRule as Rule;
@@ -376,7 +381,6 @@ macro_rules! surface {
         ) -> crate::$rapier::prelude::ColliderBuilder {
             crate::$rapier::prelude::ColliderBuilder::ball(1.0)
                 .collision_groups(groups(&asked.collision_layer, &asked.collision_mask))
-                .active_events($events(&asked.events))
                 .contact_force_event_threshold(crate::scalar::real(asked.contact_force_threshold))
                 .friction(crate::scalar::real(material.friction))
                 .restitution(crate::scalar::real(material.restitution))
@@ -399,7 +403,6 @@ macro_rules! surface {
             collider.set_collision_groups(groups(&asked.collision_layer, &asked.collision_mask));
             collider.set_solver_groups(groups(&asked.solver_layer, &asked.solver_mask));
             collider.set_active_collision_types($pairs(&asked.contact_pairs));
-            collider.set_active_events($events(&asked.events));
             collider.set_contact_force_event_threshold(crate::scalar::real(
                 asked.contact_force_threshold,
             ));

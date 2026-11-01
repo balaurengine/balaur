@@ -6,7 +6,7 @@ use balaur_core::Engine;
 use balaur_script::{Bindings, BindingsExt, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
-use crate::dim2::collider::{first_collider, set_collider};
+use crate::dim2::collider::first_collider;
 use crate::rapier2d::prelude::{Aabb, Collider};
 use crate::scalar::{self, Real};
 use crate::vocabulary::{component as c, keys as k, map};
@@ -32,19 +32,11 @@ fn corners(aabb: &Aabb) -> (Real, Real, Real, Real) {
 /// Replacing a 2D collider, and the boxes it covers.
 pub(crate) fn install_collider2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_collider", &[c::COLLIDER_2D], "", "Replace the node's collider from a `collider2d` table: its `shape` and the rest of its own rows, with the `mesh_collider2d` and `convex_decomposition2d` beside it as the node holds them."),
         ("aabb", &[c::COLLIDER_2D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
         ("swept_aabb", &[c::COLLIDER_2D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
         ("collision_aabb", &[c::COLLIDER_2D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
         ("broad_phase_aabb", &[c::COLLIDER_2D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
     ]);
-    m.function(
-        "set_collider",
-        |eng: &Engine, (node, params): (NodeId, Value)| {
-            let params = balaur_core::node_api::to_toml(&params)?;
-            set_collider(eng, balaur_core::entity_of(node)?, &params)
-        },
-    );
     m.function("aabb", |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| {
             Ok(corners(&collider.compute_aabb()))

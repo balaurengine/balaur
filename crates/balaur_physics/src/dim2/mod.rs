@@ -143,7 +143,8 @@ crate::shared::world::functions!(
     prune = prune_freed_nodes_except_tiles,
     body = body::Body2d,
     collider = collider::Collider2d,
-    soft = softbody::Softbody2d
+    soft = softbody::Softbody2d,
+    events = crate::rapier2d::prelude::ActiveEvents
 );
 
 pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {

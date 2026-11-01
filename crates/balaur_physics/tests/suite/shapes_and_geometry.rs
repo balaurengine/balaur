@@ -103,12 +103,12 @@ fn the_mesh_backed_shapes_build() {
 impl Scenario {
     fn init() {
         for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
-            self.node.collider3d.set_collider({ "shape": { "kind": kind, "mesh": "#wedge" } });
+            self.node.set_component("collider3d", { "shape": { "kind": kind, "mesh": "#wedge" } });
         }
         for fit in ["aabb", "obb", "convex_hull"] {
-            self.node.collider3d.set_collider({ "shape": { "kind": "fit", "mesh": "#wedge", "fit": fit } });
+            self.node.set_component("collider3d", { "shape": { "kind": "fit", "mesh": "#wedge", "fit": fit } });
         }
-        self.node.collider3d.set_collider({ "shape": { "kind": "voxelized_mesh", "mesh": "#wedge", "voxel_size": 0.25 } });
+        self.node.set_component("collider3d", { "shape": { "kind": "voxelized_mesh", "mesh": "#wedge", "voxel_size": 0.25 } });
     }
 }
 "##,

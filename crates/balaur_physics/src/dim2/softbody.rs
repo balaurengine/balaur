@@ -20,8 +20,8 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::dim2::PhysicsState2d;
 use crate::properties::{
-    Binding, ColliderEvent, ContactPair, EdgeSpring, EdgeTearResistance, Edges, Indices,
-    Orientation, ParticlePair, SoftKind2d, SoftRegion, SoftSolver, TensionOnly,
+    Binding, ContactPair, EdgeSpring, EdgeTearResistance, Edges, Indices, Orientation,
+    ParticlePair, SoftKind2d, SoftRegion, SoftSolver, TensionOnly,
 };
 use crate::rapier2d::prelude::{
     SoftBodyBuilder as SoftBodyBuilder2, SoftBodyHandle as SoftBodyHandle2,
@@ -112,9 +112,6 @@ pub struct Softbody2d {
     /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
     #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
     pub contact_pairs: Vec<ContactPair>,
-    /// What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force
-    #[property(flags, group = "events")]
-    pub events: Vec<ColliderEvent>,
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
@@ -699,8 +696,7 @@ cap::surface!(
     rapier = rapier2d,
     body = Softbody2d,
     groups = crate::dim2::collider::groups_of,
-    pairs = crate::dim2::collider::collision_types_of,
-    events = crate::dim2::collider::events_of
+    pairs = crate::dim2::collider::collision_types_of
 );
 
 /// Which solver runs the elasticity.
@@ -884,7 +880,10 @@ fn patched_2d(
     ) else {
         return false;
     };
-    if !only_in_place(built, asked) || state.world.soft_bodies.get(handle).is_none() {
+    if !only_in_place(built, asked)
+        || materials.changes_shape_matching(eng, &built.body.soft_material)
+        || state.world.soft_bodies.get(handle).is_none()
+    {
         return false;
     }
     patch_body_2d(&mut state.world, handle, &asked.body, materials);
@@ -1123,25 +1122,10 @@ crate::softbody::runtime::runtime_api!(
 
 pub(crate) fn install_softbody_api_2d(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_softbody", &[c::SOFTBODY_2D], "", "Build the node's soft body from a `softbody2d` table: `kind` and the rest of its own rows, with the shape its kind reads from the component beside it (`soft_grid2d`, `soft_rope2d` and the rest) as the node holds it."),
         ("softbody_area", &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
         ("softbody_rest_area", &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
         ("softbody_center", &[c::SOFTBODY_2D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
     ]);
-    m.function(
-        "set_softbody",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let entity = entity_of(node)?;
-            let params = balaur_core::node_api::to_toml(&params)?;
-            let body: Softbody2d = crate::properties::asked_of(eng, &params)?;
-            let asked = SoftAsked2d::with_body(&eng.world(), entity, body);
-            let materials =
-                cap::Materials::of(eng, &asked.body.soft_material, &asked.body.physics_material)?;
-            eng.insert_one(entity, asked.body.clone())
-                .map_err(|_| anyhow!("node is dead"))?;
-            build_softbody_2d(eng, entity, &asked, &materials)
-        },
-    );
     m.function("softbody_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
             Ok(scalar::f32_of(bodies.iter().map(|b| b.volume()).sum()))

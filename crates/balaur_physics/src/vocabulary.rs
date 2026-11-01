@@ -116,9 +116,6 @@ pub(crate) mod words {
     pub(crate) const ROTATION_Z: &str = "rotation_z";
     pub(crate) const ROTATION: &str = "rotation";
 
-    pub(crate) const COLLISION: &str = "collision";
-    pub(crate) const CONTACT_FORCE: &str = "contact_force";
-
     pub(crate) const DYNAMIC_DYNAMIC: &str = "dynamic_dynamic";
     pub(crate) const DYNAMIC_KINEMATIC: &str = "dynamic_kinematic";
     pub(crate) const DYNAMIC_STATIC: &str = "dynamic_static";
@@ -442,6 +439,10 @@ pub(crate) mod hook {
     pub(crate) const TEAR: &str = "tear";
     pub(crate) const SLEEPING_CHANGED: &str = "sleeping_changed";
 
+    /// What rapier raises only for a collider that asked, and each collider
+    /// asks where one of these is heard.
+    pub(crate) const RAISED_BY_THE_STEP: [&str; 3] =
+        [COLLISION_ENTER, COLLISION_EXIT, CONTACT_FORCE];
     /// What each component announces, for the Events view and the reference.
     pub(crate) const COLLIDER: &[(&str, &str)] = &[
         (COLLISION_ENTER, ENTER),

@@ -4,37 +4,22 @@ use anyhow::{Result, anyhow};
 use balaur_core::{Engine, entity_of};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
-use super::{SoftAsked3d, Softbody3d, build_softbody, install_runtime};
+use super::install_runtime;
 use crate::PhysicsState3d;
 use crate::scalar::{self, Real, Vector};
-use crate::shared::softbody::{self as cap, Family};
+use crate::shared::softbody::Family;
 use crate::vocabulary::{component as c, keys as k};
 
 /// What a script may ask a soft body and do to it; the calls on particles,
 /// forces and edges are `install_runtime`.
 pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_softbody", &[c::SOFTBODY_3D], "", "Build the node's soft body from a `softbody3d` table: `kind` and the rest of its own rows, with the shape its kind reads from the component beside it (`soft_grid3d`, `soft_rope3d` and the rest) as the node holds it."),
         ("softbody_volume", &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed."),
         ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much they enclose at rest."),
         ("softbody_center", &[c::SOFTBODY_3D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
         ("softbody_dihedrals", &[c::SOFTBODY_3D], "() -> [[int]]", "Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles."),
         ("softbody_dihedral", &[c::SOFTBODY_3D], "(index: int) -> map", "Everything one hinge holds: `#{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with."),
     ]);
-    m.function(
-        "set_softbody",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let entity = entity_of(node)?;
-            let params = balaur_core::node_api::to_toml(&params)?;
-            let body: Softbody3d = crate::properties::asked_of(eng, &params)?;
-            let asked = SoftAsked3d::with_body(&eng.world(), entity, body);
-            let materials =
-                cap::Materials::of(eng, &asked.body.soft_material, &asked.body.physics_material)?;
-            eng.insert_one(entity, asked.body.clone())
-                .map_err(|_| anyhow!("node is dead"))?;
-            build_softbody(eng, entity, &asked, &materials)
-        },
-    );
     m.function("softbody_volume", |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {
             Ok(scalar::f32_of(bodies.iter().map(|(b, _)| b.volume()).sum()))

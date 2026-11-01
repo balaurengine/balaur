@@ -396,12 +396,12 @@ fn a_volumetric_crust_holds_fewer_particles_than_a_solid_fill() {
 impl Scenario {
     fn init() {
         let n = self.node;
-        n.set_component("soft_volumetric3d", { "cell_size": 0.2 }); n.softbody3d.set_softbody({ "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#cube" });
+        n.set_component("soft_volumetric3d", { "cell_size": 0.2 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#cube" });
         let solid = n.softbody3d.softbody_particles();
-        n.set_component("soft_volumetric3d", { "cell_size": 0.2, "fill": physics3d::FILL_SURFACE }); n.softbody3d.set_softbody({ "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#cube" });
+        n.set_component("soft_volumetric3d", { "cell_size": 0.2, "fill": physics3d::FILL_SURFACE }); n.set_component("softbody3d", { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": "#cube" });
         let crust = n.softbody3d.softbody_particles();
         if crust >= solid { log::error("the crust held {crust} particles against the fill's {solid}"); }
-        n.set_component("soft_grid3d", { "cells": [1.0, 1.0, 1.0] }); n.set_component("soft_skin3d", { "skin": true }); n.softbody3d.set_softbody({ "kind": physics3d::SOFT_BOX, "mesh": "#cube" });
+        n.set_component("soft_grid3d", { "cells": [1.0, 1.0, 1.0] }); n.set_component("soft_skin3d", { "skin": true }); n.set_component("softbody3d", { "kind": physics3d::SOFT_BOX, "mesh": "#cube" });
         if n.softbody3d.softbody_particles() != 8 { log::error("the skin changed the box's particles"); }
         log::error("checked: fills");
     }
@@ -512,12 +512,12 @@ fn a_2d_polyline_takes_its_meshs_triangle_edges_when_asked() {
 impl Scenario {
     fn init() {
         let flat = scene::get_node("World/Flat");
-        flat.softbody2d.set_softbody({ "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });
+        flat.set_component("softbody2d", { "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });
         let chain = flat.softbody2d.softbody_edges().len();
-        flat.set_component("soft_polyline2d", { "edges": physics2d::EDGES_MESH }); flat.softbody2d.set_softbody({ "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });
+        flat.set_component("soft_polyline2d", { "edges": physics2d::EDGES_MESH }); flat.set_component("softbody2d", { "kind": physics2d::SOFT_POLYLINE, "mesh": "#square" });
         let mesh = flat.softbody2d.softbody_edges().len();
         if mesh <= chain { log::error("the mesh's edges gave {mesh} against the chain's {chain}"); }
-        flat.set_component("soft_volumetric2d", { "cell_size": 0.2, "min_angle": 0.3 }); flat.softbody2d.set_softbody({ "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
+        flat.set_component("soft_volumetric2d", { "cell_size": 0.2, "min_angle": 0.3 }); flat.set_component("softbody2d", { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": "#square" });
         if flat.softbody2d.softbody_particles() <= 4 { log::error("the fill added no particles"); }
         log::error("checked: polyline");
     }

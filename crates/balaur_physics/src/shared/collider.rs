@@ -110,16 +110,19 @@ macro_rules! functions {
                 })
         }
 
-        /// What a collider reports, as rapier counts it.
-        pub(crate) fn events_of(events: &[crate::properties::ColliderEvent]) -> ActiveEvents {
-            use crate::properties::ColliderEvent as E;
-            events.iter().fold(ActiveEvents::empty(), |active, event| {
-                active
-                    | match event {
-                        E::Collision => ActiveEvents::COLLISION_EVENTS,
-                        E::ContactForce => ActiveEvents::CONTACT_FORCE_EVENTS,
-                    }
-            })
+        /// The pairs a collider is tested against. A sensor only ever reports,
+        /// so it hears every kind of body, whatever its row left out; static
+        /// against static stays out, since neither of the two can arrive.
+        pub(crate) fn collision_types_for(
+            pairs: &[crate::properties::ContactPair],
+            sensor: bool,
+        ) -> ActiveCollisionTypes {
+            let asked = collision_types_of(pairs);
+            if sensor {
+                asked | (ActiveCollisionTypes::all() - ActiveCollisionTypes::FIXED_FIXED)
+            } else {
+                asked
+            }
         }
 
         /// The hook a collider's rows ask for, if any.
@@ -148,8 +151,7 @@ macro_rules! functions {
                 .contact_force_event_threshold(crate::scalar::real(rows.contact_force_threshold()))
                 .collision_groups(groups_of(rows.collision()))
                 .solver_groups(groups_of(rows.solver()))
-                .active_collision_types(collision_types_of(rows.contact_pairs()))
-                .active_events(events_of(rows.events()))
+                .active_collision_types(collision_types_for(rows.contact_pairs(), rows.sensor()))
                 .active_hooks(hooks_of(rows))
                 .enabled(rows.enabled())
                 .sensor(rows.sensor());

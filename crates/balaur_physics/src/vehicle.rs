@@ -300,7 +300,6 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
         ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil."),
         ("set_wheel_rotation", &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`."),
         ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
-        ("speed", &[c::VEHICLE_3D], "(node: node) -> float", "The chassis's whole speed at the last step, negative while it moves against its forward axis: rapier's own reading, where `vehicle_speed` is the part along the forward axis alone."),
     ]);
     m.function(
         "set_engine_force",
@@ -336,23 +335,6 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    m.function("speed", |eng: &Engine, node: NodeId| {
-        let entity = entity_of(node)?;
-        let sign = {
-            let world = eng.world();
-            let vehicle = world
-                .get::<&Vehicle3d>(entity)
-                .map_err(|_| anyhow!("node has no vehicle3d"))?;
-            axis_of(vehicle.forward_axis).1
-        };
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let speed = state
-            .vehicles
-            .get(&entity)
-            .map_or(0.0, |vehicle| vehicle.controller.current_vehicle_speed);
-        Ok(scalar::f32_of(speed * sign))
-    });
     m.function("vehicle_speed", |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
         // The chassis's own `forward_axis`, not z: a car built along x would

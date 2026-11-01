@@ -11,7 +11,7 @@ use balaur_plugin::Registry;
 
 use super::collider_shape::ColliderShape2d;
 use crate::rapier2d::prelude::{
-    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, ColliderBuilder,
+    ActiveCollisionTypes, ActiveHooks, CoefficientCombineRule, ColliderBuilder,
     ColliderBuilder as ColliderBuilder2, ColliderHandle, Group, InteractionGroups,
     InteractionTestMode, MassProperties, RigidBodyHandle,
 };
@@ -21,7 +21,7 @@ use crate::shared::beside::{self, Beside};
 use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
-use crate::properties::{Axis2d, ColliderEvent, ContactPair, Fill, LayerTest};
+use crate::properties::{Axis2d, ContactPair, Fill, LayerTest};
 use crate::vocabulary::component as c;
 use balaur_core::layers::Layer;
 
@@ -67,7 +67,7 @@ pub struct Collider2d {
     /// The same choice for the solver layers
     #[property(default = LayerTest::Both, group = "filtering")]
     pub solver_test: LayerTest,
-    /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
+    /// Which pairs of body kinds this collider is tested against; a sensor is tested against every kind whatever this says
     #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
     pub contact_pairs: Vec<ContactPair>,
     /// A platform bodies land on from the side one_way_axis names and pass through from the other
@@ -103,9 +103,6 @@ pub struct Collider2d {
     /// This collider's resistance to spin; 0 with a center_of_mass takes the shape's own about that centre
     #[property(group = "mass", min = 0.0)]
     pub inertia: f32,
-    /// What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force
-    #[property(flags, group = "events")]
-    pub events: Vec<ColliderEvent>,
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
@@ -129,13 +126,13 @@ pub struct MeshCollider2d {
     /// When a solid fill floods an outline, handle the places it crosses itself
     pub fix_self_intersections: bool,
     /// Merge vertices at exactly the same place when building a triangle_mesh
-    #[property(group = "mesh cleanup")]
+    #[property(default = true, group = "mesh cleanup")]
     pub merge_vertices: bool,
     /// Drop triangles that name one vertex twice; merges vertices too
-    #[property(group = "mesh cleanup")]
+    #[property(default = true, group = "mesh cleanup")]
     pub drop_degenerate_triangles: bool,
     /// Drop a triangle whose three vertices another one already names; merges vertices too
-    #[property(group = "mesh cleanup")]
+    #[property(default = true, group = "mesh cleanup")]
     pub drop_duplicate_triangles: bool,
     /// Drop the triangles that stop the mesh's edge topology from being built
     #[property(group = "mesh cleanup")]
@@ -284,6 +281,7 @@ pub(crate) fn add_collider_at(
         crate::dim2::body::refit_mass(&mut state, body);
     }
     state.colliders.entry(entity).or_default().push(handle);
+    balaur_core::events::hearers_may_have_changed(eng, entity);
     state.queries_ready = false;
     Ok(())
 }
@@ -644,15 +642,6 @@ pub(crate) const PARAMS: &[&str] = &[
     <MeshCollider2d as Component>::NAME,
     <ConvexDecomposition2d as Component>::NAME,
 ];
-
-/// Replace a node's collider from a `collider2d` table, read as a write of
-/// the component reads it.
-pub(crate) fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let asked: Collider2d = crate::properties::asked_of(eng, params)?;
-    eng.insert_one(entity, asked)
-        .map_err(|_| anyhow!("node is dead"))?;
-    after_write(eng, entity, Written::Whole)
-}
 
 /// One voxel grid under a node, for the calls that edit it.
 fn with_voxels(

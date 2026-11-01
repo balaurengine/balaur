@@ -383,7 +383,7 @@ fn the_triangle_mesh_cleanup_keys_reach_the_mesh() {
         &[
             (
                 "Raw",
-                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false } }",
+                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false } }\nmesh_collider3d = { merge_vertices = false, drop_degenerate_triangles = false, drop_duplicate_triangles = false }",
             ),
             (
                 "Merged",
@@ -818,7 +818,7 @@ name = "Crate"
 parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic" }
-collider3d = { shape = { kind = "box" }, events = ["contact_force"] }
+collider3d = { shape = { kind = "box" } }
 transform = { position = [0.0, 1.0, 0.0] }
 "#,
         r#"pub class Scenario { node: Node }

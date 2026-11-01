@@ -57,7 +57,6 @@ script = { source = "scripts/scenario.bs" }
 [nodes.collider3d]
 shape = { kind = "box", size = [4.0, 4.0, 4.0] }
 sensor = true
-events = ["collision"]
 
 [[nodes]]
 id = "n_faller"
@@ -156,7 +155,6 @@ script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
 shape = { kind = "box", size = [8.0, 0.4, 8.0] }
-events = ["contact_force"]
 
 [[nodes]]
 id = "n_crate"

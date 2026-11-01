@@ -6,9 +6,7 @@
 //! script calls and readers that take them as text.
 
 use balaur_core::Engine;
-use balaur_core::components::derived::{
-    self, Component, Enum, Property, Record, Result, Variant, toml,
-};
+use balaur_core::components::derived::{Enum, Property, Record, Result, Variant, toml};
 use balaur_core::hecs::Entity;
 use balaur_core::layers::Layer;
 
@@ -85,13 +83,6 @@ pub enum ContactPair {
     KinematicKinematic,
     KinematicStatic,
     StaticStatic,
-}
-
-/// What a collider reports to its node's script.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
-pub enum ColliderEvent {
-    Collision,
-    ContactForce,
 }
 
 /// The shapes a 2D mesh can be fitted to: rapier2d's converter has no
@@ -213,20 +204,6 @@ pub enum MotorStrength {
     Auto,
     Acceleration,
     Force,
-}
-
-/// A script's table for a component, as a write of the component would take
-/// it: what it leaves out at its default, and an inline asset definition
-/// cached and named by the reference that now stands for it.
-pub(crate) fn asked_of<C: Component>(eng: &Engine, params: &toml::Value) -> Result<C> {
-    let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
-    let schema = registry
-        .borrow()
-        .def(C::NAME)
-        .map(|def| def.schema.clone())
-        .ok_or_else(|| anyhow::anyhow!("unknown component '{}'", C::NAME))?;
-    let full = balaur_core::components::properties(eng, &schema, Some(params))?;
-    derived::from_table(&full)
 }
 
 /// How a 2D soft body's particles are laid out.
@@ -432,7 +409,6 @@ pub(crate) trait ColliderRows {
     /// The same three for whether a contact pushes.
     fn solver(&self) -> (&[Layer], &[Layer], LayerTest);
     fn contact_pairs(&self) -> &[ContactPair];
-    fn events(&self) -> &[ColliderEvent];
     fn contact_force_threshold(&self) -> f32;
     fn collision_margin(&self) -> f32;
     fn density(&self) -> f32;
@@ -465,9 +441,6 @@ macro_rules! collider_rows {
             }
             fn contact_pairs(&self) -> &[crate::properties::ContactPair] {
                 &self.contact_pairs
-            }
-            fn events(&self) -> &[crate::properties::ColliderEvent] {
-                &self.events
             }
             fn contact_force_threshold(&self) -> f32 {
                 self.contact_force_threshold

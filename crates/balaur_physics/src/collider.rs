@@ -12,14 +12,13 @@ use balaur_script::{Bindings, BindingsExt, NodeId};
 
 use crate::collider_shape::ColliderShape3d;
 use crate::rapier3d::prelude::{
-    ActiveCollisionTypes, ActiveEvents, ActiveHooks, CoefficientCombineRule, Collider,
-    ColliderBuilder, ColliderHandle, Group, InteractionGroups, InteractionTestMode, MassProperties,
-    RigidBodyHandle,
+    ActiveCollisionTypes, ActiveHooks, CoefficientCombineRule, Collider, ColliderBuilder,
+    ColliderHandle, Group, InteractionGroups, InteractionTestMode, MassProperties, RigidBodyHandle,
 };
 use crate::scalar::{self, Pose};
 use crate::shared::beside::{self, Beside};
 
-use crate::properties::{Axis3d, ColliderEvent, ContactPair, Decomposition3d, Fill, LayerTest};
+use crate::properties::{Axis3d, ContactPair, Decomposition3d, Fill, LayerTest};
 use crate::vocabulary::{component as c, keys as k};
 use balaur_core::layers::Layer;
 
@@ -67,7 +66,7 @@ pub struct Collider3d {
     /// The same choice for the solver layers
     #[property(default = LayerTest::Both, group = "filtering")]
     pub solver_test: LayerTest,
-    /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
+    /// Which pairs of body kinds this collider is tested against; a sensor is tested against every kind whatever this says
     #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
     pub contact_pairs: Vec<ContactPair>,
     /// A platform bodies land on from the side one_way_axis names and pass through from the other
@@ -106,9 +105,6 @@ pub struct Collider3d {
     /// Turns the axes inertia is measured about, x first; read with a non-zero inertia. Euler radians in the file
     #[property(group = "mass", unit = "degrees")]
     pub inertia_rotation: [f32; 3],
-    /// What this collider reports to its node's script: on_collision_enter and on_collision_exit, or on_contact_force
-    #[property(flags, group = "events")]
-    pub events: Vec<ColliderEvent>,
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
@@ -130,13 +126,13 @@ pub struct MeshCollider3d {
     /// When a solid fill floods a mesh, leave the cavities a closed surface walls off empty
     pub fill_cavities: bool,
     /// Merge vertices at exactly the same place when building a triangle_mesh
-    #[property(group = "mesh cleanup")]
+    #[property(default = true, group = "mesh cleanup")]
     pub merge_vertices: bool,
     /// Drop triangles that name one vertex twice; merges vertices too
-    #[property(group = "mesh cleanup")]
+    #[property(default = true, group = "mesh cleanup")]
     pub drop_degenerate_triangles: bool,
     /// Drop a triangle whose three vertices another one already names; merges vertices too
-    #[property(group = "mesh cleanup")]
+    #[property(default = true, group = "mesh cleanup")]
     pub drop_duplicate_triangles: bool,
     /// Drop the triangles that stop the mesh's edge topology from being built
     #[property(group = "mesh cleanup")]
@@ -571,6 +567,7 @@ pub(crate) fn add_collider_at(
         crate::body::refit_mass(&mut state, body);
     }
     state.colliders.entry(entity).or_default().push(handle);
+    balaur_core::events::hearers_may_have_changed(eng, entity);
     // The broad phase has not seen this one yet.
     state.queries_ready = false;
     Ok(())
@@ -724,28 +721,9 @@ pub(crate) const PARAMS: &[&str] = &[
     <ConvexDecomposition3d as Component>::NAME,
 ];
 
-/// Replace a node's collider from a `collider3d` table, read as a write of
-/// the component reads it.
-fn set_collider(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let asked: Collider3d = crate::properties::asked_of(eng, params)?;
-    eng.insert_one(entity, asked)
-        .map_err(|_| anyhow!("node is dead"))?;
-    after_write(eng, entity, Written::Whole)
-}
-
-/// Collider calls that are not about creating one: replacing the shape, and
-/// asking where it is.
+/// Collider calls that are not about creating one: asking where it is.
 pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_collider", &[c::COLLIDER_3D], "", "Replace the node's collider from a `collider3d` table: its `shape` and the rest of its own rows, with the `mesh_collider3d` and `convex_decomposition3d` beside it as the node holds them."),
-    ]);
-    m.function(
-        "set_collider",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let params = balaur_core::node_api::to_toml(&params)?;
-            set_collider(eng, balaur_core::entity_of(node)?, &params)
-        },
-    );
+    m.describe(&[]);
     m.function("aabb", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();

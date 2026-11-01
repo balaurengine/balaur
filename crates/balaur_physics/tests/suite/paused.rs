@@ -3,7 +3,7 @@
 use balaur_core::hecs::Entity;
 use balaur_core::interpolate;
 use balaur_core::scene::{self, Transform};
-use balaur_core::{App, AppConfig, components, fixed_dt, settings};
+use balaur_core::{App, AppConfig, components, fixed_dt};
 use balaur_physics::PhysicsPlugin;
 
 fn app() -> App {
@@ -73,8 +73,6 @@ fn a_paused_game_holds_a_2d_body_too() {
 #[test]
 fn a_moving_body_asks_to_be_drawn_between_steps_and_a_static_one_does_not() {
     let app = app();
-    settings::set(&app.engine, "time/interpolate", toml::Value::Boolean(true));
-    interpolate::apply_setting(&app.engine);
 
     let ball = falling_body(&app, "Ball", "dynamic");
     let mover = falling_body(&app, "Platform", "kinematic");
@@ -91,8 +89,6 @@ fn a_moving_body_asks_to_be_drawn_between_steps_and_a_static_one_does_not() {
 #[test]
 fn a_teleport_starts_the_blend_again_where_the_body_now_is() {
     let mut app = app();
-    settings::set(&app.engine, "time/interpolate", toml::Value::Boolean(true));
-    interpolate::apply_setting(&app.engine);
     let ball = falling_body(&app, "Ball", "dynamic");
 
     app.tick(fixed_dt() * 4.0);

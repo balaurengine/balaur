@@ -243,7 +243,7 @@ contact_frequency_hz = { type = "float", default = 30.0, min = 0.0, max = 1000.0
 contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of that spring." }
 static_contact_frequency_hz = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
 static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
-threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is the performance cores where the machine has two kinds of core, else every core; a script's own set_threads outranks this." }
+threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is the performance cores where the machine has two kinds of core, else every core." }
 "#.to_string()].join("\n"),
             ),
         );
@@ -274,6 +274,8 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             tuning::install_tuning_api(&mut *m);
             ragdoll::install_blend_api(&mut *m);
         }
+        balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
+        reg.add_system(Stage::FixedUpdate, follow_hearers_system);
         #[cfg(feature = "physics3d")]
         declare_3d(reg)?;
         #[cfg(feature = "physics2d")]
@@ -290,6 +292,19 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 }
 
 /// The 3D world's systems, components, verbs and presets.
+/// Each collider reports what somebody hears, and rapier raises nothing else:
+/// settled before the step, so a collider or a script made this tick counts.
+fn follow_hearers_system(eng: &Engine, _dt: f32) {
+    let (everyone, nodes) = balaur_core::events::take_changed_hearers(eng);
+    if !everyone && nodes.is_empty() {
+        return;
+    }
+    #[cfg(feature = "physics3d")]
+    follow_hearers(eng, everyone, &nodes);
+    #[cfg(feature = "physics2d")]
+    dim2::follow_hearers(eng, everyone, &nodes);
+}
+
 #[cfg(feature = "physics3d")]
 fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     // Before the step: a follow's velocity change is integrated this tick.
@@ -447,7 +462,8 @@ crate::shared::world::functions!(
     prune = prune_freed_nodes_except_wheels,
     body = body::Body3d,
     collider = collider::Collider3d,
-    soft = softbody::Softbody3d
+    soft = softbody::Softbody3d,
+    events = crate::rapier3d::prelude::ActiveEvents
 );
 
 pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {
@@ -936,12 +952,6 @@ pub const FRICTION_MODELS: &[(&str, &str)] = &[
     ("FRICTION_PER_CONTACT", w::PER_CONTACT),
 ];
 
-/// What a collider reports to its node's script.
-pub const EVENTS: &[(&str, &str)] = &[
-    ("EVENT_COLLISION", w::COLLISION),
-    ("EVENT_CONTACT_FORCE", w::CONTACT_FORCE),
-];
-
 /// The body-kind pairs a collider is tested against.
 pub const COLLISION_PAIRS: &[(&str, &str)] = &[
     ("COLLIDE_DYNAMIC_DYNAMIC", w::DYNAMIC_DYNAMIC),
@@ -1085,7 +1095,6 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     TEST_MODES,
     EDGE_MODES,
     FRICTION_MODELS,
-    EVENTS,
     COLLISION_PAIRS,
     AXES,
     NEGATIVE_AXES,
@@ -1120,7 +1129,6 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     DECOMPOSITION_METHODS_2D,
     TEST_MODES,
     EDGE_MODES_2D,
-    EVENTS,
     COLLISION_PAIRS,
     AXES_2D,
     ROTATION_AXES_2D,

@@ -89,7 +89,6 @@ parent = "n_crate"
 
 [nodes.collider3d]
 shape = { kind = "box", size = [1.0, 1.0, 1.0] }
-events = ["collision"]
 "#,
         r#"pub class Scenario { node: Node }
 impl Scenario {
@@ -144,7 +143,6 @@ parent = "n_crate"
 
 [nodes.collider2d]
 shape = { kind = "rectangle", size = [1.0, 1.0] }
-events = ["collision"]
 "#,
         r#"pub class Scenario { node: Node }
 impl Scenario {
@@ -211,12 +209,11 @@ impl Scenario {
         // One end pinned and edges that break at a tenth of their rest length,
         // so the heavy free end tears it and falls onto the ground.
         self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
-        self.node.softbody3d.set_softbody({
+        self.node.set_component("softbody3d", {
             "kind": physics3d::SOFT_ROPE,
             "pinned_particles": [0],
             "mass": 400.0,
             "soft_material": { "tear_strain": 0.05, "tear_force": 2.0, "edge_hz": 4.0 },
-            "events": ["collision"],
         });
     }
     pub fn on_tear(tear: any) { bump("edges", tear.get("edges").len()); }
@@ -248,7 +245,7 @@ script = { source = "scripts/scenario.bs" }
 impl Scenario {
     fn init() {
         self.node.set_component("soft_rope3d", { "a": [0.0, 0.0, 0.0], "b": [0.0, -2.0, 0.0], "particle_count": 12 });
-        self.node.softbody3d.set_softbody({
+        self.node.set_component("softbody3d", {
             "kind": physics3d::SOFT_ROPE,
             "pinned_particles": [0],
             "mass": 400.0,
