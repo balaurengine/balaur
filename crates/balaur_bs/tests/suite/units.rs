@@ -407,14 +407,14 @@ pub class Panel { node: Node, editor_node: Node }
 impl Panel {
     pub fn poke() -> int {
         let found: editor::Editor? = self.editor_node.script;
-        if found.is_none() {
+        if found == nil {
             return -1;
         }
         found.unwrap().edit(\"panel\")
     }
     pub fn mistaken() -> bool {
         let wrong: editor::Editor? = self.node.script;
-        wrong.is_none()
+        wrong == nil
     }
 }
 ";

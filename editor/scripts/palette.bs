@@ -67,18 +67,18 @@ fn command_with(label: str, icon: str, run: fn(&mut editor::State, any), data: a
 // every preset and every component type carries a tag list, and walking them
 // all is a list rebuild on every keystroke.
 fn catalogue(state: &mut editor::State) -> Found {
-    if state.palette_cache.is_some() {
+    if state.palette_cache != nil {
         return state.palette_cache.unwrap();
     }
     let presets: [Entry] = [];
     for preset in scene::presets() {
         let info = scene::preset_info(preset);
-        presets.push(Entry { name: preset, tags: if info.is_some() { util::join(info.unwrap().tags, " ") } else { "" } });
+        presets.push(Entry { name: preset, tags: if info != nil { util::join(info.unwrap().tags, " ") } else { "" } });
     }
     let components: [Entry] = [];
     for name in scene::component_types() {
         let tags = scene::component_tags(name);
-        components.push(Entry { name: name, tags: if tags.is_some() { util::join(tags.unwrap(), " ") } else { "" } });
+        components.push(Entry { name: name, tags: if tags != nil { util::join(tags.unwrap(), " ") } else { "" } });
     }
     let found = Found { presets: presets, components: components, channels: render::debug_views() };
     state.palette_cache = found;
@@ -99,8 +99,8 @@ fn commands(state: &mut editor::State) -> [Command] {
         list.push(entry);
     }
     for item in [
-        command(if undo.is_some() { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", "undo"),
-        command(if redo.is_some() { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", "redo"),
+        command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", "undo"),
+        command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", "redo"),
         command("Add child node…", icons::ui("add"), "⇧A", "add_child"),
         command("Change type of selection…", icons::ui("reset"), "", "change_type"),
         command("Make selection a soft body", icons::ui("reset"), "", "soft_body"),
@@ -176,7 +176,7 @@ fn commands(state: &mut editor::State) -> [Command] {
         }
     }
     list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", "open_prefab"));
-    if model::has_selection(state) && populate::component(model::selected_node(state)).is_some() {
+    if model::has_selection(state) && populate::component(model::selected_node(state)) != nil {
         list.push(command("Populate…", icons::workspace("scene"), "", "populate"));
     }
     let known = catalogue(state);
@@ -230,7 +230,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
         return list;
     }
     // Attaching one is a verb of its own, offered whatever is selected.
-    if !model::script_rel(found).is_nil() {
+    if model::script_rel(found) != nil {
         list.push(command("Open the selection's script", "‹›", "", "open_script"));
         list.push(command("Detach the selection's script", icons::ui("close"), "", "detach_script"));
     }
@@ -242,7 +242,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
         list.push(command("Mirror the rig over y", icons::tool("bone"), "", "mirror_rig:y"));
         list.push(command("Create a physical skeleton", icons::workspace(defs::WORKSPACE_PHYSICS), "", "ragdoll"));
     }
-    if !polygon::target(found).is_none() {
+    if polygon::target(found) != nil {
         list.push(command("Trace the polygon from its texture's alpha", icons::tool("polygon"), "", "trace_polygon"));
         list.push(command("Sync the rig's bones to the polygon", icons::tool("polygon"), "", "sync_bones"));
         list.push(command("Mirror the picked vertices over x", icons::tool("polygon"), "", "mirror_vertices:x"));
@@ -255,7 +255,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     if two_d && found.has_component("sprite") {
         list.push(command("Trace the sprite into a polygon", icons::tool("polygon"), "", "sprite_to_polygon"));
     }
-    if !physics::drawn_mesh(found, two_d).is_nil() {
+    if physics::drawn_mesh(found, two_d) != nil {
         for shape in physics::collider_shapes(two_d) {
             let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
             entry.tags = shape.tip;

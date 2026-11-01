@@ -30,7 +30,7 @@ pub fn state() -> DocsState {
 // Every module, asked once per session: `script::api` builds the whole
 // reference on each call, which is not a per-frame cost worth paying.
 fn modules(state: &mut editor::State) -> any {
-    if state.docs.modules.is_nil() {
+    if state.docs.modules == nil {
         state.docs.pick = if state.docs.pick == "" { "engine" } else { state.docs.pick };
         state.docs.modules = script::api();
     }
@@ -71,7 +71,7 @@ pub fn view(state: &mut editor::State, query: str) -> View {
         names.push(module["name"].as_str());
     }
     let module = current(state, list);
-    if module.is_nil() {
+    if module == nil {
         let says = if list.len() == 0 { "the engine reported no modules" } else { "pick a module" };
         return View { modules: names, pick: state.docs.pick, items: [], says: says };
     }

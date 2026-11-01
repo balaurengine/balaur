@@ -5,7 +5,7 @@ fn found(on: bool) -> any { if on { { "found": true } } else { nil } }
 
 pub fn beside() -> str {
     let held: any = { "tiles": 3 };
-    let tiles = if held["tiles"].is_nil() { {} } else { held };
+    let tiles = if held["tiles"] == nil { {} } else { held };
     let counts: {str: int} = { "a": 1 };
     let either = if tiles.len() > 0 { counts } else { { "b": 2 } };
     let rows = [found(true), { "kind": "label" }, found(false)];

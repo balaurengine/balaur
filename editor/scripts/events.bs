@@ -112,7 +112,7 @@ fn variable_names(state: editor::State) -> [str] {
 const ROW_HEIGHT: float = 26.0;
 
 fn as_text(value: any) -> str {
-    if value.is_nil() {
+    if value == nil {
         ""
     } else if value.kind() == "str" {
         value.as_str()
@@ -215,11 +215,11 @@ fn on_remove_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn event_of(row: any) -> str {
-    if row["event"].is_nil() { DEFAULT_EVENT } else { row["event"].as_str() }
+    if row["event"] == nil { DEFAULT_EVENT } else { row["event"].as_str() }
 }
 
 fn action_of(row: any) -> str {
-    if row["action"].is_nil() { "set_state" } else { row["action"].as_str() }
+    if row["action"] == nil { "set_state" } else { row["action"].as_str() }
 }
 
 // The prefix an event row carries for what its own node emits by name.
@@ -329,7 +329,7 @@ fn clause_of(clause: str) -> str {
     let text = clause.trim();
     for operator in [">=", "<=", "==", "!=", ">", "<"] {
         let found = util::index_of(text, operator);
-        if found.is_some() {
+        if found != nil {
             let at = found.unwrap();
             let name = text.slice(0, at).trim();
             let rest = text.slice(at + operator.len(), text.len()).trim();
@@ -546,7 +546,7 @@ fn variable_specs(state: editor::State, out: [any]) {
 fn hook_specs(state: &mut editor::State, out: [any]) {
     let node = model::selected_node(state);
     let script_or = model::script_rel(node);
-    if script_or.is_nil() {
+    if script_or == nil {
         return;
     }
     let script = script_or.as_str();

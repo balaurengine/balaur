@@ -1,0 +1,3 @@
+fn f(x: int?) -> int { x.unwrap_or(1) }
+
+// error: 1:25: write `x.or(v)`, not `x.unwrap_or(v)`

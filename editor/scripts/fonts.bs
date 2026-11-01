@@ -69,7 +69,7 @@ pub fn choices(state: &mut editor::State) -> [str] {
 /// file. Read the first time the picker asks: listing them reads every font
 /// directory on the machine.
 fn installed_faces(state: &mut editor::State) -> any {
-    if state.system_fonts.is_nil() {
+    if state.system_fonts == nil {
         let found: any = {};
         for face in project::system_fonts() {
             found["{face.family} {face.style} · system"] = face.path;
@@ -87,12 +87,12 @@ pub fn pick(state: &mut editor::State, at: inspector::AtTop, label: str) {
         return;
     }
     let installed = installed_faces(state)[label];
-    if installed.is_nil() {
+    if installed == nil {
         inspector::write_at(state, at, label);
         return;
     }
     let copied = dropin::copy_system_font(state, installed.as_str());
-    if copied.is_some() {
+    if copied != nil {
         inspector::write_at(state, at, copied.unwrap());
     }
 }
@@ -101,7 +101,7 @@ pub fn pick(state: &mut editor::State, at: inspector::AtTop, label: str) {
 /// are asked for the first time it opens.
 pub fn open(state: &mut editor::State, at: inspector::AtTop) {
     state.font_finding = Finding { at: at, query: "" };
-    if state.font_families.is_nil() && !waiting_on(state, "families") {
+    if state.font_families == nil && !waiting_on(state, "families") {
         ask(state, CATALOGUE, Waiting { purpose: "families", family: nil, at: nil }, {});
     }
     window::picker_changed(state);
@@ -114,7 +114,7 @@ pub fn close(state: &mut editor::State) {
 
 /// Whether the catalogue is the picker's while it is up.
 pub fn finding(state: editor::State) -> bool {
-    state.font_finding.is_some()
+    state.font_finding != nil
 }
 
 fn waiting_on(state: editor::State, purpose: str) -> bool {
@@ -155,7 +155,7 @@ fn typed(state: &mut editor::State, _data: any, text: any) {
 }
 
 fn rows(state: &mut editor::State, row_height: float) -> [any] {
-    if state.font_families.is_nil() {
+    if state.font_families == nil {
         let said = if waiting_on(state, "families") { "Asking Forge for its fonts…" } else { "The catalogue did not answer." };
         return [caption_row(said)];
     }
@@ -217,7 +217,7 @@ pub fn request_for(state: editor::State, purpose: str) -> any {
 pub fn on_response(state: &mut editor::State, reply: any) {
     let key = "{reply["request"]}";
     let waiting = state.font_requests[key];
-    if waiting.is_nil() {
+    if waiting == nil {
         return;
     }
     state.font_requests.remove(key);
@@ -273,7 +273,7 @@ fn fetch_face(state: &mut editor::State, waiting: Waiting, faces: any) {
 /// for.
 fn take_face(state: &mut editor::State, waiting: Waiting, saved: str) {
     let copied = dropin::copy_in(state, saved, "fonts");
-    if copied.is_none() {
+    if copied == nil {
         return;
     }
     let rel = copied.unwrap();

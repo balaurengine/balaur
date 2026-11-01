@@ -92,7 +92,7 @@ fn panel_pairs(state: &mut editor::State) -> [any] {
 }
 
 fn cell(state: &mut editor::State, id: str) -> any {
-    let open = docks::side_of(state, id).is_some();
+    let open = docks::side_of(state, id) != nil;
     let row: any = {
         "kind": "button",
         "role": if open { "item_menu" } else { "item_menu_quiet" },

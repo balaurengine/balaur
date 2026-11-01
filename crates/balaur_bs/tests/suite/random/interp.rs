@@ -114,7 +114,7 @@ fn method_type(name: &str) -> Option<T> {
     Some(match name {
         "as_int" | "len" => T::Int,
         "as_float" => T::Float,
-        "as_bool" | "is_nil" | "has" | "equals" | "push" | "insert" => T::Bool,
+        "as_bool" | "has" | "equals" | "push" | "insert" => T::Bool,
         "as_str" | "kind" | "text" => T::Str,
         "remove" | "sorted" => T::Any,
         _ => return None,
@@ -445,7 +445,6 @@ impl Interp<'_> {
             "as_str" => V::Str(anys::as_str(&a)),
             "len" => V::Int(anys::len(&a)),
             "kind" => V::Str(anys::kind(&a).into()),
-            "is_nil" => V::Bool(matches!(a, A::Nil)),
             "text" => V::Str(anys::text(&a)),
             "sorted" => V::Any(anys::sorted(&a)),
             "has" => V::Bool(anys::has(&a, &self.text_arg(&args[0])?)),
@@ -461,6 +460,11 @@ impl Interp<'_> {
     }
 
     fn binary(&mut self, op: Op, a: &E, b: &E) -> Run<V> {
+        // `x == nil` asks whether it is there.
+        if matches!(b, E::Nil) {
+            let there = !matches!(anys::boxed(&self.eval(a)?)?, A::Nil);
+            return Ok(V::Bool(there == (op == Op::Ne)));
+        }
         let (ta, tb) = (self.ty(a)?, self.ty(b)?);
         let (va, vb) = (self.eval(a)?, self.eval(b)?);
         let eq = matches!(op, Op::Eq | Op::Ne);

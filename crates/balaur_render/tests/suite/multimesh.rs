@@ -548,7 +548,7 @@ impl Scenario {
     fn init() {
         self.node.multimesh2d.set_instance_region(1, [8.0, 16.0], [32.0, 24.0]);
         let region = self.node.multimesh2d.instance_region(1);
-        let whole = self.node.multimesh2d.instance_region(0).is_nil();
+        let whole = self.node.multimesh2d.instance_region(0) == nil;
         log::info("region {region[1]} {region[3]} {whole}");
     }
 }

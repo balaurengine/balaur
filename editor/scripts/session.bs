@@ -49,7 +49,7 @@ pub struct Mark {
 // one is renamed out of the ring. Set on the settings screen.
 fn ring_size() -> int {
     let keep = settings::get("editor/recordings/keep");
-    if keep.is_nil() { 10 } else { keep.as_float() as int }
+    if keep == nil { 10 } else { keep.as_float() as int }
 }
 
 pub fn state() -> SessionState {
@@ -89,7 +89,7 @@ pub fn fingerprint(state: editor::State) -> str {
     let parts: [str] = [];
     for found in state.nodes {
         let rel = model::script_rel(found);
-        if !rel.is_nil() {
+        if rel != nil {
             let stamp = fs::modified_time(state.game_root + "/" + rel.as_str());
             parts.push("{rel}:{stamp}");
         }
@@ -214,7 +214,7 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
         ticks: head["frames"].as_int(),
         // Ticks are the fixed 60 Hz step, so seconds follow from the count.
         seconds: (last - first + 1).as_float() / 60.0,
-        reason: (if !recorded_reason.is_nil() {
+        reason: (if recorded_reason != nil {
             let reason = recorded_reason;
             if reason.kind() == "str" { reason.as_str() } else { "crashed" }
         } else {
@@ -228,7 +228,7 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
 // it can be attached to a bug report or handed to `balaur replay --verify`.
 pub fn export(state: editor::State, name: str) {
     let text = fs::read(directory(state) + "/" + name);
-    if text.is_none() {
+    if text == nil {
         log::warn("{name} could not be read");
         return;
     }
@@ -363,7 +363,7 @@ fn log_marks(levels: [str]) -> [Mark] {
 
 fn level_of(event: any) -> str {
     let level = util::map_or_empty(event["data"])["level"];
-    if level.is_nil() { "info" } else { level.as_str() }
+    if level == nil { "info" } else { level.as_str() }
 }
 
 // What went wrong and where a script stopped, on one row: the two things you

@@ -60,12 +60,12 @@ pub fn close(state: &mut editor::State) {
 // The script the code pane is showing, "" when it is showing none.
 fn active_rel(state: editor::State) -> str {
     let rel = model::script_rel(model::selected_node(state));
-    if rel.is_nil() { "" } else { rel.as_str() }
+    if rel == nil { "" } else { rel.as_str() }
 }
 
 fn source_of(state: &mut editor::State, rel: str) -> str {
     let buffer = state.script_buffers[state.game_root + "/" + rel];
-    if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
+    if buffer == nil { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
 // The identifier under the caret, which is what a rename means by default.

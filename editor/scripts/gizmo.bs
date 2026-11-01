@@ -143,7 +143,7 @@ fn hover_key(state: editor::State, camera: Camera, geometry: Geometry3d?, pointe
     for value in camera.forward {
         out.push(value);
     }
-    if geometry.is_some() {
+    if geometry != nil {
         let geometry = geometry.unwrap();
         for value in geometry.center {
             out.push(value);
@@ -276,7 +276,7 @@ fn shape_half_extents(found: Node) -> [float] {
     } else {
         found.get_component("collider3d", "shape")
     };
-    if !shape.is_nil() {
+    if shape != nil {
         if shape.kind() == "map" {
             if shape.has("radius") && shape["kind"] == render::SHAPE_SPHERE {
                 let radius = shape["radius"].as_float();
@@ -285,7 +285,7 @@ fn shape_half_extents(found: Node) -> [float] {
                 half_z = radius;
             } else {
                 let size = shape["size"];
-                if !size.is_nil() {
+                if size != nil {
                     let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
                     half_x = size[0].as_float() / 2.0;
                     half_y = size[1].as_float() / 2.0;
@@ -312,7 +312,7 @@ pub fn extents_at(state: editor::State, row: int) -> ExtentsAt? {
     let at = util::xyz(found.transform.global_position());
     let basis = util::basis_from_euler(util::xyz(found.transform.global_rotation_euler()));
     let drawn = render::bounds(found);
-    if drawn.is_some() && drawn.unwrap().len() == 2 {
+    if drawn != nil && drawn.unwrap().len() == 2 {
         let box_centre = drawn.unwrap()[0];
         let half_extents = drawn.unwrap()[1];
         // The box is in the node's own space, so its centre turns with it.
@@ -350,7 +350,7 @@ fn set_geometry(state: editor::State) -> Geometry3d? {
     let found_any = false;
     for row in selection::all(state) {
         let found = extents_at(state, row);
-        if found.is_some() {
+        if found != nil {
             let box_centre = found.unwrap().centre;
             let half_extents = found.unwrap().half;
             let basis = found.unwrap().basis;
@@ -388,7 +388,7 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
     // The same source the multi-selection box and box-select read, so one
     // node's frame and a set's agree about what a node covers.
     let found = extents_at(state, row);
-    if found.is_none() {
+    if found == nil {
         return nil;
     }
     let extents = found.unwrap();
@@ -424,7 +424,7 @@ fn geometry_at(state: editor::State, row: int) -> Geometry3d? {
 /// object closer than that is between the camera and what is selected.
 fn took_click_in_front(state: &mut editor::State, camera: Camera, geometry: Geometry3d) -> bool {
     let hit = render::pick_ray_at(camera.ray_origin[0].as_float(), camera.ray_origin[1].as_float(), camera.ray_origin[2].as_float(), camera.ray_direction[0].as_float(), camera.ray_direction[1].as_float(), camera.ray_direction[2].as_float());
-    if hit.is_none() {
+    if hit == nil {
         return false;
     }
     let found = hit.unwrap();
@@ -439,7 +439,7 @@ fn took_click_in_front(state: &mut editor::State, camera: Camera, geometry: Geom
         return false;
     }
     let landed = model::index_of_live(state, found.node);
-    if landed.is_none() {
+    if landed == nil {
         return false;
     }
     let row = landed.unwrap();
@@ -503,7 +503,7 @@ fn quad_contains(camera: Camera, quad: [[float]], pointer_x: float, pointer_y: f
     let points: [[float]] = [];
     for corner in quad {
         let projected = project(camera, corner);
-        if projected.is_some() {
+        if projected != nil {
             let screen_x = projected.unwrap().x;
             let screen_y = projected.unwrap().y;
             points.push([screen_x, screen_y]);
@@ -518,7 +518,7 @@ fn quad_contains(camera: Camera, quad: [[float]], pointer_x: float, pointer_y: f
         let cross = (to[0] - from[0]) * (pointer_y - from[1]) - (to[1] - from[1]) * (pointer_x - from[0]);
         if util::abs(cross) > 1e-6 {
             let positive = cross > 0.0;
-            if sign.is_none() {
+            if sign == nil {
                 sign = positive;
             } else {
                 let seen = sign.unwrap();
@@ -567,7 +567,7 @@ fn face_front_facing(camera: Camera, geometry: Geometry3d, face: Face) -> bool {
 
 fn near(camera: Camera, point: [float], pointer_x: float, pointer_y: float, radius: float) -> bool {
     let projected = project(camera, point);
-    if projected.is_some() {
+    if projected != nil {
         let screen_x = projected.unwrap().x;
         let screen_y = projected.unwrap().y;
         (screen_x - pointer_x) * (screen_x - pointer_x) + (screen_y - pointer_y) * (screen_y - pointer_y) < radius * radius
@@ -662,7 +662,7 @@ fn draw_handle_marker(out: [any], geometry: Geometry3d, signs: [float], half: fl
 
 // Which gizmo part is "hot" (dragged part wins over hover).
 fn hot_is(hot: Part?, kind: str) -> bool {
-    if hot.is_some() {
+    if hot != nil {
         let part = hot.unwrap();
         part.kind == kind
     } else {
@@ -681,7 +681,7 @@ pub fn draw(state: &mut editor::State) {
         return;
     }
     let geometry_or = selection_geometry(state);
-    if geometry_or.is_none() {
+    if geometry_or == nil {
         return;
     }
     let geometry = geometry_or.unwrap();
@@ -709,7 +709,7 @@ pub fn draw(state: &mut editor::State) {
         for first_sign in [-1.0, 1.0] {
             for second_sign in [-1.0, 1.0] {
                 let color = viewport::orange();
-                if hot_face.is_some() {
+                if hot_face != nil {
                     let face = hot_face.unwrap();
                     let axis = face.axis.or(-1);
                     let sign = face.sign.or(0.0);
@@ -732,7 +732,7 @@ pub fn draw(state: &mut editor::State) {
     let all_corners = corners(geometry);
     for index in 0..all_corners.len() {
         let corner = all_corners[index];
-        let hot_handle = if hot.is_some() {
+        let hot_handle = if hot != nil {
             let part = hot.unwrap();
             part.kind == "handle" && part.index == index
         } else {
@@ -744,7 +744,7 @@ pub fn draw(state: &mut editor::State) {
     let all_faces = faces(geometry);
     for index in 0..all_faces.len() {
         let face = all_faces[index];
-        let hot_rect = if hot.is_some() {
+        let hot_rect = if hot != nil {
             let part = hot.unwrap();
             part.kind == "facerect" && part.index == index
         } else {
@@ -757,7 +757,7 @@ pub fn draw(state: &mut editor::State) {
         }
     }
     for axis in 0..3 {
-        let hot_ring = if hot.is_some() {
+        let hot_ring = if hot != nil {
             let part = hot.unwrap();
             part.kind == "ring" && part.axis == axis
         } else {
@@ -798,12 +798,12 @@ fn drawn_key(geometry: Geometry3d, hot: Part?) -> [any] {
     for value in viewport::hover_color() {
         out.push(value);
     }
-    if hot.is_some() {
+    if hot != nil {
         let part = hot.unwrap();
         out.push(part.kind);
-        out.push(part.index.unwrap_or(-1));
-        out.push(part.axis.unwrap_or(-1));
-        out.push(part.sign.unwrap_or(0.0));
+        out.push(part.index.or(-1));
+        out.push(part.axis.or(-1));
+        out.push(part.sign.or(0.0));
     } else {
         out.push("");
     }
@@ -814,7 +814,7 @@ fn drawn_key(geometry: Geometry3d, hot: Part?) -> [any] {
 fn screen_direction(camera: Camera, center: [float], direction: [float]) -> [float]? {
     let projected_centre = project(camera, center);
     let projected_tip = project(camera, util::vector_add(center, direction));
-    if projected_centre.is_some() && projected_tip.is_some() {
+    if projected_centre != nil && projected_tip != nil {
         let centre_x = projected_centre.unwrap().x;
         let centre_y = projected_centre.unwrap().y;
         let tip_x = projected_tip.unwrap().x;
@@ -838,7 +838,7 @@ fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: fl
             continue;
         }
         let found = extents_at(state, row);
-        if found.is_some() {
+        if found != nil {
             let box_centre = found.unwrap().centre;
             let half_extents = found.unwrap().half;
             let basis = found.unwrap().basis;
@@ -852,7 +852,7 @@ fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: fl
                     for sign_z in [-1.0, 1.0] {
                         let corner = util::vector_add(box_centre, along(basis, [sign_x * half_extents[0].as_float(), sign_y * half_extents[1].as_float(), sign_z * half_extents[2].as_float()]));
                         let at = project(camera, corner);
-                        if at.is_some() {
+                        if at != nil {
                             let screen_x = at.unwrap().x;
                             let screen_y = at.unwrap().y;
                             seen = true;
@@ -875,7 +875,7 @@ fn rows_in_box(state: editor::State, camera: Camera, start_x: float, start_y: fl
 /// Place the box select's dashed outline where the drag has got to, or put
 /// it away once the drag is over. After the pointer did something.
 pub fn fill_marquee(state: editor::State) {
-    if state.gizmo.marquee.is_none() {
+    if state.gizmo.marquee == nil {
         util::fill(MARQUEE, { "visible": false });
         return;
     }
@@ -899,10 +899,10 @@ fn start_gizmo_drag(state: &mut editor::State, camera: Camera, geometry: Geometr
     let position = found.transform.position;
     let scale = found.transform.scale;
     let rotation = model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]);
-    let screen_centre = project(camera, geometry.center).unwrap_or(Project { x: 0.0, y: 0.0 });
+    let screen_centre = project(camera, geometry.center).or(Project { x: 0.0, y: 0.0 });
     let centre_x = screen_centre.x;
     let centre_y = screen_centre.y;
-    let axis = part.axis.unwrap_or(0);
+    let axis = part.axis.or(0);
     let drag = Drag {
         part: part,
         // Every selected root's pose at the start, so each frame applies one
@@ -960,7 +960,7 @@ fn apply_gizmo_drag(state: &mut editor::State, camera: Camera, pointer_x: float,
         // onto its screen direction, converted to world units.
         let axis = drag.part.axis.or(0);
         let screen = screen_direction(camera, drag.world_center, drag.basis[axis]);
-        if screen.is_some() {
+        if screen != nil {
             let direction = screen.unwrap();
             let length_squared = direction[0] * direction[0] + direction[1] * direction[1];
             if length_squared > 1e-6 {
@@ -975,10 +975,10 @@ fn apply_gizmo_drag(state: &mut editor::State, camera: Camera, pointer_x: float,
     } else if drag.part.kind == "face" {
         // Slide the object in the face's plane: the world-space delta
         // between where the mouse ray hits that plane now vs at drag start.
-        if drag.anchor.is_some() {
+        if drag.anchor != nil {
             let anchor = drag.anchor.unwrap();
             let plane_hit = ray_plane(camera, drag.plane_point, drag.plane_normal);
-            if plane_hit.is_some() {
+            if plane_hit != nil {
                 let hit = plane_hit.unwrap();
                 selection::move_by(state, drag.set, util::vector_subtract(hit, anchor), viewport::snapping(state));
             }
@@ -1004,7 +1004,7 @@ pub fn update(state: &mut editor::State) {
         state.gizmo.drag = nil;
         state.rig.hover = if over_viewport { rig::pick_3d(state, pointer_x, pointer_y, camera) } else { nil };
         if over_viewport && input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int()) {
-            if state.rig.hover.is_some() {
+            if state.rig.hover != nil {
                 let hover = state.rig.hover.unwrap();
                 shell::choose(state, hover);
             } else {
@@ -1014,14 +1014,14 @@ pub fn update(state: &mut editor::State) {
         return;
     }
     state.rig.hover = nil;
-    if state.gizmo.drag.is_none() {
+    if state.gizmo.drag == nil {
         // Re-test only when something the answer depends on moved. A click is
         // always let through: it acts on the hover rather than changing it.
         let key = hover_key(state, camera, geometry.unwrap(), pointer_x, pointer_y);
         let pressed = input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int());
         if pressed || key != state.gizmo.key {
             state.gizmo.key = key;
-            state.gizmo.hover = if geometry.is_some() {
+            state.gizmo.hover = if geometry != nil {
                 let geometry = geometry.unwrap();
                 if over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
                     hit_test(state, camera, geometry, pointer_x, pointer_y)
@@ -1038,7 +1038,7 @@ pub fn update(state: &mut editor::State) {
         state.gizmo.key = [];
     }
     if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int()) && over_viewport {
-        if !state.gizmo.hover.is_nil() && geometry.is_some() {
+        if state.gizmo.hover != nil && geometry != nil {
             let part: Part = state.gizmo.hover;
             let box_geometry = geometry.unwrap();
             // A handle is drawn over whatever is behind it, so an object
@@ -1053,7 +1053,7 @@ pub fn update(state: &mut editor::State) {
                 // Rigging: a bone's thin octahedron loses to any origin
                 // near it, so in the Animation workspace bones are tried first.
                 let bone = if state.workspace == defs::WORKSPACE_ANIMATION { rig::pick_3d(state, pointer_x, pointer_y, camera) } else { nil };
-                if bone.is_some() {
+                if bone != nil {
                     let bone = bone.unwrap();
                     shell::choose(state, bone);
                     return;
@@ -1065,7 +1065,7 @@ pub fn update(state: &mut editor::State) {
                 if hit.is_valid() {
                     landed = model::index_of_live(state, hit);
                 }
-                if landed.is_some() {
+                if landed != nil {
                     let row = landed.unwrap();
                     if !selection::is_locked(state, row) {
                         shell::choose_click(state, row);
@@ -1079,7 +1079,7 @@ pub fn update(state: &mut editor::State) {
         }
     }
     let marquee: any = state.gizmo.marquee;
-    if marquee.is_some() {
+    if marquee != nil {
         let box_drag = marquee.unwrap();
         box_drag["end_x"] = pointer_x;
         box_drag["end_y"] = pointer_y;
@@ -1105,7 +1105,7 @@ pub fn update(state: &mut editor::State) {
         state.gizmo.drag = nil;
         state.gizmo.in_viewport = false;
     }
-    if state.gizmo.drag.is_some() {
+    if state.gizmo.drag != nil {
         apply_gizmo_drag(state, camera, pointer_x, pointer_y);
         return;
     }
@@ -1114,7 +1114,7 @@ pub fn update(state: &mut editor::State) {
     }
     // Rail-tool fallbacks: drag anywhere in the viewport.
     let dragged = viewport::rail_drag(state);
-    if dragged.is_none() {
+    if dragged == nil {
         return;
     }
     let delta_x = dragged.unwrap().delta_x;

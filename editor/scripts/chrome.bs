@@ -117,7 +117,7 @@ fn brand_logo(state: editor::State) -> str {
 // `[application] icon`, or "" for a project that names none.
 fn declared_icon(state: editor::State) -> str {
     let text = fs::read(state.game_root + "/project.toml");
-    if text.is_none() {
+    if text == nil {
         return "";
     }
     toml::parse(text.unwrap())["application"]["icon"].as_str()
@@ -126,7 +126,7 @@ fn declared_icon(state: editor::State) -> str {
 // Answered once per session: whether the project ships a mark is up to five disk
 // reads, and the bar asked for them on every frame it drew.
 fn brand(state: &mut editor::State) -> Brand {
-    if state.brand.is_some() {
+    if state.brand != nil {
         return state.brand.unwrap();
     }
     let logo = brand_logo(state);
@@ -163,7 +163,7 @@ pub fn workspace_spot(state: editor::State, id: str) -> Spot {
         }
     }
     let found = strip_spot(state, slot);
-    if found.is_some() {
+    if found != nil {
         let spot = found.unwrap();
         return spot;
     }
@@ -178,7 +178,7 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
     let first = workspaces_x(state) + (defs::workspaces().len() as float) * per + 12.0;
     let slot = if id == "script" { 1.0 } else { 0.0 };
     let found = strip_spot(state, defs::workspaces().len() + (slot as int));
-    if found.is_some() {
+    if found != nil {
         let spot = found.unwrap();
         return spot;
     }
@@ -191,7 +191,7 @@ pub fn doc_spot(state: editor::State, id: str) -> Spot {
 pub fn focus_spot(state: editor::State) -> Spot {
     let bar: any = state.layout["bar"];
     let found = strip_spot(state, transport_slot(state) - 2);
-    if found.is_some() {
+    if found != nil {
         let spot = found.unwrap();
         return spot;
     }
@@ -202,7 +202,7 @@ pub fn focus_spot(state: editor::State) -> Spot {
 pub fn transport_spot(state: editor::State, index: int) -> Spot {
     let bar: any = state.layout["bar"];
     let found = strip_spot(state, transport_slot(state) + index);
-    if found.is_some() {
+    if found != nil {
         let spot = found.unwrap();
         return spot;
     }
@@ -229,7 +229,7 @@ fn strip_spot(state: editor::State, slot: int) -> Spot? {
         return nil;
     }
     let rect = ui::widget_rect(kids[slot]);
-    if rect.is_none() {
+    if rect == nil {
         return nil;
     }
     let box = rect.unwrap();
@@ -439,7 +439,7 @@ fn doc_controls(state: editor::State, tokens: any, height: float) -> [any] {
     }
     if state.script_open {
         let attached = model::script_rel(node);
-        let label = if !attached.is_nil() {
+        let label = if attached != nil {
             let script = attached;
             let dirty = state.script_dirty.has(state.game_root + "/" + script.as_str());
             util::last_segment(script.as_str()) + (if dirty { " ●" } else { "" })

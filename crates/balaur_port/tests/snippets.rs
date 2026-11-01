@@ -68,7 +68,7 @@ pub fn first(items) {
     has(&out, "let matched1 = find(items, \"a\");");
     has(
         &out,
-        "if matched1.is_some() {\n        let i = matched1.unwrap();\n        i\n    } else {\n        -1\n    }",
+        "if matched1 != nil {\n        let i = matched1.unwrap();\n        i\n    } else {\n        -1\n    }",
     );
 }
 
@@ -91,7 +91,7 @@ pub fn run() {
     );
     has(
         &out,
-        "let last_or = stack.pop();\n    if last_or.is_none() {\n        return 0;\n    }\n    let last = last_or.unwrap();",
+        "let last_or = stack.pop();\n    if last_or == nil {\n        return 0;\n    }\n    let last = last_or.unwrap();",
     );
 }
 
@@ -116,7 +116,7 @@ pub fn fresh() {
     );
     has(
         &out,
-        "if d.is_none() {\n        return;\n    }\n    let d = d.unwrap();",
+        "if d == nil {\n        return;\n    }\n    let d = d.unwrap();",
     );
     // The write goes to a copy: flagged, not silently wrong.
     has(

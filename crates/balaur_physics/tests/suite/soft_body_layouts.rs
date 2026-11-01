@@ -425,7 +425,7 @@ impl Scenario {
         let inverse = p["inverse_mass"].as_float();
         if !(mass > 0.0 && inverse > 0.0) { log::error("particle mass {mass} {inverse}"); }
         if !(!p["pinned"].as_bool() && p["on_surface"].as_bool() && !p["damaged"].as_bool()) { log::error("particle flags"); }
-        if !p["target"].is_nil() { log::error("a free particle has a target"); }
+        if p["target"] != nil { log::error("a free particle has a target"); }
         n.softbody3d.pin_particle(0);
         n.softbody3d.set_particle_target(0, [0.0, 0.5, 0.0]);
         if n.softbody3d.softbody_particle(0)["inverse_mass"].as_float() != 0.0 { log::error("a held particle still has an inverse mass"); }

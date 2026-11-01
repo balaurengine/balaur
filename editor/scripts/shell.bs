@@ -98,7 +98,7 @@ fn stop_for(state: &mut editor::State, label: str) {
 }
 
 fn stepped(state: &mut editor::State, label: str, moved_or: str?) {
-    if moved_or.is_none() {
+    if moved_or == nil {
         log::info("nothing to {label}");
         return;
     }
@@ -177,7 +177,7 @@ pub fn toggle_split(state: &mut editor::State) {
 /// Select the first node in the scene carrying a script; whether it found one.
 pub fn select_scripted(state: &mut editor::State) -> bool {
     for row in 0..state.nodes.len() {
-        if !model::script_rel(state.nodes[row]).is_nil() {
+        if model::script_rel(state.nodes[row]) != nil {
             selection::only(state, row);
             return true;
         }
@@ -188,7 +188,7 @@ pub fn select_scripted(state: &mut editor::State) -> bool {
 /// Whether there is code to give the window to: the selection's script, or a
 /// shader opened from a material.
 pub fn focus_target(state: editor::State) -> bool {
-    state.shader_rel != "" || !model::script_rel(model::selected_node(state)).is_nil()
+    state.shader_rel != "" || model::script_rel(model::selected_node(state)) != nil
 }
 
 // The code with the window to itself: the three docks fold, the split goes,
@@ -449,7 +449,7 @@ pub fn stopped(state: &mut editor::State, stop: any) {
     }
     state.debug.paused = stop;
     signals::changed(state, "debugger");
-    if state.debug.demo.is_some() {
+    if state.debug.demo != nil {
         let pauses = state.debug.demo.unwrap();
         if stop.kind() == "map" {
             state.debug.demo = pauses + 1;
@@ -487,7 +487,7 @@ pub fn attach_script(state: &mut editor::State) {
         return;
     }
     let node = model::selected_node(state);
-    if !model::script_rel(node).is_nil() {
+    if model::script_rel(node) != nil {
         return;
     }
     set_script_path(state, "scripts/" + node.name().to_lower() + ".bs");
@@ -512,7 +512,7 @@ pub fn detach_script(state: &mut editor::State) {
     }
     let node = model::selected_node(state);
     let rel = model::script_rel(node);
-    if rel.is_nil() {
+    if rel == nil {
         return;
     }
     history::record(state, "detach script", nil);
@@ -541,14 +541,14 @@ pub fn set_script_path(state: &mut editor::State, path: str) {
         return;
     }
     let absolute_path = state.game_root + "/" + rel;
-    history::record(state, if was.is_nil() { "attach script" } else { "move script" }, nil);
-    if !was.is_nil() {
+    history::record(state, if was == nil { "attach script" } else { "move script" }, nil);
+    if was != nil {
         let old = was.as_str();
         let old_absolute_path = state.game_root + "/" + old;
         if fs::exists(old_absolute_path) && !fs::exists(absolute_path) {
             // What is typed but unsaved goes with the file.
             let buffer = state.script_buffers[old_absolute_path];
-            if !buffer.is_nil() {
+            if buffer != nil {
                 fs::write(old_absolute_path, buffer.as_str());
             }
             make_parent(state, rel);
@@ -588,7 +588,7 @@ fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
     let old_absolute_path = state.game_root + "/" + old;
     let absolute_path = state.game_root + "/" + rel;
     let buffer = state.script_buffers[old_absolute_path];
-    if !buffer.is_nil() {
+    if buffer != nil {
         state.script_buffers[absolute_path] = buffer;
         state.script_buffers.remove(old_absolute_path);
     }
@@ -643,7 +643,7 @@ pub fn toggle_shader_preview(state: &mut editor::State, rel: str, line: int) {
 /// dock shows its module instead.
 pub fn goto_definition(state: &mut editor::State) {
     let node = model::selected_node(state);
-    if model::script_rel(node).is_nil() {
+    if model::script_rel(node) == nil {
         return;
     }
     let rel = model::script_rel(node).as_str();
@@ -657,7 +657,7 @@ pub fn goto_definition(state: &mut editor::State) {
     }
     let at = complete::line_column(source, index);
     let found_or = script::definition(rel, source, at.line, at.column);
-    if found_or.is_none() {
+    if found_or == nil {
         return;
     }
     let found = found_or.unwrap();
@@ -674,7 +674,7 @@ pub fn goto_definition(state: &mut editor::State) {
 /// The script at `rel` as it is open: its unsaved buffer, or the file.
 fn buffer_of(state: &mut editor::State, rel: str) -> str {
     let buffer = state.script_buffers[state.game_root + "/" + rel];
-    if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
+    if buffer == nil { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
 /// Show `rel` in the code pane, scrolled to `line`.
@@ -699,7 +699,7 @@ pub fn format_active(state: &mut editor::State) {
         return;
     }
     let node = model::selected_node(state);
-    if model::script_rel(node).is_nil() {
+    if model::script_rel(node) == nil {
         return;
     }
     let rel = model::script_rel(node).as_str();
@@ -727,7 +727,7 @@ pub fn save_active(state: &mut editor::State) {
         return;
     }
     let node = model::selected_node(state);
-    let in_script = (state.workspace == defs::WORKSPACE_SCRIPT || state.doctab == "script") && !model::script_rel(node).is_nil();
+    let in_script = (state.workspace == defs::WORKSPACE_SCRIPT || state.doctab == "script") && model::script_rel(node) != nil;
     if in_script {
         save_buffer(state, state.game_root + "/" + model::script_rel(node).as_str());
         return;
@@ -743,7 +743,7 @@ pub fn save_active(state: &mut editor::State) {
 /// stops.
 pub fn save_buffer(state: &mut editor::State, absolute_path: str) {
     let buffer = state.script_buffers[absolute_path];
-    if buffer.is_nil() {
+    if buffer == nil {
         return;
     }
     let rel = absolute_path.replace(state.game_root + "/", "");
@@ -783,7 +783,7 @@ pub fn save_buffer(state: &mut editor::State, absolute_path: str) {
 pub fn write_picture(state: &mut editor::State) {
     model::write(state);
     let output = picture::write(state.game_root, state.scene_rel);
-    if output.is_none() {
+    if output == nil {
         log::warn("a picture is drawn by a second run of the game, which a browser tab cannot start");
         return;
     }
@@ -805,7 +805,7 @@ pub fn reload_scripts(state: &mut editor::State) {
     let paths: any = {};
     for found in state.nodes {
         let rel = model::script_rel(found);
-        if !rel.is_nil() {
+        if rel != nil {
             paths[rel.as_str()] = true;
         }
     }
@@ -1018,7 +1018,7 @@ pub fn apply_start_state(state: &mut editor::State, start: str) {
     }
     let ran = false;
     let found = states()[start];
-    if !found.is_nil() {
+    if found != nil {
         let run: fn(&mut editor::State) = found;
         run(state);
         ran = true;
@@ -1105,7 +1105,7 @@ fn state_page(state: &mut editor::State, argument: str) {
     if parts.len() < 2 {
         return;
     }
-    if state.kit_state.is_nil() {
+    if state.kit_state == nil {
         state.kit_state = {};
     }
     state.kit_state["tab:" + parts[0]] = parts[1];
@@ -1241,11 +1241,11 @@ fn state_play(state: &mut editor::State) {
 fn state_animdemo(state: &mut editor::State) {
     let pick: int? = nil;
     for row in 0..state.nodes.len() {
-        if pick.is_none() || state.nodes[row].name() == "Spinner" {
+        if pick == nil || state.nodes[row].name() == "Spinner" {
             pick = row;
         }
     }
-    if pick.is_none() {
+    if pick == nil {
         log::warn("animdemo: the scene has no node to animate");
     } else {
         let row = pick.unwrap();
@@ -1279,7 +1279,7 @@ fn state_workspace(state: &mut editor::State, name: str) {
 pub fn break_demo(state: &mut editor::State) {
     for row in 0..state.nodes.len() {
         let script = model::script_rel(state.nodes[row]);
-        if !script.is_nil() {
+        if script != nil {
             selection::only(state, row);
             for hook in model::hooks(state, script.as_str()) {
                 if hook["name"].as_str() == "update" {

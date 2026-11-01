@@ -111,7 +111,7 @@ fn table_at(path: str) -> any {
         return {};
     }
     let text = fs::read(path);
-    if text.is_none() {
+    if text == nil {
         return {};
     }
     let value = toml::parse(text.unwrap());
@@ -160,7 +160,7 @@ fn kind_for(state: editor::State, rel: str) -> str {
 // What `project.toml` says for this kind, which the sidecar overrides.
 fn project_default(state: editor::State, kind: str, key: str) -> any {
     let text = fs::read(state.game_root + "/project.toml");
-    if text.is_none() {
+    if text == nil {
         return nil;
     }
     toml::parse(text.unwrap())["import"][kind][key]
@@ -169,7 +169,7 @@ fn project_default(state: editor::State, kind: str, key: str) -> any {
 // Write one key, or drop it when `value` is nil. An empty sidecar is removed
 // rather than left behind: a file of no settings is noise in a project.
 pub fn write(state: editor::State, rel: str, key: str, value: any) {
-    let cleared = value.is_nil();
+    let cleared = value == nil;
     let what = if cleared { "cleared" } else { "set" };
     let path = full(state, settings_file(state, rel));
     log::info("import: {key} {what} for {rel}");
@@ -200,13 +200,13 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     // A texture asset reads its image's sidecar first, and overrides it.
     let image = image_of(state, rel);
     let beside = if image == rel { nil } else { sidecar(state, image)[key] };
-    let has_own = !own.is_nil();
-    let source = if !beside.is_nil() { "image" } else if !inherited.is_nil() { "project" } else { "default" };
+    let has_own = own != nil;
+    let source = if beside != nil { "image" } else if inherited != nil { "project" } else { "default" };
     let effective = spec["fallback"];
-    if !inherited.is_nil() {
+    if inherited != nil {
         effective = inherited;
     }
-    if !beside.is_nil() {
+    if beside != nil {
         effective = beside;
     }
     if has_own {
@@ -292,7 +292,7 @@ fn on_flag_toggled(state: &mut editor::State, data: any, on: any) {
 
 fn on_count_picked(state: &mut editor::State, data: any, picked: any) {
     let count = COUNTS()[picked.as_str()];
-    write(state, data["rel"].as_str(), data["key"].as_str(), if count.is_nil() { data["spec"]["fallback"] } else { count });
+    write(state, data["rel"].as_str(), data["key"].as_str(), if count == nil { data["spec"]["fallback"] } else { count });
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
@@ -339,7 +339,7 @@ fn size_text(bytes: float) -> str {
 /// One target's line, short enough for the dock: the pixels that ship, what
 /// the scene measures when that differs, the bytes, and the variant used.
 fn shipped_line(rel: str, answer: export::Preview?) -> str {
-    if answer.is_none() {
+    if answer == nil {
         return "not shipped";
     }
     let row = answer.unwrap();
@@ -360,7 +360,7 @@ fn shipped_line(rel: str, answer: export::Preview?) -> str {
 
 /// The same row whole, for the tooltip: what the GPU holds once uploaded.
 fn shipped_tip(answer: export::Preview?) -> str {
-    if answer.is_none() {
+    if answer == nil {
         return "This file is not in that target's export pack.";
     }
     let row = answer.unwrap();

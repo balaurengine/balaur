@@ -156,7 +156,7 @@ pub fn open_versions(state: &mut editor::State) {
 /// Ask for a folder and open what is in it, without the screen in between.
 pub fn pick(state: &mut editor::State) {
     let picked = project::pick_directory();
-    if picked.is_some() {
+    if picked != nil {
         go(state, picked.unwrap());
         return;
     }
@@ -191,7 +191,7 @@ pub fn spot(state: editor::State, name: str) -> Spot? {
         tab_node(name)
     };
     let rect = if node.is_valid() { ui::widget_rect(node) } else { nil };
-    if rect.is_none() {
+    if rect == nil {
         return nil;
     }
     let box = rect.unwrap();
@@ -318,7 +318,7 @@ pub fn fill(state: &mut editor::State) {
 // the window is, since a list across a monitor is a list nobody can read.
 fn page_width() -> float {
     let rect = ui::widget_rect(scene::get_node(BODY()));
-    if rect.is_none() || rect.unwrap().width <= 0.0 {
+    if rect == nil || rect.unwrap().width <= 0.0 {
         COLUMN
     } else {
         util::min(rect.unwrap().width, COLUMN)
@@ -338,7 +338,7 @@ pub fn verb(state: &mut editor::State, name: str) {
         return;
     }
     let picked = project::pick_directory();
-    if picked.is_none() {
+    if picked == nil {
         return;
     }
     go(state, picked.unwrap());
@@ -429,7 +429,7 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [an
 fn project_spec(state: editor::State, tokens: any, column_width: float, row: any) -> any {
     let here = row["path"];
     let exists = row["exists"];
-    let gone = if exists.is_nil() { true } else { exists.as_bool() } != true;
+    let gone = if exists == nil { true } else { exists.as_bool() } != true;
     let built = row["version"].as_str();
     let line = util::max(style::row_height(state), 28.0);
     let controls: [any] = [
@@ -710,7 +710,7 @@ pub fn forge_heard(state: &mut editor::State, event: any) {
 fn open_example(state: &mut editor::State, id: str) {
     let made = util::map_or_empty(project::copy_example(id, state.manager.parent));
     let failed = made["error"];
-    if !failed.is_nil() {
+    if failed != nil {
         let why = failed;
         state.manager.failed = why.as_str();
         told(state);
@@ -1235,7 +1235,7 @@ fn create(state: &mut editor::State) {
     let path = state.manager.parent + "/" + name;
     let made = util::map_or_empty(project::create(path, state.manager.template));
     let failed = made["error"];
-    if !failed.is_nil() {
+    if failed != nil {
         let why = failed;
         state.manager.failed = why.as_str();
         window::changed(state);
@@ -1273,7 +1273,7 @@ pub fn go(state: &mut editor::State, path: str) {
     }
     let answer = util::map_or_empty(project::open(path));
     let failed = answer["error"];
-    if !failed.is_nil() {
+    if failed != nil {
         let why = failed;
         state.manager.failed = why.as_str();
         told(state);

@@ -35,8 +35,8 @@ pub fn drawn_mesh(node: Node, two_d: bool) -> any {
     }
     if two_d {
         let key = polygon::target(node);
-        let found = if key.is_some() { node.authored(key.unwrap()) } else { nil };
-        if !found.is_nil() && named(found["mesh"]) {
+        let found = if key != nil { node.authored(key.unwrap()) } else { nil };
+        if found != nil && named(found["mesh"]) {
             return found["mesh"];
         }
         return nil;
@@ -103,7 +103,7 @@ pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any, be
 fn patch_beside(state: &mut editor::State, two_d: bool, beside: any) {
     for row in selection::all(state) {
         let found = model::node(state, row);
-        if !found.is_valid() || drawn_mesh(found, two_d).is_nil() {
+        if !found.is_valid() || drawn_mesh(found, two_d) == nil {
             continue;
         }
         for component in beside.keys() {
@@ -119,14 +119,14 @@ fn with_mesh_of(node: Node, data: any) -> any {
 // A collider's: the shape a kind and the node's own mesh make.
 fn with_shape_of(node: Node, data: any) -> any {
     let shape = with_mesh_of(node, data);
-    if shape.is_nil() { nil } else { { "shape": shape } }
+    if shape == nil { nil } else { { "shape": shape } }
 }
 
 // The properties an action writes, on a node's own mesh; nil for a node in
 // the selection that draws none.
 fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
     let source = drawn_mesh(node, two_d);
-    if source.is_nil() {
+    if source == nil {
         return nil;
     }
     let parameters: any = { "mesh": source };

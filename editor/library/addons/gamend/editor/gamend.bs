@@ -222,12 +222,12 @@ impl Gamend {
         out.push(field("health", brief(self.fetch("health", "/api/v1/health")), {}));
         out.push(field("addon", addon_version(), {}));
         out.push(heading("Player"));
-        out.push(field("user", if link.username.is_some() { link.username.unwrap() } else { "not signed in" }, {}));
+        out.push(field("user", if link.username != nil { link.username.unwrap() } else { "not signed in" }, {}));
         for socket in link.sockets {
             let state = if socket.open { "open" } else { "closed" };
             out.push(field("socket {socket.socket}", state + ": " + listed(socket.topics), {}));
         }
-        out.push(field("saved session", if saved_session().is_nil() { "none" } else { "yes, readable signed out" }, {}));
+        out.push(field("saved session", if saved_session() == nil { "none" } else { "yes, readable signed out" }, {}));
         out.push(buttons([refresh_button(self.node, "")]));
         out
     }
@@ -241,7 +241,7 @@ impl Gamend {
             return self.cloud_connect_rows(out);
         }
         let reply = self.cloud_servers();
-        if reply.is_nil() {
+        if reply == nil {
             out.push(line("asking for your servers…", QUIET));
             return out;
         }
@@ -281,7 +281,7 @@ impl Gamend {
     }
 
     fn cloud_connect_rows(out: [any]) -> [any] {
-        if !self.cloud_link.is_nil() {
+        if self.cloud_link != nil {
             out.push(field("code", self.cloud_link["code"].as_str(), {}));
             out.push(line("Approve this code on the page that opened in your browser. The dock waits for it.", MUTED));
             out.push(buttons([
@@ -293,10 +293,10 @@ impl Gamend {
         out.push(line("Connect this editor to your Gamend Cloud account to list your servers here and make one this project's server.", MUTED));
         out.push(buttons([button(self.node, "Connect", "cloud_connect", {})]));
         let failed = self.cloud_replies["claim"];
-        if failed.is_nil() {
+        if failed == nil {
             failed = self.cloud_replies["link"];
         }
-        if !failed.is_nil() && failed["status"].as_int() != 200 && failed["status"].as_int() != 201 {
+        if failed != nil && failed["status"].as_int() != 200 && failed["status"].as_int() != 201 {
             let text = if failed["status"].as_int() == 410 { "The code ran out before it was approved. Connect again." } else { "Not connected: " + describe(failed) };
             out.push(line(text, FAILED));
         }
@@ -306,7 +306,7 @@ impl Gamend {
     /// The servers' reply, asked for once and kept until Refresh.
     fn cloud_servers() -> any {
         let held = self.cloud_replies["servers"];
-        if !held.is_nil() {
+        if held != nil {
             return held;
         }
         if !self.cloud_asked.has("servers") {
@@ -324,7 +324,7 @@ impl Gamend {
             headers["authorization"] = "Bearer " + token;
         }
         let opts: any = { "method": method, "headers": headers, "timeout_seconds": seconds };
-        if !body.is_nil() {
+        if body != nil {
             opts["body"] = body;
         }
         let asked = http::request(self.node, cloud_url() + path, opts);
@@ -333,7 +333,7 @@ impl Gamend {
 
     fn user() -> [any] {
         let held = gamend::session();
-        if held.is_none() {
+        if held == nil {
             return self.signed_out();
         }
         let session = held.unwrap();
@@ -360,11 +360,11 @@ impl Gamend {
         let out: [any] = [empty("not signed in")];
         out.push(buttons([button(self.node, "Sign in with this device", "sign_in", {})]));
         let login = self.replies["login"];
-        if !login.is_nil() {
+        if login != nil {
             out.push(line(brief(login), MUTED));
         }
         let saved = saved_session();
-        if !saved.is_nil() {
+        if saved != nil {
             out.push(heading("Saved session, from an earlier run"));
             for key in saved.keys() {
                 let secret = key.ends_with("token");
@@ -472,7 +472,7 @@ impl Gamend {
         let key = "{row.seq}";
         let open = self.open[key].as_bool();
         let took = "";
-        if row.ms.is_some() {
+        if row.ms != nil {
             let ms = row.ms.unwrap() as int;
             took = "{ms} ms";
         }
@@ -496,7 +496,7 @@ impl Gamend {
             }
         }
         let out: [any] = [];
-        if gamend::session().is_none() {
+        if gamend::session() == nil {
             out.push(line("not signed in: most of these are the player's own, so sign in on the User tab", QUIET));
         }
         let wants = found["id"].as_str();
@@ -526,7 +526,7 @@ impl Gamend {
     /// back to `on_gamend_event`.
     fn fetch(key: str, path: str) -> any {
         let held = self.replies[key];
-        if !held.is_nil() {
+        if held != nil {
             return held;
         }
         if !self.requests.has(key) {
@@ -629,7 +629,7 @@ impl Gamend {
     /// The session as `auth.bs` keeps it.
     pub fn keep_session(_data: any, _value: any) {
         let held = gamend::session();
-        if held.is_none() {
+        if held == nil {
             return;
         }
         let s = held.unwrap();
@@ -729,7 +729,7 @@ fn header(to: Node) -> [any] {
 /// Who is signed in, over what.
 fn status_line() -> any {
     let link = gamend::connection();
-    let signed = link.username.is_some();
+    let signed = link.username != nil;
     let who = if signed { "signed in as " + link.username.unwrap() } else { "not signed in" };
     let open = 0;
     let topics = 0;
@@ -749,7 +749,7 @@ fn status_line() -> any {
 fn logs(to: Node) -> [any] {
     let out: [any] = [heading("This run")];
     let path = log::file();
-    if path.is_some() {
+    if path != nil {
         let near = editor().call("kit_short_path", path.unwrap()).as_str();
         out.push(field("log file", near, { "copy": true, "copy_text": path.unwrap() }));
     } else {
@@ -809,7 +809,7 @@ fn failed(row: gamend::Entry) -> bool {
 
 /// A reply as rows: a structure when it came back, a line when it did not.
 fn show(out: [any], key: str, reply: any) {
-    if reply.is_nil() {
+    if reply == nil {
         out.push(line("loading…", QUIET));
         return;
     }
@@ -824,7 +824,7 @@ fn show(out: [any], key: str, reply: any) {
         return;
     }
     let shown = if body.kind() == "map" && body.has("data") { body["data"] } else { body };
-    if shown.is_nil() {
+    if shown == nil {
         out.push(line("{status}: empty", QUIET));
         return;
     }
@@ -833,7 +833,7 @@ fn show(out: [any], key: str, reply: any) {
 
 /// A reply in a few words, for a single row.
 fn brief(reply: any) -> str {
-    if reply.is_nil() {
+    if reply == nil {
         return "…";
     }
     let kind = reply["kind"].as_str();
@@ -861,7 +861,7 @@ fn short(value: any) -> str {
 
 /// When the token stops working, read from its own `exp` claim.
 fn expires(at: int?) -> str {
-    if at.is_none() {
+    if at == nil {
         return "unknown";
     }
     let left = at.unwrap() - (engine::unix_time() as int);
@@ -897,7 +897,7 @@ fn saved_session() -> any {
 
 fn addon_version() -> str {
     let text = fs::read(editor().call("game_root").as_str() + "/addons/gamend/version.bs");
-    if text.is_none() {
+    if text == nil {
         return "unknown";
     }
     let parts = text.unwrap().split("\"");

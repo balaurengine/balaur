@@ -698,7 +698,7 @@ fn frame(state: &mut State, delta_time: float) {
     }
     // Above the start screen's own return: a clip of a project converting is
     // taken on that screen, and it has no other frame to be caught on.
-    if state.capture.is_some() {
+    if state.capture != nil {
         let capture = state.capture.unwrap();
         if state.frame >= capture.from && (state.frame - capture.from) % capture.every == 0 {
             render::screenshot("{capture.directory}/{padded(capture.count)}.png");
@@ -722,7 +722,7 @@ fn frame(state: &mut State, delta_time: float) {
         }
         showcase::acts(state);
         // An install or a conversion reports as events, which wake the loop.
-        if !state.formed || state.showcase.is_some() || state.capture.is_some() || state.stepping.len() > 0 {
+        if !state.formed || state.showcase != nil || state.capture != nil || state.stepping.len() > 0 {
             ui::request_repaint();
         }
         return;
@@ -748,9 +748,9 @@ fn frame(state: &mut State, delta_time: float) {
     // low_processor` nothing else draws one. The splash and a queued import
     // count frames, so they ask too.
     let telling = state.jobs.len() > 0 || state.import_queue.len() > 0 || !state.formed;
-    if state.playing || state.showcase.is_some() || session::scrubbing(state) || state.capture.is_some()
-        || state.stepping.len() > 0 || telling || layout::animating(state) || state.gizmo.drag.is_some()
-        || state.debug.demo.is_some() || textedit::waiting(state) || autosave::waiting(state)
+    if state.playing || state.showcase != nil || session::scrubbing(state) || state.capture != nil
+        || state.stepping.len() > 0 || telling || layout::animating(state) || state.gizmo.drag != nil
+        || state.debug.demo != nil || textedit::waiting(state) || autosave::waiting(state)
     {
         ui::request_repaint();
     }
@@ -870,7 +870,7 @@ fn report_view(state: &mut State) {
         return;
     }
     let side = docks::side_of(state, state.view_shot);
-    if side.is_none() {
+    if side == nil {
         return;
     }
     let rect = state.layout[side.unwrap()];

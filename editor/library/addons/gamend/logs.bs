@@ -240,7 +240,7 @@ pub fn report(sink: Sink) -> any {
 pub fn headers(sink: Sink) -> any {
     let out: any = { "content-type": "application/json", "x-gamend-session": sink.run };
     let session = gamend::session();
-    if session.is_some() && session.unwrap().access_token != "" {
+    if session != nil && session.unwrap().access_token != "" {
         out["authorization"] = "Bearer " + session.unwrap().access_token;
     }
     out
@@ -520,11 +520,11 @@ fn recovered() -> [Line] {
 fn previous_tail() -> [Line] {
     let out: [Line] = [];
     let path = log::file();
-    if path.is_none() {
+    if path == nil {
         return out;
     }
     let text = fs::read(path.unwrap().replace("run.log", "run.1.log"));
-    if text.is_none() {
+    if text == nil {
         return out;
     }
     let lines: [str] = [];

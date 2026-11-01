@@ -27,7 +27,7 @@ pub fn typed(state: &mut editor::State, id: str, text: str) {
 /// The query a dock is filtering by, "" when it is not.
 pub fn query(state: editor::State, id: str) -> str {
     let held = state.search[id];
-    if held.is_nil() { "" } else { held.as_str() }
+    if held == nil { "" } else { held.as_str() }
 }
 
 /// Whether `text` satisfies `query`. Case-insensitive, and every word of the

@@ -210,7 +210,7 @@ impl Panel {
         self.editor = self.node.parent().script;
     }
     fn update(dt: float) {
-        if self.editor.is_some() {
+        if self.editor != nil {
             self.seen = self.editor.unwrap().edit();
         }
     }

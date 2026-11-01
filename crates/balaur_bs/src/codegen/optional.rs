@@ -5,7 +5,7 @@ use super::func::{FnGen, LVal, R, err, show};
 use crate::ast::{BinOp, Block, Expr, Pos, Ty};
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
-pub(crate) const METHODS: [&str; 4] = ["is_some", "is_none", "unwrap", "or"];
+pub(crate) const METHODS: [&str; 2] = ["unwrap", "or"];
 
 fn zero(vt: ValType) -> I<'static> {
     match vt {
@@ -120,11 +120,16 @@ impl FnGen<'_> {
                 }
                 self.release(&t);
             }
+            // Nil is no cell.
             Ty::Any => {
+                let cell = self.temp(&Ty::Any);
+                self.set_raw(&cell);
+                self.get_raw(&cell);
                 self.e(I::I32Eqz);
                 if op == BinOp::Ne {
                     self.e(I::I32Eqz);
                 }
+                self.release(&cell);
             }
             _ => {
                 return err(
@@ -145,20 +150,7 @@ impl FnGen<'_> {
         pos: Pos,
     ) -> R<Ty> {
         let ty = Ty::Optional(Box::new(inner.clone()));
-        // Rust's name for `or`.
-        let name = if name == "unwrap_or" { "or" } else { name };
         match name {
-            "is_some" | "is_none" => {
-                self.args(&[], args, pos, name)?;
-                self.expr(base)?;
-                let (t, flag) = self.hold(&ty);
-                self.e(I::LocalGet(flag));
-                if name == "is_none" {
-                    self.e(I::I32Eqz);
-                }
-                self.release(&t);
-                Ok(Ty::Bool)
-            }
             // A nil one traps, at its line in a debug build.
             "unwrap" => {
                 self.args(&[], args, pos, name)?;
@@ -204,7 +196,7 @@ impl FnGen<'_> {
             _ => err(
                 pos,
                 format!(
-                    "this may be nil: check `{name}` first; a {} has `{}`",
+                    "this may be nil, so it has no `{name}`: compare it with `nil`, or a {} has `{}`",
                     show(&ty),
                     METHODS.join("`, `")
                 ),

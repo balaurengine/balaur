@@ -17,8 +17,8 @@ pub fn found(name: str) -> int {
 pub fn checks(name: str) -> str {
     let xs = ["a", "b"];
     let r = find(xs, name);
-    let a = r.is_some();
-    let b = r.is_none();
+    let a = r != nil;
+    let b = r == nil;
     let c = r == nil;
     let d = nil != r;
     "{a} {b} {c} {d}"
@@ -33,7 +33,7 @@ pub fn unwrapped(k: int) -> int {
 }
 pub fn bag() -> str {
     let b = Bag { best: nil, count: 3 };
-    let before = b.best.is_none();
+    let before = b.best == nil;
     b.best = "x";
     "{before} {b.best.or("-")} {b.count.or(0)}"
 }

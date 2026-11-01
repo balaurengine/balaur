@@ -9,7 +9,7 @@ pub fn record(a: any) -> str {
     let p: P = a;
     let tags: [str] = a["tags"];
     let missing: int? = a["nope"];
-    "{p.name} {p.n} {p.tags.len()} {tags[1]} {missing.is_none()}"
+    "{p.name} {p.n} {p.tags.len()} {tags[1]} {missing == nil}"
 }
 
 // expect: scalars({ "name": "orc", "n": 3, "tags": ["a", "b"] }) == "<orc> 4 3.0 5 orc"

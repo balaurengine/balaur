@@ -108,7 +108,7 @@ pub fn read(name: str, half: str) -> any {
 
 fn read_at(path: str) -> any {
     let text = fs::read(path);
-    if text.is_none() {
+    if text == nil {
         return nil;
     }
     let text = text.unwrap();
@@ -213,7 +213,7 @@ pub fn flat(name: str, half: str, doc: any) -> any {
         "roles": doc["roles"],
         "colors": done["colors"],
         "sizes": done["sizes"],
-        "fonts": if fonts.is_nil() { {} } else { fonts },
+        "fonts": if fonts == nil { {} } else { fonts },
         "name": name,
         "half": half,
         "doc": doc,
@@ -270,7 +270,7 @@ fn worn(tokens: any) -> any {
     }
     let colors: any = {};
     let own_colors = tokens["doc"]["colors"];
-    let own_color_table = util::map_or_empty(if own_colors.is_nil() { {} } else { own_colors });
+    let own_color_table = util::map_or_empty(if own_colors == nil { {} } else { own_colors });
     for key in own_color_table.keys() {
         let value = own_color_table[key];
         colors[key] = value;
@@ -278,7 +278,7 @@ fn worn(tokens: any) -> any {
     for pair in CODE_COLORS() {
         if !colors.has(pair[0]) {
             let token = tokens["colors"][pair[1]];
-            if !token.is_nil() {
+            if token != nil {
                 colors[pair[0]] = token;
             }
         }

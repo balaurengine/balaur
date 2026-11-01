@@ -128,17 +128,17 @@ fn shape_box(found: Node) -> LocalBox? {
     let kind = shape["kind"];
     if kind == render::SHAPE_CIRCLE {
         let radius = shape["radius"];
-        let reach = if radius.is_nil() { 0.5 } else { radius.as_float() };
+        let reach = if radius == nil { 0.5 } else { radius.as_float() };
         return LocalBox { centre: [0.0, 0.0], half: [reach, reach] };
     }
     if kind == render::SHAPE_CAPSULE {
         let radius = shape["radius"];
-        let reach = if radius.is_nil() { 0.5 } else { radius.as_float() };
+        let reach = if radius == nil { 0.5 } else { radius.as_float() };
         let height = shape["height"];
-        return LocalBox { centre: [0.0, 0.0], half: [reach, (if height.is_nil() { 2.0 } else { height.as_float() }) / 2.0] };
+        return LocalBox { centre: [0.0, 0.0], half: [reach, (if height == nil { 2.0 } else { height.as_float() }) / 2.0] };
     }
     let asked = shape["size"];
-    let size = util::vec2(if asked.is_nil() { nil } else { asked }, [1.0, 1.0]);
+    let size = util::vec2(if asked == nil { nil } else { asked }, [1.0, 1.0]);
     LocalBox { centre: [0.0, 0.0], half: [size[0].as_float() / 2.0, size[1].as_float() / 2.0] }
 }
 
@@ -147,7 +147,7 @@ fn shape_box(found: Node) -> LocalBox? {
 // or collider the row names.
 fn local_box(found: Node) -> LocalBox? {
     let drawn = render::bounds(found);
-    if drawn.is_some() && drawn.unwrap().len() == 2 {
+    if drawn != nil && drawn.unwrap().len() == 2 {
         let centre = drawn.unwrap()[0];
         let half = drawn.unwrap()[1];
         return LocalBox { centre: [centre.x, centre.y], half: [half.x, half.y] };
@@ -159,8 +159,8 @@ fn local_box(found: Node) -> LocalBox? {
 // turn. `fallback` is what a node that draws nothing covers; `nil` misses it.
 fn placed_box(found: Node, fallback: LocalBox?) -> PlacedBox? {
     let local = local_box(found);
-    let covered = if local.is_some() { local } else { fallback };
-    if covered.is_none() {
+    let covered = if local != nil { local } else { fallback };
+    if covered == nil {
         return nil;
     }
     let held = covered.unwrap();
@@ -217,7 +217,7 @@ fn set_geometry(state: editor::State) -> Geometry? {
     let found_any = false;
     for row in selection::all(state) {
         let found = extents_at(state, row.as_int());
-        if found.is_some() {
+        if found != nil {
             let covered = found.unwrap();
             found_any = true;
             for axis in 0..2 {
@@ -335,7 +335,7 @@ fn draw_handle_marker(geometry: Geometry, signs: [float], color: [float]) {
 }
 
 fn is_hot(hot: gizmo::Part?, kind: str) -> bool {
-    if hot.is_some() {
+    if hot != nil {
         let part = hot.unwrap();
         part.kind == kind
     } else {
@@ -345,7 +345,7 @@ fn is_hot(hot: gizmo::Part?, kind: str) -> bool {
 
 pub fn draw(state: editor::State) {
     let geometry_or = selection_geometry(state);
-    if geometry_or.is_none() {
+    if geometry_or == nil {
         return;
     }
     let geometry = geometry_or.unwrap();
@@ -368,7 +368,7 @@ pub fn draw(state: editor::State) {
         line(corners[side], corners[(side + 1) % 4], box_color, STROKE_WIDTH);
     }
     for signs in handle_signs() {
-        let hot_handle = if hot.is_some() {
+        let hot_handle = if hot != nil {
             let part = hot.unwrap();
             part.kind == "handle" && part.signs[0] == signs[0] && part.signs[1] == signs[1]
         } else {
@@ -495,7 +495,7 @@ fn rows_in_box(state: editor::State, world_start_x: float, world_start_y: float,
             continue;
         }
         let found = extents_at(state, row);
-        if found.is_some() {
+        if found != nil {
             let covered = found.unwrap();
             let box_centre = covered.centre;
             let half_extents = covered.half;
@@ -516,7 +516,7 @@ pub fn covering(state: editor::State, row: int, world_x: float, world_y: float) 
         return nil;
     }
     let placed = placed_box(found, nil);
-    if placed.is_none() {
+    if placed == nil {
         return nil;
     }
     let covered = placed.unwrap();
@@ -536,7 +536,7 @@ fn pick(state: editor::State, world_x: any, world_y: any) -> int? {
     // Animation workspace bones are tried first.
     if state.workspace == defs::WORKSPACE_ANIMATION {
         let picked = rig::pick(state, world_x, world_y);
-        if picked.is_some() {
+        if picked != nil {
             let bone = picked.unwrap();
             return bone;
         }
@@ -548,7 +548,7 @@ fn pick(state: editor::State, world_x: any, world_y: any) -> int? {
             continue;
         }
         let covered = covering(state, row, world_x.as_float(), world_y.as_float());
-        if covered.is_some() {
+        if covered != nil {
             let area = covered.unwrap();
             if area < best_area.as_float() {
                 best = row;
@@ -588,8 +588,8 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     signals::inspector(state);
     state.tiles.hover = nil;
     state.pen.hover = -1;
-    if state.gizmo.drag.is_none() {
-        state.gizmo.hover = if geometry.is_some() {
+    if state.gizmo.drag == nil {
+        state.gizmo.hover = if geometry != nil {
             let geometry = geometry.unwrap();
             if over_viewport && state.workspace != defs::WORKSPACE_SCRIPT {
                 hit_test(state, geometry, world_x, world_y)
@@ -601,14 +601,14 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         };
     }
     if input::mouse_just_pressed(input::MOUSE_BUTTON_LEFT.as_int()) && over_viewport {
-        if !state.gizmo.hover.is_nil() && geometry.is_some() {
+        if state.gizmo.hover != nil && geometry != nil {
             let part: gizmo::Part = state.gizmo.hover;
             start_drag(state, geometry.unwrap(), part, world_x, world_y);
         } else {
             state.gizmo.in_viewport = true;
             if state.tool == "select" {
                 let best = pick(state, world_x, world_y);
-                if best.is_some() {
+                if best != nil {
                     let best = best.unwrap();
                     if !selection::is_locked(state, best) {
                         shell::choose_click(state, best);
@@ -632,7 +632,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         }
     }
     let marquee: any = state.gizmo.marquee;
-    if marquee.is_some() {
+    if marquee != nil {
         let box_drag = marquee.unwrap();
         box_drag["end_x"] = pointer.x;
         box_drag["end_y"] = pointer.y;
@@ -655,7 +655,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
         state.gizmo.drag = nil;
         state.gizmo.in_viewport = false;
     }
-    if state.gizmo.drag.is_some() {
+    if state.gizmo.drag != nil {
         apply_drag(state, world_x, world_y);
         return;
     }
@@ -665,7 +665,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     // Rail-tool fallbacks: drag anywhere in the viewport. Deltas in design
     // px; translation converts to world units through world_per_pixel.
     let dragged = viewport::rail_drag(state);
-    if dragged.is_none() {
+    if dragged == nil {
         return;
     }
     let delta_x = dragged.unwrap().delta_x;

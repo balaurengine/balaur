@@ -5,7 +5,7 @@ pub fn run(a: any) -> str {
     let total = 0;
     for t in a["tags"] { total += 1; }
     let name: str = a["name"].as_str();
-    "{gone.as_int()} {first.as_str()} {total} {a.has("n")} {name.starts_with("or")} {a["name"] == a["name"]} {a["name"].or("x")} {a["missing"].is_none()} {-a["score"].as_float()}"
+    "{gone.as_int()} {first.as_str()} {total} {a.has("n")} {name.starts_with("or")} {a["name"] == a["name"]} {a["name"].or("x")} {a["missing"] == nil} {-a["score"].as_float()}"
 }
 pub fn plain(n: int, s: str) -> str { "{n.as_float()} {s.as_str()} {n.as_str()}" }
 

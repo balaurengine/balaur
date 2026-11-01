@@ -292,12 +292,12 @@ impl Scenario {
         self.ticks += 1;
         let opts = physics3d::RayQuery { origin: [0.0, 8.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 };
         if self.ticks == 2 {
-            self.hit_before = physics3d::raycast(opts).is_some();
+            self.hit_before = physics3d::raycast(opts) != nil;
             scene::get_node("/World/Target").queue_free();
         }
         if self.ticks == 8 {
             if !self.hit_before { log::error("the ray never found the target to begin with"); }
-            if physics3d::raycast(opts).is_some() { log::error("the freed node still answers raycasts"); }
+            if physics3d::raycast(opts) != nil { log::error("the freed node still answers raycasts"); }
         }
     }
 }

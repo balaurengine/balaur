@@ -327,7 +327,7 @@ pub fn snapping(state: editor::State) -> bool {
 
 /// The gizmo part under the pointer: the dragged one wins over the hovered.
 pub fn hot_part(state: editor::State) -> gizmo::Part? {
-    if state.gizmo.drag.is_some() {
+    if state.gizmo.drag != nil {
         let drag = state.gizmo.drag.unwrap();
         drag.part
     } else {

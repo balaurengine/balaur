@@ -63,7 +63,7 @@ fn source(state: &mut editor::State) -> Source? {
     }
     if machine.kind() == "str" && machine.as_str() != "" {
         let path = machine.as_str();
-        if state.machine.file.is_some() {
+        if state.machine.file != nil {
             let held = state.machine.file.unwrap();
             if held.path == path {
                 return Source { doc: held.doc, path: path };
@@ -82,7 +82,7 @@ fn source(state: &mut editor::State) -> Source? {
 // the scene is read afresh from the node, one in a file is the held copy.
 fn editable(state: &mut editor::State) -> Source? {
     let found = source(state);
-    if found.is_none() {
+    if found == nil {
         return nil;
     }
     Source { doc: util::deep(found.unwrap().doc), path: found.unwrap().path }
@@ -93,7 +93,7 @@ fn write(state: &mut editor::State, found: Source, label: str) {
     if !model::has_selection(state) {
         return;
     }
-    if found.path.is_some() {
+    if found.path != nil {
         let path = found.path.unwrap();
         let absolute_path = util::engine_path(state.game_root, path);
         fs::write(absolute_path, toml::encode(found.doc));
@@ -144,7 +144,7 @@ fn state_names(doc: any) -> [str] {
 /// Add a state playing the clip of its own name.
 pub fn add_state(state: &mut editor::State, name: str) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -167,7 +167,7 @@ pub fn add_state(state: &mut editor::State, name: str) {
 /// Remove a state, and every transition into or out of it.
 pub fn remove_state(state: &mut editor::State, name: str) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -190,7 +190,7 @@ pub fn remove_state(state: &mut editor::State, name: str) {
 
 fn set_state_clip(state: &mut editor::State, name: str, clip: any) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -202,7 +202,7 @@ fn set_state_clip(state: &mut editor::State, name: str, clip: any) {
 
 fn set_start(state: &mut editor::State, name: str) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -213,7 +213,7 @@ fn set_start(state: &mut editor::State, name: str) {
 /// Add a transition between the first two states, open for editing.
 pub fn add_transition(state: &mut editor::State) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -231,7 +231,7 @@ pub fn add_transition(state: &mut editor::State) {
 
 pub fn remove_transition(state: &mut editor::State, at: int) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -248,7 +248,7 @@ pub fn remove_transition(state: &mut editor::State, at: int) {
 /// Set one field of transition `at`; an empty text or the default removes it.
 pub fn set_field(state: &mut editor::State, at: int, key: str, value: any) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -274,7 +274,7 @@ const ROWS: str = "Editor/Shell/Body/Centre/Bottom/StateMachine/Rows/Column";
 /// and the header fills the panel's own strip.
 pub fn body(state: &mut editor::State) {
     let authored = source(state);
-    if authored.is_none() {
+    if authored == nil {
         docks::toolbar(state, PANEL + "Chrome", [offer(state)]);
         pool::sync(state, ROWS, [], NAME_WIDTH, false);
         return;
@@ -318,7 +318,7 @@ fn on_add_machine_pressed(state: &mut editor::State, data: any, _value: any) {
 /// and the state it is in while the game runs.
 fn header_controls(state: editor::State, found: Source) -> [any] {
     let doc = found.doc;
-    let place = if found.path.is_some() { found.path.unwrap() } else { "inline" };
+    let place = if found.path != nil { found.path.unwrap() } else { "inline" };
     let out = [
         caption(place),
         caption("start"),
@@ -478,10 +478,10 @@ fn transition_specs(state: editor::State, doc: any, out: [any]) {
         let transition = all_transitions[at];
         // Bound afresh: a closure made in a loop captures the binding.
         let index = at;
-        let open = state.machine.open.is_some() && state.machine.open.unwrap() == index;
-        let from = if transition["from"].is_nil() { "?" } else { transition["from"].as_str() };
-        let to = if transition["to"].is_nil() { "?" } else { transition["to"].as_str() };
-        let mode = if transition["advance_mode"].is_nil() { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
+        let open = state.machine.open != nil && state.machine.open.unwrap() == index;
+        let from = if transition["from"] == nil { "?" } else { transition["from"].as_str() };
+        let to = if transition["to"] == nil { "?" } else { transition["to"].as_str() };
+        let mode = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
         out.push({
             "full": true,
             "height": ROW_HEIGHT,
@@ -626,10 +626,10 @@ fn on_flag_changed(state: &mut editor::State, data: any, value: any) {
 }
 
 fn field_specs(state: editor::State, at: int, transition: any, names: [str], targets: [str], out: [any]) {
-    let ease = if transition["ease"].is_nil() { animation::EASE_LINEAR } else { transition["ease"].as_str() };
-    let advance = if transition["advance_mode"].is_nil() { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
-    let switch = if transition["switch_mode"].is_nil() { animation::SWITCH_MODE_IMMEDIATE } else { transition["switch_mode"].as_str() };
-    let priority = if transition["priority"].is_nil() { 1 } else { transition["priority"].as_int() };
+    let ease = if transition["ease"] == nil { animation::EASE_LINEAR } else { transition["ease"].as_str() };
+    let advance = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
+    let switch = if transition["switch_mode"] == nil { animation::SWITCH_MODE_IMMEDIATE } else { transition["switch_mode"].as_str() };
+    let priority = if transition["priority"] == nil { 1 } else { transition["priority"].as_int() };
     out.push(field_spec("from", choice(state, at, "from", transition["from"].as_str(), names)));
     out.push(field_spec("to", choice(state, at, "to", transition["to"].as_str(), targets)));
     out.push(field_spec("blend time", number(state, at, "blend_time", transition["blend_time"].as_float(), false)));
@@ -639,7 +639,7 @@ fn field_specs(state: editor::State, at: int, transition: any, names: [str], tar
     out.push(field_spec("condition", text_of(state, at, "condition", transition["condition"].as_str(), "none")));
     out.push(field_spec("check", text_of(state, at, "check", transition["check"].as_str(), "no method")));
     out.push(field_spec("priority", number(state, at, "priority", priority as float, true)));
-    out.push(field_spec("reset", flag(state, at, "reset", transition["reset"].is_nil() || transition["reset"].as_bool())));
+    out.push(field_spec("reset", flag(state, at, "reset", transition["reset"] == nil || transition["reset"].as_bool())));
     out.push(field_spec("break loop at end", flag(state, at, "break_loop_at_end", transition["break_loop_at_end"].as_bool())));
 }
 
@@ -661,17 +661,17 @@ pub fn selftest(state: &mut editor::State) {
             break;
         }
     }
-    if player.is_none() {
+    if player == nil {
         log::info("selftest state machine: no player; skipped");
         return;
     }
     let node_index = player.unwrap();
     shell::choose(state, node_index);
     let before = model::node_text(state, state.nodes[node_index]);
-    if source(state).is_none() {
+    if source(state) == nil {
         create(state);
     }
-    check(source(state).is_some(), "the node runs a state machine");
+    check(source(state) != nil, "the node runs a state machine");
     add_state(state, "sm_probe");
     let doc = source(state).unwrap().doc;
     check(states(doc).has("sm_probe"), "a state is added");
@@ -710,7 +710,7 @@ pub fn selftest(state: &mut editor::State) {
     // Only where the scene authored one: the undo above took back the machine
     // this test made, so a node that came with none has none now.
     let found = source(state);
-    if found.is_some() {
+    if found != nil {
         if transitions(found.unwrap().doc).len() > 0 {
             state.machine.open = 0;
             state.machine.demo = 0;

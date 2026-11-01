@@ -149,7 +149,7 @@ async fn profile(r: Run, me: str) {
     check(r, "found", has(found, "id", me));
 
     let session = gamend::session();
-    let refresh = if session.is_some() { session.unwrap().refresh_token } else { "" };
+    let refresh = if session != nil { session.unwrap().refresh_token } else { "" };
     let fresh = await call1(r, "refresh", authentication::refresh_token, { "refresh_token": refresh });
     check(r, "refreshed", fresh["access_token"].kind() == "str");
 
@@ -186,7 +186,7 @@ async fn profile(r: Run, me: str) {
 /// The signed-in session as the map `gamend::restore` takes.
 fn kept_session() -> any {
     let held = gamend::session();
-    if held.is_none() {
+    if held == nil {
         return {};
     }
     let s = held.unwrap();
@@ -202,7 +202,7 @@ fn kept_session() -> any {
 
 fn access_token() -> str {
     let held = gamend::session();
-    if held.is_some() { held.unwrap().access_token } else { "" }
+    if held != nil { held.unwrap().access_token } else { "" }
 }
 
 async fn hosting(r: Run, me: str) {
@@ -416,7 +416,7 @@ async fn catalog(r: Run, me: str) {
     await call1(r, "push_delete", push_tokens::delete_push_token, token["id"]);
     // No ticket: a 404 from a current server, an empty 200 from an older one.
     let ticket = await fetch0(r, matchmaking::my_ticket);
-    check(r, "no_ticket", same(ticket["status"], 404) || data(ticket).is_nil());
+    check(r, "no_ticket", same(ticket["status"], 404) || data(ticket) == nil);
     await call0(r, "cancel", matchmaking::cancel);
     await call0(r, "queues", matchmaking::stats);
     await goodbye(r, me, nil());
@@ -614,7 +614,7 @@ async fn send(r: Run, name: str, token: str, method: str, path: str, payload: an
         headers["authorization"] = "Bearer " + token;
     }
     let opts: any = { "method": method, "headers": headers };
-    if !payload.is_nil() {
+    if payload != nil {
         opts["body"] = json::encode(payload);
     }
     let reply = await task::wait(http::request(URL + path, opts));
@@ -657,7 +657,7 @@ fn count(list: any) -> int {
 }
 
 fn has(list: any, key: str, value: any) -> bool {
-    !first_with(list, key, value).is_nil()
+    first_with(list, key, value) != nil
 }
 
 /// The first row whose `key` is `value`; an empty key takes the first row.

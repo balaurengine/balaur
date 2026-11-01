@@ -5,7 +5,7 @@
 /// Whether a map carries a key with a value. A key set to nil is absent:
 /// the server would refuse it, and refusing here names the field instead.
 pub fn given(table: any, key: str) -> bool {
-    table.kind() == "map" && table.has(key) && !table[key].is_nil()
+    table.kind() == "map" && table.has(key) && table[key] != nil
 }
 
 /// A call this SDK would not send. It logs which field was missing and
@@ -77,7 +77,7 @@ pub fn error_of(reply: any) -> str {
 /// `ok`, `data`, `error` and `status`. A 2xx carries the body's `data`
 /// where the server wrapped it, and the body itself where it did not.
 pub fn unpack(reply: any) -> any {
-    if reply.is_nil() {
+    if reply == nil {
         return { "ok": false, "data": nil(), "error": "gamend: the call sent no reply" };
     }
     let status = reply["status"];

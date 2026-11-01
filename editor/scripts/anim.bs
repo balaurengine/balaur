@@ -73,7 +73,7 @@ pub fn player_index(state: editor::State) -> int {
             break;
         }
         if current.has_component(COMPONENT) {
-            return model::index_of_node(state, current).unwrap_or(state.selected);
+            return model::index_of_node(state, current).or(state.selected);
         }
         if model::is_scene_root(state, current) {
             break;
@@ -112,7 +112,7 @@ pub fn target_path(state: editor::State, player_node_index: int) -> str {
 /// and an anonymous inline table each are.
 pub fn clip_name(state: editor::State, found: Node) -> str {
     let animation_component = component(state, found);
-    if animation_component.is_nil() {
+    if animation_component == nil {
         return "";
     }
     let name = animation_component["autoplay"];
@@ -122,7 +122,7 @@ pub fn clip_name(state: editor::State, found: Node) -> str {
 /// Where the library lives, for display: a path, or nil when it is inline.
 pub fn library_path(state: editor::State, found: Node) -> str? {
     let animation_component = component(state, found);
-    if animation_component.is_nil() {
+    if animation_component == nil {
         return nil;
     }
     let library = animation_component["library"];
@@ -154,7 +154,7 @@ fn same(first: any, second: any) -> bool {
 
 fn library_of(animation_component: any) -> any {
     let library = animation_component["library"];
-    if library.is_nil() { "" } else { library }
+    if library == nil { "" } else { library }
 }
 
 fn cache(state: &mut editor::State, index: int, source: any, doc: any, path: str?) {
@@ -168,14 +168,14 @@ fn cache(state: &mut editor::State, index: int, source: any, doc: any, path: str
 pub fn document(state: &mut editor::State) -> any {
     let owner = player(state);
     let animation_component = component(state, owner.found);
-    if animation_component.is_nil() {
+    if animation_component == nil {
         return nil;
     }
     let library = library_of(animation_component);
     if library.kind() == "map" {
         // The held table and not a copy from an earlier frame: what an edit
         // changes is what `arm` hands back.
-        if state.clip.is_some() && state.clip.unwrap().index == owner.index && state.clip.unwrap().path.is_none() {
+        if state.clip != nil && state.clip.unwrap().index == owner.index && state.clip.unwrap().path == nil {
             let cached = state.clip.unwrap();
             cached.source = library;
             cached.doc = library;
@@ -184,7 +184,7 @@ pub fn document(state: &mut editor::State) -> any {
         }
         return library;
     }
-    if state.clip.is_some() {
+    if state.clip != nil {
         let cached = state.clip.unwrap();
         if cached.index == owner.index && same(cached.source, library) {
             return cached.doc;
@@ -212,7 +212,7 @@ pub fn document(state: &mut editor::State) -> any {
 pub fn clip_names(state: &mut editor::State) -> [str] {
     let out: [str] = [];
     let doc = document(state);
-    if doc.is_nil() {
+    if doc == nil {
         return out;
     }
     for key in doc.keys() {
@@ -232,7 +232,7 @@ pub fn clip_names(state: &mut editor::State) -> [str] {
 /// The clip definition under edit: length, loop, tracks; nil for none.
 pub fn definition(state: &mut editor::State) -> any {
     let doc = document(state);
-    if doc.is_nil() { nil } else { entry_of(doc, clip_name(state, model::node(state, player_index(state)))) }
+    if doc == nil { nil } else { entry_of(doc, clip_name(state, model::node(state, player_index(state)))) }
 }
 
 pub fn tracks(clip_definition: any) -> any {
@@ -243,14 +243,14 @@ pub fn tracks(clip_definition: any) -> any {
 /// A lane's name: the property, prefixed by the node it drives when that is
 /// not the player itself.
 pub fn track_label(track: any) -> str {
-    let property = if track["property"].is_nil() { "call" } else { track["property"].as_str() };
+    let property = if track["property"] == nil { "call" } else { track["property"].as_str() };
     let target = track["target"].as_str();
     if target == "" { property } else { "{target} · {property}" }
 }
 
 pub fn length(clip_definition: any) -> float {
     let held = clip_definition["length"];
-    util::max(if held.is_nil() { 2.0 } else { held.as_float() }, 0.001)
+    util::max(if held == nil { 2.0 } else { held.as_float() }, 0.001)
 }
 
 pub fn key_count(clip_definition: any) -> int {
@@ -266,7 +266,7 @@ fn component_parameters(animation_component: any, library: any) -> any {
     {
         "library": library,
         "autoplay": animation_component["autoplay"].as_str(),
-        "speed_scale": if speed.is_nil() { 1.0 } else { speed.as_float() },
+        "speed_scale": if speed == nil { 1.0 } else { speed.as_float() },
         "root_node": animation_component["root_node"].as_str(),
     }
 }
@@ -277,7 +277,7 @@ fn component_parameters(animation_component: any, library: any) -> any {
 pub fn arm(state: &mut editor::State) {
     let owner = player(state);
     let animation_component = component(state, owner.found);
-    if animation_component.is_nil() {
+    if animation_component == nil {
         cache(state, owner.index, "", nil, nil);
         return;
     }
@@ -294,7 +294,7 @@ pub fn arm(state: &mut editor::State) {
     }
     owner.found.set_component("animation", component_parameters(animation_component, library));
     let clip_definition = definition(state);
-    if clip_definition.is_nil() {
+    if clip_definition == nil {
         return;
     }
     let name = clip_name(state, owner.found);
@@ -313,7 +313,7 @@ pub fn arm(state: &mut editor::State) {
 /// The clip changed: the scene needs saving, an external clip needs writing,
 /// and the engine needs the new table.
 pub fn touch(state: &mut editor::State) {
-    if state.clip.is_some() {
+    if state.clip != nil {
         let clip = state.clip.unwrap();
         clip.dirty = true;
     }
@@ -328,7 +328,7 @@ pub fn ensure_clip(state: &mut editor::State) -> any {
     if !found.is_valid() {
         return nil;
     }
-    if !component(state, found).is_nil() {
+    if component(state, found) != nil {
         return definition(state);
     }
     history::record(state, "create clip", nil);
@@ -398,7 +398,7 @@ pub fn add_key(state: &mut editor::State, time: float) {
         return;
     }
     let player_node_index = player_index(state);
-    if clip_definition.is_nil() {
+    if clip_definition == nil {
         log::warn("{found.name()}: the library has no clip called '{clip_name(state, model::node(state, player_node_index))}'");
         return;
     }
@@ -428,7 +428,7 @@ fn seconds(time: float) -> str {
 pub fn key_property(state: &mut editor::State, time: float, property: str, value: any) {
     let clip_definition = ensure_clip(state);
     let player_node_index = player_index(state);
-    if clip_definition.is_nil() {
+    if clip_definition == nil {
         log::warn("the library has no clip called '{clip_name(state, model::node(state, player_node_index))}'");
         return;
     }
@@ -444,7 +444,7 @@ pub fn key_property(state: &mut editor::State, time: float, property: str, value
 /// Delete the selection's keys at the playhead; other nodes' lanes keep theirs.
 pub fn delete_key_at(state: &mut editor::State, time: float) {
     let clip_definition = definition(state);
-    if clip_definition.is_nil() {
+    if clip_definition == nil {
         return;
     }
     history::record(state, "delete keyframe", nil);
@@ -477,7 +477,7 @@ pub fn seek(state: &mut editor::State, time: float) {
     state.anim.time = time;
     signals::changed(state, "timeline");
     let owner = player(state);
-    if owner.found.is_valid() && !component(state, owner.found).is_nil() {
+    if owner.found.is_valid() && component(state, owner.found) != nil {
         owner.found.animation.seek(time);
     }
 }
@@ -487,7 +487,7 @@ pub fn promote(state: &mut editor::State) {
     let owner = player(state);
     let animation_component = component(state, owner.found);
     let doc = document(state);
-    if animation_component.is_nil() || doc.is_nil() {
+    if animation_component == nil || doc == nil {
         return;
     }
     history::record(state, "save clip as file", nil);
@@ -511,7 +511,7 @@ pub fn make_inline(state: &mut editor::State) {
     let owner = player(state);
     let animation_component = component(state, owner.found);
     let rel = library_path(state, owner.found);
-    if animation_component.is_nil() || rel.is_none() {
+    if animation_component == nil || rel == nil {
         log::warn("this clip is already embedded");
         return;
     }
@@ -540,11 +540,11 @@ pub fn make_inline(state: &mut editor::State) {
 /// Write an external clip back to its file. An inline clip is saved with the
 /// scene, so there is nothing separate to write.
 pub fn save(state: &mut editor::State) {
-    if state.clip.is_none() {
+    if state.clip == nil {
         return;
     }
     let clip = state.clip.unwrap();
-    if clip.path.is_none() || clip.doc.is_nil() || !clip.dirty {
+    if clip.path == nil || clip.doc == nil || !clip.dirty {
         return;
     }
     let path = clip.path.unwrap();
@@ -576,7 +576,7 @@ pub fn update(state: &mut editor::State) {
         }
         return;
     }
-    let stale = state.clip.is_none() || state.clip.unwrap().index != player_node_index;
+    let stale = state.clip == nil || state.clip.unwrap().index != player_node_index;
     if stale {
         // The cache is about to be replaced, so an external clip edited but
         // not yet written goes to its file now rather than being dropped.

@@ -83,7 +83,7 @@ fn a_ray_finds_the_nearest_collider() {
     run_clean(
         r#"
         let found = physics3d::raycast(physics3d::RayQuery { origin: [0.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
-        if found.is_none() { log::error("the ray found nothing"); }
+        if found == nil { log::error("the ray found nothing"); }
         let hit = found.unwrap();
         let distance = hit.distance;
         if !(distance > 3.4 && distance < 3.6) { log::error("hit the far ball first: {distance}"); }
@@ -110,7 +110,7 @@ fn a_ray_that_hits_nothing_returns_nothing() {
     run_clean(
         r#"
         let hit = physics3d::raycast(physics3d::RayQuery { origin: [50.0, 10.0, 0.0], direction: [0.0, -1.0, 0.0], max_distance: 100.0 });
-        if hit.is_some() { log::error("a ray into empty space found {hit.unwrap().node.name()}"); }
+        if hit != nil { log::error("a ray into empty space found {hit.unwrap().node.name()}"); }
         "#,
     );
 }
@@ -125,7 +125,7 @@ fn a_filter_excludes_the_node_it_names() {
             max_distance: 100.0,
             filter: physics3d::QueryFilter { exclude: self.node },
         });
-        if hit.is_none() { log::error("excluding the near ball found nothing at all"); }
+        if hit == nil { log::error("excluding the near ball found nothing at all"); }
         let distance = hit.unwrap().distance;
         if distance <= 7.0 { log::error("the excluded ball was hit anyway: {distance}"); }
         "#,
@@ -144,7 +144,7 @@ fn a_predicate_can_reject_a_hit() {
             max_distance: 100.0,
             filter: physics3d::QueryFilter { predicate: not_near },
         });
-        if hit.is_none() { log::error("the predicate rejected everything"); }
+        if hit == nil { log::error("the predicate rejected everything"); }
         let kept = hit.unwrap().node.name();
         if kept != "Far" { log::error("the predicate kept {kept}"); }
         "#,
@@ -169,7 +169,7 @@ fn the_nearest_point_lands_on_the_surface() {
     run_clean(
         r#"
         let found = physics3d::closest_point(physics3d::PointQuery { point: [3.0, 6.0, 0.0], max_distance: 100.0 });
-        if found.is_none() { log::error("nothing was near"); }
+        if found == nil { log::error("nothing was near"); }
         let x = found.unwrap().point.x;
         if math::abs(x - 0.5) >= 0.001 { log::error("not on the surface: {x}"); }
         "#,
@@ -186,7 +186,7 @@ fn a_shapecast_stops_at_the_first_thing_in_the_way() {
             max_distance: 100.0,
             shape: { "kind": "sphere", "radius": 0.25 },
         });
-        if hit.is_none() { log::error("the swept ball hit nothing"); }
+        if hit == nil { log::error("the swept ball hit nothing"); }
         let distance = hit.unwrap().distance;
         if !(distance > 3.1 && distance < 3.4) { log::error("stopped at {distance}"); }
         "#,
@@ -218,11 +218,11 @@ fn layers_count_from_one_and_a_collider_is_on_layer_one_by_default() {
 }",
         r#"
         let on_one = physics3d::raycast(masked(1));
-        if on_one.is_none() { log::error("a ray masked to layer 1 missed a collider on the default layer"); }
+        if on_one == nil { log::error("a ray masked to layer 1 missed a collider on the default layer"); }
         let on_two = physics3d::raycast(masked(2));
-        if on_two.is_some() { log::error("a ray masked to layer 2 hit a collider on layer 1"); }
+        if on_two != nil { log::error("a ray masked to layer 2 hit a collider on layer 1"); }
         let zero = physics3d::raycast(masked(0));
-        if zero.is_none() { log::error("layer 0 is no layer, so the mask names none and hits all"); }
+        if zero == nil { log::error("layer 0 is no layer, so the mask names none and hits all"); }
         "#,
     );
 }

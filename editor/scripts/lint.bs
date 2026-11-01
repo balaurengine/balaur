@@ -51,7 +51,7 @@ fn roots(state: editor::State) -> [any] {
     let out: [any] = [];
     for found in state.nodes {
         let rel = model::script_rel(found);
-        if !rel.is_nil() {
+        if rel != nil {
             if !seen.has(rel.as_str()) {
                 seen[rel.as_str()] = true;
                 out.push(rel);
@@ -67,7 +67,7 @@ fn roots(state: editor::State) -> [any] {
 // about what is on screen rather than what is on disk.
 fn source_of(state: &mut editor::State, rel: str) -> any {
     let buffer = state.script_buffers[state.game_root + "/" + rel];
-    if !buffer.is_nil() {
+    if buffer != nil {
         buffer
     } else {
         model::source(state, rel)
@@ -102,11 +102,11 @@ fn scene_findings(state: &mut editor::State) -> [Finding] {
         }
         let name = found_node.name();
         let rel = model::script_rel(found_node);
-        if !rel.is_nil() && !fs::exists(state.game_root + "/" + rel.as_str()) {
+        if rel != nil && !fs::exists(state.game_root + "/" + rel.as_str()) {
             found.push(at(scene, 0, "error", "{name}: script {rel} does not exist"));
         }
         let prefab = found_node.instance();
-        if prefab.is_some() && !fs::exists(state.game_root + "/" + prefab.unwrap()) {
+        if prefab != nil && !fs::exists(state.game_root + "/" + prefab.unwrap()) {
             found.push(at(scene, 0, "error", "{name}: prefab {prefab.unwrap()} does not exist"));
         }
         for warning in util::list_or_empty(scene::warnings(found_node.as_node())) {
@@ -191,7 +191,7 @@ pub fn node_warnings(state: &mut editor::State) {
 /// The warnings the last ask found on the node with `id`.
 pub fn warned(state: editor::State, id: any) -> any {
     let held = state.lint.warned[id.as_str()];
-    util::list_or_empty(if held.is_nil() { [] } else { held })
+    util::list_or_empty(if held == nil { [] } else { held })
 }
 
 /// Check every root and the scene, and replace the finding list.
@@ -199,7 +199,7 @@ pub fn run(state: &mut editor::State) {
     let found: [any] = [];
     for rel in roots(state) {
         let source_text = source_of(state, rel.as_str());
-        if source_text.is_nil() {
+        if source_text == nil {
             found.push(at(state.scene_rel, 0, "error", "missing file: {rel}"));
             continue;
         }

@@ -73,7 +73,7 @@ fn rig_root(state: editor::State) -> Node {
     let top = found;
     let parent = found.parent();
     while parent.is_valid() {
-        if model::index_of_node(state, parent).is_none() || !rig::is_bone(parent) {
+        if model::index_of_node(state, parent) == nil || !rig::is_bone(parent) {
             break;
         }
         top = parent;
@@ -140,7 +140,7 @@ pub fn autofill(state: &mut editor::State) {
     let found = 0;
     for name in HUMANOID() {
         let matched = guess(name, paths);
-        if matched.is_some() {
+        if matched != nil {
             state.bonemap.bones[name] = matched.unwrap();
             found += 1;
         }

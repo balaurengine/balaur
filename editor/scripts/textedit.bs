@@ -151,7 +151,7 @@ fn open(state: &mut editor::State, row: int, design_x: float, design_y: float) {
         let per_unit = util::max(found.get_component(name, "pixels_per_unit").as_float(), 0.01);
         edit.size = util::clamp(font / per_unit * util::abs(scale.y) / world_per_pixel, MIN_SIZE, MAX_SIZE);
         let laid = render::bounds(found);
-        let known = laid.is_some() && laid.unwrap().len() == 2;
+        let known = laid != nil && laid.unwrap().len() == 2;
         let local = if known { laid.unwrap()[0] } else { Vec3 { x: 0.0, y: 0.0, z: 0.0 } };
         if known {
             drawn_width = 2.0 * laid.unwrap()[1].x * util::abs(scale.x) / world_per_pixel;

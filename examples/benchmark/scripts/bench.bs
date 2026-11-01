@@ -113,7 +113,7 @@ impl Bench {
         self.draw = self.shot != "";
         for key in wanted {
             let found = self.find(key);
-            if found.is_some() {
+            if found != nil {
                 self.queue.push(found.unwrap());
             } else {
                 log::error("no such case '{key}'");
@@ -156,7 +156,7 @@ impl Bench {
             return;
         }
         let found = engine::timings();
-        if found.is_none() {
+        if found == nil {
             return;
         }
         let t = found.unwrap();
@@ -507,7 +507,7 @@ impl Bench {
 
     pub fn on_pick(key: any) {
         let found = self.find(key.as_str());
-        if found.is_none() {
+        if found == nil {
             return;
         }
         self.queue.push(found.unwrap());
@@ -548,7 +548,7 @@ fn number(text: str, otherwise: int) -> int {
 
 /// Seconds out of a stage or span lookup, zero where the name is absent.
 fn secs(value: any) -> float {
-    if value.is_nil() { 0.0 } else { value.as_float() }
+    if value == nil { 0.0 } else { value.as_float() }
 }
 
 fn ms(value: any) -> float {

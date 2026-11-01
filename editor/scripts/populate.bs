@@ -67,7 +67,7 @@ pub fn component(found: Node) -> str? {
 }
 
 pub fn open(state: &mut editor::State) {
-    if !model::has_selection(state) || component(model::selected_node(state)).is_none() {
+    if !model::has_selection(state) || component(model::selected_node(state)) == nil {
         return;
     }
     state.populate.said = "";
@@ -77,7 +77,7 @@ pub fn open(state: &mut editor::State) {
 /// Fill the sheet: what its script asks for when Populate is up.
 pub fn fill(state: &mut editor::State) {
     let hosts = window::sheet_form(state, SHEET, "Populate", []);
-    if hosts.is_none() {
+    if hosts == nil {
         return;
     }
     pool::sync(state, hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
@@ -86,7 +86,7 @@ pub fn fill(state: &mut editor::State) {
 fn specs(state: editor::State) -> [any] {
     let fields = state.populate;
     let node = model::selected_node(state);
-    let name = component(node).unwrap_or(MULTIMESH3D);
+    let name = component(node).or(MULTIMESH3D);
     let out: [any] = [];
     out.push({
         "full": false,
@@ -361,7 +361,7 @@ fn options(state: editor::State, flat: bool) -> any {
 pub fn apply(state: &mut editor::State) {
     let node = model::selected_node(state);
     let component_name = component(node);
-    if component_name.is_none() {
+    if component_name == nil {
         return;
     }
     let name = component_name.unwrap();

@@ -67,7 +67,7 @@ pub fn game_data(state: editor::State) -> str {
 
 fn game_name(state: editor::State) -> str {
     let text = fs::read(state.game_root + "/project.toml");
-    if text.is_none() {
+    if text == nil {
         return "";
     }
     toml::parse(text.unwrap())["application"]["name"].as_str()
@@ -75,7 +75,7 @@ fn game_name(state: editor::State) -> str {
 
 /// What a verb remembers between frames: open tabs, open branches, drafts.
 fn memory(state: &mut editor::State) -> any {
-    if state.kit_state.is_nil() {
+    if state.kit_state == nil {
         state.kit_state = {};
     }
     state.kit_state
@@ -83,7 +83,7 @@ fn memory(state: &mut editor::State) -> any {
 
 fn option(options: any, key: str, fallback: any) -> any {
     let found = options[key];
-    if found.is_nil() { fallback } else { found }
+    if found == nil { fallback } else { found }
 }
 
 // Where each name a plugin uses sits under its host. A name the table does
@@ -299,7 +299,7 @@ fn shown(value: any) -> str {
     if value.kind() == "str" {
         return value.as_str();
     }
-    if value.is_nil() {
+    if value == nil {
         return "nil";
     }
     if value.kind() == "map" || value.kind() == "list" {
@@ -333,7 +333,7 @@ fn branch(state: &mut editor::State, out: any, path: str, keys: [any], label: st
 fn container(state: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
     let key = "open:" + path;
     let held = memory(state)[key];
-    let open = if held.is_nil() { depth == 0 } else { held.as_bool() };
+    let open = if held == nil { depth == 0 } else { held.as_bool() };
     let count = if value.kind() == "map" { "{value.len()} keys" } else { "{value.len()} items" };
     let titled = label != "" || depth > 0;
     if titled {
@@ -432,7 +432,7 @@ fn put(out: any, keys: [any], now: any) {
     if write.has("file") {
         let path = write["file"].as_str();
         fs::write(path, if write["toml"].as_bool() { toml::encode(out["value"]) } else { json::encode(out["value"]) });
-    } else if !write.is_nil() {
+    } else if write != nil {
         let to = write["to"].as_node();
         if to.is_valid() {
             to.call(write["method"].as_str(), out["value"]);
@@ -514,7 +514,7 @@ fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool
     let toggle: any = { "kind": "button", "role": "chip", "text": (if open { "▾ " } else { "▸ " }) + rel };
     let controls = [pool::on(toggle, folded, { "key": key, "open": open })];
     let when = fs::modified_time(path);
-    if when.is_some() {
+    if when != nil {
         controls.push({ "kind": "label", "role": "text_caption", "text": ago(engine::unix_time() - when.unwrap()) });
     }
     let reveal: any = { "kind": "button", "role": "chip", "text": "reveal" };
@@ -528,7 +528,7 @@ fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool
 /// A file opened: rows for TOML and JSON, its text otherwise.
 fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [any]) {
     let text = fs::read(path);
-    if text.is_none() {
+    if text == nil {
         out.push(empty("cannot read this file"));
         return;
     }
@@ -538,7 +538,7 @@ fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [any
         return;
     }
     let value = if as_toml { toml::parse(text.unwrap()) } else { json::parse(text.unwrap()) };
-    if value.is_nil() {
+    if value == nil {
         out.push({
             "full": true,
             "height": 22,

@@ -4,7 +4,7 @@
 pub fn pick(a: any, yes: bool) -> str {
     let got = if yes { a } else { nil };
     let n = if yes { 3 } else { nil };
-    "{got.is_nil()} {n.or(0)}"
+    "{got == nil} {n.or(0)}"
 }
 pub fn none() -> Node { nil }
 pub fn early(x: int) -> Node { if x > 0 { return nil; } nil }

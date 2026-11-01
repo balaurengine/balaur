@@ -20,7 +20,7 @@ pub fn first(xs: [int]) -> int {
 pub fn sum(xs: [int?]) -> int {
     let t = 0;
     for o in xs {
-        let v = if o.is_some() { o.unwrap() } else { continue; };
+        let v = if o != nil { o.unwrap() } else { continue; };
         t += v;
     }
     t

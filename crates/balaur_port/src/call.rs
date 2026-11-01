@@ -560,8 +560,8 @@ impl Cx<'_> {
                 );
                 same(format!("{r}.values()"), Ty::Array(Box::new(Ty::Any)))
             }
-            ("is_some", _) => Ex::new(Self::nil_check(&recv, true), Ty::Bool, UNARY),
-            ("is_none", _) => Ex::new(Self::nil_check(&recv, false), Ty::Bool, ATOM),
+            ("is_some", _) => Ex::new(Self::nil_check(&recv, true), Ty::Bool, 3),
+            ("is_none", _) => Ex::new(Self::nil_check(&recv, false), Ty::Bool, 3),
             ("unwrap" | "expect", _) => {
                 if t == Ty::Any || !t.known() {
                     recv
@@ -580,17 +580,14 @@ impl Cx<'_> {
                         Ty::Any
                     };
                     if is_simple(&r) {
-                        return Ex::atom(
-                            format!("if {r}.is_nil() {{ {} }} else {{ {v} }}", d.s),
-                            rt,
-                        );
+                        return Ex::atom(format!("if {r} == nil {{ {} }} else {{ {v} }}", d.s), rt);
                     }
                     if self.no_hoist == 0 {
                         let tmp = self.fresh("got");
                         self.pre.push(format!("let {tmp} = {};", recv.s));
                         let v = self.coerce(&Ex::atom(tmp.clone(), Ty::Any), &want);
                         return Ex::atom(
-                            format!("if {tmp}.is_nil() {{ {} }} else {{ {v} }}", d.s),
+                            format!("if {tmp} == nil {{ {} }} else {{ {v} }}", d.s),
                             rt,
                         );
                     }
@@ -599,18 +596,15 @@ impl Cx<'_> {
                         "unwrap_or",
                         "`unwrap_or` on an `any` in a loop condition",
                     );
-                    return same(format!("{r}.unwrap_or({})", d.s), Ty::Any);
+                    return same(format!("{r}.or({})", d.s), Ty::Any);
                 }
                 let inner = t.inner();
                 let rt = self.p.shapes.join(&inner, &d.t);
-                same(format!("{r}.unwrap_or({})", self.coerce(&d, &inner)), rt)
+                same(format!("{r}.or({})", self.coerce(&d, &inner)), rt)
             }
             ("unwrap_or_default", _) => {
                 let inner = t.inner();
-                same(
-                    format!("{r}.unwrap_or({})", self.default_value(&inner, 0)),
-                    inner,
-                )
+                same(format!("{r}.or({})", self.default_value(&inner, 0)), inner)
             }
             ("to_lowercase", _) => same(format!("{r}.to_lower()"), Ty::Str),
             ("to_uppercase", _) => same(format!("{r}.to_upper()"), Ty::Str),

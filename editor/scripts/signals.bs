@@ -74,7 +74,7 @@ pub fn heard(state: &mut editor::State, name: str) {
 
 fn tell(state: &mut editor::State, name: str) {
     let held = state.told[name];
-    if !held.is_nil() && held.as_bool() {
+    if held != nil && held.as_bool() {
         return;
     }
     state.told[name] = true;
@@ -158,7 +158,7 @@ pub fn overlays_moved(state: &mut editor::State, over: bool) -> bool {
     // Their text: a hover the state keeps as a map is the one the last key
     // held, and never differs from it.
     let key: any = "{[hot, marquee, rig, pen, tile, anchor, polygon]}";
-    let moving = state.gizmo.drag.is_some() || state.camera_drag >= 0;
+    let moving = state.gizmo.drag != nil || state.camera_drag >= 0;
     if !over && !moving && key == state.overlays_key {
         return false;
     }

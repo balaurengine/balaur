@@ -23,7 +23,7 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
         (Ty::Array(_), true) => each_into("value", Ty::Array(Box::new(Ty::Any)), "out", true),
         (Ty::Array(_), false) => each_into("cell", ty.clone(), "out", false),
         (Ty::Optional(_), true) => tail(expr(ExprKind::If(
-            Box::new(method(var("value"), "is_some", vec![])),
+            Box::new(nil_test(crate::ast::BinOp::Ne, var("value"))),
             block(
                 vec![bind(
                     "inner",
@@ -35,7 +35,7 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
             Some(tail(expr(ExprKind::Nil))),
         ))),
         (Ty::Optional(inner), false) => tail(expr(ExprKind::If(
-            Box::new(method(var("cell"), "is_nil", vec![])),
+            Box::new(nil_test(crate::ast::BinOp::Eq, var("cell"))),
             tail(expr(ExprKind::Nil)),
             Some(block(
                 vec![bind("inner", (**inner).clone(), var("cell"))],
@@ -134,7 +134,7 @@ fn struct_into(fields: &[(String, Ty)]) -> Block {
             stmts.extend(put);
             continue;
         }
-        let held = method(field(var("value"), name), "is_some", vec![]);
+        let held = nil_test(crate::ast::BinOp::Ne, field(var("value"), name));
         stmts.push(stmt(StmtKind::Expr(expr(ExprKind::If(
             Box::new(held),
             Block {
@@ -243,6 +243,14 @@ fn text(value: &str) -> Expr {
 
 fn field(base: Expr, name: &str) -> Expr {
     expr(ExprKind::Field(Box::new(base), name.into()))
+}
+
+fn nil_test(op: crate::ast::BinOp, value: Expr) -> Expr {
+    expr(ExprKind::Bin(
+        op,
+        Box::new(value),
+        Box::new(expr(ExprKind::Nil)),
+    ))
 }
 
 fn index(base: Expr, key: Expr) -> Expr {

@@ -123,7 +123,7 @@ pub fn on(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> an
 /// `on` for Enter in a field, beside or instead of its edit.
 pub fn on_submit(spec: any, handler: fn(&mut editor::State, any, any), data: any) -> any {
     let held = spec["data"];
-    let carried = if held.is_nil() { data } else { held };
+    let carried = if held == nil { data } else { held };
     let kept = util::copy(util::map_or_empty(carried));
     kept["submit"] = handler;
     let out = util::copy(spec);

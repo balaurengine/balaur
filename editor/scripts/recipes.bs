@@ -88,7 +88,7 @@ pub fn soft_body_source(state: editor::State, index: int) -> str? {
         sprite_convertible(node["sprite"])
     } else if node.has("shape2d") {
         shape2d_kind(node["shape2d"]) != ""
-    } else if node.has("shape3d") && mesh_source(node).is_nil() {
+    } else if node.has("shape3d") && mesh_source(node) == nil {
         shape3d_kind(node["shape3d"]) != ""
     } else {
         true
@@ -100,9 +100,9 @@ pub fn soft_body_source(state: editor::State, index: int) -> str? {
         "sprite"
     } else if node.has("polygon") {
         "polygon"
-    } else if node.has("shape2d") || node.has("shape3d") && mesh_source(node).is_nil() {
+    } else if node.has("shape2d") || node.has("shape3d") && mesh_source(node) == nil {
         "shape"
-    } else if !mesh_source(node).is_nil() {
+    } else if mesh_source(node) != nil {
         "mesh"
     } else {
         ""
@@ -114,7 +114,7 @@ pub fn soft_body_source(state: editor::State, index: int) -> str? {
 /// `false`, with a log line saying why, when it draws nothing to build from.
 pub fn soft_body(state: &mut editor::State, index: int) -> bool {
     let parts = soft_parts(state, index);
-    if parts.is_nil() {
+    if parts == nil {
         return false;
     }
     history::record(state, "make soft body", nil);
@@ -124,7 +124,7 @@ pub fn soft_body(state: &mut editor::State, index: int) -> bool {
 // What `soft_body` puts on row `index`, or nil, said in the log, when the node
 // draws nothing to build one from.
 fn soft_parts(state: editor::State, index: int) -> any {
-    if soft_body_source(state, index).is_none() {
+    if soft_body_source(state, index) == nil {
         log::warn("{model::node(state, index).name()} draws nothing a soft body can be made of: give it a sprite, a polygon, a shape or a mesh");
         return nil;
     }
@@ -157,7 +157,7 @@ pub fn targets(state: editor::State, index: int) -> [Target] {
     let out: [Target] = [];
     for name in scene::presets() {
         let info = scene::preset_info(name);
-        if info.is_none() {
+        if info == nil {
             continue;
         }
         let preset = info.unwrap();
@@ -179,14 +179,14 @@ pub fn targets(state: editor::State, index: int) -> [Target] {
 pub fn change_type(state: &mut editor::State, index: int, name: str) -> bool {
     let found = model::node(state, index);
     let node = model::row_of(found);
-    if (name == SOFT_2D || name == SOFT_3D) && soft_body_source(state, index).is_some() {
+    if (name == SOFT_2D || name == SOFT_3D) && soft_body_source(state, index) != nil {
         return soft_body(state, index);
     }
-    if name == POLYGON_2D && !outline_2d(state, node, false).is_nil() {
+    if name == POLYGON_2D && outline_2d(state, node, false) != nil {
         return to_polygon(state, index);
     }
     let info = scene::preset_info(name);
-    if info.is_none() {
+    if info == nil {
         log::warn("no preset named {name}");
         return false;
     }
@@ -225,7 +225,7 @@ fn switch(node: any, parts: any) {
                 let held = util::map_or_empty(node[other]);
                 for key in carried() {
                     let value = held[key];
-                    if !value.is_nil() && accepts.has(key) && !own.has(key) {
+                    if value != nil && accepts.has(key) && !own.has(key) {
                         own[key] = value;
                     }
                 }
@@ -256,7 +256,7 @@ fn fit_collider(state: editor::State, node: any, component: str, parts: any) {
         return;
     }
     let shape = if two_d { fitted_2d(state, node) } else { fitted_3d(node, parts) };
-    if shape.is_nil() {
+    if shape == nil {
         return;
     }
     let own = util::map_or_empty(node[component]);
@@ -273,7 +273,7 @@ fn fitted_2d(state: editor::State, node: any) -> any {
         return { "kind": physics2d::SHAPE_RECTANGLE, "size": util::vec2(form(shape)[SIZE], [1.0, 1.0]) };
     }
     let mesh = outline_2d(state, node, true);
-    if mesh.is_nil() {
+    if mesh == nil {
         return nil;
     }
     { "kind": physics2d::SHAPE_CONVEX_DECOMPOSITION, "mesh": mesh }
@@ -282,7 +282,7 @@ fn fitted_2d(state: editor::State, node: any) -> any {
 fn fitted_3d(node: any, parts: any) -> any {
     let static_body = util::map_or_empty(parts["body3d"])["kind"].as_str() == physics3d::BODY_STATIC;
     let source = mesh_source(node);
-    if !source.is_nil() {
+    if source != nil {
         let kind = if static_body { physics3d::SHAPE_TRIANGLE_MESH } else { physics3d::SHAPE_CONVEX_HULL };
         return { "kind": kind, "mesh": source };
     }
@@ -298,7 +298,7 @@ fn fitted_3d(node: any, parts: any) -> any {
 
 // A number a table states, or `fallback` where it states none.
 fn or_float(value: any, fallback: float) -> float {
-    if value.is_nil() { fallback } else { value.as_float() }
+    if value == nil { fallback } else { value.as_float() }
 }
 
 // A mesh as a polygon or a collider names it: an inline table, or a path.
@@ -321,7 +321,7 @@ fn outline_2d(state: editor::State, node: any, trace: bool) -> any {
             return {};
         }
         let polygon = sprite_polygon(state, node["sprite"]);
-        return if polygon.is_nil() { nil } else { polygon["mesh"] };
+        return if polygon == nil { nil } else { polygon["mesh"] };
     }
     if node.has("shape2d") && shape2d_kind(node["shape2d"]) != "" {
         return { "positions": shape_points(node["shape2d"]) };
@@ -361,7 +361,7 @@ fn to_polygon(state: &mut editor::State, index: int) -> bool {
     let color = shape[COLOR];
     let polygon: any = {
         "mesh": { "positions": shape_points(shape) },
-        "color": if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color },
+        "color": if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color },
     };
     node.remove("shape2d");
     node["polygon"] = polygon;
@@ -380,7 +380,7 @@ fn already(found: Node, parts: any) -> bool {
         let parameters = util::map_or_empty(parts[component]);
         for key in parameters.keys() {
             let had = held[key];
-            if had.is_nil() || !same(had, parameters[key]) {
+            if had == nil || !same(had, parameters[key]) {
                 return false;
             }
         }
@@ -418,21 +418,21 @@ fn recipe_note(state: editor::State, index: int, name: str) -> str? {
     let node = model::row_of(model::node(state, index));
     if name == SOFT_2D || name == SOFT_3D {
         let source = soft_body_source(state, index);
-        if source.is_some() {
+        if source != nil {
             return "bent from its {source.unwrap()}, which it keeps drawing";
         }
         return nil;
     }
-    if name == POLYGON_2D && !outline_2d(state, node, false).is_nil() {
+    if name == POLYGON_2D && outline_2d(state, node, false) != nil {
         return "the same outline as a polygon a rig or a soft body can bend";
     }
     let info = scene::preset_info(name);
-    if info.is_none() {
+    if info == nil {
         return nil;
     }
     let parts = info.unwrap().parts;
     let collider = parts.has("collider2d") && !node.has("collider2d") || parts.has("collider3d") && !node.has("collider3d");
-    let drawn = !outline_2d(state, node, false).is_nil() || !mesh_source(node).is_nil() || node.has("shape3d");
+    let drawn = outline_2d(state, node, false) != nil || mesh_source(node) != nil || node.has("shape3d");
     if collider && drawn {
         return "{info.unwrap().description}, its collider fitted to what it draws";
     }
@@ -488,7 +488,7 @@ fn fill_soft(state: &mut editor::State, index: int, source: newnode::Entry) -> b
     switch(row, util::deep(source.parts));
     model::write_row(found, row);
     let parts = soft_parts(state, index);
-    if parts.is_nil() {
+    if parts == nil {
         return false;
     }
     make_soft(state, index, parts)
@@ -558,7 +558,7 @@ pub fn sprite_to_polygon(state: &mut editor::State, index: int) -> bool {
         return false;
     }
     let polygon = sprite_polygon(state, node["sprite"]);
-    if polygon.is_nil() {
+    if polygon == nil {
         return false;
     }
     history::record(state, "trace sprite", nil);
@@ -589,7 +589,7 @@ fn replace(node: any, gone: [str], parts: any) {
 fn soft_parts_2d(state: editor::State, node: any) -> any {
     if node.has("sprite") {
         let polygon = sprite_polygon(state, node["sprite"]);
-        if polygon.is_nil() {
+        if polygon == nil {
             return nil;
         }
         let body: any = { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": util::deep(polygon["mesh"]) };
@@ -611,7 +611,7 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
     }
     let shape = node["shape2d"];
     let color = shape[COLOR];
-    let tint: any = if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color };
+    let tint: any = if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color };
     if shape2d_kind(shape) == render::SHAPE_RECTANGLE {
         let size = util::vec2(form(shape)[SIZE], [1.0, 1.0]);
         let body: any = { "kind": physics2d::SOFT_GRID, "color": tint };
@@ -627,12 +627,12 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
 // into the generator that matches it.
 fn soft_parts_3d(node: any) -> any {
     let source = mesh_source(node);
-    if !source.is_nil() {
+    if source != nil {
         return { "softbody3d": { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": source }, "soft_skin3d": { "skin": true } };
     }
     let shape = node["shape3d"];
     let color = shape[COLOR];
-    let tint: any = if color.is_nil() { [0.8, 0.8, 0.8, 1.0] } else { color };
+    let tint: any = if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color };
     let kind = shape3d_kind(shape);
     if kind == render::SHAPE_SPHERE {
         let body: any = { "kind": physics3d::SOFT_SPHERE, "color": tint };
@@ -653,7 +653,7 @@ fn soft_parts_3d(node: any) -> any {
 // A sprite drawn from one whole image converts; one cut from a sheet or a
 // region is a frame of an image, which a trace of the whole would not match.
 fn sprite_convertible(sprite: any) -> bool {
-    sprite[TEXTURE].as_str() != "" && sprite["sheet"].as_str() == "" && sprite["region_size"].is_nil()
+    sprite[TEXTURE].as_str() != "" && sprite["sheet"].as_str() == "" && sprite["region_size"] == nil
 }
 
 // The polygon a sprite becomes: the image's opaque outline, traced at the
@@ -678,7 +678,7 @@ fn sprite_polygon(state: editor::State, sprite: any) -> any {
         "mesh": mesh,
         "texture": texture,
         "pixels_per_unit": pixels_per_unit,
-        "color": if color.is_nil() { [1.0, 1.0, 1.0, 1.0] } else { color },
+        "color": if color == nil { [1.0, 1.0, 1.0, 1.0] } else { color },
     }
 }
 
@@ -713,7 +713,7 @@ fn islands(sprite: any, loops: [[Vec2]]) -> any {
 // size it was stretched to, or the texture's import setting.
 fn drawn_scale(state: editor::State, sprite: any, texture: str) -> float {
     let size = sprite[SIZE];
-    if !size.is_nil() && size[0].as_float() > 0.0 {
+    if size != nil && size[0].as_float() > 0.0 {
         let texture_width = render::texture_size(state.game_root + "/" + texture)[0];
         return texture_width.as_float() / size[0].as_float();
     }
@@ -773,13 +773,13 @@ fn form(shape: any) -> any {
 // A shape's kind when a recipe converts it, "" when it does not.
 fn shape2d_kind(shape: any) -> str {
     let held = form(shape)["kind"];
-    let kind = if held.is_nil() { render::SHAPE_RECTANGLE } else { held.as_str() };
+    let kind = if held == nil { render::SHAPE_RECTANGLE } else { held.as_str() };
     if kind == render::SHAPE_RECTANGLE || kind == render::SHAPE_CIRCLE { kind } else { "" }
 }
 
 fn shape3d_kind(shape: any) -> str {
     let held = form(shape)["kind"];
-    let kind = if held.is_nil() { render::SHAPE_BOX } else { held.as_str() };
+    let kind = if held == nil { render::SHAPE_BOX } else { held.as_str() };
     if kind == render::SHAPE_BOX || kind == render::SHAPE_SPHERE || kind == render::SHAPE_PLANE { kind } else { "" }
 }
 

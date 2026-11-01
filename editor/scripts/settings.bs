@@ -76,12 +76,12 @@ pub fn load_files(state: &mut editor::State) {
     // an empty root is a path outside every root there is.
     if state.game_root != "" {
         let manifest = fs::read(state.game_root + "/project.toml");
-        if manifest.is_some() {
+        if manifest != nil {
             settings::merge_toml(manifest.unwrap());
         }
     }
     let preferences = fs::read(preferences_path());
-    if preferences.is_some() {
+    if preferences != nil {
         settings::merge_toml(preferences.unwrap());
     }
     apply(state);
@@ -121,7 +121,7 @@ fn scopes() -> any {
 
 fn scope_of(category: str) -> str {
     let found = scopes()[category];
-    if found.is_nil() { "project" } else { found.as_str() }
+    if found == nil { "project" } else { found.as_str() }
 }
 
 fn current(state: editor::State) -> str {
@@ -171,7 +171,7 @@ fn rank_of(setting: settings::Setting) -> float {
 
 fn order_of(setting: settings::Setting) -> float {
     let order = setting.spec["order"];
-    if order.is_nil() { 1000.0 } else { order.as_float() }
+    if order == nil { 1000.0 } else { order.as_float() }
 }
 
 // `editor/appearance/theme` groups under "appearance"; `physics/gravity`
@@ -232,7 +232,7 @@ pub fn fill(state: &mut editor::State) {
     let tokens = state.theme;
     let stacked = ui::window_size().x < STACK_BELOW;
     let found = window::sheet_form(state, "settings", "Settings", save_button(state));
-    if found.is_none() {
+    if found == nil {
         return;
     }
     let hosts = found.unwrap();
@@ -316,7 +316,7 @@ fn side_controls(state: editor::State, tokens: any) -> [any] {
         // Bound afresh: a closure made in a loop captures the binding.
         let category = name;
         let held = scopes[category];
-        let here = if held.is_nil() { "project" } else { held.as_str() };
+        let here = if held == nil { "project" } else { held.as_str() };
         if here != scope {
             scope = here;
             out.push({
@@ -515,7 +515,7 @@ fn override_path(tag: str, path: str) -> str {
 /// The control one setting's row carries, by the schema's datatype.
 fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> any {
     let spec = util::map_or_empty(setting.spec);
-    let datatype = if spec["type"].is_nil() { "string" } else { spec["type"].as_str() };
+    let datatype = if spec["type"] == nil { "string" } else { spec["type"].as_str() };
     let value = settings::base(path);
     if datatype == "bool" {
         return {
@@ -541,10 +541,10 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
     }
     if datatype == "int" || datatype == "float" {
         let low = spec["min"].as_float();
-        let high = if !spec["max"].is_nil() { spec["max"].as_float() } else if datatype == "int" { 1000000.0 } else { 1.0 };
+        let high = if spec["max"] != nil { spec["max"].as_float() } else if datatype == "int" { 1000000.0 } else { 1.0 };
         // A setting declared with no default reads as nil; the control starts
         // at its floor instead.
-        let now = if value.is_nil() { low } else { value.as_float() };
+        let now = if value == nil { low } else { value.as_float() };
         let whole = datatype == "int";
         return {
             "kind": "number_field",
@@ -564,7 +564,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
         commas(value)
     } else if value.kind() == "str" {
         value.as_str()
-    } else if value.is_nil() {
+    } else if value == nil {
         ""
     } else {
         "{value}"
@@ -642,7 +642,7 @@ pub fn apply(state: &mut editor::State) {
         theme::use_named(state, theme_name.as_str());
     }
     let scale = settings::get("editor/appearance/ui_scale");
-    if !(scale.is_nil()) {
+    if !(scale == nil) {
         shell::ask_ui_scale(state, scale.as_float());
     }
     // Kept apart from `state.compact`, which the window width also writes: the

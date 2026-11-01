@@ -54,7 +54,7 @@ pub fn contains(state: editor::State, row: int) -> bool {
 pub fn toggle(state: &mut editor::State, row: int) {
     let selected_rows = state.selected_rows;
     let at = util::int_position(selected_rows, row);
-    if at.is_some() {
+    if at != nil {
         if selected_rows.len() > 1 {
             selected_rows.remove(at.unwrap());
             state.selected = selected_rows[0];

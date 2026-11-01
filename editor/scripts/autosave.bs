@@ -23,7 +23,7 @@ pub const TYPING_SETTLE: float = 1.5;
 /// whose scene is the run's rather than the file's, nor while isolate hides
 /// part of it, nor mid-drag, nor for a dependency's scene, which is read-only.
 pub fn write_settled(state: &mut editor::State, now: float) -> bool {
-    if !history::dirty(state) || state.playing || state.isolated || state.gizmo.drag.is_some() || manager::showing(state) || model::read_only(state) {
+    if !history::dirty(state) || state.playing || state.isolated || state.gizmo.drag != nil || manager::showing(state) || model::read_only(state) {
         return false;
     }
     if now - state.history.at < SETTLE {
@@ -62,7 +62,7 @@ pub fn write_typed(state: &mut editor::State, now: float) -> int {
 }
 
 fn scripted(state: editor::State) -> bool {
-    state.start_states != "" || state.suite.is_some()
+    state.start_states != "" || state.suite != nil
 }
 
 /// Whether an edit waits to be written, which asks for the frame that writes it.

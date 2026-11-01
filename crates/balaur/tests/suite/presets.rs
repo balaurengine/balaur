@@ -155,7 +155,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 let tags = scene::component_tags("collider2d").unwrap();
                 self.check(has(tags, "2d"), "collider2d should be tagged 2d");
                 self.check(has(tags, "physics"), "collider2d should be tagged physics");
-                self.check(scene::component_tags("nope").is_none(), "unknown component has no tags");
+                self.check(scene::component_tags("nope") == nil, "unknown component has no tags");
 
                 let names = scene::presets();
                 self.check(has(names, "rigid_body2d"), "rigid_body2d missing");
@@ -167,8 +167,8 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 self.check(has(names, "sprite2d"), "sprite2d missing");
 
                 let found = scene::preset_info("rigid_body2d");
-                self.check(found.is_some(), "no info for rigid_body2d");
-                if found.is_some() {
+                self.check(found != nil, "no info for rigid_body2d");
+                if found != nil {
                     let info = found.unwrap();
                     self.check(info.components.len() == 2, "rigid_body2d adds two components");
                     self.check(info.description != "", "a preset needs a description");

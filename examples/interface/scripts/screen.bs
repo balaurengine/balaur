@@ -241,7 +241,7 @@ impl Screen {
             }
             from = self.target_at(step[1].as_str());
         }
-        if to.is_none() {
+        if to == nil {
             return;
         }
         let end = to.unwrap();
@@ -260,7 +260,7 @@ impl Screen {
     // cursor that never moved.
     fn ring() {
         let node = self.node.get_node("Ripple");
-        if self.ring.is_none() || !node.is_valid() {
+        if self.ring == nil || !node.is_valid() {
             return;
         }
         let held = self.ring.unwrap();
@@ -315,7 +315,7 @@ impl Screen {
     // The cursor has landed: the button it is on does its own thing.
     fn arrive(name: str) {
         self.at = self.target_at(name);
-        if self.at.is_some() {
+        if self.at != nil {
             let box = self.at.unwrap();
             self.ring = Ring { x: box.x + box.width / 2.0, y: box.y + box.height / 2.0, age: 0 };
         }

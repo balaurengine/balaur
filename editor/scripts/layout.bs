@@ -122,7 +122,7 @@ pub fn state() -> any {
 fn node(state: editor::State, id: any) -> any {
     let layout_state: any = state.layout;
     let found = layout_state["nodes"][id.as_str()];
-    if !found.is_nil() {
+    if found != nil {
         return found;
     }
     let path = if id.as_str() == "shell" {
@@ -221,10 +221,10 @@ fn stated(state: editor::State, id: str, key: str) -> float {
 fn role_number(state: editor::State, role: str, key: str, fallback: float) -> float {
     let roles = state.theme["roles"];
     let found = roles[role];
-    if !found.is_nil() {
+    if found != nil {
         let entry = found;
         let value = entry[key];
-        if !value.is_nil() {
+        if value != nil {
             let number = value;
             let pixels = style::size_in_pixels(state, number);
             return pixels;
@@ -335,7 +335,7 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
     let layout_state: any = state.layout;
     let mark = id + ":" + key;
     let running = layout_state["tweens"][mark];
-    if !running.is_nil() {
+    if running != nil {
         let handle = running;
         if animation::is_tween_running(handle) {
             return;
@@ -375,7 +375,7 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     layout_state["quiet"] = 0;
     if settled && eased(mark) {
         let running = layout_state["tweens"][mark];
-        if !running.is_nil() {
+        if running != nil {
             let handle = running;
             animation::stop(handle);
         }
@@ -413,7 +413,7 @@ fn box_of(state: editor::State, id: str) -> any {
         return rect(0.0, 0.0, 0.0, 0.0);
     }
     let drawn = ui::widget_rect(found.as_node());
-    if drawn.is_none() {
+    if drawn == nil {
         return rect(0.0, 0.0, 0.0, 0.0);
     }
     let placed = drawn.unwrap();
@@ -599,7 +599,7 @@ pub fn floors(state: editor::State) -> Floors {
 pub fn shell_room(state: editor::State) -> ShellRoom {
     let node = scene::get_node(SHELL);
     let drawn = if node.is_valid() { ui::widget_rect(node) } else { nil };
-    if drawn.is_none() {
+    if drawn == nil {
         return ShellRoom { width: 0.0, height: 0.0 };
     }
     ShellRoom { width: drawn.unwrap().width, height: drawn.unwrap().height }

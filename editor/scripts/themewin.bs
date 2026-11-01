@@ -130,7 +130,7 @@ pub fn open_at(state: &mut editor::State, page: str, path: [str]) {
 }
 
 pub fn editable(state: editor::State) -> bool {
-    !state.themewin.own.is_nil()
+    state.themewin.own != nil
 }
 
 fn load_own(state: &mut editor::State) {
@@ -147,7 +147,7 @@ pub fn fill(state: &mut editor::State) {
     let tokens = state.theme;
     let stacked = ui::window_size().x < STACK_BELOW;
     let hosts = window::sheet_form(state, ID, "Theme", save_button(state));
-    if hosts.is_none() {
+    if hosts == nil {
         return;
     }
     let hosts = hosts.unwrap();
@@ -468,7 +468,7 @@ fn color_specs(state: editor::State, doc: any, out: [any]) {
     let mine = editable(state);
     let stated = util::map_or_empty(doc["colors"]);
     let colors = state.theme["colors"];
-    let ground = if colors[GROUND].is_nil() { "#000000" } else { colors[GROUND].as_str() };
+    let ground = if colors[GROUND] == nil { "#000000" } else { colors[GROUND].as_str() };
     let names = SOURCES();
     for token in sorted_keys(colors) {
         if !util::contains(SOURCES(), token) {
@@ -476,7 +476,7 @@ fn color_specs(state: editor::State, doc: any, out: [any]) {
         }
     }
     for name in names {
-        let hex = if colors[name].is_nil() { "#000000" } else { colors[name].as_str() };
+        let hex = if colors[name] == nil { "#000000" } else { colors[name].as_str() };
         // A stated token reads as the theme's own; a derived one is quieter.
         let own = stated.has(name);
         out.push({
@@ -854,7 +854,7 @@ fn key_listed(key: str, items: [str]) -> bool {
 fn control_for(state: editor::State, doc: any, at: [str], key: str, value: any, mine: bool) -> [any] {
     if key_listed(key, COLOR_KEYS()) {
         let resolved = state.theme["colors"][value.as_str()];
-        let hex = if resolved.is_nil() { value } else { resolved };
+        let hex = if resolved == nil { value } else { resolved };
         let options = sorted_keys(state.theme["colors"]);
         return [
             {

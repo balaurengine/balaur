@@ -168,7 +168,7 @@ pub fn send(socket: int, name: str, args: any) -> bool {
 
 /// A hook reply as a `HookReply`.
 pub fn unpack_hook(name: str, reply: any) -> HookReply {
-    if reply.is_nil() {
+    if reply == nil {
         return HookReply { ok: false, data: nil(), error: "gamend: {name} sent no reply" };
     }
     let response = reply["response"];

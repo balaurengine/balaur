@@ -23,15 +23,15 @@ pub const EXTRA_LARGE: float = 17.0;
 /// a finger drives the screen and the role has one, else the role's own.
 pub fn role_size_in_pixels(state: editor::State, role: str, key: str, fallback: float) -> float {
     let table = state.theme["roles"][role];
-    if table.is_nil() {
+    if table == nil {
         return fallback;
     }
     let touch = table["touch"][key];
-    if state.touchscreen && !touch.is_nil() {
+    if state.touchscreen && touch != nil {
         return size_in_pixels(state, touch);
     }
     let own = table[key];
-    if own.is_nil() { fallback } else { size_in_pixels(state, own) }
+    if own == nil { fallback } else { size_in_pixels(state, own) }
 }
 
 /// A number a theme states, or the size it names: `"control_height"` is

@@ -83,7 +83,7 @@ pub fn current(state: &mut editor::State) -> Loaded? {
         state.pen.reference = "";
         return nil;
     }
-    if state.pen.reference == found && state.pen.path.is_some() {
+    if state.pen.reference == found && state.pen.path != nil {
         return state.pen.path;
     }
     let definition = assets::load(asset_path(state, found));
@@ -104,7 +104,7 @@ pub fn current(state: &mut editor::State) -> Loaded? {
 /// `[[assets]]`; a file one is rewritten where it lies.
 fn save(state: &mut editor::State) {
     let found = state.pen.reference;
-    if found == "" || state.pen.path.is_none() {
+    if found == "" || state.pen.path == nil {
         return;
     }
     let path = state.pen.path.unwrap();
@@ -134,7 +134,7 @@ fn frame(state: editor::State) -> util::Frame? {
 /// so a click-click-click draws a smooth chain rather than a set of corners.
 pub fn add_anchor(state: &mut editor::State, local_x: float, local_y: float) {
     let path_or = current(state);
-    if path_or.is_none() {
+    if path_or == nil {
         return;
     }
     let path = path_or.unwrap();
@@ -176,7 +176,7 @@ fn lerp(from: [float], to: [float], amount: float) -> [float] {
 /// mirrors its partner unless the drag broke the pair.
 pub fn move_point(state: &mut editor::State, at: int, local_x: float, local_y: float, broken: bool) {
     let path_or = current(state);
-    if path_or.is_none() {
+    if path_or == nil {
         return;
     }
     let path = path_or.unwrap();
@@ -213,7 +213,7 @@ pub fn move_point(state: &mut editor::State, at: int, local_x: float, local_y: f
 /// Take one anchor out, with the handles that belonged to it.
 pub fn remove_anchor(state: &mut editor::State, at: int) {
     let path_or = current(state);
-    if path_or.is_none() {
+    if path_or == nil {
         return;
     }
     let path = path_or.unwrap();
@@ -240,7 +240,7 @@ pub fn remove_anchor(state: &mut editor::State, at: int) {
 /// Join the last anchor back to the first, or open a closed path.
 pub fn toggle_closed(state: &mut editor::State) {
     let path_or = current(state);
-    if path_or.is_none() {
+    if path_or == nil {
         return;
     }
     let path = path_or.unwrap();
@@ -284,7 +284,7 @@ pub fn new_path(state: &mut editor::State) {
         "line2d": { "mesh": relative_path, "width": 0.06 },
     });
     model::reindex(state);
-    selection::only(state, model::index_of_node(state, made).unwrap_or(0));
+    selection::only(state, model::index_of_node(state, made).or(0));
     state.tool = "pen";
     signals::inspector(state);
     log::info("added " + relative_path);
@@ -313,13 +313,13 @@ fn pick(state: editor::State, path: Loaded, node_frame: util::Frame, world_x: fl
 /// dispatch. `world_x`/`world_y` are the pointer in world units.
 pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, world_y: float) {
     let path_or = current(state);
-    if path_or.is_none() {
+    if path_or == nil {
         state.pen.hover = -1;
         return;
     }
     let path = path_or.unwrap();
     let frame_or = frame(state);
-    if frame_or.is_none() {
+    if frame_or == nil {
         return;
     }
     let node_frame = frame_or.unwrap();
@@ -339,7 +339,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
             let local = util::to_local(node_frame, world_x, world_y);
             add_anchor(state, local.x, local.y);
             // The new anchor is the one a drag now pulls a handle from.
-            if state.pen.path.is_some() {
+            if state.pen.path != nil {
                 state.pen.drag = Drag { at: state.pen.path.unwrap().points.len() - 1, broken: broken };
             }
         }
@@ -351,13 +351,13 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
         }
     }
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
-        if state.pen.drag.is_some() {
+        if state.pen.drag != nil {
             history::commit(state);
         }
         state.pen.drag = nil;
         return;
     }
-    if state.pen.drag.is_some() {
+    if state.pen.drag != nil {
         let pull = state.pen.drag.unwrap();
         let local = util::to_local(node_frame, world_x, world_y);
         move_point(state, pull.at, local.x, local.y, pull.broken);
@@ -376,12 +376,12 @@ pub fn draw(state: &mut editor::State) {
         return;
     }
     let path_or = current(state);
-    if path_or.is_none() {
+    if path_or == nil {
         return;
     }
     let path = path_or.unwrap();
     let frame_or = frame(state);
-    if frame_or.is_none() {
+    if frame_or == nil {
         return;
     }
     let node_frame = frame_or.unwrap();

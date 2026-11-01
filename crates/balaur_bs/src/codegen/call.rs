@@ -168,10 +168,20 @@ impl FnGen<'_> {
     /// A spelling a value has no more, refused by name with the one it keeps.
     /// A prelude function may call what its own code needs by any name.
     pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
-        if self.prelude || !matches!(name, "get" | "at" | "set" | "put") {
+        let nil_test = matches!(name, "is_nil" | "is_none" | "is_some" | "unwrap_or");
+        if self.prelude || !(nil_test || matches!(name, "get" | "at" | "set" | "put")) {
             return Ok(());
         }
         let msg = match (&self.type_of(base)?, name) {
+            (Ty::Any | Ty::Optional(_), "is_nil" | "is_none") => {
+                format!("write `x == nil`, not `x.{name}()`")
+            }
+            (Ty::Any | Ty::Optional(_), "is_some") => {
+                "write `x != nil`, not `x.is_some()`".to_string()
+            }
+            (Ty::Any | Ty::Optional(_), "unwrap_or") => {
+                "write `x.or(v)`, not `x.unwrap_or(v)`".to_string()
+            }
             (Ty::Any, "get") => {
                 "an `any` reads a key as `a[\"k\"]`, not `a.get(\"k\")`".to_string()
             }
@@ -560,22 +570,8 @@ impl FnGen<'_> {
     // node's is named, with the read it wants first.
     fn held_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         match (name, args.len()) {
-            // Nil is no cell.
-            ("is_some" | "is_none", 0) => {
-                self.expr_as(base, &Ty::Any)?;
-                let cell = self.temp(&Ty::Any);
-                self.set_raw(&cell);
-                self.get_raw(&cell);
-                if name == "is_none" {
-                    self.e(I::I32Eqz);
-                } else {
-                    self.emit([I::I32Const(0), I::I32Ne]);
-                }
-                self.release(&cell);
-                return Ok(Ty::Bool);
-            }
             ("unwrap", 0) => return self.expr(base),
-            ("or" | "unwrap_or", 1) => {
+            ("or", 1) => {
                 self.expr(base)?;
                 let cell = self.temp(&Ty::Any);
                 self.set_raw(&cell);

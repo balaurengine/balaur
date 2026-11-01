@@ -66,12 +66,12 @@ const ROOT: str = "library";
 /// The manifest, read once per session. A library that fails to parse is
 /// reported once and treated as empty.
 fn catalogue(state: &mut editor::State) -> Catalogue {
-    if state.library.catalogue.is_some() {
+    if state.library.catalogue != nil {
         return state.library.catalogue.unwrap();
     }
     let text = fs::read(ROOT + "/catalog.toml");
-    let table: any = if text.is_some() { util::map_or_empty(toml::parse(text.unwrap())) } else { {} };
-    if text.is_none() {
+    let table: any = if text != nil { util::map_or_empty(toml::parse(text.unwrap())) } else { {} };
+    if text == nil {
         log::warn("no library manifest at " + ROOT);
     } else if table.len() == 0 {
         log::warn("the library manifest does not parse");
@@ -140,7 +140,7 @@ fn free_name(state: editor::State, rel: str) -> str {
         return rel;
     }
     let cut = util::index_of(rel, ".");
-    let stem = if cut.is_some() { rel.slice(0, cut.unwrap()) } else { rel };
+    let stem = if cut != nil { rel.slice(0, cut.unwrap()) } else { rel };
     let extension = if rel.len() > stem.len() { rel.slice(stem.len(), rel.len()) } else { "" };
     let suffix = 2;
     while fs::exists(state.game_root + "/" + "{stem}_{suffix}{extension}") {
@@ -162,7 +162,7 @@ pub fn place(state: &mut editor::State, entry: any) {
         install(state, needed.as_str());
     }
     let rel_or = install(state, entry["file"].as_str());
-    if rel_or.is_none() {
+    if rel_or == nil {
         return;
     }
     let rel = rel_or.unwrap();
@@ -190,7 +190,7 @@ pub fn apply_material(state: &mut editor::State, entry: any) {
         install(state, needed.as_str());
     }
     let rel_or = install(state, entry["file"].as_str());
-    if rel_or.is_none() {
+    if rel_or == nil {
         return;
     }
     let rel = rel_or.unwrap();
@@ -287,8 +287,8 @@ fn dependency_view(state: &mut editor::State) -> View {
                 break;
             }
             let entry = named[rel];
-            let title = if entry.is_nil() { rel } else { entry["name"].as_str() };
-            let note = if entry.is_nil() { folder + "/" + rel } else { entry["note"].as_str() };
+            let title = if entry == nil { rel } else { entry["name"].as_str() };
+            let note = if entry == nil { folder + "/" + rel } else { entry["note"].as_str() };
             items.push(util::row(file_icon(rel), alias + " · " + title, note, tokens["text_default"].as_str()));
             held.push({ "kind": "dependency", "file": folder + "/" + rel });
         }
@@ -306,7 +306,7 @@ fn dependency_view(state: &mut editor::State) -> View {
 fn catalogue_of(root: str) -> any {
     let out: any = {};
     let text = fs::read(root + "/catalog.toml");
-    if text.is_none() {
+    if text == nil {
         return out;
     }
     let table = util::map_or_empty(toml::parse(text.unwrap()));

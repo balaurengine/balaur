@@ -151,12 +151,12 @@ impl Runner {
         input::feed_touch(3, 500.0, 300.0, \"start\");
         let zoom = 1.0;
         let pinch = input::pinch();
-        if pinch.scale.is_some() { zoom *= pinch.scale.unwrap(); }
+        if pinch.scale != nil { zoom *= pinch.scale.unwrap(); }
         let pan = input::pan();
         zoom += pan.x * 0.0;
         let swipe = input::swipe();
-        if !swipe[\"x\"].is_nil() { zoom += swipe[\"x\"].as_float(); }
-        if !input::long_press()[\"x\"].is_nil() { zoom = 1.0; }
+        if swipe[\"x\"] != nil { zoom += swipe[\"x\"].as_float(); }
+        if input::long_press()[\"x\"] != nil { zoom = 1.0; }
         input::feed_action(\"reached\", 1.0);
     }
     fn fixed_update(dt: float) {

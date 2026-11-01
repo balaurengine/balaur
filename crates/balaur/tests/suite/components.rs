@@ -51,10 +51,10 @@ fn plugin_components_roundtrip_through_the_registry() {
                 self.check(schema["shape"]["variants"]["sphere"]["fields"]["radius"]["default"].as_float() == 0.5, "radius default");
 
                 n.remove_component("body3d");
-                self.check(n.get_component("body3d").is_nil(), "body removed");
-                self.check(!n.get_component("collider3d").is_nil(), "collider survives body removal");
+                self.check(n.get_component("body3d") == nil, "body removed");
+                self.check(n.get_component("collider3d") != nil, "collider survives body removal");
                 n.remove_component("collider3d");
-                self.check(n.get_component("collider3d").is_nil(), "collider removed");
+                self.check(n.get_component("collider3d") == nil, "collider removed");
 
                 let present = n.component_names();
                 self.check(has(present, "shape3d") && has(present, "widget") && !has(present, "body3d"), "names left");
@@ -435,8 +435,8 @@ fn a_keyed_read_answers_one_property() {
                 // No fast path: the table is read and indexed.
                 self.check(n.get_component("collider3d", "shape")["kind"].as_str() == "sphere", "collider kind");
 
-                self.check(n.get_component("widget", "no_such_property").is_nil(), "unknown property");
-                self.check(n.get_component("body3d", "kind").is_nil(), "component the node lacks");
+                self.check(n.get_component("widget", "no_such_property") == nil, "unknown property");
+                self.check(n.get_component("body3d", "kind") == nil, "component the node lacks");
 
                 if !self.failed {
                     self.done = 1;

@@ -213,18 +213,14 @@ fn format_reindents_and_keeps_comments() {
 }
 
 #[test]
-fn an_optional_offers_its_four_methods() {
+fn an_optional_offers_its_two_methods() {
     let src = "fn f(x: str?) -> int {\n    x.\n    1\n}\n";
     let got: Vec<String> = analyze(src, &HostApi::default())
         .complete(2, 7)
         .into_iter()
         .map(|c| format!("{}: {}", c.label, c.detail))
         .collect();
-    for want in [
-        "is_some: fn is_some() -> bool",
-        "unwrap: fn unwrap() -> str",
-        "or: fn or(str) -> str",
-    ] {
+    for want in ["unwrap: fn unwrap() -> str", "or: fn or(str) -> str"] {
         assert!(got.contains(&want.to_string()), "{got:?}");
     }
 }

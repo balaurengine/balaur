@@ -9,6 +9,6 @@ pub fn asks(s: str) -> bool { s.is_some() }
 
 // error: 4:38: `nil` needs the type it stands for: `let x: T? = nil`
 // error: 5:33: cannot combine int? and int
-// error: 6:36: this may be nil: check `len` first; a str? has `is_some`, `is_none`, `unwrap`, `or`
+// error: 6:36: this may be nil, so it has no `len`: compare it with `nil`, or a str? has `unwrap`, `or`
 // error: 7:37: a int is never nil; only a `T?` or an `any` is
 // error: 8:32: strings have `len`, `contains`, `starts_with`, `ends_with`, `find`, `slice`, `to_upper`, `to_lower`, `trim`, `replace`, `split`, `split_once`, `chars`, `parse_int`, `parse_float`, not `is_some`

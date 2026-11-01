@@ -8,7 +8,7 @@ pub fn record() -> str {
 pub fn maybe(yes: bool) -> str {
     let v: int? = if yes { 4 } else { nil };
     let a = keep(v);
-    "{a.is_nil()} {a.as_int()}"
+    "{a == nil} {a.as_int()}"
 }
 
 // expect: list() == "2 y"

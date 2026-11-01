@@ -151,7 +151,6 @@ impl Scope<'_> {
                 _ => Ty::Void,
             },
             Recv::Ty(Ty::Optional(t)) => match name {
-                "is_some" | "is_none" => Ty::Bool,
                 "unwrap" | "or" => (**t).clone(),
                 _ => return None,
             },
@@ -282,8 +281,6 @@ impl Scope<'_> {
             }
             Recv::Ty(Ty::Optional(t)) => {
                 let inner = show(t);
-                add("is_some", Kind::Method, "fn is_some() -> bool".into());
-                add("is_none", Kind::Method, "fn is_none() -> bool".into());
                 add("unwrap", Kind::Method, format!("fn unwrap() -> {inner}"));
                 add("or", Kind::Method, format!("fn or({inner}) -> {inner}"));
             }

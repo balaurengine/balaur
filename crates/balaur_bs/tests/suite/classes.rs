@@ -45,7 +45,7 @@ impl Editor {
         ring[1].count = 5;
         let first = ring[1];
         first.count += 1;
-        self.said = "{self.s.sel} {self.s.history.len()} {self.s.count} {self.s.inner.hits} {drag} {self.s.gizmo.drag.is_none()} {self.s.gizmo.marks.len()} {self.s.next.unwrap().count} {ring[1].count}";
+        self.said = "{self.s.sel} {self.s.history.len()} {self.s.count} {self.s.inner.hits} {drag} {self.s.gizmo.drag == nil} {self.s.gizmo.marks.len()} {self.s.next.unwrap().count} {ring[1].count}";
     }
 }
 "#;

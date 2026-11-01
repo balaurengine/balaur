@@ -46,7 +46,7 @@ const MAX_DEPTH: int = 256;
 pub fn source(state: &mut editor::State, rel: str) -> any {
     let now = engine::unix_time();
     let entry = state.sources[rel];
-    if !entry.is_nil() {
+    if entry != nil {
         if now - entry["at"].as_float() < TTL {
             return entry["text"];
         }
@@ -60,11 +60,11 @@ pub fn source(state: &mut editor::State, rel: str) -> any {
 // workspace's list asked for every script's count on every frame it drew.
 pub fn line_count(state: &mut editor::State, rel: str) -> any {
     let text = source(state, rel);
-    if text.is_nil() {
+    if text == nil {
         return 0;
     }
     let entry = state.sources[rel];
-    if entry["lines"].is_nil() {
+    if entry["lines"] == nil {
         entry["lines"] = util::count_lines(text.as_str());
     }
     entry["lines"]
@@ -75,11 +75,11 @@ pub fn line_count(state: &mut editor::State, rel: str) -> any {
 // and an editor outside Balaur all name the same functions.
 pub fn hooks(state: &mut editor::State, rel: str) -> any {
     let text = source(state, rel);
-    if text.is_nil() {
+    if text == nil {
         return [];
     }
     let entry = state.sources[rel];
-    if entry["hooks"].is_nil() {
+    if entry["hooks"] == nil {
         let hooks: [any] = [];
         for one in script::symbols(rel, text.as_str()) {
             if one.kind == "function" {
@@ -99,7 +99,7 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
     }
     let now = engine::unix_time();
     let entry = state.listings[rel];
-    if !entry.is_nil() {
+    if entry != nil {
         if now - entry["at"].as_float() < TTL {
             return entry["files"];
         }
@@ -112,7 +112,7 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
 // Drop a cached read (`None` drops everything): what the editor just wrote
 // must be visible on the next frame, not on the next interval.
 pub fn forget(state: &mut editor::State, rel: str?) {
-    if rel.is_some() {
+    if rel != nil {
         state.sources.remove(rel.unwrap());
     } else {
         state.sources = {};
@@ -138,11 +138,11 @@ pub fn script_props(found: Node) -> any {
 // The properties the script declares, cached beside its text: asking the host
 // compiles the file, which is not something to do once a frame.
 pub fn exports(state: &mut editor::State, rel: str) -> any {
-    if source(state, rel).is_nil() {
+    if source(state, rel) == nil {
         return [];
     }
     let entry = state.sources[rel];
-    if entry["exports"].is_nil() {
+    if entry["exports"] == nil {
         entry["exports"] = script::exports(state.game_root + "/" + rel);
     }
     entry["exports"]
@@ -153,7 +153,7 @@ pub fn exports(state: &mut editor::State, rel: str) -> any {
 pub fn set_script_property(state: &mut editor::State, property: str, value: any) {
     let found = selected_node(state);
     let rel = script_rel(found);
-    if rel.is_nil() {
+    if rel == nil {
         return;
     }
     history::record(state, "set " + property, "sprop:{property}:{state.selected}");
@@ -196,7 +196,7 @@ fn same_as_default(state: &mut editor::State, rel: str, property: str, value: an
 
 /// The node of the scene carrying `id`, or nil.
 pub fn node_by_id(state: editor::State, id: str) -> Node {
-    if state.mirror.is_none() {
+    if state.mirror == nil {
         return nil;
     }
     scene::node_by_id(id, state.mirror.unwrap())
@@ -211,7 +211,7 @@ pub fn parent_id(state: editor::State, found: Node) -> str {
 }
 
 pub fn is_scene_root(state: editor::State, found: Node) -> bool {
-    state.scene_root.is_some() && found.is_valid() && found == state.scene_root.unwrap()
+    state.scene_root != nil && found.is_valid() && found == state.scene_root.unwrap()
 }
 
 /// The path of names from the scene's root to `found`, as `find_node` walks
@@ -335,7 +335,7 @@ pub fn node_type(found: Node) -> str {
     if kind == physics3d::BODY_STATIC {
         return "StaticBody3D";
     }
-    if !kind.is_nil() {
+    if kind != nil {
         return "AnimatableBody3D";
     }
     let kind2d = body2d_kind(found);
@@ -345,7 +345,7 @@ pub fn node_type(found: Node) -> str {
     if kind2d == physics2d::BODY_STATIC {
         return "StaticBody2D";
     }
-    if !kind2d.is_nil() {
+    if kind2d != nil {
         return "AnimatableBody2D";
     }
     for display in display_types() {
@@ -431,7 +431,7 @@ pub fn facet(found: Node) -> str {
     }
     for key in found.component_names() {
         let tags = scene::component_tags(key);
-        if tags.is_none() {
+        if tags == nil {
             continue;
         }
         let tags = tags.unwrap();
@@ -457,11 +457,11 @@ fn carries(found: Node, component: str) -> bool {
 // Icon glyph + colour role ("sage" physics, "accent" render/ui, "dim" other).
 pub fn node_icon(found: Node) -> NodeIcon {
     let body = body_kind(found);
-    let kind = if body.is_nil() { body2d_kind(found) } else { body };
+    let kind = if body == nil { body2d_kind(found) } else { body };
     if carries(found, "widget") {
         return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_UI), role: "node_ui" };
     }
-    if !kind.is_nil() {
+    if kind != nil {
         return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_PHYSICS), role: "node_physics" };
     }
     if carries(found, "bone2d") || carries(found, "bone3d") {
@@ -473,7 +473,7 @@ pub fn node_icon(found: Node) -> NodeIcon {
     if carries(found, "shape3d") || carries(found, "mesh") || carries(found, "multimesh3d") {
         return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_SCENE), role: "node_3d" };
     }
-    if !script_rel(found).is_nil() {
+    if script_rel(found) != nil {
         return NodeIcon { glyph: icons::ui("scriptfile"), role: "node_default" };
     }
     NodeIcon { glyph: icons::node("world"), role: "node_default" }
@@ -491,7 +491,7 @@ pub fn instance_owner(found: Node) -> Node {
         if !current.is_valid() {
             return nil;
         }
-        if current.instance().is_some() && id.starts_with(current.stable_id() + "/") {
+        if current.instance() != nil && id.starts_with(current.stable_id() + "/") {
             return current;
         }
         current = current.parent();
@@ -530,7 +530,7 @@ pub fn is_instanced(found: Node) -> bool {
 // could not open, and `toml::parse` then fails with the type, not the path.
 fn must_read(path: str) -> str {
     let text = fs::read(path);
-    if text.is_none() {
+    if text == nil {
         log::error("cannot read {path}");
         return "";
     }
@@ -645,7 +645,7 @@ pub fn hold_game_cameras(state: editor::State, playing: bool) {
 /// engine plays as the game's content, and the subtree the editor hears and
 /// keeps the changes of.
 fn mirror(state: &mut editor::State) -> Node {
-    if state.mirror.is_none() || !state.mirror.unwrap().is_valid() {
+    if state.mirror == nil || !state.mirror.unwrap().is_valid() {
         let made = scene::root().add_child("Edited");
         // What the edited scene's writes move, and nothing the shell writes.
         events::listen(scene::get_node("Editor"), "changed", made);
@@ -659,7 +659,7 @@ fn mirror(state: &mut editor::State) -> Node {
 /// a tool built beside it, the scripts first, which would otherwise get one
 /// more update against bodies `physics::clear` has already removed.
 fn clear_scene(state: &mut editor::State) {
-    if state.mirror.is_some() && state.mirror.unwrap().is_valid() {
+    if state.mirror != nil && state.mirror.unwrap().is_valid() {
         for found in state.mirror.unwrap().descendants() {
             found.detach_script();
         }
@@ -712,7 +712,7 @@ pub fn scene_text(state: &mut editor::State) -> str {
     arrange::leave_isolate(state);
     let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), scene::ToTomlOptions { root: state.game_root }));
     let assets = state.scene_doc["assets"];
-    if !assets.is_nil() {
+    if assets != nil {
         written["assets"] = assets;
     }
     toml::encode(written)
@@ -729,7 +729,7 @@ pub fn reindex(state: &mut editor::State) {
         }
     }
     let rows: [Node] = [];
-    if state.scene_root.is_some() && state.scene_root.unwrap().is_valid() {
+    if state.scene_root != nil && state.scene_root.unwrap().is_valid() {
         let root = state.scene_root.unwrap();
         rows.push(root);
         for found in root.descendants() {
@@ -742,7 +742,7 @@ pub fn reindex(state: &mut editor::State) {
     let at: [int] = [];
     for found in picked {
         let row = index_of_node(state, found);
-        if row.is_some() {
+        if row != nil {
             at.push(row.unwrap());
         }
     }
@@ -769,7 +769,7 @@ pub fn select_ids(state: &mut editor::State, ids: [str]) {
     let rows: [int] = [];
     for id in ids {
         let at = index_of_id(state, id);
-        if at.is_some() {
+        if at != nil {
             rows.push(at.unwrap());
         }
     }
@@ -795,7 +795,7 @@ pub fn follow_changes(state: &mut editor::State, entries: any) {
         } else if selected.is_valid() && entry["node"].as_node() == selected {
             let name = entry["component"].as_str();
             let properties = entry["properties"];
-            if properties.is_nil() {
+            if properties == nil {
                 if !util::contains(whole, name) {
                     whole.push(name);
                 }
@@ -861,7 +861,7 @@ pub fn index_of_live(state: editor::State, found: Node) -> int? {
             return nil;
         }
         let at = index_of_node(state, current);
-        if at.is_some() {
+        if at != nil {
             return at;
         }
         current = current.parent();
@@ -879,7 +879,7 @@ pub fn index_of_live(state: editor::State, found: Node) -> int? {
 // inspector asks for one per component per frame.
 pub fn schema(state: &mut editor::State, name: str) -> any {
     let cached = state.schemas[name];
-    if !cached.is_nil() {
+    if cached != nil {
         cached
     } else {
         let fresh = util::map_or_empty(scene::component_schema(name));
@@ -892,7 +892,7 @@ pub fn schema(state: &mut editor::State, name: str) -> any {
 /// schemas: the inspector asks once per component per frame otherwise.
 pub fn expects(state: &mut editor::State, name: str) -> any {
     let cached = state.expects[name];
-    if !cached.is_nil() {
+    if cached != nil {
         cached
     } else {
         let fresh = util::list_or_empty(scene::component_expects(name));
@@ -933,7 +933,7 @@ pub fn transform_part(found: Node, key: str, fallback: [float]) -> [float] {
         return fallback;
     }
     let asked = found.authored(TRANSFORM);
-    if asked.kind() == "map" && !asked[key].is_nil() {
+    if asked.kind() == "map" && asked[key] != nil {
         return util::vec3(asked[key], fallback);
     }
     if key == "position" {
@@ -964,7 +964,7 @@ pub fn selected_node(state: editor::State) -> Node {
 // instance's overrides, or takes the file over in Assets.
 pub fn save(state: &mut editor::State) {
     let owner = dependency::of(state.scene_path);
-    if owner.is_some() {
+    if owner != nil {
         log::warn("{state.scene_rel} is in the dependency {owner.unwrap()}, which is read-only here: make it local in Assets to change it, or edit the dependency");
         return;
     }
@@ -974,7 +974,7 @@ pub fn save(state: &mut editor::State) {
 
 /// Whether the scene open is a dependency's, which this project only reads.
 pub fn read_only(state: editor::State) -> bool {
-    dependency::of(state.scene_path).is_some()
+    dependency::of(state.scene_path) != nil
 }
 
 // Write the scene back to its file (hot reload on the game side is the game's
@@ -991,7 +991,7 @@ pub fn write(state: &mut editor::State) {
     // whole list, comments and all.
     if state.assets_touched {
         let assets = state.scene_doc["assets"];
-        if !assets.is_nil() {
+        if assets != nil {
             written["assets"] = assets;
         }
         state.assets_touched = false;
@@ -1053,7 +1053,7 @@ pub fn instance_scene(state: &mut editor::State, rel: str) {
         TRANSFORM: { "position": [0.0, 0.0, 0.0] },
     });
     reindex(state);
-    selection::only(state, index_of_node(state, made).unwrap_or(0));
+    selection::only(state, index_of_node(state, made).or(0));
     log::info("instanced " + rel);
 }
 
@@ -1076,7 +1076,7 @@ pub fn open_prefab(state: &mut editor::State) {
     if !found.is_valid() {
         return;
     }
-    let owner = if found.instance().is_some() { found } else { instance_owner(found) };
+    let owner = if found.instance() != nil { found } else { instance_owner(found) };
     if owner.is_valid() {
         open_scene(state, owner.instance().unwrap());
     } else {
@@ -1129,10 +1129,10 @@ pub fn add_child(state: &mut editor::State, kind: str?) {
         return;
     }
     let parent = selected_node(state);
-    let name = if kind.is_some() { kind_name(kind.unwrap()) } else { "Node" };
+    let name = if kind != nil { kind_name(kind.unwrap()) } else { "Node" };
     history::record(state, "add {name}", nil);
     let made = spawn(state, parent, name, { TRANSFORM: { "position": landing(state, parent) } });
-    if kind.is_some() {
+    if kind != nil {
         if util::contains(scene::presets(), kind.unwrap()) {
             scene::apply_preset(made, kind.unwrap());
         } else {
@@ -1140,7 +1140,7 @@ pub fn add_child(state: &mut editor::State, kind: str?) {
         }
     }
     reindex(state);
-    selection::only(state, index_of_node(state, made).unwrap_or(0));
+    selection::only(state, index_of_node(state, made).or(0));
 }
 
 /// What a node made of `kind` is called: `text2d` is a `Text` and
@@ -1193,7 +1193,7 @@ pub fn spawn(state: &mut editor::State, parent: Node, name: str, entry: any) -> 
     let document: any = { "nodes": [entry] };
     // The scene's own blocks, so a `#id` the node names resolves.
     let assets = state.scene_doc["assets"];
-    if !assets.is_nil() {
+    if assets != nil {
         document["assets"] = assets;
     }
     scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
@@ -1208,7 +1208,7 @@ pub fn spawn(state: &mut editor::State, parent: Node, name: str, entry: any) -> 
 // Run the game's scripts on the scene's nodes: what play does, the actual
 // game code against the actual scene.
 pub fn attach_game_scripts(state: editor::State) {
-    if state.scene_root.is_some() {
+    if state.scene_root != nil {
         scene::attach_scripts(state.scene_root.unwrap());
     }
 }
@@ -1284,7 +1284,7 @@ pub fn set_component_properties_each(state: &mut editor::State, name: str, prope
             continue;
         }
         let properties = properties_of(found, data);
-        if !properties.is_nil() {
+        if properties != nil {
             found.try_patch_component(name, properties);
         }
     }
@@ -1328,7 +1328,7 @@ pub fn duplicate_selected(state: &mut editor::State) {
     reindex(state);
     let rows: [int] = [];
     for found in made {
-        rows.push(index_of_node(state, found).unwrap_or(0));
+        rows.push(index_of_node(state, found).or(0));
     }
     selection::set(state, rows);
 }
@@ -1372,7 +1372,7 @@ pub fn paste_nodes(state: &mut editor::State, text: str) -> bool {
     }
     reindex(state);
     if last.is_valid() {
-        selection::only(state, index_of_node(state, last).unwrap_or(0));
+        selection::only(state, index_of_node(state, last).or(0));
     }
     true
 }
@@ -1405,7 +1405,7 @@ pub fn delete_selected(state: &mut editor::State) {
 pub fn stats(state: editor::State) -> Stats {
     let scripts = 0;
     for found in state.nodes {
-        if !script_rel(found).is_nil() {
+        if script_rel(found) != nil {
             scripts += 1;
         }
     }
@@ -1419,13 +1419,13 @@ pub fn undo_change(state: &mut editor::State, change: any) {
     let kind = change["kind"].as_str();
     if kind == "freed" {
         let parent = node_by_id(state, change["parent"].as_str());
-        if !parent.is_valid() || change["was"].is_nil() {
+        if !parent.is_valid() || change["was"] == nil {
             return;
         }
         let document = toml::parse(change["was"].as_str());
         // The scene's own blocks, so a `#id` the node names resolves.
         let assets = state.scene_doc["assets"];
-        if !assets.is_nil() {
+        if assets != nil {
             document["assets"] = assets;
         }
         scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
@@ -1447,14 +1447,14 @@ pub fn undo_change(state: &mut editor::State, change: any) {
         found.set_name(change["was"].as_str());
     } else if kind == "script" {
         let was = change["was"];
-        if was.is_nil() {
+        if was == nil {
             found.set_script(nil, nil);
         } else {
             found.set_script(was["source"].as_str(), util::map_or_empty(was["props"]));
         }
     } else if kind == "keys" {
         restore_keys(found, change["was"]);
-    } else if kind == "moved" && !change["was"].is_nil() {
+    } else if kind == "moved" && change["was"] != nil {
         let parent = node_by_id(state, change["was"]["parent"].as_str());
         if parent.is_valid() && found.parent() != parent {
             found.set_parent(parent);
@@ -1516,7 +1516,7 @@ pub fn edited(state: &mut editor::State, found: Node, component: str) -> any {
         return nil;
     }
     let id = found.stable_id();
-    if state.edited.is_some() {
+    if state.edited != nil {
         let held = state.edited.unwrap();
         if held.id == id && held.component == component && held.frame == state.frame {
             return held.table;
@@ -1530,7 +1530,7 @@ pub fn edited(state: &mut editor::State, found: Node, component: str) -> any {
 /// Hand the table `edited` holds for `found` back to it whole.
 pub fn write_edited(state: &mut editor::State, found: Node, component: str) {
     let table = edited(state, found, component);
-    if !table.is_nil() {
+    if table != nil {
         found.set_component(component, table);
     }
 }

@@ -9,7 +9,7 @@ pub fn boxed() -> str {
     let bare = keep(Spec { kind: "label" });
     let full = keep(Spec { kind: "button", text: "go", width: 2.0, tags: ["a"] });
     let back: Spec = bare;
-    "{bare} {bare.has("text")} {full} {back.text.is_none()}"
+    "{bare} {bare.has("text")} {full} {back.text == nil}"
 }
 
 // expect: boxed() == "{\"kind\": \"label\"} false {\"kind\": \"button\", \"text\": \"go\", \"width\": 2.0, \"tags\": [\"a\"]} true"

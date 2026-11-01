@@ -406,17 +406,17 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
     // Engine-backed chips (no declared default, see defs::chips) read their
     // value back from the engine; the rest live in `chip_state`.
     let live = shell::chip_value(state, state.workspace, key);
-    if live.is_none() && !chips.has(key) {
-        chips[key] = default_on.is_some() && default_on.unwrap();
+    if live == nil && !chips.has(key) {
+        chips[key] = default_on != nil && default_on.unwrap();
     }
-    let on = if live.is_some() { live.unwrap() } else { chips[key].as_bool() };
+    let on = if live != nil { live.unwrap() } else { chips[key].as_bool() };
     let button: any = {
         "kind": "button",
         "text": label,
         "role": if near { "chip" } else { "chip_quiet" },
         "checked": on,
     };
-    pool::on(button, chip_pressed, { "live": live.is_some(), "workspace": state.workspace, "key": key, "on": on })
+    pool::on(button, chip_pressed, { "live": live != nil, "workspace": state.workspace, "key": key, "on": on })
 }
 
 fn chip_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -484,7 +484,7 @@ fn bookmark_chips(state: editor::State) -> [any] {
     let out: [any] = [];
     for slot in 1..5 {
         let key = "{slot}";
-        let held = !state.bookmarks[key].is_nil();
+        let held = state.bookmarks[key] != nil;
         out.push({
             "kind": "button",
             "text": key,
@@ -522,7 +522,7 @@ fn bookmark(state: &mut editor::State, key: str) {
         return;
     }
     let pose = state.bookmarks[key];
-    if !pose.is_nil() {
+    if pose != nil {
         render::set_camera(pose[0].as_float(), pose[1].as_float(), pose[2].as_float(), pose[3].as_float(), pose[4].as_float(), pose[5].as_float());
     }
 }
@@ -578,7 +578,7 @@ fn open_file(state: editor::State) -> OpenFile {
     }
     let node = model::selected_node(state);
     let relative_path = model::script_rel(node);
-    if !relative_path.is_nil() {
+    if relative_path != nil {
         OpenFile { relative_path: relative_path.as_str(), shading: false, note: "" }
     } else {
         OpenFile { relative_path: "", shading: false, note: "no script attached to " + (if node.is_valid() { node.name() } else { "the selection" }) }
@@ -634,7 +634,7 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
     let relative_path = file.relative_path;
     let path = state.game_root + "/" + relative_path;
     let on_disk = model::source(state, relative_path);
-    if on_disk.is_nil() {
+    if on_disk == nil {
         return CodeView {
             shown: true,
             inset: inset,
@@ -648,7 +648,7 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
     }
     let source = on_disk;
     let buffered = state.script_buffers[path];
-    let text = if buffered.is_nil() { source } else { buffered };
+    let text = if buffered == nil { source } else { buffered };
     let stopped_here = !file.shading && state.debug.paused.kind() == "map" && state.debug.paused_rel == relative_path;
     // An offset asked for is taken once.
     let scroll_to = state.code_scroll;
@@ -723,7 +723,7 @@ pub fn code_caret(state: &mut editor::State, caret: complete::Caret) {
     }
     let path = state.game_root + "/" + file.relative_path;
     let buffered = state.script_buffers[path];
-    let text = if buffered.is_nil() { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
+    let text = if buffered == nil { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
     complete::update(state, file.relative_path, text, caret);
     signals::changed(state, "complete");
 }
@@ -758,7 +758,7 @@ pub fn fill_hooks(state: &mut editor::State) {
         // may be the last file's.
         let path = state.game_root + "/" + file.relative_path;
         let buffered = state.script_buffers[path];
-        let text = if buffered.is_nil() { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
+        let text = if buffered == nil { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
         read_hooks(state, file.relative_path, text);
         for hook in state.hooks_live {
             let lifecycle = hook.name == "init" || hook.name == "update";

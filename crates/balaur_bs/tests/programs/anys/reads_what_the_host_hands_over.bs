@@ -12,7 +12,7 @@ pub fn first_tag(hit: any) -> str {
 
 pub fn describe(hit: any) -> str {
     let tagged = hit.has("tags");
-    let missing = hit["missing"].is_nil();
+    let missing = hit["missing"] == nil;
     let past = hit["tags"][5].kind();
     "{hit.kind()} {hit.len()} {tagged} {missing} {past}"
 }

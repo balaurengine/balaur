@@ -71,7 +71,7 @@ pub fn class_of(path: str) -> str {
 }
 
 pub fn is_nil(value: any) -> bool {
-    value.is_nil()
+    value == nil
 }
 
 /// `value` when it is a map, else an empty one.

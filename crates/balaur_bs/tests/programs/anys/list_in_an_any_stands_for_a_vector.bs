@@ -8,7 +8,7 @@ pub fn read() -> str {
     let named: any = { "origin": { "x": 4.0, "y": 5.0, "z": 6.0 } };
     let a: Ray = listed;
     let b: Ray = named;
-    "{a.origin.y} {a.tint.unwrap().a} {b.origin.z} {b.tint.is_none()}"
+    "{a.origin.y} {a.tint.unwrap().a} {b.origin.z} {b.tint == nil}"
 }
 
 // expect: read() == "2.0 1.0 6.0 true"

@@ -145,7 +145,7 @@ fn place(state: &mut editor::State, name: str, parts: any) -> Node {
 /// An image becomes a `sprite` in 2D and a textured `shape3d` plane in 3D.
 fn drop_image(state: &mut editor::State, path: str) -> Node {
     let rel_or = copy_in(state, path, HOMES().image);
-    if rel_or.is_none() {
+    if rel_or == nil {
         return nil;
     }
     let rel = rel_or.unwrap();
@@ -167,7 +167,7 @@ fn place_image(state: &mut editor::State, rel: str, name: str) -> Node {
 /// A `.wesl` file becomes a shader and the `material` asset that names it.
 fn drop_shader(state: &mut editor::State, path: str) -> Node {
     let rel_or = copy_in(state, path, HOMES().shader);
-    if rel_or.is_none() {
+    if rel_or == nil {
         return nil;
     }
     let rel = rel_or.unwrap();
@@ -186,7 +186,7 @@ fn drop_shader(state: &mut editor::State, path: str) -> Node {
 /// An `.hdr` or `.exr` becomes the scene's sky.
 fn drop_sky(state: &mut editor::State, path: str) -> Node {
     let rel_or = copy_in(state, path, HOMES().sky);
-    if rel_or.is_none() {
+    if rel_or == nil {
         return nil;
     }
     let rel = rel_or.unwrap();
@@ -214,7 +214,7 @@ pub fn name_sky(state: &mut editor::State, rel: str, label: str) -> Node {
 /// component, not by a node of its own.
 fn drop_font(state: &mut editor::State, path: str) -> Node {
     let rel = copy_in(state, path, HOMES().font);
-    if rel.is_some() {
+    if rel != nil {
         log::info("added " + rel.unwrap());
     }
     nil
@@ -230,7 +230,7 @@ fn drop_scene(state: &mut editor::State, path: str) -> Node {
         return nil;
     }
     let rel = copy_in(state, path, "scenes");
-    if rel.is_some() {
+    if rel != nil {
         model::instance_scene(state, rel.unwrap());
     }
     nil
@@ -311,7 +311,7 @@ fn ended(state: &mut editor::State, source: str, over: str) {
     // Made here where there is none: a cancel is read at the top of a slice,
     // so one pressed early ends an import that never said it had started.
     let job = state.jobs[source];
-    if job.is_nil() {
+    if job == nil {
         job = new_job(source, 0);
     }
     job["over"] = over;
@@ -336,7 +336,7 @@ pub fn report(state: &mut editor::State, event: any) {
         state.jobs[source] = new_job(source, import_event["files"].as_int());
     } else if kind == "wrote" {
         let job = state.jobs[source];
-        if !job.is_nil() {
+        if job != nil {
             job["done"] = import_event["done"].as_int();
             job["files"] = import_event["files"].as_int();
         }
@@ -415,7 +415,7 @@ fn select_placed(state: &mut editor::State, placed: Node) {
         return;
     }
     model::reindex(state);
-    selection::only(state, model::index_of_node(state, placed).unwrap_or(0));
+    selection::only(state, model::index_of_node(state, placed).or(0));
     history::commit(state);
 }
 

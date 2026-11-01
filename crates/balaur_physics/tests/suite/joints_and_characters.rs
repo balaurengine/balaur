@@ -641,9 +641,9 @@ impl Scenario {
         self.node.character2d.move_character(0.0, 0.0);
         if self.ticks == 30 {
             let flat = physics2d::raycast(physics2d::RayQuery { origin: [0.5, 3.0], direction: [0.0, -1.0], max_distance: 100.0 });
-            if flat.is_some() { log::error("the character lay back down: a ray beside it still hits"); }
+            if flat != nil { log::error("the character lay back down: a ray beside it still hits"); }
             let upright = physics2d::raycast(physics2d::RayQuery { origin: [0.0, 3.0], direction: [0.0, -1.0], max_distance: 100.0 });
-            if upright.is_none() { log::error("the character is not where the test thinks it is"); }
+            if upright == nil { log::error("the character is not where the test thinks it is"); }
         }
     }
 }

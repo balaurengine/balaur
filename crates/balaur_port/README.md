@@ -62,8 +62,8 @@ What is flagged in the editor: 1,581 flags on its 1,315 flagged lines.
 | Rune | Balaur Script |
 | --- | --- |
 | `Some(x)`, `None`, `()` | `x` (into a `T?`), `nil` |
-| `match o { Some(v) => .., None => .. }`, `if let` | `if o.is_some() { let v = o.unwrap(); .. } else { .. }` |
-| `let v = match o { Some(v) => v, None => return }` | `if o.is_none() { return; }` then `let v = o.unwrap();` |
+| `match o { Some(v) => .., None => .. }`, `if let` | `if o != nil { let v = o.unwrap(); .. } else { .. }` |
+| `let v = match o { Some(v) => v, None => return }` | `if o == nil { return; }` then `let v = o.unwrap();` |
 | `if is_nil(x) { return; }`, `if !(x is Object) { return; }` | the same, then `let x = x.unwrap();` |
 | `match s { "a" => .., _ => .. }` | `if s == "a" { .. } else { .. }` |
 | `(a, b)`, `let (a, b) = f()` | a `_0`/`_1` struct, then `let a = t._0;` |
@@ -78,7 +78,7 @@ What is flagged in the editor: 1,581 flags on its 1,315 flagged lines.
 | `for (k, v) in map` | `for k in m.keys() { let v = m[k]; .. }` |
 | `s[a..b]`, `s.chars()` | `s.slice(a, b)`; an index loop over one-byte slices, flagged |
 | `use crate::util;`, `crate::util::f()` | `use util;`, `util::f()` |
-| `x is Tuple` | `x.is_none()` (`x.is_nil()` on an `any`) |
+| `x is Tuple` | `x == nil` |
 | `x is Object` | `x.kind() == "map"` on an `any`; on a typed value, its answer |
 | `x as f64`, `x as i64` | `x as float`, `x as int`; `.as_float()` on an `any` |
 | a `const` that is not a literal | a function of that name |
@@ -107,8 +107,7 @@ Rune has none, so every one is inferred, over every file at once:
 
 ### Syntax assumed before the compiler has it
 
-- `T?`, `nil`, `.is_some()`, `.is_none()`, `.unwrap()` (`cx::UNWRAP`),
-  `.unwrap_or(d)`.
+- `T?`, `nil`, `x == nil`, `x != nil`, `.unwrap()` (`cx::UNWRAP`), `.or(d)`.
 - `use util;` and `util::f()`; another file's types as `editor::State`, its
   literals as `inspector::Row { .. }`.
 - Function values by name, typed `fn(any)`, `fn(str) -> bool`; a field holding

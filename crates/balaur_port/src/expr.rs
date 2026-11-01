@@ -521,7 +521,7 @@ impl Cx<'_> {
         }
     }
 
-    /// `x.is_none()` or its opposite, for whatever `x` is.
+    /// `x == nil` or its opposite, for whatever `x` is.
     pub(crate) fn nil_check(val: &Ex, negate: bool) -> String {
         let base = val.at(ATOM);
         // A node is nil when it is the invalid one.
@@ -532,16 +532,10 @@ impl Cx<'_> {
                 format!("!{base}.is_valid()")
             };
         }
-        if val.t == Ty::Any || !val.t.known() {
-            if negate {
-                format!("!{base}.is_nil()")
-            } else {
-                format!("{base}.is_nil()")
-            }
-        } else if negate {
-            format!("{base}.is_some()")
+        if negate {
+            format!("{base} != nil")
         } else {
-            format!("{base}.is_none()")
+            format!("{base} == nil")
         }
     }
 
@@ -580,7 +574,7 @@ impl Cx<'_> {
         let v = self.expr(&b.lhs);
         let target = self.text(b.rhs.span()).trim().to_string();
         if target == "Tuple" || target == "unit" {
-            return Ex::new(Self::nil_check(&v, negate), Ty::Bool, UNARY);
+            return Ex::new(Self::nil_check(&v, negate), Ty::Bool, 3);
         }
         let kind = match target.as_str() {
             "balaur::Node" | "Node" => "node",
@@ -688,11 +682,11 @@ impl Cx<'_> {
                     s.chars()
                         .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
                 };
-                if let Some(x) = bare.strip_suffix(".is_some()").filter(|x| simple(x)) {
-                    return Ex::atom(format!("{x}.is_none()"), Ty::Bool);
+                if let Some(x) = bare.strip_suffix(" != nil").filter(|x| simple(x)) {
+                    return Ex::new(format!("{x} == nil"), Ty::Bool, 3);
                 }
-                if let Some(x) = bare.strip_suffix(".is_none()").filter(|x| simple(x)) {
-                    return Ex::atom(format!("{x}.is_some()"), Ty::Bool);
+                if let Some(x) = bare.strip_suffix(" == nil").filter(|x| simple(x)) {
+                    return Ex::new(format!("{x} != nil"), Ty::Bool, 3);
                 }
                 if inner.t == Ty::Any {
                     return Ex::new(format!("!{}.as_bool()", inner.at(ATOM)), Ty::Bool, UNARY);

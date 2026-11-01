@@ -4,7 +4,7 @@
 pub struct Label { kind: str = "label", size: int = 3, text: str, tip: str?, data: any }
 pub fn plain() -> str {
     let label = Label { text: "hi" };
-    "{label.kind} {label.size} {label.text} {label.tip.is_none()} {label.data.is_nil()}"
+    "{label.kind} {label.size} {label.text} {label.tip == nil} {label.data == nil}"
 }
 pub fn sized() -> int { Label { text: "x", size: 9 }.size }
 

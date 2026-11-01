@@ -99,7 +99,7 @@ pub fn geometry(state: editor::State, row: int) -> Geometry? {
     let origin = found.transform.global_position();
     let child = first_child_bone(state, row);
     let child_ref: Node = nil;
-    if child.is_some() {
+    if child != nil {
         child_ref = model::node(state, child.unwrap());
     }
     let tip = if child_ref.is_valid() {
@@ -146,7 +146,7 @@ pub fn pick(state: editor::State, world_x: any, world_y: any) -> int? {
     for row in 0..state.nodes.len() {
         if is_bone(state.nodes[row]) {
             let spine_or = geometry(state, row);
-            if spine_or.is_some() {
+            if spine_or != nil {
                 let spine = spine_or.unwrap();
                 let distance = segment_distance([world_x.as_float(), world_y.as_float()], spine.origin, spine.tip);
                 if distance < best_distance {
@@ -168,14 +168,14 @@ pub fn pick_3d(state: editor::State, pointer_x: float, pointer_y: float, camera:
     for row in 0..state.nodes.len() {
         if is_bone(state.nodes[row]) {
             let spine_or = geometry(state, row);
-            if spine_or.is_some() {
+            if spine_or != nil {
                 let spine = spine_or.unwrap();
                 let origin_or = gizmo::project(camera, spine.origin);
-                if origin_or.is_some() {
+                if origin_or != nil {
                     let origin_x = origin_or.unwrap().x;
                     let origin_y = origin_or.unwrap().y;
                     let tip_or = gizmo::project(camera, spine.tip);
-                    if tip_or.is_some() {
+                    if tip_or != nil {
                         let tip_x = tip_or.unwrap().x;
                         let tip_y = tip_or.unwrap().y;
                         let distance = segment_distance([pointer_x, pointer_y], [origin_x, origin_y], [tip_x, tip_y]);
@@ -266,7 +266,7 @@ pub fn draw(state: editor::State) {
         let node = state.nodes[row];
         if is_bone(node) {
             let spine_or = geometry(state, row);
-            if spine_or.is_some() {
+            if spine_or != nil {
                 let spine = spine_or.unwrap();
                 let color = if state.rig.hover == row {
                     viewport::hover_color()
@@ -304,7 +304,7 @@ pub fn modifier(found: Node) -> any {
 // the bones it actually solves, which `chain` makes a number not a shape.
 fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     let modifier_or = modifier(model::node(state, row));
-    if modifier_or.is_nil() {
+    if modifier_or == nil {
         return nil;
     }
     let modifier_component = modifier_or;
@@ -329,7 +329,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     let at = model::index_of_node(state, driven);
     let limit = util::max(1, (modifier_component["chain_count"].as_float() as int));
     let authored_kind = modifier_component["kind"];
-    let kind = if authored_kind.is_nil() { animation::MODIFIER_LOOK_AT } else { authored_kind.as_str() };
+    let kind = if authored_kind == nil { animation::MODIFIER_LOOK_AT } else { authored_kind.as_str() };
     // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
     // three by definition. The rest walk as far as `chain` allows.
     let walk = if kind == animation::MODIFIER_LOOK_AT {
@@ -343,7 +343,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
             64
         }
     };
-    while at.is_some() && chain.len() < walk {
+    while at != nil && chain.len() < walk {
         let index = at.unwrap();
         chain.push(index);
         at = first_child_bone(state, index);
@@ -363,27 +363,27 @@ fn draw_modifiers(state: editor::State) {
     let color = util::rgb(tokens["node_modifier"].as_str());
     for row in 0..state.nodes.len() {
         let reach_or = modifier_reach(state, row);
-        if reach_or.is_none() {
+        if reach_or == nil {
             continue;
         }
         let reach = reach_or.unwrap();
         let last: [float]? = nil;
         for index in reach.chain {
             let spine_or = geometry(state, index);
-            if spine_or.is_none() {
+            if spine_or == nil {
                 continue;
             }
             let spine = spine_or.unwrap();
             line_at(state, spine.origin, spine.tip, color, CHAIN_WIDTH);
             last = spine.tip;
         }
-        if reach.target.is_none() {
+        if reach.target == nil {
             continue;
         }
         let target = reach.target.unwrap();
         // A jiggle has no target; every other kind reaches for one, and the
         // line is what says which bone is doing the reaching.
-        if last.is_some() {
+        if last != nil {
             dashed(state, last.unwrap(), target, color);
         }
         handle(state, target, if state.rig.drag == row { viewport::hover_color() } else { color });
@@ -441,11 +441,11 @@ pub fn pick_handle(state: editor::State, world_x: any, world_y: any) -> int? {
     let best_distance = HANDLE_PIXELS * 1.6 * viewport::world_per_pixel(state);
     for row in 0..state.nodes.len() {
         let found_or = modifier_reach(state, row);
-        if found_or.is_none() {
+        if found_or == nil {
             continue;
         }
         let found = found_or.unwrap();
-        if found.target.is_some() {
+        if found.target != nil {
             let point = found.target.unwrap();
             let distance = math::sqrt(((point[0] - world_x.as_float()) * (point[0] - world_x.as_float()) + (point[1] - world_y.as_float()) * (point[1] - world_y.as_float())).as_float());
             if distance < best_distance {
@@ -464,7 +464,7 @@ pub fn pick_handle(state: editor::State, world_x: any, world_y: any) -> int? {
 pub fn drag_handle(state: &mut editor::State, row: int, world_x: float, world_y: float) {
     let found = model::node(state, row);
     let modifier_component = modifier(found);
-    if modifier_component.is_nil() || !found.is_valid() {
+    if modifier_component == nil || !found.is_valid() {
         return;
     }
     let target = found.get_node(modifier_component["target"].as_str());
@@ -472,7 +472,7 @@ pub fn drag_handle(state: &mut editor::State, row: int, world_x: float, world_y:
         return;
     }
     let at = model::index_of_node(state, target);
-    if at.is_none() {
+    if at == nil {
         return;
     }
     history::record(state, "move modifier target", "rig:target:{row}");
@@ -527,7 +527,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
     for bone in bones {
         let found = bone.as_node();
         let at = model::index_of_node(state, found);
-        if at.is_some() {
+        if at != nil {
             let key = if found.has_component("bone3d") { "bone3d" } else { "bone2d" };
             was[found.path()] = Was { index: at.unwrap(), key: key, data: util::map_or_empty(found.authored(key)) };
         }
@@ -535,7 +535,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
     let moved = 0;
     for bone in bones {
         let mine_or = was[bone.as_node().path()];
-        if mine_or.is_nil() {
+        if mine_or == nil {
             continue;
         }
         let mine = mine_or;
@@ -544,10 +544,10 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         let other = mirror_name(relative_path);
         // Its opposite number's rest, reflected; or its own, for a bone with
         // no side in its name.
-        let source = if other.is_some() {
+        let source = if other != nil {
             let twin = other.unwrap();
             let twin_was = was[base.as_str() + "/" + twin];
-            if twin_was.is_nil() { mine } else { twin_was }
+            if twin_was == nil { mine } else { twin_was }
         } else {
             mine
         };
@@ -568,7 +568,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
 fn reflect_rest(data: any, axis: str) -> any {
     let out = util::map_or_empty(util::copy(data));
     let authored_position = out["rest_position"];
-    let position = util::list_or_empty(if authored_position.is_nil() { [] } else { authored_position });
+    let position = util::list_or_empty(if authored_position == nil { [] } else { authored_position });
     if position.len() >= 2 {
         let flipped: [float] = [];
         for coordinate in 0..position.len() {
@@ -588,7 +588,7 @@ fn reflect_rest(data: any, axis: str) -> any {
     // The gizmo angle is measured from +x; a mirror over y leaves it negated,
     // and one over x reflects it about the vertical instead.
     let was = out["angle"];
-    if !was.is_nil() {
+    if was != nil {
         let angle = -was.as_float();
         out["angle"] = if axis == "x" { math::PI.as_float() + angle } else { angle };
     } else {
@@ -645,7 +645,7 @@ pub fn add_bone(state: &mut editor::State, parent_index: int, world_x: float, wo
         component: rest,
     });
     model::reindex(state);
-    let at = model::index_of_node(state, child).unwrap_or(0);
+    let at = model::index_of_node(state, child).or(0);
     selection::only(state, at);
     log::info("bone {child.name()} under {parent_node.name()}");
     at
@@ -663,7 +663,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: any, worl
     if !input::mouse_down(input::MOUSE_BUTTON_LEFT.as_int()) {
         state.rig.drag = nil;
     }
-    if state.rig.drag.is_some() {
+    if state.rig.drag != nil {
         let drag = state.rig.drag.unwrap();
         drag_handle(state, drag, world_x.as_float(), world_y.as_float());
         return;
@@ -675,12 +675,12 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: any, worl
     // A modifier's target handle wins over the bone under it: the handle is
     // drawn on top and is the smaller thing to hit.
     let handle_or = pick_handle(state, world_x, world_y);
-    if handle_or.is_some() {
+    if handle_or != nil {
         let at = handle_or.unwrap();
         state.rig.drag = at;
         return;
     }
-    if state.rig.hover.is_some() {
+    if state.rig.hover != nil {
         let hover = state.rig.hover.unwrap();
         shell::choose(state, hover);
         return;
@@ -709,7 +709,7 @@ fn sync_bones(state: &mut editor::State, root_index: int, transforms: bool) {
     for bone in util::list_or_empty(skeleton::bones(root)) {
         let found = bone.as_node();
         let row_or = model::index_of_node(state, found);
-        if row_or.is_none() {
+        if row_or == nil {
             continue;
         }
         if transforms {

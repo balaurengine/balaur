@@ -308,7 +308,7 @@ fn storm(w: world::World, c: load::Case, tick: int) {
             direction: [-x, -h, -z],
             max_distance: FIELD * 2.5,
         });
-        count(w, hit.is_some());
+        count(w, hit != nil);
     }
     for i in 0..CASTS {
         let a = phase * 1.7 + 6.28318 * (i as float) / (CASTS as float);
@@ -321,7 +321,7 @@ fn storm(w: world::World, c: load::Case, tick: int) {
             direction: [-x, -y, -z],
             max_distance: 2.0,
         });
-        count(w, hit.is_some());
+        count(w, hit != nil);
     }
     for i in 0..POINTS {
         let a = phase * 2.3 + 6.28318 * (i as float) / (POINTS as float);

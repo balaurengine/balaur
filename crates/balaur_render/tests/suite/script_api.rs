@@ -166,10 +166,10 @@ fn the_2d_camera_reports_its_centre_and_zoom() {
 fn bounds_reports_the_box_a_2d_shape_draws() {
     let (_app, errors, lines) = run_logged(
         r#"
-        if render::bounds(self.node).is_some() { log::error("a node that draws nothing has no bounds"); }
+        if render::bounds(self.node) != nil { log::error("a node that draws nothing has no bounds"); }
         self.node.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [2.0, 4.0] } });
         let found = render::bounds(self.node);
-        if found.is_none() {
+        if found == nil {
             log::error("a 2D shape has bounds");
             return;
         }

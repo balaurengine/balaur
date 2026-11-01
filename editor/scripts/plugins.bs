@@ -131,7 +131,7 @@ fn add_all(state: &mut editor::State, owner: Node, declared: any) {
         let icon = entry["icon"];
         state.registry.commands.push({
             "title": entry["title"],
-            "icon": if icon.is_nil() { "·" } else { icon.as_str() },
+            "icon": if icon == nil { "·" } else { icon.as_str() },
             "shortcut": entry["shortcut"].as_str(),
             "run": entry["run"],
             "owner": owner,
@@ -172,7 +172,7 @@ pub fn panel(state: editor::State, id: str) -> any {
 /// Have the plugin whose panel is `id` fill the node at `host`.
 pub fn draw_panel(state: &mut editor::State, id: str, host: str) {
     let entry = panel(state, id);
-    if !entry.is_nil() {
+    if entry != nil {
         ask(entry, "draw", { "host": host, "theme": state.theme });
     }
 }
@@ -280,7 +280,7 @@ fn close_dialog(state: &mut editor::State, data: any, _value: any) {
 fn row_controls(row: any) -> any {
     let controls: [any] = [];
     let label = row["label"];
-    if !label.is_nil() {
+    if label != nil {
         controls.push({ "kind": "label", "role": "text_caption", "text": label });
     }
     for one in util::list_or_empty(row["controls"]) {
@@ -298,7 +298,7 @@ pub fn changed(state: &mut editor::State) {
 /// `datatype`, or nil when no plugin registered one.
 pub fn property_controls(state: editor::State, datatype: str, spec: any, value: any, at: inspector::AtTop) -> any {
     let entry = state.registry.property_editors[datatype];
-    if entry.is_nil() {
+    if entry == nil {
         return nil;
     }
     ask(entry, "controls", { "spec": spec, "value": value, "at": at })
@@ -312,7 +312,7 @@ pub fn has_start_state(state: editor::State, name: str) -> bool {
 /// Run the start-up state `name` a plugin registered.
 pub fn run_start_state(state: &mut editor::State, name: str) {
     let entry = state.registry.startup_states[name];
-    if !entry.is_nil() {
+    if entry != nil {
         ask(entry, "run", {});
     }
 }

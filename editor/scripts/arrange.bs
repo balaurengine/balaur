@@ -148,7 +148,7 @@ pub fn group(state: &mut editor::State) {
         found.set_parent(made);
     }
     model::reindex(state);
-    selection::only(state, model::index_of_node(state, made).unwrap_or(0));
+    selection::only(state, model::index_of_node(state, made).or(0));
     history::commit(state);
 }
 

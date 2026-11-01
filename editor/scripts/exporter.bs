@@ -105,7 +105,7 @@ fn specs(state: editor::State) -> [any] {
         },
     ];
     let picker = runtime_spec(state);
-    if picker.is_some() {
+    if picker != nil {
         out.push(picker);
     }
     for row in state.exporter.rows {
@@ -212,7 +212,7 @@ fn readiness(installed: bool, fetchable: bool) -> str {
 fn target_specs(state: editor::State, row: any, out: [any]) {
     let name = row["name"].as_str();
     let own_runtime = row["runtime"];
-    let runtime = if own_runtime.is_nil() { name } else { own_runtime.as_str() };
+    let runtime = if own_runtime == nil { name } else { own_runtime.as_str() };
     let installed = row["installed"].as_bool();
     let fetchable = row["fetchable"].as_bool();
     let note_text = row["note"].as_str();

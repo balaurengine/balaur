@@ -35,10 +35,6 @@ pub fn kind(value: any) -> str {
     }
 }
 
-pub fn is_nil(value: any) -> bool {
-    __tag(value) == 0
-}
-
 pub fn as_int(value: any) -> int {
     let tag = __tag(value);
     if tag == INT {

@@ -164,7 +164,7 @@ pub fn chips(workspace: str) -> [Chip] {
 /// before the chip is first drawn.
 pub fn chip_on(chip_states: any, workspace: str, key: str) -> bool {
     let held = chip_states[workspace][key];
-    if !held.is_nil() {
+    if held != nil {
         return held.as_bool();
     }
     for chip in chips(workspace) {

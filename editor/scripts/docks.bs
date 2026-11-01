@@ -164,7 +164,7 @@ fn homes() -> any {
 
 pub fn home(id: str) -> str {
     let found = homes()[id];
-    if found.is_nil() { "bottom" } else { found.as_str() }
+    if found == nil { "bottom" } else { found.as_str() }
 }
 
 /// Name and icon per panel; `tall` asks the bottom dock for its taller size.
@@ -173,7 +173,7 @@ pub fn home(id: str) -> str {
 /// Built once a frame: the tab row, the minimised rail and `bottom_tall` all
 /// ask, and the outline's own name re-reads every script in the Script workspace.
 pub fn panels(state: &mut editor::State) -> any {
-    if state.panels.is_some() {
+    if state.panels != nil {
         let cache = state.panels.unwrap();
         if cache.at == state.frame && cache.workspace == state.workspace {
             return cache.table;
@@ -211,7 +211,7 @@ pub fn panels(state: &mut editor::State) -> any {
 /// EDITOR-SCREENS §5 promises one tab per registered plugin; its tab menu
 /// moves it from there like any other.
 pub fn adopt(state: &mut editor::State, id: str) {
-    if side_of(state, id).is_some() {
+    if side_of(state, id) != nil {
         return;
     }
     state.docks[home(id)]["tabs"].push(id);
@@ -222,7 +222,7 @@ pub fn adopt(state: &mut editor::State, id: str) {
 /// every panel whether it is open or not, and puts this one back.
 pub fn close(state: &mut editor::State, id: str) {
     let holder = side_of(state, id);
-    if holder.is_none() {
+    if holder == nil {
         return;
     }
     let side = holder.unwrap();
@@ -235,14 +235,14 @@ pub fn close(state: &mut editor::State, id: str) {
     state.docks[side]["tabs"] = kept;
     signals::docks(state);
     if state.docks[side]["active"] == id {
-        state.docks[side]["active"] = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.unwrap_or("");
+        state.docks[side]["active"] = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.or("");
         signals::docks(state);
     }
 }
 
 /// Open a closed panel, or close an open one: what the logo menu's rows do.
 pub fn toggle(state: &mut editor::State, id: str) {
-    if side_of(state, id).is_some() {
+    if side_of(state, id) != nil {
         close(state, id);
     } else {
         show(state, id);
@@ -251,7 +251,7 @@ pub fn toggle(state: &mut editor::State, id: str) {
 
 fn panel(state: &mut editor::State, id: str) -> any {
     let found = panels(state)[id];
-    if found.is_nil() { { "name": id, "icon": icons::panel(id), "tall": false } } else { found }
+    if found == nil { { "name": id, "icon": icons::panel(id), "tall": false } } else { found }
 }
 
 /// What a panel is called, for a menu row outside this module.
@@ -276,7 +276,7 @@ pub fn side_of(state: editor::State, id: str) -> str? {
 /// `state.dock == "..."`, which assumed everything lived at the bottom.
 pub fn showing(state: editor::State, id: str) -> bool {
     let holder = side_of(state, id);
-    if holder.is_some() {
+    if holder != nil {
         let side = holder.unwrap();
         state.docks[side]["active"] == id && !state.docks[side]["shut"].as_bool()
     } else {
@@ -291,7 +291,7 @@ pub fn showing(state: editor::State, id: str) -> bool {
 pub fn show(state: &mut editor::State, id: str) {
     adopt(state, id);
     let found = side_of(state, id);
-    if found.is_some() {
+    if found != nil {
         let side = found.unwrap();
         state.docks[side]["active"] = id;
         signals::docks(state);
@@ -302,7 +302,7 @@ pub fn show(state: &mut editor::State, id: str) {
 /// Move a panel to another dock, and leave its old dock showing something.
 pub fn move_to(state: &mut editor::State, id: str, side: str) {
     let from = side_of(state, id);
-    if from.is_some() {
+    if from != nil {
         let old = from.unwrap();
         if old == side {
             return;
@@ -316,7 +316,7 @@ pub fn move_to(state: &mut editor::State, id: str, side: str) {
         state.docks[old]["tabs"] = kept;
         signals::docks(state);
         if state.docks[old]["active"] == id {
-            state.docks[old]["active"] = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.unwrap_or("");
+            state.docks[old]["active"] = if 0 >= 0 && 0 < kept.len() { kept[0] } else { nil }.or("");
             signals::docks(state);
         }
     }
@@ -365,11 +365,11 @@ fn body(state: editor::State, id: str) {
 /// not a `ui` handle, so a plugin fills its own subtree and cannot reach
 /// past it. On a word its script heard, and when its dock shows it.
 pub fn fill_plugin(state: editor::State, id: str) {
-    if plugins::panel(state, id).is_none() {
+    if plugins::panel(state, id) == nil {
         return;
     }
     let holder = side_of(state, id);
-    if holder.is_none() {
+    if holder == nil {
         return;
     }
     let side = holder.unwrap();
@@ -595,7 +595,7 @@ pub fn active_tab_box(state: &mut editor::State, side: str) -> ActiveTabBox? {
     }
     let tab_box = ui::widget_rect(tab);
     let strip_box = ui::widget_rect(strip);
-    if tab_box.is_none() || strip_box.is_none() {
+    if tab_box == nil || strip_box == nil {
         return nil;
     }
     ActiveTabBox { tab: tab_box.unwrap(), strip: strip_box.unwrap() }

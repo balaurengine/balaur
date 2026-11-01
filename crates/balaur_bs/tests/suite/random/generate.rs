@@ -494,7 +494,8 @@ impl Gen {
         let r = self.any_expr(s, d);
         let eq = self.pick(&[Op::Eq, Op::Ne]);
         match self.rng.below(9) {
-            0 => E::Method(Box::new(r), self.pick(&["as_bool", "is_nil"]), vec![]),
+            0 if self.rng.chance(2) => E::Method(Box::new(r), "as_bool", vec![]),
+            0 => E::Bin(eq, Box::new(r), Box::new(E::Nil)),
             1 => E::Method(Box::new(r), "has", vec![self.key()]),
             2 => E::Method(Box::new(r), "equals", vec![self.any_arg(s, d)]),
             3 => {
@@ -935,7 +936,7 @@ pub(super) fn fold(tail: E, ret: T, s: &Scope) -> E {
             (T::Bool, T::Any) => E::Bin(
                 Op::Ne,
                 Box::new(out),
-                Box::new(E::Method(Box::new(var(name)), "is_nil", vec![])),
+                Box::new(E::Bin(Op::Eq, Box::new(var(name)), Box::new(E::Nil))),
             ),
             _ => out,
         };

@@ -74,17 +74,17 @@ pub fn guides(state: &mut editor::State) {
 // (Motion path chip, anim workspace).
 pub fn motion_path(state: &mut editor::State) {
     let clip_definition = anim::definition(state);
-    if clip_definition.is_nil() {
+    if clip_definition == nil {
         return;
     }
     let keys: any = nil;
     for track in anim::tracks(clip_definition) {
         if track["target"].as_str() == "" && track["property"] == animation::PROPERTY_POSITION {
             let held_keys = track["keys"];
-            keys = util::list_or_empty(if held_keys.is_nil() { [] } else { held_keys });
+            keys = util::list_or_empty(if held_keys == nil { [] } else { held_keys });
         }
     }
-    if keys.is_nil() {
+    if keys == nil {
         return;
     }
     let keys = keys;
@@ -97,11 +97,11 @@ pub fn motion_path(state: &mut editor::State) {
     let previous: [float]? = nil;
     for key in keys {
         let held_value = key["value"];
-        let position = util::vec3(if held_value.is_nil() { nil } else { held_value }.as_float(), [0.0, 0.0, 0.0]);
+        let position = util::vec3(if held_value == nil { nil } else { held_value }.as_float(), [0.0, 0.0, 0.0]);
         let key_x = position[0];
         let key_y = position[1];
         let key_z = position[2];
-        if previous.is_some() {
+        if previous != nil {
             let previous_point = previous.unwrap();
             if is2d {
                 render::draw_line_2d(previous_point[0], previous_point[1], key_x, key_y, color[0], color[1], color[2], 1.0);
@@ -136,7 +136,7 @@ pub fn colliders2d(state: editor::State) {
         let sine = math::sin(angle);
         if collider["kind"].as_str() == physics2d::SHAPE_CIRCLE {
             let held = collider["radius"];
-            let radius = (if held.is_nil() { 0.5 } else { held.as_float() }) * scale.x;
+            let radius = (if held == nil { 0.5 } else { held.as_float() }) * scale.x;
             let from = turned(position, cosine, sine, radius, 0.0);
             for step in 1..33 {
                 let step_angle = step.as_float() / 32.0 * math::PI * 2.0;
@@ -197,7 +197,7 @@ pub fn lights2d(state: editor::State) {
 // of strokes through the node, both in the light's own colour.
 fn light_gizmo(found: Node, light: any) {
     let held_color = light["color"];
-    let color = component_rgb(if held_color.is_nil() { nil } else { held_color }, [1.0, 1.0, 1.0]);
+    let color = component_rgb(if held_color == nil { nil } else { held_color }, [1.0, 1.0, 1.0]);
     let position = found.transform.global_position();
     let angle = found.transform.global_rotation_euler().z;
     let cosine = math::cos(angle.as_float());
@@ -208,7 +208,7 @@ fn light_gizmo(found: Node, light: any) {
     render::draw_line_2d(position.x.as_float() - 0.2, position.y.as_float(), position.x.as_float() + 0.2, position.y.as_float(), color[0], color[1], color[2], 2.0);
     render::draw_line_2d(position.x.as_float(), position.y.as_float() - 0.2, position.x.as_float(), position.y.as_float() + 0.2, color[0], color[1], color[2], 2.0);
     let held_kind = light["kind"];
-    if if held_kind.is_nil() { render::LIGHT_POINT } else { held_kind.as_str() } == render::LIGHT_DIRECTIONAL {
+    if if held_kind == nil { render::LIGHT_POINT } else { held_kind.as_str() } == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let offset_x = -direction_y * (step as float) * 0.4;
             let offset_y = direction_x * (step as float) * 0.4;
@@ -217,7 +217,7 @@ fn light_gizmo(found: Node, light: any) {
         return;
     }
     let held_radius = light["radius"];
-    let radius = if held_radius.is_nil() { 6.0 } else { held_radius.as_float() };
+    let radius = if held_radius == nil { 6.0 } else { held_radius.as_float() };
     let previous_x: any = position.x.as_float() + radius;
     let previous_y = position.y;
     for step in 1..33 {
@@ -259,14 +259,14 @@ pub fn colliders(state: editor::State) {
         let half_y = 0.5;
         let half_z = 0.5;
         let held_radius = collider["radius"];
-        if !held_radius.is_nil() {
+        if held_radius != nil {
             let radius = held_radius.as_float();
             half_x = radius;
             half_y = radius;
             half_z = radius;
         } else {
             let size = collider["size"];
-            if !size.is_nil() {
+            if size != nil {
                 let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
                 half_x = size[0].as_float() / 2.0;
                 half_y = size[1].as_float() / 2.0;
@@ -347,7 +347,7 @@ pub fn lights3d(state: &mut editor::State) {
         }
         let light = if found.has_component("light3d") { found.authored("light3d") } else { nil };
         let camera = found.has_component("camera3d");
-        if light.is_nil() && !camera {
+        if light == nil && !camera {
             continue;
         }
         let selected = selection::contains(state, index);
@@ -355,7 +355,7 @@ pub fn lights3d(state: &mut editor::State) {
         key.push(selected);
         key.extend(util::xyz(found.transform.global_position()));
         key.extend(util::xyz(found.transform.global_rotation_euler()));
-        if !light.is_nil() {
+        if light != nil {
             // By value: an edit writes into the same table, which compares
             // equal to itself.
             key.push("{light}");
@@ -371,7 +371,7 @@ pub fn lights3d(state: &mut editor::State) {
     }
     let out: [any] = [];
     for marked_node in marked {
-        if !marked_node.light.is_nil() {
+        if marked_node.light != nil {
             light3d_gizmo(out, marked_node.node, marked_node.light, marked_node.selected, tokens);
         }
         if marked_node.camera {
@@ -388,12 +388,12 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
         util::rgb(tokens["primary_text"].as_str())
     } else {
         let held_color = light["color"];
-        component_rgb(if held_color.is_nil() { nil } else { held_color }, [1.0, 0.9, 0.7])
+        component_rgb(if held_color == nil { nil } else { held_color }, [1.0, 0.9, 0.7])
     };
     let position = util::xyz(found.transform.global_position());
     let direction = forward_of(found);
     let held_kind = light["kind"];
-    let kind = if held_kind.is_nil() { render::LIGHT_DIRECTIONAL } else { held_kind.as_str() };
+    let kind = if held_kind == nil { render::LIGHT_DIRECTIONAL } else { held_kind.as_str() };
     let width = if selected { 2.0 } else { 1.0 };
     // The body every kind shares: a small star at the node.
     for axis in 0..3 {
@@ -415,12 +415,12 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
         return;
     }
     let held_radius = light["radius"];
-    let radius = if held_radius.is_nil() { 30.0 } else { held_radius.as_float() };
+    let radius = if held_radius == nil { 30.0 } else { held_radius.as_float() };
     if kind == render::LIGHT_SPOT {
         let held_outer = light["outer"];
-        let outer = (if held_outer.is_nil() { 35.0 } else { held_outer.as_float() }) * math::PI.as_float() / 180.0;
+        let outer = (if held_outer == nil { 35.0 } else { held_outer.as_float() }) * math::PI.as_float() / 180.0;
         let held_inner = light["inner"];
-        let inner = (if held_inner.is_nil() { 20.0 } else { held_inner.as_float() }) * math::PI.as_float() / 180.0;
+        let inner = (if held_inner == nil { 20.0 } else { held_inner.as_float() }) * math::PI.as_float() / 180.0;
         let axes = across(direction);
         let first_axis = axes.first_axis;
         let second_axis = axes.second_axis;
@@ -462,7 +462,7 @@ fn camera_gizmo(out: [any], state: editor::State, found: Node, selected: bool, t
     let second_axis = axes.second_axis;
     let camera = util::map_or_empty(found.get_component("camera3d"));
     let held_fov = camera["fov"];
-    let fov = (if held_fov.is_nil() { 60.0 } else { held_fov.as_float() }) * math::PI.as_float() / 180.0;
+    let fov = (if held_fov == nil { 60.0 } else { held_fov.as_float() }) * math::PI.as_float() / 180.0;
     let half = FRUSTUM_REACH * math::tan(fov / 2.0);
     let centre = util::vector_add(position, util::vector_scale(direction, FRUSTUM_REACH));
     let corners: [[any]] = [];

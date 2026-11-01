@@ -91,12 +91,12 @@ pub fn state() -> Sequence? {
 // Whether a fed button is held: the pointer is the game's then, and a gizmo
 // reading the same snapshot would drag the selection along with it.
 pub fn feeding(state: editor::State) -> bool {
-    state.showcase.is_some() && input::mouse_down(input::MOUSE_BUTTON_LEFT)
+    state.showcase != nil && input::mouse_down(input::MOUSE_BUTTON_LEFT)
 }
 
 /// Whether a sequence is running, so the code pane leaves the popup to it.
 pub fn driving(state: editor::State) -> bool {
-    state.showcase.is_some()
+    state.showcase != nil
 }
 
 pub fn start(state: &mut editor::State, name: str) {
@@ -141,7 +141,7 @@ pub fn start(state: &mut editor::State, name: str) {
 // the frame's snapshot. Steps fire on their frame; spans run every frame
 // from `from` to `to` with their progress.
 pub fn step(state: &mut editor::State) {
-    if state.showcase.is_none() {
+    if state.showcase == nil {
         return;
     }
     let sequence = state.showcase.unwrap();
@@ -152,7 +152,7 @@ pub fn step(state: &mut editor::State) {
 // The act phase, at the end of the Editor's update: what a click on the
 // chrome would do runs here, after the game's update, as a click does.
 pub fn acts(state: &mut editor::State) {
-    if state.showcase.is_none() {
+    if state.showcase == nil {
         return;
     }
     let sequence = state.showcase.unwrap();
@@ -214,7 +214,7 @@ fn lerp(from: float, to: float, progress: float) -> float {
 fn feed_pointer(state: &mut editor::State, pointer_x: float, pointer_y: float) {
     let dpi = render::camera_pose()[7];
     input::feed_mouse(pointer_x * state.ui_scale * dpi, pointer_y * state.ui_scale * dpi);
-    if state.showcase.is_some() {
+    if state.showcase != nil {
         let sequence = state.showcase.unwrap();
         sequence.pointer = [pointer_x, pointer_y];
     }
@@ -344,7 +344,7 @@ fn of(at: chrome::Spot) -> [float] {
 fn tool_spot(state: editor::State, tool: str) -> [float] {
     let rail = state.layout["rail"];
     let slot = util::position(defs::tools(state.workspace), tool);
-    let index = if slot.is_some() { slot.unwrap() } else { 0 };
+    let index = if slot != nil { slot.unwrap() } else { 0 };
     return [rail["x"].as_float() + rail["width"].as_float() / 2.0, rail["y"].as_float() + TOOL_TOP + (index as float) * TOOL_PITCH];
 }
 
@@ -352,7 +352,7 @@ fn tool_spot(state: editor::State, tool: str) -> [float] {
 fn centre_of(path: str) -> [float] {
     let node = scene::get_node(path);
     let rect = if node.is_valid() { ui::widget_rect(node) } else { nil };
-    if rect.is_none() {
+    if rect == nil {
         return [];
     }
     let box = rect.unwrap();
@@ -375,7 +375,7 @@ fn form_spot(state: editor::State, label: str) -> [float] {
 // it, and the dock's middle is only reached before it has drawn once.
 fn row_spot(state: &mut editor::State, index: int) -> [float] {
     let found = left::row_spot(state, index);
-    if found.is_some() {
+    if found != nil {
         return [found.unwrap().x, found.unwrap().y];
     }
     let box = state.layout["left"];
@@ -412,7 +412,7 @@ fn scrolled_gutter_spot(state: &mut editor::State, rel: str, line: int, row: int
 // before it has drawn once.
 fn manager_spot(state: editor::State, name: str) -> [float] {
     let found = manager::spot(state, name);
-    if found.is_some() {
+    if found != nil {
         return [found.unwrap().x, found.unwrap().y];
     }
     return [state.screen_width / 2.0, state.screen_height / 2.0];
@@ -430,7 +430,7 @@ fn place_of(state: &mut editor::State, place: any) -> [float] {
         found = spot(state, place["spot"].as_str());
     } else if place.has("row") {
         let index = index_of(state, place["row"].as_str());
-        found = row_spot(state, if index.is_some() { index.unwrap() } else { 0 });
+        found = row_spot(state, if index != nil { index.unwrap() } else { 0 });
     } else if place.has("selection") {
         found = selection_spot(state);
     } else if place.has("world") {
@@ -495,7 +495,7 @@ fn index_of(state: editor::State, name: str) -> int? {
 // The script at `rel` as it is open: its unsaved buffer, or the file.
 fn source_of(state: &mut editor::State, rel: str) -> str {
     let buffer = state.script_buffers[state.game_root + "/" + rel];
-    if buffer.is_nil() { model::source(state, rel).as_str() } else { buffer.as_str() }
+    if buffer == nil { model::source(state, rel).as_str() } else { buffer.as_str() }
 }
 
 fn line_of(state: &mut editor::State, rel: str, needle: str) -> int {
@@ -535,7 +535,7 @@ fn verb(state: &mut editor::State, data: any) {
         shell::set_workspace(state, data["id"].as_str());
     } else if name == "choose" {
         let index = index_of(state, data["name"].as_str());
-        if index.is_some() {
+        if index != nil {
             shell::choose(state, index.unwrap());
         }
     } else if name == "play" {
@@ -646,7 +646,7 @@ fn verb(state: &mut editor::State, data: any) {
 fn fit_figure(state: &mut editor::State) {
     let held = state.selected;
     let found = index_of(state, "Camera");
-    if found.is_some() {
+    if found != nil {
         selection::only(state, found.unwrap());
         model::set_transform(state, found.unwrap(), rig::Parts { position: [0.6, 0.1, 0.0], rotation_euler: [], scale: [] });
         model::set_component_property(state, "camera2d", "pixels_per_unit", 150.0);
@@ -980,7 +980,7 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", {});
     click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", {});
     let put_back: any = { "verb": "theme_put_back", "prefs": preferences };
-    if was.is_some() {
+    if was != nil {
         put_back["kept"] = was.unwrap();
     }
     at(sequence, 1030, verb, put_back);
