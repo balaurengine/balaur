@@ -5,7 +5,7 @@ use super::{BsHost, File, Instance};
 use crate::convert::{from_neutral, to_neutral};
 use anyhow::{Result, anyhow};
 use balaur_bs::runtime::{Object, RunError, Runtime, Step, Task, Value as L};
-use balaur_script::Value;
+use balaur_script::{NodeId, Value};
 
 /// A method suspended on the engine.
 pub(super) struct Pending {
@@ -28,25 +28,29 @@ pub(super) struct WaitingStart {
 }
 
 impl BsHost {
-    /// Starts what was asked of an instance that was busy.
+    /// Starts what was asked of an instance that was busy, and answers one
+    /// that finished at its first await or cannot start. A parked instance's
+    /// waits for its scene to come back.
     pub(super) fn run_waiting_starts(&self) {
         let waiting = std::mem::take(&mut *self.inner.waiting_starts.borrow_mut());
         for start in waiting {
-            let inst = self
-                .inner
-                .instances
-                .borrow()
-                .iter()
-                .find(|inst| inst.node == start.node)
-                .cloned();
-            let Some(inst) = inst else {
+            if self.parked_instance(NodeId(start.node)).is_some() {
+                self.inner.waiting_starts.borrow_mut().push(start);
                 continue;
+            }
+            let out = match self.instance(NodeId(start.node)) {
+                Some((file, inst)) if file.method(&start.method).is_some() => {
+                    self.run(&file, &inst, &start.method, &start.args, start.done)
+                }
+                _ => Ok(Some(Value::Nil)),
             };
-            let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
-                continue;
-            };
-            if let Err(why) = self.run(&file, &inst, &start.method, &start.args, start.done) {
-                tracing::error!("{why:#}");
+            match out {
+                Ok(None) => {}
+                Ok(Some(v)) => self.answer(start.done, v),
+                Err(e) => {
+                    tracing::error!("{e:#}");
+                    self.answer(start.done, Value::Nil);
+                }
             }
         }
     }
