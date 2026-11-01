@@ -124,7 +124,7 @@ pub fn hide(id: str) {
     if !found.is_valid() {
         return;
     }
-    found.patch_component("widget", { "visible": false });
+    found.widget.visible = false;
 }
 
 /// One row of a `list` or `tree`: the icon, the label, a trailing note and a
@@ -185,7 +185,7 @@ pub fn abs(value: float) -> float {
 }
 
 /// Three floats from a document vector, or `fallback`.
-pub fn vec3(value: any, fallback: [float]) -> [float] {
+pub fn list3_or(value: any, fallback: [float]) -> [float] {
     if value.kind() == "list" && value.len() >= 3 {
         [value[0].as_float(), value[1].as_float(), value[2].as_float()]
     } else {
@@ -194,7 +194,7 @@ pub fn vec3(value: any, fallback: [float]) -> [float] {
 }
 
 /// Two floats from a document vector, or `fallback`.
-pub fn vec2(value: any, fallback: [float]) -> [float] {
+pub fn list2_or(value: any, fallback: [float]) -> [float] {
     if value.kind() == "list" && value.len() >= 2 {
         [value[0].as_float(), value[1].as_float()]
     } else {

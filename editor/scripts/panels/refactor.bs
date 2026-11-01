@@ -34,23 +34,23 @@ impl Refactor {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", { "visible": view["open"] });
+        self.node.widget.visible = view["open"].as_bool();
         if !view["open"].as_bool() {
             self.open = false;
             return;
         }
-        self.node.get_node("Title").patch_component("widget", { "text": view["title"] });
+        self.node.get_node("Title").widget.text = view["title"].as_str();
         // The fields' text only as the sheet opens: after that it is what is typed.
         if !self.open {
-            self.node.get_node("From").patch_component("widget", { "text": view["from"] });
-            self.node.get_node("From").patch_component("widget_field", { "placeholder": view["from_hint"] });
-            self.node.get_node("To").patch_component("widget", { "text": view["to"] });
-            self.node.get_node("To").patch_component("widget_field", { "placeholder": view["to_hint"] });
+            self.node.get_node("From").widget.text = view["from"].as_str();
+            self.node.get_node("From").widget_field.placeholder = view["from_hint"].as_str();
+            self.node.get_node("To").widget.text = view["to"].as_str();
+            self.node.get_node("To").widget_field.placeholder = view["to_hint"].as_str();
             ui::set_focus(self.node.get_node(if view["from"].as_str() == "" { "From" } else { "To" }));
         }
         self.open = true;
-        self.node.get_node("Count").patch_component("widget", { "text": view["count"] });
-        self.node.get_node("Hits").patch_component("widget", { "options": view["hits"] });
-        self.node.get_node("Verbs/Apply").patch_component("widget", { "enabled": view["ready"] });
+        self.node.get_node("Count").widget.text = view["count"].as_str();
+        self.node.get_node("Hits").widget.options = view["hits"];
+        self.node.get_node("Verbs/Apply").widget.enabled = view["ready"].as_bool();
     }
 }

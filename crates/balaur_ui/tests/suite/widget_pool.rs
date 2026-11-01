@@ -150,7 +150,7 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         if self.frames % 2 == 0 {
-            scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"visible\": false });
+            scene::get_node(\"Root/Bar\").widget.visible = false;
         } else {
             let label: [any] = [{ \"kind\": \"label\", \"text\": \"x\" }];
             let rows: [any] = [{ \"label\": \"a\", \"controls\": label }];

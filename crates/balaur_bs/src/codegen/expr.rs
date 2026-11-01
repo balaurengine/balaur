@@ -64,6 +64,7 @@ impl FnGen<'_> {
             ExprKind::Call(name, args) => self.call(name, args, e.pos)?,
             ExprKind::Method(base, name, args) => {
                 self.dropped_form(base, name, e.pos)?;
+                self.dropped_property_call(base, name, args, e.pos)?;
                 self.method(base, name, args, e.pos)?
             }
             ExprKind::StructLit(s, fields) => self.struct_lit(s, fields, e.pos)?,

@@ -44,7 +44,7 @@ impl Assets {
         } else if name == "Cards" && event == "click" {
             // A second click on the selected card reports the same row, and that
             // is the one that opens it, so the click is heard rather than a change.
-            self.editor.call("assets_pick", node.get_component("widget", "text"));
+            self.editor.call("assets_pick", node.widget.text);
         } else if name == "Cards" && event == "drop" {
             self.editor.call("assets_dropped", value);
         } else if name == "Name" && event == "submit" {
@@ -58,7 +58,7 @@ impl Assets {
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
         // A hidden browser lists nothing: it is filled again when it shows.
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         let view = self.editor.call("assets_view", self.query);
@@ -66,7 +66,7 @@ impl Assets {
             return;
         }
         let tools = self.node.get_node("Tools");
-        tools.get_node("Up").patch_component("widget", { "visible": view["dir"].as_str() != "" });
+        tools.get_node("Up").widget.visible = view["dir"].as_str() != "";
         tools.get_node("Where").patch_component("widget", { "visible": !view["renaming"].as_bool(), "text": view["where"] });
         // The field's text only as it opens: a refresh while it is up would take
         // the typing back.
@@ -76,19 +76,19 @@ impl Assets {
         }
         self.renaming = view["renaming"].as_bool();
         tools.get_node("Name").patch_component("widget", field);
-        tools.get_node("Count").patch_component("widget", { "text": view["count"] });
+        tools.get_node("Count").widget.text = view["count"].as_str();
         tools.get_node("Import").patch_component("widget", {
             "text": view["import_text"],
             "tooltip": view["import_tip"],
             "checked": view["importing"],
         });
-        tools.get_node("Folder").patch_component("widget", { "text": view["folder_text"] });
-        tools.get_node("Local").patch_component("widget", { "visible": view["local"] });
+        tools.get_node("Folder").widget.text = view["folder_text"].as_str();
+        tools.get_node("Local").widget.visible = view["local"].as_bool();
         tools.get_node("Move").patch_component("widget", {
             "visible": view["move_to"].as_str() != "",
             "tooltip": "Move the selected item into deps/{view["move_to"].as_str()}",
         });
-        tools.get_node("Update").patch_component("widget", { "visible": view["update"] });
+        tools.get_node("Update").widget.visible = view["update"].as_bool();
         tools.get_node("Source").patch_component("widget", {
             "visible": view["source_tip"].as_str() != "",
             "tooltip": view["source_tip"],

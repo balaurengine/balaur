@@ -482,14 +482,14 @@ impl Bench {
         for c in self.cases {
             keys.push(c.key);
         }
-        menu.get_node("Cases").patch_component("widget", { "options": keys });
+        menu.get_node("Cases").widget.options = keys;
         self.show_status();
     }
 
     fn show_status() {
         let label = self.node.get_node("Menu/Status");
         if label.is_valid() {
-            label.patch_component("widget", { "text": self.status });
+            label.widget.text = self.status;
         }
     }
 
@@ -502,7 +502,7 @@ impl Bench {
         for row in self.results {
             lines = if lines == "" { line_of(row) } else { "{lines}\n{line_of(row)}" };
         }
-        label.patch_component("widget", { "text": lines });
+        label.widget.text = lines;
     }
 
     pub fn on_pick(key: any) {

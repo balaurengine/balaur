@@ -55,7 +55,7 @@ impl Plugin {
     /// which may be before `init`: a host made during the Editor's own call
     /// starts once that call is over.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         scene::get_node("Editor").call("plugin_fill", id_of(self.node));

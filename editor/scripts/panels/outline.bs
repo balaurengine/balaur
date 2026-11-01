@@ -30,8 +30,8 @@ impl Outline {
         if event != "change" || node.name() != "List" {
             return;
         }
-        let row = node.get_component("widget", "text");
-        node.patch_component("widget", { "text": "" });
+        let row = node.widget.text;
+        node.widget.text = "";
         if row.as_str() != "" {
             self.editor.call("secondary_pick", row);
         }
@@ -40,7 +40,7 @@ impl Outline {
     fn refresh() {
         let items = self.editor.call("secondary_view");
         if items.kind() == "list" {
-            self.node.get_node("List").patch_component("widget", { "options": items });
+            self.node.get_node("List").widget.options = items;
         }
     }
 }

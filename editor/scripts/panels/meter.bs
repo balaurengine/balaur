@@ -41,7 +41,7 @@ impl Meter {
     }
 
     fn sample() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             // Hidden: no clock until it shows again.
             self.next = 0.0;
             return;
@@ -63,7 +63,7 @@ impl Meter {
                 "widths": view["widths"],
                 "sort": "",
             });
-            table.patch_component("widget", { "reverse": false });
+            table.widget.reverse = false;
         }
         table.patch_component("widget", { "options": view["items"], "visible": view["items"].len() > 0 });
         self.node.get_node("Nothing").patch_component("widget", {
@@ -71,9 +71,9 @@ impl Meter {
             "text": view["says"],
         });
         let tools = self.node.get_node("Tools");
-        tools.get_node("Headline").patch_component("widget", { "text": view["headline"] });
+        tools.get_node("Headline").widget.text = view["headline"].as_str();
         if self.what == "profiler" {
-            tools.get_node("Scripts").patch_component("widget", { "checked": view["scripts"] });
+            tools.get_node("Scripts").widget.checked = view["scripts"].as_bool();
         }
     }
 }

@@ -26,7 +26,7 @@ impl Textedit {
             field.patch_component("widget", { "text": view["text"], "width": view["width"].as_float() - 20.0, "font_size": view["size"] });
             ui::set_focus(field);
         } else if !view["open"].as_bool() {
-            self.node.patch_component("widget", { "visible": false });
+            self.node.widget.visible = false;
         }
         self.open = view["open"].as_bool();
     }

@@ -934,7 +934,7 @@ pub fn transform_part(found: Node, key: str, fallback: [float]) -> [float] {
     }
     let asked = found.authored(TRANSFORM);
     if asked.kind() == "map" && asked[key] != nil {
-        return util::vec3(asked[key], fallback);
+        return util::list3_or(asked[key], fallback);
     }
     if key == "position" {
         util::xyz(found.transform.position)

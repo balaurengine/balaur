@@ -61,7 +61,7 @@ impl Screen {
     fn fill(name: str, options: [str]) {
         let found = self.node.get_node(name);
         if found.is_valid() {
-            found.patch_component("widget", { "options": options });
+            found.widget.options = options;
         }
     }
 
@@ -282,7 +282,7 @@ impl Screen {
         self.ring = held;
         if held.age >= RIPPLE {
             self.ring = nil;
-            node.patch_component("widget", { "visible": false });
+            node.widget.visible = false;
         }
     }
 }

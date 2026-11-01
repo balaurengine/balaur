@@ -48,14 +48,14 @@ impl Output {
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
         // A hidden log costs nothing: it is filled again when it shows.
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         let view = self.editor.call("output_view", self.level, self.query);
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Log").patch_component("widget", { "options": view["items"] });
+        self.node.get_node("Log").widget.options = view["items"];
         self.node.get_node("Nothing").patch_component("widget", {
             "visible": view["says"].as_str() != "",
             "text": view["says"],
@@ -65,7 +65,7 @@ impl Output {
             let on = level == self.level;
             // A chip's own lit state: the theme dresses it, nothing here names a
             // colour.
-            tools.get_node(level).patch_component("widget", { "checked": on });
+            tools.get_node(level).widget.checked = on;
         }
     }
 }

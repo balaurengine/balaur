@@ -402,7 +402,7 @@ fn show(state: editor::State, id: str, on: bool) {
     }
     layout_state["sent"][mark] = want;
     layout_state["quiet"] = 0;
-    found.as_node().patch_component("widget", { "visible": on });
+    found.as_node().widget.visible = on;
 }
 
 /// Where a box was laid out, in design pixels; a zero rect until it has

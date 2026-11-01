@@ -303,6 +303,16 @@ fn a_property_the_component_lacks_does_not_compile() {
         );
         compile(&src, &options).map(|_| ()).unwrap_err().to_string()
     };
+    let read = with("let at = self.node.get_component(\"transform\", \"skew\");");
+    assert!(
+        read.contains("read a property as `node.transform.skew`"),
+        "{read}"
+    );
+    let write = with("self.node.patch_component(\"transform\", { \"skew\": 1.0 });");
+    assert!(
+        write.contains("write a property as `node.transform.skew = v`"),
+        "{write}"
+    );
     let wrong = with("self.node.transform.positoin = vec3(0.0, 0.0, 0.0);");
     assert!(
         wrong.contains("`transform` has no property `positoin`; it has `position`, `skew`"),

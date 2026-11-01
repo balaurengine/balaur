@@ -32,7 +32,7 @@ impl Stage {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Safe").patch_component("widget", { "visible": view["safe"] });
+        self.node.get_node("Safe").widget.visible = view["safe"].as_bool();
         self.node.get_node("Resolution").patch_component("widget", {
             "visible": view["resolution"],
             "inset": view["res_inset"],

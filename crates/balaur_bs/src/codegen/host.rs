@@ -196,6 +196,66 @@ impl FnGen<'_> {
         Ok(Some(((**node).clone(), get, set, ty)))
     }
 
+    /// `get_component("c", "p")` or a patch of one key where the schema knows
+    /// both names: `node.c.p`, checked here and bound once. A map for a
+    /// property that is no `any`, an inline asset, and a colour as `#rrggbb`
+    /// stay patches: neither is a value of the property's type.
+    pub(crate) fn dropped_property_call(
+        &mut self,
+        base: &Expr,
+        name: &str,
+        args: &[Expr],
+        pos: Pos,
+    ) -> R<()> {
+        if self.prelude || !matches!(name, "get_component" | "patch_component") {
+            return Ok(());
+        }
+        let (comp, prop, value) = match args {
+            [comp, prop] if name == "get_component" => (comp, prop, None),
+            [
+                comp,
+                Expr {
+                    kind: ExprKind::MapLit(entries),
+                    ..
+                },
+            ] => match entries.as_slice() {
+                [(prop, value)] => (comp, prop, Some(value)),
+                _ => return Ok(()),
+            },
+            _ => return Ok(()),
+        };
+        let (ExprKind::Str(comp), ExprKind::Str(prop)) = (&comp.kind, &prop.kind) else {
+            return Ok(());
+        };
+        let Some(ty) = self.g.host.property(comp, prop) else {
+            return Ok(());
+        };
+        if self.type_of(base)? != Ty::Node {
+            return Ok(());
+        }
+        match value {
+            None => err(
+                pos,
+                format!(
+                    "read a property as `node.{comp}.{prop}`, not `get_component(\"{comp}\", \"{prop}\")`"
+                ),
+            ),
+            Some(Expr {
+                kind: ExprKind::MapLit(_),
+                ..
+            }) if *ty != Ty::Any => Ok(()),
+            Some(given) if *ty == Ty::Struct("Color".into()) && self.type_of(given)? == Ty::Str => {
+                Ok(())
+            }
+            Some(_) => err(
+                pos,
+                format!(
+                    "write a property as `node.{comp}.{prop} = v`, not a `patch_component` of one key"
+                ),
+            ),
+        }
+    }
+
     /// Why `node.comp.prop` names nothing: no such component, or no such
     /// property on it, with the names it does have.
     fn no_property(&self, comp: &str, prop: &str) -> String {

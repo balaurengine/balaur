@@ -270,7 +270,7 @@ fn fitted_2d(state: editor::State, node: any) -> any {
         if shape2d_kind(shape) == render::SHAPE_CIRCLE {
             return { "kind": physics2d::SHAPE_CIRCLE, "radius": or_float(form(shape)[RADIUS], 0.5) };
         }
-        return { "kind": physics2d::SHAPE_RECTANGLE, "size": util::vec2(form(shape)[SIZE], [1.0, 1.0]) };
+        return { "kind": physics2d::SHAPE_RECTANGLE, "size": util::list2_or(form(shape)[SIZE], [1.0, 1.0]) };
     }
     let mesh = outline_2d(state, node, true);
     if mesh == nil {
@@ -293,7 +293,7 @@ fn fitted_3d(node: any, parts: any) -> any {
     if shape3d_kind(shape) == render::SHAPE_SPHERE {
         return { "kind": physics3d::SHAPE_SPHERE, "radius": or_float(form(shape)[RADIUS], 0.5) };
     }
-    { "kind": physics3d::SHAPE_BOX, "size": util::vec3(form(shape)[SIZE], [1.0, 1.0, 1.0]) }
+    { "kind": physics3d::SHAPE_BOX, "size": util::list3_or(form(shape)[SIZE], [1.0, 1.0, 1.0]) }
 }
 
 // A number a table states, or `fallback` where it states none.
@@ -343,7 +343,7 @@ fn shape_points(shape: any) -> [[float]] {
         }
         return points;
     }
-    let size = util::vec2(form(shape)[SIZE], [1.0, 1.0]);
+    let size = util::list2_or(form(shape)[SIZE], [1.0, 1.0]);
     let half_x = size[0] / 2.0;
     let half_y = size[1] / 2.0;
     [[0.0 - half_x, 0.0 - half_y], [half_x, 0.0 - half_y], [half_x, half_y], [0.0 - half_x, half_y]]
@@ -613,7 +613,7 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
     let color = shape[COLOR];
     let tint: any = if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color };
     if shape2d_kind(shape) == render::SHAPE_RECTANGLE {
-        let size = util::vec2(form(shape)[SIZE], [1.0, 1.0]);
+        let size = util::list2_or(form(shape)[SIZE], [1.0, 1.0]);
         let body: any = { "kind": physics2d::SOFT_GRID, "color": tint };
         let grid: any = { "size": size, "cells": cells_2d(size) };
         return { "-shape2d": true, "softbody2d": body, "soft_grid2d": grid };
@@ -639,7 +639,7 @@ fn soft_parts_3d(node: any) -> any {
         let sphere: any = { "radius": or_float(form(shape)[RADIUS], 0.5) };
         return { "-shape3d": true, "softbody3d": body, "soft_sphere3d": sphere };
     }
-    let size = util::vec3(form(shape)[SIZE], [1.0, 1.0, 1.0]);
+    let size = util::list3_or(form(shape)[SIZE], [1.0, 1.0, 1.0]);
     if kind == render::SHAPE_PLANE {
         let body: any = { "kind": physics3d::SOFT_CLOTH, "color": tint };
         let grid: any = { "size": [size[0], 0.0, size[2]], "cells": [12.0, 12.0, 1.0] };
@@ -726,7 +726,7 @@ fn drawn_scale(state: editor::State, sprite: any, texture: str) -> float {
 fn placed(sprite: any, points: [Vec2]) -> [[float]] {
     let flip_x = sprite["flip_x"].as_bool();
     let flip_y = sprite["flip_y"].as_bool();
-    let offset = util::vec2(sprite["offset"], [0.0, 0.0]);
+    let offset = util::list2_or(sprite["offset"], [0.0, 0.0]);
     let out: [[float]] = [];
     for point in points {
         let point_x = if flip_x { 0.0 - point.x } else { point.x };

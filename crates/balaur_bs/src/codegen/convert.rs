@@ -1,10 +1,12 @@
 //! A typed value into an `any` and back, as a function generated for each type
 //! that crosses, the way a release is. Each is written as a script would write
 //! it, so a field or an element that is itself a struct, a list or a `T?` goes
-//! through its own: a struct is a map of its fields, a list a list of its
-//! elements, a `T?` its value or nil. Read back, a field the map lacks is its
+//! through its own: a struct is a map of its fields, a vector or a colour a list
+//! of its numbers, a list a list of its elements, a `T?` its value or nil. Read
+//! back, a field the map lacks is its
 //! type's zero, as `as_int` and the rest give for nil.
 
+use super::func::vector_fn;
 use crate::ast::{Block, Expr, ExprKind, FnDecl, Param, Pos, Stmt, StmtKind, Ty};
 
 /// `fn any::#box(value: T) -> any`, or with `into` false
@@ -18,6 +20,7 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
     let from = if into { ty.clone() } else { Ty::Any };
     let body = match (ty, into) {
         (Ty::Struct(class), _) if crate::maps::is_map(class) => map_body(class, into, fields),
+        (Ty::Struct(name), true) if vector_fn(name).is_some() => vector_into(fields),
         (Ty::Struct(_), true) => struct_into(fields),
         (Ty::Struct(struct_name), false) => struct_from(struct_name, fields),
         (Ty::Array(_), true) => each_into("value", Ty::Array(Box::new(Ty::Any)), "out", true),
@@ -92,6 +95,17 @@ fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
         tail(by_place),
         Some(tail(by_key)),
     )))
+}
+
+// A vector or a colour as a list of its numbers, which is what an `any` holds
+// of one from anywhere else: TOML, a component, the engine.
+fn vector_into(fields: &[(String, Ty)]) -> Block {
+    tail(list(
+        fields
+            .iter()
+            .map(|(name, _)| field(var("value"), name))
+            .collect(),
+    ))
 }
 
 // A struct as a map of its fields, each boxed; a `T?` field that is nil is

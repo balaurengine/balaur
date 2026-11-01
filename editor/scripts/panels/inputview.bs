@@ -125,7 +125,7 @@ impl Inputview {
     pub fn on_pointer_released(event: any) {
         self.let_go(button_label(event["button"]).as_str());
         if event["button"].as_str() == "left" {
-            self.node.get_node("Press").patch_component("widget", { "visible": false });
+            self.node.get_node("Press").widget.visible = false;
         }
     }
 
@@ -149,8 +149,8 @@ impl Inputview {
         let kept: [Ring] = [];
         for ring in self.rings {
             if now >= ring.until {
-                self.node.get_node("Wash{ring.slot}").patch_component("widget", { "visible": false });
-                self.node.get_node("Ring{ring.slot}").patch_component("widget", { "visible": false });
+                self.node.get_node("Wash{ring.slot}").widget.visible = false;
+                self.node.get_node("Ring{ring.slot}").widget.visible = false;
             } else {
                 kept.push(ring);
             }
@@ -169,7 +169,7 @@ impl Inputview {
         }
         self.shown = view["shown"].as_bool();
         self.factor = view["factor"].as_float();
-        self.node.patch_component("widget", { "visible": view["shown"] });
+        self.node.widget.visible = view["shown"].as_bool();
         self.node.get_node("Chips").patch_component("widget", { "inset": [view["chips_x"], view["chips_y"], -1.0, -1.0] });
     }
 

@@ -31,14 +31,14 @@ impl Recordings {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         let view = self.editor.call("recordings_fill");
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Tools/Verify").patch_component("widget", { "checked": view["verify"] });
-        self.node.get_node("Nothing").patch_component("widget", { "visible": view["count"].as_int() == 0 });
+        self.node.get_node("Tools/Verify").widget.checked = view["verify"].as_bool();
+        self.node.get_node("Nothing").widget.visible = view["count"].as_int() == 0;
     }
 }

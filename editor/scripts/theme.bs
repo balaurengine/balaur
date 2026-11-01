@@ -297,7 +297,9 @@ pub fn apply(state: editor::State) {
     for path in ROOTS() {
         let root = scene::get_node(path);
         if root.is_valid() {
-            root.patch_component("widget", { "theme": doc });
+            // A table, so no `str` the property's type could write.
+            let inline: any = { "theme": doc };
+            root.patch_component("widget", inline);
         }
     }
     let background = util::hex_to_rgb(tokens["bg_app"].as_str());

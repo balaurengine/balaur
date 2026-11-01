@@ -79,7 +79,7 @@ impl Code {
         }
         self.node.get_node("Note").patch_component("widget", { "visible": view["note"].as_str() != "", "text": view["note"] });
         let scroll = self.node.get_node("Scroll");
-        scroll.patch_component("widget", { "visible": view["note"].as_str() == "" });
+        scroll.widget.visible = view["note"].as_str() == "";
         if view["note"].as_str() != "" {
             return;
         }
@@ -87,13 +87,13 @@ impl Code {
         // The text only when the buffer moved under the editor: what is typed is
         // the widget's own, and writing it back would put the caret at the end.
         if view["path"].as_str() != self.path || view["rev"].as_int() != self.rev {
-            editor.patch_component("widget", { "text": view["text"] });
+            editor.widget.text = view["text"].as_str();
             self.path = view["path"].as_str();
             self.rev = view["rev"].as_int();
         }
         editor.patch_component("widget_code", view["look"]);
         if view["scroll_to"].as_float() >= 0.0 {
-            scroll.patch_component("widget_scroll", { "scroll_offset": [0.0, view["scroll_to"]] });
+            scroll.widget_scroll.scroll_offset = vec2(0.0, view["scroll_to"].as_float());
         }
     }
 }

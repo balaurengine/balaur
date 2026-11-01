@@ -36,8 +36,8 @@ impl Library {
         } else if name == "Cards" || name == "Table" {
             // A pick places, so the same card twice places twice: the row is
             // read and let go rather than kept lit.
-            let row = node.get_component("widget", "text");
-            node.patch_component("widget", { "text": "" });
+            let row = node.widget.text;
+            node.widget.text = "";
             if row.as_str() != "" {
                 self.editor.call("library_pick", row);
             }
@@ -47,7 +47,7 @@ impl Library {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         let view = self.editor.call("library_view");
@@ -56,7 +56,7 @@ impl Library {
         }
         let kinds = self.node.get_node("Kinds");
         for kind in KINDS() {
-            kinds.get_node(kind).patch_component("widget", { "checked": kind == view["kind"].as_str() });
+            kinds.get_node(kind).widget.checked = kind == view["kind"].as_str();
         }
         self.node.get_node("Note").patch_component("widget", { "visible": view["says"].as_str() != "", "text": view["says"] });
         let cards = !view["templates"].as_bool() && view["items"].len() > 0;

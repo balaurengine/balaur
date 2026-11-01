@@ -39,6 +39,6 @@ impl Chips {
 
     fn refresh() {
         let shown = self.editor.call("chips_fill", self.near);
-        self.node.patch_component("widget", { "visible": shown.as_bool() == true });
+        self.node.widget.visible = shown.as_bool() == true;
     }
 }

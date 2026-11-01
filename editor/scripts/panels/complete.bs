@@ -29,7 +29,7 @@ impl Complete {
         if is_key(name, KEYS()) {
             self.editor.call("complete_key", name);
         } else if name == "List" {
-            self.editor.call("complete_pick", node.get_component("widget", "text"));
+            self.editor.call("complete_pick", node.widget.text);
         }
     }
 

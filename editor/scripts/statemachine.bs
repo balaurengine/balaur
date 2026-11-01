@@ -737,8 +737,8 @@ pub fn demo_step(state: &mut editor::State) {
     let labels: [str] = [];
     for row in host.children() {
         let label = row.get_node("L");
-        if label.is_valid() && label.get_component("widget", "visible").as_bool() {
-            labels.push(label.get_component("widget", "text").as_str());
+        if label.is_valid() && label.widget.visible {
+            labels.push(label.widget.text);
         }
     }
     let seen = util::join(labels, ", ");

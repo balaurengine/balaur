@@ -46,7 +46,7 @@ impl Weights {
 
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         self.editor.call("weights_fill");

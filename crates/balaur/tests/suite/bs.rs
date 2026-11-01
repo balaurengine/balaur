@@ -803,7 +803,7 @@ impl Reach {
         events::listen(self.node, \"ping\");
         render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0);
         self.missing = !scene::get_node(\"Nowhere\").is_valid();
-        self.position = self.node.get_component(\"transform\", \"position\")[0].as_float();
+        self.position = self.node.transform.position.x;
         self.pointer = input::mouse_position().x;
     }
 }

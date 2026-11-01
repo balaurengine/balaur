@@ -32,7 +32,7 @@ impl Tiles {
     /// it changed; a card is a tile picked.
     pub fn on_widget_event(event: str, node: Node, value: any) {
         if node.name() == "Cards" && event == "click" {
-            self.editor.call("tiles_pick", node.get_component("widget", "text"));
+            self.editor.call("tiles_pick", node.widget.text);
             return;
         }
         if event == "click" || event == "change" {
@@ -43,7 +43,7 @@ impl Tiles {
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         let view = self.editor.call("tiles_fill");
@@ -54,7 +54,7 @@ impl Tiles {
         let list = self.node.get_node("Cards");
         list.patch_component("widget", Parameters { visible: cards, options: view["items"], text: view["picked"] });
         if cards {
-            list.patch_component("widget_list", { "sheet": view["sheet"] });
+            list.widget_list.sheet = view["sheet"].as_str();
         }
     }
 }

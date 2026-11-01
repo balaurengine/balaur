@@ -261,7 +261,7 @@ pub fn fill(state: &mut editor::State) {
             "trailing": icons::ui("caret-down"),
             "height": row_height(state) - 4.0,
         });
-        node.patch_component("widget_menu", { "showing": state.menu_open });
+        node.widget_menu.showing = state.menu_open;
     }
     let menu_at = menu_key(state);
     if pool::strip_due(state, BRAND_NODE, menu_at) {

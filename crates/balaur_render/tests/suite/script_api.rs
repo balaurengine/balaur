@@ -124,7 +124,7 @@ fn a_colour_may_be_set_without_alpha() {
     run_clean(
         r#"
         self.node.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.5 } });
-        self.node.patch_component("shape3d", { "color": [1.0, 0.0, 0.0] });
+        self.node.patch_component("shape3d", { "color": [1.0, 0.0, 0.0], "shape": { "kind": "sphere", "radius": 0.5 } });
         let r = self.node.shape3d.color.r;
         if math::abs(r - 1.0) >= 0.0001 { log::error("red was not kept: {r}"); }
         "#,

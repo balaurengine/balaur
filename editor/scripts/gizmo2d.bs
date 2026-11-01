@@ -116,9 +116,9 @@ fn local_point(geometry: Geometry, offset_x: float, offset_y: float) -> [float] 
 // The 2D half extents a node renders/collides with (`None` when it has none).
 fn shape_box(found: Node) -> LocalBox? {
     let shape = if found.has_component("shape2d") {
-        found.get_component("shape2d", "shape")
+        found.shape2d.shape
     } else if found.has_component("collider2d") {
-        found.get_component("collider2d", "shape")
+        found.collider2d.shape
     } else {
         return nil;
     };
@@ -138,7 +138,7 @@ fn shape_box(found: Node) -> LocalBox? {
         return LocalBox { centre: [0.0, 0.0], half: [reach, (if height == nil { 2.0 } else { height.as_float() }) / 2.0] };
     }
     let asked = shape["size"];
-    let size = util::vec2(if asked == nil { nil } else { asked }, [1.0, 1.0]);
+    let size = util::list2_or(if asked == nil { nil } else { asked }, [1.0, 1.0]);
     LocalBox { centre: [0.0, 0.0], half: [size[0].as_float() / 2.0, size[1].as_float() / 2.0] }
 }
 

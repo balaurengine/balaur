@@ -47,14 +47,14 @@ impl Debugger {
             self.editor.call("debugger_break_on_error");
             self.refresh();
         } else if name == "Stack" {
-            self.editor.call("debugger_frame", node.get_component("widget", "text"));
+            self.editor.call("debugger_frame", node.widget.text);
         }
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.widget.visible == false {
             return;
         }
         let view = self.editor.call("debugger_view");
@@ -62,7 +62,7 @@ impl Debugger {
             return;
         }
         let tools = self.node.get_node("Tools");
-        tools.get_node("Pause").patch_component("widget", { "visible": view["can_pause"] });
+        tools.get_node("Pause").widget.visible = view["can_pause"].as_bool();
         let steps = STEPS();
         for index in 0..steps.len() {
             let step = steps[index];
@@ -72,9 +72,9 @@ impl Debugger {
             }
             tools.get_node(step).patch_component("widget", shown);
         }
-        tools.get_node("Where").patch_component("widget", { "text": view["where"] });
+        tools.get_node("Where").widget.text = view["where"].as_str();
         tools.get_node("Threw").patch_component("widget", { "visible": view["threw"].as_str() != "", "text": view["threw"] });
-        tools.get_node("BreakOnError").patch_component("widget", { "checked": view["break_on_error"] });
+        tools.get_node("BreakOnError").widget.checked = view["break_on_error"].as_bool();
         self.node.get_node("Stack").patch_component("widget", {
             "visible": view["stopped"],
             "options": view["frames"],

@@ -97,7 +97,7 @@ pub fn motion_path(state: &mut editor::State) {
     let previous: [float]? = nil;
     for key in keys {
         let held_value = key["value"];
-        let position = util::vec3(if held_value == nil { nil } else { held_value }.as_float(), [0.0, 0.0, 0.0]);
+        let position = util::list3_or(if held_value == nil { nil } else { held_value }.as_float(), [0.0, 0.0, 0.0]);
         let key_x = position[0];
         let key_y = position[1];
         let key_z = position[2];
@@ -145,7 +145,7 @@ pub fn colliders2d(state: editor::State) {
                 from = to;
             }
         } else {
-            let size = util::vec2(collider["size"], [1.0, 1.0]);
+            let size = util::list2_or(collider["size"], [1.0, 1.0]);
             let half_x = size[0] / 2.0 * scale.x;
             let half_y = size[1] / 2.0 * scale.y;
             let first_corner = turned(position, cosine, sine, -half_x, -half_y);
@@ -175,7 +175,7 @@ fn component_rgb(value: any, fallback: [float]) -> [float] {
     if value.kind() == "str" && value.len() >= 7 {
         return util::rgb(value.as_str());
     }
-    util::vec3(value.as_float(), fallback)
+    util::list3_or(value.as_float(), fallback)
 }
 
 // `light2d` reach and aim, and `occluder2d` outlines (Lights chip).
@@ -267,7 +267,7 @@ pub fn colliders(state: editor::State) {
         } else {
             let size = collider["size"];
             if size != nil {
-                let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
+                let size: any = util::list3_or(size.as_float(), [1.0, 1.0, 1.0]);
                 half_x = size[0].as_float() / 2.0;
                 half_y = size[1].as_float() / 2.0;
                 half_z = size[2].as_float() / 2.0;

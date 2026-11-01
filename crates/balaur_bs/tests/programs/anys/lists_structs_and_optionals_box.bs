@@ -3,7 +3,7 @@ fn keep(a: any) -> any { a }
 pub fn list() -> str { let a = keep(["x", "y"]); "{a.len()} {a[1].as_str()}" }
 pub fn record() -> str {
     let a = keep(P { name: "p", tags: ["t"], at: vec2(1.0, 2.0) });
-    "{a["name"].as_str()} {a["tags"][0].as_str()} {a["at"]["y"].as_float()}"
+    "{a["name"].as_str()} {a["tags"][0].as_str()} {a["at"][1].as_float()}"
 }
 pub fn maybe(yes: bool) -> str {
     let v: int? = if yes { 4 } else { nil };

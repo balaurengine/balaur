@@ -185,7 +185,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 let present = n.component_names();
                 self.check(has(present, "body2d"), "body2d not applied");
                 self.check(has(present, "collider2d"), "collider2d not applied");
-                self.check(n.get_component("body2d", "kind").as_str() == "dynamic", "wrong body kind");
+                self.check(n.body2d.kind == "dynamic", "wrong body kind");
 
                 self.check(scene::warnings(n).len() == 0, "nothing should warn here");
                 if !self.failed {

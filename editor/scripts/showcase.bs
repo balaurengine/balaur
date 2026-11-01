@@ -926,8 +926,8 @@ fn form_control(label: str, at: int) -> [float] {
     }
     for row in host.children() {
         let named = row.get_node("L");
-        if row.get_component("widget", "visible").as_bool() && named.is_valid()
-            && named.get_component("widget", "text").as_str() == label {
+        if row.widget.visible && named.is_valid()
+            && named.widget.text == label {
             return centre_of("{FORM}/{row.name()}/H/C/C{at}");
         }
     }
@@ -942,7 +942,7 @@ fn head_control(text: str) -> [float] {
         return [];
     }
     for control in host.children() {
-        if control.get_component("widget", "text").as_str() == text {
+        if control.widget.text == text {
             return centre_of(slot + "/" + control.name());
         }
     }

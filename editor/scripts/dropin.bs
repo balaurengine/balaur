@@ -202,7 +202,7 @@ pub fn name_sky(state: &mut editor::State, rel: str, label: str) -> Node {
     // retargeted rather than joined by a second.
     for found in state.nodes {
         if found.has_component("environment") {
-            found.patch_component("environment", { "sky": rel });
+            found.environment.sky = rel;
             log::info("sky is now " + rel);
             return found;
         }

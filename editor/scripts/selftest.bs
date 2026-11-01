@@ -1191,7 +1191,7 @@ pub fn start_screen_step(state: &mut editor::State) {
     let head = ui::widget_rect(scene::get_node("Editor/Manager/ManagerHead"));
     check(head != nil && head.unwrap().width > 0.0, "and its head is drawn ({head})");
     let shell = scene::get_node("Editor/Shell");
-    check(shell.is_valid() && shell.get_component("widget", "visible").as_bool() == false, "the shell under it is hidden");
+    check(shell.is_valid() && shell.widget.visible == false, "the shell under it is hidden");
     log::info("selftest start screen: done");
 }
 
@@ -1611,7 +1611,7 @@ pub fn picking(state: &mut editor::State) {
     for index in 0..state.nodes.len() {
         let found = model::node(state, index);
         if found.is_valid() && found.has_component("shape3d") {
-            let kind = found.get_component("shape3d", "shape")["kind"].as_str();
+            let kind = found.shape3d.shape["kind"].as_str();
             if kind != "" && kind != "mesh" {
                 target = index;
                 break;
@@ -2055,7 +2055,7 @@ pub fn font_catalogue(state: &mut editor::State) {
     answer(state, "licence", { "body": "SIL Open Font License" });
     // The live node holds the mirror's absolute path; the document, the
     // project's own.
-    let named = model::relative_file(state, node.get_component("text2d", "font").as_str()).as_str();
+    let named = model::relative_file(state, node.text2d.font).as_str();
     check(named.starts_with("fonts/Probe-Regular"), "the row names the regular face ({named})");
     check(fs::exists(state.game_root + "/" + named), "the face is in the project");
     let licence = state.game_root + "/fonts/Probe-Regular.OFL.txt";
@@ -3077,7 +3077,7 @@ pub fn plugin_step(state: &mut editor::State) {
     }
     let shown = 0;
     for row in rows.children() {
-        if row.get_component("widget", "visible").as_bool() == true {
+        if row.widget.visible == true {
             shown += 1;
         }
     }
@@ -3085,8 +3085,8 @@ pub fn plugin_step(state: &mut editor::State) {
     let labels: [str] = [];
     for row in rows.children() {
         let label = row.get_node("L");
-        if label.is_valid() && label.get_component("widget", "visible").as_bool() == true {
-            labels.push(label.get_component("widget", "text").as_str());
+        if label.is_valid() && label.widget.visible == true {
+            labels.push(label.widget.text);
         }
     }
     check(util::contains(labels, "alpha") && util::contains(labels, "beta"), "an opened file's keys are rows under it ({labels})");
@@ -3118,9 +3118,9 @@ pub fn palette_step(state: &mut editor::State) {
     }
     let shown: [bool] = [];
     for row in host.children() {
-        if row.get_component("widget", "visible").as_bool() == true {
+        if row.widget.visible == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
-            shown.push(slot.get_component("widget", "checked").as_bool() == true);
+            shown.push(slot.widget.checked == true);
         }
     }
     check(shown.len() > 1, "the query narrowed the list to its matches ({shown.len()})");
@@ -3234,7 +3234,7 @@ pub fn settings_step(state: &mut editor::State) {
         // Typed rather than set: the field's text is what a key press
         // changes, and the list has to follow it.
         let field = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetSide/SheetSideRows/C0");
-        if check(field.is_valid() && field.get_component("widget", "kind").as_str() == "text_field", "the sidebar's first control is the search field") {
+        if check(field.is_valid() && field.widget.kind == "text_field", "the sidebar's first control is the search field") {
             ui::edit(field, "scale");
         }
         return;
@@ -3245,7 +3245,7 @@ pub fn settings_step(state: &mut editor::State) {
     state.settings.demo = -1;
     check(settings::query(state) == "scale", "typing in the field is the query ('{settings::query(state)}')");
     let note = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm/R0/H/C/C0");
-    let said = if note.is_valid() { note.get_component("widget", "text").as_str() } else { "" };
+    let said = if note.is_valid() { note.widget.text } else { "" };
     check(said.contains("matching \"scale\"") && !said.starts_with("0 "), "and the list is the matches for it ({said})");
     settings_round_trip(state);
 }
@@ -3317,15 +3317,15 @@ fn export_row_runtime(state: editor::State, name: str) -> str {
 pub fn theme_switch(state: &mut editor::State) {
     theme::set_dark(state, true);
     check(state.theme["dark"].as_bool() == true, "the editor uses the dark theme");
-    let dark_sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
+    let dark_sheet = scene::get_node("Editor/Sheet").widget.theme;
     theme::set_dark(state, false);
     check(state.theme["dark"].as_bool() == false, "the switch reaches the light theme");
     check(state.theme["bg_app"].as_str() != "", "and the light theme loaded its colors");
     // The sheet, the palette and the start screen are roots of their own, not
     // under the shell, and each has to wear the switch too.
     for path in ["Editor/Shell", "Editor/Manager", "Editor/Picker", "Editor/Sheet"] {
-        let now = scene::get_node(path).get_component("widget", "theme");
-        check(now.kind() == "str" && now.as_str().starts_with("#!") && !now.equals(dark_sheet), "{path} uses the light theme ({now})");
+        let now = scene::get_node(path).widget.theme;
+        check(now.starts_with("#!") && now != dark_sheet, "{path} uses the light theme ({now})");
     }
     theme::set_dark(state, true);
     check(state.theme["dark"].as_bool() == true, "and switches back to the dark one");
@@ -3404,8 +3404,8 @@ pub fn theme_editing(state: &mut editor::State) {
     check(state.theme["primary_text"].as_str() != before, "and moves what derives from it ({state.theme["primary_text"]})");
     themewin::edit(state, ["colors"], "primary_text", "#ff0000");
     check(state.theme["primary_text"].as_str() == "#ff0000", "a stated token wins over its rule");
-    let sheet = scene::get_node("Editor/Sheet").get_component("widget", "theme");
-    check(sheet.kind() == "str" && sheet.as_str().starts_with("#!"), "and the dialog's node carries it embedded");
+    let sheet = scene::get_node("Editor/Sheet").widget.theme;
+    check(sheet.starts_with("#!"), "and the dialog's node carries it embedded");
     themewin::edit(state, ["roles", "tab"], "font_size", 13);
     themewin::save(state);
     let text = fs::read(path).or("");
@@ -3462,9 +3462,9 @@ pub fn theme_edit_step(state: &mut editor::State) {
     let host = scene::get_node("Editor/Sheet/SheetBody/SheetSplit/SheetScroll/SheetForm");
     let roles: [str] = [];
     for row in host.children() {
-        if row.get_component("widget", "visible").as_bool() == true {
+        if row.widget.visible == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
-            roles.push(slot.get_component("widget", "role").as_str());
+            roles.push(slot.widget.role);
         }
     }
     check(util::contains(roles, "tab"), "the Controls page draws the tab role as itself ({roles.len()})");
@@ -3744,7 +3744,7 @@ pub fn events_step(state: &mut editor::State) {
     }
     let shown = 0;
     for row in host.children() {
-        if row.get_component("widget", "visible").as_bool() == true {
+        if row.widget.visible == true {
             shown += 1;
         }
     }

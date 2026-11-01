@@ -357,7 +357,7 @@ pub fn hide_tree(state: editor::State) {
 pub fn show_tree() {
     let found = scene::get_node(PANEL);
     if found.is_valid() {
-        found.patch_component("widget", { "visible": true });
+        found.widget.visible = true;
     }
 }
 
@@ -401,7 +401,7 @@ pub fn secondary_pick(state: &mut editor::State, picked: str) {
 pub fn show_outline() {
     let found = scene::get_node(OUTLINE);
     if found.is_valid() {
-        found.patch_component("widget", { "visible": true });
+        found.widget.visible = true;
     }
 }
 

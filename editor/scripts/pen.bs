@@ -92,7 +92,7 @@ pub fn current(state: &mut editor::State) -> Loaded? {
     }
     let points: [[float]] = [];
     for point in util::list_or_empty(definition["points"]) {
-        points.push(util::vec2(point, [0.0, 0.0]));
+        points.push(util::list2_or(point, [0.0, 0.0]));
     }
     let loaded = Loaded { points: points, closed: definition["closed"].as_bool() };
     state.pen.reference = found;

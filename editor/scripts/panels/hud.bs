@@ -45,8 +45,8 @@ impl Hud {
             return;
         }
         let axes = self.node.get_node("Axes/Row");
-        axes.get_node("X").patch_component("widget", { "text_color": view["x_ink"] });
-        axes.get_node("Y").patch_component("widget", { "text_color": view["y_ink"] });
+        axes.get_node("X").patch_component("widget", { "text_color": view["x_ink"].as_str() });
+        axes.get_node("Y").patch_component("widget", { "text_color": view["y_ink"].as_str() });
         let zoom = self.node.get_node("Zoom/Row");
         for name in ["Out", "In"] {
             zoom.get_node(name).patch_component("widget", {
@@ -55,10 +55,10 @@ impl Hud {
                 "text_color": view["quiet_ink"],
             });
         }
-        zoom.get_node("In").patch_component("widget", { "icon": view["add_icon"] });
-        zoom.get_node("Reading").patch_component("widget", { "text": view["zoom"] });
+        zoom.get_node("In").widget.icon = view["add_icon"].as_str();
+        zoom.get_node("Reading").widget.text = view["zoom"].as_str();
         let bottom = self.node.get_node("Bottom");
-        bottom.patch_component("widget", { "visible": view["bottom"] });
+        bottom.widget.visible = view["bottom"].as_bool();
         bottom.get_node("Open").patch_component("widget", {
             "icon": view["bottom_icon"],
             "width": view["step"].as_float() + 6.0,

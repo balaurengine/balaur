@@ -32,7 +32,7 @@ impl Arena {
         render::set_camera_2d(0.0, 0.0, 120.0);
         let me = multiplayer::local_player().or(0);
         let text = "You are player {me + 1}. The arrow keys move your square.";
-        self.node.get_node("Hud").patch_component("widget", { "text": text });
+        self.node.get_node("Hud").widget.text = text;
     }
 
     pub fn fixed_update(dt: float) {

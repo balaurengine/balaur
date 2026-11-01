@@ -577,7 +577,7 @@ fn reflect_rest(data: any, axis: str) -> any {
     }
     let rotation = out["rest_rotation"];
     if rotation.kind() == "list" {
-        let turned = util::vec3(rotation, [0.0, 0.0, 0.0]);
+        let turned = util::list3_or(rotation, [0.0, 0.0, 0.0]);
         out["rest_rotation"] = [turned[0], turned[1], -turned[2]];
     } else {
         out["rest_rotation"] = -rotation.as_float();

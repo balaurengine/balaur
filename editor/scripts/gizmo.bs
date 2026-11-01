@@ -272,9 +272,9 @@ fn shape_half_extents(found: Node) -> [float] {
     let half_y = 0.6;
     let half_z = 0.6;
     let shape = if found.has_component("shape3d") {
-        found.get_component("shape3d", "shape")
+        found.shape3d.shape
     } else {
-        found.get_component("collider3d", "shape")
+        found.collider3d.shape
     };
     if shape != nil {
         if shape.kind() == "map" {
@@ -286,7 +286,7 @@ fn shape_half_extents(found: Node) -> [float] {
             } else {
                 let size = shape["size"];
                 if size != nil {
-                    let size: any = util::vec3(size.as_float(), [1.0, 1.0, 1.0]);
+                    let size: any = util::list3_or(size.as_float(), [1.0, 1.0, 1.0]);
                     half_x = size[0].as_float() / 2.0;
                     half_y = size[1].as_float() / 2.0;
                     half_z = size[2].as_float() / 2.0;
