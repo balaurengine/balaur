@@ -97,7 +97,9 @@ jobs:
           export CC_aarch64_linux_android=$bin/aarch64-linux-android26-clang
           export CXX_aarch64_linux_android=$bin/aarch64-linux-android26-clang++
           export AR_aarch64_linux_android=$bin/llvm-ar
-          cargo clippy --workspace --all-targets --target aarch64-linux-android -- -D warnings
+          # Android's `thread_local!` is key-based, where the lint calls a `const` initializer not one.
+          cargo clippy --workspace --all-targets --target aarch64-linux-android -- -D warnings \
+            -A clippy::missing_const_for_thread_local
       # iOS's cfg code, then the iOS template's features, the defaults and `apple`.
       - name: Target `aarch64-apple-ios`
         if: runner.os == 'macOS'
@@ -128,7 +130,7 @@ jobs:
       # over log — the rules in docs/NAMING.md that no compiler enforces.
       - name: scripts/house_lints.py
         run: python3 scripts/house_lints.py --fail-on-error
-      # Every language in the tree, not just Rust: Rune, the workflows and the
+      # Every language in the tree, not just Rust: scripts, the workflows and the
       # scripts themselves. Generated files are skipped by their banner.
       - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
