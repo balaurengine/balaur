@@ -1,5 +1,5 @@
 // The editor's debugger on `.bs`: a file asked about is rebuilt with probes on
-// an engine that parks a call at a stop, and the game freezes as for Rune.
+// an engine that parks a call at a stop, and the game freezes while it does.
 
 use super::tasks::Pending;
 use super::{BsHost, File, Instance, key_of};

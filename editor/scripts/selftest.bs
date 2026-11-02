@@ -477,7 +477,7 @@ pub fn every_node(state: &mut editor::State) {
 }
 
 // Mutate, undo, redo; assert the document, the mirror and the selection all
-// come back. Runs headless, so it is CI's only view of the editor's Rune.
+// come back. Runs headless, so it is CI's only view of the editor's scripts.
 pub fn undo(state: &mut editor::State) {
     let start = state.nodes.len();
     check(history::dirty(state) == false, "a freshly loaded scene is clean");

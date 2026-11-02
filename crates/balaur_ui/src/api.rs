@@ -383,7 +383,7 @@ fn install_driving(m: &mut dyn Bindings<Engine>) {
             "click",
             &[],
             "(node: node, opts: ClickOptions?) -> bool",
-            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
             "reread",
@@ -578,13 +578,13 @@ fn install_rects(m: &mut dyn Bindings<Engine>) {
             "widget_rect",
             &[],
             "-> Rect?",
-            "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
+            "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         ),
         (
             "tab_rect",
             &[],
             "-> Rect?",
-            "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
+            "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         ),
     ]);
     m.records(&[(

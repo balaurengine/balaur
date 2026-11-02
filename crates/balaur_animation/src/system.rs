@@ -68,15 +68,15 @@ pub(crate) enum Effect {
 pub const FINISHED_EVENT: &str = "animation_finished";
 /// What it emits when a clip starts from its beginning, with the clip's name.
 pub const STARTED_EVENT: &str = "animation_started";
-/// What it emits when a clip takes over from another, `#{ from, to }`.
+/// What it emits when a clip takes over from another, `{ from, to }`.
 pub const CHANGED_EVENT: &str = "animation_changed";
 /// What it emits each time a looping clip goes round an end.
 pub const LOOPED_EVENT: &str = "animation_looped";
 /// What a node announces when a tween on it starts another loop,
-/// `#{ tween, played }`.
+/// `{ tween, played }`.
 pub const TWEEN_LOOPED_EVENT: &str = "tween_looped";
 /// What a node announces when one step of a tween on it is over,
-/// `#{ tween, step }`.
+/// `{ tween, step }`.
 pub const TWEEN_STEP_EVENT: &str = "tween_step";
 
 /// What a node announces when a tween on it runs out, with the tween's handle.

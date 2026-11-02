@@ -15,9 +15,9 @@
 //! happen, so a strip whose spec did not change need not be filled again.
 //!
 //! In Rust because the shell asks for a hundred controls a pass, and merging
-//! and comparing their tables in Rune was two fifths of the editor's script.
+//! and comparing their tables in a script was two fifths of the editor's work.
 //! Every write goes through the node operations a script calls, so what a
-//! node ends up holding is what the Rune pool left on it.
+//! node ends up holding is what a script's own writes would have left on it.
 
 use std::collections::BTreeMap;
 

@@ -615,7 +615,7 @@ pub fn three_fit(state: editor::State) -> bool {
 // the head sheet as the scene states it.
 const BAR_HEIGHT_GUESS: float = 43.0;
 
-/// The room the docks leave the stage, as `#{ width, height }` in design pixels,
+/// The room the docks leave the stage, as `{ width, height }` in design pixels,
 /// from the same widths the layout is about to use. Asked before the layout
 /// runs, by everything that shows only where there is room for it.
 pub fn stage_room(state: editor::State) -> Room {

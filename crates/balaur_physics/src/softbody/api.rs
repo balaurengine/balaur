@@ -18,7 +18,7 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
         ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much they enclose at rest."),
         ("softbody_center", &[c::SOFTBODY_3D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
         ("softbody_dihedrals", &[c::SOFTBODY_3D], "() -> [[int]]", "Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles."),
-        ("softbody_dihedral", &[c::SOFTBODY_3D], "(index: int) -> map", "Everything one hinge holds: `#{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with."),
+        ("softbody_dihedral", &[c::SOFTBODY_3D], "(index: int) -> map", "Everything one hinge holds: `{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with."),
     ]);
     m.function("softbody_volume", |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {

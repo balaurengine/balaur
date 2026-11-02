@@ -9,7 +9,7 @@ use crate::material::{
 };
 
 /// `render::check_material(path)` — what is wrong with a material asset, as
-/// `[#{ file, line, column, severity, message }]`, empty when it links.
+/// `[{ file, line, column, severity, message }]`, empty when it links.
 ///
 /// Linking is CPU work with no GPU in it, so a check runs in a headless
 /// editor and in CI. The asset layer deliberately parses a material without
@@ -20,7 +20,7 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
         "check_material",
         &[],
         "-> [script::Diagnostic]",
-        "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+        "Every diagnostic about the material at that path, as `[{ file, line, column, severity, message }]`; empty when it links.",
     )]);
     m.function(
         "check_material",
@@ -36,7 +36,7 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
 }
 
 /// `render::material_params(path)` — the values a material's shader takes, as
-/// `[#{ name, type, value }]` in the order the uniform lays them out.
+/// `[{ name, type, value }]` in the order the uniform lays them out.
 ///
 /// `type` is the vocabulary a component schema uses (`float`, `vec2`, `vec3`,
 /// `color`), so an inspector draws these with the editors it already has.
@@ -49,7 +49,7 @@ pub(crate) fn install_material_params(m: &mut dyn Bindings<balaur_core::Engine>)
     m.describe(&[(
         "material_params",
         &[],
-        "-> [Param]", "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
+        "-> [Param]", "The material's editable rows, one `{ name, type, value }` per field its linked shader declares; empty when it will not link.",
     )]);
     m.records(&[(
         "Param",

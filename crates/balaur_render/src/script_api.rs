@@ -220,7 +220,7 @@ fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
             "screenshot",
             &[],
             "",
-            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
+            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         ),
         (
             "snap_aov",

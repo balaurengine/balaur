@@ -8,11 +8,11 @@
 //! awaits the id. It is `balaur_http` with
 //! GameKit where the socket is.
 //!
-//! ```rune
-//! pub async fn init(this) {
-//!     let me = task::wait(platform::sign_in()).await;
-//!     let proof = task::wait(apple::identity()).await;
-//!     gamend::call_hook(this.socket, "auth", "game_center", proof);
+//! ```bs
+//! pub async fn init() {
+//!     let me = await task::wait(platform::sign_in().as_int());
+//!     let proof = await task::wait(apple::identity().as_int());
+//!     gamend::call_hook(self.socket, "auth", "game_center", proof);
 //! }
 //! ```
 //!

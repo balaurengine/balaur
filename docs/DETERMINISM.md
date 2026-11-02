@@ -20,15 +20,15 @@ bandwidth per player rather than per object.
 | Before physics | no | yes |
 | Reproducible | no | yes |
 
-```rune
-pub fn fixed_update(this, dt) {          // simulation
+```bs
+pub fn fixed_update(dt: float) {         // simulation
     if input::key_down(input::KEY_SPACE) {
-        this.node.body3d.apply_impulse(0.0, 5.0, 0.0);
+        self.node.body3d.apply_impulse(0.0, 5.0, 0.0);
     }
 }
 
-pub fn update(this, dt) {                // presentation only
-    this.bob = this.bob + dt;
+pub fn update(dt: float) {               // presentation only
+    self.bob = self.bob + dt;
 }
 ```
 
@@ -85,9 +85,8 @@ balaur_core::snapshot::restore(&app.engine, &taken);
 ```
 
 Each subsystem saves its own state (transforms and RNG in core, rapier's worlds
-in physics, script instances through `save_state`/`load_state`). Give a script
-those two methods when only part of its state matters; leave them out and its
-plain fields are captured. Restore puts the node *set* back too: core's `nodes`
+in physics, a script instance's plain fields in the host). Restore puts the node
+*set* back too: core's `nodes`
 source frees what was spawned and respawns what was freed, before any other
 source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 
@@ -123,14 +122,13 @@ source writes. `crates/balaur_core/tests/suite/snapshot.rs` holds it.
 | Physics across platforms | Handled — rapier's `enhanced-determinism` |
 | Variable `dt` | Handled if you simulate in `fixed_update` |
 | Network replies | Handled — recorded and replayed, outbound suppressed |
-| `x.powf(y)`, `x.powi(n)` | Handled — our Rune fork routes both through `libm` |
 | `engine::time()`, `engine::delta()` | **Yours** — both accumulate real frame time. Use `engine::tick()` or `fixed_update`'s `dt` |
-| Iterating an object's keys | **Yours** — `#{}` is hash-ordered. Iterate a `Vec`, or `sort()` the keys |
+| Iterating a map's keys | Handled — a map keeps the order its keys were added |
 | Hot reload mid-session | Handled in the editor, which ends the session on a reload. Under `--record` the recording spans the change, with only the header's script fingerprint to say so |
 
-Every float method Rune exposes is safe to call: `sqrt`, `abs`, `floor`,
-`ceil`, `round`, `min` and `max` are exactly rounded by IEEE-754, and `powf` and
-`powi` are asserted against `libm` in `crates/balaur_script_rune/tests/suite/pow.rs`.
+Every `math` function is safe to call: `sqrt`, `abs`, `floor`, `ceil`, `round`,
+`min` and `max` are exactly rounded by IEEE-754, and the rest go through `libm`,
+which `crates/balaur_bs/tests/suite/determinism.rs` holds.
 On the Rust side `scripts/house_lints.py` fails the build on a bare `.sin()`,
 `f32::sin(x)`, `.powf()` and the rest of the inexact list.
 

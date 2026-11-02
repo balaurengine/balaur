@@ -347,8 +347,7 @@ pub fn wear(state: &mut editor::State, name: str, doc: any) {
     apply(state);
 }
 
-// `on`, not `dark`: that name would shadow `dark()` and Rune would call the
-// bool. Pins the half for the run and leaves the person's setting alone.
+// `on`, not `dark`: that name would shadow `dark()`. Pins the half for the run and leaves the person's setting alone.
 pub fn set_dark(state: &mut editor::State, on: bool) {
     state.theme_half = if on { "dark" } else { "light" };
     wear_half(state, state.theme["name"].as_str(), state.theme_half);

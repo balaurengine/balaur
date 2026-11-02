@@ -429,7 +429,7 @@ pub(crate) fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
         "built_mesh",
         &["boolean3d"],
         "(node: node) -> table",
-        "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
+        "The triangles the node's boolean settled on, as `{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
     )]);
     m.function("built_mesh", |eng: &Engine, node: NodeId| {
         let world = eng.world();

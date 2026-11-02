@@ -492,13 +492,13 @@ pub(crate) struct WidgetProperties {
     /// Script method called with the value once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_commit: SmolStr,
-    /// Script method called with `#{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it
+    /// Script method called with `{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_caret: SmolStr,
     /// Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_activate: SmolStr,
-    /// Script method called with `#{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it
+    /// Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_fold: SmolStr,
     /// Script method called when a popup, dialog or window comes up, on this node or the nearest ancestor whose script declares it

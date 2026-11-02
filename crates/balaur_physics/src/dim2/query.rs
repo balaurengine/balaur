@@ -388,7 +388,7 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap."),
+        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `{ a, b }`; nothing when they overlap."),
         ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
@@ -505,7 +505,7 @@ pub(crate) fn install_physics2d_world_list_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
         ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
-        ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
     ]);
     m.function("bodies", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState2d>();

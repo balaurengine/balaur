@@ -1,6 +1,6 @@
 // Selection gizmo, steadyum style: an orange bbox frame (faces translate,
 // corners scale, axis rings rotate), hover tints deep blue. All hit-testing is
-// screen-space Rune over the camera pose the backend publishes.
+// screen-space script over the camera pose the backend publishes.
 
 use defs;
 use editor;

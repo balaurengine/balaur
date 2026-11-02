@@ -7,7 +7,7 @@
 //! the destruction toolkit: slice a crate, spawn each piece as a body with a
 //! `convex_decomposition` collider, dig the voxel terrain underneath.
 //!
-//! A mesh crosses the seam as `#{ points, indices }`: a list of positions and
+//! A mesh crosses the seam as `{ points, indices }`: a list of positions and
 //! a flat list of triangle corners. A `mesh` asset's name works anywhere one
 //! is taken, so a script rarely builds one by hand.
 

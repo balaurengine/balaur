@@ -809,8 +809,8 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
         ("collider_mass", &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
         ("collider_volume", &[c::COLLIDER_3D], "", "How much space the shape encloses."),
         ("swept_aabb", &[c::COLLIDER_3D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
-        ("handles", &[c::COLLIDER_3D], "", "The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
-        ("collider_mass_properties", &[c::COLLIDER_3D], "", "What this collider adds to its body, in its own space: `#{ mass, center_of_mass, inertia, inertia_rotation }`."),
+        ("handles", &[c::COLLIDER_3D], "", "The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
+        ("collider_mass_properties", &[c::COLLIDER_3D], "", "What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia, inertia_rotation }`."),
         ("aabb", &[c::COLLIDER_3D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
     ]);
     m.function("collider_mesh", |eng: &Engine, node: NodeId| {

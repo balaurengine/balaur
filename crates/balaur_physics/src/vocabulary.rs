@@ -453,24 +453,24 @@ pub(crate) mod hook {
     pub(crate) const BODY: &[(&str, &str)] = &[
         (
             COLLISION_ENTER,
-            "`#{ other, sensor, removed, points, normals }` for a collider under it, as that collider hears it",
+            "`{ other, sensor, removed, points, normals }` for a collider under it, as that collider hears it",
         ),
         (
             COLLISION_EXIT,
-            "`#{ other, sensor, removed }` for a collider under it, as that collider hears it",
+            "`{ other, sensor, removed }` for a collider under it, as that collider hears it",
         ),
         (
             CONTACT_FORCE,
-            "`#{ other, force, direction, total_force, max_force, started }` for a collider under it, as that collider hears it",
+            "`{ other, force, direction, total_force, max_force, started }` for a collider under it, as that collider hears it",
         ),
         (SLEEPING_CHANGED, "whether it sleeps now"),
     ];
-    const ENTER: &str = "`#{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points";
-    const EXIT: &str = "`#{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away";
-    const FORCE: &str = "`#{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other";
+    const ENTER: &str = "`{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points";
+    const EXIT: &str = "`{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away";
+    const FORCE: &str = "`{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other";
     pub(crate) const JOINT: &[(&str, &str)] = &[(
         JOINT_BREAK,
-        "`#{ a, b, force, torque }`: the two ends, and the force and torque it broke at",
+        "`{ a, b, force, torque }`: the two ends, and the force and torque it broke at",
     )];
     pub(crate) const SOFT_BODY: &[(&str, &str)] = &[
         (COLLISION_ENTER, ENTER),
@@ -479,7 +479,7 @@ pub(crate) mod hook {
         (SLEEPING_CHANGED, "whether it sleeps now"),
         (
             TEAR,
-            "`#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers",
+            "`{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers",
         ),
     ];
 }

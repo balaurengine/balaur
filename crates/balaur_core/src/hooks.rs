@@ -162,6 +162,6 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_GAMEPAD_CONNECTED, "(pad)", "A gamepad was plugged in, with the id `input` names it by; told to every script."),
     (ON_GAMEPAD_DISCONNECTED, "(pad)", "A gamepad went away, with its id; told to every script."),
     (ON_GAMEPAD_RUMBLE_FINISHED, "(pad)", "A pad's rumble ran its course, with the pad's id, the frame after; not sent for one stopped or replaced. Told to every script."),
-    (ON_SETTING_CHANGED, "(change)", "A script set a setting, `#{ path, value }`; every script hears it the next frame."),
+    (ON_SETTING_CHANGED, "(change)", "A script set a setting, `{ path, value }`; every script hears it the next frame."),
     (ON_LOCALE_CHANGED, "(locale)", "The language changed; every script hears it the next frame."),
 ];

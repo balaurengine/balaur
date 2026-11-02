@@ -566,7 +566,7 @@ Every string is sentence case, and a button is a verb.
 | Logs | Output, Problems | VS Code, Godot |
 | Command search | Command palette | Godot, VS Code |
 | Settings | Settings…, with Editor settings and Project settings pages | Godot |
-| Rust, dylib and Rune additions | plugin, extension, addon in `addons/` | Godot, Blender |
+| Rust, dylib and Balaur Script additions | plugin, extension, addon in `addons/` | Godot, Blender |
 | A crate | `balaur_<plugin name>`: `balaur_animation`, `balaur_physics`; the facade re-exports each under its crate name without `balaur_`, `balaur::script_rune` | none |
 | A cargo feature | one name for a concept in every crate, never the backend's: `window`, `extensions` | N14 |
 | The page a browser build runs in | the `browser` plugin: crate `balaur_browser`, feature `browser`, module `browser.*`, handler `on_browser_event` | none |

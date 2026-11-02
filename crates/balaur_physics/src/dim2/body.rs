@@ -312,7 +312,7 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-/// A 2D pose as a script reads one: `#{ position, rotation }`, the angle in
+/// A 2D pose as a script reads one: `{ position, rotation }`, the angle in
 /// radians.
 fn pose_value(pose: &scalar::Pose2) -> balaur_script::Value {
     crate::vocabulary::map([
@@ -407,7 +407,7 @@ pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
             "predict_position",
             &[c::BODY_2D],
             "",
-            "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.",
+            "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`.",
         ),
         (
             "predict_position_with_forces",
@@ -419,7 +419,7 @@ pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
             "next_position",
             &[c::BODY_2D],
             "",
-            "The pose a kinematic body has been told to move to, as `#{ position, rotation }`.",
+            "The pose a kinematic body has been told to move to, as `{ position, rotation }`.",
         ),
         (
             "time_since_can_sleep",

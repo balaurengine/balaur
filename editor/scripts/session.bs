@@ -61,7 +61,7 @@ pub fn state() -> SessionState {
         header: nil,
         first: 0,
         last: 0,
-        // Lanes built once at load: each `#{ id, name, marks }`.
+        // Lanes built once at load: each `{ id, name, marks }`.
         lanes: [],
         // The tick the detail list describes.
         at: 0,

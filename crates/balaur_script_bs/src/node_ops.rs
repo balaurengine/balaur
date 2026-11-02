@@ -1,5 +1,5 @@
-// The engine's node operations as a script types them: `balaur_core` documents
-// their arguments for Rune and no return type, so the types live here.
+// The engine's node operations as a script types them, read from their
+// signatures in `balaur_core::node_api::NODE_OPS`.
 
 use crate::api::Registry;
 use balaur_bs::{HostSignature, Ty};

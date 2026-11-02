@@ -1376,9 +1376,7 @@ overlay, dark and light token sets.
   screenshots any state offscreen; `scripts/e2e.sh` runs the self-tests headless.
 - The workspace patches `kiss3d` to `github.com/Ughuuu/kiss3d` (`balaur-hooks`):
   upstream v0.46.0 plus the opaque web canvas, IME events, a mid-pass screen
-  copy for 2D materials and UIKit's safe area. The `rune` patch
-  (`balaurengine/rune`, `deterministic-pow`) is left for `balaur port`, which
-  reads a `.rn` file with Rune's own parser to translate it to `.bs`.
+  copy for 2D materials and UIKit's safe area.
 
 ## Input
 

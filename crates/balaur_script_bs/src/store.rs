@@ -1,5 +1,5 @@
 //! `script::store(key, value)` and `script::stored(key)`: state no one node
-//! owns, what Rune's `script::store` and a Godot `static var` are. What one
+//! owns, what a Godot `static var` is. What one
 //! scene leaves for the next: a round's results for the summary that
 //! follows it. Held as neutral values, so a map stored by one file is read
 //! back by another; a `[T]` or a struct crosses as its neutral shape.

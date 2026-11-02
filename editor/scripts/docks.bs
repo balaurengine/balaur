@@ -95,7 +95,7 @@ pub fn apply_workspace(state: &mut editor::State, id: str) {
 /// Applied on the change, not every frame, so a reader who opens a dock on a
 /// phone keeps it open until the screen itself changes.
 pub fn follow_screen(state: &mut editor::State) {
-    // A string, since Rune compares no tuples: two words for two answers.
+    // A string: two words for two answers.
     let key = "{layout::three_fit(state)} {one_at_a_time(state)}";
     if state.screen_key == key {
         return;

@@ -1,5 +1,5 @@
 # The left dock's second tab: what the workspace lists beside the tree, the
-# project's scenes, its Rune modules, the bodies, the clips or the widgets.
+# project's scenes, its script modules, the bodies, the clips or the widgets.
 # One script answers the list; the Editor builds its rows and runs a pick.
 
 [[nodes]]

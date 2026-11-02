@@ -210,7 +210,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: 
 
 pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update."),
+        ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update."),
         ("is_on_floor", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(

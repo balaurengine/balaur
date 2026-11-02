@@ -59,7 +59,6 @@ mechanical; **REPORT** prints only.
 | `comment-too-long`, `comment-restates-name` | comment blocks, and comments that restate the line below |
 | `showcase-milestone` | a picture `scripts/showcase.sh` takes and files under no milestone, or a milestone naming a take that is gone |
 | `det-prefix-misuse`, `dimension-casing`, `dimension-snake`, `install-verb`, `system-verb`, `engine-param-name`, `resource-suffix`, `new-resource-type`, `fn-suffix-on-struct`, `pub-inner`, `component-registration-doc` | the mechanical half of `docs/NAMING.md` |
-| `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
 | `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |
 | `hover-only-control` | an editor control shown only while hovered, which a finger cannot reach |
 | `setting-unit` | a setting or option that measures time, rate or distance and names no unit (`NAMING.md` N21) |

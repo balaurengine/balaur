@@ -30,7 +30,7 @@ pub(crate) fn install_collider_placement_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("collision_aabb", &[c::COLLIDER_3D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
         ("broad_phase_aabb", &[c::COLLIDER_3D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
-        ("pose_in_body", &[c::COLLIDER_3D], "", "Where the collider sits in its body's frame, as `#{ position, rotation }`; nothing for a collider with no body."),
+        ("pose_in_body", &[c::COLLIDER_3D], "", "Where the collider sits in its body's frame, as `{ position, rotation }`; nothing for a collider with no body."),
     ]);
     m.function("collision_aabb", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;

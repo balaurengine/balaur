@@ -222,7 +222,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
 
 pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`, each collision `#{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, z, on_floor, sliding, collisions }`, each collision `{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
         ("is_on_floor", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(

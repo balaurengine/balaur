@@ -226,7 +226,7 @@ fn tabs() -> [[str]] {
     if in_tab() {
         return [["projects", "Projects"]];
     }
-    // `return`, because a block followed by `[` is an index in Rune.
+    // `return`, because a block followed by `[` is an index.
     return [["projects", "Projects"], ["examples", "Examples"], ["forge", "On Forge"], ["engine", "Engine"]];
 }
 

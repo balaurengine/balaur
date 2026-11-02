@@ -53,7 +53,7 @@ pub struct Pacing {
     assets_seen: u64,
     shown_seen: u64,
     /// When passes are owed: egui's delayed requests, which it reports from
-    /// any thread, and a script's `request_repaint(#{ after })`. Every one is
+    /// any thread, and a script's `request_repaint({ after })`. Every one is
     /// kept, so one asked for as another comes due is not lost behind it.
     due: Arc<Mutex<BTreeSet<Instant>>>,
     /// Whether egui reports its requests into `due` yet.

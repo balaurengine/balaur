@@ -30,14 +30,14 @@ pub(crate) struct Pointer {
 
 /// What input says from no node when the pointer moved, with where it is in
 /// window pixels, `[x, y]`; and when a button went down or up anywhere, the
-/// UI included, as `#{ button, x, y }`. Only while someone listens: what an
+/// UI included, as `{ button, x, y }`. Only while someone listens: what an
 /// overlay showing the input listens for instead of reading it every frame.
 pub(crate) const POINTER_MOVED: &str = "pointer_moved";
 pub(crate) const POINTER_PRESSED: &str = "pointer_pressed";
 pub(crate) const POINTER_RELEASED: &str = "pointer_released";
 
 /// What input says from no node when the wheel turned, with the turn as
-/// `[x, y]`; and when two fingers pinched or panned, as `#{ scale, x, y,
+/// `[x, y]`; and when two fingers pinched or panned, as `{ scale, x, y,
 /// pan_x, pan_y }`, `scale` zero for a pan alone. Only while someone listens:
 /// what a viewport's camera listens for instead of reading them every frame.
 pub(crate) const POINTER_SCROLLED: &str = "pointer_scrolled";

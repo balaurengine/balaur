@@ -588,7 +588,7 @@ fn two_dimensional(s: &DebugRenderStyle) -> crate::rapier2d::pipeline::DebugRend
 /// live in `physics` rather than in either dimension (D5).
 pub(crate) fn install_debug_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
-        ("set_debug_draw", &[], "", "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths."),
+        ("set_debug_draw", &[], "", "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths."),
         ("debug_draw", &[], "", "What the debug renderer is drawing now, as a table of `enabled`, one flag per mode and `nodes`."),
     ]);
     // Takes `true`/`false` for "the usual thing", or a table naming the modes

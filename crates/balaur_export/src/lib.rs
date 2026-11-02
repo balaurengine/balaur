@@ -122,8 +122,8 @@ pub type ObtainRuntime = dyn Fn(&str) -> Result<PathBuf>;
 ///
 /// The same policy split as [`ObtainRuntime`]: this crate compiles a
 /// project, and which modules that project may call is the caller's. The
-/// editor's own scripts call the CLI's `export`, and Rune resolves a module
-/// while compiling, so exporting the editor has to load it first.
+/// editor's own scripts call the CLI's `export`, and a script's modules resolve
+/// while it compiles, so exporting the editor has to load it first.
 pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 
 /// Every target `--target` accepts, in the order an export sheet lists them:

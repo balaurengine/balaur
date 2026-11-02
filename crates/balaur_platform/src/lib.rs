@@ -13,12 +13,14 @@
 //! awaits the id. Who is playing can change with nobody asking, so a sign-in or
 //! a sign-out is also the `platform_event` event.
 //!
-//! ```rune
-//! pub async fn init(this) {
-//!     events::listen(this.node, "platform_event");
-//!     let player = task::wait(platform::sign_in()).await;
-//!     let done = task::wait(platform::unlock("first_blood")).await;
-//!     if done["kind"] == platform::EVENT_UNSUPPORTED { log::info("no store here"); }
+//! ```bs
+//! pub async fn init() {
+//!     events::listen(self.node, "platform_event");
+//!     let player = await task::wait(platform::sign_in().as_int());
+//!     let done = await task::wait(platform::unlock("first_blood").as_int());
+//!     if done["kind"].as_str() == platform::EVENT_UNSUPPORTED {
+//!         log::info("no store here");
+//!     }
 //! }
 //! ```
 //!

@@ -82,7 +82,7 @@ impl Beside for WidgetCode {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_inspector")]
 pub(crate) struct WidgetInspector {
-    /// The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. The widget's `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved
+    /// The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. The widget's `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved
     pub(crate) component: SmolStr,
     /// The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it
     pub(crate) target: SmolStr,
@@ -568,7 +568,7 @@ pub(crate) struct WidgetList {
     pub(crate) on_drop: SmolStr,
     /// Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it
     pub(crate) on_move: SmolStr,
-    /// Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
+    /// Script method called with `{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
     pub(crate) on_mark: SmolStr,
 }
 

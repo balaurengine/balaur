@@ -9,10 +9,10 @@
 //!
 //! The sequential shape reads like this:
 //!
-//! ```rune
-//! pub async fn init(this) {
-//!     task::wait(gamend::login(#{ device_id: engine::device_id() })).await;
-//!     this.socket = gamend::connect(this.node);
+//! ```bs
+//! pub async fn init() {
+//!     await task::wait(gamend::login(gamend::Credentials { device_id: engine::device_id() }));
+//!     self.socket = gamend::connect(self.node);
 //! }
 //!
 //! pub async fn on_gamend_event(this, e) {

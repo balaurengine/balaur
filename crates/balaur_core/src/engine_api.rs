@@ -787,7 +787,7 @@ fn delta(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// wall-clock: an exact integer, where `time` is an accumulated float.
 ///
 /// An integer, so `tick() % 60` is a whole number against a whole number:
-/// Rune never mixes the two, and a float here made every such test an error.
+/// a script never mixes the two, and a float here made every such test an error.
 fn tick(eng: &Engine, _: &[Value]) -> Result<Value> {
     Ok(Value::Int(i64::try_from(eng.tick()).unwrap_or(i64::MAX)))
 }

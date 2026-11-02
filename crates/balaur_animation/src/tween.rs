@@ -8,16 +8,17 @@
 //! crate and a tween does not add another — which also means a tween is
 //! serialisable, so an editor can author one and it can hot reload.
 //!
-//! ```rune
-//! let id = animation::tween(this.node, #{
-//!   loops: 1, speed: 1.0,
-//!   steps: [
-//!     #{ property: "position",   to: [0.0, 3.0, 0.0],      duration: 0.5, ease: "out_back" },
-//!     #{ property: "color/rgba", to: [1.0, 0.0, 0.0, 1.0], duration: 0.5, parallel: true },
-//!     #{ interval: 0.2 },
-//!     #{ call: "on_landed" },
-//!     #{ property: "position", by: [0.0, -3.0, 0.0], duration: 0.4, ease: "in_quad" },
-//!   ],
+//! ```bs
+//! let id = animation::tween(self.node, animation::Tween {
+//!     loops: 1,
+//!     speed_scale: 1.0,
+//!     steps: [
+//!         animation::Step { property: "position", to: [0.0, 3.0, 0.0], duration: 0.5, ease: animation::EASE_OUT_BACK },
+//!         animation::Step { property: "color/rgba", to: [1.0, 0.0, 0.0, 1.0], duration: 0.5, parallel: true },
+//!         animation::Step { interval: 0.2 },
+//!         animation::Step { call: "on_landed" },
+//!         animation::Step { property: "position", by: [0.0, -3.0, 0.0], duration: 0.4, ease: animation::EASE_IN_QUAD },
+//!     ],
 //! });
 //! animation::stop(id);  animation::is_running(id)
 //! ```

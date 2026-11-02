@@ -56,7 +56,7 @@ holds them: workspace bar, status bar, tree, inspector, dock, centre.
 │ ─────────────────────────────────────────────────────────  │                 │
 │ 0.2 s  project  scene key 'color' has no handler            │ [＋ Add compo.] │ 150
 ├─────────────────────────────────────────────────────────────────────────────-┤
-│ ● editing  16 nodes · 4 scripts  ● Rune VM warm  kiss3d · wgpu  Scene · Select│ 28
+│ ● editing  16 nodes · 4 scripts  ● Scripts warm   kiss3d · wgpu  Scene · Select│ 28
 └──────────────────────────────────────────────────────────────────────────────┘
   262 fixed        46      central (fills)                    308 fixed
 ```
@@ -86,7 +86,7 @@ mark menu without changing workspace. Selection is workspace-independent.
 | | Scene | Script | Animate | Physics | Interface |
 |---|---|---|---|---|---|
 | tool rail | select move rotate scale tiles zoom | *(none — rail hides)* | select move bone polygon key zoom | select move polygon zoom | select move zoom |
-| secondary panel | Scenes | Rune modules | Clips | Collision | Interface |
+| secondary panel | Scenes | Script modules | Clips | Collision | Interface |
 | viewport chips | 3D·Perspective, Snap 8 px, Guides | — | Motion path, Snap 8 px | Show colliders, Sleep bodies | Safe area, 1920×1080 |
 | inspector | transform, skeleton, polygon, components, script | attached script, language, hot reload | skeleton, polygon, animation, transform, animation/bone/polygon comps, script | body/collider comps, polygon, script | widget comps, interface, script |
 | panels open | scene outline · output problems assets · inspector import | scene outline · output problems docs debugger · inspector | scene outline · timeline output library · inspector | scene · output problems profiler · inspector | scene outline · output problems assets · inspector import |
@@ -360,7 +360,7 @@ dropped as they are fixed; git holds them.
 | D4 | *Improved, not fixed — values no longer clip off the window, the panel still widens.* **Long property names blow the inspector out of the window.** `Angular damping`, `Center of mass` widen the label column, the panel takes the full width, values clip off the right edge and the dock is overdrawn. | `inspector::row`'s label column | `02`, `20`, `34` |
 | D10 | **The Script workspace's inspector is ~500 px of nothing** between Events and Add component. | `inspector::draw` | `03`, `12` |
 | D13 | **The palette card has no edge.** Card fill ≈ scrimmed background, the first-row highlight is narrower than the rows, and the list clips mid-row with no scroll cue. | `palette::draw` | `07` |
-| D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the Rune modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
+| D14 | **Script identity is stated four times** — the tree's `‹›` glyph, the script modules list, the hooks sidebar, the inspector's Events section and the events document tab. Five, counting the tab. | across | `03`, `16` |
 | D15 | **The dock tab row is 12 controls wide** — 8 tabs, a filter field, three level pills and clear — with no grouping. | `dock::tab_row` | `01` |
 | D19 | **Plugin docks are unreachable.** The dock tab lists are fixed (`docks::state`), `registry.docks` is read for names only, nothing pushes a plugin's id, and `counter.bs` writes `S.dock`, a field that is gone — so the "one per registered plugin" tab above never draws. | `docks.bs`, `plugins.bs`, `editor/plugins/counter.bs` | `--state test:plugin_docks` |
 | D20 | **Preferences load only when Settings opens.** `init` never calls `settings::load(prefs)` or `apply`, so theme, `ui_scale`, `sessions/keep`, `verify` and the fault settings are defaults until the window is opened; `editor/appearance/compact` never applies because `editor.bs` overwrites `S.compact` from the window width every frame. | `editor.bs:init`, `settings.bs` | any |

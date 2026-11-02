@@ -676,7 +676,7 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
     // is the way to move one, and it says what it costs: the velocity goes.
 }
 
-/// A pose as a script reads one: `#{ position, rotation }`, the rotation in
+/// A pose as a script reads one: `{ position, rotation }`, the rotation in
 /// Euler radians, x first, as `offset_rotation` spells it.
 fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
     crate::vocabulary::map([
@@ -698,9 +698,9 @@ fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
 pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
     m.describe(&[
         ("teleport", &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
-        ("predict_position", &[c::BODY_3D], "", "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`."),
+        ("predict_position", &[c::BODY_3D], "", "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`."),
         ("predict_position_with_forces", &[c::BODY_3D], "", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
-        ("next_position", &[c::BODY_3D], "", "The pose a kinematic body has been told to move to, as `#{ position, rotation }`."),
+        ("next_position", &[c::BODY_3D], "", "The pose a kinematic body has been told to move to, as `{ position, rotation }`."),
     ]);
     m.records(&[(
         "TeleportOptions",

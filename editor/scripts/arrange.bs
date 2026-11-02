@@ -66,8 +66,8 @@ pub fn distribute(state: &mut editor::State, axis: int) {
         log::info("distribute needs three or more nodes");
         return;
     }
-    // Insertion sort by the axis: a handful of nodes, and Rune's `sort` takes
-    // no comparator.
+    // Insertion sort by the axis: a handful of nodes, and `sorted` takes no
+    // comparator.
     let sorted: [int] = [];
     for row in rows {
         let coordinate = world_of(state, row)[axis];

@@ -1,4 +1,4 @@
-//! The `code` kind's editor: syntax tables for Rune, Balaur Script and WESL,
+//! The `code` kind's editor: syntax tables for Balaur Script and WESL,
 //! the highlighter, the gutter with its diagnostics, and the caret the node
 //! says it moved. The text is typed through [`crate::widget::typing`], laid
 //! out a line at a time by the shaper.
@@ -271,8 +271,8 @@ const WESL: Syntax = Syntax {
 
 /// The highlighter for a language name.
 ///
-/// An unknown name falls back to Rune rather than rendering the editor as
-/// plain punctuation.
+/// An unknown name falls back to Balaur Script rather than rendering the editor
+/// as plain punctuation.
 pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
     // `match` on a `&str` is not const, and three languages do not warrant a
     // table.
@@ -669,8 +669,6 @@ mod tests {
             assert!(wesl.keywords.contains(&"var"), "{name}");
             assert!(wesl.keywords.contains(&"import"), "{name}");
             assert!(wesl.builtins.contains(&"textureSample"), "{name}");
-            // Rune's `let` is WGSL's too, but `this` is not a shader word.
-            assert!(!wesl.builtins.contains(&"this"), "{name}");
         }
     }
 

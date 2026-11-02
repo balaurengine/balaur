@@ -1,5 +1,5 @@
 // What is wrong with the project: every script a scene attaches, compiled
-// through the host, plus the scene itself. A finding is `#{ file, line,
+// through the host, plus the scene itself. A finding is `{ file, line,
 // column, severity, message }`, `file` game-relative and line 0 the file.
 
 use editor;

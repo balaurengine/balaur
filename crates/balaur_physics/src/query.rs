@@ -367,7 +367,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
         ("distance", &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
         ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders."),
         ("intersects", &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
-        ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
         ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);

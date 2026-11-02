@@ -285,7 +285,7 @@ impl FnGen<'_> {
 
     pub(crate) fn method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         // `node.transform.translate(..)`: an operation a component drives is
-        // called on that component, as Rune calls it.
+        // called on that component.
         if let ExprKind::Field(node, comp) = &base.kind
             && let Some(sig) = self.g.sigs.get(&format!("node.{comp}.{name}")).cloned()
             && sig.kind == Kind::Host

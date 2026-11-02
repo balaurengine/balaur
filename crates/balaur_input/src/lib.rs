@@ -667,7 +667,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         ("key_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down. `KEY_SHIFT`, `KEY_CONTROL`, `KEY_ALT` and `KEY_META` answer for either side."),
         ("key_just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
         ("key_just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
-        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `#{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `#{ scale, x, y, pan_x, pan_y }`."),
+        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `{ scale, x, y, pan_x, pan_y }`."),
         ("mouse_delta", &[], "", "How far the cursor moved this frame, in pixels; movement, not a position."),
         ("scroll_delta", &[], "", "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
         ("mouse_down", &[], "", "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down."),
@@ -677,7 +677,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     for (name, index) in MOUSE_BUTTON_CONSTANTS {
         m.constant(name, balaur_script::Value::Int(*index));
     }
-    // `input.KEY_SPACE` instead of "Space". In Rune a misspelled constant is a
+    // `input::KEY_SPACE` instead of "Space". A misspelled constant is a
     // compile error rather than a key that quietly never fires.
     for (name, code) in keys::KEYS {
         m.constant(name, balaur_script::Value::Str((*code).to_string()));

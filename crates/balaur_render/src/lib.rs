@@ -223,7 +223,7 @@ pub enum Aov {
 /// What a screenshot announces to anyone listening once its file is written,
 /// with the path.
 pub const SCREENSHOT_WRITTEN_EVENT: &str = "screenshot_written";
-/// What it announces when no file came of it, `#{ path, error }`.
+/// What it announces when no file came of it, `{ path, error }`.
 pub const SCREENSHOT_FAILED_EVENT: &str = "screenshot_failed";
 
 /// Tell every listener a screenshot could not be written.

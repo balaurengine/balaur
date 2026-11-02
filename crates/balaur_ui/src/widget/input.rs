@@ -203,7 +203,7 @@ pub const LINK_EVENT: &str = "link";
 
 /// What a `code` widget emits when its gutter is clicked, with the line.
 pub const GUTTER_EVENT: &str = "gutter";
-/// What a `code` widget emits when its caret moved, with `#{ x, y, index }`:
+/// What a `code` widget emits when its caret moved, with `{ x, y, index }`:
 /// where a completion list opens, and what it completes.
 pub const CARET_EVENT: &str = "caret";
 
@@ -367,10 +367,10 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (SUBMIT_EVENT, "the text"),
     (LINK_EVENT, "the link's target"),
     (GUTTER_EVENT, "the line"),
-    (CARET_EVENT, "`#{ x, y, index }`"),
+    (CARET_EVENT, "`{ x, y, index }`"),
     (MOVE_EVENT, "`[moved, target, side]`"),
     (DROP_EVENT, "the card"),
-    (MARK_EVENT, "`#{ row, mark }`"),
+    (MARK_EVENT, "`{ row, mark }`"),
     (DOUBLE_CLICK_EVENT, "nil"),
     (FOCUS_EVENT, "nil"),
     (BLUR_EVENT, "nil"),
@@ -379,14 +379,14 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
         "the value, once the drag or the typing is over",
     ),
     (ACTIVATE_EVENT, "the row double-clicked"),
-    (FOLD_EVENT, "`#{ row, open }`"),
+    (FOLD_EVENT, "`{ row, open }`"),
     (OPENED_EVENT, "nil"),
     (CLOSED_EVENT, "nil"),
     (SCROLLED_EVENT, "the offset, `[x, y]`"),
     (CLOSE_REQUEST_EVENT, "nil"),
     (
         RESIZED_EVENT,
-        "`#{ x, y, width, height }`, while someone listens on the node",
+        "`{ x, y, width, height }`, while someone listens on the node",
     ),
 ];
 
