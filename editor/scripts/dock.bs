@@ -9,7 +9,6 @@ use history;
 use icons;
 use importer;
 use model;
-use pool;
 use search;
 use session;
 use shell;
@@ -708,8 +707,8 @@ pub fn timeline_fill(state: &mut editor::State) {
         });
         seconds += step;
     }
-    pool::strip(state, TIMELINE + "/Body/Ruler", ticks);
-    pool::strip(state, TIMELINE + "/Body/Lanes/Rules", rules);
+    ui::fill_strip(TIMELINE + "/Body/Ruler", ticks);
+    ui::fill_strip(TIMELINE + "/Body/Lanes/Rules", rules);
     util::fill(TIMELINE + "/Body/Lanes/Playhead", {
         "inset": [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
     });
@@ -732,12 +731,11 @@ pub fn timeline_fill(state: &mut editor::State) {
                 absolute: true,
                 inset: [(when / length) * lane_width - 6.0, 2.0, -1.0, -1.0],
                 tooltip: "{util::fixed(when, 2)} s",
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_key_pressed, "when": when },
             });
         }
         rows.push(ui::Row {
-            full: true,
             height: LANE_HEIGHT,
             controls: [
                 ui::Control {
@@ -767,7 +765,7 @@ pub fn timeline_fill(state: &mut editor::State) {
             ],
         });
     }
-    pool::sync(state, TIMELINE + "/Body/Lanes/Scroll/Tracks", rows, 0.0, false);
+    ui::fill_rows(TIMELINE + "/Body/Lanes/Scroll/Tracks", rows);
     util::fill(TIMELINE + "/Body/ScrubRow", { "padding": [8.0 + lane_x, 0.0, 0.0, 0.0] });
     let filled = scene::get_node(TIMELINE + "/Body/ScrubRow/Scrub");
     if filled.is_valid() {
@@ -1050,12 +1048,11 @@ pub fn lanes_fill(state: editor::State) {
                 inset: [mark_x, -1.0, -1.0, -1.0],
                 text_color: if tick.as_int() <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
                 tooltip: "{tick}: {mark.label}",
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_mark_pressed, "tick": tick },
             });
         }
         rows.push(ui::Row {
-            full: true,
             height: 20,
             controls: [
                 ui::Control {
@@ -1079,7 +1076,6 @@ pub fn lanes_fill(state: editor::State) {
     // happened.
     for event in replay::events(state.session.at, state.session.at) {
         rows.push(ui::Row {
-            full: true,
             height: 20,
             controls: [
                 ui::Control {
@@ -1104,7 +1100,7 @@ pub fn lanes_fill(state: editor::State) {
             ],
         });
     }
-    pool::sync(state, LANES + "/Scroll/Rows", rows, 0.0, false);
+    ui::fill_rows(LANES + "/Scroll/Rows", rows);
 }
 
 fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -1140,9 +1136,9 @@ pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
     let rows = session::listing(state);
     let specs: [ui::Row] = [];
     for recording in rows {
-        specs.push(ui::Row { full: true, height: 24, slot_role: "layout_actions", controls: session_row(state, recording) });
+        specs.push(ui::Row { height: 24, slot_role: "layout_actions", controls: session_row(state, recording) });
     }
-    pool::sync(state, RECORDINGS, specs, 0.0, false);
+    ui::fill_rows(RECORDINGS, specs);
     RecordingsFill { verify: state.session.verify, count: rows.len() }
 }
 
@@ -1161,7 +1157,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
             role: "action_form_primary",
             text: "▶",
             tooltip: "Replay this recording",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_replay_pressed, "recording": recording },
         },
         ui::Control { kind: "label", role: "text_code", text: if recording.started == "" { recording.name } else { recording.started } },
@@ -1183,7 +1179,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
         kind: "button",
         role: "action_form",
         text: "delete",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_delete_pressed, "recording": recording },
     });
     out.push(ui::Control {
@@ -1191,7 +1187,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
         role: "action_form",
         text: "copy to project",
         tooltip: "Copy into the project, for a bug report or `balaur replay`",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_copy_pressed, "recording": recording },
     });
     if !recording.name.starts_with("kept-") {
@@ -1200,7 +1196,7 @@ fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
             role: "action_form",
             text: "keep",
             tooltip: "Never prune this one",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_keep_pressed, "recording": recording },
         });
     }

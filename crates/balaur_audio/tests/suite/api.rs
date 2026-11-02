@@ -8,7 +8,7 @@ use balaur_core::{App, AppConfig};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin).unwrap();
     app
 }
 

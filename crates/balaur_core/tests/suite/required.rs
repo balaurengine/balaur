@@ -3,7 +3,7 @@
 
 use balaur_core::app::{App, AppConfig};
 use balaur_core::components::derived::Component;
-use balaur_core::components::{self, ComponentDef};
+use balaur_core::components::{self};
 
 /// Brings a timer, and through `alarm` the timer brings nothing more.
 #[derive(Debug, Component)]
@@ -23,8 +23,8 @@ struct ClockTower {
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    app.register_component(Alarm::NAME, ComponentDef::of::<Alarm>(None));
-    app.register_component(ClockTower::NAME, ComponentDef::of::<ClockTower>(None));
+    app.add_component::<Alarm>();
+    app.add_component::<ClockTower>();
     app
 }
 

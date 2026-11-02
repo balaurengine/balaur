@@ -455,12 +455,12 @@ pub fn fill(state: &mut editor::State) {
         "placeholder": "Nodes, commands, workspaces…",
         "query": state.palette_query,
         "rows_h": (matched.len() as float) * (row_height + 2.0) + 4.0,
-        "on": "handle",
+        "on_change": "handle",
         "on_submit": "handle_submit",
         "data": { "fn": typed, "submit": submitted },
     };
     let host = window::picker(state, field);
-    pool::sync(state, host, row_specs(state, matched, row_height), 0.0, false);
+    ui::fill_rows(host, row_specs(state, matched, row_height));
 }
 
 fn typed(state: &mut editor::State, data: any, text: any) {
@@ -490,7 +490,7 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
     let out: [ui::Row] = [];
     if matched.len() == 0 {
         let none: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, wrap: true, text: "no matches" };
-        out.push(ui::Row { full: true, controls: [none] });
+        out.push(ui::Row { controls: [none] });
         state.palette_submit = false;
         return out;
     }
@@ -515,7 +515,6 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
             tooltip: command_entry.key,
         };
         out.push(ui::Row {
-            full: true,
             height: row_height,
             slot_role: "layout_actions",
             controls: [

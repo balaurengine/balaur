@@ -421,16 +421,3 @@ impl Default for Engine {
         Self::new()
     }
 }
-
-/// Lets a binding call back into script without knowing the backend.
-impl balaur_script::CallbackHost for Engine {
-    fn invoke(
-        &self,
-        callback: balaur_script::CallbackId,
-        args: &[balaur_script::Value],
-    ) -> anyhow::Result<balaur_script::Value> {
-        self.script_host()
-            .ok_or_else(|| anyhow::anyhow!("no script backend is running"))?
-            .invoke(callback, args)
-    }
-}

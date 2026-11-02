@@ -631,7 +631,7 @@ mod tests {
             surface: crate::material::Surface::default(),
             builtin: None,
         };
-        let compiled = crate::material::compile(&material, TEXT_MASK)
+        let compiled = crate::material::compile(&material, TEXT_MASK, &[], false)
             .expect("the engine's own shader must link");
         assert!(compiled.wgsl.contains("discard"), "{}", compiled.wgsl);
         assert_eq!(

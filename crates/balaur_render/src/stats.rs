@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use balaur_core::collections::DetHashMap;
 use balaur_geometry::primitive::Solid;
-use balaur_script::{Bindings, BindingsExt as _, Value};
+use balaur_script::{Module, Value};
 
 use crate::Engine;
 
@@ -219,7 +219,7 @@ fn cost_value(name: &str, cost: &NodeCost) -> Value {
 }
 
 /// `render.stats`: the frame's totals and a row per node that drew.
-pub(crate) fn install_stats_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_stats_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "stats",
         &[],

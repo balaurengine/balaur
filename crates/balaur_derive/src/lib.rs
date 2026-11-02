@@ -237,6 +237,16 @@ struct ComponentAttrs {
     lifecycle: Vec<(syn::Ident, syn::Path)>,
     /// `requires = [..]`: the names of the components this one brings.
     requires: Vec<syn::Expr>,
+    /// `tags = [..]`: the facets it is browsed under.
+    tags: Vec<syn::Expr>,
+    /// `expects = [..]`: components it needs something from.
+    expects: Vec<syn::Expr>,
+    /// `events = ..`: what it announces from its node.
+    events: Option<syn::Expr>,
+    /// `after_write = path`: what it does once a write has landed.
+    after_write: Option<syn::Path>,
+    /// `warnings = path`: what it says is off about it on a node.
+    warnings: Option<syn::Path>,
 }
 
 /// `#[component(name = "...", on_add = path, requires = [..], ..)]`, read.
@@ -244,6 +254,11 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
     let mut name = None;
     let mut lifecycle = Vec::new();
     let mut requires = Vec::new();
+    let mut tags = Vec::new();
+    let mut expects = Vec::new();
+    let mut events = None;
+    let mut after_write = None;
+    let mut warnings = None;
     for attr in &input.attrs {
         if !attr.path().is_ident("component") {
             continue;
@@ -257,6 +272,23 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
                 let list: syn::ExprArray = meta.value()?.parse()?;
                 requires.extend(list.elems);
                 Ok(())
+            } else if meta.path.is_ident("tags") {
+                let list: syn::ExprArray = meta.value()?.parse()?;
+                tags.extend(list.elems);
+                Ok(())
+            } else if meta.path.is_ident("expects") {
+                let list: syn::ExprArray = meta.value()?.parse()?;
+                expects.extend(list.elems);
+                Ok(())
+            } else if meta.path.is_ident("events") {
+                events = Some(meta.value()?.parse()?);
+                Ok(())
+            } else if meta.path.is_ident("after_write") {
+                after_write = Some(meta.value()?.parse()?);
+                Ok(())
+            } else if meta.path.is_ident("warnings") {
+                warnings = Some(meta.value()?.parse()?);
+                Ok(())
             } else if let Some(point) = LIFECYCLE_POINTS
                 .iter()
                 .find(|point| meta.path.is_ident(point))
@@ -266,7 +298,7 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
                 Ok(())
             } else {
                 Err(meta.error(
-                    "`component` takes `name`, `requires`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
+                    "`component` takes `name`, `requires`, `tags`, `expects`, `events`, `after_write`, `warnings`, `on_add`, `on_insert`, `on_replace`, `on_remove` and `on_despawn`",
                 ))
             }
         })?;
@@ -281,6 +313,11 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
         name,
         lifecycle,
         requires,
+        tags,
+        expects,
+        events,
+        after_write,
+        warnings,
     })
 }
 
@@ -398,6 +435,61 @@ fn named_fields(input: &DeriveInput) -> syn::Result<&syn::FieldsNamed> {
     Ok(fields)
 }
 
+/// `impl Component`: the name and the doc, and each const the attribute named.
+fn component_impl(input: &DeriveInput, derived: &Tokens) -> syn::Result<Tokens> {
+    let ident = &input.ident;
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    let ComponentAttrs {
+        name,
+        lifecycle,
+        requires,
+        tags,
+        expects,
+        events,
+        after_write,
+        warnings,
+    } = component_attrs(input)?;
+    let doc = doc_of(&input.attrs);
+    let lifecycle = lifecycle_const(derived, &lifecycle);
+    let requires = if requires.is_empty() {
+        quote! {}
+    } else {
+        quote! { const REQUIRES: &'static [&'static str] = &[#(#requires),*]; }
+    };
+    let tags =
+        (!tags.is_empty()).then(|| quote! { const TAGS: &'static [&'static str] = &[#(#tags),*]; });
+    let expects = (!expects.is_empty())
+        .then(|| quote! { const EXPECTS: &'static [&'static str] = &[#(#expects),*]; });
+    let events = events.map(|events| {
+        quote! { const EVENTS: &'static [(&'static str, &'static str)] = #events; }
+    });
+    let after_write = after_write.map(|call| {
+        quote! {
+            const AFTER_WRITE: ::core::option::Option<#derived::AfterWriteFn> =
+                ::core::option::Option::Some(#call);
+        }
+    });
+    let warnings = warnings.map(|call| {
+        quote! {
+            const WARNINGS: ::core::option::Option<#derived::WarningFn> =
+                ::core::option::Option::Some(#call);
+        }
+    });
+    Ok(quote! {
+        impl #impl_generics #derived::Component for #ident #type_generics #where_clause {
+            const NAME: &'static str = #name;
+            const DOC: &'static str = #doc;
+            #requires
+            #tags
+            #expects
+            #events
+            #after_write
+            #warnings
+            #lifecycle
+        }
+    })
+}
+
 fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
     let fields = named_fields(input)?;
     let derived = quote!(::balaur_core::components::derived);
@@ -466,26 +558,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
     };
 
     let kind_impl = if component {
-        let ComponentAttrs {
-            name,
-            lifecycle,
-            requires,
-        } = component_attrs(input)?;
-        let doc = doc_of(&input.attrs);
-        let lifecycle = lifecycle_const(&derived, &lifecycle);
-        let requires = if requires.is_empty() {
-            quote! {}
-        } else {
-            quote! { const REQUIRES: &'static [&'static str] = &[#(#requires),*]; }
-        };
-        quote! {
-            impl #impl_generics #derived::Component for #ident #type_generics #where_clause {
-                const NAME: &'static str = #name;
-                const DOC: &'static str = #doc;
-                #requires
-                #lifecycle
-            }
-        }
+        component_impl(input, &derived)?
     } else {
         quote! {
             impl #impl_generics #derived::Property for #ident #type_generics #where_clause {

@@ -24,7 +24,7 @@ use balaur_core::hecs::Entity;
 
 use balaur_core::{Engine, Stage, Transform};
 
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
 use crate::rapier3d::pipeline::PhysicsWorld;
 
@@ -199,21 +199,12 @@ impl PhysicsState3d {
     }
 }
 
-pub struct PhysicsPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for PhysicsPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("physics", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct PhysicsPlugin;
 
 impl balaur_plugin::Plugin for PhysicsPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "physics"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -269,10 +260,10 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // `physics` holds what spans both worlds; each dimension has its own.
         {
             let mut m = reg.script_module(vocabulary::module::PHYSICS)?;
-            install_world_controls(&mut *m);
-            debug::install_debug_api(&mut *m);
-            tuning::install_tuning_api(&mut *m);
-            ragdoll::install_blend_api(&mut *m);
+            install_world_controls(&mut m);
+            debug::install_debug_api(&mut m);
+            tuning::install_tuning_api(&mut m);
+            ragdoll::install_blend_api(&mut m);
         }
         balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
         reg.add_system(Stage::FixedUpdate, follow_hearers_system);
@@ -283,7 +274,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             // Alongside core's own polygon verbs: a script looking for this
             // looks where `convex_hull` and the booleans are.
             let mut m = reg.script_module(vocabulary::module::GEOMETRY_2D)?;
-            dim2::decompose::install_decompose_api(&mut *m);
+            dim2::decompose::install_decompose_api(&mut m);
         }
         #[cfg(feature = "physics2d")]
         dim2::build(reg)?;
@@ -317,34 +308,34 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     m.module_doc(
         "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
-    install_constants(&mut *m, CONSTANTS_3D);
-    body::install_body_api(&mut *m);
-    body::install_force_api(&mut *m);
-    body::install_force_reader_api(&mut *m);
-    body::install_body_state_api(&mut *m);
-    body::install_body_mass_api(&mut *m);
-    body::install_body_ccd_api(&mut *m);
-    body::install_body_lock_api(&mut *m);
-    body::install_body_pose_api(&mut *m);
-    body::install_body_sleep_api(&mut *m);
-    collider::install_collider_api(&mut *m);
-    collider::install_voxel_api(&mut *m);
-    voxels::install_voxel_edit_api(&mut *m);
-    collider::install_collider_reader_api(&mut *m);
-    readers::install_collider_placement_api(&mut *m);
-    readers::install_heightfield_api(&mut *m);
-    query::install_query_api(&mut *m);
-    query::install_raycast_all_api(&mut *m);
-    query::install_shapecast_api(&mut *m);
-    query::install_volume_query_api(&mut *m);
-    query::install_pair_query_api(&mut *m);
-    query::install_world_list_api(&mut *m);
-    joint::install_joint_api(&mut *m);
-    softbody::install_softbody_api(&mut *m);
-    character::install_character_api(&mut *m);
-    vehicle::install_vehicle_api(&mut *m);
-    follow::install_follow_api(&mut *m);
-    ragdoll::install_ragdoll_api(&mut *m, true);
+    install_constants(&mut m, CONSTANTS_3D);
+    body::install_body_api(&mut m);
+    body::install_force_api(&mut m);
+    body::install_force_reader_api(&mut m);
+    body::install_body_state_api(&mut m);
+    body::install_body_mass_api(&mut m);
+    body::install_body_ccd_api(&mut m);
+    body::install_body_lock_api(&mut m);
+    body::install_body_pose_api(&mut m);
+    body::install_body_sleep_api(&mut m);
+    collider::install_collider_api(&mut m);
+    collider::install_voxel_api(&mut m);
+    voxels::install_voxel_edit_api(&mut m);
+    collider::install_collider_reader_api(&mut m);
+    readers::install_collider_placement_api(&mut m);
+    readers::install_heightfield_api(&mut m);
+    query::install_query_api(&mut m);
+    query::install_raycast_all_api(&mut m);
+    query::install_shapecast_api(&mut m);
+    query::install_volume_query_api(&mut m);
+    query::install_pair_query_api(&mut m);
+    query::install_world_list_api(&mut m);
+    joint::install_joint_api(&mut m);
+    softbody::install_softbody_api(&mut m);
+    character::install_character_api(&mut m);
+    vehicle::install_vehicle_api(&mut m);
+    follow::install_follow_api(&mut m);
+    ragdoll::install_ragdoll_api(&mut m, true);
     body::register_body_component(reg);
     collider::register_collider_component(reg);
     joint::register_joint_component(reg);
@@ -355,8 +346,8 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
 
     {
         let mut m = reg.script_module(vocabulary::module::GEOMETRY_3D)?;
-        geometry::install_geometry_api(&mut *m);
-        geometry::install_mesh_edit_api(&mut *m);
+        geometry::install_geometry_api(&mut m);
+        geometry::install_mesh_edit_api(&mut m);
     }
     Ok(())
 }
@@ -677,7 +668,7 @@ fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
 }
 
 /// Pause, sleeping and gravity.
-fn install_world_controls(m: &mut dyn Bindings<Engine>) {
+fn install_world_controls(m: &mut Module<Engine>) {
     m.module_doc(
         "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
     );
@@ -1145,7 +1136,7 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     COLLISION_BINDINGS,
 ];
 
-pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {
+pub(crate) fn install_constants(m: &mut Module<Engine>, tables: &[&[(&str, &str)]]) {
     for (name, value) in tables.iter().flat_map(|table| table.iter()) {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }

@@ -27,7 +27,7 @@ use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
 use balaur_platform::{Call, PlatformBackend, PlatformEvent};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 #[cfg(test)]
 mod arrival_tests;
@@ -580,22 +580,16 @@ pub fn deliver_launch_url(url: String) {
 #[cfg(not(target_vendor = "apple"))]
 pub fn deliver_launch_url(_url: String) {}
 
-pub struct ApplePlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for ApplePlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("apple", env!("CARGO_PKG_VERSION"))
-                .requiring(&["platform"]),
-        }
-    }
-}
+#[derive(Default)]
+pub struct ApplePlugin;
 
 impl balaur_plugin::Plugin for ApplePlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "apple"
+    }
+
+    fn requires(&self) -> Vec<String> {
+        vec!["platform".to_string()]
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -605,7 +599,7 @@ impl balaur_plugin::Plugin for ApplePlugin {
         reg.add_replay_source("apple", capture, restore);
         balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
         let mut m = reg.script_module("apple")?;
-        install_apple_api(&mut *m);
+        install_apple_api(&mut m);
         Ok(())
     }
 }
@@ -620,7 +614,7 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 
 /// `apple.*`: what the portable module cannot carry because no other store
 /// has it.
-fn install_apple_api(m: &mut dyn Bindings<Engine>) {
+fn install_apple_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
     );
@@ -679,7 +673,7 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Game Center's own screens.
-fn install_screens_api(m: &mut dyn Bindings<Engine>) {
+fn install_screens_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "show_dashboard",
@@ -765,7 +759,7 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
 
 /// Notifications, push and URLs: everything that arrives rather than
 /// answers.
-fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
+fn install_arrivals_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "request_notifications",
@@ -839,7 +833,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
 
 /// The three that ask the device to start telling us something, rather than
 /// answering a question the script asked.
-fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
+fn install_device_arrivals_api(m: &mut Module<Engine>) {
     m.function("cancel_notification", |_: &Engine, (id,): (Value,)| {
         let Value::Str(id) = id else {
             return Err(anyhow!("a notification id should be a string, got {id:?}"));
@@ -854,7 +848,7 @@ fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The arrivals a game has to ask to hear, each installing what hears it.
-fn install_listen_for_api(m: &mut dyn Bindings<Engine>) {
+fn install_listen_for_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "listen_for_urls",
@@ -887,7 +881,7 @@ fn install_listen_for_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The store's own calls, all of them one payload or none.
-fn install_store_api(m: &mut dyn Bindings<Engine>) {
+fn install_store_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "products",
@@ -955,7 +949,7 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
 
 /// What a game asks about purchases already made, rather than about making
 /// one: restoring on a new device, and closing a transaction out.
-fn install_store_ledger_api(m: &mut dyn Bindings<Engine>) {
+fn install_store_ledger_api(m: &mut Module<Engine>) {
     m.function("restore_purchases", |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::Store(StoreCall::Restore)))
     });

@@ -16,8 +16,8 @@ use std::f32::consts::FRAC_PI_2;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur::RenderPlugin::default()).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::RenderPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 
@@ -1034,7 +1034,7 @@ fn a_call_step_runs_the_method_the_script_named() {
         ..AppConfig::bare(dir.path().to_path_buf())
     })
     .unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     let entity = spawn(&app, "Box");
     app.engine
         .script_host()

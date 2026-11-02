@@ -4,7 +4,6 @@
 use crate::rapier2d::math::Vector;
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
@@ -18,7 +17,7 @@ use crate::rapier2d::prelude::{
 use crate::scalar::{self, Pose2, Real, Rotation2};
 use crate::shared::beside::{self, Beside};
 
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
 use crate::properties::{Axis2d, ContactPair, Fill, LayerTest};
@@ -31,7 +30,13 @@ use balaur_core::layers::Layer;
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "collider2d", on_remove = collider2d_removed)]
+#[component(
+    name = "collider2d",
+    on_remove = collider2d_removed,
+    events = crate::vocabulary::hook::COLLIDER,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+    after_write = after_write,
+)]
 pub struct Collider2d {
     /// The collision shape, and the dimensions or the source that kind reads
     pub shape: ColliderShape2d,
@@ -622,17 +627,7 @@ pub(crate) fn register_collider2d_component(reg: &mut Registry<'_>) {
     beside::register::<MeshCollider2d>(reg, &[c::COLLIDER_2D], tags, after_write);
     beside::register::<ConvexDecomposition2d>(reg, &[c::COLLIDER_2D], tags, after_write);
     // After the components beside it, so a scene gives the node those first.
-    reg.register_component(
-        Collider2d::NAME,
-        ComponentDef {
-            events: crate::vocabulary::hook::COLLIDER,
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            ..ComponentDef::of::<Collider2d>(Some(after_write))
-        },
-    );
+    reg.add_component::<Collider2d>();
 }
 
 /// The components whose rows a `collider2d`'s build reads: its own, then
@@ -664,7 +659,7 @@ fn with_voxels(
 }
 
 /// Editing a 2D voxel grid, the twin of `crate::collider::install_voxel_api`.
-pub(crate) fn install_voxel_2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_voxel", &[c::COLLIDER_2D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
         ("voxel", &[c::COLLIDER_2D], "", "Whether one cell of a voxel collider is filled."),
@@ -720,7 +715,7 @@ pub(crate) fn install_voxel_2d_api(m: &mut dyn Bindings<Engine>) {
 /// The whole-grid edits: resizing, cropping and joining two grids' seams.
 ///
 /// Split from [`install_voxel_2d_api`] under `MAX_FN_LINES`.
-fn install_voxel_2d_edit_api(m: &mut dyn Bindings<Engine>) {
+fn install_voxel_2d_edit_api(m: &mut Module<Engine>) {
     m.function(
         "set_voxel_size",
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {

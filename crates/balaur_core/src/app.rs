@@ -725,16 +725,12 @@ impl App {
         self.systems[stage as usize].len()
     }
 
-    /// The binding group a plugin registers into, creating it if needed.
-    /// With no script backend the registrations go nowhere, since nothing can
-    /// call them.
-    pub fn script_module(
-        &mut self,
-        name: &str,
-    ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
+    /// The binding group a plugin registers into, creating it if needed. With
+    /// no script backend the registrations go nowhere.
+    pub fn script_module(&mut self, name: &str) -> Result<balaur_script::Module<Engine>> {
         match self.engine.script_host() {
             Some(host) => host.module(name),
-            None => Ok(Box::new(balaur_script::NoBindings)),
+            None => Ok(balaur_script::Module::detached(name)),
         }
     }
 
@@ -749,6 +745,11 @@ impl App {
             .resource::<crate::components::ComponentRegistry>();
         registry.borrow_mut().accept_keys(name, accepts);
         self
+    }
+
+    /// A derived component, everything about it read from its derive.
+    pub fn add_component<C: crate::components::derived::Component>(&mut self) -> &mut Self {
+        self.register_component(C::NAME, crate::components::ComponentDef::of::<C>())
     }
 
     pub fn register_component(

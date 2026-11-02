@@ -13,7 +13,7 @@ role = "sheet"
 anchor = "top_left"
 width = 320
 padding = [6, 6, 6, 6]
-layer = "shell"
+whole_window = true
 
 [[nodes]]
 id = "list"

@@ -109,7 +109,7 @@ pub(crate) fn register_debug_draw_component(reg: &mut Registry<'_>) {
         ComponentDef {
             tags: &["render"],
             expects: DRAWABLES,
-            ..ComponentDef::of::<DebugDraw>(None)
+            ..ComponentDef::of::<DebugDraw>()
         },
     );
 }

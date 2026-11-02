@@ -10,7 +10,6 @@ use layout;
 use left;
 use lint;
 use plugins;
-use pool;
 use session;
 use signals;
 use util;
@@ -406,7 +405,7 @@ pub fn toolbar(state: editor::State, path: str, rows: [[ui::Control]]) {
     for row in rows {
         groups.push(ui::Control { kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
     }
-    pool::strip(state, path, groups);
+    ui::fill_strip(path, groups);
 }
 
 fn node_owners() -> any {
@@ -600,20 +599,8 @@ pub fn tools_box(side: str) -> ui::Rect? {
 }
 
 fn tab_row(state: &mut editor::State, tokens: any, side: str, dock: any) {
-    // What the two strips are built from: the dock, its tabs' names, the
-    // Problems count its label carries, and the room the row has.
-    let names: [any] = [];
-    for id in dock["tabs"] {
-        names.push(panel(state, id.as_str())["name"]);
-    }
-    let counts = lint::counts(state);
-    let key: any = ["{dock}", names, counts.errors + counts.warnings, tab_height(state), state.layout[side]["width"]];
-    if pool::strip_due(state, head_of(side), key) {
-        pool::strip_keyed(state, head_of(side), key, tab_controls(state, tokens, side, dock));
-    }
-    if pool::strip_due(state, tail_of(side), key) {
-        pool::strip_keyed(state, tail_of(side), key, tail_controls(state, side));
-    }
+    ui::fill_strip(head_of(side), tab_controls(state, tokens, side, dock));
+    ui::fill_strip(tail_of(side), tail_controls(state, side));
 }
 
 /// The panel's own controls and the fold, in that order: where they have
@@ -628,7 +615,7 @@ fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
         icon: icons::ui(shut_icon(side)),
         role: "icon_action",
         tooltip: "Minimize",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_fold_pressed, "side": side },
     };
     // Every panel carries its own tools in its own scene.
@@ -665,7 +652,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             fill: "none",
             role: "tab",
             checked: active,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_tab_picked, "side": side, "held": held },
         });
         // Its own role, so the half of the tile under the pointer is the half
@@ -680,7 +667,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             role: "icon_action_tab",
             icon: icons::ui("close"),
             tooltip: "Close {info["name"]}",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_tab_close_pressed, "held": held },
         });
         inner.push(ui::Control { kind: "row", width: 3 });
@@ -707,7 +694,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             text: "+{hidden.len()}",
             options: hidden,
             tooltip: "More tabs",
-            on: "handle",
+            on_change: "handle",
             data: { "fn": on_more_tab_picked, "side": side },
         });
     }
@@ -807,8 +794,7 @@ fn tab_label(state: &mut editor::State, id: str) -> any {
 
 /// Stop drawing a dock's tab strip, for a dock that is folded or empty.
 fn hide_tabs(state: &mut editor::State, side: str) {
-    pool::hide(state, head_of(side));
-    state.pool_keys.remove(tail_of(side));
+    util::hide(head_of(side));
 }
 
 // How wide the tab row's own tiles are, from the names: a flat width per tab

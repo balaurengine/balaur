@@ -264,9 +264,9 @@ pub(crate) struct WidgetProperties {
     /// Left, top, right and bottom margins a root with `anchor = "fill"` keeps from its surface, and how far an `absolute` child sits in from each edge of its container inside its border, where a side below zero is left free; in design pixels
     #[property(default = [0.0, 0.0, 0.0, 0.0], group = "placement")]
     pub(crate) inset: [f32; 4],
-    /// The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface
+    /// Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor's own chrome does. Ignored on a child.
     #[property(group = "placement")]
-    pub(crate) layer: SmolStr,
+    pub(crate) whole_window: bool,
     /// The edges this root keeps clear of what a notch, a status bar or a home bar covers. A `fill` root's own colour still reaches the edge, and one with no children is a backdrop and reaches it whole
     #[property(flags, default = vec![Edge::new(w::LEFT), Edge::new(w::TOP), Edge::new(w::RIGHT), Edge::new(w::BOTTOM)], group = "placement")]
     pub(crate) safe_area: Vec<Edge>,

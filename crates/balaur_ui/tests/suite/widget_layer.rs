@@ -349,22 +349,15 @@ fn a_root_draws_on_the_surface_it_names() {
     );
     let chrome = add_widget(
         &app,
-        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "shell" }
+        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 whole_window = true }
             .into(),
     );
     // The default surface is pushed into a corner, the way the editor points
-    // it at the viewport. The named one is placed on the whole screen.
+    // it at the viewport. The chrome stays on the whole screen.
     {
         let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
         let mut config = config.borrow_mut();
         config.rect = Some([300.0, 200.0, 100.0, 100.0]);
-        config.layers.insert(
-            "shell".into(),
-            balaur_ui::Surface {
-                enabled: true,
-                rect: None,
-            },
-        );
     }
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -379,7 +372,7 @@ fn a_root_draws_on_the_surface_it_names() {
     );
     assert!(
         rect(chrome).min.x < 10.0,
-        "a named surface should not follow the default one: {:?}",
+        "a whole-window root should not follow the default surface: {:?}",
         rect(chrome)
     );
 

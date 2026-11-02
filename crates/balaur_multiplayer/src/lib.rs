@@ -163,21 +163,12 @@ pub(crate) fn slot_value(slot: PlayerId) -> Value {
     Value::Int(i64::from(slot))
 }
 
-pub struct MultiplayerPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for MultiplayerPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("multiplayer", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct MultiplayerPlugin;
 
 impl balaur_plugin::Plugin for MultiplayerPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "multiplayer"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -192,7 +183,7 @@ impl balaur_plugin::Plugin for MultiplayerPlugin {
             &balaur_core::ComponentDef::parse_schema("settings.multiplayer.match", options::SCHEMA),
         );
         let mut m = reg.script_module("multiplayer")?;
-        api::install(&mut *m);
+        api::install(&mut m);
         Ok(())
     }
 }

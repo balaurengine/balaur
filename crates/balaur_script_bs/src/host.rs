@@ -3,15 +3,13 @@
 //! own), one host-held object per node, its lifecycle methods called by name
 //! when the script has them.
 
-use crate::api::{self, Module, Registry};
+use crate::api::{self, Registry};
 use crate::convert::{from_neutral, to_neutral};
 use anyhow::{Context, Result, anyhow};
 use balaur_bs::runtime::{HostFns, Limits, Object, Reentry, Runtime, Value as L};
 use balaur_bs::{Compiled, HostApi, Literal, Options, Ty};
 use balaur_core::{Engine, Pack};
-use balaur_script::{
-    Bindings, CallbackId, NodeId, Pause, ScriptCompiler, ScriptHost, StepMode, Value,
-};
+use balaur_script::{Module, NodeId, Pause, ScriptCompiler, ScriptHost, StepMode, Value};
 use debug::Held;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -149,7 +147,7 @@ struct Inner {
     engine: Engine,
     root: PathBuf,
     pack: Option<Pack>,
-    registry: Rc<RefCell<Registry>>,
+    registry: Rc<Registry>,
     api: RefCell<Option<HostApi>>,
     files: RefCell<BTreeMap<String, Rc<File>>>,
     /// The instance every file built as units shares, made with the first.
@@ -444,13 +442,13 @@ impl BsHost {
     /// The records a plugin declared whose fields a script cannot read,
     /// `module::Name`: empty when every declaration reads.
     pub fn unread_records(&self) -> Vec<String> {
-        self.inner.registry.borrow().unread()
+        self.inner.registry.unread()
     }
 
     /// The script reference: each module's functions, what each takes and
     /// does, and its constants, as `script::api()` answers it.
     pub fn reference(&self) -> balaur_script::Value {
-        crate::api::reference(&self.api(), &self.inner.registry.borrow())
+        crate::api::reference(&self.api(), &self.inner.registry)
     }
 
     /// What a script compiles against: the engine's functions, component
@@ -461,7 +459,7 @@ impl BsHost {
             .api
             .borrow_mut()
             .get_or_insert_with(|| {
-                let built = api::build(&self.inner.engine, &self.inner.registry.borrow());
+                let built = api::build(&self.inner.engine, &self.inner.registry);
                 if let Some(pack) = &self.inner.pack {
                     Self::compare_api(&built, &pack.api);
                 }

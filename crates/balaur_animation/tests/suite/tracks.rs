@@ -14,8 +14,8 @@ use balaur_core::{App, AppConfig, components, scene};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur::RenderPlugin::default()).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::RenderPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 

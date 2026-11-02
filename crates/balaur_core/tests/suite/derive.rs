@@ -3,7 +3,7 @@
 use anyhow::Result;
 use balaur_core::app::{App, AppConfig};
 use balaur_core::components::derived::{Component, Enum, Fields, Record, Written};
-use balaur_core::components::{self, ComponentDef};
+use balaur_core::components::{self};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 enum Gait {
@@ -48,7 +48,7 @@ struct Walker {
 
 fn app_with_walker() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    app.register_component(Walker::NAME, ComponentDef::of::<Walker>(None));
+    app.add_component::<Walker>();
     app
 }
 
@@ -164,7 +164,7 @@ fn one_property_is_written_by_its_place_and_a_wrong_shape_is_refused() {
 
 /// A level from 0 to 1, refused past 1 by its hook.
 #[derive(Debug, Component)]
-#[component(name = "dial")]
+#[component(name = "dial", after_write = refuse_past_one)]
 struct Dial {
     #[property(default = 0.15)]
     level: f32,
@@ -183,7 +183,7 @@ fn refuse_past_one(eng: &balaur_core::Engine, entity: hecs::Entity, _: Written) 
 
 fn app_with_dial() -> (App, hecs::Entity) {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    app.register_component(Dial::NAME, ComponentDef::of::<Dial>(Some(refuse_past_one)));
+    app.add_component::<Dial>();
     let root = app.engine.root();
     let e = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "D", root);
     (app, e)

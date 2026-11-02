@@ -6,12 +6,11 @@
 //! the window, as it does for the player.
 
 use anyhow::anyhow;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalAppearance, GlobalTransform};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 pub(crate) const COMPONENT: &str = <ScreenNotifier2d as Component>::NAME;
 /// What a notifier announces as its box comes on screen, and as it leaves.
@@ -20,7 +19,13 @@ pub(crate) const SCREEN_EXIT_EVENT: &str = "screen_exit";
 
 /// A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.
 #[derive(Component)]
-#[component(name = "screen_notifier2d", on_add = added, on_remove = removed)]
+#[component(
+    name = "screen_notifier2d",
+    on_add = added,
+    on_remove = removed,
+    events = &[ (SCREEN_ENTER_EVENT, "nil, as any of the box comes on screen"), (SCREEN_EXIT_EVENT, "nil, as the last of it leaves"), ],
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
+)]
 pub struct ScreenNotifier2d {
     /// The box's width and height, in the node's own units: scaled and turned with it
     #[property(default = [1.0, 1.0])]
@@ -47,20 +52,7 @@ fn removed(eng: &Engine, entity: Entity) {
 }
 
 pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        COMPONENT,
-        ComponentDef {
-            events: &[
-                (SCREEN_ENTER_EVENT, "nil, as any of the box comes on screen"),
-                (SCREEN_EXIT_EVENT, "nil, as the last of it leaves"),
-            ],
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::RENDER,
-            ],
-            ..ComponentDef::of::<ScreenNotifier2d>(None)
-        },
-    );
+    reg.add_component::<ScreenNotifier2d>();
 }
 
 /// The world rectangle the screen shows: `[min_x, min_y, max_x, max_y]`.
@@ -151,7 +143,7 @@ pub(crate) fn notify_screen_system(eng: &Engine, _dt: f32) {
 }
 
 /// `node.screen_notifier2d.is_on_screen()`.
-pub(crate) fn install_notifier_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_notifier_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "is_on_screen",
         &[COMPONENT],

@@ -461,7 +461,7 @@ pub(crate) mod keys {
     pub(crate) const KEEP_OPEN: &str = "keep_open";
     pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
-    pub(crate) const LAYER: &str = "layer";
+    pub(crate) const WHOLE_WINDOW: &str = "whole_window";
     pub(crate) const TEXT_BACKGROUND: &str = "text_background";
     pub(crate) const TEXT_STYLE: &str = "text_style";
     pub(crate) const LINE_BREAK: &str = "line_break";
@@ -608,9 +608,7 @@ pub(crate) mod pool {
     pub(crate) const WIDGET: &str = "widget";
     /// A control's `visible`, written to its node rather than its widget.
     pub(crate) const VISIBLE: &str = "visible";
-    /// What hears the reader's edit: a callback, or the name of a method.
-    pub(crate) const ON: &str = "on";
-    /// What a named `on` is handed first, before the edit.
+    /// What a pooled control's handlers are handed first, before the edit.
     pub(crate) const DATA: &str = "data";
     /// A spec's children: the spec is a group, one node holding them.
     pub(crate) const CONTROLS: &str = "controls";
@@ -618,8 +616,6 @@ pub(crate) mod pool {
     pub(crate) const LABEL: &str = "label";
     pub(crate) const LABEL_ROLE: &str = "label_role";
     pub(crate) const SLOT_ROLE: &str = "slot_role";
-    /// A row spanning both columns, with no label beside it.
-    pub(crate) const FULL: &str = "full";
     /// The roles a row wears where its spec names none.
     pub(crate) const TEXT_LABEL: &str = "text_label";
     pub(crate) const LAYOUT_CELLS: &str = "layout_cells";

@@ -31,8 +31,7 @@
 //! before returning. Constants are copied at registration time.
 //!
 //! So there is no `balaur_value_free`, no ownership transfer, and no question
-//! about which allocator released what. It is the same discipline
-//! `Value::Callback` already uses for script functions, applied to everything.
+//! about which allocator released what.
 //!
 //! # Errors and panics
 //!
@@ -51,9 +50,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use anyhow::{Result, bail};
 use balaur_core::Engine;
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 
-use crate::{Manifest, Plugin, Registry};
+use crate::{Plugin, Registry};
 
 /// Bumped whenever anything in this file changes shape.
 ///
@@ -80,7 +79,6 @@ pub const BALAUR_VEC2: u32 = 5;
 pub const BALAUR_VEC3: u32 = 6;
 pub const BALAUR_COLOR: u32 = 7;
 pub const BALAUR_NODE: u32 = 8;
-pub const BALAUR_CALLBACK: u32 = 9;
 pub const BALAUR_LIST: u32 = 10;
 pub const BALAUR_MAP: u32 = 11;
 pub const BALAUR_MANY: u32 = 12;
@@ -240,9 +238,8 @@ pub fn host_api() -> BalaurApi {
     }
 }
 
-/// A module handle is a double-boxed `Bindings`, so the pointer C holds is
-/// thin. The inner box is the trait object.
-type ModuleHandle = Box<dyn Bindings<Engine>>;
+/// What the pointer C holds for a module, boxed so the pointer is thin.
+type ModuleHandle = Module<Engine>;
 
 unsafe extern "C" fn module_open(
     registry: *mut BalaurRegistry,
@@ -404,7 +401,6 @@ fn to_c(value: &Value, arena: &mut Arena) -> BalaurValue {
         Value::Transform2d(columns) => (BALAUR_LIST, list_payload(&numbers(columns), arena)),
         Value::Transform3d(columns) => (BALAUR_LIST, list_payload(&numbers(columns), arena)),
         Value::Node(bits) => (BALAUR_NODE, BalaurPayload { bits: *bits }),
-        Value::Callback(id) => (BALAUR_CALLBACK, BalaurPayload { bits: id.0 }),
         Value::List(items) => (BALAUR_LIST, list_payload(items, arena)),
         Value::Many(items) => (BALAUR_MANY, list_payload(items, arena)),
         Value::Map(pairs) => {
@@ -474,7 +470,6 @@ unsafe fn from_c(value: &BalaurValue) -> Result<Value> {
         }
         BALAUR_COLOR => Value::Color(unsafe { payload.vector }),
         BALAUR_NODE => Value::Node(unsafe { payload.bits }),
-        BALAUR_CALLBACK => Value::Callback(balaur_script::CallbackId(unsafe { payload.bits })),
         BALAUR_LIST => Value::List(unsafe { copy_list(payload.list) }?),
         BALAUR_MANY => Value::Many(unsafe { copy_list(payload.list) }?),
         BALAUR_MAP => {
@@ -507,7 +502,8 @@ unsafe fn copy_list(slice: BalaurSlice) -> Result<Vec<Value>> {
 /// Everything downstream -- load order, the registry, the script modules it
 /// declares -- is unchanged. Only the boundary differs.
 pub struct CExtension {
-    manifest: Manifest,
+    name: String,
+    version: String,
     declare: unsafe extern "C" fn(*const BalaurApi, *mut BalaurRegistry) -> i32,
 }
 
@@ -521,18 +517,21 @@ impl CExtension {
         version: &str,
         declare: unsafe extern "C" fn(*const BalaurApi, *mut BalaurRegistry) -> i32,
     ) -> Self {
-        // The manifest carries the host's own compiler fingerprint: a C
-        // extension has none, and the ABI version check stands in for it.
         Self {
-            manifest: Manifest::new(name, version),
+            name: name.to_string(),
+            version: version.to_string(),
             declare,
         }
     }
 }
 
 impl Plugin for CExtension {
-    fn manifest(&self) -> &Manifest {
-        &self.manifest
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
     }
 
     fn declare(&mut self, registry: &mut Registry<'_>) -> Result<()> {
@@ -542,7 +541,7 @@ impl Plugin for CExtension {
         if status != 0 {
             bail!(
                 "extension `{}` failed to declare itself (status {status})",
-                self.manifest.name
+                self.name
             );
         }
         Ok(())

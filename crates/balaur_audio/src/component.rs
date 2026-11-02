@@ -3,7 +3,6 @@
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 
@@ -20,7 +19,13 @@ use crate::{
     reason = "each is a scene key of its own"
 )]
 #[derive(Clone, Debug, Component)]
-#[component(name = "sound", on_remove = sound_removed)]
+#[component(
+    name = "sound",
+    on_remove = sound_removed,
+    events = &[(FINISHED_EVENT, "the handle that played out")],
+    tags = [balaur_core::components::tag::AUDIO],
+    after_write = written,
+)]
 pub struct Sound {
     /// Audio file, project-relative; required to play
     pub file: String,
@@ -111,14 +116,7 @@ fn sound_removed(eng: &Engine, entity: Entity) {
 /// through the plugin seam, and `Registry::register_component` is that
 /// seam's spelling of the same operation.
 pub(crate) fn register_sound_component(reg: &mut balaur_plugin::Registry<'_>) {
-    reg.register_component(
-        <Sound as Component>::NAME,
-        ComponentDef {
-            events: &[(FINISHED_EVENT, "the handle that played out")],
-            tags: &[balaur_core::components::tag::AUDIO],
-            ..ComponentDef::of::<Sound>(Some(written))
-        },
-    );
+    reg.add_component::<Sound>();
 }
 
 /// What a write does to the playback the node has: another `file` drops it,

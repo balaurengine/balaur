@@ -17,7 +17,7 @@ use anyhow::{Result, anyhow};
 use balaur_core::handler::{headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 #[cfg(not(target_family = "wasm"))]
 mod request;
@@ -385,21 +385,12 @@ fn event_value(event: HttpEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct HttpPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for HttpPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("http", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct HttpPlugin;
 
 impl balaur_plugin::Plugin for HttpPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "http"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -428,7 +419,7 @@ max_parallel = {{ type = "int", default = {parallel}, min = {fewest}, max = {mos
             ),
         );
         let mut m = reg.script_module("http")?;
-        install_http_api(&mut *m);
+        install_http_api(&mut m);
         Ok(())
     }
 }
@@ -511,7 +502,7 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 }
 
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
-fn install_http_api(m: &mut dyn Bindings<Engine>) {
+fn install_http_api(m: &mut Module<Engine>) {
     m.module_doc(
         "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );

@@ -2,14 +2,14 @@
 
 use balaur_core::Engine;
 use balaur_core::rollback::{self, PlayerId};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::options::Options;
 use crate::vocabulary::{Status, install_constants};
 use crate::wire::Control;
 use crate::{MultiplayerState, Phase, lobby, slot_value};
 
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.module_doc(
         "Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events are the `multiplayer_event` event: `events::listen(node, \"multiplayer_event\")`, heard as `on_multiplayer_event`, a map with a `kind`.",
     );
@@ -139,7 +139,7 @@ fn state(eng: &Engine) -> std::rc::Rc<std::cell::RefCell<MultiplayerState>> {
     eng.resource::<MultiplayerState>()
 }
 
-fn install_lifecycle(m: &mut dyn Bindings<Engine>) {
+fn install_lifecycle(m: &mut Module<Engine>) {
     m.function("host", |eng: &Engine, opts: Option<Value>| {
         let options = Options::read(eng, opts.as_ref())?;
         lobby::host(&mut state(eng).borrow_mut(), eng, options)
@@ -193,7 +193,7 @@ fn leave(state: &mut MultiplayerState) {
     );
 }
 
-fn install_play(m: &mut dyn Bindings<Engine>) {
+fn install_play(m: &mut Module<Engine>) {
     // Read back through `rollback.input(slot)`, on the tick it lands on.
     m.function("set_input", |eng: &Engine, value: Value| {
         if !rollback::is_resimulating(eng) {

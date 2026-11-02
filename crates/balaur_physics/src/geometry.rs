@@ -15,7 +15,7 @@ use crate::rapier3d::parry::shape::{TriMesh, TriMeshFlags};
 use crate::scalar::{self, Pose, Real, Vector};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::vocabulary::{Opts, keys as k, map};
 
@@ -118,7 +118,7 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
     ),
 ];
 
-pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.",
     );
@@ -216,7 +216,7 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
 /// rather than describing what is there.
 ///
 /// Split from [`install_geometry_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_mesh_edit_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("split", &[], "(mesh: any, plane: Plane) -> [any]", "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it."),
         ("intersect", &[], "(a: any, b: any) -> map?", "The mesh both meshes have in common, or nothing when they do not overlap."),

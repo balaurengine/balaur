@@ -14,7 +14,6 @@
 //! assert, the same rule the rest of this crate holds to.
 
 use anyhow::Result;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
@@ -37,7 +36,12 @@ const MIN_DISTANCE: f32 = 0.001;
 
 /// The point positional sounds are heard from: distance sets volume, offset across its right sets pan, and the closing speed against `speed_of_sound` bends pitch. The last `current` listener wins; without one, sounds play flat.
 #[derive(Clone, Copy, Debug, Component)]
-#[component(name = "listener", on_remove = listener_removed)]
+#[component(
+    name = "listener",
+    on_remove = listener_removed,
+    tags = [balaur_core::components::tag::AUDIO],
+    after_write = listener_written,
+)]
 pub struct Listener {
     /// Whether the mix is heard from this node; the last current one wins
     #[property(default = true)]
@@ -379,13 +383,7 @@ fn listener_removed(eng: &Engine, entity: Entity) {
 /// Takes the plugin `Registry` rather than `&mut App`, as the `sound`
 /// component beside it does: audio registers through the plugin seam.
 pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>) {
-    reg.register_component(
-        <Listener as Component>::NAME,
-        ComponentDef {
-            tags: &[balaur_core::components::tag::AUDIO],
-            ..ComponentDef::of::<Listener>(Some(listener_written))
-        },
-    );
+    reg.add_component::<Listener>();
 }
 
 /// The listener's copy in `AudioState`, its speeds held where the ratio

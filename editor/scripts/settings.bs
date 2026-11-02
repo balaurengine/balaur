@@ -236,30 +236,16 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let hosts = found.unwrap();
-    // Built again only when what the rows show moved: every definition and
-    // value is behind `settings::revision`.
-    let key = [
-        settings::revision(),
-        query(state),
-        state.settings.at,
-        state.settings.target,
-        stacked,
-        state.touchscreen,
-    ];
     // Narrow, the categories go above the rows rather than beside them: a
     // sidebar and a column of settings leave neither enough room.
-    if pool::strip_due(state, hosts.side_rows, key) {
-        pool::strip_keyed(state, hosts.side_rows, key, if stacked { [] } else { side_controls(state, tokens) });
-    }
+    ui::fill_strip(hosts.side_rows, if stacked { [] } else { side_controls(state, tokens) });
     util::set_visible(hosts.side, !stacked);
     let label_width = label_column_width(state);
-    if pool::sync_due(state, hosts.form, key, label_width, stacked) {
-        let specs = form_specs(state, tokens);
-        if stacked {
-            specs.insert(0, picker_spec(state));
-        }
-        pool::sync_keyed(state, hosts.form, key, label_width, stacked, specs);
+    let specs = form_specs(state, tokens);
+    if stacked {
+        specs.insert(0, picker_spec(state));
     }
+    ui::fill_rows(hosts.form, specs, label_width, stacked);
 }
 
 /// The label column a settings row keeps, and the picker a narrow sheet
@@ -276,7 +262,7 @@ fn picker_spec(state: editor::State) -> ui::Row {
         text: current(state),
         options: categories(),
     };
-    ui::Row { full: true, height: style::row_height(state), controls: [pool::on(picker, on_category_picked, {})] }
+    ui::Row { height: style::row_height(state), controls: [pool::on(picker, on_category_picked, {})] }
 }
 
 fn on_category_picked(state: &mut editor::State, data: any, picked: any) {
@@ -294,7 +280,7 @@ fn save_button(state: editor::State) -> [ui::Control] {
             kind: "button",
             role: "action_form_primary",
             text: "Save",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_save_clicked },
         },
     ];
@@ -331,7 +317,7 @@ fn side_controls(state: editor::State, tokens: any) -> [ui::Control] {
             text: category,
             role: "item_sidebar",
             checked: on,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_category_clicked, "category": category },
         });
     }
@@ -354,7 +340,6 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
         out.push(note_spec("{rows.len()} matching \"{query(state)}\""));
     } else if scope_of(current(state)) == "project" {
         out.push(ui::Row {
-            full: true,
             height: 34,
             controls: [
                 ui::Control {
@@ -401,12 +386,11 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
                 role: "action_form_primary",
                 text: "Edit…",
                 tooltip: "Open the Theme dialog",
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_theme_edit_clicked },
             });
         }
         out.push(ui::Row {
-            full: false,
             height: row_height,
             controls: controls,
             slot_role: "layout_actions",
@@ -420,7 +404,6 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
         for on in settings::overrides(path) {
             let at = override_path(on, path);
             out.push(ui::Row {
-                full: false,
                 height: row_height,
                 controls: [
                     editor_control(state, setting, at),
@@ -429,7 +412,7 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
                         role: "chip_quiet",
                         text: "×",
                         tooltip: "Reset this override",
-                        on: "handle",
+                        on_click: "handle",
                         data: { "fn": on_override_reset_clicked, "at": at },
                     },
                 ],
@@ -453,7 +436,6 @@ fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) 
 /// A line of prose across both columns, and a group's heading.
 fn note_spec(text: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 0,
         controls: [
             ui::Control {
@@ -469,7 +451,6 @@ fn note_spec(text: str) -> ui::Row {
 
 fn head_spec(text: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 24,
         controls: [
             ui::Control {
@@ -496,7 +477,7 @@ fn target_control(state: editor::State) -> ui::Control {
         width: 170,
         text: if state.settings.target == "" { "override for…" } else { "override for " + state.settings.target },
         options: options,
-        on: "handle",
+        on_change: "handle",
         data: { "fn": on_override_target_picked },
     }
 }
@@ -522,7 +503,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             kind: "switch",
             role: "switch_form",
             checked: value.as_bool(),
-            on: "handle",
+            on_change: "handle",
             data: { "fn": on_switch_toggled, "path": path },
         };
     }
@@ -535,7 +516,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             grow: 1,
             text: if value.kind() == "str" { value.as_str() } else { "" },
             options: if named { theme::names() } else { util::list_or_empty(spec["options"]) },
-            on: "handle",
+            on_change: "handle",
             data: { "fn": on_choice_picked, "path": path },
         };
     }
@@ -554,7 +535,7 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
             min: low,
             max: high,
             drag_speed: if whole { 1.0 } else { 0.01 },
-            on: "handle",
+            on_change: "handle",
             data: { "fn": on_number_changed, "path": path, "whole": whole },
         };
     }

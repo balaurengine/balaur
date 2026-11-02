@@ -7,7 +7,6 @@
 //! the same operation gets the same answer.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{Appearance, Children, GlobalTransform};
@@ -16,7 +15,7 @@ use balaur_geometry::csg::{self, Op};
 use balaur_geometry::geometry2d::{self, BooleanOptions, FillRule, Op2d, Shapes2d};
 use balaur_geometry::mesh::MeshData;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 use glamx::{Mat4, Vec2, Vec3};
 
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
@@ -52,7 +51,12 @@ pub enum FillRule2d {
 
 /// Draws the node as its children combined by `operation`: `union`, `difference` or `intersection`. The children stay in the tree, hidden and editable; `color`, `texture` and `material` dress the result.
 #[derive(Component)]
-#[component(name = "boolean3d", on_remove = boolean3d_removed)]
+#[component(
+    name = "boolean3d",
+    on_remove = boolean3d_removed,
+    tags = [crate::vocabulary::words::PERSPECTIVE, "render"],
+    after_write = boolean3d_written,
+)]
 pub struct Boolean3d {
     /// How the children are combined, in the order they are declared
     #[property(default = Operation3d::Union)]
@@ -85,7 +89,12 @@ pub struct Boolean3d {
 
 /// Draws the node as its 2D children combined by `operation`, holes and all. The children stay in the tree, hidden and editable; `fill_rule` and the cleanup keys tune the combination, and `color`, `texture` and `material` dress the result.
 #[derive(Component)]
-#[component(name = "boolean2d", on_remove = boolean2d_removed)]
+#[component(
+    name = "boolean2d",
+    on_remove = boolean2d_removed,
+    tags = [crate::vocabulary::words::ORTHOGRAPHIC, "render"],
+    after_write = boolean2d_written,
+)]
 pub struct Boolean2d {
     /// How the children are combined, in the order they are declared
     #[property(default = Operation2d::Union)]
@@ -238,13 +247,7 @@ fn boolean3d_removed(eng: &Engine, entity: Entity) {
 /// The `boolean3d` component: writes [`Combined3d`], and a `Renderable3d`
 /// whose shape is built rather than authored.
 pub(crate) fn register_boolean3d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Boolean3d::NAME,
-        ComponentDef {
-            tags: &[crate::vocabulary::words::PERSPECTIVE, "render"],
-            ..ComponentDef::of::<Boolean3d>(Some(boolean3d_written))
-        },
-    );
+    reg.add_component::<Boolean3d>();
 }
 
 /// A written `boolean2d` dresses its result again. The texture sizes the
@@ -280,13 +283,7 @@ fn boolean2d_removed(eng: &Engine, entity: Entity) {
 
 /// The `boolean2d` component: the same over filled outlines.
 pub(crate) fn register_boolean2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Boolean2d::NAME,
-        ComponentDef {
-            tags: &[crate::vocabulary::words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Boolean2d>(Some(boolean2d_written))
-        },
-    );
+    reg.add_component::<Boolean2d>();
 }
 
 /// The 2D result's tint and material, onto its renderable if it has one yet.
@@ -424,7 +421,7 @@ fn operand_shapes(eng: &Engine, parent: &GlobalTransform, entity: Entity) -> Opt
 
 /// The script surface: the triangles a boolean settled on, so an editor can
 /// bake one out to a plain `mesh` asset under `models/`.
-pub(crate) fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_boolean_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "built_mesh",
         &["boolean3d"],

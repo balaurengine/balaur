@@ -14,7 +14,7 @@ indices = [[0, 1, 2]]
 fn color_of(params: &str) -> Vec<f64> {
     let dir = tempfile::tempdir().unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     let root = app.engine.root();
     project::instantiate_scene(&app.engine, SCENE, root, false).unwrap();
     let entity = scene::spawn_node(&mut app.engine.world_mut(), "Tri", root);

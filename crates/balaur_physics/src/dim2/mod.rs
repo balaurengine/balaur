@@ -15,7 +15,7 @@ use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage, Transform};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 use glamx::{EulerRot, Quat};
 use serde::Deserialize as _;
 
@@ -303,30 +303,30 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
 
     {
         let mut m = reg.script_module(crate::vocabulary::module::PHYSICS_2D)?;
-        crate::install_constants(&mut *m, crate::CONSTANTS_2D);
-        install_physics2d_api(&mut *m);
-        body::install_body2d_force_api(&mut *m);
-        body::install_body2d_state_api(&mut *m);
-        body::install_body2d_mass_api(&mut *m);
-        body::install_body2d_ccd_api(&mut *m);
-        body::install_body2d_lock_api(&mut *m);
-        body::install_body2d_sleep_api(&mut *m);
-        body::install_body2d_force_reader_api(&mut *m);
-        query::install_physics2d_query_api(&mut *m);
-        query::install_physics2d_raycast_all_api(&mut *m);
-        query::install_physics2d_shapecast_api(&mut *m);
-        query::install_physics2d_volume_query_api(&mut *m);
-        query::install_physics2d_shape_query_api(&mut *m);
-        query::install_physics2d_pair_query_api(&mut *m);
-        query::install_physics2d_world_list_api(&mut *m);
-        joint::install_joint2d_api(&mut *m);
-        softbody::install_softbody_api_2d(&mut *m);
-        character::install_character2d_api(&mut *m);
-        follow::install_follow2d_api(&mut *m);
-        collider::install_voxel_2d_api(&mut *m);
-        readers::install_collider2d_api(&mut *m);
-        readers::install_collider2d_reader_api(&mut *m);
-        readers::install_heightfield_2d_api(&mut *m);
+        crate::install_constants(&mut m, crate::CONSTANTS_2D);
+        install_physics2d_api(&mut m);
+        body::install_body2d_force_api(&mut m);
+        body::install_body2d_state_api(&mut m);
+        body::install_body2d_mass_api(&mut m);
+        body::install_body2d_ccd_api(&mut m);
+        body::install_body2d_lock_api(&mut m);
+        body::install_body2d_sleep_api(&mut m);
+        body::install_body2d_force_reader_api(&mut m);
+        query::install_physics2d_query_api(&mut m);
+        query::install_physics2d_raycast_all_api(&mut m);
+        query::install_physics2d_shapecast_api(&mut m);
+        query::install_physics2d_volume_query_api(&mut m);
+        query::install_physics2d_shape_query_api(&mut m);
+        query::install_physics2d_pair_query_api(&mut m);
+        query::install_physics2d_world_list_api(&mut m);
+        joint::install_joint2d_api(&mut m);
+        softbody::install_softbody_api_2d(&mut m);
+        character::install_character2d_api(&mut m);
+        follow::install_follow2d_api(&mut m);
+        collider::install_voxel_2d_api(&mut m);
+        readers::install_collider2d_api(&mut m);
+        readers::install_collider2d_reader_api(&mut m);
+        readers::install_heightfield_2d_api(&mut m);
     }
     body::register_body2d_component(reg);
     collider::register_collider2d_component(reg);
@@ -709,7 +709,7 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
 
 /// `physics2d`: bodies, colliders, gravity, velocities, contact impulse and
 /// overlap queries.
-fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
+fn install_physics2d_api(m: &mut Module<Engine>) {
     m.module_doc(
         "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );

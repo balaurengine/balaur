@@ -22,7 +22,7 @@ parent = "n_editor"
 [nodes.widget]
 kind = "column"
 interactive = false
-layer = "shell"
+whole_window = true
 # Anchored `fill`, the engine sizes and places it, insets and all; nothing
 # patches it.
 anchor = "fill"
@@ -700,7 +700,7 @@ script = { source = "scripts/panels/manager.bs" }
 visible = false
 [nodes.widget]
 kind = "column"
-layer = "shell"
+whole_window = true
 anchor = "fill"
 role = "sheet_manager"
 align_items = "center"
@@ -828,7 +828,7 @@ script = { source = "scripts/panels/picker.bs" }
 [nodes.widget]
 on_closed = "closed"
 kind = "dialog"
-layer = "shell"
+whole_window = true
 role = "sheet_picker"
 # A `dialog` draws its caption, and the default one is the word "label".
 anchor = "center_top"
@@ -872,7 +872,7 @@ script = { source = "scripts/panels/sheet.bs" }
 [nodes.widget]
 on_closed = "closed"
 kind = "dialog"
-layer = "shell"
+whole_window = true
 role = "sheet_dialog"
 # A `dialog` draws its caption, and the default one is the word "label".
 open = false
@@ -951,7 +951,7 @@ visible = false
 kind = "column"
 anchor = "top_left"
 gap = [12, 12]
-layer = "shell"
+whole_window = true
 
 # `--state fontdemo`'s sheet of every script, face and icon, over the stage.
 [[nodes]]
@@ -963,7 +963,7 @@ visible = false
 kind = "panel"
 role = "sheet"
 anchor = "top_left"
-layer = "shell"
+whole_window = true
 gap = [6, 6]
 padding = [16, 12, 16, 12]
 
@@ -976,7 +976,7 @@ visible = false
 [nodes.widget]
 kind = "panel"
 anchor = "top_left"
-layer = "shell"
+whole_window = true
 fill = "none"
 stroke = "primary_text"
 dashed = true

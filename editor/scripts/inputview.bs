@@ -4,7 +4,6 @@
 
 use editor;
 use manager;
-use pool;
 use style;
 use util;
 
@@ -218,5 +217,5 @@ pub fn fill_chips(state: editor::State, names: [any]) {
             text_color: (if action { tokens["primary_text"] } else { tokens["text_on_primary"] }).as_str(),
         });
     }
-    pool::strip(state, "Editor/InputView/Chips", out);
+    ui::fill_strip("Editor/InputView/Chips", out);
 }

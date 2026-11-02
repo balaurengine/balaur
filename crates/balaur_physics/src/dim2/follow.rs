@@ -4,19 +4,23 @@ use crate::properties::{Axis2d, FollowKind, Turn, node_at};
 use crate::rapier2d::control::{PdController, PidController};
 use crate::rapier2d::dynamics::{AxesMask, RigidBodyVelocity};
 use crate::scalar::{self, Real};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage, entity_of, fixed_dt};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use super::PhysicsState2d;
 use crate::vocabulary::component as c;
 
 /// Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.
 #[derive(Clone, Component)]
-#[component(name = "follow2d", on_remove = follow2d_removed)]
+#[component(
+    name = "follow2d",
+    on_remove = follow2d_removed,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+    expects = [c::BODY_2D],
+)]
 pub struct Follow2d {
     /// The node whose pose the body is pulled to; empty pulls nothing
     #[property(node)]
@@ -171,20 +175,10 @@ fn follow_system(eng: &Engine, _dt: f32) {
 /// `follow2d`: what was asked, held on the node; the controller a step keeps
 /// is in [`PhysicsState2d::follows`].
 fn register_follow2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Follow2d::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::BODY_2D],
-            ..ComponentDef::of::<Follow2d>(None)
-        },
-    );
+    reg.add_component::<Follow2d>();
 }
 
-pub(crate) fn install_follow2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_follow2d_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "reset_follow",
         &[c::FOLLOW_2D],

@@ -144,7 +144,6 @@ struct KeyFrame {
     value: [f32; 4],
     call: Option<String>,
     #[serde(default)]
-    function: Option<u64>,
     ease: Option<String>,
 }
 
@@ -612,7 +611,6 @@ fn clip_frame(clip: &Clip) -> ClipFrame {
                         time: key.time,
                         value: key.value.to_array(),
                         call: key.call.clone(),
-                        function: key.function,
                         ease: key.ease.map(|ease| ease.name().to_string()),
                     })
                     .collect(),
@@ -646,7 +644,6 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                         time: key.time,
                         value: Vec4::from(key.value),
                         call: key.call.clone(),
-                        function: key.function,
                         ease: key
                             .ease
                             .as_deref()

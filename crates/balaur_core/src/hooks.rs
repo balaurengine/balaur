@@ -53,9 +53,6 @@ pub const UPDATE: &str = "update";
 pub const FIXED_UPDATE: &str = "fixed_update";
 pub const ON_FREE: &str = "on_free";
 pub const ON_HOT_RELOAD: &str = "on_hot_reload";
-pub const DEFAULTS: &str = "defaults";
-pub const SAVE_STATE: &str = "save_state";
-pub const LOAD_STATE: &str = "load_state";
 
 /// The pointer, key and window events a node hears, each as `on_<name>`.
 pub const POINTER_ENTER: &str = "pointer_enter";
@@ -132,9 +129,6 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while a pause or the node's `process` mode holds it."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
     (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
-    (DEFAULTS, "()", "When the instance is made, before the scene's properties land."),
-    (SAVE_STATE, "()", "When a rollback or a save snapshots the world; answers the state to keep."),
-    (LOAD_STATE, "(state)", "When a rollback or a load puts that state back."),
     ("on_pointer_enter", "()", "The pointer came over the node."),
     ("on_pointer_exit", "()", "The pointer left the node."),
     ("on_pointer_down", "(button)", "A button went down over the node, then over every other node unless one answers `true`."),

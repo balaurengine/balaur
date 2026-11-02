@@ -1,8 +1,6 @@
 //! The `widget` component and the resources the layer reads: what a scene
 //! file says about a widget, where the layer draws, and which widget has focus.
 
-use std::collections::HashMap;
-
 use balaur_core::hecs::Entity;
 use egui::Color32;
 // A widget's words are short and cloned once a node a frame; inline they are
@@ -133,9 +131,9 @@ pub struct Widget {
     pub handle: f32,
     /// Which child a `tabs` shows, by node name; empty shows the first.
     pub active: SmolStr,
-    /// The drawing surface a *root* widget belongs to; empty is the default
-    /// one. Ignored on a child, which is placed by its parent.
-    pub layer: SmolStr,
+    /// Whether a *root* widget draws over the whole window, whatever the host
+    /// set. Ignored on a child, which is placed by its parent.
+    pub whole_window: bool,
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
@@ -486,15 +484,11 @@ pub struct WidgetLayerConfig {
     pub keyboard: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,
-    /// Where a root that names a `layer` draws instead. A name nothing here
-    /// configures takes the default surface, so a host that confines the
-    /// default confines every layer it was never told about.
-    pub layers: HashMap<String, Surface>,
 }
 
-/// One drawing surface: whether roots on it draw, and where.
+/// Whether a root draws, and where.
 #[derive(Clone, Copy)]
-pub struct Surface {
+pub(crate) struct Surface {
     pub enabled: bool,
     pub rect: Option<[f32; 4]>,
 }
@@ -514,7 +508,6 @@ impl Default for WidgetLayerConfig {
             enabled: true,
             keyboard: true,
             rect: None,
-            layers: HashMap::new(),
         }
     }
 }

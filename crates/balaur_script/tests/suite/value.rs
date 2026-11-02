@@ -3,10 +3,7 @@
 //! Every binding argument in the engine passes through these, so a
 //! mistake here is a mistake everywhere at once.
 
-use balaur_script::{
-    Args, Bindings, BindingsExt, CallbackId, FromArg, FromArgs, IntoValue, NoBindings, NodeId,
-    Value, expect_arity,
-};
+use balaur_script::{Args, FromArg, FromArgs, IntoValue, Module, NodeId, Value, expect_arity};
 
 #[test]
 fn numbers_convert_in_both_directions() {
@@ -34,15 +31,9 @@ fn strings_and_bools_convert() {
 }
 
 #[test]
-fn node_and_callback_handles_survive_a_round_trip() {
+fn node_handles_survive_a_round_trip() {
     assert_eq!(NodeId::from_arg(Some(&Value::Node(9))).unwrap().0, 9);
     assert_eq!(NodeId(9).into_value(), Value::Node(9));
-    assert_eq!(
-        CallbackId::from_arg(Some(&Value::Callback(CallbackId(3))))
-            .unwrap()
-            .0,
-        3
-    );
 }
 
 #[test]
@@ -122,22 +113,12 @@ fn vectors_and_colors_carry_their_components() {
 }
 
 #[test]
-fn no_bindings_accepts_registrations_and_discards_them() {
+fn a_detached_module_accepts_registrations_and_discards_them() {
     struct Host;
-    let mut sink = NoBindings;
-    let m: &mut dyn Bindings<Host> = &mut sink;
+    let mut m: Module<Host> = Module::detached("nowhere");
     m.function("f", |_: &Host, ()| Ok(1i64));
     m.constant("K", Value::Int(1));
     m.function_raw("raw", Box::new(|_, _| Ok(Value::Nil)));
-}
-
-#[test]
-fn bindings_forward_through_references_and_boxes() {
-    struct Host;
-    let mut boxed: Box<dyn Bindings<Host>> = Box::new(NoBindings);
-    boxed.function("via_box", |_: &Host, ()| Ok(()));
-    let by_ref: &mut dyn Bindings<Host> = &mut *boxed;
-    by_ref.function("via_ref", |_: &Host, ()| Ok(()));
 }
 
 // A backend's arguments are read where they lie: a number and a string

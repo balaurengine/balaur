@@ -21,7 +21,7 @@ fn app_in(root: &std::path::Path) -> App {
         ..AppConfig::bare(root.to_path_buf())
     })
     .unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 

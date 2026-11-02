@@ -4,11 +4,11 @@
 //! is this player doing on the tick being simulated, and is this tick one the
 //! engine is running for the second time.
 
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use balaur_core::engine::Engine;
 
-pub fn install_rollback_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_rollback_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Rollback netcode from a script's side. `input` reads this tick's input, real or predicted; `is_resimulating` is true when a tick runs again after a late input.",
     );

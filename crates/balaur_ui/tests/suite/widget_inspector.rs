@@ -300,9 +300,9 @@ impl Root {
             \"target\": self.path,
             \"component\": \"transform\",
             \"label_width\": 60.0,
-            \"on\": \"edited\",
+            \"on_change\": \"edited\",
         };
-        let rows: [any] = [{ \"full\": true, \"height\": 0, \"controls\": [inspector] }];
+        let rows: [any] = [{ \"height\": 0, \"controls\": [inspector] }];
         ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
     }
     pub fn edited(data: any, edit: any) { self.edits += 1.0; }
@@ -367,7 +367,7 @@ impl Root {
         } else {
             { \"kind\": \"inspector\", \"grow\": 1, \"target\": \"Root\", \"component\": \"transform\" }
         };
-        let rows: [any] = [{ \"full\": true, \"height\": 0, \"controls\": [control] }];
+        let rows: [any] = [{ \"height\": 0, \"controls\": [control] }];
         ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
     }
     pub fn flip() { self.flipped = !self.flipped; }

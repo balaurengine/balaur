@@ -7,7 +7,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use balaur_core::app::{App, AppConfig};
 use balaur_core::components::derived::{Component, Written};
-use balaur_core::components::{self, ComponentDef};
+use balaur_core::components::{self};
 use hecs::Entity;
 
 thread_local! {
@@ -23,7 +23,8 @@ thread_local! {
     on_insert = insert,
     on_replace = replace,
     on_remove = remove,
-    on_despawn = despawn
+    on_despawn = despawn,
+    after_write = refuse_past_one,
 )]
 struct LoggedDial {
     #[property(default = 0.5)]
@@ -69,10 +70,7 @@ fn heard() -> Vec<(&'static str, f32)> {
 
 fn app_with_dial() -> (App, Entity) {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    app.register_component(
-        LoggedDial::NAME,
-        ComponentDef::of::<LoggedDial>(Some(refuse_past_one)),
-    );
+    app.add_component::<LoggedDial>();
     let e = app.engine.spawn_node("Dial", app.engine.root());
     heard();
     (app, e)

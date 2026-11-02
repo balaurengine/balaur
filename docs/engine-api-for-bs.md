@@ -433,7 +433,6 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `finish_loading` | 1 | 0 | seam | `()` |  |
 | `set_scale` | 1 | 0 | seam | `(float)` |  |
 | `set_theme` | 1 | 0 | seam | `(any)` | any in arg 1 `Value` |
-| `set_widget_surface` | 1 | 0 | seam | `(str, bool, float, float, float, float)` |  |
 | `takes_pointer_at` | 1 | 1 | seam | `(float, float) -> bool` |  |
 
 ### `events`

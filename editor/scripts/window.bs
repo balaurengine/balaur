@@ -9,7 +9,6 @@ use left;
 use manager;
 use newnode;
 use palette;
-use pool;
 use populate;
 use settings;
 use shell;
@@ -24,7 +23,6 @@ pub struct Size {
 
 pub class WindowState {
     open: str,
-    drawn: str,
     demo: int,
 }
 
@@ -72,10 +70,9 @@ pub fn inner_width(state: editor::State) -> float {
 }
 
 /// Every open window, so one place decides what is on top and `esc` has
-/// something to close. `drawn` is the screen the sheet was last filled for,
-/// so a fill keyed on another screen's inputs writes its own rows again.
+/// something to close.
 pub fn state() -> WindowState {
-    WindowState { open: "", drawn: "", demo: -1 }
+    WindowState { open: "", demo: -1 }
 }
 
 /// Put the screen `id` up, which fills the sheet at the next word.
@@ -86,7 +83,6 @@ pub fn show(state: &mut editor::State, id: str) {
 
 pub fn hide(state: &mut editor::State) {
     state.window.open = "";
-    state.window.drawn = "";
     let filled = scene::get_node(SHEET);
     if filled.is_valid() {
         filled.widget.open = false;
@@ -126,7 +122,6 @@ pub fn fill(state: &mut editor::State) {
 pub fn closed(state: &mut editor::State) {
     if state.window.open != "" && util::property(SHEET, "open").as_bool() == false {
         state.window.open = "";
-        state.window.drawn = "";
     }
 }
 
@@ -143,7 +138,7 @@ fn bar_controls(state: editor::State, title: str, actions: [ui::Control]) -> [ui
         kind: "button",
         role: "icon_action_dialog",
         text: "Close",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_close_clicked },
     });
     out
@@ -160,13 +155,6 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
     if !showing(state, id) {
         return nil;
     }
-    // Every screen fills the same hosts, so what another one drew last is not
-    // this one's: a fill keyed on its inputs writes its own rows again.
-    if state.window.drawn != id {
-        state.pool_keys.remove(SIDE_ROWS);
-        state.pool_keys.remove(FORM);
-        state.window.drawn = id;
-    }
     let box = size(state);
     let filled = scene::get_node(SHEET);
     if filled.is_valid() {
@@ -174,7 +162,7 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
         filled.widget.width = box.width;
         filled.widget.height = box.height;
     }
-    pool::strip(state, SHEET + "/SheetBar", bar_controls(state, title, actions));
+    ui::fill_strip(SHEET + "/SheetBar", bar_controls(state, title, actions));
     // Shut by the asking: a screen with no sidebar leaves it alone, and one
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
@@ -204,7 +192,7 @@ pub fn picker_shut(state: &mut editor::State) {
 /// Open the picker and answer where its rows go.
 ///
 /// `options` names the glyph before the query, the `placeholder` behind it, the
-/// `query` itself and what to do with an edit (`on`) and an Enter
+/// `query` itself and what to do with an edit (`on_change`) and an Enter
 /// (`on_submit`), the `width` it would like, and how tall its rows are.
 pub fn picker(state: &mut editor::State, options: any) -> str {
     let screen = ui::window_size();
@@ -222,11 +210,11 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
         text: options["query"].as_str(),
         grow: 1,
         placeholder: options["placeholder"],
-        on: options["on"],
+        on_change: options["on_change"],
         on_submit: options["on_submit"],
         data: options["data"],
     };
-    pool::strip(state, PICKER + "/PickerHead", [
+    ui::fill_strip(PICKER + "/PickerHead", [
         ui::Control { kind: "label", role: "text_mark_picker", text: options["mark"].as_str() },
         field,
         ui::Control { kind: "label", role: "chip", text: "esc" },

@@ -15,7 +15,7 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
 use balaur_core::components::derived::{Component, Written};
-use balaur_core::components::{ComponentDef, as_f64, rgba};
+use balaur_core::components::{as_f64, rgba};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::GlobalTransform;
 use balaur_plugin::Registry;
@@ -30,7 +30,12 @@ pub const MULTIMESH_ASSET_TYPE: &str = "multimesh";
 
 /// Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 #[derive(Clone, Component)]
-#[component(name = "multimesh3d", on_remove = multimesh3d_removed)]
+#[component(
+    name = "multimesh3d",
+    on_remove = multimesh3d_removed,
+    tags = [words::PERSPECTIVE, "render"],
+    after_write = multimesh3d_written,
+)]
 pub struct MultiMesh3d {
     /// The multimesh asset: the mesh and the instances it is drawn at
     #[property(asset = "multimesh")]
@@ -63,7 +68,12 @@ pub struct MultiMesh3d {
 
 /// Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 #[derive(Clone, Component)]
-#[component(name = "multimesh2d", on_remove = multimesh2d_removed)]
+#[component(
+    name = "multimesh2d",
+    on_remove = multimesh2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = multimesh2d_written,
+)]
 pub struct MultiMesh2d {
     /// The multimesh asset: the mesh and the instances it is drawn at
     #[property(asset = "multimesh")]
@@ -762,20 +772,8 @@ pub(crate) fn register_multimesh(reg: &mut Registry<'_>) {
         },
     );
     reg.add_system(balaur_core::Stage::SceneSync, refresh_multimeshes_system);
-    reg.register_component(
-        MULTIMESH_3D,
-        ComponentDef {
-            tags: &[words::PERSPECTIVE, "render"],
-            ..ComponentDef::of::<MultiMesh3d>(Some(multimesh3d_written))
-        },
-    );
-    reg.register_component(
-        MULTIMESH_2D,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<MultiMesh2d>(Some(multimesh2d_written))
-        },
-    );
+    reg.add_component::<MultiMesh3d>();
+    reg.add_component::<MultiMesh2d>();
 }
 
 /// The asset generation the last refresh saw.

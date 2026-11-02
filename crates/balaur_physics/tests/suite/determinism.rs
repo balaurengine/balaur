@@ -60,7 +60,7 @@ position = [-0.1, 7.0, 0.05]
 
 fn boot(root: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.load_project().unwrap();
     app
 }

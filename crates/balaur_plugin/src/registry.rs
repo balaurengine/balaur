@@ -78,6 +78,11 @@ impl<'a> Registry<'a> {
         self.app.add_replay_source(name, capture, restore);
     }
 
+    /// A derived component, everything about it read from its derive.
+    pub fn add_component<C: balaur_core::components::derived::Component>(&mut self) {
+        self.app.add_component::<C>();
+    }
+
     /// A named component with a schema, reachable from scene files and scripts.
     ///
     /// Takes `&mut self` rather than `&mut App`: a plugin registering through
@@ -96,10 +101,7 @@ impl<'a> Registry<'a> {
     ///
     /// # Errors
     /// If the script backend refuses the module name.
-    pub fn script_module(
-        &mut self,
-        name: &str,
-    ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
+    pub fn script_module(&mut self, name: &str) -> Result<balaur_script::Module<Engine>> {
         self.app.script_module(name)
     }
 

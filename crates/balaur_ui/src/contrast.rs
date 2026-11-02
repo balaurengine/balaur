@@ -3,7 +3,7 @@
 //! it, and the test on the bundled themes asserts none falls short.
 
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::theme::parse_hex;
 use crate::vocabulary::{keys as k, tokens, weights};
@@ -278,7 +278,7 @@ fn lab([r, g, b]: [f64; 3]) -> [f64; 3] {
 }
 
 /// `ui.contrast` and `ui.contrast_pairs`: the same numbers, for a script.
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "contrast",

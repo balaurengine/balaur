@@ -2,9 +2,8 @@
 //! modules, so each verb is an Editor method it calls by name: `kit_rows`,
 //! `kit_field` and the rest in editor.bs.
 
-// A verb answers a row rather than drawing one: the pool writes the rows onto
-// the subtree the editor made for the dock. A plugin's control says
-// `on: "relay"`, `data: { to, method }`, and gets `method(data, value)`.
+// A verb answers a row, and the pool writes it onto the dock's subtree. A control
+// with `on_click: "relay"`, `data: { to, method }` gets `method(data, value)`.
 
 use editor;
 use pool;
@@ -38,7 +37,7 @@ pub fn open_dialog(state: &mut editor::State, id: str) {
 }
 
 /// Hand a plugin control's edit to the method its `data` names on the node
-/// it names: what `on: "relay"` means.
+/// it names: what a control's `"relay"` means.
 pub fn relay(data: any, value: any) {
     let to = data["to"].as_node();
     if to.is_valid() {
@@ -103,20 +102,14 @@ fn host_path(host: str, name: str) -> str {
 
 /// A row of controls on a named part of the host: `head`, `foot`, or the
 /// `body` that everything else means.
-pub fn bar(state: editor::State, host: str, name: str, controls: [ui::Control]) {
-    pool::strip(state, host_path(host, name), controls);
+pub fn bar(host: str, name: str, controls: [ui::Control]) {
+    ui::fill_strip(host_path(host, name), controls);
 }
 
-/// Rows on a named part of the host. A spec is what `pool::sync` takes:
+/// Rows on a named part of the host. A spec is what `ui::fill_rows` takes:
 /// `{ label, controls }`, or `full` for a row across both columns.
-pub fn rows(state: editor::State, host: str, name: str, specs: [ui::Row]) {
-    pool::sync(state, host_path(host, name), specs, LABEL_WIDTH, false);
-}
-
-/// The node itself, for a plugin that wants to `add_child` a shape the kit
-/// has no verb for, or to read a rect back.
-pub fn area(host: str, name: str) -> Node {
-    scene::get_node(host_path(host, name))
+pub fn rows(host: str, name: str, specs: [ui::Row]) {
+    ui::fill_rows(host_path(host, name), specs, LABEL_WIDTH, false);
 }
 
 // A tab or a page button, which remembers itself picked per `id`.
@@ -135,26 +128,6 @@ fn picked(state: &mut editor::State, data: any, _value: any) {
 fn current_of(state: &mut editor::State, id: str, names: [str]) -> str {
     let held = memory(state)["tab:" + id];
     if held.kind() == "str" && util::contains(names, held.as_str()) { held.as_str() } else { names[0] }
-}
-
-/// Rows of tabs across the host's head, wrapped to the width there is;
-/// answers the one that is open, remembered per `id`.
-pub fn tabs(state: &mut editor::State, host: str, id: str, names: any) -> str {
-    let list: [str] = [];
-    for name in util::list_or_empty(names) {
-        list.push(name.as_str());
-    }
-    if list.len() == 0 {
-        return "";
-    }
-    let current = current_of(state, id, list);
-    let controls: [ui::Control] = [];
-    for name in list {
-        controls.push(pick_button(state, id, name, "chip", name == current));
-    }
-    bar(state, host, "head", controls);
-    memory(state)["tab:" + id] = current;
-    current
 }
 
 /// A list of pages down the host's sidebar, the way the settings screen is
@@ -182,7 +155,7 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
             controls.push(pick_button(state, id, name.as_str(), "item_sidebar", name.as_str() == current));
         }
     }
-    bar(state, host, "side", controls);
+    bar(host, "side", controls);
     util::set_visible(host + "/Split/Side", true);
     memory(state)["tab:" + id] = current;
     current
@@ -191,7 +164,6 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
 /// A heading between groups of rows.
 pub fn heading(title: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 24,
         controls: [ui::Control { kind: "label", role: "action_section", text: title }],
     }
@@ -200,7 +172,6 @@ pub fn heading(title: str) -> ui::Row {
 /// What a panel says when it has nothing.
 pub fn empty(text: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 0,
         controls: [
             ui::Control {
@@ -343,7 +314,6 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
             text: indent(depth) + (if open { "▾ " } else { "▸ " }) + label,
         };
         out["specs"].push(ui::Row {
-            full: true,
             height: 22,
             slot_role: "layout_actions",
             controls: [
@@ -466,7 +436,6 @@ pub fn files(state: &mut editor::State, id: str, options: any) -> [ui::Row] {
     let reveal_root: ui::Control = ui::Control { kind: "button", role: "chip", text: "reveal" };
     let out: [ui::Row] = [
         ui::Row {
-            full: true,
             height: 24,
             slot_role: "layout_actions",
             controls: [
@@ -519,7 +488,7 @@ fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool
     }
     let reveal: ui::Control = ui::Control { kind: "button", role: "chip", text: "reveal" };
     controls.push(pool::on(reveal, revealed, { "path": path }));
-    out.push(ui::Row { full: true, height: 24, controls: controls, slot_role: "layout_actions" });
+    out.push(ui::Row { height: 24, controls: controls, slot_role: "layout_actions" });
     if open {
         document(state, id, path, edit, out);
     }
@@ -540,7 +509,6 @@ fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [ui:
     let value = if as_toml { toml::parse(text.unwrap()) } else { json::parse(text.unwrap()) };
     if value == nil {
         out.push(ui::Row {
-            full: true,
             height: 22,
             controls: [
                 ui::Control { kind: "label", role: "note_warning", grow: 1, wrap: true, text: "does not parse" },

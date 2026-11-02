@@ -350,7 +350,7 @@ fn a_cloth_faces_up() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sheet", root);
     let grid = toml::from_str("cells = [3.0, 3.0, 1.0]\nsize = [2.0, 0.0, 2.0]").unwrap();
@@ -399,7 +399,7 @@ fn clearing_the_world_forgets_the_soft_bodies_it_held() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let cells = toml::from_str("cells = [2.0, 2.0, 2.0]").unwrap();
     let cuboid = toml::from_str("kind = \"box\"").unwrap();
@@ -443,7 +443,7 @@ fn freeing_a_node_frees_its_soft_body() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
     balaur_core::components::add(
@@ -474,7 +474,7 @@ fn a_rope_draws_as_triangles_over_its_own_vertices() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Rope", root);
     let count = toml::from_str("particle_count = 8").unwrap();
@@ -513,7 +513,7 @@ fn removing_a_soft_body_takes_its_solved_mesh_with_it() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
     let cells = toml::from_str("cells = [2.0, 2.0, 2.0]").unwrap();

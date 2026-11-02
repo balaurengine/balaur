@@ -79,17 +79,8 @@ pub use crate::system::{
 };
 pub use crate::tween::{Tween, TweenId};
 
-pub struct AnimationPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for AnimationPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("animation", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct AnimationPlugin;
 
 /// What a definition table holds, for the generated reference.
 const LIBRARY_ASSET_DOC: &str = r#"A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
@@ -115,8 +106,8 @@ keys = [{ time = 2.0, call = "on_halfway" }]
 ```"#;
 
 impl balaur_plugin::Plugin for AnimationPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "animation"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -154,7 +145,7 @@ impl balaur_plugin::Plugin for AnimationPlugin {
         register_animation_component(reg);
         register_machine_component(reg);
         let mut m = reg.script_module("animation")?;
-        install_animation_api(&mut *m);
+        install_animation_api(&mut m);
         Ok(())
     }
 }
@@ -168,7 +159,13 @@ fn animation_removed(eng: &Engine, entity: Entity) {
 
 /// Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.
 #[derive(Clone, Debug, Component)]
-#[component(name = "animation", on_remove = animation_removed)]
+#[component(
+    name = "animation",
+    on_remove = animation_removed,
+    events = &[ (system::STARTED_EVENT, "the clip's name"), (system::CHANGED_EVENT, "`{ from, to }`, the clips' names"), (system::LOOPED_EVENT, "the clip's name"), (system::FINISHED_EVENT, "the clip's name"), ],
+    tags = [balaur_core::components::tag::ANIMATION],
+    after_write = animation_written,
+)]
 pub struct Animation {
     /// The clip library this node plays from
     #[property(asset = "animation_library")]
@@ -190,19 +187,7 @@ pub struct Animation {
 /// [`Playback`] in [`AnimationState`], keyed by entity, because the clip is
 /// shared between nodes and the playhead is not.
 fn register_animation_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        COMPONENT,
-        ComponentDef {
-            events: &[
-                (system::STARTED_EVENT, "the clip's name"),
-                (system::CHANGED_EVENT, "`#{ from, to }`, the clips' names"),
-                (system::LOOPED_EVENT, "the clip's name"),
-                (system::FINISHED_EVENT, "the clip's name"),
-            ],
-            tags: &[balaur_core::components::tag::ANIMATION],
-            ..ComponentDef::of::<Animation>(Some(animation_written))
-        },
-    );
+    reg.add_component::<Animation>();
 }
 
 /// The `state_machine` scene key: a machine asset run against a player.
@@ -222,7 +207,7 @@ fn register_machine_component(reg: &mut Registry<'_>) {
                 }
                 Ok(())
             }),
-            ..ComponentDef::of::<StateMachine>(Some(machine::written))
+            ..ComponentDef::of::<StateMachine>()
         },
     );
 }

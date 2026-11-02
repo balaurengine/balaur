@@ -2,7 +2,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::{Engine, entity_of};
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use super::install_runtime;
 use crate::PhysicsState3d;
@@ -12,7 +12,7 @@ use crate::vocabulary::{component as c, keys as k};
 
 /// What a script may ask a soft body and do to it; the calls on particles,
 /// forces and edges are `install_runtime`.
-pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_softbody_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("softbody_volume", &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed."),
         ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much they enclose at rest."),

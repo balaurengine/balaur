@@ -140,7 +140,7 @@ grow = 1
 titles = ["name", "kind", "size>"]
 sortable = true
 sort = "size"
-widths = ["2", "1.4", "1"]
+widths = ["2", "1.4", "1.2"]
 
 [[nodes]]
 id = "note"

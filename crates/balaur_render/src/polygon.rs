@@ -12,7 +12,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_geometry::mesh::MeshSkin;
@@ -25,7 +24,12 @@ use crate::{Renderable2d, set_color, set_polygon};
 // The node draws the [`PolygonMesh`] each write resolves into its
 // [`Renderable2d`].
 #[derive(Clone, Component)]
-#[component(name = "polygon", on_remove = polygon_removed)]
+#[component(
+    name = "polygon",
+    on_remove = polygon_removed,
+    tags = [words::ORTHOGRAPHIC, "render", "animation"],
+    after_write = polygon_written,
+)]
 pub struct Polygon {
     /// Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space
     #[property(asset = "mesh")]
@@ -88,13 +92,7 @@ fn polygon_removed(eng: &Engine, entity: Entity) {
 /// into `Renderable2d`.
 pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
     reg.add_system(balaur_core::Stage::SceneSync, resolve_solved_2d_system);
-    reg.register_component(
-        Polygon::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render", "animation"],
-            ..ComponentDef::of::<Polygon>(Some(polygon_written))
-        },
-    );
+    reg.add_component::<Polygon>();
 }
 
 /// What a write of `polygon` leaves to be worked out again.

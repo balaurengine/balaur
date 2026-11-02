@@ -2,7 +2,6 @@
 //! the node carrying it.
 
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::{self, Entity};
 use balaur_core::{Engine, GlobalTransform};
@@ -24,7 +23,13 @@ pub(crate) const MIN_ZOOM_2D: f32 = 0.01;
 // `drive_camera_system` copies the current one into [`CameraConfig3d`],
 // through the [`Lens3d`] a write leaves beside it.
 #[derive(Component)]
-#[component(name = "camera3d", on_remove = camera3d_removed)]
+#[component(
+    name = "camera3d",
+    on_remove = camera3d_removed,
+    events = &[( CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now", )],
+    tags = [balaur_core::components::tag::DIM_3D, "render"],
+    after_write = camera3d_written,
+)]
 pub struct Camera3d {
     /// Whether this camera drives the view; the last current one wins
     #[property(default = true)]
@@ -63,7 +68,11 @@ pub struct Camera3d {
 /// The orthographic camera a flat scene is drawn from. `pixels_per_unit` scales it, and the last `current` camera wins; the scene's `environment` lights it. Only its node moves it.
 // Mirrored into [`CameraConfig2d`].
 #[derive(Component)]
-#[component(name = "camera2d")]
+#[component(
+    name = "camera2d",
+    events = &[( CURRENT_CHANGED_EVENT, "whether it is the camera drawn from now", )],
+    tags = [balaur_core::components::tag::DIM_2D, "render"],
+)]
 pub struct Camera2d {
     /// Whether this camera drives the view; the last current one wins
     #[property(default = true)]
@@ -279,26 +288,6 @@ fn camera3d_removed(eng: &Engine, entity: Entity) {
 /// that was inert either way (`look_at` on a flat camera, `pixels_per_unit`
 /// on a spatial one).
 pub(crate) fn register_camera_components(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Camera3d::NAME,
-        ComponentDef {
-            events: &[(
-                CURRENT_CHANGED_EVENT,
-                "whether it is the camera drawn from now",
-            )],
-            tags: &[balaur_core::components::tag::DIM_3D, "render"],
-            ..ComponentDef::of::<Camera3d>(Some(camera3d_written))
-        },
-    );
-    reg.register_component(
-        Camera2d::NAME,
-        ComponentDef {
-            events: &[(
-                CURRENT_CHANGED_EVENT,
-                "whether it is the camera drawn from now",
-            )],
-            tags: &[balaur_core::components::tag::DIM_2D, "render"],
-            ..ComponentDef::of::<Camera2d>(None)
-        },
-    );
+    reg.add_component::<Camera3d>();
+    reg.add_component::<Camera2d>();
 }

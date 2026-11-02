@@ -4,7 +4,6 @@
 
 use editor;
 use icons;
-use pool;
 use signals;
 use style;
 use util;
@@ -297,8 +296,8 @@ pub fn fill(state: &mut editor::State) {
     ui::set_widget_layer(false, 0.0, 0.0, 0.0, 0.0);
     util::set_visible(GROUND, true);
     cover(state, true);
-    pool::strip(state, HEAD_NODE(), head_controls(state, tokens));
-    pool::strip(state, TABS_NODE(), tab_controls(state));
+    ui::fill_strip(HEAD_NODE(), head_controls(state, tokens));
+    ui::fill_strip(TABS_NODE(), tab_controls(state));
     let column_width = page_width();
     head_note(state, tokens);
     tools(state);
@@ -311,7 +310,7 @@ pub fn fill(state: &mut editor::State) {
     } else {
         projects_specs(state, tokens, column_width)
     };
-    pool::sync(state, PAGE(), specs, 0.0, false);
+    ui::fill_rows(PAGE(), specs);
 }
 
 // The page's width, as it was laid out: the widest the screen draws, whatever
@@ -360,7 +359,7 @@ fn head_note(state: editor::State, tokens: any) {
         []
     };
     util::set_visible(PROGRESS(), controls.len() > 0);
-    pool::strip(state, PROGRESS(), controls);
+    ui::fill_strip(PROGRESS(), controls);
 }
 
 // The filter and the three verbs, up on the Projects tab. A tab has no folder
@@ -385,7 +384,6 @@ fn tools(state: editor::State) {
 
 fn say(text: str, ink: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 0,
         controls: [
             ui::Control {
@@ -403,7 +401,6 @@ fn say(text: str, ink: str) -> ui::Row {
 
 fn rule() -> ui::Row {
     ui::Row {
-        full: true,
         height: 1,
         controls: [ui::Control { kind: "separator", grow: 1 }],
     }
@@ -460,7 +457,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
                     icon: if gone { icons::panel("problems") } else { "" },
                     tooltip: here,
                     text_color: if gone { tokens["text_subtle"] } else { tokens["text_default"] },
-                    on: "handle",
+                    on_click: "handle",
                     data: { "fn": on_project_pressed, "gone": gone, "here": here },
                 },
                 ui::Control {
@@ -490,11 +487,10 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
         text: "",
         icon: icons::ui("close"),
         tooltip: "Forget this project",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_forget_pressed, "here": here },
     });
     ui::Row {
-        full: true,
         height: util::max(line + 22.0, 56.0),
         slot_role: "layout_actions",
         controls: controls,
@@ -537,7 +533,6 @@ fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui
             column += 1;
         }
         out.push(ui::Row {
-            full: true,
             height: cover_height + 54.0,
             controls: [
                 ui::Control { kind: "row", gap: [SEAM, SEAM], controls: cards },
@@ -614,7 +609,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 absolute: true,
                 inset: [0.0, 0.0, 0.0, 0.0],
                 tooltip: "Copy into " + state.manager.parent,
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_example_pressed, "id": id },
             },
         ],
@@ -648,7 +643,6 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
         }
         let note = row["description"].as_str();
         out.push(ui::Row {
-            full: true,
             height: 52.0,
             controls: [
                 ui::Control {
@@ -674,7 +668,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
                             absolute: true,
                             inset: [0.0, 0.0, 0.0, 0.0],
                             tooltip: "Copy into " + state.manager.parent,
-                            on: "handle",
+                            on_click: "handle",
                             data: { "fn": copy_forge_project, "project": project },
                         },
                     ],
@@ -760,10 +754,10 @@ fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> 
         role: "action_form",
         icon: icons::ui("reset"),
         text: if state.manager.reading { "Checking" } else { "Check" },
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_check_pressed },
     });
-    let out: [ui::Row] = [ui::Row { full: true, height: 44, slot_role: "layout_actions", controls: head }];
+    let out: [ui::Row] = [ui::Row { height: 44, slot_role: "layout_actions", controls: head }];
     if mine["held"].as_str() != "" {
         out.push(say(mine["held"].as_str(), tokens["text_subtle"].as_str()));
     }
@@ -776,11 +770,11 @@ fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> 
             role: "chip",
             text: line,
             checked: state.manager.follow == line.as_str(),
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_line_pressed, "line": line },
         });
     }
-    out.push(ui::Row { full: true, height: row_height + 6.0, slot_role: "layout_actions", controls: lines });
+    out.push(ui::Row { height: row_height + 6.0, slot_role: "layout_actions", controls: lines });
     release_specs(state, tokens, row_height, mine, out);
     out
 }
@@ -829,7 +823,7 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
         if press != nil {
             controls.push(press.unwrap());
         }
-        out.push(ui::Row { full: true, height: row_height + 14.0, slot_role: "layout_actions", controls: controls });
+        out.push(ui::Row { height: row_height + 14.0, slot_role: "layout_actions", controls: controls });
         out.push(rule());
     }
     // An install that cannot replace itself has nothing to name a release for.
@@ -837,7 +831,6 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
         return;
     }
     out.push(ui::Row {
-        full: false,
         height: row_height,
         controls: [
             ui::Control {
@@ -846,7 +839,7 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
                 grow: 1,
                 text: state.manager.tag,
                 placeholder: "v0.2.0",
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": on_tag_typed },
             },
             ui::Control {
@@ -854,7 +847,7 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
                 role: "action_form",
                 text: "Install",
                 min_width: 88,
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_install_typed_pressed },
             },
         ],
@@ -899,7 +892,7 @@ fn head_controls(state: editor::State, tokens: any) -> [ui::Control] {
             role: "action_manager",
             tooltip: "Esc",
             text: "Back to " + state.game_name,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_back_pressed },
         });
     }
@@ -921,7 +914,7 @@ fn tab_controls(state: editor::State) -> [ui::Control] {
             text: row[1],
             role: "tab_manager",
             checked: state.manager.tab == id,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_page_picked, "id": id },
         });
     }
@@ -1069,7 +1062,7 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
             role: "action_form",
             text: "Download",
             min_width: 88,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_download_pressed, "download": download },
         };
     }
@@ -1082,7 +1075,7 @@ pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
         role: "action_form",
         min_width: 88,
         text: if row["order"].as_str() == "older" { "Downgrade" } else { "Install" },
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_install_row_pressed, "tag": tag },
     }
 }
@@ -1143,7 +1136,6 @@ pub fn new_fill(state: &mut editor::State) {
     let row_height = util::max(style::row_height(state), 30.0);
     let specs: [ui::Row] = [
         ui::Row {
-            full: false,
             height: row_height,
             controls: [
                 ui::Control {
@@ -1152,14 +1144,13 @@ pub fn new_fill(state: &mut editor::State) {
                     grow: 1,
                     text: state.manager.name,
                     placeholder: "my-game",
-                    on: "handle",
+                    on_change: "handle",
                     data: { "fn": on_name_typed },
                 },
             ],
             label: "name",
         },
         ui::Row {
-            full: false,
             height: row_height,
             controls: [
                 ui::Control {
@@ -1168,14 +1159,13 @@ pub fn new_fill(state: &mut editor::State) {
                     grow: 1,
                     text: state.manager.template,
                     options: ids,
-                    on: "handle",
+                    on_change: "handle",
                     data: { "fn": on_template_picked },
                 },
             ],
             label: "from",
         },
         ui::Row {
-            full: false,
             height: row_height,
             controls: [
                 ui::Control {
@@ -1192,7 +1182,6 @@ pub fn new_fill(state: &mut editor::State) {
     ];
     if state.manager.failed != "" {
         specs.push(ui::Row {
-            full: true,
             height: 0,
             controls: [
                 ui::Control {
@@ -1206,7 +1195,6 @@ pub fn new_fill(state: &mut editor::State) {
         });
     }
     specs.push(ui::Row {
-        full: true,
         height: row_height,
         slot_role: "layout_actions",
         controls: [
@@ -1216,12 +1204,12 @@ pub fn new_fill(state: &mut editor::State) {
                 role: "action_form_primary",
                 text: "Create",
                 min_width: 140,
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_create_pressed },
             },
         ],
     });
-    pool::sync(state, hosts["form"].as_str(), specs, 72.0, false);
+    ui::fill_rows(hosts["form"].as_str(), specs, 72.0, false);
 }
 
 fn on_name_typed(state: &mut editor::State, data: any, text: any) {

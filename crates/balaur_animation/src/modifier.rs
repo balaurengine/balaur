@@ -32,7 +32,6 @@ use crate::modifier_solve::{
 use crate::player::{AnimationState, fixed_dt, max_substeps};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Parent, Transform};
@@ -70,7 +69,12 @@ impl Kind {
 
 /// Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
 #[derive(Clone, Debug, Component)]
-#[component(name = "modifier2d", on_remove = modifier2d_removed)]
+#[component(
+    name = "modifier2d",
+    on_remove = modifier2d_removed,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::ANIMATION],
+    after_write = written_2d,
+)]
 pub struct Modifier2d {
     /// Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)
     #[property(default = Kind::LookAt)]
@@ -124,7 +128,12 @@ pub struct Modifier2d {
 
 /// Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
 #[derive(Clone, Debug, Component)]
-#[component(name = "modifier3d", on_remove = modifier3d_removed)]
+#[component(
+    name = "modifier3d",
+    on_remove = modifier3d_removed,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::ANIMATION],
+    after_write = written_3d,
+)]
 pub struct Modifier3d {
     /// Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)
     #[property(default = Kind::LookAt)]
@@ -294,16 +303,7 @@ fn modifier2d_removed(eng: &Engine, entity: Entity) {
 /// The `modifier2d` component: a [`Modifier2d`] on the node, and the
 /// [`Params2d`] the solver reads beside it.
 pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        <Modifier2d as Component>::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            ..ComponentDef::of::<Modifier2d>(Some(written_2d))
-        },
-    );
+    reg.add_component::<Modifier2d>();
 }
 
 /// What a removed `Modifier3d` leaves behind, taken with it.
@@ -317,16 +317,7 @@ fn modifier3d_removed(eng: &Engine, entity: Entity) {
 /// The `modifier3d` component: a [`Modifier3d`] on the node, and the
 /// [`Params3d`] the solver reads beside it.
 pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        <Modifier3d as Component>::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            ..ComponentDef::of::<Modifier3d>(Some(written_3d))
-        },
-    );
+    reg.add_component::<Modifier3d>();
 }
 
 /// The solver's [`Params2d`], worked out again from what the node now asks.

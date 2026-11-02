@@ -4,7 +4,6 @@
 
 use editor;
 use model;
-use pool;
 use rig;
 use signals;
 use util;
@@ -211,7 +210,7 @@ pub fn fill(state: editor::State) {
             rows.push(spec);
         }
     }
-    pool::sync(state, PANEL + "/Body/Scroll/Rows", rows, 0.0, false);
+    ui::fill_rows(PANEL + "/Body/Scroll/Rows", rows);
 }
 
 /// A verb by the name of its button.
@@ -248,7 +247,7 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
             text_align: "start",
             checked: open,
             tooltip: "Pick the bone this canonical name means on this rig",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": toggle_picker, "open": open, "name": name },
         },
     ];
@@ -258,11 +257,11 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
             role: "chip_quiet",
             text: "×",
             tooltip: "Leave this row empty",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": leave_row_empty, "name": name },
         });
     }
-    let out: [ui::Row] = [ui::Row { full: true, height: 24, controls: controls }];
+    let out: [ui::Row] = [ui::Row { height: 24, controls: controls }];
     if !open {
         return out;
     }
@@ -270,7 +269,6 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = bone_path;
         out.push(ui::Row {
-            full: true,
             height: 20,
             controls: [
                 ui::Control { kind: "label", width: NAME_WIDTH, text: "" },
@@ -282,7 +280,7 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
                     text: path,
                     text_align: "start",
                     checked: path == picked,
-                    on: "handle",
+                    on_click: "handle",
                     data: { "fn": pick_bone_path, "name": name, "path": path },
                 },
             ],

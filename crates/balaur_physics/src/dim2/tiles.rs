@@ -36,7 +36,7 @@ pub(crate) struct Built {
 // tile that names no collision is a hole.
 /// Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.
 #[derive(Clone, Component)]
-#[component(name = "tile_collision", on_remove = tile_collision_removed)]
+#[component(name = "tile_collision", on_remove = tile_collision_removed, after_write = after_write)]
 pub struct TileCollision {
     /// Collide at all; a disabled collider keeps its shape and costs nothing
     #[property(default = true)]
@@ -217,7 +217,7 @@ pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
             events: crate::vocabulary::hook::COLLIDER,
             tags,
             expects: &["tilemap"],
-            ..ComponentDef::of::<TileCollision>(Some(after_write))
+            ..ComponentDef::of::<TileCollision>()
         },
     );
 }

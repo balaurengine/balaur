@@ -235,7 +235,7 @@ fn build_pipelines(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> 
                 &crate::pipeline::Raster {
                     cull: None,
                     depth,
-                    blend: crate::pipeline::Blend::Straight,
+                    blend: kiss3d::scene::Blend2d::Alpha,
                 },
                 sample_count,
             )

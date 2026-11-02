@@ -13,7 +13,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use balaur_core::Stage;
 use balaur_core::collections::DetHashSet;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 pub mod actions;
 pub mod gamepad;
@@ -522,21 +522,12 @@ fn announce_pads_system(eng: &Engine, _: f32) {
     }
 }
 
-pub struct InputPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for InputPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("input", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct InputPlugin;
 
 impl balaur_plugin::Plugin for InputPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "input"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -659,7 +650,7 @@ pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] = &[
 ];
 
 /// `input.*`. Declared against the neutral seam.
-fn install_input_api(m: &mut dyn Bindings<Engine>) {
+fn install_input_api(m: &mut Module<Engine>) {
     m.module_doc(
         "One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.",
     );
@@ -742,7 +733,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 /// `input.pinch`, `pan`, `swipe` and `long_press`: what the fingers are
 /// doing, past where they are. Each reads neutral with nothing happening, so
 /// a desktop and a headless run answer the same as a still screen.
-fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
+fn install_gesture_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("pinch", &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
         ("pan", &[], "-> Pan", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
@@ -803,7 +794,7 @@ fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
 /// for a person: a showcase, a test, an automation client. A fed event is
 /// the next frame's, delivered when it begins, so the systems that dispatch
 /// a press at the top of a tick see it exactly like an OS event.
-fn install_feed_api(m: &mut dyn Bindings<Engine>) {
+fn install_feed_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed."),
         ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
@@ -861,7 +852,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
 
 /// `input.touches*` and `input.dropped_files`: the per-frame lists the
 /// window backend feeds.
-fn install_touch_api(m: &mut dyn Bindings<Engine>) {
+fn install_touch_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
         ("touches_just_started", &[], "", "The ids of the fingers that touched down this frame."),

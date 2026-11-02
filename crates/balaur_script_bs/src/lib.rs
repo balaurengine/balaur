@@ -6,7 +6,6 @@
 mod api;
 mod convert;
 mod doc_types;
-mod export;
 mod host;
 mod native;
 mod node_ops;
@@ -17,7 +16,6 @@ mod waits;
 pub use balaur_bs::analysis::{builtins, value_types};
 pub use balaur_bs::fmt;
 pub use balaur_bs::{HostApi, HostSignature, Literal};
-pub use export::Exporter;
 pub use host::{BsHost, EXTENSION};
 #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub use native::load_native;
@@ -49,12 +47,12 @@ fn node_op(name: &str) -> anyhow::Result<&'static balaur_core::node_api::NodeOp>
 /// waits. A call reads its arguments where the script left them and calls.
 pub(crate) fn bind(
     eng: &Engine,
-    registry: &Rc<std::cell::RefCell<api::Registry>>,
+    registry: &Rc<api::Registry>,
     key: &str,
     ret: &Ty,
 ) -> Result<Bound, String> {
     let (eng, ret) = (eng.clone(), ret.clone());
-    let structs = registry.borrow().structs();
+    let structs = registry.structs();
     let answer = move |v: anyhow::Result<Value>, ret: &Ty| {
         v.map(|v| convert::from_neutral(&v, ret, &*structs))
             .map_err(|e| format!("{e:#}"))
@@ -64,7 +62,7 @@ pub(crate) fn bind(
         return Ok(Rc::new(move |args: &dyn CallArgs| store::call(&key, args)));
     }
     if let Some(verb) = tool_verbs::verb(key) {
-        let structs = registry.borrow().structs();
+        let structs = registry.structs();
         return Ok(Rc::new(move |args: &dyn CallArgs| {
             tool_verbs::call(&eng, verb, args, &ret, &structs)
         }));
@@ -126,7 +124,7 @@ pub(crate) fn bind(
             answer((op.call)(&eng, &[node, comp.clone(), patch]), &ret)
         }));
     }
-    let driven = registry.borrow().component_fn(key);
+    let driven = registry.component_fn(key);
     if let Some(name) = node_ops::op_name(key).filter(|_| driven.is_none()) {
         let op = node_op(name).map_err(|e| format!("{e:#}"))?;
         return Ok(Rc::new(move |args: &dyn CallArgs| {
@@ -144,10 +142,7 @@ pub(crate) fn bind(
             .split_once("::")
             .ok_or_else(|| format!("unknown engine function `{key}`"))?,
     };
-    let call = registry
-        .borrow()
-        .find(module, name)
-        .map_err(|e| format!("{e:#}"))?;
+    let call = registry.find(module, name).map_err(|e| format!("{e:#}"))?;
     Ok(Rc::new(move |args: &dyn CallArgs| {
         let out = match &call {
             api::Call::Raw(func) => func(&eng, &convert::neutral(args)),

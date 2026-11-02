@@ -1139,7 +1139,7 @@ pub fn mode_specs(state: editor::State) -> [ui::Control] {
             fill: if on { tokens["primary_bg"] } else { tokens["bg_panel"] },
             stroke: tokens["border_default"],
             text_color: if on { tokens["primary_text"] } else { tokens["text_muted"] },
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_mode_picked, "picked": id },
         });
     }
@@ -1170,7 +1170,7 @@ pub fn option_specs(state: editor::State) -> [ui::Control] {
                 text: names[util::int_min(active, names.len() - 1)],
                 options: names,
                 tooltip: "The bone the brush paints",
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": option_bone, "names": names },
             });
         }
@@ -1193,7 +1193,7 @@ fn option_field(value: float, step: float, low: float, high: float, prefix: str,
         max: high,
         prefix: prefix,
         tooltip: tooltip,
-        on: "handle",
+        on_change: "handle",
         data: { "fn": then },
     }
 }

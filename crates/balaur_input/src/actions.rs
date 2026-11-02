@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use balaur_core::Engine;
-use balaur_script::Bindings;
+use balaur_script::Module;
 
 use crate::InputSnapshot;
 use crate::gamepad::GamepadState;
@@ -608,8 +608,8 @@ fn check_action(eng: &Engine, name: &str) {
 }
 
 /// `input.action_*`, `input.actions`, `input.bind`.
-pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
-    use balaur_script::{BindingsExt as _, Value};
+pub(crate) fn install_actions(m: &mut Module<Engine>) {
+    use balaur_script::Value;
 
     m.describe(&[
         ("actions", &[], "", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
@@ -706,8 +706,8 @@ pub fn declare_manifest(eng: &Engine, input: &toml::Value) -> anyhow::Result<()>
     crate::settings::declare(eng, input.clone())
 }
 
-fn install_rebinding(m: &mut dyn Bindings<Engine>) {
-    use balaur_script::{BindingsExt as _, Value};
+fn install_rebinding(m: &mut Module<Engine>) {
+    use balaur_script::Value;
 
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
         let bindings = match bindings {

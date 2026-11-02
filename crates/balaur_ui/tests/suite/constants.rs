@@ -7,7 +7,7 @@ use balaur_ui::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, ITEM_ALIGNS, MODIFIERS, W
 
 fn registered_options(field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_ui::UiPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_ui::UiPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     registry

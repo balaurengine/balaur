@@ -2001,7 +2001,6 @@ Source: `crates/balaur_ui/src/widget/node.rs`, `WidgetLayerConfig.enabled` and `
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | Script `set_widget_layer` | as asked | The default surface, with its rect. |
-| any | Script `set_widget_surface` | as asked | One named surface, with its rect. |
 
 Starts true. Never ends.
 

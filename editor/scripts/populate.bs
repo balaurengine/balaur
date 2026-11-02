@@ -4,7 +4,6 @@
 use editor;
 use history;
 use model;
-use pool;
 use util;
 use window;
 
@@ -80,7 +79,7 @@ pub fn fill(state: &mut editor::State) {
     if hosts == nil {
         return;
     }
-    pool::sync(state, hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
+    ui::fill_rows(hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
 }
 
 fn specs(state: editor::State) -> [ui::Row] {
@@ -89,7 +88,6 @@ fn specs(state: editor::State) -> [ui::Row] {
     let name = component(node).or(MULTIMESH3D);
     let out: [ui::Row] = [];
     out.push(ui::Row {
-        full: false,
         height: 24,
         controls: [
             ui::Control {
@@ -97,7 +95,7 @@ fn specs(state: editor::State) -> [ui::Row] {
                 grow: 1,
                 text: fields.kind,
                 options: [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID],
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": on_layout_picked },
             },
         ],
@@ -111,7 +109,6 @@ fn specs(state: editor::State) -> [ui::Row] {
             }
         }
         out.push(ui::Row {
-            full: false,
             height: 24,
             controls: [
                 ui::Control {
@@ -119,7 +116,7 @@ fn specs(state: editor::State) -> [ui::Row] {
                     grow: 1,
                     text: if fields.surface == "" { NONE } else { fields.surface },
                     options: paths,
-                    on: "handle",
+                    on_change: "handle",
                     data: { "fn": on_surface_picked },
                 },
             ],
@@ -146,7 +143,6 @@ fn specs(state: editor::State) -> [ui::Row] {
     out.push(fraction(state, "Random scale", fields.random_scale, write_random_scale));
     out.push(whole(state, "Seed", fields.seed, write_seed));
     out.push(ui::Row {
-        full: false,
         height: 24,
         controls: [
             ui::Control { kind: "label", role: "text_caption", grow: 1, text: target_text(state, node, name) },
@@ -155,7 +151,7 @@ fn specs(state: editor::State) -> [ui::Row] {
     });
     if fields.said != "" {
         out.push(ui::Row {
-            full: false,
+            label: " ",
             height: 24,
             controls: [
                 ui::Control { kind: "label", role: "text_caption", grow: 1, text: fields.said },
@@ -163,7 +159,6 @@ fn specs(state: editor::State) -> [ui::Row] {
         });
     }
     out.push(ui::Row {
-        full: true,
         height: 30,
         slot_role: "layout_actions",
         controls: [
@@ -173,7 +168,7 @@ fn specs(state: editor::State) -> [ui::Row] {
                 grow: 1,
                 text: "Populate",
                 tooltip: "Replace the asset's instances with this layout, as one undo step",
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_populate_pressed },
             },
         ],
@@ -235,7 +230,6 @@ fn on_populate_pressed(state: &mut editor::State, data: any, _value: any) {
 
 fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> ui::Row {
     ui::Row {
-        full: false,
         height: 24,
         controls: [
             ui::Control {
@@ -243,7 +237,7 @@ fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::St
                 grow: 1,
                 value: value as float,
                 drag_speed: 1.0,
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": on_whole_changed, "write": write },
             },
         ],
@@ -258,7 +252,6 @@ fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
 
 fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> ui::Row {
     ui::Row {
-        full: false,
         height: 24,
         controls: [
             ui::Control {
@@ -266,7 +259,7 @@ fn number(state: editor::State, label: str, value: float, step: float, write: fn
                 grow: 1,
                 value: value,
                 drag_speed: step,
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": on_number_changed, "write": write },
             },
         ],
@@ -283,7 +276,6 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
 // `scale` for its variation.
 fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> ui::Row {
     ui::Row {
-        full: false,
         height: 24,
         controls: [
             ui::Control {
@@ -293,7 +285,7 @@ fn fraction(state: editor::State, label: str, value: float, write: fn(&mut edito
                 drag_speed: 0.05,
                 min: 0.0,
                 max: 1.0,
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": on_fraction_changed, "write": write },
             },
         ],

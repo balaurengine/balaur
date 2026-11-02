@@ -4,12 +4,12 @@
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::GamendState;
 use crate::client::Session;
 
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.records(&[
         (
             "Entry",

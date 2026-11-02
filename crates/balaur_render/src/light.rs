@@ -6,12 +6,12 @@
 //! (`light_map`) only rasterises what these hand it.
 
 use anyhow::{Result, anyhow};
+use balaur_core::components::as_f64;
 use balaur_core::components::derived::{Component, Enum, Written};
-use balaur_core::components::{ComponentDef, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::{Engine, GlobalTransform};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 use glamx::{Vec2, Vec3};
 
 use crate::vocabulary::{keys as k, words};
@@ -34,7 +34,7 @@ pub enum LightKind2d {
 // does not follow the node's scale. Every number is held to what a light can
 // be where it is read.
 #[derive(Component)]
-#[component(name = "light2d")]
+#[component(name = "light2d", tags = [words::ORTHOGRAPHIC, "render"])]
 pub struct Light2d {
     /// A point light fades to nothing at `range`; a directional one lights the whole view; a spot throws a cone the node's rotation aims, down at rest
     #[property(default = LightKind2d::Point)]
@@ -79,7 +79,12 @@ impl Light2d {
 
 /// The outline the node blocks 2D light with. With no `mesh` it follows the node's `collider2d`, or else its circle, capsule, rect or sprite shape.
 #[derive(Component)]
-#[component(name = "occluder2d", on_remove = occluder2d_removed)]
+#[component(
+    name = "occluder2d",
+    on_remove = occluder2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = occluder_written,
+)]
 pub struct Occluder2d {
     /// Outline points in order, [x, y] in the node's space; empty derives the outline from the node's `collider2d`, then from its 2D shape
     #[property(asset = "mesh")]
@@ -229,7 +234,7 @@ fn tile_edges(eng: &Engine, world: &World, entity: Entity) -> Vec<[Vec2; 2]> {
 /// `render.outline`: the outline a node blocks 2D light with, for a tool that
 /// draws it. A derived one comes back too, so an editor gizmo shows the
 /// outline the light map will actually use rather than the one authored.
-pub(crate) fn install_occluder_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_occluder_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "outline",
         &["occluder2d"],
@@ -269,13 +274,7 @@ pub fn shadow_quad(edge: [Vec2; 2], light: &LitLight2d, far: f32) -> [Vec2; 4] {
 /// The `light2d` component. The node's position places it and its rotation
 /// aims it; the light map pass in the backend draws it.
 pub(crate) fn register_light2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Light2d::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Light2d>(None)
-        },
-    );
+    reg.add_component::<Light2d>();
 }
 
 /// An occluder's outline read again from its `mesh`; one with none is
@@ -306,13 +305,7 @@ fn occluder2d_removed(eng: &Engine, entity: Entity) {
 /// tick by [`resolve_occluders_system`], so a collider added after the
 /// occluder still fills it in.
 pub(crate) fn register_occluder2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Occluder2d::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Occluder2d>(Some(occluder_written))
-        },
-    );
+    reg.add_component::<Occluder2d>();
 }
 
 /// The mesh asset's points as an outline, in order. A reference that will not

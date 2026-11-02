@@ -76,7 +76,22 @@ pub trait Component: Fields + Send + Sync + 'static {
     const LIFECYCLE: Lifecycle = Lifecycle::NONE;
     /// The components it brings: the derive's `#[component(requires = [..])]`.
     const REQUIRES: &'static [&'static str] = &[];
+    /// The facets it is browsed under: `#[component(tags = [..])]`.
+    const TAGS: &'static [&'static str] = &[];
+    /// Components it needs something from: `#[component(expects = [..])]`.
+    const EXPECTS: &'static [&'static str] = &[];
+    /// What it announces from its node: `#[component(events = ..)]`.
+    const EVENTS: &'static [(&'static str, &'static str)] = &[];
+    /// What it does once a write has landed, whole or one property, beyond
+    /// holding its values; a refusal puts back what the node held before, the
+    /// component's absence included: `#[component(after_write = path)]`.
+    const AFTER_WRITE: Option<AfterWriteFn> = None;
+    /// What it says is off about it on a node: `#[component(warnings = path)]`.
+    const WARNINGS: Option<WarningFn> = None;
 }
+
+/// What a component says is off about it on a node.
+pub type WarningFn = fn(&Engine, Entity) -> Vec<crate::warnings::Warning>;
 
 /// One lifecycle call: the node, and the engine to read it through.
 pub type LifecycleFn = fn(&Engine, Entity);
@@ -573,21 +588,23 @@ impl ComponentDef {
     /// The definition of a derived component, its `apply`, `get`, `remove`
     /// and the reads and writes of one property all from `C`.
     ///
-    /// `after_write` runs once a write has landed, whole or one property,
-    /// for what the component does beyond holding its values; a refusal from
-    /// it puts back what the node held before, the component's absence
-    /// included. Everything the struct does not say --
-    /// `tags`, `events`, `expects`, `warnings` -- is the caller's, written
-    /// over this with `..`.
     #[must_use]
-    pub fn of<C: Component>(after_write: Option<AfterWriteFn>) -> Self {
+    pub fn of<C: Component>() -> Self {
+        Self::written_by::<C>(C::AFTER_WRITE)
+    }
+
+    /// [`Self::of`], with `after_write` chosen at registration: one definition
+    /// serving a family of components, each of its own type.
+    #[must_use]
+    pub fn written_by<C: Component>(after_write: Option<AfterWriteFn>) -> Self {
         Self {
             schema: schema_of::<C>(),
             doc: C::DOC,
-            tags: &[],
-            expects: &[],
-            events: &[],
-            warnings: None,
+            tags: C::TAGS,
+            expects: C::EXPECTS,
+            events: C::EVENTS,
+            warnings: C::WARNINGS
+                .map(|warn| -> Box<dyn Fn(&Engine, Entity) -> _> { Box::new(warn) }),
             lifecycle: C::LIFECYCLE,
             requires: C::REQUIRES,
             type_id: Some(std::any::TypeId::of::<C>()),

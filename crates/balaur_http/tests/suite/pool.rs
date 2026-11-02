@@ -23,7 +23,7 @@ fn app_with(dir: &std::path::Path, http: &str) -> App {
     std::fs::create_dir_all(dir.join("scenes")).unwrap();
     std::fs::write(dir.join("scenes/main.toml"), "").unwrap();
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut HttpPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut HttpPlugin).unwrap();
     app.load_project().unwrap();
     app
 }

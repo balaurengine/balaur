@@ -19,7 +19,7 @@ use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::wake::Commands;
 use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 pub mod connection;
 #[cfg(not(target_family = "wasm"))]
@@ -396,21 +396,12 @@ fn event_value(event: SocketEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct WebSocketPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for WebSocketPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("websocket", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct WebSocketPlugin;
 
 impl balaur_plugin::Plugin for WebSocketPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "websocket"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -430,7 +421,7 @@ compression = { type = "bool", default = true, help = "Offer permessage-deflate 
             ),
         );
         let mut m = reg.script_module("websocket")?;
-        install_websocket_api(&mut *m);
+        install_websocket_api(&mut m);
         Ok(())
     }
 }
@@ -466,7 +457,7 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
 
 /// `websocket.*`. Text and binary frames both cross as themselves: a text
 /// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
-fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
+fn install_websocket_api(m: &mut Module<Engine>) {
     m.module_doc(
         "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant. An `error` carries its `reason`, and the HTTP `status` when a server refused the upgrade.",
     );

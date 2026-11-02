@@ -133,25 +133,6 @@ fn a_filter_excludes_the_node_it_names() {
 }
 
 #[test]
-#[ignore = "needs engine: a .bs fn value passed to the engine as a callback (BsHost::invoke refuses)"]
-fn a_predicate_can_reject_a_hit() {
-    run_clean_with(
-        r#"fn not_near(node: Node) -> bool { node.name() != "Near" }"#,
-        r#"
-        let hit = physics3d::raycast(physics3d::RayQuery {
-            origin: vec3(0.0, 10.0, 0.0),
-            direction: vec3(0.0, -1.0, 0.0),
-            max_distance: 100.0,
-            filter: physics3d::QueryFilter { predicate: not_near },
-        });
-        if hit == nil { log::error("the predicate rejected everything"); }
-        let kept = hit.unwrap().node.name();
-        if kept != "Far" { log::error("the predicate kept {kept}"); }
-        "#,
-    );
-}
-
-#[test]
 fn a_shape_query_finds_what_it_overlaps() {
     run_clean(
         r#"

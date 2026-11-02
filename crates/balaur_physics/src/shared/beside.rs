@@ -96,7 +96,7 @@ pub(crate) fn register<C: Beside>(
                 }
                 Ok(())
             }),
-            ..ComponentDef::of::<C>(Some(rebuild))
+            ..ComponentDef::written_by::<C>(Some(rebuild))
         },
     );
 }

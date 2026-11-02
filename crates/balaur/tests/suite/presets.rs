@@ -40,7 +40,7 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
 #[test]
 fn a_component_can_carry_several_tags() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let tags = def(&app, "collider2d").tags;
     assert!(tags.contains(&"2d"), "tags were {tags:?}");
     assert!(tags.contains(&"physics"), "tags were {tags:?}");
@@ -51,7 +51,7 @@ fn a_component_can_carry_several_tags() {
 #[test]
 fn dimension_tags_separate_the_two_worlds() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     assert!(def(&app, "body3d").tags.contains(&"3d"));
     assert!(def(&app, "body2d").tags.contains(&"2d"));
     assert!(!def(&app, "body3d").tags.contains(&"2d"));
@@ -62,7 +62,7 @@ fn dimension_tags_separate_the_two_worlds() {
 #[test]
 fn every_registered_component_is_tagged() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<components::ComponentRegistry>();
     let registry = registry.borrow();
     for (name, def) in &*registry {
@@ -73,7 +73,7 @@ fn every_registered_component_is_tagged() {
 #[test]
 fn a_preset_applies_every_component_it_names() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let entity = node(&app);
     presets::apply(&app.engine, entity, "rigid_body2d").unwrap();
     let present = components::present_on(&app.engine, entity);
@@ -86,7 +86,7 @@ fn a_preset_applies_every_component_it_names() {
 #[test]
 fn presets_carry_the_parameters_that_distinguish_them() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let dynamic = node(&app);
     let stationary = node(&app);
     presets::apply(&app.engine, dynamic, "rigid_body2d").unwrap();
@@ -106,7 +106,7 @@ fn presets_carry_the_parameters_that_distinguish_them() {
 #[test]
 fn a_node_does_not_remember_its_preset() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let entity = node(&app);
     presets::apply(&app.engine, entity, "rigid_body2d").unwrap();
     components::remove(&app.engine, entity, "collider2d").unwrap();

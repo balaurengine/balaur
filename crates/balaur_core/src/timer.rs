@@ -9,7 +9,6 @@ use anyhow::Result;
 use balaur_script::Value;
 
 use crate::App;
-use crate::components::ComponentDef;
 use crate::components::derived::{Component, Written};
 use crate::engine::Engine;
 use crate::hecs::Entity;
@@ -21,7 +20,13 @@ pub const TIMEOUT: &str = "timeout";
 
 /// Counts `wait_time` seconds down and emits `timeout` from the node, which bindings hear as `emitted:timeout`. `running` or `autostart` starts it; `one_shot` stops after one round.
 #[derive(Component)]
-#[component(name = "timer", on_add = added)]
+#[component(
+    name = "timer",
+    on_add = added,
+    events = &[(TIMEOUT, "nil")],
+    tags = ["interaction"],
+    after_write = after_write,
+)]
 pub struct Timer {
     /// Seconds from starting to `timeout`
     #[property(name = "wait_time", default = 1.0, min = 0.001)]
@@ -106,12 +111,5 @@ pub(crate) fn step_system(eng: &Engine, dt: f32) {
 }
 
 pub fn register_timer_component(app: &mut App) {
-    app.register_component(
-        COMPONENT,
-        ComponentDef {
-            events: &[(TIMEOUT, "nil")],
-            tags: &["interaction"],
-            ..ComponentDef::of::<Timer>(Some(after_write))
-        },
-    );
+    app.add_component::<Timer>();
 }

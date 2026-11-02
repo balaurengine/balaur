@@ -10,7 +10,7 @@
 use std::rc::Rc;
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings, ScriptHost, StepMode, Value};
+use balaur_script::{Module, ScriptHost, StepMode, Value};
 
 use balaur_core::engine::Engine;
 use balaur_core::engine_api::{EngineOp, optional_node, text};
@@ -64,7 +64,7 @@ pub const DEBUGGER_OPS: &[EngineOp] = &[
 ];
 
 /// Declare the module's functions and the `STEP_*` constants `resume` takes.
-pub fn install_debugger_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_debugger_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Breakpoints, pausing a script and resuming it. The editor's Debugger dock and the Debug Adapter Protocol server drive the same machinery.",
     );

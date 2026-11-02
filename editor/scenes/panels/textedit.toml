@@ -11,7 +11,7 @@ kind = "panel"
 role = "sheet"
 anchor = "top_left"
 padding = [8, 4, 8, 4]
-layer = "shell"
+whole_window = true
 
 [[nodes]]
 id = "field"

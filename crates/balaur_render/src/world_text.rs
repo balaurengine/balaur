@@ -402,11 +402,12 @@ mod backend {
                 surface: crate::material::Surface::default(),
                 builtin: None,
             };
-            let compiled = crate::material::compile(&material, crate::shaders::TEXT_MASK)
-                .inspect_err(|why| tracing::error!("the text mask shader: {why:#}"))
-                .ok()?;
+            let compiled =
+                crate::material::compile(&material, crate::shaders::TEXT_MASK, &[], false)
+                    .inspect_err(|why| tracing::error!("the text mask shader: {why:#}"))
+                    .ok()?;
             let shared: Shared2d = Rc::new(RefCell::new(Box::new(
-                crate::shader_material::ShaderMaterial::new(&compiled, None, false),
+                crate::shader_material::ShaderMaterial::new(&compiled, None, false, Vec::new()),
             )));
             masks
                 .borrow_mut()

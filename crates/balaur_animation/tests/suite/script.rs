@@ -90,7 +90,7 @@ fn app_in(dir: &std::path::Path) -> App {
         ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 

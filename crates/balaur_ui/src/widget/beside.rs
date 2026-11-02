@@ -746,7 +746,7 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
                 refresh::<C>(eng, entity);
                 Ok(())
             }),
-            ..ComponentDef::of::<C>(Some(written::<C>))
+            ..ComponentDef::written_by::<C>(Some(written::<C>))
         },
     );
 }

@@ -26,7 +26,7 @@ pub(crate) fn text<'a>(params: &'a toml::Value, key: &str, default: &'a str) -> 
         .unwrap_or(default)
 }
 
-/// A trailing options table, as scripts write it (`#{ max = 10.0 }`).
+/// A trailing options table, as scripts write it (`{ "max": 10.0 }`).
 ///
 /// Every query, joint and character call takes one: they have more parameters
 /// than a positional list can carry legibly, and most of them are optional

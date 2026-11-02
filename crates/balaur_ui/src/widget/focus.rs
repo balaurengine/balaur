@@ -152,14 +152,14 @@ pub(super) fn around(
 pub(super) fn reachable(
     placed: &[Placed],
     roots: &[usize],
-    on: &dyn Fn(&str) -> bool,
+    on: &dyn Fn(&Widget) -> bool,
 ) -> Vec<usize> {
     let mut stops = Vec::new();
     let mut stack: Vec<usize> = roots
         .iter()
         .rev()
         .copied()
-        .filter(|&root| on(&placed[root].widget.layer))
+        .filter(|&root| on(&placed[root].widget))
         .collect();
     while let Some(index) = stack.pop() {
         let one = &placed[index];

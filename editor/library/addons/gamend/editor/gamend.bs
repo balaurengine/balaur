@@ -980,12 +980,12 @@ fn line(text: str, role: str) -> any {
     let words = label(text, role);
     words["grow"] = 1;
     words["wrap"] = true;
-    { "full": true, "height": 0, "controls": [words] }
+    { "height": 0, "controls": [words] }
 }
 
 /// A row of controls across the dock.
 fn buttons(controls: [any]) -> any {
-    { "full": true, "height": 26, "controls": controls }
+    { "height": 26, "controls": controls }
 }
 
 /// A chip whose press calls `method` on the dock's node, with `data`.
@@ -994,7 +994,7 @@ fn button(to: Node, text: str, method: str, data: any) -> any {
         "kind": "button",
         "role": "chip",
         "text": text,
-        "on": "relay",
+        "on_click": "relay",
         "data": relayed(data, to, method),
     }
 }
@@ -1018,7 +1018,7 @@ fn text_field(to: Node, method: str, text: str, placeholder: str, data: any) -> 
         "width": 220,
         "text": text,
         "placeholder": placeholder,
-        "on": "relay",
+        "on_change": "relay",
         "on_submit": "relay",
         "data": relayed(data, to, method),
     }

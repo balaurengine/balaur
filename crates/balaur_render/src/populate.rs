@@ -13,7 +13,7 @@ use balaur_core::rng::Pcg32;
 use balaur_core::scene::GlobalTransform;
 use balaur_core::{Engine, entity_of};
 use balaur_geometry::mesh::MeshData;
-use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 use glamx::{Mat4, Quat, Vec3};
 
 use crate::multimesh::{Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MultiMesh};
@@ -335,7 +335,7 @@ fn triangles_of(eng: &Engine, surface: NodeId, into: Mat4) -> Result<Vec<[Vec3; 
 }
 
 /// `populate`, on the multimesh handles.
-pub(crate) fn install_populate_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_populate_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "populate",
         &[MULTIMESH_3D, MULTIMESH_2D],

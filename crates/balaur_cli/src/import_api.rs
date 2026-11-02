@@ -28,7 +28,7 @@ use anyhow::Result;
 use balaur::{Engine, Stage};
 #[cfg(feature = "import")]
 use balaur_core::task::{self, Progress, Stepped};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
@@ -161,23 +161,19 @@ impl AsMut<Reporting<ImportEvent>> for ImportState {
 }
 
 pub(crate) struct ImportPlugin {
-    manifest: balaur_plugin::Manifest,
     project: PathBuf,
 }
 
 impl ImportPlugin {
     #[must_use]
     pub(crate) fn new(project: PathBuf) -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("import", env!("CARGO_PKG_VERSION")),
-            project,
-        }
+        Self { project }
     }
 }
 
 impl balaur_plugin::Plugin for ImportPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "import"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -190,12 +186,12 @@ impl balaur_plugin::Plugin for ImportPlugin {
         // own First work.
         reg.add_system(Stage::First, pump::<ImportState, ImportEvent>);
         let mut m = reg.script_module("import")?;
-        install_import_api(&mut *m);
+        install_import_api(&mut m);
         Ok(())
     }
 }
 
-fn install_import_api(m: &mut dyn Bindings<Engine>) {
+fn install_import_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.",
     );

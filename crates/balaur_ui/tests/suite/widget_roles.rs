@@ -154,28 +154,20 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
     // screen are: the second is what the start screen found empty.
     let _under = add_widget(
         &app,
-        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" layer = "shell" }
+        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" whole_window = true }
             .into(),
     );
     let root = add_widget(
         &app,
-        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" layer = "shell" role = "ground" safe_area = ["left", "top", "right", "bottom"] }
+        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" whole_window = true role = "ground" safe_area = ["left", "top", "right", "bottom"] }
             .into(),
     );
-    // The default surface off and the shell's on, the way the start screen
-    // points them while it is up.
+    // The default surface off, the way the start screen points it while it is up.
     {
         let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
         let mut config = config.borrow_mut();
         config.enabled = false;
         config.rect = Some([0.0, 0.0, 0.0, 0.0]);
-        config.layers.insert(
-            "shell".into(),
-            balaur_ui::Surface {
-                enabled: true,
-                rect: None,
-            },
-        );
     }
     let kid = |name: &str, params: toml::Value| {
         let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, root);

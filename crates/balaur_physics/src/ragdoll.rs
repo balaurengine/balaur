@@ -26,14 +26,13 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::collections::DetHashMap;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Parent, Transform};
 use balaur_core::{Engine, entity_of};
 use balaur_geometry::skeleton::{self, Bone};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 use glamx::{Quat, Vec3};
 
 use crate::vocabulary::{Opts, component as c, keys as k, words as w};
@@ -584,7 +583,7 @@ fn relative_path(world: &balaur_core::hecs::World, from: Entity, to: Entity) -> 
 
 /// Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.
 #[derive(Clone, Debug, Component)]
-#[component(name = "ragdoll")]
+#[component(name = "ragdoll", tags = [balaur_core::components::tag::PHYSICS])]
 pub struct Ragdoll {
     /// The node holding the bodies, one per bone, named after it
     #[property(node)]
@@ -603,13 +602,7 @@ impl Ragdoll {
 
 /// `ragdoll`: held on the rig root, and read by the blend each frame.
 pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        RAGDOLL,
-        ComponentDef {
-            tags: &[balaur_core::components::tag::PHYSICS],
-            ..ComponentDef::of::<Ragdoll>(None)
-        },
-    );
+    reg.add_component::<Ragdoll>();
 }
 
 /// One bone's local pose, as a snapshot row keeps it.
@@ -721,7 +714,7 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
 }
 
 /// `ragdoll`, on both `physics2d` and `physics3d`.
-pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
+pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
     let doc = if dim3 {
         "Build a 3D ragdoll from the rig under this node: a body and a shape per bone, held to \
          its parent's by a ball socket whose zero is the pose the rig is in. Options: `shape` \
@@ -774,7 +767,7 @@ pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
 /// `set_ragdoll_influence`, on `physics` rather than on either dimension: an
 /// influence means the same thing in both, and a verb spelled twice is a verb
 /// a reader has to check twice.
-pub(crate) fn install_blend_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_blend_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "set_ragdoll_influence",
         &[RAGDOLL],

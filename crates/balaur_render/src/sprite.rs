@@ -1,7 +1,6 @@
 //! The `sprite` component. The data it writes (`SpriteTexture` inside
 //! `Renderable2d`) lives in the crate root.
 
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
@@ -13,7 +12,12 @@ use crate::{Renderable2d, SpriteSheet2d, SpriteTexture, set_sprite};
 // The node draws the [`SpriteTexture`] each write leaves in its
 // [`Renderable2d`].
 #[derive(Clone, Component)]
-#[component(name = "sprite", on_remove = sprite_removed)]
+#[component(
+    name = "sprite",
+    on_remove = sprite_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = sprite_written,
+)]
 pub struct Sprite {
     /// Image file, project-relative, or a `texture` asset that reads it with settings of its own. Empty draws nothing
     #[property(asset = "texture")]
@@ -140,13 +144,7 @@ fn sprite_removed(eng: &balaur_core::Engine, entity: Entity) {
 }
 
 pub(crate) fn register_sprite_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Sprite::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Sprite>(Some(sprite_written))
-        },
-    );
+    reg.add_component::<Sprite>();
 }
 
 /// The first slice of a sheet that carries a nine-patch `center`, as the

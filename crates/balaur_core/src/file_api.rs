@@ -411,8 +411,8 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
             .map(serde_json::Value::Number)
             .ok_or_else(|| anyhow!("{n} has no JSON representation"))?,
         Value::Str(s) => serde_json::Value::String(s.clone()),
-        Value::Node(_) | Value::Callback(_) => {
-            return Err(anyhow!("a node or callback is not JSON data"));
+        Value::Node(_) => {
+            return Err(anyhow!("a node is not JSON data"));
         }
         // JSON has no byte string, and guessing an encoding here would make
         // the round trip lossy in a way the caller never asked for.

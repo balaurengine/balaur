@@ -10,7 +10,6 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
@@ -18,7 +17,13 @@ use balaur_plugin::Registry;
 /// A visual-only 2D emitter at the node: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity`. The live particles are renderer state the simulation never sees.
 // The backend draws it from the [`Particles`] each write leaves beside it.
 #[derive(Component)]
-#[component(name = "particles2d", on_remove = particles2d_removed)]
+#[component(
+    name = "particles2d",
+    on_remove = particles2d_removed,
+    events = &[(FINISHED_EVENT, "nil, once a one-shot burst has died out")],
+    tags = [ crate::vocabulary::words::ORTHOGRAPHIC, balaur_core::components::tag::RENDER],
+    after_write = after_write,
+)]
 pub struct Particles2d {
     /// Whether new particles are born; live ones finish either way
     #[property(default = true)]
@@ -336,17 +341,7 @@ fn particles2d_removed(eng: &Engine, entity: Entity) {
 /// The `particles2d` component. Writes a [`Particles`] on the node; the kiss3d
 /// backend keeps the live particles and draws them as instances of one quad.
 pub(crate) fn register_particles_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Particles2d::NAME,
-        ComponentDef {
-            events: &[(FINISHED_EVENT, "nil, once a one-shot burst has died out")],
-            tags: &[
-                crate::vocabulary::words::ORTHOGRAPHIC,
-                balaur_core::components::tag::RENDER,
-            ],
-            ..ComponentDef::of::<Particles2d>(Some(after_write))
-        },
-    );
+    reg.add_component::<Particles2d>();
 }
 
 /// One emitter's backend state: its own random stream, never the engine's.

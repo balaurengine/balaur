@@ -9,8 +9,6 @@ use crate::widget::rows::{Ink, SEP};
 /// One mark as a pass saw it: its name, its glyph, and what the pointer did.
 pub(super) type Mark<'a> = (&'a str, &'a str, egui::Response);
 
-/// A row's marks: its sixth field, `name=glyph` pairs joined on U+001E, left
-/// to right as they are drawn.
 fn of(item: &str) -> impl DoubleEndedIterator<Item = (&str, &str)> {
     item.trim_start_matches('\t')
         .split(SEP)

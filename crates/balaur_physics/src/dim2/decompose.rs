@@ -12,7 +12,7 @@ use crate::scalar::Vector2;
 use crate::vocabulary::{Opts, keys as k};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use std::collections::BTreeMap;
 
 /// Two points nearer than this are one point, at the scale a game is built.
@@ -336,7 +336,7 @@ fn clipped(ring: &[Vector2], from: Vector2, to: Vector2) -> Vec<Vector2> {
 
 /// `geometry2d.convex_decomposition`: the pieces a script or the editor can
 /// draw, tune, or hand back one at a time as `convex_hull` colliders.
-pub(crate) fn install_decompose_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_decompose_api(m: &mut Module<Engine>) {
     m.records(&[(
         "DecompositionOptions",
         "{ overlap: float? }",

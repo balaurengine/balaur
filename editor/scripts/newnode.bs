@@ -176,11 +176,11 @@ pub fn fill(state: &mut editor::State) {
         "placeholder": placeholder,
         "query": state.newnode_query,
         "rows_h": (specs.len() as float) * (row_height + 2.0) + 4.0,
-        "on": "handle",
+        "on_change": "handle",
         "on_submit": "handle_submit",
         "data": { "fn": on_query_typed, "submit": on_query_submitted },
     });
-    pool::sync(state, host, specs, 0.0, false);
+    ui::fill_rows(host, specs);
 }
 
 fn on_query_typed(state: &mut editor::State, data: any, text: any) {
@@ -233,7 +233,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::
 
 fn caption_row(text: str, height: float, wrap: bool) -> ui::Row {
     let label: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, text: text, wrap: wrap };
-    ui::Row { full: true, height: height, controls: [label] }
+    ui::Row { height: height, controls: [label] }
 }
 
 // A component's own colour token, or the plain text colour.
@@ -285,5 +285,5 @@ fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(
         icon: mark,
         icon_color: color,
     }, handler, data);
-    ui::Row { full: true, height: row_height, controls: [button] }
+    ui::Row { height: row_height, controls: [button] }
 }

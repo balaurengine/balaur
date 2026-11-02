@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use balaur_core::Engine;
 use balaur_core::time::Instant;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::UiState;
 
@@ -234,7 +234,7 @@ fn later(seconds: f64) -> Instant {
 }
 
 /// `ui.*` bindings: pacing.
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
         ("request_repaint", &[], "(opts: RepaintOptions?)", "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead."),
     ]);

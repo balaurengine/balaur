@@ -21,7 +21,7 @@ use anyhow::Result;
 use balaur_core::engine_api::{from_json, to_json};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
 
@@ -146,7 +146,7 @@ pub fn post_message(eng: &Engine, payload: &Value) -> Result<bool> {
     Ok(state.io.start(eng, |_| backend::post_message(&json)))
 }
 
-fn install_web_api(m: &mut dyn Bindings<Engine>) {
+fn install_web_api(m: &mut Module<Engine>) {
     m.module_doc(
         "The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, \"browser_event\")`, heard as `on_browser_event(payload)`.",
     );
@@ -180,21 +180,12 @@ fn fact(eng: &Engine, read: impl FnOnce(&PageFacts) -> Option<Value>) -> Value {
     read(&eng.resource::<BrowserState>().borrow().facts).unwrap_or(Value::Nil)
 }
 
-pub struct BrowserPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for BrowserPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("browser", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct BrowserPlugin;
 
 impl balaur_plugin::Plugin for BrowserPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "browser"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -212,7 +203,7 @@ impl balaur_plugin::Plugin for BrowserPlugin {
         reg.add_system(Stage::First, pump_web_system);
         reg.add_replay_source("browser", capture_browser, restore_browser);
         let mut m = reg.script_module("browser")?;
-        install_web_api(&mut *m);
+        install_web_api(&mut m);
         Ok(())
     }
 }

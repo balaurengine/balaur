@@ -14,7 +14,7 @@ use crate::LOG;
 fn app() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     let mut app = App::new(balaur_core::AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     (dir, app)
 }
 

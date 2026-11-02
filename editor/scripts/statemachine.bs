@@ -6,7 +6,6 @@ use docks;
 use editor;
 use history;
 use model;
-use pool;
 use selftest;
 use shell;
 use signals;
@@ -276,13 +275,13 @@ pub fn body(state: &mut editor::State) {
     let authored = source(state);
     if authored == nil {
         docks::toolbar(state, PANEL + "Chrome", [offer(state)]);
-        pool::sync(state, ROWS, [], NAME_WIDTH, false);
+        ui::fill_rows(ROWS, [], NAME_WIDTH, false);
         return;
     }
     let found = authored.unwrap();
     let doc = found.doc;
     docks::toolbar(state, PANEL + "Chrome", [header_controls(state, found)]);
-    pool::sync(state, ROWS, row_specs(state, doc), NAME_WIDTH, false);
+    ui::fill_rows(ROWS, row_specs(state, doc), NAME_WIDTH, false);
 }
 
 /// What the strip says when the node runs no machine: why, and the verb that
@@ -300,7 +299,7 @@ fn offer(state: editor::State) -> [ui::Control] {
             role: "action_form_secondary",
             text: "add state machine",
             tooltip: "Give the node an embedded `state_machine` over its own player",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_add_machine_pressed },
         },
     ];
@@ -328,7 +327,7 @@ fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
             width: FIELD_WIDTH,
             text: doc["start"].as_str(),
             options: state_names(doc),
-            on: "handle",
+            on_change: "handle",
             data: { "fn": on_start_picked },
         },
     ];
@@ -374,14 +373,13 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
                 width: FIELD_WIDTH,
                 text: if clip.as_str() == "" { state_name } else { clip.as_str() },
                 options: clips,
-                on: "handle",
+                on_change: "handle",
                 data: { "fn": on_state_clip_picked, "state": state_name },
             }
         } else {
             caption("nested machine")
         };
         out.push(ui::Row {
-            full: false,
             height: ROW_HEIGHT,
             slot_role: "layout_actions",
             controls: [
@@ -391,7 +389,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
                     role: "chip_quiet",
                     text: "×",
                     tooltip: "Remove the state and its transitions",
-                    on: "handle",
+                    on_click: "handle",
                     data: { "fn": on_state_remove_pressed, "state": state_name },
                 },
             ],
@@ -399,7 +397,6 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
         });
     }
     out.push(ui::Row {
-        full: true,
         height: ROW_HEIGHT,
         slot_role: "layout_actions",
         controls: [
@@ -409,7 +406,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
                 width: NAME_WIDTH + FIELD_WIDTH,
                 text: state.machine.naming,
                 placeholder: "new state",
-                on: "handle",
+                on_change: "handle",
                 on_submit: "handle_submit",
                 data: { "fn": on_new_state_typed, "submit": on_new_state_submitted },
             },
@@ -418,7 +415,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
                 role: "action_form_secondary",
                 text: "add state",
                 tooltip: "A state playing the clip of its own name",
-                on: "handle",
+                on_click: "handle",
                 data: { "fn": on_add_state_pressed },
             },
         ],
@@ -465,7 +462,7 @@ fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
             role: "action_form_secondary",
             text: "add transition",
             tooltip: "A transition between two states, opened for editing",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_add_transition_pressed },
         },
     ]));
@@ -483,7 +480,6 @@ fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
         let to = if transition["to"] == nil { "?" } else { transition["to"].as_str() };
         let mode = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
         out.push(ui::Row {
-            full: true,
             height: ROW_HEIGHT,
             slot_role: "layout_actions",
             controls: [
@@ -494,7 +490,7 @@ fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
                     checked: open,
                     text: "{from} → {to}  {mode}",
                     tooltip: "Open the transition's fields",
-                    on: "handle",
+                    on_click: "handle",
                     data: { "fn": on_transition_picked, "open": open, "index": index },
                 },
                 ui::Control {
@@ -502,7 +498,7 @@ fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
                     role: "chip_quiet",
                     text: "×",
                     tooltip: "Remove the transition",
-                    on: "handle",
+                    on_click: "handle",
                     data: { "fn": on_transition_remove_pressed, "index": index },
                 },
             ],
@@ -534,13 +530,13 @@ fn head_spec(text: str, verbs: [ui::Control]) -> ui::Row {
     for verb in verbs {
         controls.push(verb);
     }
-    ui::Row { full: true, height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
+    ui::Row { height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
 fn field_spec(label: str, control: ui::Control) -> ui::Row {
-    ui::Row { full: false, height: ROW_HEIGHT, controls: [control], label: "    " + label }
+    ui::Row { height: ROW_HEIGHT, controls: [control], label: "    " + label }
 }
 
 fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> ui::Control {
@@ -550,7 +546,7 @@ fn choice(state: editor::State, at: int, key: str, current: str, choices: [str])
         width: FIELD_WIDTH,
         text: current,
         options: choices,
-        on: "handle",
+        on_change: "handle",
         data: { "fn": on_choice_picked, "at": at, "key": key },
     }
 }
@@ -593,7 +589,7 @@ fn number(state: editor::State, at: int, key: str, current: float, whole: bool) 
         min: 0.0,
         max: if whole { 1000.0 } else { 100.0 },
         drag_speed: if whole { 1.0 } else { 0.01 },
-        on: "handle",
+        on_change: "handle",
         data: { "fn": on_number_changed, "at": at, "key": key, "whole": whole },
     }
 }
@@ -614,7 +610,7 @@ fn flag(state: editor::State, at: int, key: str, on: bool) -> ui::Control {
         kind: "switch",
         role: "switch_form",
         checked: on,
-        on: "handle",
+        on_change: "handle",
         data: { "fn": on_flag_changed, "at": at, "key": key },
     }
 }

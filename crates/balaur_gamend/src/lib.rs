@@ -15,9 +15,9 @@
 //!     self.socket = gamend::connect(self.node);
 //! }
 //!
-//! pub async fn on_gamend_event(this, e) {
-//!     if e["kind"] == "open" {
-//!         task::wait(gamend::call_hook(this.socket, "arena", "start", #{})).await;
+//! pub async fn on_gamend_event(e: any) {
+//!     if e["kind"].as_str() == "open" {
+//!         await task::wait(gamend::call_hook(self.socket, "arena", "start", {}));
 //!     }
 //! }
 //! ```
@@ -35,7 +35,7 @@ use anyhow::{Result, anyhow};
 use balaur_core::engine_api::from_json;
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 use serde_json::Value as Json;
 
 mod activity;
@@ -641,21 +641,12 @@ pub(crate) fn int(id: u64) -> Value {
     Value::Int(i64::try_from(id).unwrap_or(i64::MAX))
 }
 
-pub struct GamendPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for GamendPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("gamend", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct GamendPlugin;
 
 impl balaur_plugin::Plugin for GamendPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "gamend"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -665,7 +656,7 @@ impl balaur_plugin::Plugin for GamendPlugin {
         reg.add_replay_source("gamend", capture_gamend, restore_gamend);
         target::declare(reg.engine());
         let mut m = reg.script_module("gamend")?;
-        install_gamend_api(&mut *m);
+        install_gamend_api(&mut m);
         Ok(())
     }
 }
@@ -743,7 +734,7 @@ fn json_of(value: Option<&Value>) -> Result<Json> {
 /// `gamend.*`. Declared against the neutral seam, so it works on any
 /// backend. One-shots return an awaitable id; socket events stream to the
 /// connect call's handler method (default `on_gamend_event`).
-fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
+fn install_gamend_api(m: &mut Module<Engine>) {
     m.module_doc(
         "The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).",
     );
@@ -827,7 +818,7 @@ fn install_gamend_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The per-connection half of `gamend.*`: operations on an open socket.
-fn install_gamend_socket_api(m: &mut dyn Bindings<Engine>) {
+fn install_gamend_socket_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("join", &[], "-> int", "Subscribe the socket to a topic and return the id the server's `reply` answers."),
         ("push", &[], "-> int", "Send an event and its payload to a topic on the socket, returning the id the `reply` answers."),

@@ -10,7 +10,7 @@ use std::cmp::Ordering;
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
@@ -153,11 +153,11 @@ pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(ReleaseState(Reporting::new(std::path::PathBuf::new())));
     reg.add_system(Stage::First, pump::<ReleaseState, ReleaseEvent>);
     let mut m = reg.script_module("release")?;
-    install_release_api(&mut *m);
+    install_release_api(&mut m);
     Ok(())
 }
 
-fn install_release_api(m: &mut dyn Bindings<Engine>) {
+fn install_release_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's Engine tab and About sheet; `balaur update` is the same code.",
     );

@@ -11,7 +11,7 @@ use balaur_websocket::{SocketOptions, WebSocketPlugin, WebsocketSnapshot, Websoc
 
 fn app_with_websocket(dir: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut WebSocketPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut WebSocketPlugin).unwrap();
     app
 }
 

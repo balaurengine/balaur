@@ -46,7 +46,7 @@ pub(crate) use api::install_softbody_api;
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, PartialEq, Component)]
-#[component(name = "softbody3d", on_remove = softbody3d_removed)]
+#[component(name = "softbody3d", on_remove = softbody3d_removed, after_write = after_write)]
 pub struct Softbody3d {
     /// How the body's particles and elements are laid out
     #[property(default = SoftKind3d::Box)]
@@ -1080,7 +1080,7 @@ pub(crate) fn register_softbody_component(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
                 balaur_core::components::tag::RENDER,
             ],
-            ..ComponentDef::of::<Softbody3d>(Some(after_write))
+            ..ComponentDef::of::<Softbody3d>()
         },
     );
 }

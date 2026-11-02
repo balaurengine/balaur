@@ -7,7 +7,6 @@ use editor;
 use icons;
 use lint;
 use model;
-use pool;
 use search;
 use selection;
 use shell;
@@ -437,13 +436,12 @@ pub fn rename_fill(state: &mut editor::State) {
         "placeholder": "Name",
         "query": state.rename_text,
         "rows_h": row_height + 6.0,
-        "on": "handle",
+        "on_change": "handle",
         "on_submit": "handle_submit",
         "data": { "fn": on_rename_typed, "submit": on_rename_submitted },
     });
-    pool::sync(state, host, [
+    ui::fill_rows(host, [
         ui::Row {
-            full: true,
             height: row_height,
             controls: [
                 ui::Control {
@@ -451,12 +449,12 @@ pub fn rename_fill(state: &mut editor::State) {
                     role: "action_form_primary",
                     grow: 1,
                     text: "Rename",
-                    on: "handle",
+                    on_click: "handle",
                     data: { "fn": on_rename_clicked },
                 },
             ],
         },
-    ], 0.0, false);
+    ]);
 }
 
 fn on_rename_typed(state: &mut editor::State, data: any, text: any) {

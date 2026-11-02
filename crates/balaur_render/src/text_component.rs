@@ -10,7 +10,7 @@ use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::Bindings;
+use balaur_script::Module;
 
 use crate::vocabulary::words;
 use crate::world_text::{Align, Layers3d, Shaping, SpaceOptions, TextRenderable, TextStyle};
@@ -42,7 +42,12 @@ pub enum TruncateAt {
 
 /// A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.
 #[derive(Component)]
-#[component(name = "text2d", on_remove = text2d_removed)]
+#[component(
+    name = "text2d",
+    on_remove = text2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = text2d_written,
+)]
 pub struct Text2d {
     /// The text drawn; `text_key` wins over it
     pub text: String,
@@ -104,7 +109,7 @@ pub struct Text2d {
 
 /// A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.
 #[derive(Component)]
-#[component(name = "text3d")]
+#[component(name = "text3d", after_write = text3d_written)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each flag is its own property, not a state machine"
@@ -295,13 +300,7 @@ fn text2d_removed(eng: &Engine, entity: Entity) {
 
 /// `text2d`: a block of text in the 2D pass, sized like a sprite.
 pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Text2d::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Text2d>(Some(text2d_written))
-        },
-    );
+    reg.add_component::<Text2d>();
 }
 
 /// `text3d`: the same block in the 3D pass, facing the camera by default.
@@ -315,14 +314,14 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
                 let _ = eng.remove_one::<TextRenderable>(entity);
                 Ok(())
             }),
-            ..ComponentDef::of::<Text3d>(Some(text3d_written))
+            ..ComponentDef::of::<Text3d>()
         },
     );
 }
 
 /// `render.set_text` and `render.text`: the string a node draws, for a score
 /// that changes every frame without rewriting the whole component.
-pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_text_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 

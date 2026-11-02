@@ -69,7 +69,7 @@ fn loaded(script: &str) -> Loaded {
     std::fs::write(dir.path().join("probe.bs"), script).unwrap();
     let mut app = app_in(dir.path());
     let mut extension = unsafe { load_extension(&greeter()) }.expect("the extension should load");
-    assert_eq!(extension.manifest().name, "greeter");
+    assert_eq!(extension.name(), "greeter");
     balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
 
     let root = app.engine.root();
@@ -207,7 +207,7 @@ fn a_directory_of_extensions_loads_them_all() {
 
     let found = unsafe { load_extensions_in(dir.path(), &[]) }.unwrap();
     assert_eq!(found.len(), 1);
-    assert_eq!(found[0].manifest().name, "greeter");
+    assert_eq!(found[0].name(), "greeter");
     assert_eq!(found[0].path(), copy);
 }
 
@@ -260,7 +260,7 @@ fn the_file_name_does_not_decide_the_plugin_name() {
     std::fs::copy(greeter(), &renamed).unwrap();
 
     let found = unsafe { load_extensions_in(dir.path(), &[]) }.unwrap();
-    assert_eq!(found[0].manifest().name, "greeter");
+    assert_eq!(found[0].name(), "greeter");
 }
 
 /// An extension that requires one nothing provides must be refused, naming

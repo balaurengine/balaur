@@ -7,7 +7,7 @@
 //! so a test that feeds one checks the contract every backend is held to.
 
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::gamepad::{
     GamepadState, PAD_AXIS_NAMES, PAD_BUTTON_NAMES, PadEvent, PadInfo, PadTouch, Power, PowerState,
@@ -16,7 +16,7 @@ use crate::gamepad::{
 use crate::haptics::{field, number, vec3};
 use crate::vocabulary::{keys as k, words as w};
 
-pub(crate) fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("gamepads", &[], "", "The ids of every connected pad: player slots from 0. A pad takes the lowest free slot last held by the same model, else the lowest free slot, and keeps it while connected."),
         ("gamepad_name", &[], "", "The pad's name: its mapping's when one matched, else the platform's. Empty when no pad has that id."),
@@ -120,7 +120,7 @@ pub(crate) fn install_gamepad_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The four per-button readers, which differ only in what they ask the pad.
-fn install_button_readers(m: &mut dyn Bindings<Engine>) {
+fn install_button_readers(m: &mut Module<Engine>) {
     type Reader = fn(&crate::Pad, &str) -> bool;
     let readers: [(&str, Reader); 4] = [
         ("gamepad_down", crate::Pad::is_down),
@@ -148,7 +148,7 @@ fn install_button_readers(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Motion and the touchpad, which `sensors.rs` or a feed writes after the poll.
-fn install_sensor_readers(m: &mut dyn Bindings<Engine>) {
+fn install_sensor_readers(m: &mut Module<Engine>) {
     m.function("gamepad_gyro", |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let v = state.borrow().pad(id).map_or([0.0; 3], |p| p.motion().gyro);

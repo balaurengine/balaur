@@ -88,7 +88,7 @@ fn loaded(script: &str) -> Loaded {
     .unwrap();
     let mut app = app_in(dir.path());
     let mut extension = unsafe { load_extension(&counter()) }.expect("the C extension should load");
-    assert_eq!(extension.manifest().name, "counter");
+    assert_eq!(extension.name(), "counter");
     balaur_plugin::load(&mut app, extension.plugin_mut()).unwrap();
 
     let root = app.engine.root();

@@ -3,14 +3,14 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::PhysicsState3d;
 use crate::collider::{first_collider, with_voxels};
 use crate::scalar;
 use crate::vocabulary::component as c;
 
-pub(crate) fn install_voxel_edit_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_voxel_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_voxel_size", &[c::COLLIDER_3D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
         ("voxel_size", &[c::COLLIDER_3D], "", "How big one cell of a voxel collider is, along each axis."),

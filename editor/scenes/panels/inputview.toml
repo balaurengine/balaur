@@ -12,7 +12,7 @@ kind = "column"
 anchor = "fill"
 inset = [0.0, 0.0, 0.0, 0.0]
 interactive = false
-layer = "shell"
+whole_window = true
 
 # What is held, and what went up a moment ago: a chip each.
 [[nodes]]

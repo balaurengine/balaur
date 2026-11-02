@@ -14,7 +14,7 @@ use balaur_core::components::derived::{Component, Written};
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::collider::{apply_collider, authored_collider};
 use crate::properties::{Axis3d, BodyKind};
@@ -28,7 +28,7 @@ use crate::{PhysicsState3d, node_pose};
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "body3d", requires = [balaur_core::transform::COMPONENT])]
+#[component(name = "body3d", requires = [balaur_core::transform::COMPONENT], after_write = after_write)]
 pub struct Body3d {
     /// How physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set
     #[property(default = BodyKind::Dynamic)]
@@ -287,7 +287,7 @@ fn write_mass(body: &mut RigidBody, asked: &Body3d) {
 ///
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`; the line is
 /// between *doing something to* a body and *asking or tuning* one.
-pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "apply_impulse",
@@ -352,7 +352,7 @@ pub(crate) fn install_body_api(m: &mut dyn Bindings<Engine>) {
 /// *making* a body and *pushing* one.
 /// A force for one step: the impulse it would deliver over one fixed step, so
 /// nothing is left on the body for the step after.
-fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
+fn install_step_force_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "apply_force",
@@ -404,7 +404,7 @@ fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_force_api(m: &mut Module<Engine>) {
     install_step_force_api(m);
     m.describe(&[
         (
@@ -495,7 +495,7 @@ pub(crate) fn install_force_api(m: &mut dyn Bindings<Engine>) {
 /// What a body's forces currently are, and how to drop them.
 ///
 /// Split from [`install_force_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("overlaps", &[c::COLLIDER_3D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
         ("gravity", &[], "", "The 3D world's gravity."),
@@ -551,7 +551,7 @@ pub(crate) fn install_force_reader_api(m: &mut dyn Bindings<Engine>) {
 
 /// Velocity, sleep, mass and the per-body tuning knobs — everything that asks
 /// a body about itself or changes how it is simulated.
-pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("potential_energy", &[c::BODY_3D], "", "The body's gravitational potential energy over one step."),
         ("is_moving", &[c::BODY_3D], "", "Whether the body is awake and actually going somewhere."),
@@ -641,7 +641,7 @@ pub(crate) fn install_body_state_api(m: &mut dyn Bindings<Engine>) {
 
 /// What a body weighs and how it is moving, read-only: the numbers a script
 /// asks about rather than the ones it sets.
-fn install_body_readers(m: &mut dyn Bindings<Engine>) {
+fn install_body_readers(m: &mut Module<Engine>) {
     m.function("total_mass", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, RigidBody::mass)
     });
@@ -690,7 +690,7 @@ fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
 /// dynamic one.
 ///
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("teleport", &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
         ("predict_position", &[c::BODY_3D], "", "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`."),
@@ -755,7 +755,7 @@ pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
 /// the body's own `mass` and its colliders.
 ///
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_body_mass_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_mass_api(m: &mut Module<Engine>) {
     use balaur_script::Value;
     m.describe(&[
         ("world_center_of_mass", &[c::BODY_3D], "", "Where the body's whole mass sits, in world space."),
@@ -812,12 +812,12 @@ pub(crate) fn install_body_mass_api(m: &mut dyn Bindings<Engine>) {
 /// The axis locks: what keeps a character upright and a top-down game flat.
 ///
 /// Split from [`install_body_mass_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_body_lock_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_lock_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 
 /// Continuous collision detection: whether a body's sweep ran this step.
-pub(crate) fn install_body_ccd_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_ccd_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "is_ccd_active",
         &[c::BODY_3D],
@@ -832,7 +832,7 @@ pub(crate) fn install_body_ccd_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Whether a body is asleep, and how close it is to falling asleep.
-pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body_sleep_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("sleep", &[c::BODY_3D], "", "Put the body to sleep now."),
         (
@@ -929,7 +929,7 @@ pub(crate) fn register_body_component(reg: &mut Registry<'_>) {
                 }
                 Ok(())
             }),
-            ..ComponentDef::of::<Body3d>(Some(after_write))
+            ..ComponentDef::of::<Body3d>()
         },
     );
 }

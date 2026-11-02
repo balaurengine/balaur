@@ -29,7 +29,7 @@ pub const COMPONENT: &str = <StateMachine as Component>::NAME;
 
 /// Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.
 #[derive(Clone, Debug, Component)]
-#[component(name = "state_machine")]
+#[component(name = "state_machine", after_write = written)]
 pub struct StateMachine {
     /// The state machine to run
     #[property(asset = "state_machine")]

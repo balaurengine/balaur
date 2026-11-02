@@ -815,12 +815,6 @@ fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool], ink: Color
     }
 }
 
-/// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,
-/// separated by U+001F. `ItemList` carries an icon and a per-item colour the
-/// same way, without a second array to keep in step with the first. Leading
-/// tabs are the tree's depth and are not a field. A fifth field is the row's
-/// key, never drawn: the widget knows a row by its string, so it is what
-/// keeps two rows with the same label two rows.
 fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
     let body = item.trim_start_matches('\t');
     let mut parts = body.split('\u{1f}');
@@ -1166,17 +1160,4 @@ pub(crate) fn tree(
     color: Color32,
 ) {
     rows(ui, at, index, font, color, true);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::fields;
-
-    #[test]
-    fn a_rows_key_is_never_drawn() {
-        let (icon, label, trailing, tint) =
-            fields("\t\t▣\u{1f}Lid\u{1f}note\u{1f}#ff0000\u{1f}n_crate_b/n_lid");
-        assert_eq!((icon, label, trailing), ("▣", "Lid", "note"));
-        assert_eq!(tint, Some(egui::Color32::from_rgb(0xff, 0, 0)));
-    }
 }

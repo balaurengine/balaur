@@ -306,24 +306,11 @@ fn link_transparent(
 ///
 /// `source` is the shader file's text. Reading it stays the caller's job:
 /// where a project's bytes come from — the pack, the directory, an unsaved
-/// editor buffer — is not this module's business.
-pub fn compile(material: &Material3d, source: &str) -> Result<Compiled> {
-    compile_with(material, source, &[])
-}
-
-/// [`compile`], with modules a plugin registered mounted alongside the
-/// engine's own, so a project's shader can import them.
-pub fn compile_with(
-    material: &Material3d,
-    source: &str,
-    plugin_modules: &[(String, String)],
-) -> Result<Compiled> {
-    compile_on(material, source, plugin_modules, false)
-}
-
-/// [`compile_with`] for a device: `morph` links the morph-target bindings in.
-/// The engine decides it, so a project's own `morph` feature is not read.
-pub fn compile_on(
+/// editor buffer — is not this module's business. `plugin_modules` are mounted
+/// alongside the engine's own, so a project's shader can import them. `morph`
+/// links the morph-target bindings in: the engine decides it, so a project's
+/// own `morph` feature is not read.
+pub fn compile(
     material: &Material3d,
     source: &str,
     plugin_modules: &[(String, String)],

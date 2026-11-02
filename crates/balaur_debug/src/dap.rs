@@ -801,7 +801,6 @@ fn render(value: &Value) -> String {
         Value::Transform2d([.., x, y]) => format!("transform2d at ({x}, {y})"),
         Value::Transform3d([.., x, y, z]) => format!("transform3d at ({x}, {y}, {z})"),
         Value::Node(bits) => format!("node #{bits}"),
-        Value::Callback(_) => "function".into(),
         Value::List(items) | Value::Many(items) => format!("[{} items]", items.len()),
         Value::Map(entries) => format!("{{{} fields}}", entries.len()),
         Value::Bytes(b) => format!("{} bytes", b.len()),

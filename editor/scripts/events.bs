@@ -5,7 +5,6 @@ use editor;
 use history;
 use icons;
 use model;
-use pool;
 use shell;
 use signals;
 use util;
@@ -134,7 +133,7 @@ fn pick(state: editor::State, at: int, key: str, current: str, choices: [str], w
         width: width,
         text: current,
         options: choices,
-        on: "handle",
+        on_change: "handle",
         data: { "fn": on_field_picked, "at": at, "key": key },
     }
 }
@@ -189,7 +188,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> ui::Row {
             width: 140,
             text: if target == "" { "(this node)" } else { target },
             options: target_paths(state),
-            on: "handle",
+            on_change: "handle",
             data: { "fn": on_target_picked, "at": at },
         });
     }
@@ -199,10 +198,10 @@ fn row_spec(state: editor::State, at: int, row: any) -> ui::Row {
         role: "chip_quiet",
         text: icons::ui("close"),
         tooltip: "Remove this binding",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_remove_clicked, "at": at },
     });
-    ui::Row { full: true, height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
+    ui::Row { height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
 }
 
 fn on_target_picked(state: &mut editor::State, data: any, picked: any) {
@@ -448,20 +447,20 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let node = model::selected_node(state);
-    pool::strip(state, PANEL + "/DocHead", [
+    ui::fill_strip(PANEL + "/DocHead", [
         ui::Control { kind: "label", role: "text_heading", grow: 1, text: "EVENT BINDINGS · {node.name()}" },
         ui::Control {
             kind: "button",
             role: "action_form_secondary",
             text: "‹›  Convert to script",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_convert_clicked },
         },
         ui::Control {
             kind: "button",
             role: "action_form_primary",
             text: icons::ui("add") + "  Add row",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_add_row_clicked },
         },
     ]);
@@ -475,7 +474,7 @@ pub fn fill(state: &mut editor::State) {
     }
     variable_specs(state, specs);
     hook_specs(state, specs);
-    pool::sync(state, rows_host(), specs, 0.0, false);
+    ui::fill_rows(rows_host(), specs);
 }
 
 fn on_convert_clicked(state: &mut editor::State, data: any, _value: any) {
@@ -488,7 +487,6 @@ fn on_add_row_clicked(state: &mut editor::State, data: any, _value: any) {
 
 fn note(text: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 0,
         controls: [
             ui::Control {
@@ -504,7 +502,6 @@ fn note(text: str) -> ui::Row {
 
 fn head(text: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 26,
         controls: [
             ui::Control {
@@ -528,7 +525,6 @@ fn variable_specs(state: editor::State, out: [ui::Row]) {
     }
     for entry in declared {
         out.push(ui::Row {
-            full: true,
             height: 24,
             slot_role: "layout_actions",
             controls: [
@@ -555,7 +551,6 @@ fn hook_specs(state: &mut editor::State, out: [ui::Row]) {
         let name = hook["name"].as_str();
         let lifecycle = name == "init" || name == "update";
         out.push(ui::Row {
-            full: true,
             height: 28,
             controls: [
                 ui::Control {

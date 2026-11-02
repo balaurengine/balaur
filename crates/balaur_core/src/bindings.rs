@@ -9,7 +9,6 @@ use anyhow::{Result, anyhow, bail};
 use balaur_script::Value;
 
 use crate::App;
-use crate::components::ComponentDef;
 use crate::components::derived::{self, Component, Property, Record, Written};
 use crate::hecs::Entity;
 use crate::variables::{Variables, as_num};
@@ -342,7 +341,12 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
 // `Bindings` beside it.
 /// Reactions the node runs from a table: each row is an `event`, a `when` over the scene's `[variables]`, an `action`, a `target` node and a `value`.
 #[derive(Clone, Debug, PartialEq, Component)]
-#[component(name = "bindings", on_remove = binding_rows_removed)]
+#[component(
+    name = "bindings",
+    on_remove = binding_rows_removed,
+    tags = ["interaction"],
+    after_write = after_write,
+)]
 pub struct BindingRows {
     /// The binding rows, each `{ event, when, action, target, value }`
     pub rows: Vec<BindingRow>,
@@ -427,13 +431,7 @@ fn binding_rows_removed(eng: &Engine, entity: Entity) {
 
 /// The `bindings` component: the rows as written, and [`Bindings`] parsed.
 pub fn register_bindings_component(app: &mut App) {
-    app.register_component(
-        <BindingRows as Component>::NAME,
-        ComponentDef {
-            tags: &["interaction"],
-            ..ComponentDef::of::<BindingRows>(Some(after_write))
-        },
-    );
+    app.add_component::<BindingRows>();
 }
 
 /// Run every binding on `entity` that answers `event`.

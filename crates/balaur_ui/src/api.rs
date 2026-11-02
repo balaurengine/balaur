@@ -4,7 +4,7 @@
 //! `widget` nodes in a scene, and [`crate::widget`] draws them.
 
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::bridge::with_ctx;
 use crate::theme;
@@ -129,7 +129,7 @@ fn names_of(list: Option<balaur_script::Value>) -> Option<Vec<String>> {
     }
 }
 
-pub(crate) fn install_ui_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
     m.module_doc(
         "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
     );
@@ -157,7 +157,7 @@ pub(crate) fn install_ui_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: theme.
-fn install_theme(m: &mut dyn Bindings<Engine>) {
+fn install_theme(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "set_theme",
@@ -204,17 +204,11 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: widget layer.
-fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
+fn install_widget_layer(m: &mut Module<Engine>) {
     m.describe(&[(
         "set_widget_layer",
         &[],
         "", "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
-    ),
-    (
-        "set_widget_surface",
-        &[],
-        "",
-        "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
     )]);
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
@@ -236,28 +230,6 @@ fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                     Ok(())
                 },
             );
-        m.function(
-            "set_widget_surface",
-            |eng: &Engine,
-             (name, enabled, x, y, w, h): (
-                String,
-                bool,
-                Option<f32>,
-                Option<f32>,
-                Option<f32>,
-                Option<f32>,
-            )| {
-                let layer = eng.resource::<crate::WidgetLayerConfig>();
-                layer.borrow_mut().layers.insert(
-                    name,
-                    crate::widget::node::Surface {
-                        enabled,
-                        rect: rect_of(x, y, w, h),
-                    },
-                );
-                Ok(())
-            },
-        );
     }
     install_rects(m);
     install_focus(m);
@@ -277,7 +249,7 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 /// The keyboard drives focus on its own, through egui. These exist for the
 /// pad: `standard_app` maps a project's `ui_next`, `ui_previous` and `ui_accept`
 /// actions onto them.
-fn install_focus(m: &mut dyn Bindings<Engine>) {
+fn install_focus(m: &mut Module<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[
         (
@@ -377,7 +349,7 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: a widget driven from a script as a reader would drive
 /// it, and an inspector told to read its node again.
-fn install_driving(m: &mut dyn Bindings<Engine>) {
+fn install_driving(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "click",
@@ -440,7 +412,7 @@ fn install_driving(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: the screen classes.
-fn install_classes(m: &mut dyn Bindings<Engine>) {
+fn install_classes(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "width_class",
@@ -472,7 +444,7 @@ fn install_classes(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: scale.
-fn install_scale(m: &mut dyn Bindings<Engine>) {
+fn install_scale(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "scale",
@@ -502,7 +474,7 @@ fn install_scale(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: queries.
-fn install_queries(m: &mut dyn Bindings<Engine>) {
+fn install_queries(m: &mut Module<Engine>) {
     m.describe(&[
         ("window_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
@@ -536,7 +508,7 @@ fn install_queries(m: &mut dyn Bindings<Engine>) {
 
 /// The clipboard pair and who holds the pointer and the keyboard: queries
 /// that answer about the frame.
-fn install_clipboard(m: &mut dyn Bindings<Engine>) {
+fn install_clipboard(m: &mut Module<Engine>) {
     m.function("set_clipboard", |eng: &Engine, text: String| {
         eng.resource::<UiState>().borrow_mut().clipboard = Some(text);
         crate::pacing::ask(eng);
@@ -572,7 +544,7 @@ fn rect_value(rect: Option<egui::Rect>) -> Value {
     rect.map_or(Value::Nil, crate::widget::arrange::rect_value)
 }
 
-fn install_rects(m: &mut dyn Bindings<Engine>) {
+fn install_rects(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "widget_rect",

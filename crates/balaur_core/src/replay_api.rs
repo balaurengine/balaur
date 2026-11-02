@@ -10,7 +10,7 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number, text};
@@ -106,7 +106,7 @@ pub const REPLAY_OPS: &[EngineOp] = &[
 
 /// Declare the module's functions and the `STATE_*` constants `state` answers
 /// with.
-pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_replay_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
     );

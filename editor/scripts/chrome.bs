@@ -261,14 +261,8 @@ pub fn fill(state: &mut editor::State) {
         node.widget.height = row_height(state) - 4.0;
         node.widget_menu.showing = state.menu_open;
     }
-    let menu_at = menu_key(state);
-    if pool::strip_due(state, BRAND_NODE, menu_at) {
-        pool::strip_keyed(state, BRAND_NODE, menu_at, menu::rows(state));
-    }
-    let strip_at = strip_key(state, tokens);
-    if pool::strip_due(state, STRIP_NODE, strip_at) {
-        pool::strip_keyed(state, STRIP_NODE, strip_at, bar_controls(state, tokens));
-    }
+    ui::fill_strip(BRAND_NODE, menu::rows(state));
+    ui::fill_strip(STRIP_NODE, bar_controls(state, tokens));
 }
 
 /// What the whole bar is built from, which `signals::chrome` compares.
@@ -333,7 +327,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
             text: if state.compact { "" } else { workspace.name },
             icon: workspace.icon,
             tooltip: workspace.name,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_workspace_pressed, "id": id },
         });
     }
@@ -348,7 +342,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         checked: state.split,
         text: if state.compact { "" } else { "Split" },
         tooltip: "Show the code and the viewport at once (⌘\\)",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_split_pressed },
     });
     // Beside the split, because the two are the same question: how much of the
@@ -369,7 +363,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         } else {
             "The selection has no script to focus"
         },
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_focus_pressed },
     });
     // The spring: what is after it sits against the bar's right edge.
@@ -386,7 +380,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         text: "",
         icon: if tokens["dark"].as_bool() { icons::ui("dark") } else { icons::ui("light") },
         tooltip: "Toggle theme",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_theme_pressed },
     });
     let named = !state.compact;
@@ -399,7 +393,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         text: if named { "Run a command" } else { "" },
         icon: icons::ui("search"),
         tooltip: "⌘K",
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_command_pressed },
     });
     out
@@ -472,7 +466,7 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
         corner_radius: 0,
         fill: "none",
         padding: [7, -1, 7, -1],
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_doc_picked, "id": id },
     });
     if closable {
@@ -488,7 +482,7 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
             corner_radius: 0,
             fill: "none",
             tooltip: "Close",
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_doc_close_pressed, "id": id },
         });
     }
@@ -536,7 +530,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             role: "icon_action_primary",
             checked: state.playing,
             tooltip: if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_play_pressed },
         },
         ui::Control {
@@ -557,7 +551,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             } else {
                 "Pause simulation"
             },
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_pause_pressed, "replaying": replaying },
         },
         ui::Control {
@@ -571,7 +565,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             icon_size: STEP_SIZE,
             role: "icon_action_primary",
             tooltip: if running { "Stop" } else { "Nothing is running" },
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_stop_pressed, "replaying": replaying },
         },
     ]
@@ -628,7 +622,7 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
         };
         lines.push(ui::Control { kind: "label", role: "text_note", text: line, text_color: tokens["text_muted"] });
     }
-    pool::strip(state, IMPORTS + "/Lines", lines);
+    ui::fill_strip(IMPORTS + "/Lines", lines);
     let totals = dropin::job_totals(state);
     FillImports {
         shown: lines.len() > 0,
@@ -640,10 +634,7 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
 
 /// The status strip, what its script asks for on `status_changed`.
 pub fn fill_status(state: &mut editor::State) {
-    let at = status_key(state);
-    if pool::strip_due(state, STATUS_NODE, at) {
-        pool::strip_keyed(state, STATUS_NODE, at, status_controls(state, state.theme, state.layout["bottom"]["width"].as_float()));
-    }
+    ui::fill_strip(STATUS_NODE, status_controls(state, state.theme, state.layout["bottom"]["width"].as_float()));
 }
 
 /// What the strip is built from: `status_mode` carries the pause, the play,

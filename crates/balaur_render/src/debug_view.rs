@@ -7,7 +7,7 @@
 
 use anyhow::anyhow;
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
 use crate::shaders;
 
@@ -73,7 +73,7 @@ pub(crate) fn channel_view(eng: &Engine) -> String {
 
 /// `render::set_debug_view`, `render::debug_view`, `render::debug_views` and
 /// `render::set_shader_preview`.
-pub(crate) fn install_debug_view_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_debug_view_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_debug_view", &[], "", "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back."),
         ("debug_view", &[], "", "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is."),

@@ -21,7 +21,7 @@ use balaur_core::components::derived::{Component, Written};
 use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::dim2::collider::{apply_collider, authored_collider};
 use crate::dim2::{PhysicsState2d, node_pose_2d};
@@ -34,7 +34,7 @@ use crate::vocabulary::{component as c, keys as k};
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "body2d", requires = [balaur_core::transform::COMPONENT])]
+#[component(name = "body2d", requires = [balaur_core::transform::COMPONENT], after_write = after_write)]
 pub struct Body2d {
     /// How 2D physics drives the node: simulated, immovable, moved by script, or moved by a velocity you set
     #[property(default = BodyKind::Dynamic)]
@@ -242,7 +242,7 @@ fn write_mass(body: &mut RigidBody, asked: &Body2d) {
 /// The 2D twin of `crate::body::install_body_state_api`. Every function here
 /// has a 3D sibling under the same name in `physics3d`; where the shapes
 /// differ, the dimension is the reason.
-pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_state_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("velocity_at_point", &[c::BODY_2D], "", "How fast a world point on the body is moving, spin included."),
         ("total_mass", &[c::BODY_2D], "", "The body's total mass: its `mass` when it states one, or what its colliders weigh."),
@@ -326,7 +326,7 @@ fn pose_value(pose: &scalar::Pose2) -> balaur_script::Value {
 
 /// What a 2D body weighs and how that mass is spread, the twin of
 /// `crate::body::install_body_mass_api`.
-pub(crate) fn install_body2d_mass_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_mass_api(m: &mut Module<Engine>) {
     use balaur_script::Value;
     m.describe(&[
         ("world_center_of_mass", &[c::BODY_2D], "", "Where the body's whole mass sits, in world space."),
@@ -365,12 +365,12 @@ pub(crate) fn install_body2d_mass_api(m: &mut dyn Bindings<Engine>) {
 /// The 2D axis locks.
 ///
 /// Split from [`install_body2d_mass_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_body2d_lock_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_lock_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 
 /// The 2D twin of `crate::body::install_body_ccd_api`.
-pub(crate) fn install_body2d_ccd_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_ccd_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "is_ccd_active",
         &[c::BODY_2D],
@@ -385,7 +385,7 @@ pub(crate) fn install_body2d_ccd_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Whether a 2D body is asleep, where it is going, and the world's gravity.
-pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_sleep_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("sleep", &[c::BODY_2D], "", "Put the body to sleep now."),
         (
@@ -485,7 +485,7 @@ pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
 
 /// Forces and impulses on a 2D body. Torque is a single number here, which is
 /// the whole difference from the 3D file.
-pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_force_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "apply_impulse_at_point",
@@ -568,7 +568,7 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
 /// The forces and impulses a script applies to a 2D body.
 /// A force for one step: the impulse it would deliver over one fixed step, so
 /// nothing is left on the body for the step after.
-fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
+fn install_step_force_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "apply_force",
@@ -621,7 +621,7 @@ fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-fn install_body_forces(m: &mut dyn Bindings<Engine>) {
+fn install_body_forces(m: &mut Module<Engine>) {
     install_step_force_api(m);
     m.function(
         "add_constant_force",
@@ -656,7 +656,7 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
 /// What a 2D body's forces currently are, and how to drop them.
 ///
 /// Split from [`install_body2d_force_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_body2d_force_reader_api(m: &mut Module<Engine>) {
     m.describe(&[]);
     m.function(
         "set_constant_force",
@@ -742,7 +742,7 @@ pub(crate) fn register_body2d_component(reg: &mut Registry<'_>) {
                 }
                 Ok(())
             }),
-            ..ComponentDef::of::<Body2d>(Some(after_write))
+            ..ComponentDef::of::<Body2d>()
         },
     );
 }

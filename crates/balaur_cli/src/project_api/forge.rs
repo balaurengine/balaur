@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
@@ -95,11 +95,11 @@ pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(ForgeState(Reporting::new(std::path::PathBuf::new())));
     reg.add_system(Stage::First, pump::<ForgeState, ForgeEvent>);
     let mut m = reg.script_module("forge")?;
-    install_forge_api(&mut *m);
+    install_forge_api(&mut m);
     Ok(())
 }
 
-fn install_forge_api(m: &mut dyn Bindings<Engine>) {
+fn install_forge_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Projects kept on Forge, for the editor's pickers, and adding one to a game as a dependency. `balaur add` and `balaur fetch` are the same code. `BALAUR_FORGE` names the Forge and `BALAUR_FORGE_TOKEN` reads private projects.",
     );

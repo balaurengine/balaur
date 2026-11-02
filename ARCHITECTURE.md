@@ -10,7 +10,7 @@ names.
 ├────────────────────────────────────────────────────────────┤
 │  balaur_script_bs: host, hot reload, `use` files, debugger │
 ├────────────────────────────────────────────────────────────┤
-│  balaur_script: the seam — Bindings, ScriptHost, Value.    │
+│  balaur_script: the seam — Module, ScriptHost, Value.      │
 │  Traits only. No language; anyhow and serde.               │
 ├────────────────────────────────────────────────────────────┤
 │  modules declared once, reaching every language:           │
@@ -162,7 +162,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 ### The seam
 
 `balaur_script` is traits and a neutral `Value`, three dependencies (`anyhow`,
-`serde`, `smol_str`), no language. Subsystems declare against `Bindings<Engine>`; a backend implements
+`serde`, `smol_str`), no language. Subsystems declare into a `Module<Engine>`; a backend implements
 `ScriptHost<Engine>`. Balaur Script (`balaur_bs`, `balaur_script_bs`) is the
 one backend; the Rune backend before it was one crate and went as one.
 
@@ -1176,7 +1176,7 @@ tick.
 `SnapshotRing` of the last N ticks.
 
 - Core snapshots the node set, transforms, appearance, tags, pause, clock,
-  timers, script state (through `save_state`/`load_state`) and the RNG; every
+  timers, each script's plain fields and the RNG; every
   other subsystem registers its own (physics through serde, animation). Core
   does not snapshot components: re-adding a `body3d` would rebuild the body and
   discard its velocity.

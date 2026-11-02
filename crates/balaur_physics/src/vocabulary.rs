@@ -320,7 +320,6 @@ pub(crate) mod keys {
     pub(crate) const POINT: &str = "point";
     pub(crate) const POINTS: &str = "points";
     pub(crate) const POSITION: &str = "position";
-    pub(crate) const PREDICATE: &str = "predicate";
     pub(crate) const PREDICTION_DISTANCE: &str = "prediction_distance";
     pub(crate) const RADIUS: &str = "radius";
     pub(crate) const RAY_ORIGIN: &str = "ray_origin";

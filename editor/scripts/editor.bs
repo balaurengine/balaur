@@ -115,7 +115,6 @@ pub class State {
     code_revision: int,
     layout_seen: float,
     form: [ui::Row],
-    pool_keys: any,
     /// When the Inspector's whole form is filled again after a run of edits
     /// its rows followed alone; 0 for none pending.
     inspector_after: float,
@@ -372,8 +371,6 @@ pub fn fresh_state() -> State {
         layout_seen: -1.0,
         // The inspector's rows, described each frame and made by `pool.bs`.
         form: [],
-        // What each pooled host was last filled for; see `pool::strip_when`.
-        pool_keys: {},
         inspector_after: 0.0,
         inspect_warned: {},
         // Each component's rows cut into native runs, by component.
@@ -713,11 +710,6 @@ fn frame(state: &mut State, delta_time: float) {
             state.capture = capture;
         }
     }
-    // The window, never `state.screen_width`: that is the shell's own solved rect, and
-    // a surface taken from it shrinks the shell it sizes. The start screen is
-    // a root on this surface too, so it is sized before that screen returns.
-    let surface = ui::window_size();
-    ui::set_widget_surface("shell", true, 0.0, 0.0, surface.x, surface.y);
     // The start screen has no scene to step, no selection to follow and no
     // gizmo to drag: what it needs from a frame is the states and the
     // showcase, whose sequence turns this screen's own pages.
@@ -1214,7 +1206,7 @@ impl Editor {
     }
 
     /// A plugin control's edit, handed to the method its `data` names on the
-    /// plugin's node: `on: "relay"`, `data: { to, method, .. }`.
+    /// plugin's node: `on_click: "relay"`, `data: { to, method, .. }`.
     pub fn relay(data: any, value: any, control: Node) {
         kit::relay(data, value);
         refill_panel(control);
@@ -1223,19 +1215,11 @@ impl Editor {
     /// The kit, for a plugin filling its dock: see kit.bs. `part` names
     /// where on the dock `host`: "head", "foot", "side" or the body.
     pub fn kit_bar(host: str, part: str, controls: [ui::Control]) {
-        kit::bar(self.state, host, part, controls);
+        kit::bar(host, part, controls);
     }
 
     pub fn kit_rows(host: str, part: str, specs: [ui::Row]) {
-        kit::rows(self.state, host, part, specs);
-    }
-
-    pub fn kit_area(host: str, part: str) -> Node {
-        kit::area(host, part)
-    }
-
-    pub fn kit_tabs(host: str, id: str, names: any) -> str {
-        kit::tabs(self.state, host, id, names)
+        kit::rows(host, part, specs);
     }
 
     pub fn kit_pages(host: str, id: str, groups: any) -> str {
@@ -1272,10 +1256,6 @@ impl Editor {
 
     pub fn kit_short_path(path: str) -> str {
         kit::short_path(path)
-    }
-
-    pub fn kit_user_data() -> str {
-        kit::game_data(self.state)
     }
 
     pub fn kit_changed() {

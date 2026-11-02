@@ -4,7 +4,6 @@
 
 use editor;
 use manager;
-use pool;
 use util;
 use window;
 
@@ -32,7 +31,7 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let hosts = hosts.unwrap();
-    pool::sync(state, hosts.form, specs(state), LABEL_WIDTH, false);
+    ui::fill_rows(hosts.form, specs(state), LABEL_WIDTH, false);
 }
 
 /// Every row the sheet shows: which build this is, the line it follows, and
@@ -41,7 +40,6 @@ fn specs(state: editor::State) -> [ui::Row] {
     let mine = util::map_or_empty(release::installed());
     let out: [ui::Row] = [
         ui::Row {
-            full: true,
             height: 56,
             slot_role: "layout_actions",
             controls: [
@@ -73,7 +71,6 @@ fn specs(state: editor::State) -> [ui::Row] {
         update_rows(state, mine, out);
     }
     out.push(ui::Row {
-        full: true,
         height: 30,
         slot_role: "layout_actions",
         controls: [
@@ -87,7 +84,6 @@ fn specs(state: editor::State) -> [ui::Row] {
 // One label and its value, the value in the monospace a build id reads in.
 fn fact(out: [ui::Row], name: str, value: str) {
     out.push(ui::Row {
-        full: false,
         height: 22,
         controls: [
             ui::Control {
@@ -107,7 +103,7 @@ fn link(text: str, url: str) -> ui::Control {
         role: "chip",
         text: text,
         tooltip: url,
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_link_clicked, "url": url },
     }
 }
@@ -147,10 +143,10 @@ fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
         kind: "button",
         role: "action_form",
         text: if state.manager.reading { "Checking" } else { "Check" },
-        on: "handle",
+        on_click: "handle",
         data: { "fn": on_check_clicked },
     });
-    out.push(ui::Row { full: true, height: 30, slot_role: "layout_actions", controls: controls });
+    out.push(ui::Row { height: 30, slot_role: "layout_actions", controls: controls });
     if mine["held"].as_str() != "" {
         out.push(say(mine["held"].as_str(), tokens["text_subtle"].as_str()));
     }
@@ -160,7 +156,6 @@ fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
     }
     if manager::installing(state) {
         out.push(ui::Row {
-            full: true,
             height: 22,
             slot_role: "layout_actions",
             controls: manager::progress_controls(state),
@@ -174,7 +169,6 @@ fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
 
 fn say(text: str, ink: str) -> ui::Row {
     ui::Row {
-        full: true,
         height: 0,
         controls: [
             ui::Control {

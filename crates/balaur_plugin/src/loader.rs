@@ -26,8 +26,12 @@ pub struct Extension {
 
 impl Extension {
     #[must_use]
-    pub fn manifest(&self) -> &Manifest {
-        self.plugin.manifest()
+    pub fn name(&self) -> &str {
+        self.plugin.name()
+    }
+
+    pub fn version(&self) -> &str {
+        self.plugin.version()
     }
 
     #[must_use]
@@ -198,13 +202,16 @@ pub unsafe fn load_extensions_in(dir: &Path, already_loaded: &[String]) -> Resul
         loaded.push(unsafe { load_extension(path) }?);
     }
 
-    let manifests: Vec<Manifest> = loaded.iter().map(|e| e.manifest().clone()).collect();
+    let manifests: Vec<Manifest> = loaded
+        .iter()
+        .map(|e| crate::manifest_of(e.plugin.as_ref()))
+        .collect();
     let order = crate::load_order(&manifests, already_loaded)?;
     let mut ordered = Vec::with_capacity(loaded.len());
     for name in order {
         let at = loaded
             .iter()
-            .position(|e| e.manifest().name == name)
+            .position(|e| e.name() == name)
             .ok_or_else(|| anyhow!("`{name}` was ordered but is not loaded"))?;
         ordered.push(loaded.remove(at));
     }

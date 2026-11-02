@@ -6,7 +6,6 @@ use editor;
 use history;
 use model;
 use polygon;
-use pool;
 use rig;
 use signals;
 use util;
@@ -300,12 +299,12 @@ pub fn fill(state: editor::State) {
     let picked = polygon::has_pick(state);
     util::set_text(PANEL + "/Body/Verbs/Scope", if picked { "{listing.at.len()} picked" } else { "all {listing.at.len()}" });
     util::set_visible(PANEL + "/Body/Verbs/all", picked);
-    pool::strip(state, PANEL + "/Body/Header", header(state, listing));
+    ui::fill_strip(PANEL + "/Body/Header", header(state, listing));
     let rows: [ui::Row] = [];
     for at in listing.at {
         rows.push(vertex_row(state, listing, at));
     }
-    pool::sync(state, PANEL + "/Body/Scroll/Rows", rows, 0.0, false);
+    ui::fill_rows(PANEL + "/Body/Scroll/Rows", rows);
 }
 
 /// A verb by the name of its button.
@@ -344,7 +343,7 @@ fn header(state: editor::State, listing: Table) -> [ui::Control] {
             text: util::leaf(path),
             tooltip: path,
             checked: active == bone_index,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": pick_bone, "at": bone_index },
         });
     }
@@ -368,7 +367,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
             text: "{at}",
             tooltip: "Show this vertex alone in the viewport",
             checked: hover,
-            on: "handle",
+            on_click: "handle",
             data: { "fn": show_vertex_alone, "at": at },
         },
     ];
@@ -385,7 +384,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
             min: 0.0,
             max: 1.0,
             fill: if was > 0.0 { "bg_control" } else { "bg_panel" },
-            on: "handle",
+            on_change: "handle",
             data: { "fn": type_weight, "bone": bone_at, "at": at },
         });
     }
@@ -393,7 +392,7 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
     // than silently corrected.
     let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
     controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { "text_code_quiet" }));
-    ui::Row { full: true, height: ROW_HEIGHT, controls: controls }
+    ui::Row { height: ROW_HEIGHT, controls: controls }
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {

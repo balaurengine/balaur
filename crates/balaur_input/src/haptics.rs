@@ -13,7 +13,7 @@ use gilrs::ff::{BaseEffect, BaseEffectType, Effect, EffectBuilder, Repeat, Repla
 #[cfg(not(target_family = "wasm"))]
 use gilrs::{GamepadId, Gilrs};
 
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use balaur_core::Engine;
 
@@ -193,7 +193,7 @@ fn wake_in(seconds: f32) {
 /// `input.gamepad_rumble` and friends. Declared on every platform: a build
 /// with no motors plays the rumble's timing all the same, so the finish a
 /// script waits for arrives everywhere.
-pub(crate) fn install_haptics_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected."),
         ("gamepad_rumble", &[], "(id: int, opts: RumbleOptions?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),

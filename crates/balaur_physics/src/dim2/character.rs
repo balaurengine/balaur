@@ -13,12 +13,11 @@ use crate::rapier2d::prelude::{
 };
 use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
 use crate::properties::{LengthMode, NodePath, SweepIgnore};
@@ -28,7 +27,12 @@ use glamx::EulerRot;
 
 /// A 2D character controller: `physics2d.move_character` slides the node along walls and steps it up ledges. Needs a `collider2d`; a `kinematic` `body2d` lets it push bodies.
 #[derive(Clone, Component)]
-#[component(name = "character2d", requires = [balaur_core::transform::COMPONENT])]
+#[component(
+    name = "character2d",
+    requires = [balaur_core::transform::COMPONENT],
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+    expects = [c::COLLIDER_2D],
+)]
 pub struct Character2d {
     /// Which way is up for this character: the axis it stands along and measures slopes against
     #[property(default = [0.0, 1.0])]
@@ -208,7 +212,7 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: 
     true
 }
 
-pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_character2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update."),
         ("is_on_floor", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
@@ -232,15 +236,5 @@ pub(crate) fn install_character2d_api(m: &mut dyn Bindings<Engine>) {
 /// `character2d`: what was asked, held on the node; rapier keeps no character
 /// state, so a move builds its controller from this.
 pub(crate) fn register_character2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Character2d::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::COLLIDER_2D],
-            ..ComponentDef::of::<Character2d>(None)
-        },
-    );
+    reg.add_component::<Character2d>();
 }

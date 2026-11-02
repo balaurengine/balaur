@@ -109,7 +109,7 @@ fn a_refused_layout_is_a_warning_on_what_was_asked() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
     let grid = |cells: f64| toml::from_str(&format!("cells = [{cells:?}, {cells:?}]")).unwrap();

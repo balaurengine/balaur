@@ -380,9 +380,9 @@ struct PackedHost {
 }
 
 impl balaur_script::ScriptHost<Engine> for PackedHost {
-    fn module(&self, name: &str) -> anyhow::Result<Box<dyn balaur_script::Bindings<Engine>>> {
+    fn module(&self, name: &str) -> anyhow::Result<balaur_script::Module<Engine>> {
         self.modules.borrow_mut().push(name.to_string());
-        Ok(Box::new(balaur_script::NoBindings))
+        Ok(balaur_script::Module::detached(name))
     }
     fn attach_with_props(
         &self,
@@ -419,16 +419,6 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
     }
     fn instance_count(&self) -> usize {
         0
-    }
-    fn invoke(
-        &self,
-        _: balaur_script::CallbackId,
-        _: &[balaur_script::Value],
-    ) -> anyhow::Result<balaur_script::Value> {
-        Ok(balaur_script::Value::Nil)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 

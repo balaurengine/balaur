@@ -4,7 +4,7 @@
 use anyhow::{Result, anyhow};
 use balaur_core::glamx::Vec3;
 use balaur_core::{Engine, entity_of};
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::bus::{self, Buses, Effects, Limiter};
 use crate::cue;
@@ -67,7 +67,7 @@ const fn handle_of(raw: i64) -> u64 {
 }
 
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
-pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
     );
@@ -164,7 +164,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Its own group because the rest of `audio` is about one playback at a time
 /// and this is about all of them at once.
-fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
+fn install_mixing_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("buses", &[], "() -> [string]", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
         ("bus_volume_linear", &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
@@ -318,7 +318,7 @@ fn effects_table(effects: &Effects) -> Value {
 /// Its own group because the rest of `audio` is about what plays, and this
 /// is about where: the `listener` node's own half of the pair, and the
 /// emitter behind a handle that was played with a `position`.
-fn install_positional_api(m: &mut dyn Bindings<Engine>) {
+fn install_positional_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, else the current camera's."),
         ("emitter_position", &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
@@ -364,25 +364,18 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
 #[cfg(test)]
 mod tests {
     use balaur_core::{App, AppConfig, Engine};
-    use balaur_script::{Bindings, BoundFn, FnDoc, Value};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use balaur_script::{Call, Declared, Module, Value, Values};
 
     use crate::vocabulary::keys as k;
 
-    #[derive(Default)]
-    struct Recorded {
-        functions: Vec<String>,
-        doc: String,
-    }
-
-    impl Bindings<Engine> for Recorded {
-        fn function_raw(&mut self, name: &str, _: BoundFn<Engine>) {
-            self.functions.push(name.to_string());
-        }
-        fn constant(&mut self, _: &str, _: Value) {}
-        fn module_doc(&mut self, doc: &'static str) {
-            self.doc = doc.to_string();
-        }
-        fn describe(&mut self, _: &[FnDoc]) {}
+    /// What the module declares, as a backend would read it.
+    fn declared() -> Rc<RefCell<Declared<Engine>>> {
+        let declared: Rc<RefCell<Declared<Engine>>> = Rc::default();
+        super::install_audio_api(&mut Module::new("audio", declared.clone()));
+        declared
     }
 
     /// Every function name a source spells after the module's name and a dot.
@@ -399,30 +392,6 @@ mod tests {
             .collect()
     }
 
-    /// Every function the module registers, kept so a test can call one.
-    #[derive(Default)]
-    struct Callable {
-        functions: Vec<(String, BoundFn<Engine>)>,
-    }
-
-    impl Bindings<Engine> for Callable {
-        fn function_raw(&mut self, name: &str, func: BoundFn<Engine>) {
-            self.functions.push((name.to_string(), func));
-        }
-        fn constant(&mut self, _: &str, _: Value) {}
-    }
-
-    impl Callable {
-        fn call(&self, eng: &Engine, name: &str, args: &[Value]) -> Value {
-            let (_, func) = self
-                .functions
-                .iter()
-                .find(|(registered, _)| registered == name)
-                .expect("registered");
-            func(eng, args).expect("the call succeeds")
-        }
-    }
-
     /// `audio.bus_effects` hands back the keys `[audio.buses]` spells, so a
     /// script reads a bus's effects by the names the project wrote them in.
     #[test]
@@ -435,11 +404,18 @@ mod tests {
         .unwrap();
         std::fs::write(dir.path().join("main.toml"), "").unwrap();
         let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-        balaur_plugin::load(&mut app, &mut crate::AudioPlugin::default()).unwrap();
+        balaur_plugin::load(&mut app, &mut crate::AudioPlugin).unwrap();
         app.load_project().unwrap();
-        let mut callable = Callable::default();
-        super::install_audio_api(&mut callable);
-        let bus = |name: &str| callable.call(&app.engine, "bus_effects", &[Value::text(name)]);
+        let declared = declared();
+        let bus = |name: &str| {
+            let args = [Value::text(name)];
+            let held = declared.borrow();
+            match held.modules["audio"]["bus_effects"].call.as_ref().unwrap() {
+                Call::Raw(func) => func(&app.engine, &args),
+                Call::Typed(func) => func(&app.engine, &Values(&args)),
+            }
+            .expect("the call succeeds")
+        };
 
         let Value::Map(entries) = bus("cave") else {
             panic!("a bus with effects reads back a map");
@@ -461,8 +437,8 @@ mod tests {
 
     #[test]
     fn every_audio_call_the_crate_docs_name_is_registered() {
-        let mut recorded = Recorded::default();
-        super::install_audio_api(&mut recorded);
+        let declared = declared();
+        let declared = declared.borrow();
         let sources = [
             include_str!("lib.rs"),
             include_str!("script_api.rs"),
@@ -474,7 +450,7 @@ mod tests {
         for source in sources {
             for name in audio_calls(source) {
                 assert!(
-                    recorded.functions.contains(&name),
+                    declared.modules["audio"].contains_key(&name),
                     "the docs name `audio.{name}`, which the module does not register"
                 );
             }
@@ -490,7 +466,7 @@ mod tests {
             "devices",
         ] {
             assert!(
-                recorded.doc.contains(&format!("`{named}`")),
+                declared.module_docs["audio"].contains(&format!("`{named}`")),
                 "the module doc never names `{named}`"
             );
         }

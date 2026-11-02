@@ -13,7 +13,6 @@
 //! `shaders/mesh.wesl` is where a surface reads one.
 
 use balaur_core::GlobalTransform;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum};
 use balaur_core::hecs::{Entity, World};
 use balaur_plugin::Registry;
@@ -27,7 +26,7 @@ use balaur_core::layers::Layer;
 // world units and does not follow the node's scale, the way a `light3d`'s
 // range does not.
 #[derive(Component)]
-#[component(name = "reflection_probe")]
+#[component(name = "reflection_probe", tags = [words::PERSPECTIVE, "render"])]
 pub struct ReflectionProbe {
     /// The box this probe speaks for, in world units, centred on the node and turned with it. A node with a shader material still reads the box unturned
     #[property(default = Vec3::splat(10.0), min = 0.0)]
@@ -126,13 +125,7 @@ pub fn probes(world: &World, root: Entity) -> Vec<LitProbe> {
 
 /// The `reflection_probe` component.
 pub(crate) fn register_reflection_probe_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        ReflectionProbe::NAME,
-        ComponentDef {
-            tags: &[words::PERSPECTIVE, "render"],
-            ..ComponentDef::of::<ReflectionProbe>(None)
-        },
-    );
+    reg.add_component::<ReflectionProbe>();
 }
 
 /// The probes the window holds, and what they were built from.

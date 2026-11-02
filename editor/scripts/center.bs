@@ -244,7 +244,7 @@ pub fn fill_rail(state: editor::State) {
         filled.widget.gap = vec2(grid.gap, grid.gap);
         filled.patch_component("widget", { "padding": grid.padding });
     }
-    pool::strip(state, RAIL, columns);
+    ui::fill_strip(RAIL, columns);
 }
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
@@ -387,7 +387,7 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
             }
         }
     }
-    pool::strip(state, CHIPS, out);
+    ui::fill_strip(CHIPS, out);
     let filled = scene::get_node(CHIPS);
     if filled.is_valid() {
         filled.widget.height = hud_height(state);
@@ -461,7 +461,7 @@ fn view_chip(state: editor::State) -> ui::Control {
             role: "item_menu",
             text: mode[1],
             text_color: if name == current { tokens["primary_text"] } else { tokens["text_default"] },
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_view_mode_picked, "name": name },
         });
     }
@@ -498,7 +498,7 @@ fn bookmark_chips(state: editor::State) -> [ui::Control] {
             fill: if held { tokens["primary_bg"] } else { tokens["bg_control"] },
             text_color: if held { tokens["primary_text"] } else { tokens["text_subtle"] },
             tooltip: if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
-            on: "handle",
+            on_click: "handle",
             data: { "fn": on_bookmark_pressed, "key": key },
         });
     }
@@ -784,7 +784,7 @@ pub fn fill_hooks(state: &mut editor::State) {
             });
         }
     }
-    pool::strip(state, HOOKS + "/Pills", pills);
+    ui::fill_strip(HOOKS + "/Pills", pills);
     let dirty = file.relative_path != "" && state.script_dirty.has(state.game_root + "/" + file.relative_path);
     util::set_visible(HOOKS + "/Unsaved", dirty);
 }

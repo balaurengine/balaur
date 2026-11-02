@@ -146,7 +146,7 @@ def declaration_sites() -> dict[str, list[Site]]:
     """Every script-visible name, mapped back to where Rust declares it.
 
     Two shapes: `m.function("name", |eng, ..| ..)` in a binding group, and the
-    `NodeOp { name: "name", call: f }` tables, where the body lives in a free
+    `op("name", .., f)` rows of `NODE_OPS`, where the body lives in a free
     function one screen away.
     """
     sites: dict[str, list[Site]] = {}
@@ -158,7 +158,7 @@ def declaration_sites() -> dict[str, list[Site]]:
             line = text.count("\n", 0, m.start()) + 1
             sites.setdefault(m.group(1), []).append(
                 Site(path, line, comment_above(lines, line - 1), block_at(text, m.start())))
-        for m in re.finditer(r'name:\s*"([a-z_][a-z0-9_]*)",\s*call:\s*([a-z_][a-z0-9_]*)', text):
+        for m in re.finditer(r'\bop\(\s*"([a-z_][a-z0-9_]*)",\s*&\[[^\]]*\],\s*"[^"]*",\s*"(?:[^"\\]|\\.)*",\s*([a-z_][a-z0-9_]*)\)', text):
             line = text.count("\n", 0, m.start()) + 1
             start = fns.get(m.group(2), m.start())
             sites.setdefault(m.group(1), []).append(

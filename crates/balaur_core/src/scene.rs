@@ -132,7 +132,7 @@ pub fn name_script(
 
 /// The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.
 #[derive(Clone, Copy, crate::components::derived::Component)]
-#[component(name = "transform")]
+#[component(name = "transform", tags = ["2d", "3d"])]
 pub struct Transform {
     /// Where the node sits in its parent's space
     #[property(default = Vec3::ZERO)]

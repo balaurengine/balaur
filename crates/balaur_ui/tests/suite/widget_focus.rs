@@ -377,47 +377,6 @@ fn a_text_key_follows_the_locale() {
     );
 }
 
-/// A host that confines the default surface confines every layer it has not
-/// been told about, or a scene naming `layer = "hud"` draws over the editor's
-/// own chrome whether or not the game is playing.
-#[test]
-fn a_layer_nothing_configured_takes_the_default_surface() {
-    let (_dir, app) = app();
-    let hud = add_widget(
-        &app,
-        &toml::toml! { kind = "panel" text = "hud" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "unheard_of" }
-            .into(),
-    );
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().rect = Some([300.0, 200.0, 100.0, 100.0]);
-    }
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let placed = ctx
-        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", hud))))
-        .expect("control: the hud drew somewhere");
-    assert!(
-        placed.min.x >= 299.0,
-        "an unconfigured layer escaped the default surface: {placed:?}"
-    );
-
-    // And its enabled flag too: turning the default off takes it with it.
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().enabled = false;
-    }
-    let out = pass(&app, &ctx, vec![]);
-    let drew = out.shapes.iter().any(|shape| match &shape.shape {
-        egui::epaint::Shape::Text(text) => text.galley.text() == "hud",
-        _ => false,
-    });
-    assert!(
-        !drew,
-        "an unconfigured layer ignored the default's off switch"
-    );
-}
-
 /// Focus put on a field by a script takes the caret with it, so what is typed
 /// next lands there: a command palette opens ready to be typed into.
 #[test]

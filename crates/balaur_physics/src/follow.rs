@@ -8,19 +8,23 @@ use crate::properties::{Axis3d, FollowKind, node_at};
 use crate::rapier3d::control::{PdController, PidController};
 use crate::rapier3d::dynamics::{AxesMask, RigidBodyVelocity};
 use crate::scalar::{self, Real};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalTransform, Stage, entity_of, fixed_dt};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::PhysicsState3d;
 use crate::vocabulary::component as c;
 
 /// Pulls the node's `body3d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow3d.reset_follow()` forgets what a PID summed.
 #[derive(Clone, Component)]
-#[component(name = "follow3d", on_remove = follow3d_removed)]
+#[component(
+    name = "follow3d",
+    on_remove = follow3d_removed,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    expects = [c::BODY_3D],
+)]
 pub struct Follow3d {
     /// The node whose pose the body is pulled to; empty pulls nothing
     #[property(node)]
@@ -193,20 +197,10 @@ fn follow_system(eng: &Engine, _dt: f32) {
 /// `follow3d`: what was asked, held on the node; the controller a step keeps
 /// is in [`PhysicsState3d::follows`].
 fn register_follow_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Follow3d::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::BODY_3D],
-            ..ComponentDef::of::<Follow3d>(None)
-        },
-    );
+    reg.add_component::<Follow3d>();
 }
 
-pub(crate) fn install_follow_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_follow_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "reset_follow",
         &[c::FOLLOW_3D],

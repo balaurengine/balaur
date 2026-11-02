@@ -22,7 +22,7 @@ macro_rules! runtime_api {
         value = $value:path,
         array = $array:path
     ) => {
-        pub(crate) fn $install(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        pub(crate) fn $install(m: &mut balaur_script::Module<balaur_core::Engine>) {
             m.describe(&[
                 ("softbody_particles", &[$component], "() -> int", "How many particles the body has, every piece torn off it included: a generator decides, not the author."),
                 ("softbody_position", &[$component], concat!("(index: int) -> vec", $N), "Where one particle is, in world space."),
@@ -235,9 +235,9 @@ macro_rules! runtime_api {
         }
 
         // Particles held, moved and read one at a time.
-        fn held(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        fn held(m: &mut balaur_script::Module<balaur_core::Engine>) {
             use balaur_core::Engine;
-            use balaur_script::{BindingsExt, NodeId, Value};
+            use balaur_script::{NodeId, Value};
             use crate::shared::softbody::vector_arg;
             m.function("softbody_particles", |eng: &Engine, node: NodeId| {
                 with(eng, node, |state, root| {
@@ -331,9 +331,9 @@ macro_rules! runtime_api {
         }
 
         // A body tied to rigid bodies, and pushed by forces and impulses.
-        fn pushed(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        fn pushed(m: &mut balaur_script::Module<balaur_core::Engine>) {
             use balaur_core::{Engine, entity_of};
-            use balaur_script::{BindingsExt, NodeId, Value};
+            use balaur_script::{NodeId, Value};
             use crate::shared::softbody::vector_arg;
 
             m.function(
@@ -435,9 +435,9 @@ macro_rules! runtime_api {
         }
 
         // What the edges carry, and whether the body rests.
-        fn read(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        fn read(m: &mut balaur_script::Module<balaur_core::Engine>) {
             use balaur_core::Engine;
-            use balaur_script::{BindingsExt, NodeId, Value};
+            use balaur_script::{NodeId, Value};
 
             m.function("softbody_edges", |eng: &Engine, node: NodeId| {
                 gather(eng, node, |_, body, offset| {
@@ -508,9 +508,9 @@ macro_rules! runtime_api {
         }
 
         // One edge, one cell, the boundary and the held volumes.
-        fn elements(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        fn elements(m: &mut balaur_script::Module<balaur_core::Engine>) {
             use balaur_core::Engine;
-            use balaur_script::{BindingsExt, NodeId, Value};
+            use balaur_script::{NodeId, Value};
             use crate::vocabulary::{keys as k, words as w};
 
             m.function("softbody_edge", |eng: &Engine, (node, index): (NodeId, i64)| {
@@ -550,9 +550,9 @@ macro_rules! runtime_api {
         }
 
         // The boundary, the cells, the held volumes and the tear thresholds.
-        fn shape(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        fn shape(m: &mut balaur_script::Module<balaur_core::Engine>) {
             use balaur_core::Engine;
-            use balaur_script::{BindingsExt, NodeId, Value};
+            use balaur_script::{NodeId, Value};
             use crate::vocabulary::keys as k;
 
             m.function("softbody_cells", |eng: &Engine, node: NodeId| {
@@ -630,9 +630,9 @@ macro_rules! runtime_api {
         }
 
         // Tearing and cutting, marked for the next step or done at once.
-        fn torn(m: &mut dyn balaur_script::Bindings<balaur_core::Engine>) {
+        fn torn(m: &mut balaur_script::Module<balaur_core::Engine>) {
             use balaur_core::Engine;
-            use balaur_script::{BindingsExt, NodeId, Value};
+            use balaur_script::{NodeId, Value};
             use crate::vocabulary::keys as k;
 
             m.function("tear_edge", |eng: &Engine, (node, index): (NodeId, i64)| {

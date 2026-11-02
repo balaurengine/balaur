@@ -35,7 +35,7 @@ pub(crate) type ClassTables = Arc<[(&'static str, toml::map::Map<String, toml::V
 /// every write clears it, but it is in the schema so that `get`'s output
 /// round-trips and the inspector can see it.
 pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
-    let derived = ComponentDef::of::<WidgetProperties>(Some(written));
+    let derived = ComponentDef::written_by::<WidgetProperties>(Some(written));
     let (whole, table) = (derived.apply, derived.get);
     // Writes `WidgetProperties`, and the `Widget` built from it with the
     // class tables beside.
@@ -396,7 +396,7 @@ cache_fields! {
         k::ALIGN_SELF => widget.layout.align_self = asked.align_self.0.clone();
         k::ABSOLUTE => widget.layout.absolute = asked.absolute;
         k::INSET => widget.inset = asked.inset;
-        k::LAYER => widget.layer = asked.layer.clone();
+        k::WHOLE_WINDOW => widget.whole_window = asked.whole_window;
         k::SAFE_AREA => widget.safe_area = edges(&asked.safe_area);
         k::MOVABLE => egui(widget).movable = asked.movable;
         k::CONSTRAIN => egui(widget).constrain = asked.constrain;

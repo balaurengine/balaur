@@ -470,7 +470,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
 
     let root = app.engine.root();
     let spawn = |name: &str, x: f32| -> Entity {

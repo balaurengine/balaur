@@ -15,12 +15,11 @@ use crate::rapier2d::prelude::{
 use crate::scalar::{self, Real, Vector2};
 use crate::shared::joint::JointAsk as _;
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component, Record, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState2d;
 use crate::properties::{Axis2d, JointAxis2d, JointKind2d, Motor, MotorStrength};
@@ -155,7 +154,14 @@ pub(crate) fn joint_of(ask: &JointAsk2d) -> Result<GenericJoint> {
 
 /// Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `rope`, `spring`, `groove` or `generic`; both ends need a `body2d` on or above the node. `axes` limits and drives each free axis.
 #[derive(Clone, Component)]
-#[component(name = "joint2d", on_remove = joint2d_removed)]
+#[component(
+    name = "joint2d",
+    on_remove = joint2d_removed,
+    events = crate::vocabulary::hook::JOINT,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::PHYSICS],
+    expects = [c::BODY_2D],
+    after_write = after_write,
+)]
 pub struct Joint2d {
     /// How the two bodies may move relative to each other
     #[property(default = JointKind2d::Fixed)]
@@ -674,7 +680,7 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
     super::collider::nearest_body(eng, entity).map_or(entity, |(node, _)| node)
 }
 
-pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("remove_joint", &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
         ("set_motor_velocity", &[c::JOINT_2D], "(node: node, axis: string, velocity: float, damping: float)", "Drive one of the joint's free axes towards a speed: how a wheel is powered. Rewrites that axis's `axes` record."),
@@ -808,16 +814,5 @@ pub(crate) fn register_joint2d_component(reg: &mut Registry<'_>) {
     beside::register::<Articulation2d>(reg, main, tags, after_write);
     beside::register::<BreakableJoint2d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
-    reg.register_component(
-        Joint2d::NAME,
-        ComponentDef {
-            events: crate::vocabulary::hook::JOINT,
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::BODY_2D],
-            ..ComponentDef::of::<Joint2d>(Some(after_write))
-        },
-    );
+    reg.add_component::<Joint2d>();
 }

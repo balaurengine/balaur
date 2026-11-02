@@ -16,7 +16,7 @@ fn app() -> App {
     // Asset references resolve against the project root when no script host
     // is running, which is every Rust-only app and every test.
     let mut app = App::new(AppConfig::bare("tests/fixtures")).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 

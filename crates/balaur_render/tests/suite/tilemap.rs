@@ -5,7 +5,7 @@ use balaur_render::{TileLayout, TileSet};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
-    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default())
+    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin)
         .expect("the render plugin builds headless");
     app
 }

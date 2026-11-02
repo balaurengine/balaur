@@ -939,17 +939,8 @@ pub fn skip_on(eng: &Engine, entity: Entity) {
     publish_playback_times(eng);
 }
 
-pub struct AudioPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for AudioPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("audio", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct AudioPlugin;
 
 fn open_device(output: &OutputSettings, routes: &[bus::Route]) -> Option<backend::Device> {
     match backend::Device::open(output, routes) {
@@ -1077,8 +1068,8 @@ fn announce_finished(eng: &Engine, ended: &[u64]) {
 }
 
 impl balaur_plugin::Plugin for AudioPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "audio"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {

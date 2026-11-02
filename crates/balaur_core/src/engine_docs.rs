@@ -4,7 +4,7 @@
 
 use crate::engine::Engine;
 
-pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugins` and `quit`.",
     );
@@ -69,7 +69,7 @@ pub(crate) fn document_engine(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_hash(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_hash(m: &mut balaur_script::Module<Engine>) {
     m.module_doc("SHA-256 content hashes of files and strings.");
     m.describe(&[
         ("sha256", &[], "(path: string) -> string", "The SHA-256 of a file as lowercase hex, read through the project's file roots; an absolute path is read as given."),
@@ -77,7 +77,7 @@ pub(crate) fn document_hash(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_encoding(m: &mut balaur_script::Module<Engine>) {
     m.module_doc("Bytes to base64 text and back.");
     m.describe(&[
         (
@@ -95,7 +95,7 @@ pub(crate) fn document_encoding(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "The node tree: its root, lookup by path and instancing, plus the component and preset vocabulary an editor's palette lists.",
     );
@@ -172,7 +172,7 @@ pub(crate) fn document_scene(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_skeleton(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Bones under a rig node: their rest pose and the order a skin numbers joints in. A bone is any node carrying `bone2d` or `bone3d`.",
     );
@@ -183,7 +183,7 @@ pub(crate) fn document_skeleton(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_assets(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.",
     );
@@ -197,14 +197,14 @@ pub(crate) fn document_assets(m: &mut dyn balaur_script::Bindings<Engine>) {
         ("directory", &[], "(type_name: string) -> string", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
         ("schema", &[], "(type_name: string) -> map?", "The properties a record asset type holds, in the order it writes them; nil for a type that is not a record."),
         ("kind_of", &[], "(path: string) -> string", "Which importer kind a file is by its extension — `texture`, `audio`, `font` or `model` — or empty for one none claims. A `.ttf`, `.otf`, `.ttc` or `.fnt` is a font."),
-        ("rename", &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.rn` is the script's own value, and `id://` is the reference that survives a move."),
+        ("rename", &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.bs` is the script's own value, and `id://` is the reference that survives a move."),
         ("id", &[], "(path: string) -> string?", "The id `assets/index.toml` gives a file, or nil when it has none."),
         ("assign_id", &[], "(path: string) -> string", "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards."),
         ("path", &[], "(reference: string) -> string", "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index."),
     ]);
 }
 
-pub(crate) fn document_regex(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_regex(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Regular expressions, the `regex-lite` dialect: no look-around or back-references. A pattern is compiled on every call; a match is a `Match`, with byte offsets and one string per capture group, nil for a group that took no part.",
     );
@@ -223,7 +223,7 @@ pub(crate) fn document_regex(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_strings(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Localization: one `strings/<locale>.toml` per language, keys to strings. `[locale]` in `project.toml` sets the starting locale and the fallback; a key neither has comes back as itself.",
     );
@@ -236,7 +236,7 @@ pub(crate) fn document_strings(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_save(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.",
     );
@@ -250,7 +250,7 @@ pub(crate) fn document_save(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_log(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "The `info`, `warn` and `error` levels a script writes at, and the buffer behind them. Lines go through the engine's own `tracing` stream.",
     );
@@ -283,7 +283,7 @@ pub(crate) fn document_log(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_random(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_random(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "The engine's one deterministic PCG32 stream: the same seed draws the same numbers on every platform, and a replay reproduces every draw.",
     );
@@ -296,7 +296,7 @@ pub(crate) fn document_random(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_fs(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "Files on disk, project-relative unless the path is absolute. A packed build's contents are reached through `assets` and `scene.source`.",
     );
@@ -318,7 +318,7 @@ pub(crate) fn document_fs(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_toml(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
         "TOML text to and from script tables, the format of scene files, asset definitions and component properties.",
     );
@@ -329,7 +329,7 @@ pub(crate) fn document_toml(m: &mut dyn balaur_script::Bindings<Engine>) {
     ]);
 }
 
-pub(crate) fn document_json(m: &mut dyn balaur_script::Bindings<Engine>) {
+pub(crate) fn document_json(m: &mut balaur_script::Module<Engine>) {
     m.module_doc("JSON text to and from script values. Its `null` keeps nil through a round trip.");
     m.describe(&[
         ("parse", &[], "(text: string) -> any", "The value a JSON document describes; nil for text that does not parse, as for `null`."),

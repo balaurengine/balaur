@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 mod forge;
 mod picture;
@@ -27,22 +27,18 @@ pub(crate) struct ProjectState {
     home: PathBuf,
 }
 
-pub(crate) struct ProjectPlugin {
-    manifest: balaur_plugin::Manifest,
-}
+pub(crate) struct ProjectPlugin {}
 
 impl ProjectPlugin {
     #[must_use]
     pub(crate) fn new() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("project", env!("CARGO_PKG_VERSION")),
-        }
+        Self {}
     }
 }
 
 impl balaur_plugin::Plugin for ProjectPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "project"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -59,9 +55,9 @@ impl balaur_plugin::Plugin for ProjectPlugin {
             }
         });
         let mut m = reg.script_module("project")?;
-        install_project_api(&mut *m);
-        install_project_verbs(&mut *m);
-        install_font_verbs(&mut *m);
+        install_project_api(&mut m);
+        install_project_verbs(&mut m);
+        install_font_verbs(&mut m);
         drop(m);
         picture::declare(reg)?;
         release::declare(reg)?;
@@ -69,7 +65,7 @@ impl balaur_plugin::Plugin for ProjectPlugin {
     }
 }
 
-fn install_project_api(m: &mut dyn Bindings<Engine>) {
+fn install_project_api(m: &mut Module<Engine>) {
     m.module_doc(
         "The projects this machine has opened, the templates a new one starts from, and the folder picker the OS provides. What the editor's start screen is made of.",
     );
@@ -78,7 +74,7 @@ fn install_project_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The tables the verbs hand back, so a typed script reads them by field.
-fn project_records(m: &mut dyn Bindings<Engine>) {
+fn project_records(m: &mut Module<Engine>) {
     m.records(&[
         (
             "Recent",
@@ -114,7 +110,7 @@ fn project_records(m: &mut dyn Bindings<Engine>) {
 }
 
 /// What each verb is, for the reference and the editor's hover.
-fn describe_project_api(m: &mut dyn Bindings<Engine>) {
+fn describe_project_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "recent",
@@ -216,7 +212,7 @@ fn describe_project_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The faces this machine has installed, and copying one into a project.
-fn install_font_verbs(m: &mut dyn Bindings<Engine>) {
+fn install_font_verbs(m: &mut Module<Engine>) {
     m.function("system_fonts", |_: &Engine, ()| {
         Ok(Value::List(
             balaur_text::fonts::installed_faces()
@@ -250,7 +246,7 @@ fn install_font_verbs(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-fn install_project_verbs(m: &mut dyn Bindings<Engine>) {
+fn install_project_verbs(m: &mut Module<Engine>) {
     m.function("recent", |eng: &Engine, ()| {
         Ok(Value::List(recent_rows(eng)))
     });

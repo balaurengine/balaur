@@ -9,7 +9,7 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings as _, Value};
+use balaur_script::Value;
 
 use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
@@ -661,7 +661,7 @@ pub enum ApiPart {
     /// fills that module, across tables too.
     Ops(&'static [EngineOp]),
     /// A whole module, filled by its installer.
-    Module(&'static str, fn(&mut dyn balaur_script::Bindings<Engine>)),
+    Module(&'static str, fn(&mut balaur_script::Module<Engine>)),
 }
 
 /// The kernel's script API, in its order.
@@ -691,7 +691,7 @@ pub const KERNEL_MODULES: [ApiPart; 6] = [
 /// node handle method syntax still walks `node_api::NODE_OPS` for the
 /// sugar; this is what makes the operations reachable at all.
 ///
-/// Takes `&Engine` rather than a `Bindings`: unlike every other
+/// Takes `&Engine` rather than a `Module`: unlike every other
 /// `install_*`, it creates the modules on the host itself instead of filling
 /// one it was handed, because the operations it registers span several
 /// modules.
@@ -699,7 +699,7 @@ pub fn install_engine_api(eng: &Engine, api: &[ApiPart]) -> Result<()> {
     let host = eng
         .script_host()
         .ok_or_else(|| anyhow!("no script backend is running"))?;
-    let mut current: Option<(&str, Box<dyn balaur_script::Bindings<Engine>>)> = None;
+    let mut current: Option<(&str, balaur_script::Module<Engine>)> = None;
     for part in api {
         match part {
             ApiPart::Ops(ops) => {
@@ -708,7 +708,7 @@ pub fn install_engine_api(eng: &Engine, api: &[ApiPart]) -> Result<()> {
                         Some((name, m)) if *name == d.module => m,
                         _ => {
                             let mut fresh = host.module(d.module)?;
-                            document(d.module, &mut *fresh);
+                            document(d.module, &mut fresh);
                             current = Some((d.module, fresh));
                             &mut current.as_mut().expect("just assigned").1
                         }
@@ -719,7 +719,7 @@ pub fn install_engine_api(eng: &Engine, api: &[ApiPart]) -> Result<()> {
             ApiPart::Module(name, install) => {
                 current = None;
                 let mut m = host.module(name)?;
-                install(&mut *m);
+                install(&mut m);
             }
         }
     }
@@ -730,7 +730,7 @@ pub fn install_engine_api(eng: &Engine, api: &[ApiPart]) -> Result<()> {
 ///
 /// One table spans nine modules, so this cannot sit beside a single
 /// `install_*` the way every other subsystem's documentation does.
-fn document(module: &str, m: &mut dyn balaur_script::Bindings<Engine>) {
+fn document(module: &str, m: &mut balaur_script::Module<Engine>) {
     match module {
         "engine" => crate::engine_docs::document_engine(m),
         "scene" => crate::engine_docs::document_scene(m),

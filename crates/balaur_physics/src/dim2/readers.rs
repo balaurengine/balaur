@@ -3,7 +3,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::first_collider;
@@ -30,7 +30,7 @@ fn corners(aabb: &Aabb) -> (Real, Real, Real, Real) {
 }
 
 /// Replacing a 2D collider, and the boxes it covers.
-pub(crate) fn install_collider2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("aabb", &[c::COLLIDER_2D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
         ("swept_aabb", &[c::COLLIDER_2D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
@@ -74,7 +74,7 @@ pub(crate) fn install_collider2d_api(m: &mut dyn Bindings<Engine>) {
 
 /// What a 2D collider weighs, how much room it takes, its shape as points, and
 /// the handles rapier knows it by.
-pub(crate) fn install_collider2d_reader_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("collider_mass", &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
         ("collider_volume", &[c::COLLIDER_2D], "", "How much area the shape encloses."),
@@ -152,7 +152,7 @@ pub(crate) fn install_collider2d_reader_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Cutting holes in a 2D heightfield while the game runs, and reading them.
-pub(crate) fn install_heightfield_2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_heightfield_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_heightfield_hole", &[c::COLLIDER_2D], "", "Remove or restore one segment of a heightfield's ground, numbered from the first height."),
         ("heightfield_hole", &[c::COLLIDER_2D], "", "Whether a heightfield segment has no ground."),

@@ -441,7 +441,7 @@ fn apply_system(eng: &Engine, _dt: f32) {
         }
         emitted.push((entity, CHANGE_EVENT, value));
     }
-    crate::widget::pool::dispatch(eng, &emitted, &hit);
+    crate::widget::pool::heard(eng, &emitted);
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {
@@ -469,7 +469,7 @@ fn apply_system(eng: &Engine, _dt: f32) {
                 (
                     recipient(eng, host.as_ref(), entity, &method),
                     method,
-                    vec![Value::Nil, told(entity)],
+                    crate::widget::pool::handler_args(eng, entity, Value::Nil, told(entity)),
                 )
             })
             .collect();
@@ -479,7 +479,7 @@ fn apply_system(eng: &Engine, _dt: f32) {
                 (
                     recipient(eng, host.as_ref(), entity, &method),
                     method,
-                    vec![value, told(entity)],
+                    crate::widget::pool::handler_args(eng, entity, value, told(entity)),
                 )
             })
             .collect();

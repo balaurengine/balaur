@@ -20,7 +20,6 @@ use balaur_script::Value;
 use glamx::{Mat3, Mat4, Quat, Vec2, Vec3};
 
 use balaur_core::App;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Written};
 use balaur_core::engine::Engine;
 use balaur_core::scene::{Children, GlobalTransform, Parent, Transform};
@@ -436,7 +435,14 @@ pub fn skin_positions(
 
 /// Makes the node a 2D bone. `rest_position` and `rest_rotation` are the pose a rig returns to; `length` and `angle` draw its gizmo.
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
-#[component(name = "bone2d", requires = [balaur_core::transform::COMPONENT], on_remove = bone2d_removed)]
+#[component(
+    name = "bone2d",
+    requires = [balaur_core::transform::COMPONENT],
+    on_remove = bone2d_removed,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::ANIMATION],
+    expects = [balaur_core::transform::COMPONENT],
+    after_write = bone2d_written,
+)]
 pub struct Bone2d {
     /// Local rest translation
     pub rest_position: [f32; 2],
@@ -451,7 +457,14 @@ pub struct Bone2d {
 
 /// Makes the node a 3D bone. `rest_position`, `rest_rotation` and `rest_scale` are the pose a rig returns to; `length` draws its gizmo.
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
-#[component(name = "bone3d", requires = [balaur_core::transform::COMPONENT], on_remove = bone3d_removed)]
+#[component(
+    name = "bone3d",
+    requires = [balaur_core::transform::COMPONENT],
+    on_remove = bone3d_removed,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::ANIMATION],
+    expects = [balaur_core::transform::COMPONENT],
+    after_write = bone3d_written,
+)]
 pub struct Bone3d {
     /// Local rest translation
     pub rest_position: Vec3,
@@ -517,17 +530,7 @@ fn bone2d_removed(eng: &Engine, entity: Entity) {
 
 /// The `bone2d` component: the asked-for struct, and the [`Bone`] it fills.
 pub fn register_bone2d_component(app: &mut App) {
-    app.register_component(
-        <Bone2d as Component>::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            expects: &[balaur_core::transform::COMPONENT],
-            ..ComponentDef::of::<Bone2d>(Some(bone2d_written))
-        },
-    );
+    app.add_component::<Bone2d>();
 }
 
 /// What a removed `Bone3d` leaves behind, taken with it.
@@ -537,17 +540,7 @@ fn bone3d_removed(eng: &Engine, entity: Entity) {
 
 /// The `bone3d` component: the asked-for struct, and the [`Bone`] it fills.
 pub fn register_bone3d_component(app: &mut App) {
-    app.register_component(
-        <Bone3d as Component>::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            expects: &[balaur_core::transform::COMPONENT],
-            ..ComponentDef::of::<Bone3d>(Some(bone3d_written))
-        },
-    );
+    app.add_component::<Bone3d>();
 }
 
 fn node_arg(args: &[Value]) -> Result<Entity> {

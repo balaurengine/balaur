@@ -19,7 +19,7 @@ use balaur_physics::{
 /// `axes.motor`.
 fn registered_options(component: &str, field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let schema = registry
         .borrow()
@@ -267,7 +267,7 @@ fn offered_words(dimension: &str) -> Vec<(String, std::collections::BTreeSet<Str
         }
     }
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     let mut out = Vec::new();

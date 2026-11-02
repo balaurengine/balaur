@@ -16,7 +16,7 @@ use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::dim2::PhysicsState2d;
 use crate::properties::{
@@ -41,7 +41,7 @@ mod draw;
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, PartialEq, Component)]
-#[component(name = "softbody2d", on_remove = softbody2d_removed)]
+#[component(name = "softbody2d", on_remove = softbody2d_removed, after_write = after_write)]
 pub struct Softbody2d {
     /// How the body's particles and elements are laid out
     #[property(default = SoftKind2d::Grid)]
@@ -1091,7 +1091,7 @@ pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
                 balaur_core::components::tag::PHYSICS,
                 balaur_core::components::tag::RENDER,
             ],
-            ..ComponentDef::of::<Softbody2d>(Some(after_write))
+            ..ComponentDef::of::<Softbody2d>()
         },
     );
 }
@@ -1111,7 +1111,7 @@ crate::softbody::runtime::runtime_api!(
     array = scalar::a2
 );
 
-pub(crate) fn install_softbody_api_2d(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
     m.describe(&[
         ("softbody_area", &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
         ("softbody_rest_area", &[c::SOFTBODY_2D], "", "How much they enclose at rest."),

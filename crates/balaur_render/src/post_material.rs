@@ -510,7 +510,8 @@ fn build(
             ..crate::material::Material3d::default()
         };
         let modules = crate::shaders::plugin_modules(&app.engine);
-        let compiled = crate::material::compile_with(&material, crate::shaders::FINISH, &modules)?;
+        let compiled =
+            crate::material::compile(&material, crate::shaders::FINISH, &modules, false)?;
         return Ok(Pass::Material(PostMaterial::new(&compiled, format)));
     }
     let asset =
@@ -520,7 +521,7 @@ fn build(
     }
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let modules = crate::shaders::plugin_modules(&app.engine);
-    let compiled = crate::material::compile_with(&asset, &source, &modules)?;
+    let compiled = crate::material::compile(&asset, &source, &modules, false)?;
     Ok(Pass::Material(PostMaterial::new(&compiled, format)))
 }
 

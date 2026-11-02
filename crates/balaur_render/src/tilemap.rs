@@ -5,11 +5,10 @@
 use crate::vocabulary::words;
 use anyhow::{Context, Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
 pub use balaur_geometry::tiles::{TILESET_ASSET_TYPE, TileSet};
 
@@ -56,7 +55,12 @@ pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
 // The node draws the [`TileLayout`] each write lays out beside it; a script's
 // painting writes what it painted back here, so a save keeps it.
 #[derive(Clone, Component)]
-#[component(name = "tilemap", on_remove = tilemap_removed)]
+#[component(
+    name = "tilemap",
+    on_remove = tilemap_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = tilemap_written,
+)]
 pub struct Tilemap {
     /// The tileset naming the texture and tile grid
     #[property(asset = "tileset")]
@@ -597,18 +601,12 @@ fn tilemap_removed(eng: &Engine, entity: Entity) {
 /// backend mirrors it as one atlas-textured mesh, rebuilt only when
 /// [`TileLayout::version`] moves — a tilemap is static between edits.
 pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Tilemap::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Tilemap>(Some(tilemap_written))
-        },
-    );
+    reg.add_component::<Tilemap>();
 }
 
 /// What a map painted by terrain answers: the values, the rules' output, and
 /// what a tile carries. Split from `install_tilemap_api` under `MAX_FN_LINES`.
-pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_terrain", &["tilemap"], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
         ("terrain", &["tilemap"], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
@@ -666,7 +664,7 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
 
 /// `render.set_cell` and `render.cell`: one tile at a time, for a map a
 /// script edits as it plays. A write past the grid's edge grows it.
-pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_tilemap_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_cell", &["tilemap"], "(x: int, y: int, tile: int)", "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame."),
         ("cell", &["tilemap"], "(x: int, y: int) -> int", "The tile at a column and row, or -1 for an empty cell or one past the edge."),

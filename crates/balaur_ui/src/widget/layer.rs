@@ -89,12 +89,12 @@ fn paint_to_the_edge(ui: &mut egui::Ui, at: &mut Painting<'_>, root: usize, kept
     }
 }
 
-/// Every visible root, each on the surface it names.
+/// Every visible root, each where it draws.
 fn draw_roots(
     ctx: &egui::Context,
     painting: &mut Painting<'_>,
     roots: &[usize],
-    surface_of: &dyn Fn(&str) -> Surface,
+    surface_of: &dyn Fn(&Widget) -> Surface,
 ) -> crate::widget::toast::Stack {
     let (eng, placed, screen) = (painting.eng, painting.arena, painting.surface);
     let mut toasts = crate::widget::toast::Stack::default();
@@ -103,7 +103,7 @@ fn draw_roots(
         if !widget.visible {
             continue;
         }
-        let surface = surface_of(&widget.layer);
+        let surface = surface_of(widget);
         if !surface.enabled {
             continue;
         }
@@ -125,14 +125,13 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let Some(layer) = eng.try_resource::<WidgetLayerConfig>() else {
         return;
     };
-    let (default, surfaces, keyboard) = {
+    let (default, keyboard) = {
         let layer = layer.borrow();
         (
             Surface {
                 enabled: layer.enabled,
                 rect: layer.rect,
             },
-            layer.layers.clone(),
             layer.keyboard,
         )
     };
@@ -150,13 +149,11 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     if placed.is_empty() {
         return;
     }
-    // A layer nothing configured takes the default surface, so a host that
-    // confines the default confines everything it was not told about.
-    let surface_of = |name: &str| {
-        if name.is_empty() {
-            default
+    let surface_of = |widget: &Widget| {
+        if widget.whole_window {
+            Surface::default()
         } else {
-            surfaces.get(name).copied().unwrap_or(default)
+            default
         }
     };
     let was_focused = eng
@@ -166,7 +163,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     let keys = keyboard && !ctx.egui_wants_keyboard_input();
     let asked = keys.then(|| keyboard_move(ctx)).flatten();
     let side = keys.then(|| keyboard_side(ctx)).flatten();
-    let shown = reachable(&placed, &roots, &|name| surface_of(name).enabled);
+    let shown = reachable(&placed, &roots, &|widget| surface_of(widget).enabled);
     let stops = focus_stops(&placed, &shown);
     let accepted = advance(eng, &stops, asked, side);
     let turned = turned_fold(&placed, accepted);

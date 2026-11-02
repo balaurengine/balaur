@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
@@ -58,11 +58,11 @@ pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(PictureState(Reporting::new(PathBuf::new())));
     reg.add_system(Stage::First, pump::<PictureState, PictureEvent>);
     let mut m = reg.script_module("picture")?;
-    install_picture_api(&mut *m);
+    install_picture_api(&mut m);
     Ok(())
 }
 
-fn install_picture_api(m: &mut dyn Bindings<Engine>) {
+fn install_picture_api(m: &mut Module<Engine>) {
     m.module_doc(
         "A picture of a project: its scene through its current camera, at its `[window]` size, written to a PNG by a second process running `balaur run --offscreen --shot`.",
     );

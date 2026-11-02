@@ -7,7 +7,7 @@ use balaur_render::{CameraConfig2d, CameraConfig3d, PostConfig, RenderPlugin};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 

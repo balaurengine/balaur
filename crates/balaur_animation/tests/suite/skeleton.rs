@@ -15,7 +15,7 @@ fn app() -> App {
         ..AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))
     })
     .unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 

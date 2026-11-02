@@ -14,7 +14,6 @@ use balaur_core::system_param::{Res, ResMut};
 use balaur_core::{Engine, Stage};
 pub use balaur_geometry::primitive::{Flat, Solid};
 use balaur_plugin::Registry;
-use balaur_script::Bindings;
 
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
@@ -920,21 +919,12 @@ pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result
     Ok(())
 }
 
-pub struct RenderPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for RenderPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("render", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct RenderPlugin;
 
 impl balaur_plugin::Plugin for RenderPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "render"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -975,27 +965,27 @@ impl balaur_plugin::Plugin for RenderPlugin {
         for (name, value) in vocabulary::CONSTANTS {
             m.constant(name, balaur_script::Value::Str((*value).to_string()));
         }
-        script_api::install_camera_api(&mut *m);
-        script_api::install_camera_2d_api(&mut *m);
-        debug_view::install_debug_view_api(&mut *m);
-        script_api::install_backdrop_api(&mut *m);
-        retained::install_retained_api(&mut *m);
-        material::install_material_check(&mut *m);
-        material::install_material_params(&mut *m);
-        boolean::install_boolean_api(&mut *m);
-        multimesh_api::install_multimesh_api(&mut *m);
-        multimesh_api::install_multimesh_list_api(&mut *m);
-        populate::install_populate_api(&mut *m);
-        light::install_occluder_api(&mut *m);
-        stats::install_stats_api(&mut *m);
-        script_api::install_sprite_api(&mut *m);
-        script_api::install_sprite_state_api(&mut *m);
-        script_api::install_texture_api(&mut *m);
-        draw_2d::install_draw_2d_api(&mut *m);
-        text_component::install_text_api(&mut *m);
-        tilemap::install_tilemap_api(&mut *m);
-        tilemap::install_tilemap_terrain_api(&mut *m);
-        notifier::install_notifier_api(&mut *m);
+        script_api::install_camera_api(&mut m);
+        script_api::install_camera_2d_api(&mut m);
+        debug_view::install_debug_view_api(&mut m);
+        script_api::install_backdrop_api(&mut m);
+        retained::install_retained_api(&mut m);
+        material::install_material_check(&mut m);
+        material::install_material_params(&mut m);
+        boolean::install_boolean_api(&mut m);
+        multimesh_api::install_multimesh_api(&mut m);
+        multimesh_api::install_multimesh_list_api(&mut m);
+        populate::install_populate_api(&mut m);
+        light::install_occluder_api(&mut m);
+        stats::install_stats_api(&mut m);
+        script_api::install_sprite_api(&mut m);
+        script_api::install_sprite_state_api(&mut m);
+        script_api::install_texture_api(&mut m);
+        draw_2d::install_draw_2d_api(&mut m);
+        text_component::install_text_api(&mut m);
+        tilemap::install_tilemap_api(&mut m);
+        tilemap::install_tilemap_terrain_api(&mut m);
+        notifier::install_notifier_api(&mut m);
         script_api::register_window_module(reg)?;
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);

@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use balaur::{Engine, Stage};
 use balaur_core::handler::opt;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
 use crate::jobs::pump;
@@ -40,23 +40,19 @@ impl ExportState {
 /// The editor's export verb, registered by the CLI after the editor's app is
 /// built: the library is the CLI's dependency, not the engine's.
 pub(crate) struct ExportPlugin {
-    manifest: balaur_plugin::Manifest,
     project: PathBuf,
 }
 
 impl ExportPlugin {
     #[must_use]
     pub(crate) fn new(project: PathBuf) -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("export", env!("CARGO_PKG_VERSION")),
-            project,
-        }
+        Self { project }
     }
 }
 
 impl balaur_plugin::Plugin for ExportPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "export"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -66,12 +62,12 @@ impl balaur_plugin::Plugin for ExportPlugin {
         reg.insert_resource(ExportState(ExportCore::new(self.project.clone())));
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
         let mut m = reg.script_module("export")?;
-        install_export_api(&mut *m);
+        install_export_api(&mut m);
         Ok(())
     }
 }
 
-fn install_export_api(m: &mut dyn Bindings<Engine>) {
+fn install_export_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports as the `export_event` event: `events::listen(node, \"export_event\")`, heard as `on_export_event`, as each export starts, finishes or fails.",
     );

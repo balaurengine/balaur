@@ -23,7 +23,7 @@
 //! Nothing here is recorded for replay: an emit comes from a script, and a
 //! replay re-runs the script, which emits again.
 
-use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 use smol_str::SmolStr;
 
 use crate::collections::DetHashMap;
@@ -625,7 +625,7 @@ fn sweep(eng: &Engine) {
 
 /// Declare `events.*`. Called from `engine_api::install_engine_api`, which is
 /// where every other core module is declared.
-pub fn install_events_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_events_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Named events between scripts. A node listens for a name and hears it as its `on_<name>` method; `node.emit` and `events.emit` send one.",
     );

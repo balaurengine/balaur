@@ -14,13 +14,12 @@ use crate::rapier3d::prelude::{
 };
 use crate::scalar::{self, Real, Vector};
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{Children, Transform};
 use balaur_core::{Engine, Stage, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
 use crate::properties::{ChassisAxis, SweepIgnore};
@@ -30,7 +29,12 @@ use balaur_core::layers::Layer;
 
 /// Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.
 #[derive(Clone, Component)]
-#[component(name = "vehicle3d", on_remove = vehicle3d_removed)]
+#[component(
+    name = "vehicle3d",
+    on_remove = vehicle3d_removed,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    expects = [c::BODY_3D],
+)]
 pub struct Vehicle3d {
     /// Which of the chassis's own axes points forward, either way along it: a negative axis drives and steers the other way round, and reads speed the other way
     #[property(default = ChassisAxis::Z)]
@@ -48,7 +52,12 @@ pub struct Vehicle3d {
 
 /// One wheel of the `vehicle3d` above it; the node's position on the chassis is where its ray starts. `physics3d.set_engine_force`, `set_brake` and `set_steering` drive it.
 #[derive(Clone, Component)]
-#[component(name = "wheel3d", on_remove = wheel3d_removed)]
+#[component(
+    name = "wheel3d",
+    on_remove = wheel3d_removed,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    expects = [c::VEHICLE_3D],
+)]
 pub struct Wheel3d {
     /// The wheel's radius, which is how far off the ground it holds the ray's end
     #[property(default = 0.4, min = 0.01)]
@@ -291,7 +300,7 @@ pub struct WheelInput3d {
     pub grounded: bool,
 }
 
-pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_vehicle_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
         ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0."),
@@ -472,30 +481,10 @@ fn wheel3d_removed(eng: &Engine, entity: Entity) {
 pub(crate) fn register_vehicle_components(reg: &mut Registry<'_>) {
     // What was asked, held on the chassis; the controller a step keeps is in
     // `PhysicsState3d::vehicles`.
-    reg.register_component(
-        Vehicle3d::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::BODY_3D],
-            ..ComponentDef::of::<Vehicle3d>(None)
-        },
-    );
+    reg.add_component::<Vehicle3d>();
     // What was asked, held on the wheel; what a script sets on it and what
     // the last step left there is in `PhysicsState3d::wheel_inputs`.
-    reg.register_component(
-        Wheel3d::NAME,
-        ComponentDef {
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::VEHICLE_3D],
-            ..ComponentDef::of::<Wheel3d>(None)
-        },
-    );
+    reg.add_component::<Wheel3d>();
 }
 
 /// A kept controller as a snapshot holds it: its wheel nodes by key, which a

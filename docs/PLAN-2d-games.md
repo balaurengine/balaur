@@ -238,7 +238,7 @@ in the game; "not planned" is a deliberate no.
 | Instanced 2D meshes, a triangle list drawn by hand | Fallback: a `polygon` with a `mesh` asset. Instancing is the roadmap's "Culling and level of detail" |
 | Render to a texture | Fallback: bake with `render.screenshot` in a tool run and ship the image. The roadmap's "More than one view" |
 | A 2D camera with limits, smoothing and drag margins | Have zoom; the rest is a script's `update`. **Not planned** as properties |
-| Canvas layers | Have: `widget.layer` for UI; `z_index` for the world |
+| Canvas layers | Have: `widget.whole_window` for UI; `z_index` for the world |
 | A design resolution scaled to the screen | Have: `ui.set_scale` goes down to 0.25; the scale itself is one line in `update` from `ui.screen_size` |
 | Compressed textures on mobile | `docs/PLAN-scenes-and-assets.md`'s import phase, when memory says so |
 

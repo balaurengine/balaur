@@ -1134,8 +1134,8 @@ impl Panel {
     pub fn update(dt: float) {
         self.frame += 1;
         let controls: [any] = [
-            { "kind": "text_field", "text": "", "on": "typed", "data": "query" },
-            { "kind": "button", "text": "Go", "on": "pressed", "data": 7 },
+            { "kind": "text_field", "text": "", "on_change": "typed", "data": "query" },
+            { "kind": "button", "text": "Go", "on_click": "pressed", "data": 7 },
         ];
         ui::fill_strip("Panel/Strip", controls);
         if self.frame == 2 {

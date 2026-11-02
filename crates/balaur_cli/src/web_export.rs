@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, anyhow};
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
 use crate::jobs::pump;
@@ -51,7 +51,6 @@ impl AsMut<ExportCore> for ExportState {
 
 /// The editor's export verb in a browser, registered by the web entry point.
 pub(crate) struct WebExportPlugin {
-    manifest: balaur_plugin::Manifest,
     project: PathBuf,
     runtimes: String,
 }
@@ -60,17 +59,13 @@ impl WebExportPlugin {
     /// `runtimes` is where each web runtime is served from, a directory apiece
     /// named for it: `<runtimes>/web-2d/balaur_bg.wasm`.
     pub(crate) fn new(project: PathBuf, runtimes: String) -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("export", env!("CARGO_PKG_VERSION")),
-            project,
-            runtimes,
-        }
+        Self { project, runtimes }
     }
 }
 
 impl balaur_plugin::Plugin for WebExportPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "export"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -80,12 +75,12 @@ impl balaur_plugin::Plugin for WebExportPlugin {
         });
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
         let mut m = reg.script_module("export")?;
-        install_export_api(&mut *m);
+        install_export_api(&mut m);
         Ok(())
     }
 }
 
-fn install_export_api(m: &mut dyn Bindings<Engine>) {
+fn install_export_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Exports the project being edited, from a browser. `targets` is what a tab can build alone: a pack and a web bundle.",
     );

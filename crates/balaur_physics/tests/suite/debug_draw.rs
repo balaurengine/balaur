@@ -12,7 +12,7 @@ use balaur_physics::rapier3d::pipeline::DebugRenderMode;
 /// the lines one frame drew, and how many lie near x = 5.
 fn draw(config: PhysicsDebugConfig, settings: &[(&str, toml::Value)]) -> (Vec<[f32; 4]>, usize) {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.engine.insert_resource(DebugLineBuffer3d::default());
     let root = app.engine.root();
     let mut nodes = Vec::new();

@@ -12,7 +12,7 @@
 //! headless test assert the outline of a square.
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use glamx::Vec2;
 use i_overlay::core::fill_rule::FillRule as OverlayFill;
 use i_overlay::core::overlay_rule::OverlayRule;
@@ -611,7 +611,7 @@ const BOOLEAN_DOCS: [(Op2d, &str); 5] = [
     ),
 ];
 
-fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
+fn install_boolean_api(m: &mut Module<Engine>) {
     m.records(&[(
         "BooleanOptions",
         "{ fill_rule: string?, min_area: float?, keep_collinear: bool?, clean_result: bool? }",
@@ -634,7 +634,7 @@ fn install_boolean_api(m: &mut dyn Bindings<Engine>) {
     }
 }
 
-pub fn install_geometry2d_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_geometry2d_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );

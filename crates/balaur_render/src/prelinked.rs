@@ -149,7 +149,7 @@ pub fn record(f: impl FnOnce() -> Result<()>) -> Result<Vec<u8>> {
 /// form a node may draw it.
 #[cfg(feature = "compile")]
 pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
-    use crate::material::{Material3d, compile, compile_on, compile_with, transparent_variant};
+    use crate::material::{Material3d, compile, transparent_variant};
     use crate::shaders;
 
     let warn = |what: &str, linked: Result<()>| {
@@ -184,7 +184,7 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
     };
     warn(
         "the text mask",
-        compile(&text_mask, shaders::TEXT_MASK).map(drop),
+        compile(&text_mask, shaders::TEXT_MASK, &[], false).map(drop),
     );
     let modules = shaders::plugin_modules(eng);
     for finish in crate::vocabulary::words::FINISHES {
@@ -194,7 +194,7 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
         };
         warn(
             finish,
-            compile_with(&material, shaders::FINISH, &modules).map(drop),
+            compile(&material, shaders::FINISH, &modules, false).map(drop),
         );
     }
     // A material is a document, so the pack keeps it with the scenes.
@@ -215,7 +215,7 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
             // A node of either dimension may draw it, on a device that does or
             // does not morph, and a 3D one in the transparency pass too.
             for morph in [false, true] {
-                compile_on(&material, &source, &modules, morph)?;
+                compile(&material, &source, &modules, morph)?;
                 let _ = transparent_variant(&material, &source, &modules, morph);
             }
             Ok(())

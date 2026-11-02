@@ -7,7 +7,7 @@
 use anyhow::Context;
 use balaur_core::Engine;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::{
     AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d,
@@ -54,7 +54,7 @@ fn push_text(
 
 /// The 3D camera: where it looks from, and the pose, matrix and picking ray
 /// it published this frame.
-pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
@@ -124,7 +124,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Picking: the ray through the mouse, and what a ray meets first.
-fn install_pick_api(m: &mut dyn Bindings<Engine>) {
+fn install_pick_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
@@ -183,7 +183,7 @@ fn install_pick_api(m: &mut dyn Bindings<Engine>) {
 
 /// The 2D camera: its target center and zoom, the state it published this
 /// frame, and the mouse unprojected through it.
-pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_camera_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("camera_2d", &[], "", "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window."),
         ("mouse_world_2d", &[], "", "The mouse position in 2D world coordinates, for picking."),
@@ -214,7 +214,7 @@ pub(crate) fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathB
 }
 
 /// `render.screenshot`: the next rendered frame, to a PNG.
-fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
+fn install_screenshot_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "screenshot",
@@ -270,12 +270,12 @@ pub(crate) fn register_window_module(reg: &mut Registry<'_>) -> anyhow::Result<(
     m.module_doc(
         "The OS window and the display under it: mode, cursor, app icon, keep-awake, the safe area and the refresh rate.",
     );
-    install_window_api(&mut *m);
+    install_window_api(&mut m);
     Ok(())
 }
 
 /// The OS window and the display it sits on.
-fn install_window_api(m: &mut dyn Bindings<Engine>) {
+fn install_window_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_app_icon", &[], "(path: string, opts: AppIconOptions?)", "Set the application icon, the dock or taskbar one, from a PNG or an SVG in the project. `opts.plate` colours the disc a macOS dock icon sits on, white by default. Replaces `[application] icon` for the run."),
         ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
@@ -461,7 +461,7 @@ fn ring(center: [f32; 3], radius: f32, axis: usize, out: &mut Vec<([f32; 3], [f3
     }
 }
 
-pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_background", &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
         ("set_grid", &[], "", "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent."),
@@ -557,7 +557,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
 
 /// The immediate text calls, split from [`install_backdrop_api`] under
 /// `MAX_FN_LINES`: a line in either pass, and what one measures.
-fn install_text_api(m: &mut dyn Bindings<Engine>) {
+fn install_text_api(m: &mut Module<Engine>) {
     m.function(
         "draw_text_2d",
         |eng: &Engine, (x, y, text, opts): (f32, f32, String, Option<Value>)| {
@@ -621,7 +621,7 @@ type LineArgs2d = (
 /// The 3D immediate primitives, split from [`install_backdrop_api`] under
 /// `MAX_FN_LINES`: a box, a sphere and a capsule as wireframes, the shapes
 /// the 2D side fills.
-fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
+fn install_wireframe_api(m: &mut Module<Engine>) {
     m.function(
         "draw_box",
         |eng: &Engine,
@@ -669,7 +669,7 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
 
 /// Shape3d and colour on a node, 3D and 2D.
 /// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
-pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_sprite_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 
@@ -720,7 +720,7 @@ impl TraceOpts {
 /// Adjusting a sprite a node already has, and reading it back.
 /// The image's pixel size, from its header: what a tool placing UVs over a
 /// texture needs, in every build.
-pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_texture_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "texture_size",
@@ -806,7 +806,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_sprite_state_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 

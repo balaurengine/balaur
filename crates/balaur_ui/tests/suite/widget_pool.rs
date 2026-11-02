@@ -1,5 +1,5 @@
 //! `ui::fill_strip`: widget nodes made, reused and hidden from a list a
-//! script hands over every frame, and a reader's edit reaching `on`.
+//! script hands over every frame, and a reader's edit reaching its keys.
 
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
@@ -84,12 +84,12 @@ impl Root {
 }
 
 #[test]
-fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
+fn a_reader_s_click_reaches_its_key_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, on: bool, edits: int }
 impl Root {
     fn update(dt: float) {
-        let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on\": \"toggled\" }];
+        let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on_change\": \"toggled\" }];
         ui::fill_strip(\"Root/Bar\", controls);
     }
     pub fn toggled(data: any, v: any) {
@@ -188,10 +188,10 @@ impl Root {
                 \"min\": 0.01,
                 \"max\": 2.0,
                 \"prefix\": \"px\",
-                \"on\": \"edited\",
+                \"on_change\": \"edited\",
             }
         } else {
-            { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on\": \"edited\" }
+            { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on_change\": \"edited\" }
         };
         let rows: [any] = [{ \"label\": \"x\", \"controls\": [control] }];
         ui::fill_rows(\"Root/Bar\", rows, 40.0, false);

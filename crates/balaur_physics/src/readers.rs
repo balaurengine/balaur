@@ -4,7 +4,7 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::PhysicsState3d;
 use crate::collider::{first_collider, with_first_collider};
@@ -26,7 +26,7 @@ fn corners(aabb: &crate::rapier3d::prelude::Aabb) -> (Real, Real, Real, Real, Re
 /// The boxes a collider is tested with, and where it sits on its body.
 ///
 /// Split from `crate::collider::install_collider_reader_api` under `MAX_FN_LINES`.
-pub(crate) fn install_collider_placement_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_collider_placement_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("collision_aabb", &[c::COLLIDER_3D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
         ("broad_phase_aabb", &[c::COLLIDER_3D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
@@ -67,7 +67,7 @@ pub(crate) fn install_collider_placement_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Cutting holes in a heightfield while the game runs, and reading them back.
-pub(crate) fn install_heightfield_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_heightfield_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_heightfield_hole", &[c::COLLIDER_3D], "", "Remove or restore the ground of one heightfield cell, named by the row and column of its first corner."),
         ("heightfield_hole", &[c::COLLIDER_3D], "", "Whether a heightfield cell has no ground."),

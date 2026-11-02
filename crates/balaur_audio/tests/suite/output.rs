@@ -15,7 +15,7 @@ fn app(project: &str) -> (tempfile::TempDir, App) {
     .unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin).unwrap();
     app.load_project().unwrap();
     (dir, app)
 }

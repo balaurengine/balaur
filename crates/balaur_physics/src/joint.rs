@@ -21,12 +21,11 @@ use crate::rapier3d::prelude::{
 use crate::scalar::{self, Real, Vector};
 use crate::shared::joint::JointAsk as _;
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component, Record, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
 use crate::properties::{Axis3d, JointAxis3d, JointKind3d, Motor, MotorStrength};
@@ -207,7 +206,14 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
 
 /// Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.
 #[derive(Clone, Component)]
-#[component(name = "joint3d", on_remove = joint3d_removed)]
+#[component(
+    name = "joint3d",
+    on_remove = joint3d_removed,
+    events = crate::vocabulary::hook::JOINT,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    expects = [c::BODY_3D],
+    after_write = after_write,
+)]
 pub struct Joint3d {
     /// How the two bodies may move relative to each other
     #[property(default = JointKind3d::Fixed)]
@@ -742,7 +748,7 @@ fn impulse_parts(world: &PhysicsWorld, joint: &ImpulseJoint) -> Option<(Real, Re
     Some((force.length(), (about_com - r1.cross(force)).length()))
 }
 
-pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_joint_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("remove_joint", &[c::JOINT_3D], "", "Undo the node's joint, leaving both bodies free."),
         ("set_motor_velocity", &[c::JOINT_3D], "(node: node, axis: string, velocity: float, damping: float)", "Drive one of the joint's free axes towards a speed: how a wheel is powered or a door swings itself shut. Rewrites that axis's `axes` record."),
@@ -883,16 +889,5 @@ pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
     beside::register::<Articulation3d>(reg, main, tags, after_write);
     beside::register::<BreakableJoint3d>(reg, main, tags, after_write);
     // After the components beside it, so a scene gives the node those first.
-    reg.register_component(
-        Joint3d::NAME,
-        ComponentDef {
-            events: crate::vocabulary::hook::JOINT,
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            expects: &[c::BODY_3D],
-            ..ComponentDef::of::<Joint3d>(Some(after_write))
-        },
-    );
+    reg.add_component::<Joint3d>();
 }

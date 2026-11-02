@@ -37,11 +37,8 @@ impl ScriptCompiler for BsHost {
 }
 
 impl ScriptHost<Engine> for BsHost {
-    fn module(&self, name: &str) -> Result<Box<dyn Bindings<Engine>>> {
-        Ok(Box::new(Module {
-            name: name.to_string(),
-            registry: self.inner.registry.clone(),
-        }))
+    fn module(&self, name: &str) -> Result<Module<Engine>> {
+        Ok(Module::new(name, self.inner.registry.declared.clone()))
     }
 
     fn attach_with_props(&self, node: NodeId, path: &str, props: &[(String, Value)]) -> Result<()> {
@@ -399,17 +396,7 @@ impl ScriptHost<Engine> for BsHost {
         self.debug_resume(mode);
     }
 
-    fn invoke(&self, _callback: CallbackId, _args: &[Value]) -> Result<Value> {
-        Err(anyhow!(
-            "`.{EXTENSION}` scripts pass no functions to the engine"
-        ))
-    }
-
     fn tools_for(&self, path: &str) -> Option<&dyn balaur_script::LanguageTools> {
         BsHost::claims(path).then_some(self as &dyn balaur_script::LanguageTools)
-    }
-
-    fn as_any(&self) -> &dyn core::any::Any {
-        self
     }
 }

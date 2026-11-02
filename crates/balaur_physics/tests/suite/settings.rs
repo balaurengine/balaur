@@ -26,7 +26,7 @@ fn length_unit_for(tags: Tags) -> f32 {
     let dir = tempfile::tempdir().unwrap();
     write_project(dir.path());
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.load_project().unwrap();
     app.engine.insert_resource(tags);
     app.tick(balaur_core::DEFAULT_FIXED_DT);
@@ -65,7 +65,7 @@ fn the_contact_and_gravity_rows_reach_both_worlds() {
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.load_project().unwrap();
     app.tick(balaur_core::DEFAULT_FIXED_DT);
     let state = app.engine.resource::<PhysicsState3d>();

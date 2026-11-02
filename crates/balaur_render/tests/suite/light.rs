@@ -11,13 +11,13 @@ use balaur_render::{CameraConfig2d, Outline2d, RenderPlugin};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
 fn physics_app() -> App {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::PhysicsPlugin).unwrap();
     app
 }
 

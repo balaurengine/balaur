@@ -4,11 +4,10 @@
 use crate::rapier3d::math::Vector;
 use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::collider_shape::ColliderShape3d;
 use crate::rapier3d::prelude::{
@@ -30,7 +29,13 @@ use crate::{PhysicsState3d, node_pose};
     reason = "a property a field: each switch the component offers is one"
 )]
 #[derive(Clone, Component)]
-#[component(name = "collider3d", on_remove = collider3d_removed)]
+#[component(
+    name = "collider3d",
+    on_remove = collider3d_removed,
+    events = crate::vocabulary::hook::COLLIDER,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    after_write = after_write,
+)]
 pub struct Collider3d {
     /// The collision shape, and the dimensions or the source that kind reads
     pub shape: ColliderShape3d,
@@ -695,17 +700,7 @@ pub(crate) fn register_collider_component(reg: &mut Registry<'_>) {
     beside::register::<MeshCollider3d>(reg, &[c::COLLIDER_3D], tags, after_write);
     beside::register::<ConvexDecomposition3d>(reg, &[c::COLLIDER_3D], tags, after_write);
     // After the components beside it, so a scene gives the node those first.
-    reg.register_component(
-        Collider3d::NAME,
-        ComponentDef {
-            events: crate::vocabulary::hook::COLLIDER,
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::PHYSICS,
-            ],
-            ..ComponentDef::of::<Collider3d>(Some(after_write))
-        },
-    );
+    reg.add_component::<Collider3d>();
 }
 
 /// The components whose rows a `collider3d`'s build reads: its own, then
@@ -717,7 +712,7 @@ pub(crate) const PARAMS: &[&str] = &[
 ];
 
 /// Collider calls that are not about creating one: asking where it is.
-pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_collider_api(m: &mut Module<Engine>) {
     m.describe(&[]);
     m.function("aabb", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
@@ -741,7 +736,7 @@ pub(crate) fn install_collider_api(m: &mut dyn Bindings<Engine>) {
 /// Voxels are the one shape a game changes rather than replaces, so they get
 /// calls of their own. Split from [`install_collider_api`] under
 /// `MAX_FN_LINES`.
-pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_voxel", &[c::COLLIDER_3D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
         ("voxel", &[c::COLLIDER_3D], "", "Whether one cell of a voxel collider is filled."),
@@ -798,7 +793,7 @@ pub(crate) fn install_voxel_api(m: &mut dyn Bindings<Engine>) {
 /// handles rapier knows it by.
 ///
 /// Split from [`install_collider_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("collider_mesh", &[c::COLLIDER_3D], "", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
         ("collider_mass", &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),

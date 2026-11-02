@@ -6,7 +6,6 @@
 //! the backend's own sun, which is what lets every example draw unchanged.
 
 use balaur_core::GlobalTransform;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum};
 use balaur_core::hecs::{Entity, World};
 use balaur_plugin::Registry;
@@ -31,7 +30,7 @@ pub enum LightKind3d {
 // does not follow the node's scale. [`lights`] holds every number to what a
 // light can be.
 #[derive(Component)]
-#[component(name = "light3d")]
+#[component(name = "light3d", tags = [words::PERSPECTIVE, "render"])]
 pub struct Light3d {
     /// A point light fades to nothing at `range`, a directional one lights the whole scene, a spot one throws a cone the node aims
     #[property(default = LightKind3d::Directional)]
@@ -132,13 +131,7 @@ pub fn lights(world: &World, root: Entity) -> Vec<LitLight3d> {
 /// The `light3d` component. The node's position places it and its rotation
 /// aims it; `visible = false` switches it off.
 pub(crate) fn register_light3d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Light3d::NAME,
-        ComponentDef {
-            tags: &[words::PERSPECTIVE, "render"],
-            ..ComponentDef::of::<Light3d>(None)
-        },
-    );
+    reg.add_component::<Light3d>();
 }
 
 /// How fog thickens with distance.
@@ -223,7 +216,8 @@ impl Default for Transmission {
 // view; `camera.post` keeps the per-view passes. [`LitEnvironment`] is it
 // held to kiss3d's ranges.
 #[derive(Component)]
-#[component(name = "environment")]
+// Both dimensions': a 2D scene's ambient is its environment's too.
+#[component(name = "environment", tags = ["render"])]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each flag is its own property, not a state machine"
@@ -532,14 +526,7 @@ impl LitEnvironment {
 /// The `environment` component: sky, ambient, fog, exposure, tonemap, grading
 /// and how shadows fall, all of which belong to the scene rather than a view.
 pub(crate) fn register_environment_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Environment::NAME,
-        ComponentDef {
-            // Both dimensions': a 2D scene's ambient is its environment's too.
-            tags: &["render"],
-            ..ComponentDef::of::<Environment>(None)
-        },
-    );
+    reg.add_component::<Environment>();
 }
 
 /// `[render]`: what the device can afford, which a platform answers for

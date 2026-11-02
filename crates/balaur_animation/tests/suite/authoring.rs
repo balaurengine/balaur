@@ -12,7 +12,7 @@ use balaur_core::{App, AppConfig, assets, components, project};
 
 fn app_in(project_root: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(project_root.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 

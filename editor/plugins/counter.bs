@@ -62,7 +62,7 @@ impl Counter {
     /// its close, and fills it with these when the plugin says it moved.
     pub fn dialog(payload: any) -> any {
         let said = if self.shown < 0 { ASK } else { "{self.shown} scripted nodes" };
-        [{ "full": true, "controls": [{ "kind": "label", "role": "text_caption", "wrap": true, "text": said }] }]
+        [{ "controls": [{ "kind": "label", "role": "text_caption", "wrap": true, "text": said }] }]
     }
 
     /// An inspector section: the rows it adds after the built-in ones.
@@ -70,7 +70,7 @@ impl Counter {
         if self.shown < 0 {
             return [];
         }
-        return [{ "full": true, "controls": [{ "kind": "label", "role": "text_note", "text": "counter: {self.shown}" }] }];
+        return [{ "controls": [{ "kind": "label", "role": "text_note", "text": "counter: {self.shown}" }] }];
     }
 
     /// `--state test:plugin_docks`: the plugin seam, asserted the way the

@@ -17,8 +17,7 @@ use balaur_plugin::Registry;
 #[cfg(feature = "compile")]
 pub use crate::material_compile::fields;
 pub use crate::material_compile::{
-    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, compile_on, compile_with, pack,
-    transparent_variant,
+    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, pack, transparent_variant,
 };
 
 pub(crate) use crate::material_check::{install_material_check, install_material_params};
@@ -727,7 +726,7 @@ struct Params { speed: f32, tint: vec4<f32> }
             "shader = \"s.wesl\"\nparams = { speed = 2.0, tint = [0.25, 0.5, 0.75, 1.0] }",
         ))
         .unwrap();
-        let compiled = compile(&material, WITH_PARAMS).unwrap();
+        let compiled = compile(&material, WITH_PARAMS, &[], false).unwrap();
         assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
         assert_eq!(compiled.params.len(), 32);
         let at = |o: usize| f32::from_le_bytes(compiled.params[o..o + 4].try_into().unwrap());
@@ -745,12 +744,12 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
 ";
         let on = parse(&table("shader = \"s.wesl\"\nfeatures = { screen = true }")).unwrap();
         assert!(on.reads_screen());
-        let wgsl = compile(&on, READS).unwrap().wgsl;
+        let wgsl = compile(&on, READS, &[], false).unwrap().wgsl;
         assert!(wgsl.contains("screen_texture"), "{wgsl}");
         let off = parse(&table("shader = \"s.wesl\"")).unwrap();
         assert!(!off.reads_screen());
         assert!(
-            compile(&off, READS).is_err(),
+            compile(&off, READS, &[], false).is_err(),
             "without the feature there is nothing to sample"
         );
     }
@@ -760,13 +759,13 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
         let on = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = true }")).unwrap();
         let off = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = false }")).unwrap();
         assert!(
-            compile(&on, WITH_VARIANT)
+            compile(&on, WITH_VARIANT, &[], false)
                 .unwrap()
                 .wgsl
                 .contains("return 2f")
         );
         assert!(
-            compile(&off, WITH_VARIANT)
+            compile(&off, WITH_VARIANT, &[], false)
                 .unwrap()
                 .wgsl
                 .contains("return 1f")
@@ -776,7 +775,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
     #[test]
     fn a_shader_that_does_not_link_names_the_file_the_material_pointed_at() {
         let material = parse(&table("shader = \"shaders/broken.wesl\"")).unwrap();
-        let err = compile(&material, "fn broken(").err().unwrap();
+        let err = compile(&material, "fn broken(", &[], false).err().unwrap();
         assert!(
             format!("{err:#}").contains("shaders/broken.wesl"),
             "{err:#}"
@@ -812,7 +811,10 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
     return vertex(in)
 }
 ";
-        let err = format!("{:#}", compile(&material, broken).err().unwrap());
+        let err = format!(
+            "{:#}",
+            compile(&material, broken, &[], false).err().unwrap()
+        );
         assert!(err.contains("shaders/water.wesl:6"), "{err}");
         assert!(!err.contains("package::material"), "{err}");
     }
@@ -823,7 +825,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
             "shader = \"shaders/water.wesl\"\nparams = { speed = 3.0, glow = \"#204080\" }",
         ))
         .unwrap();
-        let compiled = compile(&material, PROJECT_SHADER).unwrap();
+        let compiled = compile(&material, PROJECT_SHADER, &[], false).unwrap();
         assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
         assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
         // The contract's helpers were pulled in, not left as imports.
@@ -870,7 +872,7 @@ struct Params { pulse: f32 }
             "shader = \"shaders/rock.wesl\"\nparams = { pulse = 0.2 }",
         ))
         .unwrap();
-        let compiled = compile(&material, PROJECT_SHADER_3D).unwrap();
+        let compiled = compile(&material, PROJECT_SHADER_3D, &[], false).unwrap();
         assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
         assert!(!compiled.wgsl.contains("import "), "{}", compiled.wgsl);
         // The lighting loop came in with `shade`.
@@ -923,7 +925,7 @@ struct Out { @location(0) color: vec4<f32> }
 ";
         let material = parse(&table("shader = \"shaders/rock.wesl\"")).unwrap();
         assert!(
-            compile(&material, source).is_ok(),
+            compile(&material, source, &[], false).is_ok(),
             "the shader itself links"
         );
         assert!(transparent_variant(&material, source, &[], false).is_none());
@@ -951,7 +953,7 @@ import package::pbr::{shade, default_surface, shade_pbr};
             shader: "shaders/metal.wesl".into(),
             ..Default::default()
         };
-        compile(&material, shader).expect("package::pbr links");
+        compile(&material, shader, &[], false).expect("package::pbr links");
     }
 
     /// A `[params]` string that names an image binds a texture slot; one that
@@ -1002,7 +1004,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo};
 }
 ";
         let material = parse(&table("shader = \"shaders/w.wesl\"")).unwrap();
-        let compiled = compile_with(&material, shader, std::slice::from_ref(&plugin)).unwrap();
+        let compiled = compile(&material, shader, std::slice::from_ref(&plugin), false).unwrap();
         assert!(compiled.wgsl.contains("6.28318"), "{}", compiled.wgsl);
     }
 
@@ -1013,7 +1015,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo};
 @fragment fn fs_main() -> @location(0) vec4<f32> {
     return vec4<f32>(ripple(1.0));
 }";
-        let err = compile(&material, shader).err().unwrap();
+        let err = compile(&material, shader, &[], false).err().unwrap();
         assert!(format!("{err:#}").contains("water"), "{err:#}");
     }
 

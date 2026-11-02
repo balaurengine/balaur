@@ -225,7 +225,7 @@ fn fresh_id(index: &BTreeMap<String, String>, relative: &str, bytes: &[u8]) -> S
 /// Every `.toml` under the project is read through `toml_edit`, so comments
 /// and key order survive; a string equal to the old path, an `old#entry`,
 /// or a path under a moved directory becomes the new spelling, and the id
-/// index follows. Script sources are not touched: a path in a `.rn` is a
+/// index follows. Script sources are not touched: a path in a `.bs` is a
 /// value the script computes, and `id://` is the reference for one that
 /// must survive. Answers the project-relative files rewritten, in path
 /// order.

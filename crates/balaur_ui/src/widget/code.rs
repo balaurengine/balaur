@@ -121,32 +121,6 @@ pub(crate) struct Syntax {
     builtins: &'static [&'static str],
 }
 
-const RUNE: Syntax = Syntax {
-    line_comment: "//",
-    keywords: &[
-        "fn", "let", "if", "else", "while", "for", "in", "loop", "match", "struct", "impl", "pub",
-        "return", "break", "continue", "const", "async", "await", "use", "mod", "true", "false",
-        "not", "is", "as", "select", "yield",
-    ],
-    builtins: &[
-        "engine",
-        "scene",
-        "input",
-        "physics",
-        "physics2d",
-        "render",
-        "audio",
-        "random",
-        "ui",
-        "log",
-        "node",
-        "fs",
-        "toml",
-        "this",
-        "println",
-    ],
-};
-
 /// balaur_bs's `.bs` scripts: Rust's look, its own types and built-ins.
 const BS: Syntax = Syntax {
     line_comment: "//",
@@ -274,14 +248,12 @@ const WESL: Syntax = Syntax {
 /// An unknown name falls back to Balaur Script rather than rendering the editor
 /// as plain punctuation.
 pub(crate) const fn syntax_for(language: &str) -> &'static Syntax {
-    // `match` on a `&str` is not const, and three languages do not warrant a
+    // `match` on a `&str` is not const, and two languages do not warrant a
     // table.
     if matches!(language.as_bytes(), b"wesl" | b"wgsl") {
         &WESL
-    } else if matches!(language.as_bytes(), b"bs") {
-        &BS
     } else {
-        &RUNE
+        &BS
     }
 }
 
@@ -645,7 +617,7 @@ fn code_margin(padding: [f32; 4]) -> Pad {
 
 #[cfg(test)]
 mod tests {
-    use super::{RUNE, syntax_for};
+    use super::{BS, syntax_for};
 
     #[test]
     fn bs_selects_its_own_tokens() {
@@ -654,14 +626,6 @@ mod tests {
         assert!(bl.builtins.contains(&"any") && bl.builtins.contains(&"Node"));
         assert!(!bl.keywords.contains(&"match"), "`.bs` has no `match`");
     }
-    #[test]
-    fn rune_selects_its_own_tokens() {
-        let rune = syntax_for("rune");
-        assert_eq!(rune.line_comment, "//");
-        assert!(rune.keywords.contains(&"fn"));
-        assert!(rune.builtins.contains(&"this"));
-    }
-
     #[test]
     fn shaders_select_their_own_tokens() {
         for name in ["wesl", "wgsl"] {
@@ -675,8 +639,8 @@ mod tests {
     /// An unknown or absent language must still highlight something rather
     /// than render the editor as plain punctuation.
     #[test]
-    fn an_unknown_language_falls_back_to_rune() {
-        assert_eq!(syntax_for("brainfuck").line_comment, RUNE.line_comment);
-        assert_eq!(syntax_for("").line_comment, RUNE.line_comment);
+    fn an_unknown_language_falls_back_to_balaur_script() {
+        assert_eq!(syntax_for("brainfuck").line_comment, BS.line_comment);
+        assert_eq!(syntax_for("").line_comment, BS.line_comment);
     }
 }

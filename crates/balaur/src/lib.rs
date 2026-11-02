@@ -488,15 +488,15 @@ fn configs_from(asked: &Selection) -> balaur_core::PluginConfigs {
 /// `platform` and be believed.
 fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plugin>>> {
     let always: Vec<Box<dyn balaur_plugin::Plugin>> = vec![
-        Box::new(AnimationPlugin::default()),
-        Box::new(InputPlugin::default()),
-        Box::new(PhysicsPlugin::default()),
-        Box::new(RenderPlugin::default()),
-        Box::new(UiPlugin::default()),
-        Box::new(PlatformPlugin::default()),
+        Box::new(AnimationPlugin),
+        Box::new(InputPlugin),
+        Box::new(PhysicsPlugin),
+        Box::new(RenderPlugin),
+        Box::new(UiPlugin),
+        Box::new(PlatformPlugin),
     ];
     for plugin in &always {
-        let name = &plugin.manifest().name;
+        let name = plugin.name();
         if asked.get(name).is_some_and(|choice| !choice.wanted()) {
             bail!("project.toml turns off `{name}`, which every build has");
         }
@@ -504,7 +504,7 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
     let mut all = always;
     all.extend(optional_modules().into_iter().filter(|module| {
         asked
-            .get(&module.manifest().name)
+            .get(module.name())
             .is_none_or(balaur_core::PluginChoice::wanted)
     }));
     Ok(all)
@@ -600,7 +600,7 @@ fn load_extensions(app: &mut App, asked: &Selection, dir: &std::path::Path) -> R
     // check inside refuses a build that cannot share this process.
     let mut loaded = unsafe { balaur_plugin::load_extensions_in(dir, &modules) }?;
     for extension in &mut loaded {
-        let name = extension.manifest().name.clone();
+        let name = extension.name().to_owned();
         if asked.get(&name).is_some_and(|choice| !choice.wanted()) {
             tracing::info!(extension = %name, "off in project.toml");
             continue;

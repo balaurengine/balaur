@@ -6,12 +6,11 @@
 //! in. Both answers are small and both are identical everywhere, so they live
 //! here rather than once per protocol crate.
 //!
-//! A handler is a method *name* on a node, never a function value.
-//! `Value::Callback` is valid only during the binding call that received it,
-//! so anything outliving that call is named and looked up later.
+//! A handler is a method *name* on a node: a script hands the engine no
+//! function, so anything that reports later is named and looked up then.
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::Engine;
 
@@ -104,7 +103,7 @@ pub const ERROR: &str = "error";
 
 /// A module's event kinds as `EVENT_<KIND>` constants, so a script compares
 /// `e["kind"] == websocket::EVENT_OPEN` rather than spelling the word.
-pub fn install_event_kinds<E>(m: &mut dyn Bindings<E>, kinds: &[&str]) {
+pub fn install_event_kinds<E>(m: &mut Module<E>, kinds: &[&str]) {
     for kind in kinds {
         m.constant(
             &format!("EVENT_{}", kind.to_uppercase()),

@@ -2,9 +2,9 @@
 
 use anyhow::Result;
 
-use crate::bindings::Bindings;
+use crate::bindings::Module;
 use crate::debug::{Pause, StepMode};
-use crate::value::{CallbackId, NodeId, Value};
+use crate::value::{NodeId, Value};
 
 /// Compiles script sources ahead of time, for export packs.
 ///
@@ -43,7 +43,7 @@ pub trait ScriptCompiler {
 /// host context so this crate depends on nothing.
 pub trait ScriptHost<C: ?Sized> {
     /// The binding group a plugin registers into, creating it if needed.
-    fn module(&self, name: &str) -> Result<Box<dyn Bindings<C>>>;
+    fn module(&self, name: &str) -> Result<Module<C>>;
 
     /// Attach a script to a node and run its `init`.
     fn attach(&self, node: NodeId, path: &str) -> Result<()> {
@@ -114,15 +114,12 @@ pub trait ScriptHost<C: ?Sized> {
 
     /// Every live instance's state, for a rollback snapshot.
     ///
-    /// A script that implements `save_state` decides its own contents;
-    /// otherwise the host captures the instance's plain fields: numbers,
-    /// strings, booleans, nodes and tables of those. Functions and foreign
-    /// userdata are skipped, because neither survives being put down and
-    /// picked back up.
+    /// The host captures the instance's plain fields: numbers, strings,
+    /// booleans, nodes and tables of those. Functions and foreign userdata are
+    /// skipped, because neither survives being put down and picked back up.
     fn save_state(&self) -> Vec<(NodeId, Value)>;
 
-    /// Put instances back the way [`ScriptHost::save_state`] found them,
-    /// through `load_state` where a script defines one.
+    /// Put instances back the way [`ScriptHost::save_state`] found them.
     fn load_state(&self, states: &[(NodeId, Value)]);
 
     /// Apply reloads the watcher has queued. Called at a point in the frame
@@ -143,12 +140,10 @@ pub trait ScriptHost<C: ?Sized> {
     /// error: handlers are opt-in), or the method suspended on an await and
     /// will finish in a later tick.
     ///
-    /// This is what an engine-side event carries: `Value::Callback` is valid
-    /// only during the binding call that received it, so a script cannot
-    /// register a handler and be given a payload later. A named method that
-    /// takes arguments and returns a value is the seam's answer, and it
-    /// costs no ownership question and nothing for a collector to reason
-    /// about.
+    /// This is what an engine-side event carries: a script hands the engine
+    /// no function, so a named method that takes arguments and returns a value
+    /// is the seam's answer, and it costs no ownership question and nothing for
+    /// a collector to reason about.
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value>;
 
     /// [`ScriptHost::call_on`] for a caller that awaits the method: `Some`
@@ -230,26 +225,6 @@ pub trait ScriptHost<C: ?Sized> {
 
     fn instance_count(&self) -> usize;
 
-    /// Call a function a script passed into a binding.
-    ///
-    /// Valid only during the binding call that received it: see
-    /// `Value::Callback`.
-    fn invoke(&self, callback: CallbackId, args: &[Value]) -> Result<Value>;
-
-    /// Hold a function a script passed into a binding past that call, so
-    /// [`invoke`](Self::invoke) still reaches it, until [`release`](Self::release).
-    fn keep(&self, callback: CallbackId) -> Result<()> {
-        let _ = callback;
-        Err(anyhow::anyhow!(
-            "this script backend cannot keep a function"
-        ))
-    }
-
-    /// Let go of a function [`keep`](Self::keep) held. Unknown ids are a no-op.
-    fn release(&self, callback: CallbackId) {
-        let _ = callback;
-    }
-
     /// Replace one script file's breakpoints with `lines`, returning the
     /// lines they landed on: a line without code moves to the next that has
     /// some. A backend without a debugger refuses.
@@ -320,9 +295,4 @@ pub trait ScriptHost<C: ?Sized> {
         let _ = path;
         None
     }
-
-    /// Downcast to the concrete backend, for code written against one language
-    /// on purpose: a tool that wants the raw interpreter state, or a test of a
-    /// specific backend. Code that works across languages uses the trait.
-    fn as_any(&self) -> &dyn core::any::Any;
 }

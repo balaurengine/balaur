@@ -425,8 +425,6 @@ fn cells(ui: &mut egui::Ui, c: &Cells<'_>) -> (bool, bool) {
     (response.clicked(), response.secondary_clicked())
 }
 
-/// A row's cells, and the `#rrggbb` it may carry past its last one, the way a
-/// `list` row carries its own colour.
 fn split(item: &str, columns: usize) -> (Vec<&str>, Option<Color32>) {
     let mut parts: Vec<&str> = item.split(SEP).collect();
     let tint = (parts.len() > columns)

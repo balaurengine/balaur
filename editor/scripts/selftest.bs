@@ -2792,7 +2792,7 @@ pub fn font_sheet(state: editor::State) {
         filled.widget.width = stage["width"].as_float();
         filled.widget.height = stage["height"].as_float();
     }
-    pool::strip(state, FONT_SHEET, controls);
+    ui::fill_strip(FONT_SHEET, controls);
 }
 
 fn heading(text: str) -> ui::Control {
@@ -4176,9 +4176,9 @@ pub fn pool_check_step(state: &mut editor::State) {
     let stage = pool_check.stage;
     pool_check.stage = stage + 1;
     if stage == 0 || stage == 2 || stage == 4 {
-        pool::strip(state, path, [pick]);
+        ui::fill_strip(path, [pick]);
     } else if stage == 1 {
-        pool::strip(state, path, [ui::Control { kind: "label", text: "0.20 0.22 0.26 1.00" }]);
+        ui::fill_strip(path, [ui::Control { kind: "label", text: "0.20 0.22 0.26 1.00" }]);
     } else if stage == 3 {
         check(heard.len() == 0, "a slot that changed kind reports nothing ({heard})");
         // The control: a pick on a slot that stayed a dropdown still reaches `on`.

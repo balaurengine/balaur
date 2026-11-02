@@ -15,7 +15,7 @@ use balaur_core::layers::Layer;
 
 /// A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.
 #[derive(Component)]
-#[component(name = "particles3d")]
+#[component(name = "particles3d", after_write = after_write)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "each flag is its own property, not a state machine"
@@ -249,7 +249,7 @@ pub(crate) fn register_particles_3d_component(reg: &mut Registry<'_>) {
                 let _ = eng.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
-            ..ComponentDef::of::<Particles3d>(Some(after_write))
+            ..ComponentDef::of::<Particles3d>()
         },
     );
 }

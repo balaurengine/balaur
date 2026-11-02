@@ -3,7 +3,6 @@
 //! Everything a Rust system or a binding closure is handed every frame.
 
 use balaur_core::{App, AppConfig, Engine};
-use balaur_script::BindingsExt as _;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()

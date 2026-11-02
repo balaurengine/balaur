@@ -32,7 +32,7 @@ use anyhow::{Result, anyhow};
 use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 /// How many leaderboard entries `platform.scores` reads when the call names
 /// no `count`.
@@ -472,21 +472,12 @@ fn event_value(event: PlatformEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct PlatformPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for PlatformPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("platform", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct PlatformPlugin;
 
 impl balaur_plugin::Plugin for PlatformPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "platform"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -495,7 +486,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         reg.add_system(Stage::First, pump_platform_system);
         reg.add_replay_source("platform", capture, restore);
         let mut m = reg.script_module("platform")?;
-        install_platform_api(&mut *m);
+        install_platform_api(&mut m);
         Ok(())
     }
 }
@@ -558,7 +549,7 @@ fn start_call(eng: &Engine, call: Call) -> Value {
 
 /// `platform.*`. Declared against the backend seam, so the same script runs
 /// with a store, without one, and inside a replay.
-fn install_platform_api(m: &mut dyn Bindings<Engine>) {
+fn install_platform_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`.",
     );
@@ -625,7 +616,7 @@ fn install_platform_api(m: &mut dyn Bindings<Engine>) {
 
 /// What a script can ask without waiting: which store is loaded, and who it
 /// says is playing.
-fn install_platform_reads(m: &mut dyn Bindings<Engine>) {
+fn install_platform_reads(m: &mut Module<Engine>) {
     m.function("backend", |eng: &Engine, ()| {
         Ok(Value::Str(
             eng.resource::<PlatformState>()
@@ -647,7 +638,7 @@ fn install_platform_reads(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Signing in, and saying what the player is doing.
-fn install_platform_session(m: &mut dyn Bindings<Engine>) {
+fn install_platform_session(m: &mut Module<Engine>) {
     m.function("sign_in", |eng: &Engine, ()| {
         Ok(start_call(eng, Call::SignIn))
     });
@@ -657,7 +648,7 @@ fn install_platform_session(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-fn install_platform_achievements(m: &mut dyn Bindings<Engine>) {
+fn install_platform_achievements(m: &mut Module<Engine>) {
     m.function("unlock", |eng: &Engine, achievement: Value| {
         let achievement = text(Some(&achievement), "an achievement id")?;
         Ok(start_call(eng, Call::Unlock { achievement }))
@@ -678,7 +669,7 @@ fn install_platform_achievements(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-fn install_platform_leaderboards(m: &mut dyn Bindings<Engine>) {
+fn install_platform_leaderboards(m: &mut Module<Engine>) {
     m.function(
         "submit_score",
         |eng: &Engine, (board, score): (Value, Value)| {
@@ -719,7 +710,7 @@ fn install_platform_leaderboards(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-fn install_platform_cloud(m: &mut dyn Bindings<Engine>) {
+fn install_platform_cloud(m: &mut Module<Engine>) {
     m.function("cloud_read", |eng: &Engine, key: Value| {
         let key = text(Some(&key), "a key")?;
         Ok(start_call(eng, Call::CloudRead { key }))

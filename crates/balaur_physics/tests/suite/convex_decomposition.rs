@@ -317,7 +317,7 @@ fn a_beam_wedged_in_a_seam_is_pushed_out() {
 fn a_vhacd_cut_defaults_to_the_numbers_rapier2d_uses() {
     let defaults = {
         let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-        balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+        balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
         let registry = app
             .engine
             .resource::<balaur_core::components::ComponentRegistry>();

@@ -10,7 +10,7 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::Result;
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number};
@@ -139,7 +139,7 @@ pub const MATH_OPS: &[EngineOp] = &[
 ];
 
 /// Declare the module's functions and its constants.
-pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_math_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Deterministic float maths backed by pure-Rust `libm`: the same inputs give the same bits on every platform.",
     );

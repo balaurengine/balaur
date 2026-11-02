@@ -143,11 +143,11 @@ pub fn fill(state: &mut editor::State) {
         "placeholder": "Open fonts: a family, serif, mono…",
         "query": state.font_finding.unwrap().query,
         "rows_h": (specs.len() as float) * (row_height + 2.0) + 4.0,
-        "on": "handle",
+        "on_change": "handle",
         "on_submit": "handle_submit",
         "data": { "fn": typed, "submit": typed },
     });
-    pool::sync(state, host, specs, 0.0, false);
+    ui::fill_rows(host, specs);
 }
 
 fn typed(state: &mut editor::State, _data: any, text: any) {
@@ -177,7 +177,7 @@ fn rows(state: &mut editor::State, row_height: float) -> [ui::Row] {
             grow: 1,
             text: "{name}  ·  {category}",
         }, take_family, { "family": family });
-        out.push(ui::Row { full: true, height: row_height, controls: [button] });
+        out.push(ui::Row { height: row_height, controls: [button] });
     }
     if out.len() == 0 {
         out.push(caption_row(search::nothing_says(state.font_finding.unwrap().query)));
@@ -187,7 +187,7 @@ fn rows(state: &mut editor::State, row_height: float) -> [ui::Row] {
 
 fn caption_row(text: str) -> ui::Row {
     let label: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, text: text, wrap: true };
-    ui::Row { full: true, height: 0.0, controls: [label] }
+    ui::Row { height: 0.0, controls: [label] }
 }
 
 fn take_family(state: &mut editor::State, data: any, _value: any) {

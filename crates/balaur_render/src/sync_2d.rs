@@ -930,7 +930,7 @@ mod tests {
 
     fn sprite_draws(texture: &str) -> bool {
         let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("."))).unwrap();
-        balaur_plugin::load(&mut app, &mut crate::RenderPlugin::default()).unwrap();
+        balaur_plugin::load(&mut app, &mut crate::RenderPlugin).unwrap();
         let root = app.engine.root();
         let node = app.engine.spawn_node("Mast", root);
         let table: toml::Value = toml::from_str(&format!("texture = \"{texture}\"")).unwrap();

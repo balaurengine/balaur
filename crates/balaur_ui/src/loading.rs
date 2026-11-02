@@ -6,7 +6,7 @@
 //! reports has no resource and its splash goes when its seconds are up.
 
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
 #[derive(Default, Clone, Debug)]
 pub struct Loading {
@@ -34,7 +34,7 @@ fn report(eng: &Engine, progress: f32, label: String) {
 }
 
 /// `ui.*` bindings: the load a splash waits on.
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_load_progress", &[], "(progress: float, label: string?)", "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it."),
         ("finish_loading", &[], "()", "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled."),

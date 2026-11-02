@@ -40,8 +40,6 @@ pub(crate) enum Effect {
         method: String,
         args: Vec<balaur_script::Value>,
     },
-    /// Call a function a tween step was handed, which the host keeps.
-    Invoke { id: u64 },
     /// Tell a node's script the tween it holds a handle to has run out.
     TweenFinished { entity: Entity, id: TweenId },
     /// Tell a node a tween on it went round again, and how many times it has.
@@ -220,7 +218,6 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     }
     apply_effects(eng, &effects);
     // After the effects, so a tween's last call runs before it is let go.
-    tween::release_unheld(eng);
     settle_ended(eng, &ended);
     crate::machine::announce(eng, &moved);
     announce_began(eng);
@@ -549,8 +546,6 @@ pub(crate) fn collect_calls(
                     method: method.clone(),
                     args: key.args.clone(),
                 });
-            } else if let Some(id) = key.function {
-                effects.push(Effect::Invoke { id });
             }
         }
     }
@@ -648,13 +643,6 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
             } => {
                 if let Some(host) = host.as_ref() {
                     host.call_on(balaur_core::node_id_of(*entity), method, args);
-                }
-            }
-            Effect::Invoke { id } => {
-                if let Some(host) = host.as_ref()
-                    && let Err(why) = host.invoke(balaur_script::CallbackId(*id), &[])
-                {
-                    tracing::warn!("a tween's function failed: {why:#}");
                 }
             }
             Effect::Deform { entity, offsets } => {

@@ -912,14 +912,14 @@ stash = { path = "../stash" }
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) mod api {
     use anyhow::{Result, anyhow, bail};
-    use balaur_script::{Bindings, Value};
+    use balaur_script::{Module, Value};
 
     use super::{Source, folder, install, installed, owning, spelling, valid_alias};
     use crate::engine::Engine;
     use crate::engine_api::text;
 
     /// The `dependency` module and its reference text.
-    pub(crate) fn install_dependencies_api(m: &mut dyn Bindings<Engine>) {
+    pub(crate) fn install_dependencies_api(m: &mut Module<Engine>) {
         m.module_doc(
             "The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.",
         );

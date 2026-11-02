@@ -52,7 +52,7 @@ pub(crate) fn write_wav_of(dir: &Path, name: &str, samples: u32) {
 
 pub(crate) fn app_in(dir: &Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin).unwrap();
     app
 }
 

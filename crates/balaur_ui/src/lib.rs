@@ -46,7 +46,7 @@ pub use widget::input::{
     WidgetInputSnapshot, click, edit, submit,
 };
 pub use widget::inspector::reread;
-pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
+pub use widget::node::{Move, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
 /// Where the layer last drew a widget, in design pixels, or `None` for one
@@ -256,21 +256,12 @@ pub fn toast(eng: &Engine, text: &str) -> anyhow::Result<()> {
     balaur_core::components::add(eng, entity, "widget", Some(&params.into()))
 }
 
-pub struct UiPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for UiPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("ui", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct UiPlugin;
 
 impl balaur_plugin::Plugin for UiPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "ui"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -298,7 +289,7 @@ impl balaur_plugin::Plugin for UiPlugin {
                 Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        api::install_ui_api(&mut *reg.script_module("ui")?);
+        api::install_ui_api(&mut reg.script_module("ui")?);
         widget::input::register(reg);
         // Before `widget`, so a scene gives a node these first and builds
         // its widget once, with their rows.

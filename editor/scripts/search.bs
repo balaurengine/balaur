@@ -14,7 +14,7 @@ pub fn control(state: editor::State, id: str, placeholder: str, width: float) ->
         width: width,
         text: query(state, id),
         placeholder: placeholder,
-        on: "search_typed",
+        on_change: "search_typed",
         data: id,
     }
 }

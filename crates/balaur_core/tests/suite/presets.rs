@@ -139,11 +139,8 @@ fn a_project_preset_without_components_is_an_error() {
 struct PackedHost(balaur_core::Pack);
 
 impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
-    fn module(
-        &self,
-        _: &str,
-    ) -> anyhow::Result<Box<dyn balaur_script::Bindings<balaur_core::Engine>>> {
-        Ok(Box::new(balaur_script::NoBindings))
+    fn module(&self, name: &str) -> anyhow::Result<balaur_script::Module<balaur_core::Engine>> {
+        Ok(balaur_script::Module::detached(name))
     }
     fn attach_with_props(
         &self,
@@ -180,16 +177,6 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
     }
     fn instance_count(&self) -> usize {
         0
-    }
-    fn invoke(
-        &self,
-        _: balaur_script::CallbackId,
-        _: &[balaur_script::Value],
-    ) -> anyhow::Result<balaur_script::Value> {
-        Ok(balaur_script::Value::Nil)
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
     }
 }
 

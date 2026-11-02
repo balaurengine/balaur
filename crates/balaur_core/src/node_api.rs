@@ -10,7 +10,7 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::{Result, anyhow, bail};
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 use glamx::{EulerRot, Vec3};
 use hecs::Entity;
 
@@ -23,312 +23,109 @@ use scripts::{
     queue_free, script_field, script_path, script_props, set_script,
 };
 
-/// One node operation, as a plain function pointer so the list stays a `const`.
+/// One node operation: what a script calls, what the reference says of it, and
+/// what runs, as a plain function pointer so the list stays a `const`.
 pub struct NodeOp {
     pub name: &'static str,
+    /// The components it drives: a script calls it on the first,
+    /// `node.transform.translate(..)`.
+    pub acts_on: &'static [&'static str],
+    /// What a script passes after the node, and what it gets back:
+    /// `"(name: string) -> node"`.
+    pub signature: &'static str,
+    pub doc: &'static str,
     pub call: fn(&Engine, &[Value]) -> Result<Value>,
 }
 
+const fn op(
+    name: &'static str,
+    acts_on: &'static [&'static str],
+    signature: &'static str,
+    doc: &'static str,
+    call: fn(&Engine, &[Value]) -> Result<Value>,
+) -> NodeOp {
+    NodeOp {
+        name,
+        acts_on,
+        signature,
+        doc,
+        call,
+    }
+}
+
 /// Every node operation, in one list.
+#[rustfmt::skip]
 pub const NODE_OPS: &[NodeOp] = &[
-    NodeOp {
-        name: "is_valid",
-        call: is_valid,
-    },
-    NodeOp {
-        name: "name",
-        call: name,
-    },
-    NodeOp {
-        name: "set_name",
-        call: set_name,
-    },
-    NodeOp {
-        name: "path",
-        call: path,
-    },
-    NodeOp {
-        name: "global_position",
-        call: global_position,
-    },
-    NodeOp {
-        name: "global_rotation_euler",
-        call: global_rotation_euler,
-    },
-    NodeOp {
-        name: "global_scale",
-        call: global_scale,
-    },
-    NodeOp {
-        name: "get_node",
-        call: get_node,
-    },
-    NodeOp {
-        name: "add_child",
-        call: add_child,
-    },
-    NodeOp {
-        name: "parent",
-        call: parent,
-    },
-    NodeOp {
-        name: "children",
-        call: children,
-    },
-    NodeOp {
-        name: "set_parent",
-        call: set_parent,
-    },
-    NodeOp {
-        name: "sibling_index",
-        call: sibling_index,
-    },
-    NodeOp {
-        name: "set_sibling_index",
-        call: set_sibling_index,
-    },
-    NodeOp {
-        name: "set_component",
-        call: set_component,
-    },
-    NodeOp {
-        name: "patch_component",
-        call: patch_component,
-    },
-    NodeOp {
-        name: "set_state",
-        call: go_to_state,
-    },
-    NodeOp {
-        name: "state",
-        call: current_state,
-    },
-    NodeOp {
-        name: "remove_component",
-        call: remove_component,
-    },
-    NodeOp {
-        name: "get_component",
-        call: get_component,
-    },
-    NodeOp {
-        name: "has_component",
-        call: has_component,
-    },
-    NodeOp {
-        name: "component_names",
-        call: component_names,
-    },
-    NodeOp {
-        name: "stable_id",
-        call: stable_id,
-    },
-    NodeOp {
-        name: "descendants",
-        call: descendants,
-    },
-    NodeOp {
-        name: "script_path",
-        call: script_path,
-    },
-    NodeOp {
-        name: "script_props",
-        call: script_props,
-    },
-    NodeOp {
-        // N8: what it names is read in two halves, `script_path` and
-        // `script_props`, the way a scene's `script` key spells it.
-        name: "set_script",
-        call: set_script,
-    },
-    NodeOp {
-        name: "instance",
-        call: instance,
-    },
-    NodeOp {
-        name: "has_method",
-        call: has_method,
-    },
-    NodeOp { name: "call", call },
-    NodeOp {
-        name: "script_field",
-        call: script_field,
-    },
-    NodeOp {
-        name: "call_async",
-        call: call_async,
-    },
-    NodeOp {
-        name: "emit",
-        call: emit,
-    },
-    NodeOp {
-        name: "attach_script",
-        call: attach_script,
-    },
-    NodeOp {
-        name: "detach_script",
-        call: detach_script,
-    },
-    NodeOp {
-        name: "queue_free",
-        call: queue_free,
-    },
-    NodeOp {
-        name: "free",
-        call: free,
-    },
-    NodeOp {
-        name: "authored",
-        call: authored,
-    },
-    NodeOp {
-        name: "visible",
-        call: visible,
-    },
-    NodeOp {
-        name: "set_visible",
-        call: set_visible,
-    },
-    NodeOp {
-        name: "visible_in_tree",
-        call: visible_in_tree,
-    },
-    NodeOp {
-        name: "tint",
-        call: tint,
-    },
-    NodeOp {
-        name: "set_tint",
-        call: set_tint,
-    },
-    NodeOp {
-        name: "effective_tint",
-        call: effective_tint,
-    },
-    NodeOp {
-        name: "material",
-        call: material,
-    },
-    NodeOp {
-        name: "effective_material",
-        call: effective_material,
-    },
-    NodeOp {
-        name: "z_index",
-        call: z_index,
-    },
-    NodeOp {
-        name: "set_z_index",
-        call: set_z_index,
-    },
-    NodeOp {
-        name: "effective_z_index",
-        call: effective_z_index,
-    },
-    NodeOp {
-        name: crate::process::KEY,
-        call: process,
-    },
-    NodeOp {
-        name: "set_process",
-        call: set_process,
-    },
-    NodeOp {
-        name: "ticking",
-        call: ticking,
-    },
-    NodeOp {
-        name: "reset_interpolation",
-        call: reset_interpolation,
-    },
-    NodeOp {
-        name: "tags",
-        call: tags,
-    },
-    NodeOp {
-        name: "has_tag",
-        call: has_tag,
-    },
-    NodeOp {
-        name: "add_tag",
-        call: add_tag,
-    },
-    NodeOp {
-        name: "remove_tag",
-        call: remove_tag,
-    },
+    op("is_valid", &[], "() -> bool", "Whether the node is still in the world; false rather than an error when the value is not a node.", is_valid),
+    op("name", &[], "() -> string", "The node's own name, empty when it carries none.", name),
+    op("set_name", &[], "(name: string)", "Rename the node, doing nothing when it carries no name.", set_name),
+    op("path", &[], "() -> string", "The node's slash-separated path, built by climbing parents from the node up to the root.", path),
+    op("global_position", &["transform"], "() -> vec3", "The node's position in world space, as of the last transform sync.", global_position),
+    op("global_rotation_euler", &["transform"], "() -> vec3", "The node's world rotation as euler angles in radians, as of the last transform sync.", global_rotation_euler),
+    op("global_scale", &["transform"], "() -> vec3", "The node's scale in world space, as of the last transform sync.", global_scale),
+    op("get_node", &[], "(path: string) -> node", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches.", get_node),
+    op("add_child", &[], "(name: string) -> node", "Create a named child node under this one and return it.", add_child),
+    op("parent", &[], "() -> node", "The node's parent, nil at the root.", parent),
+    op("children", &[], "() -> [node]", "The node's direct children, an empty list when it has none.", children),
+    op("set_parent", &[], "(parent: node)", "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent.", set_parent),
+    op("sibling_index", &[], "() -> int", "Where the node sits among its parent's children, counting from zero; 0 at the root.", sibling_index),
+    op("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.", set_sibling_index),
+    op("set_component", &[], "(component: string, params: any)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame.", set_component),
+    op("patch_component", &[], "(component: string, params: any) -> bool", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds. Answers whether the component took the values: one it refuses goes to the log with its reason, and the script goes on. A component or property nothing has, or a node that is gone, is an error.", patch_component),
+    op("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.", go_to_state),
+    op("state", &["states"], "() -> string", "The state the node is in, or \"\" for the pose the scene gave it.", current_state),
+    op("remove_component", &[], "(component: string)", "Take the named component off the node.", remove_component),
+    op("get_component", &[], "(component: string, key: string?) -> any", "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for.", get_component),
+    op("has_component", &[], "(component: string) -> bool", "Whether the node carries the named component.", has_component),
+    op("component_names", &[], "() -> [string]", "The names of every component on the node.", component_names),
+    op("stable_id", &[], "() -> string", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not.", stable_id),
+    op("descendants", &[], "() -> [node]", "Every node under this one, in tree order, the node itself excluded.", descendants),
+    op("script_path", &[], "() -> string", "The path of the script the node names, nil when it names none; named whether or not it runs.", script_path),
+    op("script_props", &[], "() -> any", "What the node sets over its script's exported defaults, as a table; empty when it sets nothing.", script_props),
+    op("set_script", &[], "(path: string?, props: any)", "Name the node's script and what it sets, without running it: what a scene's `script` key says and `attach_script` also starts. Nil takes the script off.", set_script),
+    op("instance", &[], "() -> string?", "The prefab file the node instances, nil when it instances none.", instance),
+    op("has_method", &[], "(method: string) -> bool", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\".", has_method),
+    op("script_field", &[], "(name: string) -> any", "A member the node's script instance holds, read by another script: GDScript's `node.speed`. Nil for no script or no such member.", script_field),
+    op("call", &[], "(method: string, arg1: any, arg2: any, arg3: any, arg4: any) -> any", "Call a method on the node's script and return what it gives back; nil when there is no such script or method.", call),
+    op("call_async", &[], "(method: string, arg1: any, arg2: any, arg3: any, arg4: any) -> int", "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`.", call_async),
+    op("emit", &[], "(name: string, payload: any)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now.", emit),
+    op("attach_script", &[], "(path: string, props: any)", "Attach the script at a path, with an optional table overriding what the script exports.", attach_script),
+    op("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay.", detach_script),
+    op("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame.", queue_free),
+    op("free", &[], "()", "Destroy the node and its subtree now, scripts detached first: what a tool editing a scene does, where no script of the subtree is running. A game frees with `queue_free`.", free),
+    op("authored", &[], "(component: string) -> any", "The component as a save writes it: every property it holds, an inline asset as its definition, a colour as `#rrggbb` where it is one, and no read-only property. Nil when the node does not carry it.", authored),
+    op("visible", &[], "() -> bool", "Whether the node itself is set to draw; an ancestor may still hide it.", visible),
+    op("set_visible", &[], "(on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides.", set_visible),
+    op("visible_in_tree", &[], "() -> bool", "What the renderer sees: false when the node or any ancestor is hidden.", visible_in_tree),
+    op("tint", &[], "() -> color", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.", tint),
+    op("set_tint", &[], "(r: float, g: float, b: float, a: float)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits.", set_tint),
+    op("effective_tint", &[], "() -> color", "What the renderer multiplies by: this node's tint with every ancestor's folded in.", effective_tint),
+    op("material", &[], "() -> string", "The `material` asset the node names itself, empty when it takes its parent's.", material),
+    op("effective_material", &[], "() -> string", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.", effective_material),
+    op("z_index", &[], "() -> int", "The node's own draw layer, added to its parent's unless set absolute.", z_index),
+    op("set_z_index", &[], "(z: int, options: any)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `z_as_relative = false` makes it absolute.", set_z_index),
+    op("effective_z_index", &[], "() -> int", "The layer the node actually draws on, with every ancestor's added in.", effective_z_index),
+    op(crate::process::KEY, &[], "() -> string", "When this node ticks: \"inherit\", \"pausable\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer.", process),
+    op("set_process", &[], "(mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.", set_process),
+    op("ticking", &[], "() -> bool", "Whether the node ticks this frame, its process mode and the game's pause together.", ticking),
+    op("reset_interpolation", &[], "()", "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you.", reset_interpolation),
+    op("tags", &[], "() -> [string]", "The names the node is filed under, sorted.", tags),
+    op("has_tag", &[], "(tag: string) -> bool", "Whether the node is filed under a name.", has_tag),
+    op("add_tag", &[], "(tag: string)", "File the node under a name; `scene.tagged` finds it from then on.", add_tag),
+    op("remove_tag", &[], "(tag: string)", "Take a name off the node; a name it never had is left alone.", remove_tag),
 ];
 
 /// Register every node operation into a binding group as a free function.
 ///
 /// A backend that gives its node handle method syntax walks `NODE_OPS`
 /// itself instead; this is the plain path.
-pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_node_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `this.node.get_node(\"Arm\")`.",
+        "What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `self.node.get_node(\"Arm\")`.",
     );
-    m.describe(&[
-        ("is_valid", &[], "()", "Whether the node is still in the world; false rather than an error when the value is not a node."),
-        ("name", &[], "()", "The node's own name, empty when it carries none."),
-        ("set_name", &[], "(name: string)", "Rename the node, doing nothing when it carries no name."),
-        ("path", &[], "()", "The node's slash-separated path, built by climbing parents from the node up to the root."),
-        ("global_position", &["transform"], "()", "The node's position in world space, as of the last transform sync."),
-        ("global_rotation_euler", &["transform"], "()", "The node's world rotation as euler angles in radians, as of the last transform sync."),
-        ("global_scale", &["transform"], "()", "The node's scale in world space, as of the last transform sync."),
-        ("get_node", &[], "(path: string)", "The node at an `A/B/C` path relative to this one, `..` climbing to the parent and a leading `/` starting from the root; nil when nothing matches."),
-        ("add_child", &[], "(name: string)", "Create a named child node under this one and return it."),
-        ("parent", &[], "()", "The node's parent, nil at the root."),
-        ("children", &[], "()", "The node's direct children, an empty list when it has none."),
-        ("set_parent", &[], "(parent: node)", "Move the node under another, keeping where it is in the world; an error for a cycle or a dead parent."),
-        ("sibling_index", &[], "()", "Where the node sits among its parent's children, counting from zero; 0 at the root."),
-        ("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest."),
-        ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame."),
-        ("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
-        ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
-        ("patch_component", &[], "(component: string, params: table) -> bool", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds. Answers whether the component took the values: one it refuses goes to the log with its reason, and the script goes on. A component or property nothing has, or a node that is gone, is an error."),
-        ("remove_component", &[], "(component: string)", "Take the named component off the node."),
-        ("get_component", &[], "(component: string, key: string?)", "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for."),
-        ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
-        ("component_names", &[], "()", "The names of every component on the node."),
-        ("stable_id", &[], "()", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not."),
-        ("descendants", &[], "()", "Every node under this one, in tree order, the node itself excluded."),
-        ("script_path", &[], "()", "The path of the script the node names, nil when it names none; named whether or not it runs."),
-        ("script_props", &[], "()", "What the node sets over its script's exported defaults, as a table; empty when it sets nothing."),
-        ("set_script", &[], "(path: string?, props: any?)", "Name the node's script and what it sets, without running it: what a scene's `script` key says and `attach_script` also starts. Nil takes the script off."),
-        ("instance", &[], "()", "The prefab file the node instances, nil when it instances none."),
-        ("has_method", &[], "(method: string)", "Whether the node's script declares this method, so a caller can tell \"no handler\" from \"a handler that answered nothing\"."),
-        ("script_field", &[], "(name: string)", "A member the node's script instance holds, read by another script: GDScript's `node.speed`. Nil for no script or no such member."),
-        ("call", &[], "(method: string, args: any?)", "Call a method on the node's script and return what it gives back; nil when there is no such script or method."),
-        ("call_async", &[], "(method: string, args: any?)", "Call a method that may suspend, and get a token `task.wait` resumes with its result once it returns: `task::wait(door.call_async(\"open\")).await`, a GDScript `await door.open()`."),
-        ("emit", &[], "(name: string, payload: any?)", "Emit an event from this node, delivered at the top of the next frame to whoever subscribed to `name` on this node, and to whoever subscribed to `name` from anyone. `call` is the twin that reaches one known script, now."),
-        ("attach_script", &[], "(path: string, props: any?)", "Attach the script at a path, with an optional table overriding what the script exports."),
-        ("detach_script", &[], "()", "Drop the script instance on this node, so no further lifecycle call reaches it; the node and its components stay."),
-        ("queue_free", &[], "()", "Destroy the node and its subtree at the end of the frame."),
-        ("free", &[], "()", "Destroy the node and its subtree now, scripts detached first: what a tool editing a scene does, where no script of the subtree is running. A game frees with `queue_free`."),
-        ("authored", &[], "(component: string)", "The component as a save writes it: every property it holds, an inline asset as its definition, a colour as `#rrggbb` where it is one, and no read-only property. Nil when the node does not carry it."),
-        ("visible", &[], "(node)", "Whether the node itself is set to draw; an ancestor may still hide it."),
-        ("set_visible", &[], "(node, on: bool)", "Show or hide the node and everything under it, emitting `visibility_changed` with the new value when the flag moves. Physics is untouched: a hidden collider still collides."),
-        ("visible_in_tree", &[], "(node)", "What the renderer sees: false when the node or any ancestor is hidden."),
-        ("tint", &[], "(node)", "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen."),
-        ("set_tint", &[], "(node, r: float, g: float, b: float, a: float?)", "Multiply a colour into everything the node and its subtree draw, alpha included, one meaning untinted. A renderable's own `color` is the node's alone; this is the one that inherits."),
-        ("effective_tint", &[], "(node)", "What the renderer multiplies by: this node's tint with every ancestor's folded in."),
-        ("material", &[], "(node)", "The `material` asset the node names itself, empty when it takes its parent's."),
-        ("effective_material", &[], "(node)", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one."),
-        ("z_index", &[], "(node)", "The node's own draw layer, added to its parent's unless set absolute."),
-        ("set_z_index", &[], "(node, z: int, options: map?)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `z_as_relative = false` makes it absolute."),
-        ("effective_z_index", &[], "(node)", "The layer the node actually draws on, with every ancestor's added in."),
-        (crate::process::KEY, &[], "(node)", "When this node ticks: \"inherit\", \"pausable\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer."),
-        ("set_process", &[], "(node, mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says."),
-        ("ticking", &[], "(node)", "Whether the node ticks this frame, its process mode and the game's pause together."),
-        ("reset_interpolation", &[], "(node)", "Throw away the poses the node was blending and start again from where it is, so a teleport does not streak across the level. `physics3d.teleport` and `physics2d.teleport` call it for you."),
-        ("tags", &[], "(node)", "The names the node is filed under, sorted."),
-        ("has_tag", &[], "(node, tag: string)", "Whether the node is filed under a name."),
-        ("add_tag", &[], "(node, tag: string)", "File the node under a name; `scene.tagged` finds it from then on."),
-        ("remove_tag", &[], "(node, tag: string)", "Take a name off the node; a name it never had is left alone."),
-    ]);
-    for d in NODE_OPS {
-        m.function_raw(d.name, Box::new(d.call));
+    for op in NODE_OPS {
+        m.describe(&[(op.name, op.acts_on, op.signature, op.doc)]);
+        m.function_raw(op.name, Box::new(op.call));
     }
 }
 
@@ -999,8 +796,8 @@ pub fn to_toml(v: &Value) -> Result<toml::Value> {
         Value::Int(i) => toml::Value::Integer(*i),
         Value::Num(n) => toml::Value::Float(*n),
         Value::Str(s) => toml::Value::String(s.clone()),
-        Value::Node(_) | Value::Callback(_) => {
-            return Err(anyhow!("a node or callback is not component data"));
+        Value::Node(_) => {
+            return Err(anyhow!("a node is not component data"));
         }
         Value::Many(_) => return Err(anyhow!("several values are not component data")),
         // TOML has no byte string, and a component that wanted one would be

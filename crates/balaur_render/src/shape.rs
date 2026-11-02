@@ -3,7 +3,6 @@
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum, Property, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_geometry::primitive::{Flat, Solid};
@@ -286,7 +285,12 @@ pub enum LineCap {
 // The `shape3d` component; the node draws the [`Renderable3d`] each write
 // leaves beside it.
 #[derive(Component)]
-#[component(name = "shape3d", on_remove = shape3d_removed)]
+#[component(
+    name = "shape3d",
+    on_remove = shape3d_removed,
+    tags = [words::PERSPECTIVE, "render"],
+    after_write = shape3d_written,
+)]
 pub struct Primitive3d {
     /// The primitive drawn, and its dimensions
     pub shape: SolidShape,
@@ -320,7 +324,12 @@ pub struct Primitive3d {
 // The `shape2d` component; the node draws the [`Renderable2d`] each write
 // leaves beside it.
 #[derive(Component)]
-#[component(name = "shape2d", on_remove = shape2d_removed)]
+#[component(
+    name = "shape2d",
+    on_remove = shape2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = shape2d_written,
+)]
 pub struct Primitive2d {
     /// The shape drawn, and its dimensions
     pub shape: FlatShape,
@@ -339,7 +348,12 @@ pub struct Primitive2d {
 // The node draws the [`Renderable2d`] each write leaves beside it, as a
 // `shape2d` does.
 #[derive(Component)]
-#[component(name = "line2d", on_remove = line2d_removed)]
+#[component(
+    name = "line2d",
+    on_remove = line2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = line2d_written,
+)]
 pub struct Line2d {
     /// Where the line's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve
     #[property(asset = "mesh")]
@@ -422,13 +436,7 @@ fn shape3d_removed(eng: &Engine, entity: Entity) {
 }
 
 pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Primitive3d::NAME,
-        ComponentDef {
-            tags: &[words::PERSPECTIVE, "render"],
-            ..ComponentDef::of::<Primitive3d>(Some(shape3d_written))
-        },
-    );
+    reg.add_component::<Primitive3d>();
 }
 
 /// What a write of `shape2d` leaves to be worked out again.
@@ -506,13 +514,7 @@ fn shape2d_removed(eng: &Engine, entity: Entity) {
 
 /// The `shape2d` component: 2D primitives.
 pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Primitive2d::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Primitive2d>(Some(shape2d_written))
-        },
-    );
+    reg.add_component::<Primitive2d>();
 }
 
 /// What a removed `Line2d` leaves behind, taken with it.
@@ -522,13 +524,7 @@ fn line2d_removed(eng: &Engine, entity: Entity) {
 
 /// The `line2d` component: a stroked line through an asset's points.
 pub(crate) fn register_line2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        Line2d::NAME,
-        ComponentDef {
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            ..ComponentDef::of::<Line2d>(Some(line2d_written))
-        },
-    );
+    reg.add_component::<Line2d>();
 }
 
 #[cfg(test)]

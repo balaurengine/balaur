@@ -10,7 +10,7 @@
 
 use anyhow::{anyhow, bail};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::vocabulary::keys as k;
 
@@ -192,7 +192,7 @@ type ArcArgs = (
 /// `draw_texture_2d`'s arguments: the path, centre, size, tint and options.
 type TextureArgs = (String, f32, f32, f32, f32, Option<Value>, Option<Value>);
 
-pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
         ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
@@ -272,7 +272,7 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
 /// The outline half of the 2D immediate API, split from
 /// [`install_draw_2d_api`] under `MAX_FN_LINES`: a filled polygon and a
 /// stroked chain of points.
-fn install_outline_api(m: &mut dyn Bindings<Engine>) {
+fn install_outline_api(m: &mut Module<Engine>) {
     m.function(
         "draw_polygon_2d",
         |eng: &Engine, (points, color, opts): (Value, Option<Value>, Option<Value>)| {

@@ -15,7 +15,7 @@ y = 52.0
 padding = [12, 8, 12, 8]
 gap = [2, 2]
 interactive = false
-layer = "shell"
+whole_window = true
 
 [[nodes]]
 id = "lines"

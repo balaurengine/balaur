@@ -14,7 +14,7 @@ use balaur_script::Value;
 
 fn app_with_http() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut HttpPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut HttpPlugin).unwrap();
     app
 }
 

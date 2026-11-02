@@ -10,7 +10,7 @@ use crate::rapier3d::dynamics::IntegrationParameters;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::vocabulary::{Opts, keys as k, map, words as w};
 use crate::{PhysicsState2d, PhysicsState3d};
@@ -740,7 +740,7 @@ fn tuning(eng: &Engine) -> Value {
     map([(k::WORLD_3D, table(dim3)), (k::WORLD_2D, table(dim2))])
 }
 
-pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_tuning", &[], "(opts: table)", "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` table, the keys `[physics]` takes. A key at the top reaches both worlds; a `3d` or `2d` table holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml."),
         ("tuning", &[], "() -> map", "The solver settings each world is running with, as `{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."),
