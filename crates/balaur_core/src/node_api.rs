@@ -96,10 +96,6 @@ pub const NODE_OPS: &[NodeOp] = &[
         call: patch_component,
     },
     NodeOp {
-        name: "try_patch_component",
-        call: try_patch_component,
-    },
-    NodeOp {
         name: "set_state",
         call: go_to_state,
     },
@@ -290,8 +286,7 @@ pub fn install_node_api(m: &mut dyn Bindings<Engine>) {
         ("set_component", &[], "(component: string, params: any?)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame."),
         ("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone."),
         ("state", &["states"], "()", "The state the node is in, or \"\" for the pose the scene gave it."),
-        ("patch_component", &[], "(component: string, params: table)", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds."),
-        ("try_patch_component", &[], "(component: string, params: table) -> bool", "As `patch_component`, answering whether the component took the change rather than failing when it refuses it: an editor writing one property a reader typed asks this."),
+        ("patch_component", &[], "(component: string, params: table) -> bool", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds. Answers whether the component took the values: one it refuses goes to the log with its reason, and the script goes on. A component or property nothing has, or a node that is gone, is an error."),
         ("remove_component", &[], "(component: string)", "Take the named component off the node."),
         ("get_component", &[], "(component: string, key: string?)", "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for."),
         ("has_component", &[], "(component: string)", "Whether the node carries the named component."),
@@ -833,19 +828,16 @@ pub fn set_property_placed(
     written
 }
 
-/// `patch_component` for a caller that expects a refusal: `false` where
-/// `patch_component` fails.
-fn try_patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
-    node(args)?;
-    Ok(Value::Bool(patch_component(eng, args).is_ok()))
-}
-
 /// Writes over what the component currently holds, so the properties the
 /// table does not name survive.
 ///
 /// The difference from `set_component` is the whole reason both exist:
 /// describing a component whole is what a scene file means, and changing one
 /// property is what a script driving it over time means.
+///
+/// A value the component refuses answers `false` rather than ending the
+/// script's call, which nothing could catch: an inspector writing what a reader
+/// typed expects them. A name nothing has is a typo, and ends the call.
 fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
     let params = to_toml(
@@ -853,17 +845,36 @@ fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
             .ok_or_else(|| anyhow!("patch_component needs the properties to change"))?,
     )?;
     let name = text(args, 1)?;
+    let Err(why) = patched(eng, e, name, &params) else {
+        return Ok(Value::Bool(true));
+    };
+    if names_nothing(eng, e, name, &params) {
+        return Err(why);
+    }
+    let node = scene::node_path(&eng.world(), e);
+    tracing::warn!(node, "write refused: {why:#}");
+    Ok(Value::Bool(false))
+}
+
+/// Whether a write that failed named a node that is gone, or a component or
+/// property nothing has, rather than a value the component would not take.
+/// Asked only of a failure, so a write that lands checks its names once.
+fn names_nothing(eng: &Engine, e: Entity, name: &str, params: &toml::Value) -> bool {
+    !eng.world().contains(e)
+        || !crate::components::is_registered(eng, name)
+        || crate::components::refuse_unknown_keys(eng, name, Some(params)).is_err()
+}
+
+fn patched(eng: &Engine, e: Entity, name: &str, params: &toml::Value) -> Result<()> {
     // One property is what a script driving a value over time writes, and
     // `set_property` is the path that does not read the table back for it.
     if let Some(table) = params.as_table()
         && table.len() == 1
         && let Some((key, value)) = table.iter().next()
     {
-        crate::components::set_property(eng, e, name, key, value)?;
-        return Ok(Value::Nil);
+        return crate::components::set_property(eng, e, name, key, value);
     }
-    crate::components::patch(eng, e, name, &params)?;
-    Ok(Value::Nil)
+    crate::components::patch(eng, e, name, params)
 }
 
 /// `node.states.set_state(state)` — put the node in one of its `states`.

@@ -48,8 +48,7 @@ const OPS: &[(&str, &[T], T)] = &[
     ("sibling_index", &[], Int),
     ("set_sibling_index", &[Int], Void),
     ("set_component", &[Str, Any], Void),
-    ("patch_component", &[Str, Any], Void),
-    ("try_patch_component", &[Str, Any], Bool),
+    ("patch_component", &[Str, Any], Bool),
     // With a key, that one property.
     ("get_component", &[Str, MaybeStr], Any),
     ("set_state", &[Str], Void),

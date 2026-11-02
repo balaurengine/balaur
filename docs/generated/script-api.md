@@ -33,7 +33,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 53 | 0 |
+| [`node`](#node) | 52 | 0 |
 | [`physics`](#physics) | 12 | 0 |
 | [`physics2d`](#physics2d) | 17 | 111 |
 | [`physics3d`](#physics3d) | 17 | 118 |
@@ -704,7 +704,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `material` | `(Node) -> str` |
 | `name` | `(Node) -> str` |
 | `parent` | `(Node) -> Node` |
-| `patch_component` | `(Node, str, any)` |
+| `patch_component` | `(Node, str, any) -> bool` |
 | `path` | `(Node) -> str` |
 | `process` | `(Node) -> str` |
 | `queue_free` | `(Node)` |
@@ -728,7 +728,6 @@ What every node has: name, path, transform, children, components and script. Eac
 | `tags` | `(Node) -> [str]` |
 | `ticking` | `(Node) -> bool` |
 | `tint` | `(Node) -> Color` |
-| `try_patch_component` | `(Node, str, any) -> bool` |
 | `visible` | `(Node) -> bool` |
 | `visible_in_tree` | `(Node) -> bool` |
 | `z_index` | `(Node) -> int` |

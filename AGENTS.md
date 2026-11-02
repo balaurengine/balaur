@@ -108,8 +108,10 @@ of its own, `self.node.call("await_reply", id)`, which runs once the plain
 method has returned.
 
 A host function's error **ends the whole script call**, and nothing catches
-it. Where a failure is expected the host answers nil or `false` instead
-(`toml::parse`, `node.try_patch_component`), and the caller checks.
+it. A typo should: a component or property nothing has, a node that is gone.
+Where a failure is expected the host answers nil or `false` instead
+(`toml::parse`, `node.patch_component` on a value the component refuses, which
+logs `write refused` with the reason), and the caller checks.
 
 ## Rune
 

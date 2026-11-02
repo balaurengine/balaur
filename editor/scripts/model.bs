@@ -1300,7 +1300,7 @@ pub fn set_component_property(state: &mut editor::State, name: str, property: st
     for row in selection::all(state) {
         let found = node(state, row);
         if found.is_valid() && found.has_component(name) {
-            found.try_patch_component(name, { property: value });
+            found.patch_component(name, { property: value });
         }
     }
 }
@@ -1331,7 +1331,7 @@ pub fn set_component_properties_each(state: &mut editor::State, name: str, prope
         }
         let properties = properties_of(found, data);
         if properties != nil {
-            found.try_patch_component(name, properties);
+            found.patch_component(name, properties);
         }
     }
 }

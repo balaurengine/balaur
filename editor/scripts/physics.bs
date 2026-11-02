@@ -107,7 +107,7 @@ fn patch_beside(state: &mut editor::State, two_d: bool, beside: any) {
             continue;
         }
         for component in beside.keys() {
-            found.try_patch_component(component, beside[component]);
+            found.patch_component(component, beside[component]);
         }
     }
 }

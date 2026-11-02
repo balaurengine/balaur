@@ -4127,6 +4127,7 @@ pub fn warning_marks(state: &mut editor::State) {
     model::add_component(state, "softbody2d");
     model::add_component(state, "soft_grid2d");
     let before = util::map_or_empty(model::node(state, row).authored("soft_grid2d"))["cells"];
+    expect_warning("write refused: applying component 'soft_grid2d'");
     model::set_component_property(state, "soft_grid2d", "cells", [5000.0, 5000.0]);
     let after = util::map_or_empty(model::node(state, row).authored("soft_grid2d"))["cells"];
     check(after == before, "a refused write leaves the document as it was ({after})");

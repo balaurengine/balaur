@@ -3646,7 +3646,7 @@
       },
       "node.patch_component": {
         "least": 2,
-        "signature": "(Node, str, any)"
+        "signature": "(Node, str, any) -> bool"
       },
       "node.path": {
         "least": 1,
@@ -4179,10 +4179,6 @@
       "node.transform.global_scale": {
         "least": 1,
         "signature": "(Node) -> Vec3"
-      },
-      "node.try_patch_component": {
-        "least": 2,
-        "signature": "(Node, str, any) -> bool"
       },
       "node.vehicle3d.vehicle_speed": {
         "least": 1,
@@ -21741,7 +21737,7 @@
         "material": "The `material` asset the node names itself, empty when it takes its parent's.",
         "name": "The node's own name, empty when it carries none.",
         "parent": "The node's parent, nil at the root.",
-        "patch_component": "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds.",
+        "patch_component": "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds. Answers whether the component took the values: one it refuses goes to the log with its reason, and the script goes on. A component or property nothing has, or a node that is gone, is an error.",
         "path": "The node's slash-separated path, built by climbing parents from the node up to the root.",
         "process": "When this node ticks: \"inherit\", \"pausable\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer.",
         "queue_free": "Destroy the node and its subtree at the end of the frame.",
@@ -21767,7 +21763,6 @@
         "tags": "The names the node is filed under, sorted.",
         "ticking": "Whether the node ticks this frame, its process mode and the game's pause together.",
         "tint": "The node's own tint as r, g, b, a channel floats; an ancestor's multiplies into it on the way to the screen.",
-        "try_patch_component": "As `patch_component`, answering whether the component took the change rather than failing when it refuses it: an editor writing one property a reader typed asks this.",
         "visible": "Whether the node itself is set to draw; an ancestor may still hide it.",
         "visible_in_tree": "What the renderer sees: false when the node or any ancestor is hidden.",
         "z_index": "The node's own draw layer, added to its parent's unless set absolute."
@@ -21827,7 +21822,6 @@
         "tags",
         "ticking",
         "tint",
-        "try_patch_component",
         "visible",
         "visible_in_tree",
         "z_index"
@@ -21862,7 +21856,7 @@
         "material": "(Node) -> str",
         "name": "(Node) -> str",
         "parent": "(Node) -> Node",
-        "patch_component": "(Node, str, any)",
+        "patch_component": "(Node, str, any) -> bool",
         "path": "(Node) -> str",
         "process": "(Node) -> str",
         "queue_free": "(Node)",
@@ -21888,7 +21882,6 @@
         "tags": "(Node) -> [str]",
         "ticking": "(Node) -> bool",
         "tint": "(Node) -> Color",
-        "try_patch_component": "(Node, str, any) -> bool",
         "visible": "(Node) -> bool",
         "visible_in_tree": "(Node) -> bool",
         "z_index": "(Node) -> int"
