@@ -547,9 +547,7 @@ fn build_layout(
             axis(0) as usize,
             axis(1) as usize,
         ),
-        SoftKind2d::Circle => {
-            SoftBodyBuilder2::disk(at, scalar::real(asked.circle.radius), circle() as usize)
-        }
+        SoftKind2d::Circle => SoftBodyBuilder2::disk(at, asked.circle.radius, circle() as usize),
         SoftKind2d::Rope => SoftBodyBuilder2::rope(
             pose * scalar::v2a(asked.rope.first),
             pose * scalar::v2a(asked.rope.second),
@@ -597,10 +595,10 @@ fn build_layout(
         SoftKind2d::Volumetric => {
             let (points, indices) = source_mesh(eng, mesh, pose)?;
             let border = outline(&indices);
-            let size = scalar::real(asked.volumetric.cell_size);
+            let size = asked.volumetric.cell_size;
             cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), fewer(kind))?;
             let mut fill = crate::rapier2d::parry::transformation::VolumeMeshParameters::new(size);
-            fill.min_angle = scalar::real(asked.volumetric.min_angle);
+            fill.min_angle = asked.volumetric.min_angle;
             SoftBodyBuilder2::volumetric_with(&points, &border, &fill).ok_or_else(|| {
                 anyhow!("that outline encloses nothing at a cell size of {size}: it has to be closed, and big enough to hold a cell")
             })?
@@ -737,10 +735,10 @@ fn with_settings(
         ))
         .cell_model(read_cell_model_2d(made))
         .volume_preservation(made.volume_preservation)
-        .volume_factor(scalar::real(made.volume_factor))
+        .volume_factor(made.volume_factor)
         .self_contacts(body.self_collision)
-        .linear_damping(scalar::real(body.linear_damping))
-        .gravity_scale(scalar::real(body.gravity_scale))
+        .linear_damping(body.linear_damping)
+        .gravity_scale(body.gravity_scale)
         .additional_solver_iterations(cap::iterations(body.solver_substeps))
         .additional_pgs_iterations(cap::iterations(body.solver_iterations))
         .can_sleep(body.can_sleep)
@@ -748,10 +746,10 @@ fn with_settings(
         .skin_collision(asked.skin.skin_collision)
         .surface_collider(surface_collider(body, &materials.surface));
     if body.mass > 0.0 {
-        builder = builder.mass(scalar::real(body.mass));
+        builder = builder.mass(body.mass);
     }
     if body.particle_radius > 0.0 {
-        builder = builder.particle_radius(scalar::real(body.particle_radius));
+        builder = builder.particle_radius(body.particle_radius);
     }
     if let Some(oriented) = cap::oriented(body.orientation) {
         builder = builder.oriented(oriented);
@@ -784,17 +782,13 @@ fn with_settings(
     )?;
     // After `mass`, which spreads one total over the particles evenly.
     if !rows.masses.is_empty() {
-        builder = builder.masses(rows.masses.iter().map(|m| scalar::real(*m)).collect());
+        builder = builder.masses(rows.masses.clone());
     }
     if !rows.tear.is_empty() {
-        builder =
-            builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, scalar::real(*r))));
+        builder = builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, *r)));
     }
     for (edge, hz, damping) in rows.springs {
-        let spring = crate::rapier2d::prelude::SpringCoefficients::new(
-            scalar::real(hz),
-            scalar::real(damping),
-        );
+        let spring = crate::rapier2d::prelude::SpringCoefficients::new(hz, damping);
         builder.edge_softness.push((edge, spring));
     }
     builder.tension_only_edges.extend(rows.tension_only);
@@ -1040,10 +1034,7 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
     if let Some(body) = body.filter(|_| authored <= 0.0) {
         let points: Vec<Vector2> = body.particle_positions().collect();
         let widest = extents(&points).into_iter().fold(0.0, f32::max);
-        out.extend(cap::hovering(
-            scalar::f32_of(body.particle_radius()),
-            widest,
-        ));
+        out.extend(cap::hovering(body.particle_radius(), widest));
     }
     out
 }
@@ -1128,12 +1119,12 @@ pub(crate) fn install_softbody_api_2d(m: &mut dyn Bindings<Engine>) {
     ]);
     m.function("softbody_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
-            Ok(scalar::f32_of(bodies.iter().map(|b| b.volume()).sum()))
+            Ok(bodies.iter().map(|b| b.volume()).sum::<f32>())
         })
     });
     m.function("softbody_rest_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
-            Ok(scalar::f32_of(bodies.iter().map(|b| b.rest_volume()).sum()))
+            Ok(bodies.iter().map(|b| b.rest_volume()).sum::<f32>())
         })
     });
     m.function("softbody_center", |eng: &Engine, node: NodeId| {

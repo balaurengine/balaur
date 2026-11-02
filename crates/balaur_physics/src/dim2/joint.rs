@@ -94,8 +94,8 @@ pub(crate) fn joint_of(ask: &JointAsk2d) -> Result<GenericJoint> {
     };
     let anchor1 = scalar::v2a(held.anchor);
     let anchor2 = scalar::v2a(held.connected_anchor);
-    let max_length = scalar::real(ask.rope.max_length);
-    let rest_length = scalar::real(ask.spring.rest_length);
+    let max_length = ask.rope.max_length;
+    let rest_length = ask.spring.rest_length;
     let mut joint: GenericJoint = match kind {
         w::FIXED => FixedJointBuilder::new()
             .local_anchor1(anchor1)
@@ -118,13 +118,11 @@ pub(crate) fn joint_of(ask: &JointAsk2d) -> Result<GenericJoint> {
             .build()
             .into(),
         // The pull itself is the `x` record's; without one the spring is slack.
-        w::SPRING => {
-            SpringJointBuilder::new(rest_length.max(0.0), 0.0, scalar::real(DEFAULT_DAMPING))
-                .local_anchor1(anchor1)
-                .local_anchor2(anchor2)
-                .build()
-                .into()
-        }
+        w::SPRING => SpringJointBuilder::new(rest_length.max(0.0), 0.0, DEFAULT_DAMPING)
+            .local_anchor1(anchor1)
+            .local_anchor2(anchor2)
+            .build()
+            .into(),
         w::GROOVE => PinSlotJointBuilder::new(axis)
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
@@ -143,7 +141,7 @@ pub(crate) fn joint_of(ask: &JointAsk2d) -> Result<GenericJoint> {
     if matches!(kind, w::SLIDER | w::GROOVE | w::GENERIC) && connected.length_squared() >= 1.0e-12 {
         joint.set_local_axis2(connected.normalize());
     }
-    let turn = |angle: f32| scalar::Rotation2::from_angle(scalar::real(angle));
+    let turn = |angle: f32| scalar::Rotation2::from_angle(angle);
     joint.local_frame1.rotation *= turn(held.anchor_rotation);
     joint.local_frame2.rotation *= turn(held.connected_anchor_rotation);
     let (hz, ratio) = crate::shared::joint::softness(held.softness_hz, held.softness_damping_ratio);
@@ -743,7 +741,7 @@ pub(crate) fn install_joint2d_api(m: &mut dyn Bindings<Engine>) {
 fn solve_ik(eng: &Engine, entity: Entity, target: Vector2, opts: &v::Opts<'_>) -> Result<()> {
     let rotation = opts.get(k::ROTATION).map(|_| opts.f32(k::ROTATION, 0.0));
     let options = ik_options(opts, rotation.is_some())?;
-    let angle = scalar::Rotation2::from_angle(scalar::real(rotation.unwrap_or(0.0)));
+    let angle = scalar::Rotation2::from_angle(rotation.unwrap_or(0.0));
     let pose = scalar::Pose2::from_parts(target, angle);
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();

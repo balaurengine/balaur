@@ -86,7 +86,7 @@ pub(crate) fn convex_polygon(
         ConvexPolygon::from_convex_polyline(points)
     }
     .ok_or_else(|| anyhow!("those {count} points do not outline a convex polygon"))?;
-    let border = scalar::real(polygon.edge_radius).max(0.0);
+    let border = polygon.edge_radius.max(0.0);
     let shape = if border > 0.0 {
         SharedShape::new(RoundShape {
             inner_shape: shape,
@@ -189,10 +189,10 @@ fn vhacd(cut: &VhacdCut, tidy: &MeshCollider2d) -> VHACDParameters {
     let mut tuning = VHACDParameters::default();
     let whole = |value: i64| u32::try_from(value.max(1)).unwrap_or(u32::MAX);
     tuning.resolution = whole(cut.resolution);
-    tuning.concavity = scalar::real(cut.max_concavity);
+    tuning.concavity = cut.max_concavity;
     tuning.max_convex_hulls = whole(cut.max_convex_hulls);
-    tuning.alpha = scalar::real(cut.symmetry_bias);
-    tuning.beta = scalar::real(cut.revolution_bias);
+    tuning.alpha = cut.symmetry_bias;
+    tuning.beta = cut.revolution_bias;
     tuning.plane_downsampling = whole(cut.plane_downsampling);
     tuning.convex_hull_downsampling = whole(cut.hull_downsampling);
     tuning.convex_hull_approximation = cut.approximate_hulls;
@@ -341,10 +341,7 @@ pub(crate) fn heightfield_collider(
     let field = balaur_core::assets::load_typed::<balaur_geometry::heightfield::HeightfieldData>(
         eng, reference,
     )?;
-    let mut ground = crate::rapier2d::parry::shape::HeightField::new(
-        field.heights.iter().map(|h| scalar::real(*h)).collect(),
-        scale,
-    );
+    let mut ground = crate::rapier2d::parry::shape::HeightField::new(field.heights.clone(), scale);
     for &[row, column] in &field.holes {
         ground.set_segment_removed(row * field.columns + column, true);
     }

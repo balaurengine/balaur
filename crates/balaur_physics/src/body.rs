@@ -152,15 +152,15 @@ pub(crate) fn write_body(body: &mut RigidBody, asked: &Body3d, may_sleep: bool) 
     if body.body_type() != kind {
         body.set_body_type(kind, true);
     }
-    body.set_linear_damping(scalar::real(asked.linear_damping));
-    body.set_angular_damping(scalar::real(asked.angular_damping));
-    body.set_gravity_scale(scalar::real(asked.gravity_scale), true);
+    body.set_linear_damping(asked.linear_damping);
+    body.set_angular_damping(asked.angular_damping);
+    body.set_gravity_scale(asked.gravity_scale, true);
     body.set_dominance_group(asked.dominance.clamp(-128, 127) as i8);
     body.set_additional_solver_iterations(asked.solver_iterations.max(0) as usize);
     body.set_additional_pgs_iterations(asked.internal_iterations.max(0) as usize);
     body.set_locked_axes(locked_axes(asked), true);
     body.enable_ccd(asked.continuous_collision);
-    body.set_soft_ccd_prediction(scalar::real(asked.speculative_distance));
+    body.set_soft_ccd_prediction(asked.speculative_distance);
     body.set_allow_fast_rotation(asked.allow_fast_rotation);
     body.enable_gyroscopic_forces(asked.gyroscopic_forces);
     body.set_enabled(asked.enabled);
@@ -171,7 +171,7 @@ pub(crate) fn write_body(body: &mut RigidBody, asked: &Body3d, may_sleep: bool) 
         may_sleep,
         (asked.sleep_threshold, asked.sleep_angular_threshold),
     );
-    body.activation_mut().time_until_sleep = scalar::real(asked.time_to_sleep.max(0.0));
+    body.activation_mut().time_until_sleep = asked.time_to_sleep.max(0.0);
 }
 
 /// What the author wrote that the body cannot hold.
@@ -202,17 +202,12 @@ fn start_body(body: &mut RigidBody, authored: &crate::shared::body::Authored, ma
 
 /// A rotation from the Euler radians a schema property holds, x first.
 pub(crate) fn rotation_from_euler(r: [f32; 3]) -> scalar::Rotation {
-    scalar::rotation_of(glamx::Quat::from_euler(
-        glamx::EulerRot::XYZ,
-        r[0],
-        r[1],
-        r[2],
-    ))
+    glamx::Quat::from_euler(glamx::EulerRot::XYZ, r[0], r[1], r[2])
 }
 
 /// The inverse of [`rotation_from_euler`].
 pub(crate) fn euler_of(rotation: scalar::Rotation) -> [f32; 3] {
-    let (x, y, z) = scalar::quat_of(rotation).to_euler(glamx::EulerRot::XYZ);
+    let (x, y, z) = rotation.to_euler(glamx::EulerRot::XYZ);
     [x, y, z]
 }
 
@@ -276,13 +271,13 @@ fn write_mass(body: &mut RigidBody, asked: &Body3d) {
     } else if is_default(&inertia) && is_default(&com) {
         // Rapier scales the angular inertia with the mass, which is what an
         // author who only wrote `mass = 5` means.
-        body.set_additional_mass(scalar::real(mass), true);
+        body.set_additional_mass(mass, true);
     } else {
         let com = scalar::v3a(com);
         let inertia = scalar::v3a(inertia);
         let frame = rotation_from_euler(asked.inertia_rotation);
         body.set_additional_mass_properties(
-            MassProperties::with_principal_inertia_frame(com, scalar::real(mass), inertia, frame),
+            MassProperties::with_principal_inertia_frame(com, mass, inertia, frame),
             true,
         );
     }
@@ -378,7 +373,7 @@ fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
             "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         ),
     ]);
-    let dt = || scalar::real(balaur_core::fixed_dt());
+    let dt = || balaur_core::fixed_dt();
     m.function(
         "apply_force",
         move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
@@ -660,7 +655,7 @@ fn install_body_readers(m: &mut dyn Bindings<Engine>) {
             state.borrow().world.gravity
         };
         read_body(eng, entity_of(node)?, |body| {
-            body.gravitational_potential_energy(scalar::real(balaur_core::fixed_dt()), gravity)
+            body.gravitational_potential_energy(balaur_core::fixed_dt(), gravity)
         })
     });
     m.function("is_moving", |eng: &Engine, node: NodeId| {
@@ -736,7 +731,6 @@ pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "predict_position",
         |eng: &Engine, (node, dt): (NodeId, f32)| {
-            let dt = scalar::real(dt);
             read_body(eng, entity_of(node)?, |body| {
                 pose_value(&body.predict_position_using_velocity(dt))
             })
@@ -745,7 +739,6 @@ pub(crate) fn install_body_pose_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "predict_position_with_forces",
         |eng: &Engine, (node, dt): (NodeId, f32)| {
-            let dt = scalar::real(dt);
             read_body(eng, entity_of(node)?, |body| {
                 pose_value(&body.predict_position_using_velocity_and_forces(dt))
             })
@@ -876,7 +869,7 @@ pub(crate) fn install_body_sleep_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("time_since_can_sleep", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
-            scalar::f32_of(body.activation().time_since_can_sleep)
+            body.activation().time_since_can_sleep
         })
     });
 }

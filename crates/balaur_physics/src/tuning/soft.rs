@@ -82,7 +82,7 @@ macro_rules! write_soft {
         use crate::vocabulary::{keys as k, words as w};
         let s = &mut $p.soft_bodies;
         let real = |read: &dyn Fn(&str, f32) -> f32, key: &str, now: crate::scalar::Real| {
-            crate::scalar::real(read(key, crate::scalar::f32_of(now)).max(0.0))
+            read(key, now).max(0.0)
         };
         let count = |read: &dyn Fn(&str, f32) -> f32, key: &str, now: usize| {
             read(key, now as f32).max(0.0) as usize
@@ -153,7 +153,7 @@ macro_rules! soft_value {
         use balaur_script::Value;
         let s = &$p.soft_bodies;
         let r = &s.recovery;
-        let number = |x: crate::scalar::Real| Value::Num(f64::from(crate::scalar::f32_of(x)));
+        let number = |x: crate::scalar::Real| Value::Num(f64::from(x));
         let count = |n: usize| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
         let patch = {
             use crate::$rapier::dynamics::SoftPatchConstraints as Patch;

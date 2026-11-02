@@ -27,9 +27,8 @@ macro_rules! write_parameters {
         let p = $p;
         // Every knob is rapier's own scalar; the caller hands `f32` because
         // scenes and scripts do.
-        let f = |key: &str, default: crate::scalar::Real| -> crate::scalar::Real {
-            crate::scalar::real(($f)(key, crate::scalar::f32_of(default)))
-        };
+        let f =
+            |key: &str, default: crate::scalar::Real| -> crate::scalar::Real { ($f)(key, default) };
         let boolean = $boolean;
         p.num_solver_iterations =
             f(k::SOLVER_ITERATIONS, p.num_solver_iterations as _).max(1.0) as usize;
@@ -506,7 +505,7 @@ fn write_tuning_from_settings(eng: &Engine) {
                 .as_array()?
                 .iter()
                 .map(balaur_core::components::as_f64);
-            list.map(|n| n.map(|n| crate::scalar::real(n as f32)))
+            list.map(|n| n.map(|n| n as f32))
                 .collect::<Option<Vec<_>>>()
         })
     };

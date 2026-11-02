@@ -622,7 +622,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at the fixed
         // step, and a second accumulator here would drift out of step with
         // the scripts.
-        state.world.integration_parameters.dt = scalar::real(fixed_dt());
+        state.world.integration_parameters.dt = fixed_dt();
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::after(std::mem::take(&mut state.gone));
@@ -644,7 +644,7 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
             if let Ok(mut t) = world.get::<&mut Transform>(entity) {
                 t.position = scalar::position_of(body.translation());
-                t.rotation = scalar::quat_of(*body.rotation());
+                t.rotation = *body.rotation();
             }
         }
         (

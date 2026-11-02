@@ -45,7 +45,7 @@ pub(crate) fn install_collider2d_api(m: &mut dyn Bindings<Engine>) {
     m.function("swept_aabb", |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |state, collider| {
             // Unclamped by speculative_distance, so the box spans the whole step.
-            let dt = scalar::real(balaur_core::fixed_dt());
+            let dt = balaur_core::fixed_dt();
             let next = collider
                 .parent()
                 .and_then(|parent| state.world.bodies.get(parent))

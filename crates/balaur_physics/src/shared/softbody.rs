@@ -10,10 +10,7 @@ macro_rules! material {
         fn spring_of(
             spring: crate::soft_material::Spring,
         ) -> crate::$rapier::prelude::SpringCoefficients<crate::scalar::Real> {
-            crate::$rapier::prelude::SpringCoefficients::new(
-                crate::scalar::real(spring.hz),
-                crate::scalar::real(spring.damping),
-            )
+            crate::$rapier::prelude::SpringCoefficients::new(spring.hz, spring.damping)
         }
 
         /// The mechanical properties: stiffness per constraint family, the
@@ -26,25 +23,24 @@ macro_rules! material {
         ) -> crate::$rapier::prelude::SoftBodyMaterial {
             use crate::soft_material::PlasticFlow;
             use crate::$rapier::prelude::{SoftBodyMaterial, SoftEdgePlasticFlow};
-            let real = crate::scalar::real;
             // A threshold a material writes as `0` and rapier reads as absent.
-            let threshold = |value: f32| (value > 0.0).then(|| real(value));
+            let threshold = |value: f32| (value > 0.0).then(|| value);
             let count = |n: i64| u32::try_from(n).unwrap_or(u32::MAX);
             SoftBodyMaterial {
                 edge_softness: spring_of(made.edge),
                 bend_softness: spring_of(made.bend),
                 volume_softness: spring_of(made.volume),
                 shape_matching_softness: spring_of(made.shape_matching_spring),
-                young_modulus: real(made.young_modulus),
-                poisson_ratio: real(made.poisson_ratio),
-                elastic_damping_ratio: real(made.elastic_damping),
-                plastic_yield: real(made.plastic_yield),
-                plastic_creep: real(made.plastic_creep),
-                plastic_max: real(made.plastic_max),
-                deformation_damping: real(made.deformation_damping),
-                edge_plastic_yield: real(made.edge_plastic_yield),
-                edge_plastic_creep: real(made.edge_plastic_creep),
-                edge_plastic_max: real(made.edge_plastic_max),
+                young_modulus: made.young_modulus,
+                poisson_ratio: made.poisson_ratio,
+                elastic_damping_ratio: made.elastic_damping,
+                plastic_yield: made.plastic_yield,
+                plastic_creep: made.plastic_creep,
+                plastic_max: made.plastic_max,
+                deformation_damping: made.deformation_damping,
+                edge_plastic_yield: made.edge_plastic_yield,
+                edge_plastic_creep: made.edge_plastic_creep,
+                edge_plastic_max: made.edge_plastic_max,
                 edge_plastic_flow: match made.edge_plastic_flow {
                     PlasticFlow::Compression => SoftEdgePlasticFlow::Compression,
                     PlasticFlow::Tension => SoftEdgePlasticFlow::Tension,
@@ -52,8 +48,8 @@ macro_rules! material {
                 },
                 tear_strain: threshold(made.tear_strain),
                 tear_force: threshold(made.tear_force),
-                tear_smoothing: real(made.tear_smoothing),
-                interior_strength: real(made.interior_strength),
+                tear_smoothing: made.tear_smoothing,
+                interior_strength: made.interior_strength,
                 // A schema writes "no limit" as zero; rapier writes it as the
                 // largest number of tears a step could possibly ask for.
                 max_tears_per_step: if max_tears_per_step >= 1 {
@@ -325,7 +321,7 @@ macro_rules! patch_in_place {
                 };
                 body.set_material($material(made, asked.max_tears_per_step, asked.min_piece));
                 body.set_solver($solver(asked.solver));
-                body.set_volume_factor(crate::scalar::real(made.volume_factor));
+                body.set_volume_factor(made.volume_factor);
                 body.enable_volume_preservation(made.volume_preservation);
                 body.set_additional_pgs_iterations(crate::shared::softbody::iterations(
                     asked.solver_iterations,
@@ -381,9 +377,9 @@ macro_rules! surface {
         ) -> crate::$rapier::prelude::ColliderBuilder {
             crate::$rapier::prelude::ColliderBuilder::ball(1.0)
                 .collision_groups(groups(&asked.collision_layer, &asked.collision_mask))
-                .contact_force_event_threshold(crate::scalar::real(asked.contact_force_threshold))
-                .friction(crate::scalar::real(material.friction))
-                .restitution(crate::scalar::real(material.restitution))
+                .contact_force_event_threshold(asked.contact_force_threshold)
+                .friction(material.friction)
+                .restitution(material.restitution)
                 .friction_combine_rule(combine(&material.friction_combine))
                 .restitution_combine_rule(combine(&material.restitution_combine))
                 .solver_groups(groups(&asked.solver_layer, &asked.solver_mask))
@@ -396,16 +392,14 @@ macro_rules! surface {
             asked: &$body,
             material: &crate::material::PhysicsMaterial,
         ) {
-            collider.set_friction(crate::scalar::real(material.friction));
-            collider.set_restitution(crate::scalar::real(material.restitution));
+            collider.set_friction(material.friction);
+            collider.set_restitution(material.restitution);
             collider.set_friction_combine_rule(combine(&material.friction_combine));
             collider.set_restitution_combine_rule(combine(&material.restitution_combine));
             collider.set_collision_groups(groups(&asked.collision_layer, &asked.collision_mask));
             collider.set_solver_groups(groups(&asked.solver_layer, &asked.solver_mask));
             collider.set_active_collision_types($pairs(&asked.contact_pairs));
-            collider.set_contact_force_event_threshold(crate::scalar::real(
-                asked.contact_force_threshold,
-            ));
+            collider.set_contact_force_event_threshold(asked.contact_force_threshold);
             collider.set_sensor(asked.sensor);
         }
     };
@@ -605,9 +599,7 @@ macro_rules! collision_mesh {
             let binding = match &collision.collision_binding {
                 Binding::Particles => SoftMeshBinding::direct((0..count).collect()),
                 Binding::Cells => SoftMeshBinding::skinned(),
-                Binding::Nearest(near) => {
-                    SoftMeshBinding::direct_by_position(crate::scalar::real(near.distance))
-                }
+                Binding::Nearest(near) => SoftMeshBinding::direct_by_position(near.distance),
             }
             .self_contacts(collision.collision_self_contacts);
             world
@@ -644,16 +636,15 @@ macro_rules! regions {
                 let Some(body) = world.soft_bodies.get_mut(handle) else {
                     break;
                 };
-                body.set_cluster_stiffness_scale(i, crate::scalar::real(region.stiffness_scale));
-                body.set_cluster_tear_resistance(i, crate::scalar::real(region.tear_resistance));
+                body.set_cluster_stiffness_scale(i, region.stiffness_scale);
+                body.set_cluster_tear_resistance(i, region.tear_resistance);
                 body.enable_cluster_shape_matching(i, region.shape_matching);
                 body.set_cluster_pinned(i, region.pinned);
                 if let Some((hz, damping)) = region.springs {
                     body.set_cluster_edge_softness(
                         i,
                         Some(crate::$rapier::prelude::SpringCoefficients::new(
-                            crate::scalar::real(hz),
-                            crate::scalar::real(damping),
+                            hz, damping,
                         )),
                     );
                 }

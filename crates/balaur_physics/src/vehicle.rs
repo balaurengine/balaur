@@ -209,7 +209,7 @@ fn drive_one(eng: &Engine, chassis: Entity) -> Result<()> {
         &mut state.world.colliders,
         filter,
     );
-    controller.update_vehicle(scalar::real(fixed_dt()), queries);
+    controller.update_vehicle(fixed_dt(), queries);
     for ((entity, _, _), wheel) in wheels.iter().zip(controller.wheels()) {
         let input = state.wheel_inputs.entry(*entity).or_default();
         input.rotation = wheel.rotation;
@@ -263,19 +263,18 @@ fn kept_or_rebuilt(
 /// A wheel's settings onto rapier's wheel, every step: they are plain fields,
 /// so an edit lands without losing the wheel's spin.
 fn tune(wheel: &mut Wheel, settings: &Wheel3d, at: glamx::Vec3) {
-    let real = scalar::real;
     wheel.chassis_connection_point_cs = scalar::v3(at.x, at.y, at.z);
     wheel.direction_cs = scalar::v3a(settings.suspension_direction);
     wheel.axle_cs = scalar::v3a(settings.axle);
-    wheel.suspension_rest_length = real(settings.rest_length);
-    wheel.radius = real(settings.radius).max(0.01);
-    wheel.suspension_stiffness = real(settings.suspension_stiffness);
-    wheel.damping_compression = real(settings.damping_compression);
-    wheel.damping_relaxation = real(settings.damping_relaxation);
-    wheel.max_suspension_travel = real(settings.suspension_travel);
-    wheel.side_friction_stiffness = real(settings.side_friction);
-    wheel.friction_slip = real(settings.friction_slip);
-    wheel.max_suspension_force = real(settings.suspension_max_force);
+    wheel.suspension_rest_length = settings.rest_length;
+    wheel.radius = settings.radius.max(0.01);
+    wheel.suspension_stiffness = settings.suspension_stiffness;
+    wheel.damping_compression = settings.damping_compression;
+    wheel.damping_relaxation = settings.damping_relaxation;
+    wheel.max_suspension_travel = settings.suspension_travel;
+    wheel.side_friction_stiffness = settings.side_friction;
+    wheel.friction_slip = settings.friction_slip;
+    wheel.max_suspension_force = settings.suspension_max_force;
 }
 
 /// What a script sets on a wheel, and what the last step left there.
@@ -304,18 +303,18 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_engine_force",
         |eng: &Engine, (node, force): (NodeId, f32)| {
-            with_wheel(eng, node, |input| input.engine_force = scalar::real(force))
+            with_wheel(eng, node, |input| input.engine_force = force)
         },
     );
     m.function("set_brake", |eng: &Engine, (node, brake): (NodeId, f32)| {
         with_wheel(eng, node, |input| {
-            input.brake = scalar::real(brake.max(0.0));
+            input.brake = brake.max(0.0);
         })
     });
     m.function(
         "set_steering",
         |eng: &Engine, (node, angle): (NodeId, f32)| {
-            with_wheel(eng, node, |input| input.steering = scalar::real(angle))
+            with_wheel(eng, node, |input| input.steering = angle)
         },
     );
     m.function("wheel_state", |eng: &Engine, node: NodeId| {
@@ -328,9 +327,9 @@ pub(crate) fn install_vehicle_api(m: &mut dyn Bindings<Engine>) {
             let state = eng.resource::<PhysicsState3d>();
             let mut state = state.borrow_mut();
             let state = &mut *state;
-            state.wheel_inputs.entry(entity).or_default().rotation = scalar::real(angle);
+            state.wheel_inputs.entry(entity).or_default().rotation = angle;
             if let Some(wheel) = kept_wheel(&mut state.vehicles, entity) {
-                wheel.rotation = scalar::real(angle);
+                wheel.rotation = angle;
             }
             Ok(())
         },
@@ -394,7 +393,7 @@ fn wheel_state(eng: &Engine, entity: Entity) -> Value {
         let at = vehicle.wheels.iter().position(|e| *e == entity)?;
         vehicle.controller.wheels().get(at).copied()
     });
-    let number = |x: Real| Value::Num(f64::from(scalar::f32_of(x)));
+    let number = |x: Real| Value::Num(f64::from(x));
     let vector = |x: Vector| Value::Vec3(scalar::a3(x));
     let wheel = wheel.unwrap_or_else(|| {
         let mut idle = DynamicRayCastVehicleController::new(RigidBodyHandle::invalid());

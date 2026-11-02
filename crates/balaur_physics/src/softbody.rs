@@ -488,10 +488,10 @@ fn with_settings(
         .material(read_material(made, body.max_tears_per_step, body.min_piece))
         .cell_model(read_cell_model(made))
         .volume_preservation(made.volume_preservation)
-        .volume_factor(scalar::real(made.volume_factor))
+        .volume_factor(made.volume_factor)
         .self_contacts(body.self_collision)
-        .linear_damping(scalar::real(body.linear_damping))
-        .gravity_scale(scalar::real(body.gravity_scale))
+        .linear_damping(body.linear_damping)
+        .gravity_scale(body.gravity_scale)
         .additional_solver_iterations(cap::iterations(body.solver_substeps))
         .additional_pgs_iterations(cap::iterations(body.solver_iterations))
         .can_sleep(body.can_sleep)
@@ -499,10 +499,10 @@ fn with_settings(
         .skin_collision(asked.skin.skin_collision)
         .surface_collider(surface_collider(body, &materials.surface));
     if body.mass > 0.0 {
-        builder = builder.mass(scalar::real(body.mass));
+        builder = builder.mass(body.mass);
     }
     if body.particle_radius > 0.0 {
-        builder = builder.particle_radius(scalar::real(body.particle_radius));
+        builder = builder.particle_radius(body.particle_radius);
     }
     if let Some(oriented) = cap::oriented(body.orientation) {
         builder = builder.oriented(oriented);
@@ -535,17 +535,13 @@ fn with_settings(
     )?;
     // After `mass`, which spreads one total over the particles evenly.
     if !rows.masses.is_empty() {
-        builder = builder.masses(rows.masses.iter().map(|m| scalar::real(*m)).collect());
+        builder = builder.masses(rows.masses.clone());
     }
     if !rows.tear.is_empty() {
-        builder =
-            builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, scalar::real(*r))));
+        builder = builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, *r)));
     }
     for (edge, hz, damping) in rows.springs {
-        let spring = crate::rapier3d::prelude::SpringCoefficients::new(
-            scalar::real(hz),
-            scalar::real(damping),
-        );
+        let spring = crate::rapier3d::prelude::SpringCoefficients::new(hz, damping);
         builder.edge_softness.push((edge, spring));
     }
     builder.tension_only_edges.extend(rows.tension_only);
@@ -647,7 +643,7 @@ fn build_layout(
         ),
         SoftKind3d::Sphere => SoftBodyBuilder::sphere(
             at,
-            scalar::real(asked.sphere.radius),
+            asked.sphere.radius,
             asked.sphere.subdivisions.clamp(0, 6) as usize,
         ),
         SoftKind3d::Cloth => cloth(
@@ -667,8 +663,8 @@ fn build_layout(
             SoftBodyBuilder::cloth_tube(
                 at,
                 pose.rotation * scalar::v3a(tube.axis),
-                scalar::real(tube.radius),
-                scalar::real(end),
+                tube.radius,
+                end,
                 ring(cells[0]) as usize,
                 axis(1) as usize,
             )
@@ -682,7 +678,7 @@ fn build_layout(
         // `cell_size` and the body is those cells.
         SoftKind3d::Volumetric => {
             let (points, indices) = source_mesh(eng, &asked.body.mesh, pose)?;
-            let size = scalar::real(asked.volumetric.cell_size);
+            let size = asked.volumetric.cell_size;
             cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), fewer(kind))?;
             SoftBodyBuilder::volumetric_with(
                 &points,
@@ -728,8 +724,8 @@ fn cloth(
         let spring = |i: usize| {
             let or = |own: f32, fallback: f32| if own > 0.0 { own } else { fallback };
             crate::rapier3d::prelude::SpringCoefficients::new(
-                scalar::real(or(woven[i].hz, made.edge.hz)),
-                scalar::real(or(woven[i].damping, made.edge.damping)),
+                or(woven[i].hz, made.edge.hz),
+                or(woven[i].damping, made.edge.damping),
             )
         };
         SoftBodyBuilder::cloth_anisotropic(
@@ -769,7 +765,7 @@ fn volume_parameters(
         Fill::Solid => MeshEnclosure::Cover,
     };
     out.cover_smoothing = u32::try_from(fill.smoothing.max(0)).unwrap_or(u32::MAX);
-    out.cover_guard = scalar::real(fill.smoothing_guard.max(0.0));
+    out.cover_guard = fill.smoothing_guard.max(0.0);
     out.cover_subdivisions = fill.boundary_subdivisions.clamp(0, MAX_SUBDIVISIONS) as u32;
     out
 }
@@ -986,7 +982,7 @@ pub(crate) fn write_solved_mesh(eng: &Engine, entity: Entity) {
                         .collect();
                     let segments: Vec<[u32; 2]> =
                         mesh.indices().iter().map(|t| [t[0], t[1]]).collect();
-                    let radius = scalar::f32_of(body.particle_radius());
+                    let radius = body.particle_radius();
                     let (rings, faces) = wire::tube(&points, &segments, radius);
                     positions.extend(rings);
                     indices.extend(faces.iter().map(shifted));
@@ -1107,7 +1103,7 @@ fn softbody_warnings(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnings:
     };
     let points: Vec<Vector> = body.particle_positions().collect();
     let widest = extents(&points).into_iter().fold(0.0, f32::max);
-    cap::hovering(scalar::f32_of(body.particle_radius()), widest)
+    cap::hovering(body.particle_radius(), widest)
         .into_iter()
         .collect()
 }

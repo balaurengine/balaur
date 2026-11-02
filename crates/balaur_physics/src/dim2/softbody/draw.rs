@@ -41,11 +41,7 @@ pub(super) fn drawn(
             let triangles = filled(body, &rings);
             (positions, triangles)
         }
-        None => ribbon(
-            &positions,
-            body.boundary(),
-            scalar::f32_of(body.particle_radius()),
-        ),
+        None => ribbon(&positions, body.boundary(), body.particle_radius()),
     }
 }
 

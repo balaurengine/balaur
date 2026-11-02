@@ -323,7 +323,7 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     let asked = &asked.collision;
     // `mass` is the whole map's, shared out by area: one density over every
     // piece weighs the map `mass` however many colliders its cells make.
-    let mass = scalar::real(asked.mass);
+    let mass = asked.mass;
     let area: scalar::Real = pieces
         .iter()
         .map(|piece| piece.builder.shape.mass_properties(1.0).mass())
@@ -366,7 +366,7 @@ impl Stated {
     /// `None` when the map states neither, and its shapes keep their own.
     fn of(asked: &TileCollision, mass: Real, area: Real) -> Option<Self> {
         let com = asked.center_of_mass;
-        let inertia = scalar::real(asked.inertia);
+        let inertia = asked.inertia;
         if (crate::body::is_default(&com) && inertia == 0.0) || area <= 0.0 {
             return None;
         }
@@ -375,7 +375,7 @@ impl Stated {
             inertia,
             mass,
             area,
-            density: scalar::real(asked.density.max(0.0)),
+            density: asked.density.max(0.0),
         })
     }
 
@@ -431,7 +431,7 @@ fn pieces(
             surface: surface(asked, one_way, axis),
         });
     }
-    let border = scalar::real(shapes.edge_radius).max(0.0);
+    let border = shapes.edge_radius.max(0.0);
     for (centre, tile, flags) in grid.shaped_cells(set) {
         let Collision::Shape(polygons) = &tile.collision else {
             continue;
@@ -523,7 +523,7 @@ fn turned_axis(axis: [f32; 2], tile_size: [f32; 2], flags: u8) -> [f32; 2] {
 /// and the map's surface velocity.
 fn surface(asked: &TileCollision, one_way: bool, axis: [f32; 2]) -> Option<Surface> {
     let one_way = one_way.then(|| {
-        let angle = scalar::real(asked.one_way_angle.max(0.0));
+        let angle = asked.one_way_angle.max(0.0);
         (
             scalar::v2a(axis).try_normalize().unwrap_or(Vector2::Y),
             angle,

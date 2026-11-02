@@ -195,7 +195,7 @@ macro_rules! runtime_api {
         }
 
         fn number(x: crate::scalar::Real) -> balaur_script::Value {
-            balaur_script::Value::Num(f64::from(crate::scalar::f32_of(x)))
+            balaur_script::Value::Num(f64::from(x))
         }
 
         fn indices<const M: usize>(tuple: [u32; M], offset: u32) -> balaur_script::Value {
@@ -464,7 +464,7 @@ macro_rules! runtime_api {
             m.function("softbody_particle_radius", |eng: &Engine, node: NodeId| {
                 with(eng, node, |state, root| {
                     let body = state.world.soft_bodies.get(root).ok_or_else(gone)?;
-                    Ok(crate::scalar::f32_of(body.particle_radius()))
+                    Ok(body.particle_radius())
                 })
             });
             m.function("softbody_mass", |eng: &Engine, node: NodeId| {
@@ -475,7 +475,7 @@ macro_rules! runtime_api {
                         .filter_map(|(piece, _)| set.get(*piece))
                         .map(Body::mass)
                         .sum();
-                    Ok(crate::scalar::f32_of(mass))
+                    Ok(mass)
                 })
             });
             m.function("softbody_contacts", |eng: &Engine, node: NodeId| {
@@ -610,7 +610,7 @@ macro_rules! runtime_api {
                 "set_edge_tear_resistance",
                 |eng: &Engine, (node, index, resistance): (NodeId, i64, f32)| {
                     on_element(eng, node, EDGES, index, |body, i| {
-                        body.set_edge_tear_resistance(i, crate::scalar::real(resistance));
+                        body.set_edge_tear_resistance(i, resistance);
                         Ok(())
                     })
                 },
@@ -619,7 +619,7 @@ macro_rules! runtime_api {
                 "set_cell_tear_resistance",
                 |eng: &Engine, (node, index, resistance): (NodeId, i64, f32)| {
                     on_element(eng, node, CELLS, index, |body, i| {
-                        body.set_cell_tear_resistance(i, crate::scalar::real(resistance));
+                        body.set_cell_tear_resistance(i, resistance);
                         Ok(())
                     })
                 },

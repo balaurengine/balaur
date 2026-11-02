@@ -78,8 +78,8 @@ fn controller_of(follow: &Follow2d) -> FollowRef2d {
     let pd = PdController {
         lin_kp: gain(follow.position_gain),
         lin_kd: gain(follow.velocity_gain),
-        ang_kp: scalar::real(follow.rotation_gain),
-        ang_kd: scalar::real(follow.spin_gain),
+        ang_kp: follow.rotation_gain,
+        ang_kd: follow.spin_gain,
         axes: mask,
     };
     match follow.kind {
@@ -87,7 +87,7 @@ fn controller_of(follow: &Follow2d) -> FollowRef2d {
             let mut pid = PidController::new(0.0, 0.0, 0.0, mask);
             pid.pd = pd;
             pid.lin_ki = gain(follow.integral_gain);
-            pid.ang_ki = scalar::real(follow.rotation_integral_gain);
+            pid.ang_ki = follow.rotation_integral_gain;
             FollowRef2d::Pid(pid)
         }
         FollowKind::Pd => FollowRef2d::Pd(pd),
@@ -142,7 +142,7 @@ fn follow_system(eng: &Engine, _dt: f32) {
         };
         let wanted = RigidBodyVelocity {
             linvel: scalar::v2a(follow.target_linear_velocity),
-            angvel: scalar::real(follow.target_angular_velocity),
+            angvel: follow.target_angular_velocity,
         };
         let state = eng.resource::<PhysicsState2d>();
         let mut state = state.borrow_mut();

@@ -143,8 +143,7 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
             let mut params =
                 crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default();
             params.resolution = opts.f32(k::RESOLUTION, params.resolution as f32).max(1.0) as u32;
-            params.concavity =
-                scalar::real(opts.f32(k::MAX_CONCAVITY, scalar::f32_of(params.concavity)));
+            params.concavity = opts.f32(k::MAX_CONCAVITY, params.concavity);
             params.max_convex_hulls = opts
                 .f32(k::MAX_CONVEX_HULLS, params.max_convex_hulls as f32)
                 .max(1.0) as u32;
@@ -206,7 +205,7 @@ pub(crate) fn install_geometry_api(m: &mut dyn Bindings<Engine>) {
                 }
             }
             Ok(map([
-                (k::SIZE, Value::Vec3([scalar::f32_of(size); 3])),
+                (k::SIZE, Value::Vec3([size; 3])),
                 (k::CELLS, Value::List(cells)),
             ]))
         },

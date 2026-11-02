@@ -238,10 +238,10 @@ macro_rules! functions {
                     a,
                     b,
                     Push {
-                        magnitude: crate::scalar::f32_of(event.total_force_magnitude),
+                        magnitude: event.total_force_magnitude,
                         direction: crate::scalar::$axis(event.max_force_direction),
                         total: crate::scalar::$axis(event.total_force),
-                        max: crate::scalar::f32_of(event.max_force_magnitude),
+                        max: event.max_force_magnitude,
                         started: event.started,
                     },
                 ));

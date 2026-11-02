@@ -137,15 +137,15 @@ pub(crate) fn write_body(body: &mut RigidBody, asked: &Body2d, may_sleep: bool) 
     if body.body_type() != kind {
         body.set_body_type(kind, true);
     }
-    body.set_linear_damping(scalar::real(asked.linear_damping));
-    body.set_angular_damping(scalar::real(asked.angular_damping));
-    body.set_gravity_scale(scalar::real(asked.gravity_scale), true);
+    body.set_linear_damping(asked.linear_damping);
+    body.set_angular_damping(asked.angular_damping);
+    body.set_gravity_scale(asked.gravity_scale, true);
     body.set_dominance_group(asked.dominance.clamp(-128, 127) as i8);
     body.set_additional_solver_iterations(asked.solver_iterations.max(0) as usize);
     body.set_additional_pgs_iterations(asked.internal_iterations.max(0) as usize);
     body.set_locked_axes(locked_axes(asked), true);
     body.enable_ccd(asked.continuous_collision);
-    body.set_soft_ccd_prediction(scalar::real(asked.speculative_distance));
+    body.set_soft_ccd_prediction(asked.speculative_distance);
     body.set_allow_fast_rotation(asked.allow_fast_rotation);
     body.set_enabled(asked.enabled);
     write_mass(body, asked);
@@ -155,7 +155,7 @@ pub(crate) fn write_body(body: &mut RigidBody, asked: &Body2d, may_sleep: bool) 
         may_sleep,
         (asked.sleep_threshold, asked.sleep_angular_threshold),
     );
-    body.activation_mut().time_until_sleep = scalar::real(asked.time_to_sleep.max(0.0));
+    body.activation_mut().time_until_sleep = asked.time_to_sleep.max(0.0);
 }
 
 /// What the author wrote that the body cannot hold, as in 3D.
@@ -178,7 +178,7 @@ pub(crate) fn authored(asked: &Body2d) -> crate::shared::body::Authored {
 fn start_body(body: &mut RigidBody, authored: &crate::shared::body::Authored, may_sleep: bool) {
     let [x, y, _] = authored.initial_linear_velocity;
     body.set_linvel(scalar::v2(x, y), true);
-    body.set_angvel(scalar::real(authored.initial_angular_velocity[2]), true);
+    body.set_angvel(authored.initial_angular_velocity[2], true);
     if authored.start_asleep && may_sleep {
         body.sleep();
     }
@@ -232,13 +232,10 @@ fn write_mass(body: &mut RigidBody, asked: &Body2d) {
     if mass <= 0.0 {
         body.set_additional_mass(0.0, false);
     } else if inertia == 0.0 && crate::body::is_default(&com) {
-        body.set_additional_mass(scalar::real(mass), true);
+        body.set_additional_mass(mass, true);
     } else {
         let com = scalar::v2a(com);
-        body.set_additional_mass_properties(
-            MassProperties::new(com, scalar::real(mass), scalar::real(inertia)),
-            true,
-        );
+        body.set_additional_mass_properties(MassProperties::new(com, mass, inertia), true);
     }
 }
 
@@ -273,7 +270,7 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
     m.function("potential_energy", |eng: &Engine, node: NodeId| {
         let gravity = eng.resource::<PhysicsState2d>().borrow().world.gravity;
         read_body(eng, entity_of(node)?, |body| {
-            body.gravitational_potential_energy(scalar::real(balaur_core::fixed_dt()), gravity)
+            body.gravitational_potential_energy(balaur_core::fixed_dt(), gravity)
         })
     });
     m.function("is_moving", |eng: &Engine, node: NodeId| {
@@ -299,7 +296,7 @@ pub(crate) fn install_body2d_state_api(m: &mut dyn Bindings<Engine>) {
                 let body = &mut state.world.bodies[handle];
                 body.set_translation(scalar::v2(x, y), true);
                 if let Some(turn) = turn {
-                    let turn = crate::rapier2d::math::Rotation::from_angle(scalar::real(turn));
+                    let turn = crate::rapier2d::math::Rotation::from_angle(turn);
                     body.set_rotation(turn, true);
                 }
                 body.set_linvel(Vector2::ZERO, true);
@@ -350,7 +347,7 @@ pub(crate) fn install_body2d_mass_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("total_inertia", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
-            scalar::f32_of(body.mass_properties().local_mprops.principal_inertia())
+            body.mass_properties().local_mprops.principal_inertia()
         })
     });
     m.function("effective_mass", |eng: &Engine, node: NodeId| {
@@ -360,7 +357,7 @@ pub(crate) fn install_body2d_mass_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("effective_angular_inertia", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
-            scalar::f32_of(body.mass_properties().effective_angular_inertia())
+            body.mass_properties().effective_angular_inertia()
         })
     });
 }
@@ -451,7 +448,6 @@ pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "predict_position",
         |eng: &Engine, (node, dt): (NodeId, f32)| {
-            let dt = scalar::real(dt);
             read_body(eng, entity_of(node)?, |body| {
                 pose_value(&body.predict_position_using_velocity(dt))
             })
@@ -460,7 +456,6 @@ pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "predict_position_with_forces",
         |eng: &Engine, (node, dt): (NodeId, f32)| {
-            let dt = scalar::real(dt);
             read_body(eng, entity_of(node)?, |body| {
                 pose_value(&body.predict_position_using_velocity_and_forces(dt))
             })
@@ -473,7 +468,7 @@ pub(crate) fn install_body2d_sleep_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("time_since_can_sleep", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
-            scalar::f32_of(body.activation().time_since_can_sleep)
+            body.activation().time_since_can_sleep
         })
     });
     m.function("wake_all", |eng: &Engine, ()| {
@@ -562,7 +557,6 @@ pub(crate) fn install_body2d_force_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "apply_torque_impulse",
         |eng: &Engine, (node, torque): (NodeId, f32)| {
-            let torque = scalar::real(torque);
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_torque_impulse(torque, true);
             })
@@ -595,7 +589,7 @@ fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
             "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
         ),
     ]);
-    let dt = || scalar::real(balaur_core::fixed_dt());
+    let dt = || balaur_core::fixed_dt();
     m.function(
         "apply_force",
         move |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
@@ -619,7 +613,7 @@ fn install_step_force_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "apply_torque",
         move |eng: &Engine, (node, torque): (NodeId, f32)| {
-            let torque = scalar::real(torque) * dt();
+            let torque = torque * dt();
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_torque_impulse(torque, true);
             })
@@ -652,7 +646,6 @@ fn install_body_forces(m: &mut dyn Bindings<Engine>) {
     m.function(
         "add_constant_torque",
         |eng: &Engine, (node, torque): (NodeId, f32)| {
-            let torque = scalar::real(torque);
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_torque(torque, true);
             })
@@ -678,7 +671,6 @@ pub(crate) fn install_body2d_force_reader_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_constant_torque",
         |eng: &Engine, (node, torque): (NodeId, f32)| {
-            let torque = scalar::real(torque);
             with_body(eng, entity_of(node)?, |state, handle| {
                 let body = &mut state.world.bodies[handle];
                 body.reset_torques(true);

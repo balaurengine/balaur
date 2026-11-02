@@ -133,7 +133,7 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
     let (angle, _, _) = global.rotation.to_euler(EulerRot::ZYX);
     Ok(Pose2::from_parts(
         scalar::v2(global.position.x, global.position.y),
-        Rotation2::from_angle(scalar::real(angle)),
+        Rotation2::from_angle(angle),
     ))
 }
 
@@ -195,7 +195,7 @@ fn step_system(eng: &Engine, _dt: f32) {
                     let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
                     body.set_next_kinematic_position(Pose2::from_parts(
                         scalar::v2(t.position.x, t.position.y),
-                        Rotation2::from_angle(scalar::real(angle)),
+                        Rotation2::from_angle(angle),
                     ));
                 }
             }
@@ -204,7 +204,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at the fixed
         // step, and a second accumulator here would drift out of step with
         // the scripts.
-        state.world.integration_parameters.dt = scalar::real(fixed_dt());
+        state.world.integration_parameters.dt = fixed_dt();
         // The step rebuilds the broad phase itself, as in 3D; without this a
         // query after a collider was added rebuilds it a second time.
         state.queries_ready = true;
@@ -225,9 +225,9 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
             if let Ok(mut t) = world.get::<&mut Transform>(entity) {
                 let pos = body.translation();
-                t.position.x = scalar::f32_of(pos.x);
-                t.position.y = scalar::f32_of(pos.y);
-                t.rotation = Quat::from_rotation_z(scalar::f32_of(body.rotation().angle()));
+                t.position.x = pos.x;
+                t.position.y = pos.y;
+                t.rotation = Quat::from_rotation_z(body.rotation().angle());
             }
         }
         (
@@ -756,7 +756,6 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_angular_velocity",
         |eng: &Engine, (node, w): (NodeId, f32)| {
-            let w = scalar::real(w);
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_angvel(w, true);
             })

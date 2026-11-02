@@ -25,7 +25,6 @@ macro_rules! functions {
             // character's own size, as `lengths` says.
             let relative = character.lengths == LengthMode::Relative;
             let length = |value: f32| {
-                let value = scalar::real(value);
                 if relative {
                     CharacterLength::Relative(value)
                 } else {
@@ -41,11 +40,11 @@ macro_rules! functions {
                     min_width: length(character.step_min_width),
                     include_dynamic_bodies: character.step_on_dynamic,
                 }),
-                max_slope_climb_angle: scalar::real(character.floor_max_angle),
-                min_slope_slide_angle: scalar::real(character.min_slide_angle),
+                max_slope_climb_angle: character.floor_max_angle,
+                min_slope_slide_angle: character.min_slide_angle,
                 snap_to_ground: (character.floor_snap_length > 0.0)
                     .then(|| length(character.floor_snap_length)),
-                normal_nudge_factor: scalar::real(character.normal_nudge),
+                normal_nudge_factor: character.normal_nudge,
             }
         }
 
@@ -93,7 +92,7 @@ macro_rules! functions {
         /// character's body, else its colliders.
         fn push_mass(state: &$State, entity: Entity, asked: f32) -> Real {
             if asked > 0.0 {
-                return scalar::real(asked);
+                return asked;
             }
             if let Some(body) = state
                 .bodies
@@ -203,7 +202,7 @@ macro_rules! functions {
                         (k::REMAINING, vector(collision.translation_remaining)),
                         (
                             k::DISTANCE,
-                            Value::Num(f64::from(scalar::f32_of(hit.time_of_impact))),
+                            Value::Num(f64::from(hit.time_of_impact)),
                         ),
                         (k::STATUS, Value::Str(status.into())),
                         (k::SUBSHAPE, Value::Int(i64::from(hit.subshape1))),

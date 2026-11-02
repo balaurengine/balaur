@@ -125,8 +125,8 @@ pub(crate) fn joint_of(ask: &JointAsk3d) -> Result<GenericJoint> {
     };
     let anchor1 = scalar::v3a(held.anchor);
     let anchor2 = scalar::v3a(held.connected_anchor);
-    let max_length = scalar::real(ask.rope.max_length);
-    let rest_length = scalar::real(ask.spring.rest_length);
+    let max_length = ask.rope.max_length;
+    let rest_length = ask.spring.rest_length;
     let mut joint: GenericJoint = match kind {
         w::FIXED => FixedJointBuilder::new()
             .local_anchor1(anchor1)
@@ -154,13 +154,11 @@ pub(crate) fn joint_of(ask: &JointAsk3d) -> Result<GenericJoint> {
             .build()
             .into(),
         // The pull itself is the `x` record's; without one the spring is slack.
-        w::SPRING => {
-            SpringJointBuilder::new(rest_length.max(0.0), 0.0, scalar::real(DEFAULT_DAMPING))
-                .local_anchor1(anchor1)
-                .local_anchor2(anchor2)
-                .build()
-                .into()
-        }
+        w::SPRING => SpringJointBuilder::new(rest_length.max(0.0), 0.0, DEFAULT_DAMPING)
+            .local_anchor1(anchor1)
+            .local_anchor2(anchor2)
+            .build()
+            .into(),
         w::GENERIC => GenericJointBuilder::new(locked_axes(&ask.generic))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
@@ -174,9 +172,7 @@ pub(crate) fn joint_of(ask: &JointAsk3d) -> Result<GenericJoint> {
     if matches!(kind, w::HINGE | w::SLIDER | w::GENERIC) && connected.length_squared() >= 1.0e-12 {
         joint.set_local_axis2(connected.normalize());
     }
-    let turn = |[x, y, z]: [f32; 3]| {
-        scalar::rotation_of(glamx::Quat::from_euler(glamx::EulerRot::XYZ, x, y, z))
-    };
+    let turn = |[x, y, z]: [f32; 3]| glamx::Quat::from_euler(glamx::EulerRot::XYZ, x, y, z);
     joint.local_frame1.rotation *= turn(held.anchor_rotation);
     joint.local_frame2.rotation *= turn(held.connected_anchor_rotation);
     let (hz, ratio) = crate::shared::joint::softness(held.softness_hz, held.softness_damping_ratio);
@@ -817,7 +813,7 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
 fn solve_ik(eng: &Engine, entity: Entity, target: Vector, opts: &v::Opts<'_>) -> Result<()> {
     let rotation = opts.get(k::ROTATION).map(|_| {
         let [x, y, z] = opts.vec3(k::ROTATION, [0.0; 3]);
-        scalar::rotation_of(glamx::Quat::from_euler(glamx::EulerRot::ZYX, z, y, x))
+        glamx::Quat::from_euler(glamx::EulerRot::ZYX, z, y, x)
     });
     let options = ik_options(opts, rotation.is_some())?;
     let pose = scalar::Pose::from_parts(target, rotation.unwrap_or(scalar::Rotation::IDENTITY));

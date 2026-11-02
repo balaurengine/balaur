@@ -121,8 +121,8 @@ macro_rules! functions {
         pub(crate) fn allow_sleep(body: &mut RigidBody, may_sleep: bool, thresholds: (f32, f32)) {
             let activation = body.activation_mut();
             if may_sleep {
-                activation.normalized_linear_threshold = scalar::real(thresholds.0.max(0.0));
-                activation.angular_threshold = scalar::real(thresholds.1.max(0.0));
+                activation.normalized_linear_threshold = thresholds.0.max(0.0);
+                activation.angular_threshold = thresholds.1.max(0.0);
             } else {
                 // Rapier's own spelling of "never sleeps".
                 activation.normalized_linear_threshold = -1.0;

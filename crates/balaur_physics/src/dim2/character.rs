@@ -131,7 +131,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
             .predicate(&passes);
         let mut collisions = Vec::new();
         let movement = controller.move_shape(
-            scalar::real(fixed_dt()),
+            fixed_dt(),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -148,7 +148,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector2)
                 filter,
             );
             controller.solve_character_collision_impulses(
-                scalar::real(fixed_dt()),
+                fixed_dt(),
                 &mut queries,
                 shape.as_ref(),
                 mass,
@@ -179,14 +179,14 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: 
         let Ok(mut transform) = transform else {
             return false;
         };
-        transform.position.x += scalar::f32_of(translation.x);
-        transform.position.y += scalar::f32_of(translation.y);
+        transform.position.x += translation.x;
+        transform.position.y += translation.y;
         // The node's own rotation, not identity: a character authored at an
         // angle would otherwise snap upright the first time it moved.
         let (angle, _, _) = transform.rotation.to_euler(EulerRot::ZYX);
         Pose2::from_parts(
             scalar::v2(transform.position.x, transform.position.y),
-            Rotation2::from_angle(scalar::real(angle)),
+            Rotation2::from_angle(angle),
         )
     };
     let state = eng.resource::<PhysicsState2d>();

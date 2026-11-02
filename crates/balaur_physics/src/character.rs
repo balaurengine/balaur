@@ -143,7 +143,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
             .predicate(&passes);
         let mut collisions = Vec::new();
         let movement = controller.move_shape(
-            scalar::real(fixed_dt()),
+            fixed_dt(),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -162,7 +162,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
                 filter,
             );
             controller.solve_character_collision_impulses(
-                scalar::real(fixed_dt()),
+                fixed_dt(),
                 &mut queries,
                 shape.as_ref(),
                 mass,

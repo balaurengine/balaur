@@ -22,14 +22,12 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
     ]);
     m.function("softbody_volume", |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {
-            Ok(scalar::f32_of(bodies.iter().map(|(b, _)| b.volume()).sum()))
+            Ok(bodies.iter().map(|(b, _)| b.volume()).sum::<f32>())
         })
     });
     m.function("softbody_rest_volume", |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {
-            Ok(scalar::f32_of(
-                bodies.iter().map(|(b, _)| b.rest_volume()).sum(),
-            ))
+            Ok(bodies.iter().map(|(b, _)| b.rest_volume()).sum::<f32>())
         })
     });
     m.function("softbody_center", |eng: &Engine, node: NodeId| {
@@ -74,7 +72,7 @@ pub(crate) fn install_softbody_api(m: &mut dyn Bindings<Engine>) {
                         left -= body.dihedrals().len();
                         continue;
                     };
-                    let number = |x: Real| balaur_script::Value::Num(f64::from(scalar::f32_of(x)));
+                    let number = |x: Real| balaur_script::Value::Num(f64::from(x));
                     let at = |i: u32| {
                         balaur_script::Value::Int(
                             i64::from(i) + i64::try_from(*offset).unwrap_or(i64::MAX),

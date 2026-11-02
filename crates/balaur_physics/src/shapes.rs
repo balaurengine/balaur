@@ -75,7 +75,7 @@ pub(crate) fn convex_hull(eng: &Engine, reference: &str, border: Real) -> Result
             "convex_hull: those {} points are degenerate; using their bounding box",
             points.len()
         );
-        let half = |i: usize| scalar::real(((max[i] - min[i]) / 2.0).max(0.01));
+        let half = |i: usize| ((max[i] - min[i]) / 2.0).max(0.01);
         ColliderBuilder::cuboid(half(0), half(1), half(2))
     }))
 }
@@ -152,7 +152,6 @@ const DEFAULT_VOXEL_SIZE: Real = 0.25;
 
 /// A `voxel_size`, or `None` for the 0 that leaves the size to the asset.
 pub(crate) fn voxel_size(size: f32) -> Option<Real> {
-    let size = scalar::real(size);
     (size > 0.0).then(|| size.max(0.001))
 }
 
@@ -161,10 +160,10 @@ fn vhacd(cut: &ConvexDecomposition3d, tidy: &MeshCollider3d) -> VHACDParameters 
     let mut tuning = VHACDParameters::default();
     let whole = |value: i64| u32::try_from(value.max(1)).unwrap_or(u32::MAX);
     tuning.resolution = whole(cut.resolution);
-    tuning.concavity = scalar::real(cut.max_concavity);
+    tuning.concavity = cut.max_concavity;
     tuning.max_convex_hulls = whole(cut.max_convex_hulls);
-    tuning.alpha = scalar::real(cut.symmetry_bias);
-    tuning.beta = scalar::real(cut.revolution_bias);
+    tuning.alpha = cut.symmetry_bias;
+    tuning.beta = cut.revolution_bias;
     tuning.plane_downsampling = whole(cut.plane_downsampling);
     tuning.convex_hull_downsampling = whole(cut.hull_downsampling);
     tuning.convex_hull_approximation = cut.approximate_hulls;
@@ -273,7 +272,7 @@ pub(crate) fn heightfield_collider(
     )?;
     // The asset checked its own shape, so Array2's assert cannot fire. The
     // asset is f32; a f64 build widens each height here, once, on load.
-    let heights: Vec<Real> = field.heights.iter().map(|h| scalar::real(*h)).collect();
+    let heights: Vec<Real> = field.heights.clone();
     let grid = crate::rapier3d::parry::utils::Array2::new(field.rows, field.columns, heights);
     // The flag a triangle_mesh gets by default, for the same reason: without it a
     // character catches on the seam between two cells of flat ground.

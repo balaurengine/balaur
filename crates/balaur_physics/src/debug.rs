@@ -288,7 +288,7 @@ fn read_style(eng: &Engine) -> DebugRenderStyle {
                     .as_ref()
                     .and_then(balaur_core::components::as_f64)
                 {
-                    *get(&mut style) = crate::scalar::real(n as f32);
+                    *get(&mut style) = n as f32;
                 }
             }
             StyleField::Color(key, get, _) => {

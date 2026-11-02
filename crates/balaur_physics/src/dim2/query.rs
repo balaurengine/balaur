@@ -30,7 +30,7 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let dir = opts.vec2(k::DIRECTION, [0.0, -1.0]);
     (
         Ray::new(scalar::v2a(from), scalar::v2a(dir)),
-        scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+        opts.f32(k::MAX_DISTANCE, 1000.0),
         opts.boolean(k::HIT_FROM_INSIDE, true),
     )
 }
@@ -222,7 +222,7 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
         let from = scalar::v2a(opts.vec2(k::ORIGIN, [0.0; 2]));
         let dir = scalar::v2a(opts.vec2(k::DIRECTION, [0.0, -1.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+            max_time_of_impact: opts.f32(k::MAX_DISTANCE, 1000.0),
             stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
@@ -306,7 +306,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+                opts.f32(k::MAX_DISTANCE, 1000.0),
                 opts.boolean(k::HIT_FROM_INSIDE, true),
             );
         let Some((handle, projection)) = found else {
@@ -453,7 +453,7 @@ fn install_physics2d_sweep_api(m: &mut dyn Bindings<Engine>) {
                 scalar::v2a(opts.vec2(k::VELOCITY_B, [0.0; 2])),
             );
             let options = ShapeCastOptions {
-                max_time_of_impact: scalar::real(opts.f32(k::MAX_TIME, 1.0)),
+                max_time_of_impact: opts.f32(k::MAX_TIME, 1.0),
                 stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
                 ..ShapeCastOptions::default()
             };

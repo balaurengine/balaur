@@ -142,13 +142,13 @@ macro_rules! functions {
             material: &crate::material::PhysicsMaterial,
         ) -> ColliderBuilder {
             let mut builder = builder
-                .restitution(crate::scalar::real(material.restitution))
-                .friction(crate::scalar::real(material.friction))
-                .density(crate::scalar::real(rows.density().max(0.0)))
+                .restitution(material.restitution)
+                .friction(material.friction)
+                .density(rows.density().max(0.0))
                 .friction_combine_rule(combine_rule(&material.friction_combine))
                 .restitution_combine_rule(combine_rule(&material.restitution_combine))
-                .contact_skin(crate::scalar::real(rows.collision_margin().max(0.0)))
-                .contact_force_event_threshold(crate::scalar::real(rows.contact_force_threshold()))
+                .contact_skin(rows.collision_margin().max(0.0))
+                .contact_force_event_threshold(rows.contact_force_threshold())
                 .collision_groups(groups_of(rows.collision()))
                 .solver_groups(groups_of(rows.solver()))
                 .active_collision_types(collision_types_for(rows.contact_pairs(), rows.sensor()))
@@ -157,7 +157,7 @@ macro_rules! functions {
                 .sensor(rows.sensor());
             // An explicit mass overrides what the density works out to, which
             // is what an author who typed a number in kilograms means.
-            let mass = crate::scalar::real(rows.mass());
+            let mass = rows.mass();
             if mass > 0.0 {
                 builder = builder.mass(mass);
             }

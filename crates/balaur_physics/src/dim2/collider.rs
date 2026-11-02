@@ -330,7 +330,7 @@ impl Asked2d {
 /// The collider a node asks for: its `shape`, built with the components
 /// beside it, and every row that is not the shape.
 pub(crate) fn collider_builder(eng: &Engine, asked: &Asked2d) -> Result<ColliderBuilder2> {
-    let density = scalar::real(asked.collider.density.max(0.0));
+    let density = asked.collider.density.max(0.0);
     let (builder, mass) =
         shape_builder(eng, &asked.collider.shape, &asked.mesh, &asked.cut, density)?;
     let material = crate::material::named(eng, &asked.collider.physics_material)?;
@@ -365,9 +365,9 @@ fn shape_builder(
     Option<crate::rapier2d::prelude::MassProperties>,
 )> {
     use ColliderShape2d as S;
-    let radius_of = |radius: f32| scalar::real(radius).max(0.01);
-    let half = |size: [f32; 2], i: usize| scalar::real(size[i] / 2.0).max(0.01);
-    let border_of = |edge: f32| scalar::real(edge).max(0.0);
+    let radius_of = |radius: f32| radius.max(0.01);
+    let half = |size: [f32; 2], i: usize| (size[i] / 2.0).max(0.01);
+    let border_of = |edge: f32| edge.max(0.0);
     let builder = match shape {
         S::Circle(circle) => ColliderBuilder2::ball(radius_of(circle.radius)),
         S::Rectangle(rect) => match border_of(rect.edge_radius) {
@@ -385,7 +385,7 @@ fn shape_builder(
         S::Capsule(capsule) => {
             // `height` runs tip to tip, as in 3D; the segment is what the caps leave.
             let radius = radius_of(capsule.radius);
-            let segment = (scalar::real(capsule.height).max(0.01) / 2.0 - radius).max(0.0);
+            let segment = (capsule.height.max(0.01) / 2.0 - radius).max(0.0);
             match capsule.up_axis {
                 Axis2d::X => ColliderBuilder2::capsule_x(segment, radius),
                 Axis2d::Y => ColliderBuilder2::capsule_y(segment, radius),
@@ -446,15 +446,15 @@ fn shape_builder(
 /// `inertia` of 0 is the shape's own about the stated centre.
 fn with_mass_properties(builder: ColliderBuilder2, asked: &Collider2d) -> ColliderBuilder2 {
     let com = asked.center_of_mass;
-    let inertia = scalar::real(asked.inertia);
+    let inertia = asked.inertia;
     if crate::body::is_default(&com) && inertia == 0.0 {
         return builder;
     }
-    let mass = match scalar::real(asked.mass) {
+    let mass = match asked.mass {
         stated if stated > 0.0 => stated,
         _ => {
             let unit = builder.shape.mass_properties(1.0);
-            scalar::real(asked.density.max(0.0)) * unit.mass()
+            asked.density.max(0.0) * unit.mass()
         }
     };
     mass_at(builder, scalar::v2a(com), mass, inertia)
@@ -530,7 +530,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &Asked2d) -> R
     let builder = collider_builder(eng, asked)?;
     let offset = Pose2::from_parts(
         scalar::v2a(asked.collider.offset),
-        Rotation2::from_angle(scalar::real(asked.collider.offset_rotation)),
+        Rotation2::from_angle(asked.collider.offset_rotation),
     );
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
@@ -556,7 +556,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &Asked2d) -> R
 pub(crate) fn surface_of(asked: &Collider2d) -> Option<crate::dim2::events::Surface> {
     let one_way = asked.one_way.then(|| {
         let axis = scalar::v2a(asked.one_way_axis);
-        let angle = scalar::real(asked.one_way_angle.max(0.0));
+        let angle = asked.one_way_angle.max(0.0);
         (axis.try_normalize().unwrap_or(Vector::Y), angle)
     });
     let velocity = scalar::v2a(asked.surface_velocity);

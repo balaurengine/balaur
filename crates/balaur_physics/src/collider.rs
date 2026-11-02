@@ -280,13 +280,13 @@ pub(crate) fn shape_builder(
     cut: &ConvexDecomposition3d,
 ) -> Result<ColliderBuilder> {
     use ColliderShape3d as S;
-    let radius_of = |radius: f32| scalar::real(radius).max(0.01);
-    let half = |size: [f32; 3], i: usize| scalar::real(size[i] / 2.0).max(0.01);
+    let radius_of = |radius: f32| radius.max(0.01);
+    let half = |size: [f32; 3], i: usize| (size[i] / 2.0).max(0.01);
     // A rounded shape is a shape plus a border radius, not nine more kinds.
-    let border_of = |edge: f32| scalar::real(edge).max(0.0);
+    let border_of = |edge: f32| edge.max(0.0);
     // rapier measures these from the centre. `height` runs tip to tip, so a
     // capsule's segment is what the two caps leave of it.
-    let half_height = |height: f32| scalar::real(height).max(0.01) / 2.0;
+    let half_height = |height: f32| height.max(0.01) / 2.0;
     Ok(match shape {
         S::Sphere(ball) => ColliderBuilder::ball(radius_of(ball.radius)),
         S::Box(cuboid) => {
@@ -393,9 +393,9 @@ fn with_mass_properties(builder: ColliderBuilder, asked: &Collider3d) -> Collide
         return builder;
     }
     let unit = builder.shape.mass_properties(1.0);
-    let mass = match scalar::real(asked.mass) {
+    let mass = match asked.mass {
         stated if stated > 0.0 => stated,
-        _ => scalar::real(asked.density.max(0.0)) * unit.mass(),
+        _ => asked.density.max(0.0) * unit.mass(),
     };
     let com = scalar::v3a(com);
     let props = if crate::body::is_default(&inertia) {
@@ -421,7 +421,7 @@ fn with_mass_properties(builder: ColliderBuilder, asked: &Collider3d) -> Collide
 pub(crate) fn surface_of(asked: &Collider3d) -> Option<crate::events::Surface> {
     let one_way = asked.one_way.then(|| {
         let axis = scalar::v3a(asked.one_way_axis);
-        let angle = scalar::real(asked.one_way_angle.max(0.0));
+        let angle = asked.one_way_angle.max(0.0);
         (axis.try_normalize().unwrap_or(Vector::Y), angle)
     });
     let velocity = scalar::v3a(asked.surface_velocity);
@@ -484,12 +484,7 @@ pub(crate) fn apply_collider(eng: &Engine, entity: Entity, asked: &Asked3d) -> R
     let builder = collider_builder(eng, asked)?;
     let offset = Pose::from_parts(scalar::v3a(asked.collider.offset), {
         let r = asked.collider.offset_rotation;
-        scalar::rotation_of(glamx::Quat::from_euler(
-            glamx::EulerRot::XYZ,
-            r[0],
-            r[1],
-            r[2],
-        ))
+        glamx::Quat::from_euler(glamx::EulerRot::XYZ, r[0], r[1], r[2])
     });
     remove_colliders(eng, entity);
     add_collider_at(eng, entity, builder, offset)?;
@@ -826,7 +821,7 @@ pub(crate) fn install_collider_reader_api(m: &mut dyn Bindings<Engine>) {
         let collider = &state.world.colliders[first_collider(&state, entity)?];
         // Rapier's own prediction, which its broad phase clamps to a body's
         // `speculative_distance`; unclamped here, so the box spans the whole step.
-        let dt = scalar::real(balaur_core::fixed_dt());
+        let dt = balaur_core::fixed_dt();
         let next = collider
             .parent()
             .and_then(|parent| state.world.bodies.get(parent))
