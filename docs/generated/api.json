@@ -5173,8 +5173,8 @@
         "signature": "(Node, any) -> bool"
       },
       "ui::fill_rows": {
-        "least": 4,
-        "signature": "(str, [ui::Row], any, bool) -> bool"
+        "least": 2,
+        "signature": "(str, [ui::Row], float?, bool?) -> bool"
       },
       "ui::fill_strip": {
         "least": 2,
@@ -5259,10 +5259,6 @@
       "ui::set_widget_layer": {
         "least": 1,
         "signature": "(bool, float?, float?, float?, float?)"
-      },
-      "ui::set_widget_surface": {
-        "least": 2,
-        "signature": "(str, bool, float?, float?, float?, float?)"
       },
       "ui::tab_rect": {
         "least": 1,
@@ -5628,8 +5624,7 @@
         "exclude_body": "Node?",
         "hit_sensors": "bool?",
         "hit_solids": "bool?",
-        "only": "str?",
-        "predicate": "any"
+        "only": "str?"
       },
       "physics2d::RagdollOptions": {
         "angular_damping": "float?",
@@ -5714,8 +5709,7 @@
         "exclude_body": "Node?",
         "hit_sensors": "bool?",
         "hit_solids": "bool?",
-        "only": "str?",
-        "predicate": "any"
+        "only": "str?"
       },
       "physics3d::RagdollOptions": {
         "angular_damping": "float?",
@@ -6040,6 +6034,7 @@
         "image": "str?",
         "inset": "any",
         "interactive": "bool?",
+        "items": "[ui::Item]?",
         "justify": "str?",
         "keep_open": "bool?",
         "kind": "str?",
@@ -6048,7 +6043,8 @@
         "max": "float?",
         "min": "float?",
         "min_width": "float?",
-        "on": "str?",
+        "on_change": "str?",
+        "on_click": "str?",
         "on_submit": "str?",
         "options": "[str]?",
         "padding": "any",
@@ -6075,6 +6071,20 @@
         "x": "float?",
         "y": "float?"
       },
+      "ui::Item": {
+        "cells": "[str]?",
+        "depth": "int?",
+        "icon": "str?",
+        "key": "str?",
+        "label": "str?",
+        "marks": "[ui::Mark]?",
+        "note": "str?",
+        "tint": "str?"
+      },
+      "ui::Mark": {
+        "glyph": "str",
+        "name": "str"
+      },
       "ui::Rect": {
         "height": "float",
         "width": "float",
@@ -6086,7 +6096,6 @@
       },
       "ui::Row": {
         "controls": "[ui::Control]",
-        "full": "bool?",
         "height": "float?",
         "label": "str?",
         "label_role": "str?",
@@ -6229,7 +6238,7 @@
       ],
       [
         "animation_changed",
-        "`#{ from, to }`, the clips' names"
+        "`{ from, to }`, the clips' names"
       ],
       [
         "animation_looped",
@@ -6243,15 +6252,15 @@
     "body2d": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }` for a collider under it, as that collider hears it"
+        "`{ other, sensor, removed, points, normals }` for a collider under it, as that collider hears it"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }` for a collider under it, as that collider hears it"
+        "`{ other, sensor, removed }` for a collider under it, as that collider hears it"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }` for a collider under it, as that collider hears it"
+        "`{ other, force, direction, total_force, max_force, started }` for a collider under it, as that collider hears it"
       ],
       [
         "sleeping_changed",
@@ -6261,15 +6270,15 @@
     "body3d": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }` for a collider under it, as that collider hears it"
+        "`{ other, sensor, removed, points, normals }` for a collider under it, as that collider hears it"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }` for a collider under it, as that collider hears it"
+        "`{ other, sensor, removed }` for a collider under it, as that collider hears it"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }` for a collider under it, as that collider hears it"
+        "`{ other, force, direction, total_force, max_force, started }` for a collider under it, as that collider hears it"
       ],
       [
         "sleeping_changed",
@@ -6291,41 +6300,41 @@
     "collider2d": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
+        "`{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
+        "`{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
+        "`{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
       ]
     ],
     "collider3d": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
+        "`{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
+        "`{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
+        "`{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
       ]
     ],
     "joint2d": [
       [
         "joint_break",
-        "`#{ a, b, force, torque }`: the two ends, and the force and torque it broke at"
+        "`{ a, b, force, torque }`: the two ends, and the force and torque it broke at"
       ]
     ],
     "joint3d": [
       [
         "joint_break",
-        "`#{ a, b, force, torque }`: the two ends, and the force and torque it broke at"
+        "`{ a, b, force, torque }`: the two ends, and the force and torque it broke at"
       ]
     ],
     "particles2d": [
@@ -6353,15 +6362,15 @@
     "softbody2d": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
+        "`{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
+        "`{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
+        "`{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
       ],
       [
         "sleeping_changed",
@@ -6369,21 +6378,21 @@
       ],
       [
         "tear",
-        "`#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers"
+        "`{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers"
       ]
     ],
     "softbody3d": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
+        "`{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
+        "`{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
+        "`{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
       ],
       [
         "sleeping_changed",
@@ -6391,7 +6400,7 @@
       ],
       [
         "tear",
-        "`#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers"
+        "`{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the record `tear_softbody` answers"
       ]
     ],
     "sound": [
@@ -6413,15 +6422,15 @@
     "tile_collision": [
       [
         "collision_enter",
-        "`#{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
+        "`{ other, sensor, removed, points, normals }`: the other collider's node, whether either is a sensor, and each contact point on this collider with its normal pointing away from it, in world space; a sensor's has no points"
       ],
       [
         "collision_exit",
-        "`#{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
+        "`{ other, sensor, removed }`: the other collider's node, whether either is a sensor, and whether the touch ended because a collider went away"
       ],
       [
         "contact_force",
-        "`#{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
+        "`{ other, force, direction, total_force, max_force, started }`; `direction` and `total_force` point from this collider towards the other"
       ]
     ],
     "timer": [
@@ -6453,7 +6462,7 @@
       ],
       [
         "caret",
-        "`#{ x, y, index }`"
+        "`{ x, y, index }`"
       ],
       [
         "move",
@@ -6465,7 +6474,7 @@
       ],
       [
         "mark",
-        "`#{ row, mark }`"
+        "`{ row, mark }`"
       ],
       [
         "double_click",
@@ -6489,7 +6498,7 @@
       ],
       [
         "fold",
-        "`#{ row, open }`"
+        "`{ row, open }`"
       ],
       [
         "opened",
@@ -6509,7 +6518,7 @@
       ],
       [
         "resized",
-        "`#{ x, y, width, height }`, while someone listens on the node"
+        "`{ x, y, width, height }`, while someone listens on the node"
       ]
     ]
   },
@@ -7485,7 +7494,7 @@
       "align_self",
       "absolute",
       "inset",
-      "layer",
+      "whole_window",
       "safe_area",
       "movable",
       "constrain",
@@ -7585,6 +7594,7 @@
       "keep_open",
       "checked",
       "options",
+      "items",
       "selection",
       "multi_select",
       "radio_group",
@@ -17639,6 +17649,90 @@
         "group": "events",
         "type": "bool"
       },
+      "items": {
+        "default": [],
+        "description": "The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key",
+        "group": "value",
+        "of": {
+          "default": {
+            "cells": [],
+            "depth": 0,
+            "icon": "",
+            "key": "",
+            "label": "",
+            "marks": [],
+            "note": "",
+            "tint": ""
+          },
+          "fields": {
+            "cells": {
+              "default": [],
+              "description": "A `table` row's text, one cell a column",
+              "of": {
+                "default": "",
+                "type": "string"
+              },
+              "type": "list"
+            },
+            "depth": {
+              "default": 0,
+              "description": "How many levels into a `tree` the row sits",
+              "type": "int"
+            },
+            "icon": {
+              "default": "",
+              "description": "A glyph from the icon face before the label. On a card in a `list` that names a `source`, `x,y,w,h` in that picture's pixels",
+              "type": "string"
+            },
+            "key": {
+              "default": "",
+              "description": "What `text`, `selection` and every row event know the row by, never drawn. Empty takes the label, or a `table` row's first cell, so two rows that say the same need one to stay two rows",
+              "type": "string"
+            },
+            "label": {
+              "default": "",
+              "description": "What the row says, and on a card its caption",
+              "type": "string"
+            },
+            "marks": {
+              "default": [],
+              "description": "Drawn at the right, the last rightmost, and reported by `on_mark`",
+              "of": {
+                "default": {
+                  "glyph": "",
+                  "name": ""
+                },
+                "fields": {
+                  "glyph": {
+                    "default": "",
+                    "description": "What it draws, from the icon face",
+                    "type": "string"
+                  },
+                  "name": {
+                    "default": "",
+                    "description": "What `on_mark` reports when it is clicked",
+                    "type": "string"
+                  }
+                },
+                "type": "record"
+              },
+              "type": "list"
+            },
+            "note": {
+              "default": "",
+              "description": "What the row trails at the right, and on a card its tooltip",
+              "type": "string"
+            },
+            "tint": {
+              "default": "",
+              "description": "The row's own `#rrggbb`; empty takes the widget's ink",
+              "type": "string"
+            }
+          },
+          "type": "record"
+        },
+        "type": "list"
+      },
       "justify": {
         "default": "start",
         "description": "How a container spreads its children along its own direction once they have their sizes, and a `grid` its columns: `stretch` grows a grid's `auto` columns into the room, and in a row or a column is `start`",
@@ -17697,12 +17791,6 @@
           "stack"
         ],
         "type": "enum"
-      },
-      "layer": {
-        "default": "",
-        "description": "The drawing surface this root belongs to; empty is the default one, and a name nothing has configured takes the default surface",
-        "group": "placement",
-        "type": "string"
       },
       "line_break": {
         "default": "word_or_glyph",
@@ -17824,7 +17912,7 @@
       },
       "on_caret": {
         "default": "",
-        "description": "Script method called with `#{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it",
+        "description": "Script method called with `{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -17872,7 +17960,7 @@
       },
       "on_fold": {
         "default": "",
-        "description": "Script method called with `#{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it",
+        "description": "Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it",
         "group": "events",
         "type": "string"
       },
@@ -17908,7 +17996,7 @@
       },
       "options": {
         "default": [],
-        "description": "The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick. An `inspector` shows the properties it names, in that order",
+        "description": "The words a `dropdown` or `menu` offers; `text` is the one picked, except on a `menu` where it is the button caption. `on_change` hears every pick. An `inspector` shows the properties it names, in that order",
         "group": "value",
         "of": {
           "default": "",
@@ -18014,7 +18102,7 @@
       },
       "selection": {
         "default": [],
-        "description": "The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one",
+        "description": "The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the key where it holds one",
         "group": "value",
         "of": {
           "default": "",
@@ -18199,6 +18287,12 @@
         "default": true,
         "description": "Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`",
         "group": "events",
+        "type": "bool"
+      },
+      "whole_window": {
+        "default": false,
+        "description": "Whether this root draws over the whole window, whatever `ui.set_widget_layer` says: what an editor's own chrome does. Ignored on a child.",
+        "group": "placement",
         "type": "bool"
       },
       "width": {
@@ -18437,7 +18531,7 @@
     "widget_inspector": {
       "component": {
         "default": "",
-        "description": "The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. The widget's `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `#{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved",
+        "description": "The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. The widget's `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved",
         "type": "string"
       },
       "label_width": {
@@ -18470,7 +18564,7 @@
       },
       "on_mark": {
         "default": "",
-        "description": "Script method called with `#{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing",
+        "description": "Script method called with `{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing",
         "type": "string"
       },
       "on_move": {
@@ -18921,21 +19015,6 @@
       "After the script's file changed and it was rebuilt, with its state kept."
     ],
     [
-      "defaults",
-      "()",
-      "When the instance is made, before the scene's properties land."
-    ],
-    [
-      "save_state",
-      "()",
-      "When a rollback or a save snapshots the world; answers the state to keep."
-    ],
-    [
-      "load_state",
-      "(state)",
-      "When a rollback or a load puts that state back."
-    ],
-    [
       "on_pointer_enter",
       "()",
       "The pointer came over the node."
@@ -19073,7 +19152,7 @@
     [
       "on_setting_changed",
       "(change)",
-      "A script set a setting, `#{ path, value }`; every script hears it the next frame."
+      "A script set a setting, `{ path, value }`; every script hears it the next frame."
     ],
     [
       "on_locale_changed",
@@ -19468,7 +19547,7 @@
         "stop": "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
         "travel": "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.",
-        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out.",
+        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out.",
         "tween_value": "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes.",
         "tween_value_of": "Where a value tween has got to, in the shape it was started with; nil once it is over."
       },
@@ -19703,7 +19782,7 @@
         "load": "The definition table behind a reference, from the cache; an error when the reference resolves to nothing.",
         "path": "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index.",
         "reload": "Forget a reference so the next load re-reads its file, along with every entry cut from that same file.",
-        "rename": "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.rn` is the script's own value, and `id://` is the reference that survives a move.",
+        "rename": "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.bs` is the script's own value, and `id://` is the reference that survives a move.",
         "save": "Write a definition table to the project-relative file a reference names; an error unless it names a whole file.",
         "schema": "The properties a record asset type holds, in the order it writes them; nil for a type that is not a record."
       },
@@ -19934,7 +20013,7 @@
       "docs": {
         "add_path": "Declare `alias = { path = \"<path>\" }` in a game's `[dependencies]`, comments kept, and install it. An empty game is the open project.",
         "install": "Read a game's `[dependencies]` again and install each: what a dependency fetched while the editor runs needs to become a root. An empty game is the open project.",
-        "list": "Every installed dependency: `#{ alias, folder, game, kind, project, branch, tag, path, rev, license }`. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a key that does not apply is empty.",
+        "list": "Every installed dependency: `{ alias, folder, game, kind, project, branch, tag, path, rev, license }`. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a key that does not apply is empty.",
         "make_local": "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files.",
         "move_into": "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/\u2026`; answers the files rewritten.",
         "of": "The alias of the dependency a path lies in, or nil for one of the game's own."
@@ -19989,7 +20068,7 @@
         "device_id": "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session.",
         "environment": "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it.",
         "focused": "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window.",
-        "function_costs": "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own statements (Rune: instructions) without its callees'. A function of a module two files use counts once for the two.",
+        "function_costs": "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own statements without its callees'. A function of a module two files use counts once for the two.",
         "has_plugin": "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there.",
         "open_url": "Open an http, https or mailto URL in whatever the player browses with: an opener on a desktop, a new tab on the web. Not on iOS or Android yet, where it reports that it has no opener. An effect on the world outside the game: never recorded, and it does nothing while a recording plays.",
         "paused": "Whether the game is paused.",
@@ -19998,7 +20077,7 @@
         "quit": "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out.",
         "reload_script": "Recompile one script by its project-relative key, for a tool editing files outside the watched root; answers what kept it from compiling, empty when it did.",
         "reveal": "Show a file or directory in the system file manager, selected where the platform can. Desktops only: neither a browser tab nor a phone has a file manager to ask. Never recorded, like `open_url`.",
-        "script_costs": "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`, `calls` the engine's calls into it. A Balaur Script file counts the statements it ran and a Rune one the VM's instructions: not seconds, so the number is the same on every machine.",
+        "script_costs": "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`, `calls` the engine's calls into it. A file counts the statements it ran: not seconds, so the number is the same on every machine.",
         "set_content_root": "Play the content of the project at `root`: its `strings/` catalogues and its `fonts/` are read from there, and the subtree `debugger.set_scope` names draws in them. For a host running a project other than its own: the editor, whose own root has neither. An empty string plays the project's own again.",
         "set_paused": "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included.",
         "set_script_profiling": "Start or stop counting what each script costs. Turning it on clears the tally; on from off, or off from on, rebuilds every Balaur Script file between frames, with counters or without, carrying its fields across.",
@@ -21278,7 +21357,7 @@
         "mouse_down": "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down.",
         "mouse_just_pressed": "Whether the `MOUSE_BUTTON_*` button went down this frame; true for that one frame only.",
         "mouse_just_released": "Whether the `MOUSE_BUTTON_*` button came up this frame; true for that one frame only.",
-        "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `#{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `#{ scale, x, y, pan_x, pan_y }`.",
+        "mouse_position": "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `{ scale, x, y, pan_x, pan_y }`.",
         "pan": "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down.",
         "pinch": "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down.",
         "reset_bindings": "Drop every saved rebinding and go back to what the project declared.",
@@ -21707,7 +21786,7 @@
         "transform"
       ],
       "constants": [],
-      "doc": "What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `this.node.get_node(\"Arm\")`.",
+      "doc": "What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `self.node.get_node(\"Arm\")`.",
       "docs": {
         "add_child": "Create a named child node under this one and return it.",
         "add_tag": "File the node under a name; `scene.tagged` finds it from then on.",
@@ -21900,18 +21979,18 @@
       "doc": "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
       "docs": {
         "clear": "Remove every body and collider from both worlds, as a play-in-editor session does on stop.",
-        "counters": "What each world's last step spent its time on, as `#{ physics3d, physics2d }`, each with every timer rapier keeps, in milliseconds (`step_ms`; the stages `update_ms`, `user_changes_ms`, `collision_detection_ms`, `island_construction_ms`, `island_constraints_ms`, `solver_ms`, `ccd_ms`; collision detection's `broad_phase_ms`, `final_broad_phase_ms`, `narrow_phase_ms`; the solver's `velocity_resolution_ms`, `velocity_assembly_ms`, `velocity_assembly_bodies_ms`, `velocity_assembly_constraints_ms`, `velocity_update_ms`, `velocity_writeback_ms`; continuous collision's `ccd_time_of_impact_ms`, `ccd_solver_ms`, `ccd_broad_phase_ms`, `ccd_narrow_phase_ms`) and every count (`contact_pair_count`, `constraint_count`, `contact_count`, `ccd_substep_count`). The first call turns rapier's profilers on, so the numbers arrive from the step after it.",
+        "counters": "What each world's last step spent its time on, as `{ physics3d, physics2d }`, each with every timer rapier keeps, in milliseconds (`step_ms`; the stages `update_ms`, `user_changes_ms`, `collision_detection_ms`, `island_construction_ms`, `island_constraints_ms`, `solver_ms`, `ccd_ms`; collision detection's `broad_phase_ms`, `final_broad_phase_ms`, `narrow_phase_ms`; the solver's `velocity_resolution_ms`, `velocity_assembly_ms`, `velocity_assembly_bodies_ms`, `velocity_assembly_constraints_ms`, `velocity_update_ms`, `velocity_writeback_ms`; continuous collision's `ccd_time_of_impact_ms`, `ccd_solver_ms`, `ccd_broad_phase_ms`, `ccd_narrow_phase_ms`) and every count (`contact_pair_count`, `constraint_count`, `contact_count`, `ccd_substep_count`). The first call turns rapier's profilers on, so the numbers arrive from the step after it.",
         "debug_draw": "What the debug renderer is drawing now, as a table of `enabled`, one flag per mode and `nodes`.",
         "is_paused": "Whether stepping is stopped.",
-        "quarantined": "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number, as `#{ physics3d, physics2d }`, each `#{ bodies, colliders, soft_bodies }` lists of nodes. Empty lists are the normal answer.",
-        "set_debug_draw": "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths.",
+        "quarantined": "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number, as `{ physics3d, physics2d }`, each `{ bodies, colliders, soft_bodies }` lists of nodes. Empty lists are the normal answer.",
+        "set_debug_draw": "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths.",
         "set_paused": "Stop or resume stepping both worlds; nodes keep their poses.",
         "set_ragdoll_influence": "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get back up.",
         "set_sleeping_allowed": "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later.",
         "set_tuning": "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` table, the keys `[physics]` takes. A key at the top reaches both worlds; a `3d` or `2d` table holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml.",
         "sleeping_allowed": "Whether resting bodies are allowed to fall asleep.",
         "threads": "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`.",
-        "tuning": "The solver settings each world is running with, as `#{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."
+        "tuning": "The solver settings each world is running with, as `{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."
       },
       "functions": [
         "clear",
@@ -22765,16 +22844,16 @@
         "bodies": "Every node with a rigid body, sorted.",
         "broad_phase_aabb": "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance.",
         "closest_point": "The closest point on any collider to a world point.",
-        "closest_points": "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap.",
+        "closest_points": "The nearest point on each of two nodes' colliders, as `{ a, b }`; nothing when they overlap.",
         "collider_mass": "What this collider weighs, density and size together.",
-        "collider_mass_properties": "What this collider adds to its body, in its own space: `#{ mass, center_of_mass, inertia }`.",
-        "collider_mesh": "A voxel collider's outline as points and the segments between them, `#{ points, indices }`, for drawing it or for spawning the pieces it broke into.",
+        "collider_mass_properties": "What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia }`.",
+        "collider_mesh": "A voxel collider's outline as points and the segments between them, `{ points, indices }`, for drawing it or for spawning the pieces it broke into.",
         "collider_volume": "How much area the shape encloses.",
         "collision_aabb": "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance.",
         "combine_voxels": "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.",
         "constant_force": "The force every step integrates until it is set back to zero.",
         "constant_torque": "The torque every step integrates until it is set back to zero.",
-        "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
+        "contacts": "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
         "crop_voxels": "Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was.",
         "cut_softbody": "Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
@@ -22783,7 +22862,7 @@
         "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "effective_mass": "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.",
         "gravity": "The 2D world's gravity.",
-        "handles": "The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output.",
+        "handles": "The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output.",
         "has_pending_tears": "Whether some edge or cell is marked to tear at the end of the next step.",
         "heightfield_hole": "Whether a heightfield segment has no ground.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
@@ -22791,22 +22870,22 @@
         "is_moving": "Whether the body is awake and actually going somewhere.",
         "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
-        "joint_force": "The force and the torque the joint held through the last step, `#{ force, torque }`. An articulation has none to read, and says so.",
-        "joint_state": "What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`, as in 3D: `status` is `enabled`, `disabled`, `body_disabled` or `waiting`; `angle` is a hinge's turn in radians; an articulation adds each free axis's coordinate and velocity.",
+        "joint_force": "The force and the torque the joint held through the last step, `{ force, torque }`. An articulation has none to read, and says so.",
+        "joint_state": "What the joint is doing: `{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`, as in 3D: `status` is `enabled`, `disabled`, `body_disabled` or `waiting`; `angle` is a hinge's turn in radians; an articulation adds each free axis's coordinate and velocity.",
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "local_center_of_mass": "Where the body's whole mass sits, in the body's own space.",
         "max_contact_impulse": "The hardest contact this body took in the last step, zero when nothing touched it.",
-        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update.",
-        "next_position": "The pose a kinematic body has been told to move to, as `#{ position, rotation }`.",
+        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update.",
+        "next_position": "The pose a kinematic body has been told to move to, as `{ position, rotation }`.",
         "overlap_aabb": "Every collider whose bounds meet an axis-aligned box.",
         "overlap_point": "Every collider containing a world point: what a mouse click asks.",
         "overlap_shape": "Every collider a shape overlaps where it stands.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
         "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
-        "pose_in_body": "Where the collider sits in its body's frame, as `#{ position, rotation }`; nothing for a collider with no body.",
+        "pose_in_body": "Where the collider sits in its body's frame, as `{ position, rotation }`; nothing for a collider with no body.",
         "potential_energy": "The body's gravitational potential energy over one step.",
-        "predict_position": "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.",
+        "predict_position": "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "ragdoll": "Build a 2D ragdoll from the rig under this node: a body and a shape per bone, hinged to its parent's with the hinge's zero at the pose the rig is in. Options as in 3D, with `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets, or nothing.",
@@ -22835,17 +22914,17 @@
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast.",
         "sleep": "Put the body to sleep now.",
         "softbody_area": "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed.",
-        "softbody_attachments": "Every particle tied to a rigid body, as `#{ particle, body, anchor, impulse }`: the anchor in the body's own space, and the impulse the tie pulled with in the last substep.",
+        "softbody_attachments": "Every particle tied to a rigid body, as `{ particle, body, anchor, impulse }`: the anchor in the body's own space, and the impulse the tie pulled with in the last substep.",
         "softbody_boundary": "The body's surface as particle indices: segments in 2D, triangles in 3D.",
-        "softbody_cell": "Everything one cell holds: `#{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.",
+        "softbody_cell": "Everything one cell holds: `{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.",
         "softbody_cells": "Every cell as its particle indices: triangles in 2D, tetrahedra in 3D.",
         "softbody_center": "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.",
-        "softbody_contacts": "What the body's surface touched in the last step: `#{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `#{ center, normal, volume }`.",
-        "softbody_crossing": "The edges and cells a blade meets, `#{ edges, cells }`, without cutting: the blade is a segment's two points in 2D, a triangle's three in 3D.",
-        "softbody_edge": "Everything one edge holds: `#{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge's own or its kind's from the material.",
+        "softbody_contacts": "What the body's surface touched in the last step: `{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `{ center, normal, volume }`.",
+        "softbody_crossing": "The edges and cells a blade meets, `{ edges, cells }`, without cutting: the blade is a segment's two points in 2D, a triangle's three in 3D.",
+        "softbody_edge": "Everything one edge holds: `{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge's own or its kind's from the material.",
         "softbody_edges": "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.",
         "softbody_mass": "What the whole body weighs, every piece included.",
-        "softbody_particle": "Everything one particle holds: `#{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.",
+        "softbody_particle": "Everything one particle holds: `{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.",
         "softbody_particle_radius": "How thick the particles are: what was asked for, or what the layout worked out.",
         "softbody_particles": "How many particles the body has, every piece torn off it included: a generator decides, not the author.",
         "softbody_position": "Where one particle is, in world space.",
@@ -22853,12 +22932,12 @@
         "softbody_sleeping": "Whether the body has come to rest and stopped being simulated.",
         "softbody_stress": "Each edge's load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.",
         "softbody_velocity": "How fast one particle is moving, in world space.",
-        "softbody_volume_pieces": "Each closed piece of the surface whose volume is held, as `#{ particles, rest_volume, volume }`; an open sheet has none.",
+        "softbody_volume_pieces": "Each closed piece of the surface whose volume is held, as `{ particles, rest_volume, volume }`; an open sheet has none.",
         "solve_ik": "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001).",
         "swept_aabb": "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it.",
         "tear_cell": "Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.",
         "tear_edge": "Tear one edge at the end of the next step.",
-        "tear_softbody": "Tear the given edges and cells at once; answers a record for each piece it changed: `#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `#{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.",
+        "tear_softbody": "Tear the given edges and cells at once; answers a record for each piece it changed: `{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in radians.",
         "time_of_impact": "When two moving colliders would meet, given each one's velocity. Nothing when they never do.",
         "time_since_can_sleep": "Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.",
@@ -24019,14 +24098,14 @@
         "closest_point": "The closest point on any collider to a world point.",
         "closest_points": "The nearest point on each of two nodes' colliders.",
         "collider_mass": "What this collider weighs, density and size together.",
-        "collider_mass_properties": "What this collider adds to its body, in its own space: `#{ mass, center_of_mass, inertia, inertia_rotation }`.",
+        "collider_mass_properties": "What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia, inertia_rotation }`.",
         "collider_mesh": "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into.",
         "collider_volume": "How much space the shape encloses.",
         "collision_aabb": "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance.",
         "combine_voxels": "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.",
         "constant_force": "The force every step integrates until it is set back to zero.",
         "constant_torque": "The torque every step integrates until it is set back to zero.",
-        "contacts": "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
+        "contacts": "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.",
         "crop_voxels": "Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was.",
         "cut_softbody": "Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.",
         "detach_particle": "Untie one particle from every body it was attached to; answers whether it was attached.",
@@ -24035,7 +24114,7 @@
         "effective_dominance": "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.",
         "effective_mass": "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.",
         "gravity": "The 3D world's gravity.",
-        "handles": "The rapier handles behind this node, its body and its colliders, as `#{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output.",
+        "handles": "The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output.",
         "has_pending_tears": "Whether some edge or cell is marked to tear at the end of the next step.",
         "heightfield_hole": "Whether a heightfield cell has no ground.",
         "intersects": "Whether two nodes' colliders overlap right now, sensor or not.",
@@ -24043,22 +24122,22 @@
         "is_moving": "Whether the body is awake and actually going somewhere.",
         "is_on_floor": "Whether the last move ended with ground under the character's feet.",
         "is_sleeping": "Whether the body is asleep and being skipped.",
-        "joint_force": "The force and the torque the joint held through the last step, `#{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.",
-        "joint_state": "What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge's turn in radians; the impulse maps hold each free axis's last limit and motor impulse; an articulation adds each free axis's coordinate and velocity.",
+        "joint_force": "The force and the torque the joint held through the last step, `{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.",
+        "joint_state": "What the joint is doing: `{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge's turn in radians; the impulse maps hold each free axis's last limit and motor impulse; an articulation adds each free axis's coordinate and velocity.",
         "kinetic_energy": "The body's kinetic energy, for a rest test the solver agrees with.",
         "linear_velocity": "How fast the body is travelling, in units per second.",
         "local_center_of_mass": "Where the body's whole mass sits, in the body's own space.",
         "max_contact_impulse": "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.",
-        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`, each collision `#{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.",
-        "next_position": "The pose a kinematic body has been told to move to, as `#{ position, rotation }`.",
+        "move_character": "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, z, on_floor, sliding, collisions }`, each collision `{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.",
+        "next_position": "The pose a kinematic body has been told to move to, as `{ position, rotation }`.",
         "overlap_aabb": "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits.",
         "overlap_point": "Every collider containing a world point.",
         "overlap_shape": "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc.",
         "overlaps": "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.",
         "pin_particle": "Hold one particle where it is, which is how a cloth hangs from a hook.",
-        "pose_in_body": "Where the collider sits in its body's frame, as `#{ position, rotation }`; nothing for a collider with no body.",
+        "pose_in_body": "Where the collider sits in its body's frame, as `{ position, rotation }`; nothing for a collider with no body.",
         "potential_energy": "The body's gravitational potential energy over one step.",
-        "predict_position": "Where the body will be after `dt` seconds at its current velocity, as `#{ position, rotation }`.",
+        "predict_position": "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`.",
         "predict_position_with_forces": "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         "ragdoll": "Build a 3D ragdoll from the rig under this node: a body and a shape per bone, held to its parent's by a ball socket whose zero is the pose the rig is in. Options: `shape` (`capsule`, `box` or `sphere`), `thickness` (the capsule's radius and the box's half width, as a fraction of bone length), `density`, `friction`, `restitution`, `collision_layer` and `collision_mask` (layer numbers) for the shapes; `linear_damping`, `angular_damping`, `gravity_scale` and `continuous_collision` for the bodies; `axes` (joint3d `axes` records, on `rotation_x`, `rotation_y`, `rotation_z`: twist and swing limits), `articulation` and `collide_connected` for the joints; `drive` (`none`, or `motors`: a position motor on every turn towards the built pose, of `stiffness` 100 and `damping` 20 unless given; or `follow`: a `follow3d` on every body towards its bone, so the bodies chase the clip, its keys in a `follow` table); `influence`; and `parent`, the node the bodies' container is kept under, the root unless given. Answers the body nodes it made.",
         "raycast": "The first collider a ray meets, or nothing.",
@@ -24090,19 +24169,19 @@
         "set_wheel_rotation": "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`.",
         "shapecast": "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls.",
         "sleep": "Put the body to sleep now.",
-        "softbody_attachments": "Every particle tied to a rigid body, as `#{ particle, body, anchor, impulse }`: the anchor in the body's own space, and the impulse the tie pulled with in the last substep.",
+        "softbody_attachments": "Every particle tied to a rigid body, as `{ particle, body, anchor, impulse }`: the anchor in the body's own space, and the impulse the tie pulled with in the last substep.",
         "softbody_boundary": "The body's surface as particle indices: segments in 2D, triangles in 3D.",
-        "softbody_cell": "Everything one cell holds: `#{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.",
+        "softbody_cell": "Everything one cell holds: `{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.",
         "softbody_cells": "Every cell as its particle indices: triangles in 2D, tetrahedra in 3D.",
         "softbody_center": "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.",
-        "softbody_contacts": "What the body's surface touched in the last step: `#{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `#{ center, normal, volume }`.",
-        "softbody_crossing": "The edges and cells a blade meets, `#{ edges, cells }`, without cutting: the blade is a segment's two points in 2D, a triangle's three in 3D.",
-        "softbody_dihedral": "Everything one hinge holds: `#{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with.",
+        "softbody_contacts": "What the body's surface touched in the last step: `{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `{ center, normal, volume }`.",
+        "softbody_crossing": "The edges and cells a blade meets, `{ edges, cells }`, without cutting: the blade is a segment's two points in 2D, a triangle's three in 3D.",
+        "softbody_dihedral": "Everything one hinge holds: `{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with.",
         "softbody_dihedrals": "Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles.",
-        "softbody_edge": "Everything one edge holds: `#{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge's own or its kind's from the material.",
+        "softbody_edge": "Everything one edge holds: `{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge's own or its kind's from the material.",
         "softbody_edges": "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.",
         "softbody_mass": "What the whole body weighs, every piece included.",
-        "softbody_particle": "Everything one particle holds: `#{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.",
+        "softbody_particle": "Everything one particle holds: `{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.",
         "softbody_particle_radius": "How thick the particles are: what was asked for, or what the layout worked out.",
         "softbody_particles": "How many particles the body has, every piece torn off it included: a generator decides, not the author.",
         "softbody_position": "Where one particle is, in world space.",
@@ -24111,12 +24190,12 @@
         "softbody_stress": "Each edge's load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.",
         "softbody_velocity": "How fast one particle is moving, in world space.",
         "softbody_volume": "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed.",
-        "softbody_volume_pieces": "Each closed piece of the surface whose volume is held, as `#{ particles, rest_volume, volume }`; an open sheet has none.",
+        "softbody_volume_pieces": "Each closed piece of the surface whose volume is held, as `{ particles, rest_volume, volume }`; an open sheet has none.",
         "solve_ik": "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001).",
         "swept_aabb": "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it.",
         "tear_cell": "Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.",
         "tear_edge": "Tear one edge at the end of the next step.",
-        "tear_softbody": "Tear the given edges and cells at once; answers a record for each piece it changed: `#{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `#{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.",
+        "tear_softbody": "Tear the given edges and cells at once; answers a record for each piece it changed: `{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.",
         "teleport": "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians.",
         "time_of_impact": "When two moving colliders would meet, given each one's velocity. Nothing when they never do.",
         "time_since_can_sleep": "Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.",
@@ -24132,7 +24211,7 @@
         "wake_all": "Wake every sleeping body in the 3D world.",
         "wake_softbody": "Start simulating a resting body again.",
         "wake_up": "Wake the body, so the next step moves it.",
-        "wheel_state": "What the last step did with this wheel: `#{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil.",
+        "wheel_state": "What the last step did with this wheel: `{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil.",
         "world_center_of_mass": "Where the body's whole mass sits, in world space."
       },
       "functions": [
@@ -24943,12 +25022,12 @@
         "begin_retained": "Keep what is drawn from here to `end_retained` under `key`, drawn every frame until the key is drawn again or cleared: an overlay redrawn when what it shows moves, not each frame.",
         "bounds": "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built; a text, the lines it was last laid out in.",
         "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
-        "built_mesh": "The triangles the node's boolean settled on, as `#{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
+        "built_mesh": "The triangles the node's boolean settled on, as `{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
         "camera_pose": "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale.",
         "cell": "The tile at a column and row, or -1 for an empty cell or one past the edge.",
-        "check_material": "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+        "check_material": "Every diagnostic about the material at that path, as `[{ file, line, column, severity, message }]`; empty when it links.",
         "clear_retained": "Stop drawing what `key` kept. A script hears the camera a frame was drawn with move, to draw a group sized in pixels again, with `events::listen(this.node, \"camera_moved\")`.",
         "debug_view": "Which channel the viewport is drawing instead of the scene's colour, or empty for the scene as it is.",
         "debug_views": "Every channel name `set_debug_view` accepts, as a list.",
@@ -24975,14 +25054,14 @@
         "instance_transform": "One instance's transform: a `Transform3d`, or a `Transform2d` on a 2D node.",
         "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
         "is_on_screen": "Whether any of the notifier's box was on screen at the end of the last frame.",
-        "material_params": "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
+        "material_params": "The material's editable rows, one `{ name, type, value }` per field its linked shader declares; empty when it will not link.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
         "mouse_world_2d": "The mouse position in 2D world coordinates, for picking.",
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
         "pick_ray_at": "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
         "populate": "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
-        "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
+        "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
         "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
@@ -25868,14 +25947,14 @@
       "docs": {
         "activate_focused": "Activate the focused widget, exactly as a click on it would.",
         "clear_focus": "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
-        "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+        "click": "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         "colors_apart": "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
         "complete_theme": "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         "contrast": "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         "contrast_pairs": "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
         "edit": "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
-        "fill_rows": "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. `full` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
-        "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
+        "fill_rows": "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. A row with no `label` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
+        "fill_strip": "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         "finish_loading": "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled.",
         "focus_down": "The same downwards, by `neighbour_down`.",
         "focus_left": "The same to the left, by `neighbour_left`.",
@@ -25896,12 +25975,11 @@
         "set_scale": "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         "set_theme": "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         "set_widget_layer": "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
-        "set_widget_surface": "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
-        "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
+        "tab_rect": "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         "takes_pointer_at": "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on.",
         "wants_keyboard": "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone.",
         "wants_pointer": "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window.",
-        "widget_rect": "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
+        "widget_rect": "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         "width_class": "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
         "window_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."
       },
@@ -25936,7 +26014,6 @@
         "set_scale",
         "set_theme",
         "set_widget_layer",
-        "set_widget_surface",
         "tab_rect",
         "takes_pointer_at",
         "wants_keyboard",
@@ -25955,7 +26032,7 @@
         "contrast": "(str, str) -> float",
         "contrast_pairs": "(any, str) -> [ui::ContrastPair]",
         "edit": "(Node, any) -> bool",
-        "fill_rows": "(str, [ui::Row], any, bool) -> bool",
+        "fill_rows": "(str, [ui::Row], float?, bool?) -> bool",
         "fill_strip": "(str, [ui::Control]) -> bool",
         "finish_loading": "()",
         "focus_down": "()",
@@ -25977,7 +26054,6 @@
         "set_scale": "(float)",
         "set_theme": "(any)",
         "set_widget_layer": "(bool, float?, float?, float?, float?)",
-        "set_widget_surface": "(str, bool, float?, float?, float?, float?)",
         "tab_rect": "(Node) -> ui::Rect?",
         "takes_pointer_at": "(float, float) -> bool",
         "wants_keyboard": "() -> bool",

@@ -54,7 +54,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 38 | 66 |
+| [`ui`](#ui) | 37 | 66 |
 | [`websocket`](#websocket) | 4 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -675,7 +675,7 @@ Host, join and play a rollback match. Set this machine's input with `set_input` 
 
 ## `node`
 
-What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `this.node.get_node("Arm")`.
+What every node has: name, path, transform, children, components and script. Each function takes the node first; scripts call it as a method, `self.node.get_node("Arm")`.
 
 | Function | Signature |
 | --- | --- |
@@ -1241,7 +1241,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
 | `edit` | `(Node, any) -> bool` |
-| `fill_rows` | `(str, [ui::Row], any, bool) -> bool` |
+| `fill_rows` | `(str, [ui::Row], float?, bool?) -> bool` |
 | `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
 | `focus_down` | `()` |
@@ -1263,7 +1263,6 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
 | `set_widget_layer` | `(bool, float?, float?, float?, float?)` |
-| `set_widget_surface` | `(str, bool, float?, float?, float?, float?)` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
 | `takes_pointer_at` | `(float, float) -> bool` |
 | `wants_keyboard` | `() -> bool` |

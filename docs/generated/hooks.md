@@ -15,9 +15,6 @@ in [components.md](./components.md).
 <tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while a pause or the node&#x27;s <code>process</code> mode holds it.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
 <tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
-<tr><td><code>defaults()</code></td><td>When the instance is made, before the scene&#x27;s properties land.</td></tr>
-<tr><td><code>save_state()</code></td><td>When a rollback or a save snapshots the world; answers the state to keep.</td></tr>
-<tr><td><code>load_state(state)</code></td><td>When a rollback or a load puts that state back.</td></tr>
 <tr><td><code>on_pointer_enter()</code></td><td>The pointer came over the node.</td></tr>
 <tr><td><code>on_pointer_exit()</code></td><td>The pointer left the node.</td></tr>
 <tr><td><code>on_pointer_down(button)</code></td><td>A button went down over the node, then over every other node unless one answers <code>true</code>.</td></tr>
@@ -45,7 +42,7 @@ in [components.md](./components.md).
 <tr><td><code>on_gamepad_connected(pad)</code></td><td>A gamepad was plugged in, with the id <code>input</code> names it by; told to every script.</td></tr>
 <tr><td><code>on_gamepad_disconnected(pad)</code></td><td>A gamepad went away, with its id; told to every script.</td></tr>
 <tr><td><code>on_gamepad_rumble_finished(pad)</code></td><td>A pad&#x27;s rumble ran its course, with the pad&#x27;s id, the frame after; not sent for one stopped or replaced. Told to every script.</td></tr>
-<tr><td><code>on_setting_changed(change)</code></td><td>A script set a setting, <code>#{ path, value }</code>; every script hears it the next frame.</td></tr>
+<tr><td><code>on_setting_changed(change)</code></td><td>A script set a setting, <code>{ path, value }</code>; every script hears it the next frame.</td></tr>
 <tr><td><code>on_locale_changed(locale)</code></td><td>The language changed; every script hears it the next frame.</td></tr>
 </tbody>
 </table>

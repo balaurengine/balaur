@@ -32,7 +32,6 @@ graph TD
   balaur_physics[balaur_physics]
   balaur_platform[balaur_platform]
   balaur_plugin[balaur_plugin]
-  balaur_port[balaur_port]
   balaur_project[balaur_project]
   balaur_render[balaur_render]
   balaur_script[balaur_script]
@@ -91,7 +90,6 @@ graph TD
   balaur_cli --> balaur_export
   balaur_cli --> balaur_import
   balaur_cli --> balaur_plugin
-  balaur_cli --> balaur_port
   balaur_cli --> balaur_script
   balaur_cli --> balaur_text
   balaur_core --> balaur_derive
