@@ -645,7 +645,7 @@ fn finish_bundle(
                     "signing an iOS build needs a provisioning profile: pass \
                      --provisioning-profile, or name one in [apple] ios_provisioning_profile"
                 );
-                let entitlements = apple.write_entitlements(written, name)?;
+                let entitlements = apple.write_entitlements(written, name, false)?;
                 sign::codesign(written, identity, entitlements.as_deref(), true)?;
                 sign::verify(written)?;
                 tracing::info!("signed {}", written.display());

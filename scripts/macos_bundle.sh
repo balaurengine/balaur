@@ -114,10 +114,28 @@ if [ -n "$identity" ]; then
   # Named, because the same certificate in a developer's login keychain makes
   # the identity ambiguous and codesign will not choose.
   from=(${keychain:+--keychain "$keychain"})
-  # Hardened runtime and a timestamp are what the notary service refuses a
-  # build for the absence of. Rune is an interpreter, so no JIT entitlement.
+  # What the notary service refuses a build without. A project's scripts run on
+  # wasmtime, which never uses `MAP_JIT`, so `allow-jit` alone gets the process killed.
+  entitled() { # entitled <file> <key>...
+    local file=$1 key
+    shift
+    {
+      printf '<?xml version="1.0" encoding="UTF-8"?>\n'
+      printf '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+      printf '<plist version="1.0">\n<dict>\n'
+      for key in "$@"; do
+        printf '  <key>com.apple.security.cs.%s</key>\n  <true/>\n' "$key"
+      done
+      printf '</dict>\n</plist>\n'
+    } >"$file"
+  }
+  runtime_entitlements=$dist/.runtime.entitlements
+  editor_entitlements=$dist/.editor.entitlements
+  entitled "$runtime_entitlements" allow-unsigned-executable-memory
+  # The editor also loads the extensions a user built, which carry no Team ID of ours.
+  entitled "$editor_entitlements" allow-unsigned-executable-memory disable-library-validation
   codesign --force --sign "$identity" --options runtime --timestamp \
-    ${from[@]+"${from[@]}"} \
+    --entitlements "$runtime_entitlements" ${from[@]+"${from[@]}"} \
     "$app/Contents/Resources/runtimes/balaur-runtime-macos-universal"
   # Nested code before the bundle that seals it.
   for lib in "$app"/Contents/Frameworks/*; do
@@ -126,7 +144,8 @@ if [ -n "$identity" ]; then
       ${from[@]+"${from[@]}"} "$lib"
   done
   codesign --force --sign "$identity" --options runtime --timestamp \
-    ${from[@]+"${from[@]}"} "$app"
+    --entitlements "$editor_entitlements" ${from[@]+"${from[@]}"} "$app"
+  rm -f "$runtime_entitlements" "$editor_entitlements"
   codesign --verify --strict --deep --verbose=2 "$app"
 else
   printf 'no identity: Balaur.app is unsigned\n'

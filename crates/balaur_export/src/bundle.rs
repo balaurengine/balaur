@@ -217,7 +217,7 @@ pub(crate) fn export_bundle(
             apple.info_plist(Platform::Ios, &executable, &icon_keys)?,
         )
         .with_context(|| format!("writing {}", plist.display()))?;
-        if let Some(path) = apple.write_entitlements(&output, name)? {
+        if let Some(path) = apple.write_entitlements(&output, name, false)? {
             tracing::info!(
                 "entitlements -> {} (codesign --entitlements {} --sign <identity> {})",
                 path.display(),
@@ -312,9 +312,12 @@ pub(crate) fn export_macos_app(
     balaur::standalone::write_executable(&executable, &bytes, runtime)?;
     // Before codesign, which signs nested code first and seals it into the bundle.
     crate::extensions::ship_for(project, &bytes, &executable)?;
-    if let Some(request) = native {
-        crate::native::build_desktop(&executable, "macos-universal", request)?;
-    }
+    let scripts_native = match native {
+        Some(request) => {
+            crate::native::build_desktop(&executable, "macos-universal", request)?.is_some()
+        }
+        None => false,
+    };
     std::fs::write(resources.join(balaur::standalone::BUNDLED_PACK), pack)?;
     let icon_keys = match icons {
         Some(icons) => icons.write_macos(&app, &apple.min_macos)?,
@@ -324,7 +327,7 @@ pub(crate) fn export_macos_app(
         app.join("Contents").join("Info.plist"),
         apple.info_plist(Platform::Macos, name, &icon_keys)?,
     )?;
-    let entitlements = apple.write_entitlements(&app, name)?;
+    let entitlements = apple.write_entitlements(&app, name, !scripts_native)?;
     crate::sign::codesign(&app, sign, entitlements.as_deref(), true)?;
     if sign.is_some() {
         crate::sign::verify(&app)?;
