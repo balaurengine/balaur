@@ -249,6 +249,26 @@ pub(crate) fn lines(api: &HostApi) -> Vec<String> {
     lines
 }
 
+/// What a compiled unit rests on, as text to hash: every function, and the
+/// records and constants the unit holds its own copies of. A record's fields
+/// are its layout, so a unit built against other fields cannot call one built
+/// against these.
+pub(crate) fn compiled_against(api: &HostApi) -> String {
+    let mut all = lines(api);
+    all.extend(
+        api.structs
+            .iter()
+            .map(|(name, fields)| format!("{name} {fields:?}")),
+    );
+    all.extend(
+        api.constants
+            .iter()
+            .map(|(name, value)| format!("{name} = {value:?}")),
+    );
+    all.sort();
+    all.join("\n")
+}
+
 /// The API a script compiles against. Read when the first script compiles,
 /// after every plugin has registered.
 pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {

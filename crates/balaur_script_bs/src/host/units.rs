@@ -113,7 +113,7 @@ impl BsHost {
         }
         let api = match self.inner.api_hash.take() {
             Some(h) => h,
-            None => balaur_bs::module_hash(api::lines(&self.api()).join("\n").as_bytes()),
+            None => balaur_bs::module_hash(api::compiled_against(&self.api()).as_bytes()),
         };
         self.inner.api_hash.set(Some(api.clone()));
         let name = balaur_bs::module_hash(format!("{api}\n{key}\n{source}").as_bytes());
