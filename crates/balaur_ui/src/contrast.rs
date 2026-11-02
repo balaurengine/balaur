@@ -3,10 +3,10 @@
 //! it, and the test on the bundled themes asserts none falls short.
 
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::theme::parse_hex;
-use crate::vocabulary::{keys as k, weights};
+use crate::vocabulary::{keys as k, tokens, weights};
 
 /// The ratio body text needs, and the one large or bold text needs.
 pub const AA: f64 = 4.5;
@@ -27,12 +27,18 @@ pub struct Pair {
 
 /// An sRGB channel as linear light, 0 to 1.
 pub(crate) fn to_linear(channel: u8) -> f64 {
-    let c = f64::from(channel) / 255.0;
-    if c <= 0.04045 {
-        c / 12.92
-    } else {
-        libm::pow((c + 0.055) / 1.055, 2.4)
-    }
+    // A channel has 256 values: each worked out once, as the formula has it.
+    static LINEAR: std::sync::OnceLock<[f64; 256]> = std::sync::OnceLock::new();
+    LINEAR.get_or_init(|| {
+        std::array::from_fn(|n| {
+            let c = n as f64 / 255.0;
+            if c <= 0.04045 {
+                c / 12.92
+            } else {
+                libm::pow((c + 0.055) / 1.055, 2.4)
+            }
+        })
+    })[usize::from(channel)]
 }
 
 fn luminance(color: egui::Color32) -> f64 {
@@ -156,8 +162,123 @@ fn walk(
     }
 }
 
+/// How far apart two colours stand in CIELAB below which a reader no longer
+/// tells them apart at a glance.
+pub const DISTINCT: f64 = 10.0;
+
+/// The colour tokens that say something by their hue alone.
+const SAYING: &[&str] = &[
+    tokens::PRIMARY,
+    tokens::SUCCESS,
+    tokens::WARNING,
+    tokens::DANGER,
+];
+
+/// The ways colour vision is simulated, each a matrix over linear sRGB
+/// (Machado, Oliveira and Fernandes 2009, full severity); the first is none.
+const VISIONS: [(&str, [[f64; 3]; 3]); 4] = [
+    (
+        "typical",
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    ),
+    (
+        "protanopia",
+        [
+            [0.152_286, 1.052_583, -0.204_868],
+            [0.114_503, 0.786_281, 0.099_216],
+            [-0.003_882, -0.048_116, 1.051_998],
+        ],
+    ),
+    (
+        "deuteranopia",
+        [
+            [0.367_322, 0.860_646, -0.227_968],
+            [0.280_085, 0.672_501, 0.047_413],
+            [-0.011_820, 0.042_940, 0.968_881],
+        ],
+    ),
+    (
+        "tritanopia",
+        [
+            [1.255_528, -0.076_749, -0.178_779],
+            [-0.078_411, 0.930_809, 0.147_602],
+            [0.004_733, 0.691_367, 0.303_900],
+        ],
+    ),
+];
+
+/// Two of a theme's saying colours, how far apart they stand for the reader
+/// who sees them closest, and which vision that is.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Apart {
+    pub first: String,
+    pub second: String,
+    pub distance: f64,
+    pub vision: &'static str,
+}
+
+/// Every pair of a document's saying colours, `primary`, `success`,
+/// `warning` and `danger` with the tokens it leaves out derived, closest
+/// first: one under [`DISTINCT`] reads as the same colour to someone.
+#[must_use]
+pub fn apart(doc: &toml::Value) -> Vec<Apart> {
+    let doc = crate::palette::complete(doc);
+    let colors = doc.get(k::COLORS).and_then(toml::Value::as_table);
+    let held: Vec<(&str, egui::Color32)> = SAYING
+        .iter()
+        .filter_map(|name| color_of(colors, name).map(|color| (*name, color)))
+        .collect();
+    let mut out = Vec::new();
+    for (at, (first, a)) in held.iter().enumerate() {
+        for (second, b) in &held[at + 1..] {
+            let (distance, vision) = VISIONS
+                .iter()
+                .map(|(vision, matrix)| (lab_distance(seen(*a, matrix), seen(*b, matrix)), *vision))
+                .fold((f64::INFINITY, VISIONS[0].0), |closest, one| {
+                    if one.0 < closest.0 { one } else { closest }
+                });
+            out.push(Apart {
+                first: (*first).to_owned(),
+                second: (*second).to_owned(),
+                distance,
+                vision,
+            });
+        }
+    }
+    out.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+    out
+}
+
+/// A colour as a vision sees it, in linear sRGB.
+fn seen(color: egui::Color32, matrix: &[[f64; 3]; 3]) -> [f64; 3] {
+    let rgb = [color.r(), color.g(), color.b()].map(to_linear);
+    matrix.map(|row| (row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2]).clamp(0.0, 1.0))
+}
+
+/// The CIE76 distance between two linear sRGB colours, through CIELAB under
+/// D65.
+fn lab_distance(a: [f64; 3], b: [f64; 3]) -> f64 {
+    let (a, b) = (lab(a), lab(b));
+    ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
+}
+
+fn lab([r, g, b]: [f64; 3]) -> [f64; 3] {
+    let x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.950_47;
+    let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    let z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.088_83;
+    let f = |t: f64| {
+        if t > 0.008_856 {
+            libm::cbrt(t)
+        } else {
+            7.787 * t + 16.0 / 116.0
+        }
+    };
+    let (fx, fy, fz) = (f(x), f(y), f(z));
+    [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)]
+}
+
 /// `ui.contrast` and `ui.contrast_pairs`: the same numbers, for a script.
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "contrast",
@@ -172,6 +293,33 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
             "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
         ),
     ]);
+    m.describe(&[(
+        "colors_apart",
+        &[],
+        "(theme: table) -> [ColorsApart]",
+        "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
+    )]);
+    m.records(&[(
+        "ColorsApart",
+        "{ first: string, second: string, distance: float, vision: string }",
+        "Two colours a theme says something with, and how far apart they stand for the reader who sees them closest.",
+    )]);
+    m.function("colors_apart", |_: &Engine, doc: Value| {
+        let doc = balaur_core::node_api::to_toml(&doc)?;
+        Ok(Value::List(
+            apart(&doc)
+                .into_iter()
+                .map(|pair| {
+                    Value::Map(vec![
+                        (k::FIRST.into(), Value::Str(pair.first)),
+                        (k::SECOND.into(), Value::Str(pair.second)),
+                        (k::DISTANCE.into(), Value::Num(pair.distance)),
+                        (k::VISION.into(), Value::Str(pair.vision.into())),
+                    ])
+                })
+                .collect(),
+        ))
+    });
     m.records(&[(
         "ContrastPair",
         "{ role: string, ink: string, fill: string, ratio: float, need: float }",

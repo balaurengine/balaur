@@ -9,21 +9,23 @@ pub fn cache(user: any) {
     if user.kind() != "map" || !user.has("id") {
         return;
     }
-    script::store(ROSTER_KEY, all().with(user.get("id").text(), user));
+    let roster = all();
+    roster[user["id"].text()] = user;
+    script::store(ROSTER_KEY, roster);
 }
 
 /// The user this client last saw under that id, or nil.
 pub fn user(id: any) -> any {
-    all().get(id.text())
+    all()[id.text()]
 }
 
 /// Everyone cached, by id.
 pub fn all() -> any {
     let kept = script::stored(ROSTER_KEY);
-    if kept.kind() == "map" { kept } else { map() }
+    if kept.kind() == "map" { kept } else { {} }
 }
 
 /// Forget everyone: the roster after a sign-out.
 pub fn forget() {
-    script::store(ROSTER_KEY, map());
+    script::store(ROSTER_KEY, {});
 }

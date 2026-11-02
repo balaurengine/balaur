@@ -3,6 +3,7 @@ mod batch;
 mod call;
 mod convert;
 mod direct;
+mod dropped;
 mod expr;
 mod func;
 mod hoist;
@@ -26,6 +27,7 @@ use checks::{check_structs, check_types, defaults};
 pub(crate) use func::show;
 /// Where a module's static data starts: past the scratch space and the
 /// allocator's free lists. A linked script's units put theirs from here.
+#[cfg(any(jit, native, feature = "wasmi"))]
 pub(crate) const DATA_START: u32 = DATA_BASE;
 use func::{FnGen, LVal, Mode, R, err};
 use rt::{DATA_BASE, G_MEMORY_BASE, GLOBALS, HELPER_COUNT, Helpers, mem};
@@ -315,12 +317,11 @@ impl Gen {
         v.len() as u32 - 1
     }
     fn wasm_sig(&self, s: &Sig) -> Signature {
-        let selfv = self.self_vts(s.owner.as_ref());
-        let mut p = selfv.clone();
+        let mut p = self.self_vts(s.owner.as_ref());
         for t in &s.params {
             p.extend(self.vts(t));
         }
-        let mut r = selfv;
+        let mut r = vec![];
         for t in s.ref_tys() {
             r.extend(self.vts(t));
         }
@@ -1143,8 +1144,7 @@ fn sync_fn(
     }
     fg.charge();
     fg.prof_enter(pid);
-    // A list literal at the end is read as the result type, so `[x, y, z]`
-    // ends a fn that returns a `Vec3` as it does a `let` of one.
+    // A list literal at the end is read as the result type, as a `let` reads it.
     let lit_tail = matches!(
         f.body.tail.as_deref().map(|e| &e.kind),
         Some(ExprKind::ArrayLit(_))

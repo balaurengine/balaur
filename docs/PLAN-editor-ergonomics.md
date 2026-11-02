@@ -144,7 +144,12 @@ out. Each step today asks for something the editor should have known.
 - **A dropped or pasted image is a sprite** at the pointer, in a browser as
   on desktop (PLAN-web-editor §1), through the `dropin.bs` rule above. Change
   type keeps its texture, as `recipes.bs` already carries colour, texture
-  and material.
+  and material. *Built 2026-10-30 on desktop:* the window layer under egui
+  opens no clipboard, so `balaur_ui`'s `clipboard.rs` does (arboard): what a
+  pass copies goes out, and ⌘V reads text or an image back as egui's own
+  paste. An image no field takes is said as `pasted_image`;
+  `ui::save_pasted_image` writes it under `images/` and the drop rule places
+  it. A tab's paste is the page's, handed in as Forge's drop is.
 - **Add → Text is ready to type.** *Built 2026-10-28.* A node added at the
   top of the scene lands where the view is looking, a child on its parent;
   every added node is named for what it is (`text2d` is a `Text`); a text
@@ -165,11 +170,13 @@ out. Each step today asks for something the editor should have known.
   second process, at the project's `[window]` size, as `--shot` does; the
   PNG lands in `[export] output`'s `picture` folder or beside the manifest.
   A tab has no second process and says so. `test:picture`.
-- **Nothing to save.** *Built 2026-10-28, for the scene.* `autosave.bs`
-  writes the scene once its edits have settled for 0.6 s, not while a game
-  plays, isolate hides part of it or a drag is under way; ⌘S still writes at
-  once. A run started with `--state` keeps its edits off disk. A script is
-  still written by ⌘S, since writing one is compiling it. `test:autosave`.
+- **Nothing to save.** *Built 2026-10-28 for the scene, 2026-10-30 for
+  code.* `autosave.bs` writes the scene once its edits have settled for
+  0.6 s, not while a game plays, isolate hides part of it or a drag is under
+  way, and a script or shader buffer once its typing rests for 1.5 s, which
+  is when it compiles; ⌘S still writes at once. A dependency's scene is
+  read-only and is not written. A run started with `--state` keeps its
+  edits off disk. `test:autosave`.
 
 ## 2. The surface
 

@@ -22,6 +22,17 @@ shot = ""
 frames = ""
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.0, 0.05, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 250.0
+
+[[nodes]]
 id = "n_plain"
 name = "Plain"
 parent = "n_scene"
@@ -33,10 +44,11 @@ position = [-2.6, -0.6, 0.0]
 mesh = "#table"
 color = [0.40, 0.36, 0.31, 1.0]
 
+[nodes.convex_decomposition2d]
+method = { kind = "exact", overlap = 0.0 }
+
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
-overlap = 0.0
+shape = { kind = "convex_decomposition", mesh = "#table" }
 
 [[nodes]]
 id = "n_grown"
@@ -50,10 +62,11 @@ position = [0.6, -0.6, 0.0]
 mesh = "#table"
 color = [0.40, 0.36, 0.31, 1.0]
 
+[nodes.convex_decomposition2d]
+method = { kind = "exact", overlap = 0.9 }
+
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
-overlap = 0.9
+shape = { kind = "convex_decomposition", mesh = "#table" }
 
 # Each beam starts inside its table, across the seam between a leg and the
 # top: the deep overlap a level, an animation or a script can hand the solver.
@@ -68,13 +81,11 @@ body2d = { kind = "dynamic", gravity_scale = 0.0 }
 position = [-2.35, 0.42, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = { kind = "rectangle", size = [1.2, 0.04] }
 color = [0.93, 0.84, 0.55, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = { kind = "rectangle", size = [1.2, 0.04] }
 
 [[nodes]]
 id = "n_beam_grown"
@@ -86,10 +97,8 @@ body2d = { kind = "dynamic", gravity_scale = 0.0 }
 position = [0.85, 0.42, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = { kind = "rectangle", size = [1.2, 0.04] }
 color = [0.93, 0.84, 0.55, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = { kind = "rectangle", size = [1.2, 0.04] }

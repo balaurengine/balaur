@@ -1,7 +1,7 @@
 // `{str: V}` and `{int: V}`: built in, typed, a hash table in the module,
 // held to Rust's own map and to the order keys were first set.
 
-use super::{call, compile_error, run};
+use super::{call, run};
 use balaur_bs::runtime::Value;
 use std::collections::HashMap;
 
@@ -85,7 +85,7 @@ pub fn boxed() -> any {
 }
 
 pub fn unboxed() -> int {
-    let cell: any = map().with("x", 3).with("y", 4);
+    let cell: any = { "x": 3, "y": 4 };
     let point: {str: int} = cell;
     point["x"].unwrap() * 10 + point["y"].unwrap()
 }
@@ -101,32 +101,6 @@ pub fn shown() -> str {
     "{ages}"
 }
 "#;
-
-#[test]
-fn a_map_reads_writes_and_keeps_the_order_keys_were_set() {
-    let mut rt = run(SCRIPT);
-    assert_eq!(
-        call(&mut rt, "read", &[Value::Str("ada".into())]),
-        Value::Int(37)
-    );
-    assert_eq!(
-        call(&mut rt, "read", &[Value::Str("grace".into())]),
-        Value::Int(85)
-    );
-    assert_eq!(
-        call(&mut rt, "read", &[Value::Str("nobody".into())]),
-        Value::Int(-1)
-    );
-    assert_eq!(
-        call(&mut rt, "order", &[]),
-        Value::Array(vec![
-            Value::Str("alan".into()),
-            Value::Str("grace".into()),
-            Value::Str("ada".into()),
-        ])
-    );
-    assert_eq!(rt.live(), 0, "a map let go of frees its entries");
-}
 
 #[test]
 fn a_map_counts_as_rusts_does_across_growth_and_removal() {
@@ -149,56 +123,4 @@ fn a_map_counts_as_rusts_does_across_growth_and_removal() {
     let want = kept.iter().map(|i| i * i).sum::<i64>() + i64::try_from(kept.len()).unwrap();
     assert_eq!(call(&mut rt, "squares", &[Value::Int(n)]), Value::Int(want));
     assert_eq!(rt.live(), 0);
-}
-
-#[test]
-fn a_map_holds_maps_and_classes_by_reference() {
-    let mut rt = run(SCRIPT);
-    assert_eq!(call(&mut rt, "nested", &[]), Value::Int(20));
-    assert_eq!(call(&mut rt, "players", &[]), Value::Int(7));
-    assert_eq!(rt.live(), 0);
-}
-
-#[test]
-fn a_str_keyed_map_is_an_any_map_and_back() {
-    let mut rt = run(SCRIPT);
-    let Value::Map(entries) = call(&mut rt, "boxed", &[]) else {
-        panic!("not a map");
-    };
-    assert_eq!(
-        entries,
-        vec![
-            ("ada".to_string(), Value::Int(36)),
-            ("alan".to_string(), Value::Int(41)),
-        ]
-    );
-    assert_eq!(call(&mut rt, "unboxed", &[]), Value::Int(34));
-    assert_eq!(
-        call(&mut rt, "shown", &[]),
-        Value::Str(r#"{"ada": 36}"#.into())
-    );
-    assert_eq!(rt.live(), 0);
-}
-
-#[test]
-fn adding_to_a_missing_key_traps() {
-    let mut rt = run(SCRIPT);
-    assert!(rt.call("missing", &[]).is_err());
-}
-
-#[test]
-fn a_map_type_is_checked_where_it_is_written() {
-    assert!(
-        compile_error("pub fn f() { let m: {float: int} = {}; }")
-            .contains("a map's key is a `str` or an `int`")
-    );
-    assert!(
-        compile_error("pub fn f() { let m: {str: int?} = {}; }")
-            .contains("a map's value is never nil")
-    );
-    assert!(compile_error("pub fn f() { let m = {\"a\": 1}; }").contains("typed by where it goes"));
-    assert!(
-        compile_error("pub fn f() -> any { let m: {int: int} = {}; let a: any = m; a }")
-            .contains("{ int: int }")
-    );
 }

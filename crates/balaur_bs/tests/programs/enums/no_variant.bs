@@ -1,0 +1,4 @@
+enum Nothing {}
+pub fn f() -> int { 1 }
+
+// error: 1:6: enum Nothing has no variant

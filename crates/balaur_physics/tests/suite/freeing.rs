@@ -13,7 +13,7 @@ use crate::LOG;
 
 fn app() -> App {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -46,7 +46,7 @@ fn spawn(app: &App, name: &str, id: &str, y: f32, body: bool) -> Entity {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap()),
+        Some(&toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap()),
     )
     .unwrap();
     e
@@ -277,8 +277,7 @@ parent = "n_world"
 position = [0.0, 2.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#;
 
 /// The whole point of the prune: a collider on a freed node used to keep
@@ -291,14 +290,14 @@ fn a_raycast_stops_finding_a_freed_node() {
 impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
-        let opts = map().with("origin", [0.0, 8.0, 0.0]).with("direction", [0.0, -1.0, 0.0]).with("max_distance", 100.0);
+        let opts = physics3d::RayQuery { origin: vec3(0.0, 8.0, 0.0), direction: vec3(0.0, -1.0, 0.0), max_distance: 100.0 };
         if self.ticks == 2 {
-            self.hit_before = !physics3d::raycast(opts).is_nil();
+            self.hit_before = physics3d::raycast(opts) != nil;
             scene::get_node("/World/Target").queue_free();
         }
         if self.ticks == 8 {
             if !self.hit_before { log::error("the ray never found the target to begin with"); }
-            if !physics3d::raycast(opts).is_nil() { log::error("the freed node still answers raycasts"); }
+            if physics3d::raycast(opts) != nil { log::error("the freed node still answers raycasts"); }
         }
     }
 }
@@ -380,7 +379,9 @@ fn a_restored_soft_body_names_the_respawned_node() {
         .world_mut()
         .insert_one(doomed, StableId("n_blob".to_string()))
         .unwrap();
-    let cuboid = toml::from_str("kind = \"box\"\ncells = [2.0, 2.0, 2.0]").unwrap();
+    let cells = toml::from_str("cells = [2.0, 2.0, 2.0]").unwrap();
+    components::add(&app.engine, doomed, "soft_grid3d", Some(&cells)).unwrap();
+    let cuboid = toml::from_str("kind = \"box\"").unwrap();
     components::add(&app.engine, doomed, "softbody3d", Some(&cuboid)).unwrap();
     app.tick(1.0 / 60.0);
     let taken = snapshot::capture(&app.engine);
@@ -402,5 +403,18 @@ fn a_restored_soft_body_names_the_respawned_node() {
         state.world.soft_bodies.get(handle).unwrap().user_data,
         u128::from(back.to_bits().get()),
         "the restored soft body still names the freed node"
+    );
+    assert_eq!(
+        state.world.soft_bodies.get(handle).unwrap().num_particles(),
+        27,
+        "the restored body is not the 2x2x2 cells its grid asked for"
+    );
+    drop(state);
+    let grid = components::get(&app.engine, back, "soft_grid3d")
+        .expect("the respawned node lost the grid beside its soft body");
+    assert_eq!(
+        grid.get("cells"),
+        cells.get("cells"),
+        "the grid came back with other cells"
     );
 }

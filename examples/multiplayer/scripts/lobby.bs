@@ -12,6 +12,7 @@ const RETRY_FRAMES: int = 60;
 
 impl Lobby {
     pub fn init() {
+        events::listen(self.node, "multiplayer_event");
         self.retry_in = 0;
         self.joining = false;
         for arg in engine::args() {
@@ -24,15 +25,15 @@ impl Lobby {
     }
 
     pub fn host() {
-        let at = multiplayer::host(map().with("name", "Host"));
-        let url = at.get("url");
+        let at = multiplayer::host(multiplayer::HostOptions { name: "Host" });
+        let url = at.url;
         self.say("Hosting at {url}; waiting for a second player.");
     }
 
     pub fn join() {
         let address = settings::get("multiplayer/address");
         self.joining = true;
-        multiplayer::join("ws://{address}", map().with("name", "Guest"));
+        multiplayer::join("ws://{address}", multiplayer::JoinOptions { name: "Guest" });
         self.say("Joining ws://{address}...");
     }
 
@@ -46,14 +47,14 @@ impl Lobby {
     }
 
     pub fn on_multiplayer_event(e: any) {
-        let kind = e.get("kind");
+        let kind = e["kind"];
         if kind == multiplayer::EVENT_JOINED {
-            let name = e.get("name");
+            let name = e["name"];
             self.say("{name} joined; starting.");
         } else if kind == multiplayer::EVENT_CONNECTED && self.joining {
             self.say("In the lobby; waiting for the host to start.");
         } else if kind == multiplayer::EVENT_ERROR && self.joining {
-            let reason = e.get("reason");
+            let reason = e["reason"];
             self.say("No host yet ({reason}); trying again.");
             self.retry_in = RETRY_FRAMES;
         }
@@ -61,6 +62,6 @@ impl Lobby {
 
     fn say(text: str) {
         log::info(text);
-        self.node.get_node("Sheet/Status").patch_component("widget", map().with("text", text));
+        self.node.get_node("Sheet/Status").widget.text = text;
     }
 }

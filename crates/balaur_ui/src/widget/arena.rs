@@ -27,18 +27,16 @@ pub(crate) struct Placed {
     /// says nothing itself.
     pub(crate) name: SmolStr,
     pub(crate) widget: Widget,
-    /// What the widget itself said about being drawn, before the scene tree
-    /// had its say. Held because `widget.visible` is folded with the node's
-    /// own appearance every pass, and re-reading the world for it would read
-    /// the widget as authored rather than as this screen class resolved it.
-    pub(crate) authored_visible: bool,
+    /// Whether the widget has anything of its own to draw, before the scene
+    /// tree has its say: `widget.visible` is folded from the two every pass.
+    pub(crate) draws_itself: bool,
     pub(crate) children: Vec<usize>,
     /// The look resolved for this widget, worked out once a frame.
     ///
     /// Both the measure and the draw ask for it, and each of them more than
     /// once: without this the theme was walked, the role merged and the face
     /// built five times a widget a frame.
-    pub(crate) look: RefCell<Option<Rc<Look>>>,
+    pub(crate) look: RefCell<Looks>,
     /// The alpha of the node's inherited tint: every ancestor's multiplied
     /// in, so a fade on a panel reaches what it lays out.
     pub(crate) alpha: f32,
@@ -57,6 +55,42 @@ pub(crate) struct Look {
     pub(crate) icon: egui::FontFamily,
     /// Whose faces it draws in.
     pub(crate) project: balaur_text::FontProject,
+    /// What it was worked out under.
+    pub(crate) under: Under,
+}
+
+/// What a look depends on besides its widget, which a write to it clears.
+#[derive(Clone)]
+pub(crate) struct Under {
+    theme: Rc<WidgetTheme>,
+    classes: u32,
+    families: u64,
+}
+
+impl Under {
+    fn now(theme: &Rc<WidgetTheme>) -> Self {
+        Self {
+            theme: Rc::clone(theme),
+            classes: crate::widget::theme::pass_classes_at(),
+            families: crate::theme::families_taken(),
+        }
+    }
+
+    fn holds(&self, theme: &Rc<WidgetTheme>) -> bool {
+        Rc::ptr_eq(&self.theme, theme)
+            && self.classes == crate::widget::theme::pass_classes_at()
+            && self.families == crate::theme::families_taken()
+    }
+}
+
+/// A widget's looks, kept from pass to pass until what they were worked out
+/// under moves. A screen of widgets draws the same looks frame after frame, and
+/// working one out clones styles and asks for a font.
+#[derive(Default)]
+pub(crate) struct Looks {
+    resting: Option<Rc<Look>>,
+    /// The look in each state the pointer or the widget has put it in so far.
+    pub(crate) in_state: Vec<(crate::widget::theme::WidgetState, Rc<Look>)>,
 }
 
 /// Whether the surface is on the side of every line the widget draws. A
@@ -73,8 +107,8 @@ fn fits(widget: &Widget, width: f32, height: f32) -> bool {
 
 /// One widget as this pass sees it: what the scene authored, with any class
 /// table the screen answers to folded over it.
-fn for_classes(eng: &Engine, widget: &Widget, classes: &[&str]) -> Widget {
-    crate::widget::schema::for_classes(eng, widget, classes)
+fn for_classes(eng: &Engine, entity: Entity, widget: &Widget, classes: &[&str]) -> Widget {
+    crate::widget::schema::for_classes(eng, entity, widget, classes)
         .unwrap_or_else(|| Widget::clone(widget))
 }
 
@@ -88,23 +122,18 @@ pub(crate) fn theme_at(
     index: usize,
     base: &Rc<WidgetTheme>,
 ) -> Rc<WidgetTheme> {
-    let mut chain = Vec::new();
-    let mut at = Some(index);
-    while let Some(i) = at {
-        chain.push(i);
-        at = arena[i].parent;
-    }
-    let mut theme = base.clone();
-    for i in chain.into_iter().rev() {
-        theme = theme_of(eng, &arena[i].widget.theme, &theme);
-    }
-    theme
+    let inherited = arena[index]
+        .parent
+        .map_or_else(|| base.clone(), |parent| theme_at(eng, arena, parent, base));
+    theme_of(eng, &arena[index].widget.theme, &inherited)
 }
 
-/// The look of one widget, resolved once and kept for the rest of the frame.
-pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme) -> Rc<Look> {
+/// The look of one widget at rest, worked out when what it depends on moved.
+pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &Rc<WidgetTheme>) -> Rc<Look> {
     let placed = &arena[index];
-    if let Some(held) = placed.look.borrow().as_ref() {
+    if let Some(held) = placed.look.borrow().resting.as_ref()
+        && held.under.holds(theme)
+    {
         return Rc::clone(held);
     }
     let style = styled(theme, &placed.widget);
@@ -115,8 +144,12 @@ pub(crate) fn look_of(arena: &[Placed], index: usize, theme: &WidgetTheme) -> Rc
         ink,
         icon: icon_family(theme, placed.project),
         project: placed.project,
+        under: Under::now(theme),
     });
-    *placed.look.borrow_mut() = Some(Rc::clone(&made));
+    *placed.look.borrow_mut() = Looks {
+        resting: Some(Rc::clone(&made)),
+        in_state: Vec::new(),
+    };
     made
 }
 
@@ -135,6 +168,8 @@ thread_local! {
     /// The surface the last pass read visibility against, in whole design
     /// pixels: when it moves, every widget with a line is re-read.
     static SURFACE: std::cell::Cell<(i32, i32)> = const { std::cell::Cell::new((-1, -1)) };
+    /// The assets' generation the kept looks answer for.
+    static LOOKS_AT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(Default)]
@@ -271,9 +306,10 @@ fn patch(
         // Gone from the world, or its component removed: either way the shape
         // of the forest is not what the arena says it is.
         let widget = world.get::<&Widget>(entity).ok()?;
-        let widget = for_classes(eng, &widget, classes);
-        arena[index].authored_visible = widget.visible;
+        let widget = for_classes(eng, entity, &widget, classes);
+        arena[index].draws_itself = draws_itself(&widget);
         arena[index].widget = widget;
+        *arena[index].look.borrow_mut() = Looks::default();
         touched.push(index);
     }
     Some(touched)
@@ -313,7 +349,7 @@ fn forest(
         let mut next_owner = owner;
         if let Ok(widget) = world.get::<&Widget>(entity) {
             let index = arena.len();
-            let widget = for_classes(eng, &widget, classes);
+            let widget = for_classes(eng, entity, &widget, classes);
             let name = world
                 .get::<&balaur_core::scene::Name>(entity)
                 .map_or_else(|_| SmolStr::default(), |n| SmolStr::new(&n.0));
@@ -325,10 +361,10 @@ fn forest(
                 entity,
                 parent: owner,
                 name,
-                authored_visible: widget.visible,
+                draws_itself: draws_itself(&widget),
                 widget,
                 children: Vec::new(),
-                look: RefCell::new(None),
+                look: RefCell::default(),
                 alpha: 1.0,
                 project,
             });
@@ -389,11 +425,12 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
         Err((arena, roots, index_of)) => forest(eng, arena, roots, index_of, &classes),
     };
     shown_by_tree(eng, &mut placed, fresh, &mut touched);
-    if !fresh {
-        // The look is a pass's answer, not the arena's: a theme applied since
-        // must not be answered out of the pass that cached it.
+    // A font named before its file was there is asked for again when the
+    // assets move; a look holds the answer it got.
+    let assets = balaur_core::assets::generation(eng);
+    if LOOKS_AT.with(|at| at.replace(assets)) != assets {
         for placed in &placed {
-            *placed.look.borrow_mut() = None;
+            *placed.look.borrow_mut() = Looks::default();
         }
     }
     Begun {
@@ -403,6 +440,16 @@ pub(crate) fn begin(eng: &Engine, stamp: (u64, u64)) -> Begun {
         fresh,
         touched,
     }
+}
+
+/// A `menu` with no caption, icon or image has no button: it only opens from
+/// a `context`, whose rows are its children, drawn all the same.
+fn draws_itself(widget: &Widget) -> bool {
+    widget.kind != crate::vocabulary::words::MENU
+        || !widget.text.is_empty()
+        || !widget.text_key.is_empty()
+        || !widget.icon.is_empty()
+        || !widget.source.is_empty()
 }
 
 /// A widget draws only while its node does: `visible = false` on the node,
@@ -436,7 +483,7 @@ fn shown_by_tree(eng: &Engine, placed: &mut [Placed], fresh: bool, touched: &mut
         .collect();
     let world = eng.world();
     let mut fold = |index: usize, one: &mut Placed| {
-        let authored = one.authored_visible && roomed[index];
+        let authored = one.draws_itself && roomed[index];
         // A tree built this tick (a scene switch) has no propagated
         // appearance yet: compose it, or every hidden node shows one frame.
         let (shown, alpha) = world

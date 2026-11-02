@@ -23,6 +23,25 @@ name = "Bench"
 parent = ""
 script = { source = "scripts/bench.bs" }
 
+[[nodes]]
+id = "n_camera3d"
+name = "Camera3D"
+parent = "n_bench"
+
+[nodes.transform]
+position = [0.0, 40.0, 110.0]
+
+[nodes.camera3d]
+look_at = [0.0, 10.0, 0.0]
+
+[[nodes]]
+id = "n_camera2d"
+name = "Camera2D"
+parent = "n_bench"
+
+[nodes.camera2d]
+pixels_per_unit = 0.16
+
 # The menu: a column docked at the left, so the case being built stays on
 # screen beside its own numbers. A headless run frees it.
 [[nodes]]
@@ -78,5 +97,4 @@ parent = "n_menu"
 
 [nodes.widget]
 kind = "label"
-text = ""
 role = "caption"

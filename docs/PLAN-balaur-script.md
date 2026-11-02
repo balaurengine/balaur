@@ -7,7 +7,8 @@
 > 1.5 times Rust; an iOS export compiles it to native code, at 1.1 to 1.3. hello's `scripts/spinner.bs` turns its spinner to the bit
 > its Rune original did, from source, from an export pack and as native code.
 > §9, everything a script does at native cost and not only its arithmetic,
-> planned 2026-10-27; step 1 is built.
+> planned 2026-10-27; steps 1 to 4 and 6 to 8 are built, and step 5 but for
+> typed calls between scripts (2026-11-01).
 
 # Plan: Balaur Script, a scripting language compiled to WebAssembly
 
@@ -42,25 +43,45 @@ impl Spinner {
 
 | Have | Not planned |
 | --- | --- |
-| `int` (i64), `float` (f64), `bool`, `str`, `Node`, `[T]`, structs | enums, `match`, generics, traits |
-| `T?` and `nil`; `is_some`, `is_none`, `unwrap`, `or`; `x == nil` | `T??`, `any?` |
+| `int` (i64), `float` (f64), `bool`, `str`, `Node`, `[T]`, structs, enums with `match` (built 2026-10-30, ARCHITECTURE.md *Enums*) | generics, traits |
+| `T?` and `nil`; `x == nil`, `x != nil`, `unwrap`, `or` | `T??`, `any?` |
 | `fn(int) -> int` values naming a function, called like one | closures, captures |
 | `use util;` links `util.bs`, `use a::b;` `a/b.bs`; its `pub` items as `util::name`; files may use each other and the one using them | a module per instance |
 | `fn f(s: &mut State)`: the caller's own value, written back when `f` returns | a reference kept in a field; `&mut` in an `async fn` |
 | `class State { .. }`: one counted object every holder shares, passed as its pointer; `C?` for a link | a cycle of classes freed (it leaks, as an array holding itself does) |
-| any typed value goes into an `any`, and an `any` into the typed place it is wanted in (`let n: int = a.n`); `a.key`, `a.key = v`, `for x in a`, `a == b` on `any`s; an `any` in `"{..}"` prints as its `text()` | |
+| any typed value goes into an `any`, and an `any` into a struct, list, map, `T?` or `fn` at the typed place it is wanted in; `a["k"]`, `a[i]`, `a["k"] = v`, `a[i] = v`; `.as_int()`, `.as_float()`, `.as_str()`, `.as_bool()`, `.as_node()`; `for x in a`, `a == b`; an `any` in `"{..}"` prints as its `text()` | |
 | `fn(&mut State, Row)` values: a callback the caller hands its state to; one goes into an `any` as its table slot and comes back as the `fn` type wanted | captures (decided 2026-10-21) |
-| `fn`, `impl` with an implicit mutable `self`, `const`, `extern fn` | lifetimes, `&`, `mut` (accepted, ignored) |
+| `fn`, `impl` on a `class` with an implicit mutable `self`, `const`, `extern fn` | methods on a struct, lifetimes, `&`, `mut` (accepted, ignored) |
 | `if`/`else` as values, `while`, `loop`, `for i in a..b`, `for x in arr` | |
 | `int` meets `float` as `float` with no cast; `as` for the rest | |
 | `"hp {self.hp}"` interpolation, `+` on strings, `==` on strings | |
 | array literals, `[v; n]`, `push`, `pop`, `len`, `arr[i].x += 1` | |
 | struct literals naming what differs: a field left out takes its declared default, or nil when it is optional | |
+| `vec2()`, `vec3()`, `color()`; `node.c.p` and `node.c.p = v` | |
 | `{ str: V }` and `{ int: V }`: `{ "a": 1 }` where one is wanted, `m[k]` as a `V?`, `m[k] = v`, `m[k] += 1` (a missing key traps), `has`, `remove`, `len`, `keys` and `values` in the order keys were first set; a `{ str: V }` goes into an `any` and back | a key of another type; a `V?` value |
 | `async fn`, `await` on host calls and on script async fns, with values | |
 | `sqrt`, `abs`, `floor`, `ceil`, `min`, `max` native; `sin` … `pow` through `libm` | |
 
 Errors name the line and column: `3:7: cannot combine int and bool`.
+
+One way to do each thing, built 2026-11-01. The other spellings do not compile,
+and each error names what to write (`tests/programs/`):
+
+| Do | Write | Refused |
+| --- | --- | --- |
+| read an `any` | `a["k"]`, `a[k]`, `a[i]` | `a.get("k")`, `a.k`, `a.at(i)`; on a list `xs.at(i)`; on a map `m.get(k)`; on a vector `v.at(0)`, `v.get("x")` |
+| write an `any` | `a["k"] = v`, `a[i] = v` | `a.set("k", v)`, `a.put(i, v)`, `a.k = v`; on a map `m.set(k, v)` |
+| an `any` as a scalar | `.as_int()`, `.as_float()`, `.as_str()`, `.as_bool()`, `.as_node()` | `let x: int = a["k"]`, an `any` passed, returned, added, negated or tested where a scalar goes; a string's or a node's method on an `any` |
+| no value | `x == nil`, `x != nil` | `is_nil`, `is_none`, `is_some`, and `unwrap_or` for `or` |
+| methods | `impl` on a `class` | `impl` on a struct: make it a class or write a function |
+| a vector | `vec2()`, `vec3()`, `color()` | a list where one goes, `Vec3 { .. }` and its siblings |
+| a property the schema knows | `node.c.p`, `node.c.p = v` | `get_component("c", "p")`, `patch_component("c", { "p": v })` with both names literal |
+
+What stays because it has no other form: an `any` into a struct, a list, a map,
+a `T?` or a `fn` at a typed place; a computed name and a many-key patch; an
+inline asset's table and a colour as `#rrggbb` in a one-key patch, which are no
+value of the property's type. In an `any` a vector is a list of its numbers, from
+a script as from TOML, a component or the engine, so a `Vec3` in a patch works.
 
 ## 2. Memory
 
@@ -83,7 +104,8 @@ Errors name the line and column: `3:7: cannot combine int and bool`.
   every module. `Runtime::live` counts objects; every test ends at its
   baseline.
 - A cycle leaks. Without closures or reference structs, the only cycle is an
-  array holding itself.
+  array or an `any` holding itself; read by the host, the place it closes
+  reads as nil.
 
 ## 3. Host and state
 
@@ -113,11 +135,11 @@ Errors name the line and column: `3:7: cannot combine int and bool`.
   16-byte cell (count, tag, payload) and nil is the pointer 0, so retain,
   release, reload and the debugger read it like a string. Ints, floats,
   bools, strings, nodes and `[any]` box into one where one is wanted; a
-  script reads it with `kind`, `as_int`, `get`, `at`, `a["k"]`, `a[0]` and
-  the rest, and builds one with `map().with("k", v)` until §9 step 5. `get` and `at` share
-  the child cell rather than copying it. `m.set("k", v)` and `l.push(v)`
-  change a map or a list in place, so every holder of it sees the change;
-  on nil or another kind they return false and change nothing.
+  script reads it with `kind`, `as_int`, `a["k"]`, `a[0]` and the rest, and
+  builds one as a literal where an `any` goes, `{ "k": v }`. `a["k"]` and
+  `a[0]` share the child cell rather than copying it. `m["k"] = v` and
+  `l.push(v)` change a map or a list in place, so every holder of it sees the
+  change; on nil or another kind they change nothing.
 
 ## 4. Await
 
@@ -275,6 +297,14 @@ runs no JIT, and on the others C runs at 1.1 to 1.3 times Rust to wasmtime's 1.5
   as one `game.zip` (`docker/export.sh`), which Forge takes for desktop
   targets, and `docker/sign.sh` signs every `.exe` and `.dll` or Mach-O in it
   before zipping it again.
+- The build holds each file's unit (`host.unit_of`) and the unit a
+  project's instance starts from, and the runtime links them as wasmtime
+  and wasmi do (`native_engine::instantiate_linked`): one instance, a `fn`
+  table built at run time whose slots carry their unit and a signature
+  tag, each unit made when it links. A unit the build lacks keeps a
+  project off native code: a file of the project changed since the build
+  moves the instance onto its engine, and a file from outside it (a game's
+  script the editor reads) runs alone. Runtime ABI 3.
 - Left: run the Linux and Windows builds in CI, and an APK on a device.
 
 Ten thousand spinners a frame: 0.36–1.0 ms batched on wasmtime against 9–35
@@ -371,8 +401,8 @@ step 1 is the compiler's suite with the prelude in.
 | a script function call | 15 | |
 | `"ab" + "cd"`, then `==` | 1,400 | 440 |
 | `s.contains(t)` | 5,200 | 2,700 |
-| `a.get(k)` on a map of 8 | 19,000 | 1,400 |
-| `a.set(k, v)` | 30,000 | 1,400 |
+| `a[k]` on a map of 8 | 19,000 | 1,400 |
+| `a[k] = v` | 30,000 | 1,400 |
 | `a.with(k, v)` on a map of 8 | 176,000 | 6,500 |
 | `a.with(k, v)` on a map of 32 | 593,000 | |
 | a map of 8 keys built with `with` | 1,054,000 | 35,000 |
@@ -401,7 +431,6 @@ Where it goes:
 - **An engine call converts three times**: module memory to `L`, `L` to the
   neutral `Value`, `Value` to the component's table. A property write is
   `patch_component` with a one-key table; a read is `get_component` by name.
-- **`self` is copied** in and out of a struct's method (§3).
 - **Each script is an instance of its own** (PLAN-bs-linking), so a call to
   another script is `node.call`, its arguments deep-copied through the
   neutral `Value`. The editor is about 40 such scripts.
@@ -446,14 +475,42 @@ the table:
    cast: `let tree: scene_tree::SceneTree? = node.script;`. `node.call`
    stays only between instances: the editor and a plugin, the editor and
    the game it plays.
+   Found 2026-10-30, moving the editor's 39 panels onto `editor::Editor?`:
+   a build of whole files (the profiler's, the debugger's, the browser's, a
+   native export) makes each file an instance of its own, so the cast is
+   nil there and every panel stops filling; the profiler's rebuild also
+   took 64 s rather than 4, each panel compiling the editor whole. The
+   panels keep `node.call` to the Editor until those builds link a project
+   as units too. A native build does since 2026-10-30 (§7a); the profiler,
+   the debugger and the browser are left.
 5. **A stricter language.**
    - An `any` holds data from outside: a file, the network, TOML, JSON, a
-     plugin's payload. The 405 engine functions that take or give an `any`
-     get records, but where the data is open: a reply's body, a gamend
-     record, JSON.
+     plugin's payload. The engine functions that take or give an options
+     table get records, but where the data is open: a reply's body, a
+     gamend record, JSON. Built 2026-10-31: a binding's `Value` parameter
+     is the record its docs name, and a record's nil field is one it leaves
+     out, at the engine and in an `any`. 108 records, from 47; 73 functions
+     take one and 68 give one. The functions naming `any` went from 305 to
+     251: what is left is open data (a reply, a gamend payload, JSON, TOML,
+     a definition, a setting's spec, a tween's value), a node-or-handle
+     argument, a polygon or a mesh, and the `apple` and `platform` stores,
+     whose optional node shifts their arguments.
    - `map()` and `with` go. A spec is a struct, and a struct literal leaves
      out the fields that have defaults (built 2026-10-28: a declared
-     default, or nil for an optional field).
+     default, or nil for an optional field or an `any`). Built 2026-10-31:
+     the compiler refuses both by name; an `any` map is a literal where an
+     `any` goes, `{ "k": v }`, typed by the other branch of an `if` or the
+     other elements of a list where nothing else types it. The editor's
+     1,466 `map()` and 4,086 `.with(`, the examples', the gamend addon's and
+     the Rust tests' are literals or records. An 8-key literal costs 2,420
+     fuel on wasmi; one `with` on a map of 8 cost 6,507. Built 2026-11-01: the
+     pool's specs are `ui::Control` and `ui::Row` from the literal to
+     `fill_strip` and `fill_rows`, 385 and 140 of them, and 104 widget patches
+     are one property write each. A control of eight keys cost 76,253 fuel as
+     an `any` read into its record, and costs 491 as the record: a plain struct
+     of eight fields costs 17, and `ui::Control` has sixty, 115 slots. What a
+     plugin hands the kit stays an `any`, and what the schema cannot type
+     (`inset`, `padding`, a colour as text) stays a patch.
    - `{ str: T }` and `{ int: T }` are maps as `[T]` is a list: built in, typed,
      a hash table in the module, the property schema's `map`
      (PLAN-property-types §1). An `any` map is a `{ str: any }`. Built
@@ -461,20 +518,62 @@ the table:
      for it, a class compiled in as the program's own (`crate::maps`); a
      read costs under half an `any` map's, with no call out.
    - A script calls another by its type, never by a method's name in a
-     string.
+     string. Not built: a debugger's probes, a profiler's counters and a
+     browser's metering compile a file whole, and the compiler builds no
+     unit with them (`Options::unit`), so those builds cannot link a
+     project as units yet (`host/units.rs`, `as_units`).
 6. **The derive's index.** `node.c.p` resolves at load to the component and
    the property's index in its schema (PLAN-property-types §5): a read or a
    write of one field. A component or property the schema lacks does not
    compile.
 7. **The editor runs native.** CI builds the editor's scripts through §7a's
    C into the editor. A project's scripts stay on the JIT while edited and go
-   native at export. A browser keeps its own engine.
+   native at export. A browser keeps its own engine. Done 2026-10-30:
+   `scripts/package.sh` puts the library beside each editor download's
+   binary (in `Balaur.app`'s `Frameworks`), and `scripts/editor_native.sh`
+   runs fifteen of the editor's states on it in the test workflow. Built as
+   whole files the editor's 175 scripts were 738 MB of C that clang did not
+   finish; as units they are 37 MB, about 2.5 minutes a slice.
 8. **Budgets.** `tests/suite/budgets.rs` holds, per operation, the fuel
    wasmi charges and the host calls made, and CI gates on it (QUALITY.md
    §Performance).
 
-Targets once step 5 is in: `any.get` about 50 instructions, a string search
+Targets once step 5 is in: `a["k"]` about 50 instructions, a string search
 tens, an engine call about 50, a property write about 150.
+
+Measured 2026-10-31, after step 5's records and literals: wasmi fuel per
+operation (`tests/suite/budgets.rs`) did not move, `a["k"]` on a map of 8 at
+1,234 and `s.contains(t)` at 2,413; neither target is met, since step 5 changed
+how maps are built, not how they are read. One edit in the editor
+(`scripts/edit_cost.sh`, M instructions) went from 5.1 to 4.9 (text), 5.3 to
+5.1 (colour), 3.4 to 3.0 (position) and 5.0 to 4.3 (engine text).
+
+Measured 2026-11-01, one edit once the specs were records and the patches
+property writes, two runs each at 400 frames on a quiet machine: 3.2 to 3.4 M
+before and 3.2 to 3.3 after (text), 3.3 to 3.4 and 3.2 to 3.3 (colour), 1.7 to
+1.8 and 1.5 to 1.7 (position), 2.7 to 2.9 and 2.6 to 2.8 (engine text): within
+what two runs differ by, since an edit fills few strips and the pool's key spares
+the rest. What `a["k"]` and `s.contains(t)` cost did not move, at 1,234 and
+2,413.
+
+Measured again 2026-10-31, per engine call from a script on wasmtime, the
+dev build: instructions retired over 200 frames of a thousand calls, less a
+loop of the same length that calls nothing. Before is the morning; after
+is an argument lent rather than cloned, a struct's names inline, and a
+word of module memory read without a `Vec`:
+
+| a call | before | after |
+| --- | ---: | ---: |
+| `self.node.transform.position = vec3(..)` | 10,135 | 6,194 |
+| `let at = self.node.transform.position` | 7,153 | 5,633 |
+| `patch_component("transform", { "position": .. })` | 34,027 | 21,211 |
+| `patch_component("widget", { "text": .. })` | 27,304 | 19,285 |
+| `get_component("transform", "position")` | 36,845 | 35,416 |
+
+The write is still forty times the target. What is left of it is the engine
+side, a property set as a `toml::Value` and the change log and registry
+looked up by type on each write, and the any map's walk through module
+memory for a patch.
 
 ## Open questions
 

@@ -3,6 +3,7 @@
 //! Requested during a tick and applied at the end of it, so a script asking
 //! for a switch inside `update` is not freeing the tree it is running in.
 //! Reset is a switch to the same file, which is why there is no second verb.
+//! The scene left stays built and a switch back returns it: [`crate::parked`].
 
 use anyhow::Result;
 
@@ -105,6 +106,8 @@ pub fn apply_system(eng: &Engine, dt: f32) {
     };
     match step {
         Step::Switch(scene) => {
+            // A scene parked at the end of its fade would come back unseen.
+            roots_alpha(eng, 1.0);
             if let Err(why) = switch_now(eng, &scene) {
                 tracing::error!("scene.switch to '{scene}': {why:#}");
                 eng.resource::<Pending>().borrow_mut().crossing = None;
@@ -137,19 +140,30 @@ fn roots_alpha(eng: &Engine, alpha: f32) {
 }
 
 fn switch_now(eng: &Engine, scene: &str) -> Result<()> {
+    crate::timings::measure(eng, "scene/switch", || switch_to(eng, scene))
+}
+
+fn switch_to(eng: &Engine, scene: &str) -> Result<()> {
     let root = eng.root();
-    let children: Vec<crate::hecs::Entity> = {
-        let world = eng.world();
-        world
-            .get::<&crate::scene::Children>(root)
-            .map(|c| c.0.clone())
-            .unwrap_or_default()
-    };
-    crate::scene::free_nodes(eng, &children);
-    // Freeing is deferred to the end of the frame; the new tree is built
-    // beside the old one and the old one goes, which is what keeps a node
-    // being ticked from being freed under itself.
+    if crate::parked::is_current(eng, scene) {
+        let children: Vec<crate::hecs::Entity> = {
+            let world = eng.world();
+            world
+                .get::<&crate::scene::Children>(root)
+                .map(|c| c.0.clone())
+                .unwrap_or_default()
+        };
+        crate::scene::free_nodes(eng, &children);
+    } else {
+        crate::parked::park_current(eng);
+        if crate::parked::unpark(eng, scene) {
+            tracing::info!("returned to {scene}");
+            return Ok(());
+        }
+    }
+    crate::parked::set_current(eng, None);
     crate::project::instantiate_scene_file(eng, scene, root, true)?;
+    crate::parked::set_current(eng, Some(scene));
     // The draw after this tick reads the new tree's inherited appearance,
     // and the pass that propagates it has already run: compose it now, or
     // every node authored hidden shows for one frame.

@@ -26,23 +26,23 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::collections::DetHashMap;
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::derived::{self, Component};
 use balaur_core::hecs::Entity;
 use balaur_core::scene::{self, Parent, Transform};
-use balaur_core::skeleton::{self, Bone};
 use balaur_core::{Engine, entity_of};
+use balaur_geometry::skeleton::{self, Bone};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 use glamx::{Quat, Vec3};
 
 use crate::vocabulary::{Opts, component as c, keys as k, words as w};
 
-/// The `ragdoll` component's own keys.
+/// The `ragdoll` component's weight, which a build's options and
+/// `set_ragdoll_influence` name too.
 pub(crate) const INFLUENCE: &str = "influence";
-pub(crate) const BODIES: &str = "bodies";
 
 /// The component a built ragdoll leaves on the rig root.
-const RAGDOLL: &str = "ragdoll";
+const RAGDOLL: &str = <Ragdoll as Component>::NAME;
 
 /// The suffix a container node takes, after the rig's own name.
 const CONTAINER_SUFFIX: &str = "_ragdoll";
@@ -316,11 +316,7 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
         .get::<&scene::Name>(rig)
         .map(|n| n.0.clone())
         .unwrap_or_default();
-    let container = {
-        let mut world = eng.world_mut();
-        let root = eng.root();
-        scene::spawn_node(&mut world, &format!("{rig_name}{CONTAINER_SUFFIX}"), root)
-    };
+    let container = eng.spawn_node(&format!("{rig_name}{CONTAINER_SUFFIX}"), eng.root());
     // Where the bodies are kept: the root, which a running game wants, or
     // the node the options name, which an editor building them into its
     // scene does. Moved there once they are built, keeping where they are.
@@ -356,18 +352,14 @@ fn build(eng: &Engine, rig: Entity, opts: Option<&Value>, dim3: bool) -> Result<
     }
     if let Some(parent) = parent {
         let before = scene::child_count(&eng.world(), parent);
-        scene::reparent(&mut eng.world_mut(), container, parent)?;
-        balaur_core::components::refile(eng, container, balaur_core::transform::COMPONENT);
+        eng.reparent(container, parent)?;
         scene::announce_added_since(eng, parent, before);
     }
-    let bodies = relative_path(&eng.world(), rig, container);
-    let mut params = toml::map::Map::new();
-    params.insert(
-        INFLUENCE.into(),
-        toml::Value::Float(f64::from(recipe.blend)),
-    );
-    params.insert(BODIES.into(), toml::Value::String(bodies));
-    balaur_core::components::add(eng, rig, RAGDOLL, Some(&toml::Value::Table(params)))?;
+    let ragdoll = Ragdoll {
+        bodies: relative_path(&eng.world(), rig, container),
+        influence: recipe.blend,
+    };
+    balaur_core::components::add(eng, rig, RAGDOLL, Some(&derived::to_table(&ragdoll)))?;
     Ok(made.into_iter().map(|(_, node)| node).collect())
 }
 
@@ -384,10 +376,7 @@ fn spawn_body(
         .world()
         .get::<&scene::Name>(segment.bone)
         .map_or_else(|_| "Bone".to_string(), |n| n.0.clone());
-    let node = {
-        let mut world = eng.world_mut();
-        scene::spawn_node(&mut world, &name, container)
-    };
+    let node = eng.spawn_node(&name, container);
     let length = segment.length();
     let inverse = segment.rotation.inverse();
     let along = inverse * (segment.to - segment.from);
@@ -406,16 +395,18 @@ fn spawn_body(
     let mut shape = recipe.collider.clone();
     let radius = length * recipe.thickness;
     let float = |x: f32| toml::Value::Float(f64::from(x));
-    shape.insert(k::KIND.into(), toml::Value::String(recipe.shape.clone()));
+    // The collider's `shape`: its kind and the size that kind reads.
+    let mut form = toml::map::Map::new();
+    form.insert(k::KIND.into(), toml::Value::String(recipe.shape.clone()));
     match recipe.shape.as_str() {
         // Tip to tip, the capsule is as long as the bone.
         w::CAPSULE => {
-            shape.insert(k::RADIUS.into(), float(radius));
-            shape.insert(k::HEIGHT.into(), float(length));
+            form.insert(k::RADIUS.into(), float(radius));
+            form.insert(k::HEIGHT.into(), float(length));
         }
         // Centred on the bone's middle, so the ball spans the bone.
         w::SPHERE | w::CIRCLE => {
-            shape.insert(k::RADIUS.into(), float(length * 0.5));
+            form.insert(k::RADIUS.into(), float(length * 0.5));
         }
         // As long as the bone and as thick as the capsule would be.
         _ => {
@@ -424,9 +415,10 @@ fn spawn_body(
             if dim3 {
                 size.push(width);
             }
-            shape.insert(k::SIZE.into(), toml::Value::Array(size));
+            form.insert(k::SIZE.into(), toml::Value::Array(size));
         }
     }
+    shape.insert("shape".into(), toml::Value::Table(form));
     shape.insert(
         k::DENSITY.into(),
         toml::Value::Float(f64::from(recipe.density)),
@@ -484,15 +476,21 @@ fn add_joint(
         toml::Value::Float(f64::from(z))
     };
     params.insert(k::CONNECTED_ANCHOR_ROTATION.into(), rest);
-    if recipe.articulation {
-        params.insert(k::ARTICULATION.into(), true.into());
-    }
     if recipe.collide_connected {
         params.insert(k::COLLIDE_CONNECTED.into(), true.into());
     }
     let records = axis_records(recipe, dim3);
     if !records.is_empty() {
         params.insert(k::AXES.into(), toml::Value::Array(records));
+    }
+    // Beside the joint before it, so the joint is made in its chain at once.
+    if recipe.articulation {
+        let articulation = if dim3 {
+            <crate::joint::Articulation3d as Component>::NAME
+        } else {
+            <crate::dim2::joint::Articulation2d as Component>::NAME
+        };
+        balaur_core::components::add(eng, node, articulation, None)?;
     }
     let joint = if dim3 { c::JOINT_3D } else { c::JOINT_2D };
     balaur_core::components::add(eng, node, joint, Some(&toml::Value::Table(params)))
@@ -583,61 +581,28 @@ fn relative_path(world: &balaur_core::hecs::World, from: Entity, to: Entity) -> 
         .join("/")
 }
 
-/// What a built ragdoll leaves on the rig root.
-#[derive(Clone, Debug)]
+/// Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.
+#[derive(Clone, Debug, Component)]
+#[component(name = "ragdoll", tags = [balaur_core::components::tag::PHYSICS])]
 pub struct Ragdoll {
-    /// How much of the simulated pose the bones take, `0..1`.
-    pub blend: f32,
-    /// Node path to the container holding the bodies, relative to the rig.
+    /// The node holding the bodies, one per bone, named after it
+    #[property(node)]
     pub bodies: String,
+    /// How much of the simulated pose the bones take
+    #[property(default = 1.0, min = 0.0, max = 1.0)]
+    pub influence: f32,
 }
 
+impl Ragdoll {
+    /// How much of the simulated pose the bones take, held to `0..1`.
+    fn blend(&self) -> f32 {
+        self.influence.clamp(0.0, 1.0)
+    }
+}
+
+/// `ragdoll`: held on the rig root, and read by the blend each frame.
 pub(crate) fn register_ragdoll_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        RAGDOLL,
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.",
-            schema: ComponentDef::parse_schema(
-                RAGDOLL,
-                &ComponentDef::schema(&[
-                    (BODIES, r#"{ type = "node", default = "", description = "The node holding the bodies, one per bone, named after it" }"#),
-                    (INFLUENCE, r#"{ type = "float", default = 1.0, min = 0.0, max = 1.0, description = "How much of the simulated pose the bones take" }"#),
-                ]),
-            ),
-            tags: &[balaur_core::components::tag::PHYSICS],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let ragdoll = Ragdoll {
-                    blend: params
-                        .get(INFLUENCE)
-                        .and_then(as_f64)
-                        .map_or(1.0, |v| (v as f32).clamp(0.0, 1.0)),
-                    bodies: params
-                        .get(BODIES)
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
-                };
-                eng.world_mut()
-                    .insert_one(entity, ragdoll)
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Ragdoll>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let r = world.get::<&Ragdoll>(entity).ok()?;
-                let mut out = toml::map::Map::new();
-                out.insert(INFLUENCE.into(), toml::Value::Float(f64::from(r.blend)));
-                out.insert(BODIES.into(), toml::Value::String(r.bodies.clone()));
-                Some(toml::Value::Table(out))
-            }),
-        },
-    );
+    reg.add_component::<Ragdoll>();
 }
 
 /// One bone's local pose, as a snapshot row keeps it.
@@ -710,7 +675,8 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
     let rigs: Vec<(Entity, Ragdoll)> = world
         .query::<(Entity, &Ragdoll)>()
         .iter()
-        .filter(|(_, r)| r.blend > 0.0 && !r.bodies.is_empty())
+        .filter(|(_, r)| r.blend() > 0.0 && !r.bodies.is_empty())
+        .filter(|(e, _)| !balaur_core::parked::is_parked(eng, *e))
         .map(|(e, r)| (e, r.clone()))
         .collect();
     for (rig, ragdoll) in rigs {
@@ -738,8 +704,8 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
             let local_rotation = inverse * wanted_rotation;
             if let Ok(mut t) = world.get::<&mut Transform>(bone) {
                 let incoming = (t.position.to_array(), t.rotation.to_array());
-                t.position = t.position.lerp(local_position, ragdoll.blend);
-                t.rotation = t.rotation.slerp(local_rotation, ragdoll.blend);
+                t.position = t.position.lerp(local_position, ragdoll.blend());
+                t.rotation = t.rotation.slerp(local_rotation, ragdoll.blend());
                 let written = (t.position.to_array(), t.rotation.to_array());
                 memory.0.insert(bone, Blended { incoming, written });
             }
@@ -748,7 +714,7 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
 }
 
 /// `ragdoll`, on both `physics2d` and `physics3d`.
-pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
+pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
     let doc = if dim3 {
         "Build a 3D ragdoll from the rig under this node: a body and a shape per bone, held to \
          its parent's by a ball socket whose zero is the pose the rig is in. Options: `shape` \
@@ -769,7 +735,17 @@ pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
          `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. \
          Answers the body nodes it made."
     };
-    m.describe(&[("ragdoll", &[], "(node: node, opts: table) -> list", doc)]);
+    m.records(&[(
+        "RagdollOptions",
+        "{ shape: string?, thickness: float?, density: float?, friction: float?, restitution: float?, collision_layer: any, collision_mask: any, linear_damping: float?, angular_damping: float?, gravity_scale: float?, continuous_collision: bool?, axes: any, articulation: bool?, collide_connected: bool?, drive: string?, stiffness: float?, damping: float?, follow: any, influence: float?, parent: node? }",
+        "How a ragdoll is built: each bone's shape and surface, each body's damping, the joints' limits, and how it is driven.",
+    )]);
+    m.describe(&[(
+        "ragdoll",
+        &[],
+        "(node: node, opts: RagdollOptions?) -> [node]",
+        doc,
+    )]);
     m.function(
         "ragdoll",
         move |eng: &Engine, (node, opts): (NodeId, Option<Value>)| {
@@ -791,7 +767,7 @@ pub(crate) fn install_ragdoll_api(m: &mut dyn Bindings<Engine>, dim3: bool) {
 /// `set_ragdoll_influence`, on `physics` rather than on either dimension: an
 /// influence means the same thing in both, and a verb spelled twice is a verb
 /// a reader has to check twice.
-pub(crate) fn install_blend_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_blend_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "set_ragdoll_influence",
         &[RAGDOLL],

@@ -1,4 +1,4 @@
-# Balaur's light half: six source colours, and every other token derived
+# Balaur's light half: seven source colours, and every other token derived
 # from them. The roles and sizes every half shares are in `../roles.toml`.
 type = "widget_theme"
 
@@ -9,6 +9,9 @@ primary = "#3271a9"
 secondary = "#3a665f"
 warning = "#7a5400"
 danger = "#a4392b"
+# Stated, not derived: the derived green read as the danger red to a
+# deuteranope (`ui::colors_apart`); this one stands apart for every vision.
+success = "#2a7a52"
 # Cool sheets on the warm ground, which no rule derives from one background.
 bg_panel = "#f1f3f6"
 bg_control = "#dadfe5"

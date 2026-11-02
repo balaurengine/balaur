@@ -5,11 +5,11 @@
 
 use balaur_bench::{Backend, Project, app, attach_many, script};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 /// A map a script builds, three keys.
-const MAP: &str = "map().with(\"x\", 1.0).with(\"y\", 2.0).with(\"name\", \"widget\")";
+const MAP: &str = "{ \"x\": 1.0, \"y\": 2.0, \"name\": \"widget\" }";
 
 /// Bodies that do the same work in each language.
 fn source(backend: Backend, body: Body) -> String {
@@ -106,7 +106,7 @@ fn binding_call(c: &mut Criterion) {
         let mut app = app(backend, &project).unwrap();
         {
             let mut m = app.script_module("bench").unwrap();
-            let m: &mut dyn Bindings<Engine> = &mut *m;
+            let m: &mut Module<Engine> = &mut m;
             m.function("noop", |_: &Engine, (a, b, c): (i64, f64, String)| {
                 Ok(a as f64 + b + c.len() as f64)
             });
@@ -224,7 +224,7 @@ fn binding_arg_shapes(c: &mut Criterion) {
             let mut app = app(backend, &project).unwrap();
             {
                 let mut m = app.script_module("bench").unwrap();
-                let m: &mut dyn Bindings<Engine> = &mut *m;
+                let m: &mut Module<Engine> = &mut m;
                 m.function_raw("take", Box::new(|_, _| Ok(balaur_script::Value::Nil)));
                 m.describe(&[("take", &[], "(value: any)", "Takes a value, does nothing.")]);
             }

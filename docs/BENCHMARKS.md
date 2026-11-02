@@ -49,7 +49,7 @@ Balaur `c862aad11` against Godot 4.7-stable (official) on Apple M1, 8 cores, Dar
 ## Running it
 
 ```bash
-cargo build --release -p balaur_cli --features window --bin balaur
+cargo build --release -p balaur_cli --bin balaur
 python3 scripts/bench_compare.py --shots --godot-results <benchmarks-repo>/results
 ```
 

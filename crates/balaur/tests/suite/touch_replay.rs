@@ -11,7 +11,7 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, digest, replay, standard_app};
 const SCRIPT: &str = "pub class Runner { node: Node }
 impl Runner {
     fn fixed_update(dt: float) {
-        self.node.transform.translate(input::action_value(\"move_x\") * dt, 0.0, 0.0);
+        let at = self.node.transform.position; self.node.transform.position = vec3(at.x + input::action_value(\"move_x\") * dt, at.y + 0.0, at.z + 0.0);
     }
 }
 ";
@@ -151,16 +151,16 @@ impl Runner {
         input::feed_touch(3, 500.0, 300.0, \"start\");
         let zoom = 1.0;
         let pinch = input::pinch();
-        if pinch.scale.is_some() { zoom *= pinch.scale.unwrap(); }
+        if pinch.scale != nil { zoom *= pinch.scale.unwrap(); }
         let pan = input::pan();
         zoom += pan.x * 0.0;
         let swipe = input::swipe();
-        if !swipe.get(\"x\").is_nil() { zoom += swipe.get(\"x\").as_float(); }
-        if !input::long_press().get(\"x\").is_nil() { zoom = 1.0; }
+        if swipe[\"x\"] != nil { zoom += swipe[\"x\"].as_float(); }
+        if input::long_press()[\"x\"] != nil { zoom = 1.0; }
         input::feed_action(\"reached\", 1.0);
     }
     fn fixed_update(dt: float) {
-        if input::action_down(\"jump\") { self.node.transform.translate(dt, 0.0, 0.0); }
+        if input::action_down(\"jump\") { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }
     }
 }
 ";

@@ -1,0 +1,3 @@
+fn f(node: Node) { export::listen(node, nil); }
+
+// error: 1:20: `export::listen` is gone: `events::listen(node, "export_event")`, heard as `on_export_event`

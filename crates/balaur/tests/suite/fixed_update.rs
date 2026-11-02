@@ -9,8 +9,8 @@ use balaur::{App, AppConfig, DEFAULT_FIXED_DT, standard_app};
 /// x accumulates fixed time, z accumulates measured time.
 const SCRIPT: &str = "pub class Walker { node: Node }
 impl Walker {
-    fn fixed_update(dt: float) { self.node.transform.translate(dt, 0.0, 0.0); }
-    fn update(dt: float) { self.node.transform.translate(0.0, 0.0, dt); }
+    fn fixed_update(dt: float) { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0); }
+    fn update(dt: float) { let at = self.node.transform.position; self.node.transform.position = vec3(at.x + 0.0, at.y + 0.0, at.z + dt); }
 }
 ";
 

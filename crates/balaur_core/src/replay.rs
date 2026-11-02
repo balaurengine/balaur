@@ -70,13 +70,13 @@ pub struct ReplaySetupRegistry(pub Vec<(String, CaptureFn, RestoreFn)>);
 #[derive(Default)]
 pub struct ReplayFeed(pub Option<serde_json::Map<String, serde_json::Value>>);
 
-/// What this run is doing about recordings. Set once by whoever drives it,
-/// before the project loads — a script's `init` can already open a socket.
+/// Whether a recording is what feeds this run. Set when a session is loaded,
+/// which is before the project loads in a `balaur replay`: a script's `init`
+/// can already open a socket. A recording being written is `Recording`.
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReplayMode {
     #[default]
     Off,
-    Recording,
     Playing,
 }
 
@@ -628,7 +628,6 @@ pub fn start_recording(
         per_tick_digest,
         eng.tick(),
     )?;
-    *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Recording;
     eng.resource::<Recording>().borrow_mut().0 = Some(recorder);
     Ok(())
 }
@@ -637,9 +636,6 @@ pub fn start_recording(
 pub fn stop_recording(eng: &Engine, reason: &str) -> Option<PathBuf> {
     let recorder = eng.resource::<Recording>().borrow_mut().0.take()?;
     let digest = Some(crate::digest::digest(eng).0);
-    if *eng.resource::<ReplayMode>().borrow() == ReplayMode::Recording {
-        *eng.resource::<ReplayMode>().borrow_mut() = ReplayMode::Off;
-    }
     let trailer = Trailer {
         reason: reason.to_string(),
         tick: eng.tick(),
@@ -830,10 +826,6 @@ pub struct Divergence {
     pub replayed: u64,
 }
 
-/// How many frames a seek runs per call, so a long one does not stall the
-/// window it is seeking in front of.
-pub const SEEK_BUDGET: usize = 600;
-
 /// The loaded session and where playback has reached.
 ///
 /// `App::advance` drives it: nothing here ticks anything, because feeding a
@@ -846,7 +838,6 @@ pub struct ReplayPlayer {
     pub state: PlayState,
     /// While seeking, the tick to stop on.
     pub seek_to: u64,
-    pub budget: usize,
     pub diverged: Option<Divergence>,
     /// Set by [`begin`] and taken by the app, which zeroes its fixed-step
     /// accumulator: a replay that started mid-accumulation would take its
@@ -899,7 +890,9 @@ impl ReplayPlayer {
             _ if self.remaining() == 0 => Step::Hold,
             PlayState::Paused => Step::Hold,
             PlayState::Playing => Step::Frames(1),
-            PlayState::Seeking => Step::Frames(self.budget.min(self.remaining())),
+            // As many as are left; the app stops a call at a frame's worth of
+            // wall time, so a long seek never stalls the window it runs in.
+            PlayState::Seeking => Step::Frames(self.remaining()),
         }
     }
 
@@ -947,7 +940,6 @@ pub fn begin(eng: &Engine, session: Session) {
     player.cursor = 0;
     player.state = PlayState::Paused;
     player.seek_to = 0;
-    player.budget = SEEK_BUDGET;
     player.diverged = None;
     player.restart = true;
     drop(player);

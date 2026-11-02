@@ -11,6 +11,7 @@ use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
 use crate::widget::paint::{self, Brush};
+use crate::widget::properties::Item;
 use crate::widget::theme::{Style, WidgetTheme};
 
 /// What a row view paints its parts with, past the ink and the face every
@@ -70,10 +71,10 @@ pub(super) fn backdrop(ui: &egui::Ui, at: &Painting<'_>, style: &Style, rect: Re
         crate::widget::kinds::nine_patch_plate(ui, at.eng, plate, path, style.slice, rect);
         return;
     }
-    if style.fill.is_none() && style.stroke.is_none() {
+    if !style.paints() {
         return;
     }
-    Brush::of(ui).add(crate::widget::theme::frame_shape(
+    Brush::of(ui).add(crate::widget::frame::frame_shape(
         rect,
         egui::CornerRadius::same(style.radius.unwrap_or(0.0) as u8),
         style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -81,12 +82,8 @@ pub(super) fn backdrop(ui: &egui::Ui, at: &Painting<'_>, style: &Style, rect: Re
     ));
 }
 
-/// What a row splits on: icon, label, a trailing note and an `#rrggbb` of its
-/// own for a `list` or a `tree`, one cell a column for a `table`.
-pub(super) const SEP: char = '\u{1f}';
-
-/// The rows a widget holds picked: the set it carries when it holds many, and
-/// `text` alone when it holds one.
+/// The keys of the rows a widget holds picked: the set it carries when it
+/// holds many, and `text` alone when it holds one.
 pub(super) fn picked_set(widget: &Widget) -> BTreeSet<String> {
     if !widget.selection.is_empty() {
         return widget.selection.iter().map(ToString::to_string).collect();
@@ -105,11 +102,11 @@ pub(super) fn picked_set(widget: &Widget) -> BTreeSet<String> {
 /// the last row clicked and this one, along `walk` rather than along `items`:
 /// a range over a tree is what the fold left on screen.
 pub(super) fn after_click(at: &Clicked<'_>, mods: egui::Modifiers) -> Vec<String> {
+    let row = at.items[at.hit].key().to_owned();
     if !at.multi {
-        return vec![at.items[at.hit].clone()];
+        return vec![row];
     }
     let mut next = at.picked.clone();
-    let row = at.items[at.hit].clone();
     let span = mods
         .shift
         .then(|| run(at.items, at.walk, at.hit, at.anchor))
@@ -126,15 +123,16 @@ pub(super) fn after_click(at: &Clicked<'_>, mods: egui::Modifiers) -> Vec<String
     }
     at.items
         .iter()
-        .filter(|item| next.contains(item.as_str()))
-        .cloned()
+        .map(Item::key)
+        .filter(|key| next.contains(*key))
+        .map(ToOwned::to_owned)
         .collect()
 }
 
 /// A click and what it lands on: every row, the ones the fold left on screen,
 /// what is picked now, the row hit and the one picked before it.
 pub(super) struct Clicked<'a> {
-    pub(super) items: &'a [String],
+    pub(super) items: &'a [Item],
     pub(super) walk: &'a [usize],
     pub(super) picked: &'a BTreeSet<String>,
     pub(super) hit: usize,
@@ -145,24 +143,24 @@ pub(super) struct Clicked<'a> {
 /// The rows between the last one clicked and this one, along the open walk.
 /// `None` where the walk holds neither, which is a shift click with nothing
 /// to measure from.
-fn run(items: &[String], walk: &[usize], hit: usize, anchor: &str) -> Option<Vec<String>> {
-    let from = walk.iter().position(|&i| items[i] == anchor)?;
+fn run(items: &[Item], walk: &[usize], hit: usize, anchor: &str) -> Option<Vec<String>> {
+    let from = walk.iter().position(|&i| items[i].key() == anchor)?;
     let to = walk.iter().position(|&i| i == hit)?;
     let (first, last) = (from.min(to), from.max(to));
     Some(
         walk[first..=last]
             .iter()
-            .map(|&i| items[i].clone())
+            .map(|&i| items[i].key().to_owned())
             .collect(),
     )
 }
 
-/// A scrolling list of `options`, one row each: Godot's `ItemList`. `text` is
-/// the row picked, and `row_height` is the pitch.
+/// A scrolling list of `items`, one row each: Godot's `ItemList`. `text` is
+/// the key of the row picked, and `row_height` is the pitch.
 ///
 /// Only the rows on screen are built, so a list of the whole document costs
-/// its viewport rather than its length. A `tree` is this with a depth read off
-/// each row, so both go through here.
+/// its viewport rather than its length. A `tree` is this with each row's depth
+/// drawn, so both go through here.
 fn rows(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -172,28 +170,29 @@ fn rows(
     indent: bool,
 ) {
     let icon = at.look(index).icon.clone();
-    let placed = &at.arena[index];
+    let nodes = at.arena;
+    let placed = &nodes[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let row_h = pitch(ui, widget, font);
     let ink = Ink::of(ui, &at.theme);
-    backdrop(ui, at, &at.style_of(widget), ui.max_rect());
+    backdrop(ui, at, &at.style(index), ui.max_rect());
     // The pitch is the row, with nothing between: `show_rows` places by the
     // one and the rows draw at the other, and a gap makes them two numbers.
     ui.spacing_mut().item_spacing.y = 0.0;
-    let items = strings_of(widget);
+    let items = widget.items.as_slice();
     let picked_rows = picked_set(widget);
-    let (anchor, multi) = (widget.text.to_string(), widget.multi);
+    let (anchor, multi) = (widget.text.as_str(), widget.multi);
     let id = egui::Id::unique(("balaur-list", entity));
-    let depth_of = |item: &String| depth(item, indent);
+    let depth_of = |item: &Item| if indent { item.depth as usize } else { 0 };
     // Folded branches are the tree's own business: a script hands over the
     // whole outline and only hears a caret as a `fold` event.
     let shut: BTreeSet<String> = ui.data(|d| d.get_temp(id).unwrap_or_default());
-    let open_rows = open_walk(&items, &shut, &depth_of);
+    let open_rows = open_walk(items, &shut, &depth_of);
     // Where each open row's branch still continues, so a guide is drawn only
     // down a level that has another row below this one.
-    let trails = branches(&items, &open_rows, &depth_of);
+    let trails = branches(items, &open_rows, &depth_of);
     let mut seen = Seen::default();
     // The row a drag has hold of; `seen` has where the pass found it would land.
     let held_row: Dragging = ui.data(|d| d.get_temp(id.with("drag")).unwrap_or_default());
@@ -216,8 +215,8 @@ fn rows(
                     indent,
                     row_h,
                     trail: trails.get(slot).map_or(&[][..], Vec::as_slice),
-                    shut: shut.contains(item),
-                    chosen: picked_rows.contains(item),
+                    shut: shut.contains(item.key()),
+                    chosen: picked_rows.contains(item.key()),
                     font,
                     icon: &icon,
                     color,
@@ -225,7 +224,7 @@ fn rows(
                     drag: widget.reorderable.then_some(held_row.row.as_str()),
                 },
             );
-            seen.absorb(i, item, hit);
+            seen.absorb(i, item.key(), hit);
         }
     });
     crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
@@ -233,7 +232,7 @@ fn rows(
         let drag = Drag {
             id,
             entity,
-            items: &items,
+            items,
             held: &held_row,
             took: seen.took,
             landing: seen.landing,
@@ -251,16 +250,18 @@ fn rows(
     }
     // A row already picked keeps the set it is in: aiming at one of several
     // picked rows is how a menu is opened over all of them.
-    let aimed = seen.aimed.filter(|&row| !picked_rows.contains(&items[row]));
+    let aimed = seen
+        .aimed
+        .filter(|&row| !picked_rows.contains(items[row].key()));
     settle_pick(
         at,
         entity,
         &Clicked {
-            items: &items,
+            items,
             walk: &open_rows,
             picked: &picked_rows,
             hit: 0,
-            anchor: &anchor,
+            anchor,
             multi,
         },
         landed(seen.picked, aimed, ui.input(|i| i.modifiers)),
@@ -281,8 +282,10 @@ fn settle_pick(
     if click {
         at.clicked.push(entity);
     }
-    at.edits
-        .push((entity, Edit::Picked(at_row.items[hit].clone(), next)));
+    at.edits.push((
+        entity,
+        Edit::Picked(at_row.items[hit].key().to_owned(), next),
+    ));
 }
 
 /// The pitch a row is placed at, which has to hold its own text: the two
@@ -299,22 +302,12 @@ fn pitch(ui: &mut egui::Ui, widget: &Widget, font: &egui::FontId) -> f32 {
     stated.max(ui.fonts_mut(|f| f.row_height(font)))
 }
 
-/// How deep a row sits: a tab it starts with is one level in, which is how an
-/// outline is written down and what keeps a tree inside a list of strings.
-fn depth(item: &str, indent: bool) -> usize {
-    if indent {
-        item.len() - item.trim_start_matches('\t').len()
-    } else {
-        0
-    }
-}
-
 /// The rows a fold left on screen, as indices into `items`: everything under
 /// a shut row is skipped until the walk comes back up to its level.
 fn open_walk(
-    items: &[String],
+    items: &[Item],
     shut: &BTreeSet<String>,
-    depth_of: &impl Fn(&String) -> usize,
+    depth_of: &impl Fn(&Item) -> usize,
 ) -> Vec<usize> {
     let mut open = Vec::new();
     let mut hidden_under: Option<usize> = None;
@@ -325,20 +318,11 @@ fn open_walk(
         }
         hidden_under = None;
         open.push(i);
-        if shut.contains(item) {
+        if shut.contains(item.key()) {
             hidden_under = Some(depth);
         }
     }
     open
-}
-
-/// The rows a view holds, as the strings its parts are split out of.
-pub(super) fn strings_of(widget: &Widget) -> Vec<String> {
-    widget
-        .options
-        .iter()
-        .map(smol_str::SmolStr::to_string)
-        .collect()
 }
 
 /// The scroll area a list draws in, held to the box the layout gave it.
@@ -351,12 +335,13 @@ fn list_area(id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
 /// A scroll area that keeps its size and holds to the box it was given.
 fn held_to(area: egui::ScrollArea, id: egui::Id, want: egui::Vec2) -> egui::ScrollArea {
     let mut area = area.id_salt(id).auto_shrink([false, false]);
-    // A width stated and not applied is a list drawn past what sits beside it.
+    // A width stated and not applied is a list drawn past what sits beside
+    // it, and egui's least scrolled size of 64 points one drawn past its row.
     if want.x > 0.0 {
-        area = area.max_width(want.x);
+        area = area.max_width(want.x).min_scrolled_width(want.x);
     }
     if want.y > 0.0 {
-        area = area.max_height(want.y);
+        area = area.max_height(want.y).min_scrolled_height(want.y);
     }
     area
 }
@@ -432,9 +417,9 @@ struct Dragging {
     reason = "one flag per thing a row draws: its caret, its indent, its fold and its pick"
 )]
 struct Row<'a> {
-    item: &'a str,
-    /// Which row this is in the open walk. Two nodes of the same name at the
-    /// same depth write the same string, so the string is not an identity.
+    item: &'a Item,
+    /// Which row this is in the open walk, which keeps two rows with one key
+    /// from answering as one.
     slot: usize,
     depth: usize,
     /// Whether a caret is drawn, because the next row is deeper than this one.
@@ -575,7 +560,7 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     if r.parent || r.indent {
         at += step;
     }
-    let marks = crate::widget::marks::sense(ui, r.item, r.slot, rect);
+    let marks = crate::widget::marks::sense(ui, &r.item.marks, r.slot, rect);
     let mark_hovered = marks.iter().any(|(_, _, sensed)| sensed.hovered());
     let over = response.hovered() || hit.folded_hovered || mark_hovered;
     let held = response.is_pointer_button_down_on();
@@ -594,20 +579,19 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     if chosen && over {
         Brush::of(ui).fill(rect, radius, r.ink.wash(held));
     }
-    let (icon, label, trailing, tint) = fields(r.item);
     let ink = if chosen {
         r.ink.on_color
     } else {
-        tint.unwrap_or(r.color)
+        r.item.ink().unwrap_or(r.color)
     };
-    if !icon.is_empty() {
+    if !r.item.icon.is_empty() {
         // The icon field is a glyph from the project's icon face, not a
         // character in the UI one.
         let mark = egui::FontId::new(r.font.size, r.icon.clone());
         let drawn = Brush::of(ui).text(
             pos2(at, rect.center().y),
             egui::Align2::LEFT_CENTER,
-            icon,
+            r.item.icon.as_str(),
             mark,
             ink,
         );
@@ -616,11 +600,11 @@ fn row(ui: &mut egui::Ui, r: &Row<'_>) -> Hit {
     Brush::of(ui).text(
         pos2(at, rect.center().y),
         egui::Align2::LEFT_CENTER,
-        label,
+        r.item.label.as_str(),
         r.font.clone(),
         ink,
     );
-    hit.marked = draw_right(ui, r, rect, &marks, (trailing, ink));
+    hit.marked = draw_right(ui, r, rect, &marks, (r.item.note.as_str(), ink));
     hit.picked = response.clicked();
     hit.aimed = response.secondary_clicked();
     hit.activated = response.double_clicked();
@@ -669,9 +653,9 @@ fn dragged(
 ) -> (Option<String>, Option<Side>) {
     // A press that moved is a drag: the row it started on is the one in
     // hand, and the row under the pointer is where it would land.
-    let took = response.drag_started().then(|| r.item.to_owned());
+    let took = response.drag_started().then(|| r.item.key().to_owned());
     let held = r.drag.unwrap_or_default();
-    if held.is_empty() || held == r.item || !response.contains_pointer() {
+    if held.is_empty() || held == r.item.key() || !response.contains_pointer() {
         return (took, None);
     }
     let pointer = ui.ctx().pointer_interact_pos().unwrap_or(rect.center());
@@ -707,7 +691,7 @@ fn mark_landing(ui: &egui::Ui, rect: Rect, side: Side, ink: Color32) {
 struct Drag<'a> {
     id: egui::Id,
     entity: balaur_core::hecs::Entity,
-    items: &'a [String],
+    items: &'a [Item],
     held: &'a Dragging,
     took: Option<String>,
     landing: Option<(usize, Side)>,
@@ -715,9 +699,9 @@ struct Drag<'a> {
 
 /// Remember what a drag picked up, and report where it was let go.
 ///
-/// The kind moves nothing itself: a row view holds strings, and what they
-/// stand for is the script's. `on_move` says what was dropped where, and the
-/// rows come back in the order the script decided.
+/// The kind moves nothing itself: what a row stands for is the script's.
+/// `on_move` says what was dropped where, and the rows come back in the order
+/// the script decided.
 fn settle_drag(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Drag<'_>) {
     let key = drag.id.with("drag");
     if let Some(row) = drag.took.clone() {
@@ -738,7 +722,7 @@ fn settle_drag(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Drag<'_>) {
             drag.entity,
             Edit::Dropped(
                 drag.held.row.clone(),
-                drag.items[row].clone(),
+                drag.items[row].key().to_owned(),
                 side.word().to_owned(),
             ),
         ));
@@ -766,11 +750,7 @@ pub(super) fn landed(
 
 /// Whether each level above a row still has a row below it, and whether the
 /// row itself has a later sibling. One entry a level, plus the row's own.
-fn branches(
-    items: &[String],
-    open: &[usize],
-    depth_of: &impl Fn(&String) -> usize,
-) -> Vec<Vec<bool>> {
+fn branches(items: &[Item], open: &[usize], depth_of: &impl Fn(&Item) -> usize) -> Vec<Vec<bool>> {
     let depths: Vec<usize> = open.iter().map(|&i| depth_of(&items[i])).collect();
     depths
         .iter()
@@ -811,25 +791,6 @@ fn guides(ui: &egui::Ui, head: egui::Pos2, step: f32, trail: &[bool], ink: Color
         }
         // The dash leads in: from the pipe, or from where one would be.
         Brush::of(ui).segment([pos2(x, middle), pos2(x + step * 0.42, middle)], stroke);
-    }
-}
-
-/// A row's parts: icon, label, trailing note and an `#rrggbb` of its own,
-/// separated by U+001F. `ItemList` carries an icon and a per-item colour the
-/// same way, without a second array to keep in step with the first. Leading
-/// tabs are the tree's depth and are not a field. A fifth field is the row's
-/// key, never drawn: the widget knows a row by its string, so it is what
-/// keeps two rows with the same label two rows.
-fn fields(item: &str) -> (&str, &str, &str, Option<Color32>) {
-    let body = item.trim_start_matches('\t');
-    let mut parts = body.split('\u{1f}');
-    let (a, b, c, d) = (parts.next(), parts.next(), parts.next(), parts.next());
-    let tint = d.and_then(crate::theme::parse_hex);
-    match (a, b, c) {
-        (Some(icon), Some(label), Some(trailing)) => (icon, label, trailing, tint),
-        (Some(icon), Some(label), None) => (icon, label, "", tint),
-        (Some(label), None, None) => ("", label, "", tint),
-        _ => ("", body, "", tint),
     }
 }
 
@@ -876,12 +837,12 @@ struct CardHit {
 
 /// One card: the icon over the label, in a box the caller sized.
 ///
-/// The same U+001F fields a row splits on, so a view moves between the two
-/// modes by setting `grid_columns` and changing nothing else.
-fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
+/// The same `Item` a row draws, so a view moves between the two modes by
+/// setting `grid_columns` and changing nothing else.
+fn card(ui: &mut egui::Ui, item: &Item, c: &Card<'_>) -> CardHit {
     let (size, font) = (c.size, c.font);
-    let (icon, label, trailing, tint) = fields(item);
-    let color = tint.unwrap_or(c.color);
+    let icon = item.icon.as_str();
+    let color = item.ink().unwrap_or(c.color);
     let sense = if c.carried {
         Sense::click_and_drag()
     } else {
@@ -922,7 +883,7 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
         head += galley.size().y + 4.0;
     }
     let text = Brush::of(ui).wrapped(
-        label.to_owned(),
+        item.label.to_string(),
         font.clone(),
         color,
         (size.x - 8.0).max(8.0),
@@ -932,7 +893,7 @@ fn card(ui: &mut egui::Ui, item: &str, c: &Card<'_>) -> CardHit {
         text,
         color,
     );
-    crate::widget::theme::tip(&response, trailing);
+    crate::widget::theme::tip(&response, item.note.as_str());
     CardHit {
         clicked: response.clicked(),
         aimed: response.secondary_clicked(),
@@ -955,8 +916,9 @@ fn carry(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Carry<'_>) {
     }
     let pointer = ui.ctx().pointer_latest_pos();
     if ui.ctx().input(|i| i.pointer.any_down()) {
-        if let Some(pos) = pointer {
-            ghost(ui, &held.row, pos, drag, &Ink::of(ui, &at.theme));
+        let item = drag.items.iter().find(|item| item.key() == held.row);
+        if let (Some(item), Some(pos)) = (item, pointer) {
+            ghost(ui, item, pos, drag, &Ink::of(ui, &at.theme));
         }
         return;
     }
@@ -971,6 +933,7 @@ fn carry(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Carry<'_>) {
 struct Carry<'a> {
     id: egui::Id,
     entity: balaur_core::hecs::Entity,
+    items: &'a [Item],
     took: Option<String>,
     view: Rect,
     font: &'a egui::FontId,
@@ -978,12 +941,11 @@ struct Carry<'a> {
 }
 
 /// The carried card's label, beside the pointer and over everything.
-fn ghost(ui: &egui::Ui, item: &str, pointer: egui::Pos2, drag: &Carry<'_>, ink: &Ink) {
-    let (_, label, _, tint) = fields(item);
-    let color = tint.unwrap_or(drag.color);
+fn ghost(ui: &egui::Ui, item: &Item, pointer: egui::Pos2, drag: &Carry<'_>, ink: &Ink) {
+    let color = item.ink().unwrap_or(drag.color);
     let layer = egui::LayerId::new(egui::Order::Tooltip, drag.id.with("ghost"));
     let over = Brush::layer(ui.ctx(), layer);
-    let text = over.line_of(label.to_owned(), drag.font.clone(), color);
+    let text = over.line_of(item.label.to_string(), drag.font.clone(), color);
     let rect = Rect::from_min_size(pointer + egui::vec2(14.0, 10.0), text.size()).expand(5.0);
     over.fill(rect, egui::CornerRadius::same(5), ink.on);
     over.galley(rect.min + egui::vec2(5.0, 5.0), text, color);
@@ -1056,19 +1018,16 @@ fn cards(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
-    let (entity, widget) = (placed.entity, placed.widget.clone());
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
     let icon = at.look(index).icon.clone();
-    let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let columns = crate::widget::grid::track_count(&widget.layout.grid_columns).max(1);
-    let items: Vec<String> = widget
-        .options
-        .iter()
-        .map(smol_str::SmolStr::to_string)
-        .collect();
-    let picked_rows = picked_set(&widget);
+    let items = widget.items.as_slice();
+    let picked_rows = picked_set(widget);
     let ink = Ink::of(ui, &at.theme);
-    let style = at.style_of(&widget);
+    let style = at.style(index);
     backdrop(ui, at, &style, ui.max_rect());
     // The air between cards, which the theme spells as it does a container's.
     let gap = style.gap.unwrap_or(6.0).max(0.0);
@@ -1077,15 +1036,15 @@ fn cards(
     } else {
         ui.available_width()
     };
-    let cell = card_size(&widget, room, gap, columns);
+    let cell = card_size(widget, room, gap, columns);
     let lines = items.len().div_ceil(columns);
-    let sheet = card_sheet(ui, at, &widget);
+    let sheet = card_sheet(ui, at, widget);
     let mut picked = None;
     let mut aimed = None;
     let mut took = None;
     let id = egui::Id::unique(("balaur-cards", entity));
     let area = held_to(egui::ScrollArea::vertical(), id, want);
-    let area = crate::widget::scroll::dressed(ui, area, &widget, entity);
+    let area = crate::widget::scroll::dressed(ui, area, widget, entity);
     let shown = area.show_rows(ui, cell.y + gap, lines, |ui, range| {
         for line in range {
             ui.horizontal(|ui| {
@@ -1095,7 +1054,7 @@ fn cards(
                     let Some(item) = items.get(at) else {
                         break;
                     };
-                    let on = picked_rows.contains(item);
+                    let on = picked_rows.contains(item.key());
                     let face = Card {
                         size: cell,
                         font,
@@ -1114,7 +1073,7 @@ fn cards(
                         aimed = Some(at);
                     }
                     if hit.took {
-                        took = Some(item.clone());
+                        took = Some(item.key().to_owned());
                     }
                 }
             });
@@ -1125,6 +1084,7 @@ fn cards(
         let drag = Carry {
             id,
             entity,
+            items,
             took,
             view: shown.inner_rect,
             font,
@@ -1132,13 +1092,13 @@ fn cards(
         };
         carry(ui, at, &drag);
     }
-    let aimed = aimed.filter(|&card| !picked_rows.contains(&items[card]));
+    let aimed = aimed.filter(|&card| !picked_rows.contains(items[card].key()));
     let held = ui.input(|i| i.modifiers);
     if let Some((hit, mods, click)) = landed(picked, aimed, held) {
         let walk: Vec<usize> = (0..items.len()).collect();
         let next = after_click(
             &Clicked {
-                items: &items,
+                items,
                 walk: &walk,
                 picked: &picked_rows,
                 hit,
@@ -1151,11 +1111,11 @@ fn cards(
             at.clicked.push(entity);
         }
         at.edits
-            .push((entity, Edit::Picked(items[hit].clone(), next)));
+            .push((entity, Edit::Picked(items[hit].key().to_owned(), next)));
     }
 }
 
-/// Godot's `Tree`, as an outline: a row's leading tabs are its depth.
+/// Godot's `Tree`, as an outline: a row's `depth` is how far in it sits.
 pub(crate) fn tree(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -1164,17 +1124,4 @@ pub(crate) fn tree(
     color: Color32,
 ) {
     rows(ui, at, index, font, color, true);
-}
-
-#[cfg(test)]
-mod tests {
-    use super::fields;
-
-    #[test]
-    fn a_rows_key_is_never_drawn() {
-        let (icon, label, trailing, tint) =
-            fields("\t\t▣\u{1f}Lid\u{1f}note\u{1f}#ff0000\u{1f}n_crate_b/n_lid");
-        assert_eq!((icon, label, trailing), ("▣", "Lid", "note"));
-        assert_eq!(tint, Some(egui::Color32::from_rgb(0xff, 0, 0)));
-    }
 }

@@ -161,6 +161,17 @@ pub const EITHER_SIDE: &[(&str, &str, [&str; 2])] = &[
 
 /// Whether `test` holds for the key a script named: its own code, or either
 /// side of a modifier.
+/// What moves and activates a focused widget, spelled as a binding spells them.
+pub const FOCUS_KEYS: [&str; 7] = [
+    "Tab",
+    "Enter",
+    "Space",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+];
+
 pub(crate) fn any_code(key: &str, test: impl Fn(&str) -> bool) -> bool {
     match EITHER_SIDE.iter().find(|(_, name, _)| *name == key) {
         Some((_, _, sides)) => sides.iter().any(|side| test(side)),

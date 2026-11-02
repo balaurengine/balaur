@@ -59,10 +59,7 @@ impl Project {
         let dir = tempfile::tempdir()?;
         std::fs::write(
             dir.path().join("project.toml"),
-            format!(
-                "[application]\nname = \"bench\"\nmain_scene = \"main.toml\"\nscript_language = \"{}\"\n",
-                backend.name()
-            ),
+            "[application]\nname = \"bench\"\nmain_scene = \"main.toml\"\n",
         )?;
         std::fs::write(
             dir.path().join("main.toml"),
@@ -106,11 +103,7 @@ pub fn attach_many(app: &App, backend: Backend, count: usize) -> Result<Vec<hecs
     let path = format!("bench.{}", backend.extension());
     let mut out = Vec::with_capacity(count);
     for index in 0..count {
-        let entity = balaur_core::scene::spawn_node(
-            &mut app.engine.world_mut(),
-            &format!("node{index}"),
-            root,
-        );
+        let entity = app.engine.spawn_node(&format!("node{index}"), root);
         host.attach(balaur_core::node_id_of(entity), &path)?;
         out.push(entity);
     }

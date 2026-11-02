@@ -224,17 +224,20 @@ def gen_script_api(api):
     body = "# Script API\n\nEvery module, function and constant a script can reach. Read from a booted\nengine rather than the source, so derived constants are included and this\ncannot drift from what scripts actually see. A node's own operations are\nthe `node` module's, called on the node: `self.node.add_tag(\"hit\")`.\n\n"
     body += "| Module | Functions | Constants |\n| --- | ---: | ---: |\n"
     for m in api["modules"]:
-        body += f"| [`{m['name']}`](#{m['name']}) | {len(m['functions'])} | {len(m['constants'])} |\n"
+        body += f"| [`{m['name']}`](#{m['name']}) | {len(module_functions(m))} | {len(m['constants'])} |\n"
     body += "\n"
     for m in api["modules"]:
         body += f"## `{m['name']}`\n\n"
         if m.get("doc"):
             body += f"{m['doc']}\n\n"
-        if m["functions"]:
+        if module_functions(m):
             body += "| Function | Signature |\n| --- | --- |\n"
-            for f in m["functions"]:
+            for f in module_functions(m):
                 body += f"| `{f}` | `{m['signatures'].get(f, '')}` |\n"
             body += "\n"
+        if m.get("acts_on"):
+            on = ", ".join(f"`{c}`" for c in m.get("components", []))
+            body += f"Called on a node's component: {on}. See [components](components.md).\n\n"
         if m["constants"]:
             body += f"**Constants** ({len(m['constants'])}):\n\n"
             shown = m["constants"][:24]
@@ -245,6 +248,13 @@ def gen_script_api(api):
                 body += f"\n…and {len(m['constants']) - len(shown)} more.\n"
             body += "\n"
     return body
+
+
+def module_functions(module):
+    """What a script calls by the module's name: one that acts on a component is
+    called on the component, and listed under it."""
+    acts_on = module.get("acts_on") or {}
+    return [f for f in module["functions"] if f not in acts_on]
 
 
 def code_spans(text):
@@ -267,6 +277,12 @@ def component_row(prop, spec):
         notes.append(f"Scene shorthand: <code>{html.escape(prop)}</code>'s value can be given as the component's whole value.")
     if spec.get("readonly"):
         notes.append("Read-only: engine output the inspector shows but never writes.")
+    if spec.get("type") == "variant":
+        kinds = "; ".join(
+            f"<code>{html.escape(name)}</code> ({html.escape(', '.join(record.get('fields', {})))})"
+            for name, record in spec.get("variants", {}).items()
+        )
+        notes.append(f"<code>kind</code> is one of: {kinds}.")
     kind = datatype_of(spec)
     default = json.dumps(spec.get("default", "")).strip('"')
     cells = (
@@ -375,8 +391,8 @@ def gen_components(components, tags, docs=None, methods=None, events=None, order
         "`node.set_component` family, and the editor's inspector rows.\n\n"
         "**Methods.** `node.<component>` is a handle that binds the node to the\n"
         "module driving that component, so `node.body2d.apply_impulse(1.0, 0.0)`\n"
-        "is `physics2d::apply_impulse(node, 1.0, 0.0)` and the same call on a\n"
-        "`body3d` handle reaches `physics3d`. The methods listed per component\n"
+        "reaches `physics2d` and the same call on a `body3d` handle reaches\n"
+        "`physics3d`. It is the only way to call one. The methods listed per component\n"
         "below are the functions that declared they act on it. A component with\n"
         "no methods of its own is reached through its properties, or through\n"
         "`node.get_component(name)` and `node.set_component(name, value)`.\n\n"
@@ -443,12 +459,27 @@ def gen_components(components, tags, docs=None, methods=None, events=None, order
 
 
 def asset_users(components):
-    """`component.property` per asset type, read off the component schemas."""
+    """`component.property` per asset type, read off the component schemas,
+    an asset inside a record or a variant's kind named down to it."""
     users = {}
+
+    def walk(path, spec):
+        kind = spec.get("type")
+        if kind == "asset":
+            users.setdefault(spec.get("asset", ""), []).append(f"`{path}`")
+        elif kind == "record":
+            for name, field in spec.get("fields", {}).items():
+                walk(f"{path}.{name}", field)
+        elif kind == "variant":
+            for name, record in spec.get("variants", {}).items():
+                for field_name, field in record.get("fields", {}).items():
+                    walk(f"{path}.{name}.{field_name}", field)
+
     for component in sorted(components):
         for prop, spec in sorted(components[component].items()):
-            if spec.get("type") == "asset":
-                users.setdefault(spec.get("asset", ""), []).append(f"`{component}.{prop}`")
+            walk(f"{component}.{prop}", spec)
+    for found in users.values():
+        found.sort()
     return users
 
 

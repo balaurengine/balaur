@@ -55,7 +55,7 @@ fn a_dynamic_body_nothing_collides_with_warns() {
     );
     assert!(says(&bare, "body2d", "nothing collides"), "{bare:?}");
     let held = warned(
-        "[[nodes]]\nid = \"n_ball\"\nname = \"Ball\"\nparent = \"n_root\"\nbody2d = { kind = \"dynamic\" }\n\n[[nodes]]\nid = \"n_shape\"\nname = \"Shape\"\nparent = \"n_ball\"\ncollider2d = { kind = \"circle\", radius = 0.5 }\n",
+        "[[nodes]]\nid = \"n_ball\"\nname = \"Ball\"\nparent = \"n_root\"\nbody2d = { kind = \"dynamic\" }\n\n[[nodes]]\nid = \"n_shape\"\nname = \"Shape\"\nparent = \"n_ball\"\ncollider2d = { shape = { kind = \"circle\", radius = 0.5 } }\n",
         "n_ball",
     );
     assert!(
@@ -109,21 +109,22 @@ fn a_refused_layout_is_a_warning_on_what_was_asked() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut app = balaur_core::App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Blob", root);
-    let grid = |cells: f64| {
-        toml::from_str(&format!("kind = \"grid\"\ncells = [{cells:?}, {cells:?}]")).unwrap()
-    };
-    balaur_core::components::add(&app.engine, node, "softbody2d", Some(&grid(2.0))).unwrap();
+    let grid = |cells: f64| toml::from_str(&format!("cells = [{cells:?}, {cells:?}]")).unwrap();
+    let kind = toml::from_str("kind = \"grid\"").unwrap();
+    balaur_core::components::add(&app.engine, node, "softbody2d", Some(&kind)).unwrap();
+    balaur_core::components::add(&app.engine, node, "soft_grid2d", Some(&grid(2.0))).unwrap();
     let refused =
-        balaur_core::components::add(&app.engine, node, "softbody2d", Some(&grid(5000.0)));
+        balaur_core::components::add(&app.engine, node, "soft_grid2d", Some(&grid(5000.0)));
     assert!(refused.is_err(), "the cap let 25 million particles through");
     let found = warnings(&app.engine, node);
     let warning = found
         .iter()
         .find(|w| w.warning.message.contains("particles"))
         .unwrap_or_else(|| panic!("{found:?}"));
+    assert_eq!(warning.component, "soft_grid2d");
     assert_eq!(warning.warning.property.as_deref(), Some("cells"));
 }
 
@@ -132,7 +133,7 @@ fn a_refused_layout_is_a_warning_on_what_was_asked() {
 #[test]
 fn a_refused_component_in_a_scene_leaves_the_rest_loaded() {
     let found = warned(
-        "[[nodes]]\nid = \"n_blob\"\nname = \"Blob\"\nparent = \"n_root\"\nsoftbody2d = { kind = \"grid\", cells = [5000.0, 5000.0] }\n",
+        "[[nodes]]\nid = \"n_blob\"\nname = \"Blob\"\nparent = \"n_root\"\nsoftbody2d = { kind = \"grid\" }\nsoft_grid2d = { cells = [5000.0, 5000.0] }\n",
         "n_blob",
     );
     assert!(says(&found, "softbody2d", "particles"), "{found:?}");

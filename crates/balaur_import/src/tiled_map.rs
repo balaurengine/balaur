@@ -155,7 +155,7 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
         let name = tidy(&layer.name);
         let _ = write!(
             out,
-            "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nparent = \"n_{stem}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{}.toml\"\npixels_per_unit = {}\ncells = [\n",
+            "[[nodes]]\nid = \"n_{stem}_{name}\"\nname = \"{}\"\nparent = \"n_{stem}\"\nz_index = {z}\n\n[nodes.tilemap]\ntileset = \"tilesets/{}.toml\"\npixels_per_unit = {}\ncells = {{ kind = \"inline\", rows = [\n",
             layer.name, sets[0], map.tile_width
         );
         for row in 0..map.height {
@@ -169,7 +169,7 @@ fn scene_toml(map: &tiled::Map, sets: &[String], stem: &str) -> Result<String> {
             }
             let _ = writeln!(out, "  [{}],", line.join(", "));
         }
-        out.push_str("]\n\n");
+        out.push_str("] }\n\n");
         z += 1;
     }
     if z == 0 {

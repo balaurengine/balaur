@@ -17,13 +17,11 @@ impl Picker {
         self.editor.call("picker_fill");
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "closed" && node.name() == self.node.name() {
-            self.editor.call("picker_closed");
-            return;
-        }
-        if event == "click" || event == "change" || event == "submit" {
-            self.editor.call("picker_fill");
-        }
+    pub fn closed() {
+        self.editor.call("picker_closed");
+    }
+
+    pub fn refill() {
+        self.editor.call("picker_fill");
     }
 }

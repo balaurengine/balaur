@@ -55,10 +55,10 @@ fn runtime(engine: EngineKind, debug: bool) -> (Runtime, Rc<RefCell<Other>>, Obj
             let mut o = reach.borrow_mut();
             (o.way.clone(), o.obj.take(), o.method)
         };
-        let (Some(way), Some(mut obj)) = (way, obj) else {
+        let (Some(way), Some(obj)) = (way, obj) else {
             return Err("nothing to reach".into());
         };
-        let out = way.call_method(&mut obj, method, args);
+        let out = way.call_method(&obj, method, args);
         reach.borrow_mut().obj = Some(obj);
         out.map_err(|e| e.to_string())
     });
@@ -99,7 +99,7 @@ fn calls_back_on(engine: EngineKind) {
     other.borrow_mut().obj = Some(theirs);
     other.borrow_mut().method = "crash";
     let e = rt
-        .call_method(&mut me, "poke_other", &[Value::Int(5)])
+        .call_method(&me, "poke_other", &[Value::Int(5)])
         .unwrap_err();
     assert!(e.msg.contains("unreachable"), "{e}");
     other.borrow_mut().method = "add";
@@ -123,16 +123,16 @@ fn a_script_reaches_its_own_file_on_wasmi() {
 #[test]
 fn a_parked_call_holds_across_a_call_back_in() {
     use balaur_bs::runtime::{Command, Step};
-    let (mut rt, _other, mut me) = runtime(EngineKind::Wasmi, true);
+    let (mut rt, _other, me) = runtime(EngineKind::Wasmi, true);
     rt.debugger().set_breakpoint(5);
     rt.debugger().set_breakpoint(8);
     let step = rt
-        .call_method_steppable(&mut me, "poke_other", &[Value::Int(2)])
+        .call_method_steppable(&me, "poke_other", &[Value::Int(2)])
         .unwrap();
     let Step::Paused(p) = step else {
         panic!("{step:?} instead of stopping")
     };
     assert_eq!((p.line, p.frames.len()), (5, 1));
-    let done = rt.resume(Command::Continue, &mut me).unwrap();
+    let done = rt.resume(Command::Continue).unwrap();
     assert_eq!(done, Step::Done(Value::Int(2)));
 }

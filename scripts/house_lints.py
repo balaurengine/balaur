@@ -143,97 +143,6 @@ def rust_files() -> list[Path]:
     return sorted(out)
 
 
-def rune_files() -> list[Path]:
-    """Every `.rn` in the tree: the editor is a Balaur project and its scripts
-    are shipped code, but no Rust lint has ever looked at them."""
-    out = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
-        out.extend(Path(dirpath) / f for f in filenames if f.endswith(".rn"))
-    return sorted(out)
-
-
-# `obj.field = a || b` puts the short-circuit result in `a`'s slot as well as
-# in the field when `a` is a local. Parentheses do not help; a temporary does.
-# A closure, `x.f = || ..`, has no left operand and is not the trap.
-SHORT_CIRCUIT = re.compile(r"^\s*[A-Za-z_][\w.]*(\.\w+|\[[^\]]+\])\s*=\s*[^=|\s].*?(\|\||&&)")
-# `if let Some(x) = x` fails to compile with "Missing variable"; the name has
-# to differ on the two sides.
-REBOUND_LET = re.compile(r"\bif\s+let\s+\w+\(\s*(\w+)\s*\)\s*=\s*(\w+)\s*(\{|$)")
-# `return || f` is `(return) || f`, and `return match` and `return `..``
-# do not parse: the value is bound to a local first.
-RETURN_TRAP = re.compile(r"\breturn\s+(\||match\b|`)")
-# The blocks whose value is never an operand: loops and items.
-BLOCK_STATEMENT = re.compile(
-    r"\s*(}\s*)?(pub(\(\w+\))?\s+)?(async\s+)?(for|while|loop|fn|impl|mod|struct|enum)\b")
-STRING_LITERAL = re.compile(r'"(\\.|[^"\\])*"|`(\\.|[^`\\])*`')
-# A control a finger can never reach: its `visible` answers to a hover, which
-# a touch screen does not have. The shell has none and this keeps it so.
-HOVER_GATED = re.compile(r"\bvisible\s*:\s*[^,}]*\bhover")
-
-
-def check_rune(path: Path) -> list[Finding]:
-    """The Rune 0.14 traps that have each already cost a day, and the one
-    control shape a touch screen cannot reach.
-
-    The traps are compiler behaviour rather than style, and `AGENTS.md`
-    writes them up: some miscompile silently, the others refuse to compile.
-    """
-    rel = path.relative_to(ROOT)
-    findings: list[Finding] = []
-    # Each open brace, and whether its block is an expression: an `if` or a
-    # `match` is, a loop or an item is not.
-    opened: list[bool] = []
-    closed_value = False
-    closed_any = False
-    for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        code = line.split("//")[0]
-        # A line opening with `(` or `[` after an `if` or `match` block calls
-        # or indexes that block's value.
-        if closed_value and code.lstrip().startswith(("(", "[")):
-            findings.append(Finding(rel, i, "rune-block-call",
-                                    "a `}` then `(` or `[` calls or indexes the block above; "
-                                    "bind the value first (AGENTS.md)", "ERROR"))
-        # A `-` after any block, a loop's included, subtracts from its value.
-        opener = code.lstrip()
-        if closed_any and opener.startswith("-") and not opener.startswith("->"):
-            findings.append(Finding(rel, i, "rune-block-call",
-                                    "a `}` then a line opening with `-` subtracts from the block "
-                                    "above; write `return -1;` or bind first (AGENTS.md)",
-                                    "ERROR"))
-        if code.strip():
-            closed_any = code.rstrip().endswith("}")
-            closed_value = False
-            bare = STRING_LITERAL.sub('""', code)
-            statement = bool(BLOCK_STATEMENT.match(bare))
-            for ch in bare:
-                if ch == "{":
-                    opened.append(not statement)
-                elif ch == "}" and opened:
-                    closed_value = opened.pop()
-            closed_value = closed_value and bare.rstrip().endswith("}")
-        if SHORT_CIRCUIT.search(code):
-            findings.append(Finding(rel, i, "rune-short-circuit",
-                                    "`field = a || b` overwrites the local `a`; compute into a "
-                                    "temporary first (AGENTS.md)", "ERROR"))
-        m = REBOUND_LET.search(code)
-        if m and m.group(1) == m.group(2):
-            findings.append(Finding(rel, i, "rune-rebound-let",
-                                    f"`if let ..({m.group(1)}) = {m.group(2)}` is a missing "
-                                    "variable in Rune; bind to another name", "ERROR"))
-        if RETURN_TRAP.search(code):
-            findings.append(Finding(rel, i, "rune-return-trap",
-                                    "`return ||` returns nothing, and `return match` and a "
-                                    "template after `return` do not parse; bind the value "
-                                    "first (AGENTS.md)", "ERROR"))
-        if HOVER_GATED.search(code):
-            findings.append(Finding(rel, i, "hover-only-control",
-                                    "a control shown only while hovered cannot be reached by a "
-                                    "finger; show it always or put it behind a long press",
-                                    "ERROR"))
-    return findings
-
-
 @dataclass
 class Context:
     """What the naming rules need to know about the whole tree at once.
@@ -257,7 +166,9 @@ def scan_context(files: list[Path]) -> Context:
         # and an asset type's name is user-facing the same way a key is.
         for pat in (r'register_component\(\s*"([a-z0-9_]+)"', r'script_module\(\s*"([a-z0-9_]+)"',
                     r'register_asset_type\(\s*"([a-z0-9_]+)"',
-                    r'host\.module\(\s*"([a-z0-9_]+)"'):
+                    r'host\.module\(\s*"([a-z0-9_]+)"',
+                    # A derived component names itself on its struct.
+                    r'#\[component\(\s*name\s*=\s*"([a-z0-9_]+)"'):
             glued.update(re.findall(pat, text, re.S))
         # A key named through a constant rather than at the call site. Only
         # the value is taken, and only where a plugin declares its vocabulary.
@@ -416,6 +327,12 @@ def attribute(lines, i, limit=8) -> str:
     return text
 
 
+# The kernel and the crates split from it (docs/PLAN-core-split.md): their
+# registrations are an app's built-in steps, run before any plugin.
+BUILTIN_CRATES = {"balaur_core", "balaur_geometry", "balaur_asset", "balaur_net",
+                  "balaur_project", "balaur_debug"}
+
+
 def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
     """N10: the verb is bound to the parameter type."""
     m = re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+"
@@ -429,13 +346,14 @@ def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
                             f"bare `fn {verb}(` in a crate with a plugin seam: say what it "
                             f"fills — `{verb}_<thing>` — or use a different verb (N10)", "ERROR")]
         return []
-    want = "&mut dyn Bindings" if verb == "install" else "&mut Registry"
+    want = "&mut Module" if verb == "install" else "&mut Registry"
     param = first_param(signature(lines, i - 1))
     if want in param:
         return []
     # `Registry` lives in a crate that depends on core, so core's own
-    # registrations take the `App` they are building.
-    if verb == "register" and crate == "balaur_core" and "&mut App" in param:
+    # registrations, and the built-in steps of the crates split from it, take
+    # the `App` they are building.
+    if verb == "register" and crate in BUILTIN_CRATES and "&mut App" in param:
         return []
     # An inherent method on either is that type under another spelling.
     if verb == "register" and param.startswith("&mut self") and impl_name in ("App", "Registry"):
@@ -671,10 +589,20 @@ def check_file(path: Path, ctx: Context) -> list[Finding]:
                                             "or say on the line above why this is a frame cap or a "
                                             "deadline", "ERROR"))
 
+            # One door for structural writes outside the kernel (PLAN-ecs §1);
+            # a test sets a world up as it likes.
+            if crate != "balaur_core" and ".world_mut()" in line and not in_test_mod:
+                findings.append(Finding(rel, i, "world-write",
+                                        "the world is written around the door: use Engine's spawn, "
+                                        "spawn_node, insert, insert_one, remove_one, remove, "
+                                        "reparent or despawn, and world() to change a component "
+                                        "in place (PLAN-ecs §1)", "ERROR"))
+
             # ExternalIo is the recorded seam, and its worker `Sender` is
             # unreachable except through `start`, which does nothing while a
-            # recording plays. Core owns the one sanctioned channel (dap.rs).
-            if crate != "balaur_core" and not in_test_mod and not io_guarded:
+            # recording plays. The DAP server is the one sanctioned channel.
+            if (crate != "balaur_core" and not str(rel).endswith("balaur_debug/src/dap.rs")
+                    and not in_test_mod and not io_guarded):
                 opened = re.search(r"std::sync::mpsc::(?:sync_)?channel\s*\(", line) or (
                     mpsc_imported and re.search(r"(?<![\w:])(?:sync_)?channel\s*\(", line)
                 )
@@ -924,6 +852,55 @@ def check_template_features() -> list[Finding]:
                     f"adds {extra}", "ERROR")]
 
 
+UNIT_TEST = re.compile(r"#\[(?:[a-z_]+::)?test\]|#\[cfg\(test\)\]")
+
+
+def target_sources(root: Path, entry: Path) -> list[Path]:
+    """The files a target compiles: its entry and every `mod` reached from it."""
+    seen: list[Path] = []
+    todo = [entry]
+    while todo:
+        path = todo.pop()
+        if path in seen or not path.exists():
+            continue
+        seen.append(path)
+        here = path.parent if path.name in ("lib.rs", "main.rs", "mod.rs") else path.with_suffix("")
+        for m in re.finditer(r"^\s*(?:pub(?:\([a-z]+\))?\s+)?mod\s+([a-z0-9_]+)\s*;",
+                             path.read_text(), re.M):
+            todo += [here / f"{m.group(1)}.rs", here / m.group(1) / "mod.rs"]
+    return seen
+
+
+def check_unit_test_targets() -> list[Finding]:
+    """A lib or bin with no tests in its sources says `test = false`: nextest
+    otherwise compiles the crate a second time, under cfg(test), and links an
+    empty binary on every run. One that says it while holding tests skips them."""
+    import tomllib
+    out: list[Finding] = []
+    for manifest in sorted((ROOT / "crates").glob("*/Cargo.toml")):
+        crate = manifest.parent
+        text = manifest.read_text()
+        toml = tomllib.loads(text)
+        targets = []
+        lib = toml.get("lib", {})
+        if (crate / lib.get("path", "src/lib.rs")).exists():
+            targets.append(("[lib]", lib, crate / lib.get("path", "src/lib.rs")))
+        for b in toml.get("bin", []):
+            targets.append((f"[[bin]] {b['name']}", b, crate / b.get("path", "src/main.rs")))
+        for label, table, entry in targets:
+            tested = any(UNIT_TEST.search(f.read_text()) for f in target_sources(crate, entry))
+            off = table.get("test") is False
+            rel = manifest.relative_to(ROOT)
+            if off and tested:
+                out.append(Finding(rel, 1, "unit-test-target",
+                                   f"{label} says test = false, so its unit tests never run", "ERROR"))
+            elif not off and not tested:
+                out.append(Finding(rel, 1, "unit-test-target",
+                                   f"{label} holds no unit tests: set test = false, or every "
+                                   "test run compiles it twice and links an empty binary", "ERROR"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -938,12 +915,11 @@ def main() -> int:
     ctx = scan_context(files)
     for path in files:
         findings.extend(check_file(path, ctx))
-    for path in rune_files():
-        findings.extend(check_rune(path))
     findings.extend(check_showcase())
     findings.extend(check_setting_units(files))
     findings.extend(check_themes())
     findings.extend(check_template_features())
+    findings.extend(check_unit_test_targets())
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

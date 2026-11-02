@@ -72,7 +72,7 @@ pub(crate) fn schema_ty(t: &str) -> Option<Ty> {
         "vec3" => Ty::Struct("Vec3".into()),
         "color" => Ty::Struct("Color".into()),
         "node" => Ty::Node,
-        "list" | "map" | "table" | "any" => Ty::Any,
+        "list" | "map" | "variant" | "table" | "any" => Ty::Any,
         _ => return None,
     })
 }

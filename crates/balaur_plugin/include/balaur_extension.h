@@ -47,7 +47,6 @@ enum {
     BALAUR_VEC3 = 6,
     BALAUR_COLOR = 7,
     BALAUR_NODE = 8,
-    BALAUR_CALLBACK = 9,
     BALAUR_LIST = 10,
     BALAUR_MAP = 11,
     BALAUR_MANY = 12,
@@ -80,7 +79,7 @@ typedef union BalaurPayload {
     bool boolean;
     int64_t integer;
     double number;
-    /* Node entity bits, or a callback id. */
+    /* Node entity bits. */
     uint64_t bits;
     /* vec2 uses the first two lanes, vec3 the first three, color all four. */
     float vector[4];

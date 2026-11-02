@@ -1,4 +1,4 @@
-// The selection as an ordered set. `state.sel` is its head and stays the active
+// The selection as an ordered set. `state.selected` is its head and stays the active
 // node, so every command reading one index is unchanged; a command over many
 // iterates here instead.
 
@@ -12,32 +12,32 @@ use util;
 /// to that rather than to where the last frame left it.
 pub struct RootPose {
     index: int,
-    pos: [float],
+    position: [float],
     scale: [float],
-    rot: [float],
+    rotation: [float],
     world: [float],
 }
 
-/// Replace the set with one node and make it active. Every writer of `state.sel`
-/// goes through this: a stale `state.sels` is a selection the gizmo disagrees with.
+/// Replace the set with one node and make it active. Every writer of `state.selected`
+/// goes through this: a stale `state.selected_rows` is a selection the gizmo disagrees with.
 pub fn only(state: &mut editor::State, row: int) {
-    state.sels = [row];
-    state.sel = row;
-    signals::outline(state);
+    state.selected_rows = [row];
+    state.selected = row;
+    signals::selected(state);
 }
 
 /// Every selected index, active first.
 pub fn all(state: editor::State) -> [int] {
-    if state.sels.len() > 0 {
-        return state.sels;
+    if state.selected_rows.len() > 0 {
+        return state.selected_rows;
     }
     // Empty, not `[-1]`: a click on empty space deselects, and a loop over
     // this must then do nothing rather than index the document with -1.
-    if state.sel < 0 {
+    if state.selected < 0 {
         return [];
     }
     // `return`: a list after a block reads as indexing the block.
-    return [state.sel];
+    return [state.selected];
 }
 
 pub fn count(state: editor::State) -> int {
@@ -45,50 +45,50 @@ pub fn count(state: editor::State) -> int {
 }
 
 pub fn contains(state: editor::State, row: int) -> bool {
-    util::icontains(all(state), row)
+    util::int_contains(all(state), row)
 }
 
 /// Add or drop one node; an added one becomes active. Dropping the last one
 /// leaves nothing selected, which the panels and tools draw as an empty
 /// frame.
 pub fn toggle(state: &mut editor::State, row: int) {
-    let sels = state.sels;
-    let at = util::iposition(sels, row);
-    if at.is_some() {
-        if sels.len() > 1 {
-            sels.remove(at.unwrap());
-            state.sel = sels[0];
+    let selected_rows = state.selected_rows;
+    let at = util::int_position(selected_rows, row);
+    if at != nil {
+        if selected_rows.len() > 1 {
+            selected_rows.remove(at.unwrap());
+            state.selected = selected_rows[0];
         }
     } else {
-        sels.insert(0, row);
-        state.sel = row;
+        selected_rows.insert(0, row);
+        state.selected = row;
     }
-    signals::outline(state);
+    signals::selected(state);
 }
 
 /// Extend the set to the document rows between the active node and `row`, for
 /// a shift-click in the tree.
 pub fn extend_to(state: &mut editor::State, row: int) {
-    let lo = util::imin(state.sel, row);
-    let hi = util::imax(state.sel, row);
+    let lowest = util::int_min(state.selected, row);
+    let highest = util::int_max(state.selected, row);
     let out = [row];
-    for candidate in lo..hi + 1 {
+    for candidate in lowest..highest + 1 {
         if candidate != row {
             out.push(candidate);
         }
     }
-    state.sels = out;
-    state.sel = row;
-    signals::outline(state);
+    state.selected_rows = out;
+    state.selected = row;
+    signals::selected(state);
 }
 
 /// Select nothing: a click on empty space in the viewport, or a delete that
-/// took the last selected row. `state.sel` of -1 is the no-selection the panels
+/// took the last selected row. `state.selected` of -1 is the no-selection the panels
 /// and tools already test for.
 pub fn clear(state: &mut editor::State) {
-    state.sels = [];
-    state.sel = -1;
-    signals::outline(state);
+    state.selected_rows = [];
+    state.selected = -1;
+    signals::selected(state);
 }
 
 /// Select exactly these rows; the first is active. An empty list is ignored.
@@ -96,9 +96,9 @@ pub fn set(state: &mut editor::State, rows: [int]) {
     if rows.len() == 0 {
         return;
     }
-    state.sels = rows;
-    state.sel = rows[0];
-    signals::outline(state);
+    state.selected_rows = rows;
+    state.selected = rows[0];
+    signals::selected(state);
 }
 
 pub fn select_all(state: &mut editor::State) {
@@ -115,16 +115,16 @@ pub fn select_all(state: &mut editor::State) {
 pub fn clamp(state: &mut editor::State) {
     let rows: [int] = [];
     for row in all(state) {
-        if row >= 0 && row < state.nodes.len() && !util::icontains(rows, row) {
+        if row >= 0 && row < state.nodes.len() && !util::int_contains(rows, row) {
             rows.push(row);
         }
     }
     if rows.len() == 0 {
-        rows = [util::imax(0, util::imin(state.sel, state.nodes.len() - 1))];
+        rows = [util::int_max(0, util::int_min(state.selected, state.nodes.len() - 1))];
     }
-    state.sels = rows;
-    state.sel = rows[0];
-    signals::outline(state);
+    state.selected_rows = rows;
+    state.selected = rows[0];
+    signals::selected(state);
 }
 
 fn id_of(state: editor::State, row: int) -> str {
@@ -164,7 +164,7 @@ pub fn set_locked(state: &mut editor::State, row: int, locked: bool) {
         return;
     }
     if locked {
-        state.locks.set(id, true);
+        state.locks[id] = true;
     } else {
         state.locks.remove(id);
     }
@@ -172,7 +172,7 @@ pub fn set_locked(state: &mut editor::State, row: int, locked: bool) {
 }
 
 pub fn unlock_all(state: &mut editor::State) {
-    state.locks = map();
+    state.locks = {};
     signals::outline(state);
 }
 
@@ -187,9 +187,9 @@ pub fn snapshot(state: editor::State) -> [RootPose] {
         }
         out.push(RootPose {
             index: row,
-            pos: util::xyz(found.transform.position),
+            position: util::xyz(found.transform.position),
             scale: util::xyz(found.transform.scale),
-            rot: model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]),
+            rotation: model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]),
             world: util::xyz(found.transform.global_position()),
         });
     }
@@ -197,19 +197,19 @@ pub fn snapshot(state: editor::State) -> [RootPose] {
 }
 
 // Each axis to the nearest half unit, for the Snap chip.
-fn snapped(pos: [float]) -> [float] {
-    [math::round(pos[0] * 2.0) / 2.0, math::round(pos[1] * 2.0) / 2.0, math::round(pos[2] * 2.0) / 2.0]
+fn snapped(position: [float]) -> [float] {
+    [math::round(position[0] * 2.0) / 2.0, math::round(position[1] * 2.0) / 2.0, math::round(position[2] * 2.0) / 2.0]
 }
 
 /// Offset every row in a snapshot by one world delta. `snap_to` rounds the
 /// result to half units when the Snap chip is on.
 pub fn move_by(state: &mut editor::State, snap: [RootPose], delta: [float], snap_to: bool) {
     for entry in snap {
-        let pos = util::vadd(entry.pos, delta);
+        let position = util::vector_add(entry.position, delta);
         if snap_to {
-            pos = snapped(pos);
+            position = snapped(position);
         }
-        model::set_transform(state, entry.index, rig::Parts { position: pos, rotation_euler: [], scale: [] });
+        model::set_transform(state, entry.index, rig::Parts { position: position, rotation_euler: [], scale: [] });
     }
 }
 
@@ -221,9 +221,9 @@ pub fn scale_by(state: &mut editor::State, snap: [RootPose], factors: [float], p
         let scaled = [entry.scale[0] * factors[0], entry.scale[1] * factors[1], entry.scale[2] * factors[2]];
         let parts = rig::Parts { position: [], rotation_euler: [], scale: scaled };
         if many {
-            let offset = util::vsub(entry.world, pivot);
+            let offset = util::vector_subtract(entry.world, pivot);
             let moved = [offset[0] * factors[0], offset[1] * factors[1], offset[2] * factors[2]];
-            parts.position = util::vadd(entry.pos, util::vsub(moved, offset));
+            parts.position = util::vector_add(entry.position, util::vector_subtract(moved, offset));
         }
         model::set_transform(state, entry.index, parts);
     }
@@ -234,10 +234,10 @@ pub fn scale_by(state: &mut editor::State, snap: [RootPose], factors: [float], p
 pub fn rotate_by(state: &mut editor::State, snap: [RootPose], axis: int, angle: float, pivot: [float]) {
     let many = snap.len() > 1;
     for entry in snap {
-        let parts = rig::Parts { position: [], rotation_euler: util::rotate_euler(entry.rot, axis, angle), scale: [] };
+        let parts = rig::Parts { position: [], rotation_euler: util::rotate_euler(entry.rotation, axis, angle), scale: [] };
         if many {
             let turned = util::rotate_about(entry.world, pivot, axis, angle);
-            parts.position = util::vadd(entry.pos, util::vsub(turned, entry.world));
+            parts.position = util::vector_add(entry.position, util::vector_subtract(turned, entry.world));
         }
         model::set_transform(state, entry.index, parts);
     }
@@ -250,11 +250,11 @@ pub fn nudge(state: &mut editor::State, delta: [float], snap_to: bool) {
         if is_locked(state, row) || !found.is_valid() {
             continue;
         }
-        let pos = util::vadd(util::xyz(found.transform.position), delta);
+        let position = util::vector_add(util::xyz(found.transform.position), delta);
         if snap_to {
-            pos = snapped(pos);
+            position = snapped(position);
         }
-        model::set_transform(state, row, rig::Parts { position: pos, rotation_euler: [], scale: [] });
+        model::set_transform(state, row, rig::Parts { position: position, rotation_euler: [], scale: [] });
     }
 }
 

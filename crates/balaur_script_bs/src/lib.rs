@@ -6,7 +6,6 @@
 mod api;
 mod convert;
 mod doc_types;
-mod export;
 mod host;
 mod native;
 mod node_ops;
@@ -17,7 +16,6 @@ mod waits;
 pub use balaur_bs::analysis::{builtins, value_types};
 pub use balaur_bs::fmt;
 pub use balaur_bs::{HostApi, HostSignature, Literal};
-pub use export::Exporter;
 pub use host::{BsHost, EXTENSION};
 #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 pub use native::load_native;
@@ -49,14 +47,14 @@ fn node_op(name: &str) -> anyhow::Result<&'static balaur_core::node_api::NodeOp>
 /// waits. A call reads its arguments where the script left them and calls.
 pub(crate) fn bind(
     eng: &Engine,
-    registry: &Rc<std::cell::RefCell<api::Registry>>,
+    registry: &Rc<api::Registry>,
     key: &str,
     ret: &Ty,
 ) -> Result<Bound, String> {
     let (eng, ret) = (eng.clone(), ret.clone());
-    let structs = registry.borrow().structs();
+    let structs = registry.structs();
     let answer = move |v: anyhow::Result<Value>, ret: &Ty| {
-        v.map(|v| convert::from_neutral_in(&v, ret, &structs))
+        v.map(|v| convert::from_neutral(&v, ret, &*structs))
             .map_err(|e| format!("{e:#}"))
     };
     if store::is_store(key) {
@@ -64,7 +62,7 @@ pub(crate) fn bind(
         return Ok(Rc::new(move |args: &dyn CallArgs| store::call(&key, args)));
     }
     if let Some(verb) = tool_verbs::verb(key) {
-        let structs = registry.borrow().structs();
+        let structs = registry.structs();
         return Ok(Rc::new(move |args: &dyn CallArgs| {
             tool_verbs::call(&eng, verb, args, &ret, &structs)
         }));
@@ -82,6 +80,33 @@ pub(crate) fn bind(
         .filter(|(_, dir)| *dir == GET || *dir == SET)
         .and_then(|(path, dir)| Some((path.split_once('.')?, dir)));
     if let Some(((comp, prop), dir)) = property {
+        // Bound once to the property's place (PLAN-balaur-script §9 step 6):
+        // no name looked up and no node operation per call.
+        if let Some(place) = balaur_core::components::place_of(&eng, comp, prop) {
+            if dir == GET {
+                return Ok(Rc::new(move |args: &dyn CallArgs| {
+                    let entity = entity_at(args).map_err(|e| format!("{e:#}"))?;
+                    let mut numbers = [0.0; 4];
+                    if matches!(&ret, Ty::Struct(_))
+                        && balaur_core::components::vector_placed(&eng, entity, place, &mut numbers)
+                            .is_some()
+                    {
+                        return Ok(L::Vector(numbers.map(f64::from)));
+                    }
+                    let value = balaur_core::components::property_placed(&eng, entity, place)
+                        .as_ref()
+                        .map_or(Ok(Value::Nil), balaur_core::node_api::from_toml);
+                    answer(value, &ret)
+                }));
+            }
+            return Ok(Rc::new(move |args: &dyn CallArgs| {
+                let entity = entity_at(args).map_err(|e| format!("{e:#}"))?;
+                let value = convert::neutral_at(args, 1);
+                let written =
+                    balaur_core::node_api::set_property_placed(&eng, entity, place, &value);
+                answer(written.map(|()| Value::Nil), &ret)
+            }));
+        }
         let (comp, prop) = (Value::text(comp), prop.to_string());
         if dir == GET {
             let op = node_op(GET_COMPONENT).map_err(|e| format!("{e:#}"))?;
@@ -99,7 +124,7 @@ pub(crate) fn bind(
             answer((op.call)(&eng, &[node, comp.clone(), patch]), &ret)
         }));
     }
-    let driven = registry.borrow().component_fn(key);
+    let driven = registry.component_fn(key);
     if let Some(name) = node_ops::op_name(key).filter(|_| driven.is_none()) {
         let op = node_op(name).map_err(|e| format!("{e:#}"))?;
         return Ok(Rc::new(move |args: &dyn CallArgs| {
@@ -117,10 +142,7 @@ pub(crate) fn bind(
             .split_once("::")
             .ok_or_else(|| format!("unknown engine function `{key}`"))?,
     };
-    let call = registry
-        .borrow()
-        .find(module, name)
-        .map_err(|e| format!("{e:#}"))?;
+    let call = registry.find(module, name).map_err(|e| format!("{e:#}"))?;
     Ok(Rc::new(move |args: &dyn CallArgs| {
         let out = match &call {
             api::Call::Raw(func) => func(&eng, &convert::neutral(args)),
@@ -128,6 +150,15 @@ pub(crate) fn bind(
         };
         answer(out, &ret)
     }))
+}
+
+/// The node a component property is read on or written to: the call's first
+/// argument.
+fn entity_at(args: &dyn CallArgs) -> anyhow::Result<balaur_core::hecs::Entity> {
+    let id = args
+        .node(0)
+        .ok_or_else(|| anyhow!("expected a node as the first argument"))?;
+    balaur_core::entity_of(balaur_script::NodeId(id.cast_unsigned()))
 }
 
 /// A factory running `.bs` scripts.

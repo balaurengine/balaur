@@ -63,8 +63,8 @@ pub fn body(w: World, at: Vec3, shape: any) -> Node {
     let node = row_for(w, i).add_child("b{i % ROW}");
     node.transform.position = at;
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
-    node.set_component(kind, map().with("kind", "dynamic").with("can_sleep", false));
-    node.set_component(collider_key(w), shape);
+    node.set_component(kind, { "kind": "dynamic", "can_sleep": false });
+    node.set_component(collider_key(w), { "shape": shape });
     draw(w, node, shape);
     w.bodies.push(node);
     node
@@ -84,8 +84,8 @@ pub fn wall(w: World, at: Vec3, shape: any) -> Node {
     w.statics += 1;
     node.transform.position = at;
     let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
-    node.set_component(kind, map().with("kind", "static"));
-    node.set_component(collider_key(w), shape);
+    node.set_component(kind, { "kind": "static" });
+    node.set_component(collider_key(w), { "shape": shape });
     node
 }
 
@@ -108,10 +108,7 @@ pub fn grid(i: int, count: int, pitch: float) -> Vec2 {
         side += 1;
     }
     let half = (side as float) * pitch * 0.5;
-    Vec2 {
-        x: ((i % side) as float) * pitch - half,
-        y: ((i / side) as float) * pitch - half,
-    }
+    vec2(((i % side) as float) * pitch - half, ((i / side) as float) * pitch - half)
 }
 
 /// Tie two bodies at the point half way between them.
@@ -127,17 +124,19 @@ pub fn pin(w: World, a: Node, b: Node, at_a: Vec3, at_b: Vec3) -> Node {
     let other = sub(mid, at_b);
     let path = relative(b);
     if w.dimensions == 2 {
-        node.set_component("joint2d", map()
-            .with("kind", "hinge")
-            .with("connected_body", path)
-            .with("anchor", [anchor.x, anchor.y])
-            .with("connected_anchor", [other.x, other.y]));
+        node.set_component("joint2d", {
+            "kind": "hinge",
+            "connected_body": path,
+            "anchor": [anchor.x, anchor.y],
+            "connected_anchor": [other.x, other.y],
+        });
     } else {
-        node.set_component("joint3d", map()
-            .with("kind", "ball_socket")
-            .with("connected_body", path)
-            .with("anchor", [anchor.x, anchor.y, anchor.z])
-            .with("connected_anchor", [other.x, other.y, other.z]));
+        node.set_component("joint3d", {
+            "kind": "ball_socket",
+            "connected_body": path,
+            "anchor": [anchor.x, anchor.y, anchor.z],
+            "connected_anchor": [other.x, other.y, other.z],
+        });
     }
     node
 }
@@ -172,51 +171,51 @@ fn draw(w: World, node: Node, shape: any) {
         return;
     }
     let kind = if shape.has("kind") {
-        shape.get("kind").as_str()
+        shape["kind"].as_str()
     } else if w.dimensions == 2 {
         "rectangle"
     } else {
         "box"
     };
-    let drawn = if kind != "convex_hull" {
+    let drawn: any = if kind != "convex_hull" {
         copy(shape)
     } else if w.dimensions == 2 {
-        map().with("kind", "circle").with("radius", 13.0)
+        { "kind": "circle", "radius": 13.0 }
     } else {
-        map().with("kind", "sphere").with("radius", 0.45)
+        { "kind": "sphere", "radius": 0.45 }
     };
     // A few colours in turn, so a stack reads as bodies rather than as a slab.
     let colour = palette()[(w.bodies.len() + w.statics) % 5];
-    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, drawn.with("color", colour));
+    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, { "shape": drawn, "color": colour });
 }
 
 fn palette() -> [Color] {
     [
-        [0.86, 0.36, 0.30, 1.0],
-        [0.95, 0.68, 0.25, 1.0],
-        [0.40, 0.70, 0.45, 1.0],
-        [0.30, 0.55, 0.85, 1.0],
-        [0.62, 0.45, 0.80, 1.0],
+        color(0.86, 0.36, 0.30, 1.0),
+        color(0.95, 0.68, 0.25, 1.0),
+        color(0.40, 0.70, 0.45, 1.0),
+        color(0.30, 0.55, 0.85, 1.0),
+        color(0.62, 0.45, 0.80, 1.0),
     ]
 }
 
 /// A shape table without the collider-only keys the renderer would reject.
 fn copy(shape: any) -> any {
-    let out = map();
+    let out: any = {};
     for key in ["kind", "radius", "height", "size"] {
         if shape.has(key) {
-            out = out.with(key, shape.get(key));
+            out[key] = shape[key];
         }
     }
     out
 }
 
 pub fn midpoint(a: Vec3, b: Vec3) -> Vec3 {
-    [(a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5]
+    vec3((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5)
 }
 
 pub fn sub(a: Vec3, b: Vec3) -> Vec3 {
-    [a.x - b.x, a.y - b.y, a.z - b.z]
+    vec3(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
 pub fn distance(a: Vec3, b: Vec3) -> float {
@@ -230,18 +229,16 @@ pub fn distance(a: Vec3, b: Vec3) -> float {
 pub fn lattice(i: int, cell: Vec3, columns: int, depth: int, origin: Vec3, jitter: float) -> Vec3 {
     let per_layer = columns * depth;
     let within = i % per_layer;
-    [
+    vec3(
         origin.x + ((within % columns) as float) * cell.x + random::range(-jitter, jitter) * cell.x,
         origin.y + ((i / per_layer) as float) * cell.y + random::range(-jitter, jitter) * cell.y,
-        origin.z + ((within / columns) as float) * cell.z + random::range(-jitter, jitter) * cell.z,
-    ]
+        origin.z + ((within / columns) as float) * cell.z + random::range(-jitter, jitter) * cell.z)
 }
 
 /// The 2D lattice: columns across, rows downward in Godot's y-down plane.
 pub fn lattice_2d(i: int, cell: Vec2, columns: int, origin: Vec2, jitter: float) -> Vec3 {
-    [
+    vec3(
         origin.x + ((i % columns) as float) * cell.x + random::range(-jitter, jitter) * cell.x,
         origin.y - ((i / columns) as float) * cell.y + random::range(-jitter, jitter) * cell.y,
-        0.0,
-    ]
+        0.0)
 }

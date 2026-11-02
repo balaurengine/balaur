@@ -39,12 +39,15 @@ impl Default for IdAllocator {
     }
 }
 
-/// The root a node hangs from, which carries the counter.
+/// The root a node hangs from, which carries the counter: the tree's, for a
+/// node in a parked scene as well.
 fn root_of(world: &World, mut node: Entity) -> Entity {
     while let Ok(parent) = world.get::<&crate::scene::Parent>(node) {
         node = parent.0;
     }
-    node
+    world
+        .get::<&crate::parked::Held>(node)
+        .map_or(node, |held| held.root)
 }
 
 /// The counter the next id takes.
@@ -66,7 +69,7 @@ pub(crate) fn mint_under(world: &World, parent: Entity) -> String {
     format!("{}:{n}", allocator.authority)
 }
 
-/// Whether an id is one [`mint_under`] made rather than a scene file's: a
+/// Whether an id is one `mint_under` made rather than a scene file's: a
 /// file's is a name's slug and never holds the `:` between authority and
 /// counter.
 #[must_use]
@@ -140,4 +143,43 @@ pub fn find(world: &World, root: Entity, id: &str) -> Option<Entity> {
     collect_subtree(world, root)
         .into_iter()
         .find(|&e| world.get::<&StableId>(e).is_ok_and(|found| found.0 == id))
+}
+
+/// What stands between a parked scene's path and a node's id in a key. A
+/// scene file's id is a name's slug and a minted one `<authority>:<counter>`,
+/// so neither holds it.
+const PARKED_KEY: char = '|';
+
+/// A parked node's key: its scene's path, then its id.
+#[must_use]
+pub fn parked_key(path: &str, id: &str) -> String {
+    format!("{path}{PARKED_KEY}{id}")
+}
+
+/// A node's id as a snapshot and a digest file it: the id alone under the
+/// root, [`parked_key`] in a parked scene, whose file may well use the same id
+/// as the scene running.
+#[must_use]
+pub fn key_of(world: &World, entity: Entity) -> Option<String> {
+    let id = of(world, entity)?;
+    Some(match crate::parked::path_of(world, entity) {
+        Some(path) => parked_key(&path, &id),
+        None => id,
+    })
+}
+
+/// The holder and the id a key names, when it names a parked scene's node.
+#[must_use]
+pub fn parked_part<'a>(world: &World, key: &'a str) -> Option<(Entity, &'a str)> {
+    let (path, id) = key.rsplit_once(PARKED_KEY)?;
+    Some((crate::parked::holder_named(world, path)?, id))
+}
+
+/// The node [`key_of`] named, in the tree under `root` or a parked scene.
+#[must_use]
+pub fn find_key(world: &World, root: Entity, key: &str) -> Option<Entity> {
+    match parked_part(world, key) {
+        Some((holder, id)) => find(world, holder, id),
+        None => find(world, root, key),
+    }
 }

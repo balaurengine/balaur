@@ -19,10 +19,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result, anyhow};
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
-use crate::jobs::{install_listen, pump};
+use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
+use crate::jobs::pump;
 
 /// The file a web bundle keeps its pack under, as the shell page loads it.
 use balaur::standalone::BUNDLED_PACK;
@@ -51,7 +51,6 @@ impl AsMut<ExportCore> for ExportState {
 
 /// The editor's export verb in a browser, registered by the web entry point.
 pub(crate) struct WebExportPlugin {
-    manifest: balaur_plugin::Manifest,
     project: PathBuf,
     runtimes: String,
 }
@@ -60,17 +59,13 @@ impl WebExportPlugin {
     /// `runtimes` is where each web runtime is served from, a directory apiece
     /// named for it: `<runtimes>/web-2d/balaur_bg.wasm`.
     pub(crate) fn new(project: PathBuf, runtimes: String) -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("export", env!("CARGO_PKG_VERSION")),
-            project,
-            runtimes,
-        }
+        Self { project, runtimes }
     }
 }
 
 impl balaur_plugin::Plugin for WebExportPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "export"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -80,12 +75,12 @@ impl balaur_plugin::Plugin for WebExportPlugin {
         });
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
         let mut m = reg.script_module("export")?;
-        install_export_api(&mut *m);
+        install_export_api(&mut m);
         Ok(())
     }
 }
 
-fn install_export_api(m: &mut dyn Bindings<Engine>) {
+fn install_export_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Exports the project being edited, from a browser. `targets` is what a tab can build alone: a pack and a web bundle.",
     );
@@ -100,11 +95,15 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
             "{ source: string, before: int, after: int, width: int, height: int, drawn_width: int, drawn_height: int, gpu_bytes: int }",
             "What one file becomes in a target's pack.",
         ),
+        (
+            "StartOptions",
+            "{ download: bool?, sign: string?, output: string? }",
+            "How `start` exports: `download` fetches a missing template, `sign` names an identity, `output` overrides where it lands.",
+        ),
     ]);
     m.describe(&[
         ("targets", &[], "() -> [Target]", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
-        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
-        ("start", &[], "(target: string, options: map) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
+        ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
         ("output", &[], "(target: string) -> string", "The file name an export for this target produces."),
         ("running_count", &[], "() -> int", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
@@ -113,7 +112,6 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         let project = eng.resource::<ExportState>().borrow().core.project.clone();
         Ok(targets(&project))
     });
-    install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
@@ -146,7 +144,8 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
 /// nothing to install, because the pack is built here and the runtime a
 /// bundle ships is served beside this page.
 fn targets(project: &Path) -> Value {
-    let web = balaur_export::runtime_of(project, "web").unwrap_or_else(|_| "web".into());
+    let web = balaur_export::runtime_of(project, "web", &balaur_export::SmallestRuntime::default())
+        .unwrap_or_else(|_| "web".into());
     let rows = [
         (
             "pack",
@@ -237,7 +236,8 @@ fn build(project: &Path) -> Result<balaur::Pack> {
 /// static host.
 async fn bundle(project: &Path, runtimes: &str) -> Result<(String, Vec<u8>)> {
     let pack = build(project)?;
-    let runtime = balaur_export::runtime_of(project, "web")?;
+    let runtime =
+        balaur_export::runtime_of(project, "web", &balaur_export::SmallestRuntime::default())?;
     balaur_export::fits(project, &pack, &runtime)?;
     let served = beside(runtimes, &runtime);
     let name = name_of(project);

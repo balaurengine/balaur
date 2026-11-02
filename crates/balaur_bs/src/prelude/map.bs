@@ -1,7 +1,7 @@
-// A map from `K` to `V`, made for each pair a program names (`crate::maps`):
-// its entries in the order each key was first set, and a table of where each
-// key's entry sits, probed from the key's hash. A table made with its fields'
-// defaults is empty, and takes a table of slots with its first entry.
+//! A map from `K` to `V`, made for each pair a program names (`crate::maps`):
+//! its entries in the order each key was first set, and a table of where each
+//! key's entry sits, probed from the key's hash. A table made with its fields'
+//! defaults is empty, and takes a table of slots with its first entry.
 
 pub class Table { keys_in_order: [K], values_in_order: [V], slots: [int], mask: int }
 

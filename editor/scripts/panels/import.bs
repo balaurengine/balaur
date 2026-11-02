@@ -24,24 +24,28 @@ impl Import {
 
     /// A field has run its own handler by now, so what is left is to show what
     /// it changed.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" || event == "change" || event == "submit" || event == "commit" {
-            self.refresh();
-        }
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("import_fill");
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Name").patch_component("widget", map().with("visible", view.get("ready")).with("text", view.get("name")));
-        self.node.get_node("From").patch_component("widget", map().with("visible", view.get("ready")).with("text", view.get("from")));
-        self.node.get_node("Nothing").patch_component("widget", map().with("visible", !view.get("ready").as_bool()).with("text", view.get("says")));
-        self.node.get_node("Scroll").patch_component("widget", map().with("visible", view.get("ready")));
+        let patched = self.node.get_node("Name");
+        patched.set_visible(view["ready"].as_bool());
+        patched.widget.text = view["name"].as_str();
+        let patched = self.node.get_node("From");
+        patched.set_visible(view["ready"].as_bool());
+        patched.widget.text = view["from"].as_str();
+        let patched = self.node.get_node("Nothing");
+        patched.set_visible(!view["ready"].as_bool());
+        patched.widget.text = view["says"].as_str();
+        self.node.get_node("Scroll").set_visible(view["ready"].as_bool());
     }
 }

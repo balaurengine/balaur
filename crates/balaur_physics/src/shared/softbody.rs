@@ -1,94 +1,75 @@
 //! What a soft body is made of, read the same way in both dimensions.
 //!
-//! The words and the schema text are dimension-free and live in
-//! `crate::softbody`; what is here is the reading, which names rapier's
-//! `SoftBodyMaterial` and so is a different type per dimension.
+//! The words are dimension-free and live in `crate::vocabulary`; what is
+//! here is the reading, which names rapier's `SoftBodyMaterial` and so is a
+//! different type per dimension.
 
 macro_rules! material {
-    (
-        rapier = $rapier:ident,
-        material = $material:ident,
-        cell_model = $cell_model:ident,
-        flow = $flow:ident,
-        springs = $springs:ident
-    ) => {
-        /// The spring a `<name>_hz`/`<name>_damping` pair spells.
-        fn $springs(
-            params: &toml::Value,
-            hz: &str,
-            damping: &str,
-            defaults: (f32, f32),
+    (rapier = $rapier:ident, material = $material:ident, cell_model = $cell_model:ident) => {
+        /// A material spring as rapier's.
+        fn spring_of(
+            spring: crate::soft_material::Spring,
         ) -> crate::$rapier::prelude::SpringCoefficients<crate::scalar::Real> {
-            crate::$rapier::prelude::SpringCoefficients::new(
-                crate::scalar::real(v::f(params, hz, defaults.0)),
-                crate::scalar::real(v::f(params, damping, defaults.1)),
-            )
+            crate::$rapier::prelude::SpringCoefficients::new(spring.hz, spring.damping)
         }
 
         /// The mechanical properties: stiffness per constraint family, the
         /// elastic model's own parameters, how the body yields, and when it
-        /// tears.
+        /// tears; the body's own pacing of a crack beside them.
         pub(crate) fn $material(
-            params: &toml::Value,
-            made: &toml::Value,
+            made: &crate::soft_material::SoftMaterial,
+            max_tears_per_step: i64,
+            min_piece: i64,
         ) -> crate::$rapier::prelude::SoftBodyMaterial {
+            use crate::soft_material::PlasticFlow;
             use crate::$rapier::prelude::{SoftBodyMaterial, SoftEdgePlasticFlow};
+            // A threshold a material writes as `0` and rapier reads as absent.
+            let threshold = |value: f32| (value > 0.0).then(|| value);
+            let count = |n: i64| u32::try_from(n).unwrap_or(u32::MAX);
             SoftBodyMaterial {
-                edge_softness: $springs(made, k::EDGE_HZ, k::EDGE_DAMPING, (30.0, 1.0)),
-                bend_softness: $springs(made, k::BEND_HZ, k::BEND_DAMPING, (10.0, 1.0)),
-                volume_softness: $springs(made, k::VOLUME_HZ, k::VOLUME_DAMPING, (30.0, 1.0)),
-                shape_matching_softness: $springs(
-                    made,
-                    k::SHAPE_MATCHING_HZ,
-                    k::SHAPE_MATCHING_DAMPING,
-                    (10.0, 1.0),
-                ),
-                young_modulus: crate::scalar::real(v::f(made, k::YOUNG_MODULUS, 1.0e4)),
-                poisson_ratio: crate::scalar::real(v::f(made, k::POISSON_RATIO, 0.3)),
-                elastic_damping_ratio: crate::scalar::real(v::f(made, k::ELASTIC_DAMPING, 1.0)),
-                plastic_yield: crate::scalar::real(v::f(made, k::PLASTIC_YIELD, 0.0)),
-                plastic_creep: crate::scalar::real(v::f(made, k::PLASTIC_CREEP, 1.0)),
-                plastic_max: crate::scalar::real(v::f(made, k::PLASTIC_MAX, 1.0)),
-                deformation_damping: crate::scalar::real(v::f(made, k::DEFORMATION_DAMPING, 0.0)),
-                edge_plastic_yield: crate::scalar::real(v::f(made, k::EDGE_PLASTIC_YIELD, 0.0)),
-                edge_plastic_creep: crate::scalar::real(v::f(made, k::EDGE_PLASTIC_CREEP, 1.0)),
-                edge_plastic_max: crate::scalar::real(v::f(made, k::EDGE_PLASTIC_MAX, 0.5)),
-                edge_plastic_flow: match v::text(made, k::EDGE_PLASTIC_FLOW, w::BOTH) {
-                    w::COMPRESSION_FLOW => SoftEdgePlasticFlow::Compression,
-                    w::TENSION => SoftEdgePlasticFlow::Tension,
-                    _ => SoftEdgePlasticFlow::Both,
+                edge_softness: spring_of(made.edge),
+                bend_softness: spring_of(made.bend),
+                volume_softness: spring_of(made.volume),
+                shape_matching_softness: spring_of(made.shape_matching_spring),
+                young_modulus: made.young_modulus,
+                poisson_ratio: made.poisson_ratio,
+                elastic_damping_ratio: made.elastic_damping,
+                plastic_yield: made.plastic_yield,
+                plastic_creep: made.plastic_creep,
+                plastic_max: made.plastic_max,
+                deformation_damping: made.deformation_damping,
+                edge_plastic_yield: made.edge_plastic_yield,
+                edge_plastic_creep: made.edge_plastic_creep,
+                edge_plastic_max: made.edge_plastic_max,
+                edge_plastic_flow: match made.edge_plastic_flow {
+                    PlasticFlow::Compression => SoftEdgePlasticFlow::Compression,
+                    PlasticFlow::Tension => SoftEdgePlasticFlow::Tension,
+                    PlasticFlow::Both => SoftEdgePlasticFlow::Both,
                 },
-                tear_strain: $flow(made, k::TEAR_STRAIN),
-                tear_force: $flow(made, k::TEAR_FORCE),
-                tear_smoothing: crate::scalar::real(v::f(made, k::TEAR_SMOOTHING, 0.0)),
-                interior_strength: crate::scalar::real(v::f(made, k::INTERIOR_STRENGTH, 1.0)),
+                tear_strain: threshold(made.tear_strain),
+                tear_force: threshold(made.tear_force),
+                tear_smoothing: made.tear_smoothing,
+                interior_strength: made.interior_strength,
                 // A schema writes "no limit" as zero; rapier writes it as the
                 // largest number of tears a step could possibly ask for.
-                max_tears_per_step: match v::f(params, k::MAX_TEARS_PER_STEP, 0.0) {
-                    limit if limit >= 1.0 => limit as u32,
-                    _ => u32::MAX,
+                max_tears_per_step: if max_tears_per_step >= 1 {
+                    count(max_tears_per_step)
+                } else {
+                    u32::MAX
                 },
-                min_piece: match v::f(params, k::MIN_PIECE, 0.0) {
-                    smallest if smallest >= 1.0 => Some(smallest as u32),
-                    _ => None,
-                },
+                min_piece: (min_piece >= 1).then(|| count(min_piece)),
             }
         }
 
-        /// A threshold a schema writes as `0` and rapier reads as absent.
-        fn $flow(params: &toml::Value, key: &str) -> Option<crate::scalar::Real> {
-            let value = v::f(params, key, 0.0);
-            (value > 0.0).then(|| crate::scalar::real(value))
-        }
-
         pub(crate) fn $cell_model(
-            made: &toml::Value,
+            made: &crate::soft_material::SoftMaterial,
         ) -> crate::$rapier::prelude::SoftBodyCellModel {
+            use crate::soft_material::CellModel;
             use crate::$rapier::prelude::SoftBodyCellModel;
-            match v::text(made, k::CELL_MODEL, w::VOLUME) {
-                w::COROTATIONAL => SoftBodyCellModel::Corotational,
-                w::NEO_HOOKEAN => SoftBodyCellModel::NeoHookean,
-                _ => SoftBodyCellModel::Volume,
+            match made.cell_model {
+                CellModel::Corotational => SoftBodyCellModel::Corotational,
+                CellModel::NeoHookean => SoftBodyCellModel::NeoHookean,
+                CellModel::Volume => SoftBodyCellModel::Volume,
             }
         }
     };
@@ -100,11 +81,11 @@ pub(crate) use material;
 /// and rapier allocates every particle before a built body could be counted.
 pub(crate) const MAX_PARTICLES: usize = 200_000;
 
-/// Refuse a layout of `kind` whose particle count, worked out from its
-/// parameters before anything is built, is past the cap.
-pub(crate) fn refuse_past_cap(particles: f64, kind: &str) -> anyhow::Result<()> {
+/// Refuse a layout whose particle count, worked out from its parameters
+/// before anything is built, is past the cap; `fewer` is what to change.
+pub(crate) fn refuse_past_cap(particles: f64, fewer: Fewer) -> anyhow::Result<()> {
     if particles.is_nan() || particles > MAX_PARTICLES as f64 {
-        let advice = cap_advice(kind);
+        let advice = fewer.advice();
         return Err(anyhow::anyhow!(
             "that would be {particles:.0} particles, past the {MAX_PARTICLES} a body may have: {advice}"
         ));
@@ -112,18 +93,29 @@ pub(crate) fn refuse_past_cap(particles: f64, kind: &str) -> anyhow::Result<()> 
     Ok(())
 }
 
-/// What to change for fewer particles, which depends on what the layout reads.
-fn cap_advice(kind: &str) -> String {
-    use crate::vocabulary::{keys as k, words as w};
-    match kind {
-        w::VOLUMETRIC => format!("raise {}", k::CELL_SIZE),
-        w::ROPE_SOFT | w::CIRCLE => format!("lower {}", k::PARTICLE_COUNT),
-        w::SPHERE => format!("lower {}", k::SUBDIVISIONS),
-        w::TRIANGLE_MESH | w::SOFT_POLYGON | w::POLYLINE => {
-            format!("build it from a {} with fewer points", k::MESH)
+/// What a layout reads that sets how many particles it makes.
+#[derive(Clone, Copy)]
+pub(crate) enum Fewer {
+    CellSize,
+    ParticleCount,
+    Subdivisions,
+    MeshPoints,
+    Points,
+    Cells,
+}
+
+impl Fewer {
+    /// What to change for fewer particles.
+    fn advice(self) -> String {
+        use crate::vocabulary::keys as k;
+        match self {
+            Self::CellSize => format!("raise {}", k::CELL_SIZE),
+            Self::ParticleCount => format!("lower {}", k::PARTICLE_COUNT),
+            Self::Subdivisions => format!("lower {}", k::SUBDIVISIONS),
+            Self::MeshPoints => format!("build it from a {} with fewer points", k::MESH),
+            Self::Points => format!("list fewer {}", k::POINTS),
+            Self::Cells => format!("lower {}", k::CELLS),
         }
-        w::CUSTOM | w::OUTLINE => format!("list fewer {}", k::POINTS),
-        _ => format!("lower {}", k::CELLS),
     }
 }
 
@@ -135,21 +127,9 @@ pub(crate) const MIN_CHAIN_PARTICLES: f32 = 2.0;
 pub(crate) const MIN_RING_PARTICLES: f32 = 3.0;
 
 /// The particle count `particle_count` asks for, and at least `least`.
-pub(crate) fn particle_count(params: &toml::Value, least: f32) -> f64 {
-    let asked = crate::vocabulary::f(
-        params,
-        crate::vocabulary::keys::PARTICLE_COUNT,
-        DEFAULT_PARTICLES,
-    );
-    f64::from(asked.max(least)).floor()
+pub(crate) fn particle_count(asked: i64, least: f32) -> f64 {
+    f64::from((asked as f32).max(least)).floor()
 }
-
-/// What a body with nothing of its own to deform is drawn in.
-mod schema;
-pub(crate) use schema::{
-    collision_schema, filtering_schema, overrides_schema, particles_schema, primary_schema,
-    seams_schema, solver_schema, tearing_schema,
-};
 
 /// What a soft body is made of and what its surface is: both of its
 /// material rows, read once a build or a patch.
@@ -159,14 +139,27 @@ pub(crate) struct Materials {
 }
 
 impl Materials {
-    pub(crate) fn of(eng: &balaur_core::Engine, params: &toml::Value) -> anyhow::Result<Self> {
+    /// The two a body's `soft_material` and `physics_material` rows name.
+    pub(crate) fn of(
+        eng: &balaur_core::Engine,
+        soft_material: &str,
+        physics_material: &str,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
-            surface: crate::material::of(eng, params)?,
-            body: crate::soft_material::of(eng, params)?,
+            surface: crate::material::named(eng, physics_material)?,
+            body: crate::soft_material::named(eng, soft_material)?,
         })
+    }
+
+    /// Whether a body built under `built` would have picked another shape
+    /// matching: chosen as a body is built, so a change takes a rebuild.
+    pub(crate) fn changes_shape_matching(&self, eng: &balaur_core::Engine, built: &str) -> bool {
+        crate::soft_material::named(eng, built)
+            .map_or(true, |was| was.shape_matching != self.body.shape_matching)
     }
 }
 
+/// What a body with nothing of its own to deform is drawn in.
 pub(crate) const DEFAULT_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
 
 /// A particle radius past this share of the body's width reads as hovering.
@@ -263,93 +256,81 @@ macro_rules! stamp_colliders {
 
 pub(crate) use stamp_colliders;
 
-/// The rows a live body takes as they are, without being built again from
-/// rest: what it is made of, how it is solved, and what it is drawn in.
-const IN_PLACE: &[&str] = {
-    use crate::vocabulary::keys as k;
-    &[
-        k::MAX_TEARS_PER_STEP,
-        k::MIN_PIECE,
-        k::SOLVER,
-        k::SOLVER_ITERATIONS,
-        k::COLOR,
-        k::ENABLED,
-        k::SOFT_MATERIAL,
-        k::PHYSICS_MATERIAL,
-        k::COLLISION_LAYER,
-        k::COLLISION_MASK,
-        k::SOLVER_LAYER,
-        k::SOLVER_MASK,
-        k::CONTACT_PAIRS,
-        k::SENSOR,
-        k::EVENTS,
-        k::CONTACT_FORCE_THRESHOLD,
-    ]
-};
-
 /// Whether `asked` differs from what the body was built from only in rows it
-/// takes in place: a stiffness tuned during play must not snap it to rest.
-pub(crate) fn only_in_place(built: &toml::Value, asked: &toml::Value) -> bool {
-    let (Some(built), Some(asked)) = (built.as_table(), asked.as_table()) else {
-        return false;
+/// takes in place, which are what it is made of, how it is solved and what
+/// it is drawn in: a stiffness tuned during play must not snap it to rest.
+macro_rules! only_in_place {
+    ($name:ident, $asked:ty) => {
+        fn $name(built: &$asked, asked: &$asked) -> bool {
+            let mut kept = built.clone();
+            let (to, from) = (&mut kept.body, &asked.body);
+            to.max_tears_per_step = from.max_tears_per_step;
+            to.min_piece = from.min_piece;
+            to.solver = from.solver;
+            to.solver_iterations = from.solver_iterations;
+            to.color = from.color;
+            to.enabled = from.enabled;
+            to.soft_material.clone_from(&from.soft_material);
+            to.physics_material.clone_from(&from.physics_material);
+            to.collision_layer.clone_from(&from.collision_layer);
+            to.collision_mask.clone_from(&from.collision_mask);
+            to.solver_layer.clone_from(&from.solver_layer);
+            to.solver_mask.clone_from(&from.solver_mask);
+            to.contact_pairs.clone_from(&from.contact_pairs);
+            to.sensor = from.sensor;
+            to.contact_force_threshold = from.contact_force_threshold;
+            kept == *asked
+        }
     };
-    built
-        .keys()
-        .chain(asked.keys())
-        .all(|key| built.get(key) == asked.get(key) || IN_PLACE.contains(&key.as_str()))
 }
+
+pub(crate) use only_in_place;
 
 /// `orientation` as rapier's `oriented`: `None` leaves it to rapier, which
 /// orients a closed surface.
-pub(crate) fn oriented(params: &toml::Value) -> Option<bool> {
-    use crate::vocabulary::{self as v, keys as k, words as w};
-    match v::text(params, k::ORIENTATION, w::AUTO) {
-        w::SOLID => Some(true),
-        w::SHELL => Some(false),
-        _ => None,
+pub(crate) fn oriented(orientation: crate::properties::Orientation) -> Option<bool> {
+    use crate::properties::Orientation;
+    match orientation {
+        Orientation::Solid => Some(true),
+        Orientation::Shell => Some(false),
+        Orientation::Auto => None,
     }
 }
 
-/// A material's `shape_matching` as a choice over the layout's own: `None`
-/// keeps what the generator chose.
-pub(crate) fn shape_matching(made: &toml::Value) -> Option<bool> {
-    use crate::vocabulary::{self as v, keys as k, words as w};
-    match v::text(made, k::SHAPE_MATCHING, w::AUTO) {
-        w::ON => Some(true),
-        w::OFF => Some(false),
-        _ => None,
-    }
+/// A count a solver row holds, as rapier takes it: none below zero.
+pub(crate) fn iterations(asked: i64) -> usize {
+    usize::try_from(asked.max(0)).unwrap_or(usize::MAX)
 }
 
 /// Patch the rows [`only_in_place`] allows onto a live body and every piece
 /// torn off it, in either dimension: the material and the solver on the
 /// body, the surface rows on each of its colliders.
 macro_rules! patch_in_place {
-    ($name:ident, $world:ty, $handle:ty, $material:ident, $solver:ident) => {
+    ($name:ident, $world:ty, $handle:ty, $body:ty, $material:ident, $solver:ident) => {
         fn $name(
             world: &mut $world,
             root: $handle,
-            params: &toml::Value,
+            asked: &$body,
             materials: &crate::shared::softbody::Materials,
         ) {
             use crate::shared::softbody::Family;
-            let made = &materials.body.0;
+            let made = &*materials.body;
             for piece in world.soft_bodies.family(root) {
                 let Some(body) = world.soft_bodies.get_mut(piece) else {
                     continue;
                 };
-                body.set_material($material(params, made));
-                body.set_solver($solver(params));
-                body.set_volume_factor(crate::scalar::real(v::f(made, k::VOLUME_FACTOR, 1.0)));
-                body.enable_volume_preservation(v::boolean(made, k::VOLUME_PRESERVATION, true));
-                body.set_additional_pgs_iterations(
-                    v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize,
-                );
-                body.set_enabled(v::boolean(params, k::ENABLED, true));
+                body.set_material($material(made, asked.max_tears_per_step, asked.min_piece));
+                body.set_solver($solver(asked.solver));
+                body.set_volume_factor(made.volume_factor);
+                body.enable_volume_preservation(made.volume_preservation);
+                body.set_additional_pgs_iterations(crate::shared::softbody::iterations(
+                    asked.solver_iterations,
+                ));
+                body.set_enabled(asked.enabled);
                 let colliders: Vec<_> = body.meshes().map(|mesh| mesh.collider()).collect();
                 for handle in colliders {
                     if let Some(collider) = world.colliders.get_mut(handle) {
-                        patch_surface(collider, params, &materials.surface);
+                        patch_surface(collider, asked, &materials.surface);
                     }
                 }
             }
@@ -361,8 +342,14 @@ pub(crate) use patch_in_place;
 
 /// The collider a soft body meets the world through, from its surface rows,
 /// and the same rows onto a live one: rapier's collider has a setter for each.
+/// `groups` and `pairs` are the dimension's collider readers.
 macro_rules! surface {
-    (rapier = $rapier:ident, layers = $layers:path, events = $events:path) => {
+    (
+        rapier = $rapier:ident,
+        body = $body:ty,
+        groups = $groups:path,
+        pairs = $pairs:path
+    ) => {
         fn combine(word: &str) -> crate::$rapier::prelude::CoefficientCombineRule {
             use crate::$rapier::prelude::CoefficientCombineRule as Rule;
             match word {
@@ -375,74 +362,45 @@ macro_rules! surface {
             }
         }
 
+        /// The groups a layer row and its mask make; a soft body tests both.
         fn groups(
-            params: &toml::Value,
-            layer: &str,
-            mask: &str,
+            layers: &[balaur_core::layers::Layer],
+            mask: &[balaur_core::layers::Layer],
         ) -> crate::$rapier::prelude::InteractionGroups {
-            use crate::$rapier::prelude::{Group, InteractionGroups, InteractionTestMode};
-            InteractionGroups::new(
-                Group::from_bits_truncate(balaur_core::layers::bits(params.get(layer), false)),
-                Group::from_bits_truncate(balaur_core::layers::bits(params.get(mask), true)),
-                InteractionTestMode::And,
-            )
-        }
-
-        /// `contact_pairs`, and rapier's own pairs for a table that names
-        /// none: a script's `set_softbody` gets no schema defaults.
-        fn collision_types(params: &toml::Value) -> crate::$rapier::prelude::ActiveCollisionTypes {
-            use crate::$rapier::prelude::ActiveCollisionTypes;
-            if params.get(k::CONTACT_PAIRS).is_none() {
-                return ActiveCollisionTypes::default();
-            }
-            let table = v::flags::collision_types();
-            ActiveCollisionTypes::from_bits_truncate(v::bits(params, k::CONTACT_PAIRS, &table))
-        }
-
-        fn events(params: &toml::Value) -> crate::$rapier::prelude::ActiveEvents {
-            let table = v::flags::events();
-            crate::$rapier::prelude::ActiveEvents::from_bits_truncate(v::bits(
-                params,
-                k::EVENTS,
-                &table,
-            ))
+            $groups((layers, mask, crate::properties::LayerTest::Both))
         }
 
         /// The collider every soft body meets the world through.
         fn surface_collider(
-            params: &toml::Value,
+            asked: &$body,
             material: &crate::material::PhysicsMaterial,
         ) -> crate::$rapier::prelude::ColliderBuilder {
-            let builder = $events(
-                $layers(crate::$rapier::prelude::ColliderBuilder::ball(1.0), params),
-                params,
-            );
-            builder
-                .friction(crate::scalar::real(material.friction))
-                .restitution(crate::scalar::real(material.restitution))
+            crate::$rapier::prelude::ColliderBuilder::ball(1.0)
+                .collision_groups(groups(&asked.collision_layer, &asked.collision_mask))
+                .contact_force_event_threshold(asked.contact_force_threshold)
+                .friction(material.friction)
+                .restitution(material.restitution)
                 .friction_combine_rule(combine(&material.friction_combine))
                 .restitution_combine_rule(combine(&material.restitution_combine))
-                .solver_groups(groups(params, k::SOLVER_LAYER, k::SOLVER_MASK))
-                .active_collision_types(collision_types(params))
-                .sensor(v::boolean(params, k::SENSOR, false))
+                .solver_groups(groups(&asked.solver_layer, &asked.solver_mask))
+                .active_collision_types($pairs(&asked.contact_pairs))
+                .sensor(asked.sensor)
         }
 
         fn patch_surface(
             collider: &mut crate::$rapier::prelude::Collider,
-            params: &toml::Value,
+            asked: &$body,
             material: &crate::material::PhysicsMaterial,
         ) {
-            let real = |key: &str, default: f32| crate::scalar::real(v::f(params, key, default));
-            collider.set_friction(crate::scalar::real(material.friction));
-            collider.set_restitution(crate::scalar::real(material.restitution));
+            collider.set_friction(material.friction);
+            collider.set_restitution(material.restitution);
             collider.set_friction_combine_rule(combine(&material.friction_combine));
             collider.set_restitution_combine_rule(combine(&material.restitution_combine));
-            collider.set_collision_groups(groups(params, k::COLLISION_LAYER, k::COLLISION_MASK));
-            collider.set_solver_groups(groups(params, k::SOLVER_LAYER, k::SOLVER_MASK));
-            collider.set_active_collision_types(collision_types(params));
-            collider.set_active_events(events(params));
-            collider.set_contact_force_event_threshold(real(k::CONTACT_FORCE_THRESHOLD, 0.0));
-            collider.set_sensor(v::boolean(params, k::SENSOR, false));
+            collider.set_collision_groups(groups(&asked.collision_layer, &asked.collision_mask));
+            collider.set_solver_groups(groups(&asked.solver_layer, &asked.solver_mask));
+            collider.set_active_collision_types($pairs(&asked.contact_pairs));
+            collider.set_contact_force_event_threshold(asked.contact_force_threshold);
+            collider.set_sensor(asked.sensor);
         }
     };
 }
@@ -487,113 +445,69 @@ pub(crate) struct EdgeRows {
     pub(crate) tension_only: Vec<u32>,
 }
 
+/// The rows of a body that name single particles and edges.
+pub(crate) struct EdgeAsk<'a> {
+    pub(crate) masses: &'a [f32],
+    pub(crate) tear_resistance: &'a [crate::properties::EdgeTearResistance],
+    pub(crate) edge_springs: &'a [crate::properties::EdgeSpring],
+    pub(crate) tension_only: crate::properties::TensionOnly,
+    pub(crate) tension_only_edges: &'a [crate::properties::ParticlePair],
+}
+
 /// Read `masses`, `tear_resistance`, `edge_springs` and `tension_only_edges`
 /// against the layout a generator made: an edge is named by the two particles
 /// it joins, and found among the structural edges, then the bending ones.
 pub(crate) fn edge_rows(
-    params: &toml::Value,
+    ask: &EdgeAsk<'_>,
     particles: usize,
     structural: &[[u32; 2]],
     bending: &[[u32; 2]],
 ) -> anyhow::Result<EdgeRows> {
     use crate::vocabulary::keys as k;
-    let masses: Vec<f32> = params
-        .get(k::MASSES)
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(balaur_core::components::as_f64)
-                .map(|m| m as f32)
-                .collect()
-        })
-        .unwrap_or_default();
     anyhow::ensure!(
-        masses.is_empty() || masses.len() == particles,
+        ask.masses.is_empty() || ask.masses.len() == particles,
         "{} names {} masses and the body has {particles} particles",
         k::MASSES,
-        masses.len()
+        ask.masses.len()
     );
     let find = |edges: &[[u32; 2]], a: u32, b: u32| {
         edges
             .iter()
             .position(|e| (e[0] == a && e[1] == b) || (e[0] == b && e[1] == a))
     };
-    let joined = |row: &toml::Value| -> anyhow::Result<(u32, u32)> {
-        let end = |key: &str| {
-            row.get(key)
-                .and_then(toml::Value::as_integer)
-                .and_then(|i| u32::try_from(i).ok())
-        };
-        match (end(k::A), end(k::B)) {
-            (Some(a), Some(b)) => Ok((a, b)),
-            _ => anyhow::bail!(
+    let edge = |first: i64, second: i64| -> anyhow::Result<u32> {
+        let (Ok(a), Ok(b)) = (u32::try_from(first), u32::try_from(second)) else {
+            anyhow::bail!(
                 "an edge row names its two particles as {} and {}",
                 k::A,
                 k::B
-            ),
-        }
-    };
-    let rows = |key: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .cloned()
-            .unwrap_or_default()
-    };
-    let number = |row: &toml::Value, key: &str, default: f64| {
-        row.get(key)
-            .and_then(balaur_core::components::as_f64)
-            .unwrap_or(default) as f32
-    };
-    let edge = |row: &toml::Value| -> anyhow::Result<u32> {
-        let (a, b) = joined(row)?;
+            );
+        };
         let index = find(structural, a, b)
             .or_else(|| find(bending, a, b).map(|i| structural.len() + i))
             .ok_or_else(|| anyhow::anyhow!("no edge joins particles {a} and {b}"))?;
         Ok(index as u32)
     };
     let mut tear = Vec::new();
-    for row in rows(k::TEAR_RESISTANCE) {
-        tear.push((edge(&row)?, number(&row, k::RESISTANCE, 1.0)));
+    for row in ask.tear_resistance {
+        tear.push((edge(row.first, row.second)?, row.resistance));
     }
     let mut springs = Vec::new();
-    for row in rows(k::EDGE_SPRINGS) {
-        springs.push((
-            edge(&row)?,
-            number(&row, k::HZ, 30.0),
-            number(&row, k::DAMPING, 1.0),
-        ));
+    for row in ask.edge_springs {
+        springs.push((edge(row.first, row.second)?, row.hz, row.damping));
     }
     let mut tension_only = Vec::new();
-    if tension(params) == Tension::Listed {
-        for row in rows(k::TENSION_ONLY_EDGES) {
-            tension_only.push(edge(&row)?);
+    if ask.tension_only == crate::properties::TensionOnly::Listed {
+        for row in ask.tension_only_edges {
+            tension_only.push(edge(row.first, row.second)?);
         }
     }
     Ok(EdgeRows {
-        masses,
+        masses: ask.masses.to_vec(),
         tear,
         springs,
         tension_only,
     })
-}
-
-/// What `tension_only` says of the body's edges.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Tension {
-    None,
-    All,
-    Listed,
-}
-
-pub(crate) fn tension(params: &toml::Value) -> Tension {
-    use crate::vocabulary::{self as v, keys as k, words as w};
-    match v::text(params, k::TENSION_ONLY, w::NONE) {
-        w::ALL => Tension::All,
-        w::LISTED => Tension::Listed,
-        _ => Tension::None,
-    }
 }
 
 /// One `regions` entry: a part of the body with a material of its own.
@@ -609,31 +523,19 @@ pub(crate) struct Region {
 
 /// The `regions` list, every particle checked against the `particles` the
 /// body was built with.
-pub(crate) fn read_regions(params: &toml::Value, particles: usize) -> anyhow::Result<Vec<Region>> {
+pub(crate) fn read_regions(
+    regions: &[crate::properties::SoftRegion],
+    particles: usize,
+) -> anyhow::Result<Vec<Region>> {
     use crate::vocabulary::keys as k;
-    let Some(rows) = params.get(k::REGIONS).and_then(toml::Value::as_array) else {
-        return Ok(Vec::new());
-    };
-    let number = |row: &toml::Value, key: &str| {
-        row.get(key)
-            .and_then(balaur_core::components::as_f64)
-            .map_or(0.0, |n| n as f32)
-    };
-    let flag =
-        |row: &toml::Value, key: &str| row.get(key).and_then(toml::Value::as_bool) == Some(true);
-    rows.iter()
+    regions
+        .iter()
         .map(|row| {
-            let listed = row.get(k::PARTICLES).and_then(toml::Value::as_array);
-            let indices: Option<Vec<u32>> = listed.map_or(Some(Vec::new()), |items| {
-                items
-                    .iter()
-                    .map(|item| {
-                        item.as_integer()
-                            .and_then(|i| u32::try_from(i).ok())
-                            .filter(|i| (*i as usize) < particles)
-                    })
-                    .collect()
-            });
+            let indices: Option<Vec<u32>> = row
+                .particles
+                .iter()
+                .map(|i| u32::try_from(*i).ok().filter(|i| (*i as usize) < particles))
+                .collect();
             let indices = indices.filter(|found| !found.is_empty()).ok_or_else(|| {
                 anyhow::anyhow!(
                     "every `{}` entry lists its `{}`, each below the {particles} the body has",
@@ -641,14 +543,13 @@ pub(crate) fn read_regions(params: &toml::Value, particles: usize) -> anyhow::Re
                     k::PARTICLES
                 )
             })?;
-            let hz = number(row, k::HZ);
             Ok(Region {
                 particles: indices,
-                stiffness_scale: number(row, k::STIFFNESS_SCALE).max(0.0),
-                tear_resistance: number(row, k::TEAR_RESISTANCE).max(0.0),
-                shape_matching: flag(row, k::SHAPE_MATCHING),
-                pinned: flag(row, k::PINNED),
-                springs: (hz > 0.0).then(|| (hz, number(row, k::DAMPING).max(0.0))),
+                stiffness_scale: row.stiffness_scale.max(0.0),
+                tear_resistance: row.tear_resistance.max(0.0),
+                shape_matching: row.shape_matching,
+                pinned: row.pinned,
+                springs: (row.hz > 0.0).then(|| (row.hz, row.damping.max(0.0))),
             })
         })
         .collect()
@@ -659,16 +560,24 @@ pub(crate) type Mesh<V> = (Vec<V>, Vec<[u32; 3]>);
 
 /// How a `collision_mesh` is bound, before its particle list is known.
 macro_rules! collision_mesh {
-    (rapier = $rapier:ident, bind = $bind:ident, shape = $shape:expr) => {
+    (
+        rapier = $rapier:ident,
+        body = $body:ty,
+        collision = $collision:ty,
+        bind = $bind:ident,
+        shape = $shape:expr
+    ) => {
         /// Put `mesh`, in world space, on the body's whole-body cluster as a
         /// deformable collider.
         fn $bind(
             world: &mut crate::$rapier::prelude::PhysicsWorld,
             handle: crate::$rapier::prelude::SoftBodyHandle,
-            params: &toml::Value,
+            asked: &$body,
+            collision: &$collision,
             mesh: Option<cap::Mesh<crate::$rapier::math::Vector>>,
             materials: &cap::Materials,
         ) -> anyhow::Result<()> {
+            use crate::properties::Binding;
             use crate::$rapier::dynamics::SoftMeshBinding;
             let Some((vertices, indices)) = mesh else {
                 return Ok(());
@@ -684,19 +593,15 @@ macro_rules! collision_mesh {
                 .ok_or_else(|| anyhow::anyhow!("the soft body's cluster has no body"))?
                 .position();
             let count = vertices.len() as u32;
-            let mut collider = surface_collider(params, &materials.surface);
+            let mut collider = surface_collider(asked, &materials.surface);
             collider.shape = $shape(vertices, indices)?;
             let collider = collider.position(frame.inverse());
-            let binding = match v::text(params, k::COLLISION_BINDING, w::NEAREST) {
-                w::BIND_PARTICLES => SoftMeshBinding::direct((0..count).collect()),
-                w::BIND_CELLS => SoftMeshBinding::skinned(),
-                _ => SoftMeshBinding::direct_by_position(crate::scalar::real(v::f(
-                    params,
-                    k::COLLISION_BINDING_DISTANCE,
-                    0.01,
-                ))),
+            let binding = match &collision.collision_binding {
+                Binding::Particles => SoftMeshBinding::direct((0..count).collect()),
+                Binding::Cells => SoftMeshBinding::skinned(),
+                Binding::Nearest(near) => SoftMeshBinding::direct_by_position(near.distance),
             }
-            .self_contacts(v::boolean(params, k::COLLISION_SELF_CONTACTS, false));
+            .self_contacts(collision.collision_self_contacts);
             world
                 .insert_deformable(collider, binding, proxy)
                 .map_err(|why| anyhow::anyhow!("`{}`: {why}", k::COLLISION_MESH))?;
@@ -713,13 +618,13 @@ macro_rules! regions {
         fn $add(
             world: &mut crate::$rapier::prelude::PhysicsWorld,
             handle: crate::$rapier::prelude::SoftBodyHandle,
-            params: &toml::Value,
+            regions: &[crate::properties::SoftRegion],
         ) -> anyhow::Result<()> {
             let count = world
                 .soft_bodies
                 .get(handle)
                 .map_or(0, |body| body.num_particles());
-            for region in cap::read_regions(params, count)? {
+            for region in cap::read_regions(regions, count)? {
                 let Some(i) = world.soft_bodies.add_cluster(
                     handle,
                     &region.particles,
@@ -731,16 +636,15 @@ macro_rules! regions {
                 let Some(body) = world.soft_bodies.get_mut(handle) else {
                     break;
                 };
-                body.set_cluster_stiffness_scale(i, crate::scalar::real(region.stiffness_scale));
-                body.set_cluster_tear_resistance(i, crate::scalar::real(region.tear_resistance));
+                body.set_cluster_stiffness_scale(i, region.stiffness_scale);
+                body.set_cluster_tear_resistance(i, region.tear_resistance);
                 body.enable_cluster_shape_matching(i, region.shape_matching);
                 body.set_cluster_pinned(i, region.pinned);
                 if let Some((hz, damping)) = region.springs {
                     body.set_cluster_edge_softness(
                         i,
                         Some(crate::$rapier::prelude::SpringCoefficients::new(
-                            crate::scalar::real(hz),
-                            crate::scalar::real(damping),
+                            hz, damping,
                         )),
                     );
                 }
@@ -752,56 +656,30 @@ macro_rules! regions {
 pub(crate) use regions;
 
 /// The particle pairs `seams` sews together with new structural edges.
-pub(crate) fn seams(params: &toml::Value, particles: usize) -> anyhow::Result<Vec<[u32; 2]>> {
-    tuples::<2>(params, crate::vocabulary::keys::SEAMS, particles)
+pub(crate) fn seams(
+    pairs: &[crate::properties::ParticlePair],
+    particles: usize,
+) -> anyhow::Result<Vec<[u32; 2]>> {
+    let rows: Vec<Vec<i64>> = pairs
+        .iter()
+        .map(|pair| vec![pair.first, pair.second])
+        .collect();
+    tuples::<2>(&rows, crate::vocabulary::keys::SEAMS, particles)
 }
 
-/// The vectors a list-of-vectors property holds; an entry that is not `N`
-/// numbers is skipped.
-pub(crate) fn points<const N: usize>(params: &toml::Value, key: &str) -> Vec<[f32; N]> {
-    let Some(rows) = params.get(key).and_then(toml::Value::as_array) else {
-        return Vec::new();
-    };
-    rows.iter()
-        .filter_map(|row| {
-            let numbers: Vec<f32> = row
-                .as_array()?
-                .iter()
-                .map(|n| balaur_core::components::as_f64(n).map(|n| n as f32))
-                .collect::<Option<_>>()?;
-            <[f32; N]>::try_from(numbers).ok()
-        })
-        .collect()
-}
-
-/// A list of index tuples, each entry a list of `N` particle indices or a
-/// record `{ a, b }` when `N` is 2, every index checked against `particles`.
+/// A list of index tuples, each entry `N` particle indices, every index
+/// checked against `particles`.
 pub(crate) fn tuples<const N: usize>(
-    params: &toml::Value,
+    rows: &[Vec<i64>],
     key: &str,
     particles: usize,
 ) -> anyhow::Result<Vec<[u32; N]>> {
-    use crate::vocabulary::keys as k;
-    let Some(rows) = params.get(key).and_then(toml::Value::as_array) else {
-        return Ok(Vec::new());
-    };
-    let index = |value: Option<&toml::Value>| {
-        value
-            .and_then(toml::Value::as_integer)
-            .and_then(|i| u32::try_from(i).ok())
-            .filter(|i| (*i as usize) < particles)
-    };
+    let index = |i: i64| u32::try_from(i).ok().filter(|i| (*i as usize) < particles);
     rows.iter()
         .map(|row| {
-            let read: Option<Vec<u32>> = match row {
-                toml::Value::Array(items) if items.len() == N => {
-                    items.iter().map(|item| index(Some(item))).collect()
-                }
-                toml::Value::Table(_) if N == 2 => {
-                    [k::A, k::B].iter().map(|end| index(row.get(*end))).collect()
-                }
-                _ => None,
-            };
+            let read: Option<Vec<u32>> = (row.len() == N)
+                .then(|| row.iter().map(|i| index(*i)).collect())
+                .flatten();
             read.and_then(|found| <[u32; N]>::try_from(found).ok())
                 .ok_or_else(|| {
                     anyhow::anyhow!(

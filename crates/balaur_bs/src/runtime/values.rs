@@ -3,6 +3,7 @@
 
 use super::engine::Raw;
 use crate::{Meta, Ty};
+use smol_str::SmolStr;
 
 /// A script value as the host sees it.
 #[derive(Clone, Debug, PartialEq)]
@@ -14,10 +15,15 @@ pub enum Value {
     Node(i64),
     Str(String),
     Array(Vec<Value>),
-    /// The struct's name, then its fields in declaration order.
-    Struct(String, Vec<(String, Value)>),
+    /// The struct's name, then its fields in declaration order. Names are
+    /// short and repeated, so they are held inline and copied without an
+    /// allocation.
+    Struct(SmolStr, Vec<(SmolStr, Value)>),
     /// What an `any` holds when it is a map: keys in the order they came.
-    Map(Vec<(String, Value)>),
+    Map(Vec<(SmolStr, Value)>),
+    /// One of the engine's vectors as a binding answers it: its numbers in
+    /// field order, for the struct the call returns, with nothing to allocate.
+    Vector([f64; 4]),
 }
 
 impl Value {
@@ -32,6 +38,8 @@ impl Value {
 /// Something module memory can be read from: a live instance, or a copy.
 pub(crate) trait Reader {
     fn bytes(&self, at: usize, len: usize) -> Vec<u8>;
+    /// `out.len()` bytes at `at` into `out`, allocating nothing.
+    fn fill(&self, at: usize, out: &mut [u8]);
 }
 
 impl Reader for [u8] {
@@ -39,21 +47,20 @@ impl Reader for [u8] {
         self.get(at..at + len)
             .map_or_else(|| vec![0; len], <[u8]>::to_vec)
     }
+    fn fill(&self, at: usize, out: &mut [u8]) {
+        super::engine::copy_from(self, at, out);
+    }
 }
 
 pub(crate) fn rd32(r: &(impl Reader + ?Sized), at: usize) -> u32 {
-    u32::from_le_bytes(
-        r.bytes(at, 4)
-            .try_into()
-            .expect("bytes(at, 4) is four bytes"),
-    )
+    let mut word = [0; 4];
+    r.fill(at, &mut word);
+    u32::from_le_bytes(word)
 }
 pub(crate) fn rd64(r: &(impl Reader + ?Sized), at: usize) -> u64 {
-    u64::from_le_bytes(
-        r.bytes(at, 8)
-            .try_into()
-            .expect("bytes(at, 8) is eight bytes"),
-    )
+    let mut word = [0; 8];
+    r.fill(at, &mut word);
+    u64::from_le_bytes(word)
 }
 
 /// The float in `bits`, as a module hands it out. A NaN's sign and payload
@@ -169,17 +176,18 @@ pub(crate) fn read_value(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, at: u
                 .map(|(n, t)| {
                     let v = read_value(meta, m, t, off);
                     off += 8 * width(meta, t);
-                    (n.clone(), v)
+                    (SmolStr::new(n), v)
                 })
                 .collect();
-            Value::Struct(s.clone(), values)
+            Value::Struct(SmolStr::new(s), values)
         }
     }
 }
 
 thread_local! {
-    /// The objects being read, outermost first: scripts that hold each other
-    /// make a cycle, and an object met again inside itself reads as nil.
+    /// The objects and `any` cells being read, outermost first: scripts that
+    /// hold each other, or a map holding itself, make a cycle, and one met
+    /// again inside itself reads as nil.
     static READING: std::cell::RefCell<Vec<usize>> = const { std::cell::RefCell::new(vec![]) };
 }
 
@@ -196,11 +204,11 @@ pub(crate) fn read_object(meta: &Meta, m: &(impl Reader + ?Sized), s: &str, p: u
         .map(|(n, t)| {
             let v = read_value(meta, m, t, off);
             off += 8 * width(meta, t);
-            (n.clone(), v)
+            (SmolStr::new(n), v)
         })
         .collect();
     READING.with(|reading| reading.borrow_mut().pop());
-    Value::Struct(s.to_string(), values)
+    Value::Struct(SmolStr::new(s), values)
 }
 
 pub(crate) fn read_str(m: &(impl Reader + ?Sized), p: usize) -> Value {
@@ -208,7 +216,10 @@ pub(crate) fn read_str(m: &(impl Reader + ?Sized), p: usize) -> Value {
         return Value::Str(String::new());
     }
     let len = rd32(m, p + 4) as usize;
-    Value::Str(String::from_utf8_lossy(&m.bytes(p + 8, len)).into_owned())
+    Value::Str(
+        String::from_utf8(m.bytes(p + 8, len))
+            .unwrap_or_else(|bad| String::from_utf8_lossy(bad.as_bytes()).into_owned()),
+    )
 }
 
 /// What the `any` cell at `p` holds; nil is `Void`.
@@ -224,17 +235,25 @@ pub(crate) fn read_any(meta: &Meta, m: &(impl Reader + ?Sized), p: usize) -> Val
         NODE => Value::Node(rd64(m, at) as i64),
         FLOAT => Value::Float(float(rd64(m, at))),
         STR => read_str(m, rd32(m, at) as usize),
-        LIST => read_array(meta, m, &Ty::Any, rd32(m, at) as usize),
+        LIST | MAP if READING.with(|reading| reading.borrow().contains(&p)) => Value::Void,
+        LIST => {
+            READING.with(|reading| reading.borrow_mut().push(p));
+            let items = read_array(meta, m, &Ty::Any, rd32(m, at) as usize);
+            READING.with(|reading| reading.borrow_mut().pop());
+            items
+        }
         MAP => {
+            READING.with(|reading| reading.borrow_mut().push(p));
             let keys = read_array(meta, m, &Ty::Str, rd32(m, at) as usize);
             let values = read_array(meta, m, &Ty::Any, rd32(m, at + 4) as usize);
+            READING.with(|reading| reading.borrow_mut().pop());
             match (keys, values) {
                 (Value::Array(k), Value::Array(v)) => Value::Map(
                     k.into_iter()
                         .zip(v)
                         .map(|(k, v)| match k {
-                            Value::Str(k) => (k, v),
-                            _ => (String::new(), v),
+                            Value::Str(k) => (SmolStr::from(k), v),
+                            _ => (SmolStr::default(), v),
                         })
                         .collect(),
                 ),
@@ -253,15 +272,20 @@ pub(crate) fn any_cell<E>(
 ) -> Result<Option<(i32, u64)>, E> {
     use crate::anys::{BOOL, FLOAT, INT, LIST, MAP, NODE, STR};
     let list = Ty::Array(Box::new(Ty::Any));
-    let map = |heap: &mut dyn FnMut(&Ty, &Value) -> Result<u32, E>, entries: &[(String, Value)]| {
-        let keys = entries.iter().map(|(k, _)| Value::Str(k.clone())).collect();
+    let map = |heap: &mut dyn FnMut(&Ty, &Value) -> Result<u32, E>,
+               entries: &[(SmolStr, Value)]| {
+        let keys = entries
+            .iter()
+            .map(|(k, _)| Value::Str(k.to_string()))
+            .collect();
         let values = entries.iter().map(|(_, v)| v.clone()).collect();
         let k = heap(&Ty::Array(Box::new(Ty::Str)), &Value::Array(keys))?;
         let v = heap(&list, &Value::Array(values))?;
         Ok((MAP, u64::from(k) | (u64::from(v) << 32)))
     };
     Ok(Some(match v {
-        Value::Void => return Ok(None),
+        // A binding answers a vector only for a struct, never for an `any`.
+        Value::Void | Value::Vector(_) => return Ok(None),
         Value::Bool(b) => (BOOL, u64::from(*b)),
         Value::Int(x) => (INT, *x as u64),
         Value::Node(x) => (NODE, *x as u64),
@@ -329,10 +353,10 @@ pub(crate) fn decode(meta: &Meta, m: &(impl Reader + ?Sized), ty: &Ty, raw: &[Ra
                     let k = width(meta, t);
                     let v = decode(meta, m, t, &raw[at..at + k]);
                     at += k;
-                    (n.clone(), v)
+                    (SmolStr::new(n), v)
                 })
                 .collect();
-            Value::Struct(s.clone(), values)
+            Value::Struct(SmolStr::new(s), values)
         }
     }
 }

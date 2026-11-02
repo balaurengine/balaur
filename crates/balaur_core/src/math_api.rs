@@ -10,7 +10,7 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::Result;
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number};
@@ -139,7 +139,7 @@ pub const MATH_OPS: &[EngineOp] = &[
 ];
 
 /// Declare the module's functions and its constants.
-pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_math_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Deterministic float maths backed by pure-Rust `libm`: the same inputs give the same bits on every platform.",
     );
@@ -149,13 +149,13 @@ pub fn install_math_api(m: &mut dyn Bindings<Engine>) {
         ("tan", &[], "(angle: float) -> float", "The tangent of an angle in radians."),
         ("asin", &[], "(x: float) -> float", "The angle in radians whose sine is the argument, from -PI/2 to PI/2; NaN outside -1..1."),
         ("acos", &[], "(x: float) -> float", "The angle in radians whose cosine is the argument, from 0 to PI; NaN outside -1..1."),
-        ("atan", &[], "(y: float, x: float?) -> float", "The angle in radians whose tangent is the argument; with two arguments, the y-then-x form instead."),
+        ("atan", &[], "(x: float) -> float", "The angle in radians whose tangent is the argument, from -PI/2 to PI/2."),
         ("atan2", &[], "(y: float, x: float) -> float", "The angle in radians from the positive x axis to the point, taking y first and x second."),
         ("sinh", &[], "(x: float) -> float", "The hyperbolic sine."),
         ("cosh", &[], "(x: float) -> float", "The hyperbolic cosine."),
         ("tanh", &[], "(x: float) -> float", "The hyperbolic tangent, between -1 and 1."),
         ("exp", &[], "(power: float) -> float", "e raised to the given power."),
-        ("log", &[], "(x: float, base: float?) -> float", "The natural logarithm, or the logarithm in the base given as a second argument."),
+        ("log", &[], "(x: float) -> float", "The natural logarithm; -INF at zero and NaN below it."),
         ("log10", &[], "(x: float) -> float", "The base-10 logarithm; -INF at zero and NaN below it."),
         ("pow", &[], "(base: float, exponent: float) -> float", "The first argument raised to the power of the second."),
         ("sqrt", &[], "(x: float) -> float", "The square root; NaN for a negative argument."),
@@ -191,11 +191,12 @@ unary! {
     tan => libm::tan,
     asin => libm::asin,
     acos => libm::acos,
-    atan2_of => libm::atan,
+    atan => libm::atan,
     sinh => libm::sinh,
     cosh => libm::cosh,
     tanh => libm::tanh,
     exp => libm::exp,
+    log => libm::log,
     log10 => libm::log10,
     sqrt => libm::sqrt,
     abs => libm::fabs,
@@ -206,25 +207,8 @@ unary! {
     deg => f64::to_degrees,
 }
 
-/// `atan(y)`, or `atan(y, x)` for the two-argument form.
-fn atan(eng: &Engine, args: &[Value]) -> Result<Value> {
-    if args.len() >= 2 {
-        return atan2(eng, args);
-    }
-    atan2_of(eng, args)
-}
-
 fn atan2(_: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Num(libm::atan2(number(args, 0)?, number(args, 1)?)))
-}
-
-/// `log(x)` is the natural log; `log(x, base)` any other.
-fn log(_: &Engine, args: &[Value]) -> Result<Value> {
-    let x = libm::log(number(args, 0)?);
-    Ok(Value::Num(match args.get(1) {
-        Some(Value::Nil) | None => x,
-        Some(_) => x / libm::log(number(args, 1)?),
-    }))
 }
 
 fn pow(_: &Engine, args: &[Value]) -> Result<Value> {

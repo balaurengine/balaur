@@ -53,8 +53,8 @@ fn a_breakpoint_stops_with_the_stack_and_its_variables() {
         seen.borrow_mut().push(p.clone());
         Command::Continue
     });
-    let mut m = rt.object("Mover", &[]).unwrap();
-    rt.call_method(&mut m, "walk", &[Value::Int(2)]).unwrap();
+    let m = rt.object("Mover", &[]).unwrap();
+    rt.call_method(&m, "walk", &[Value::Int(2)]).unwrap();
     let stops = stops.borrow();
     assert_eq!(stops.len(), 2);
     let p = &stops[1];
@@ -99,8 +99,8 @@ fn stepping_over_into_and_out() {
         seen.borrow_mut().push((p.frames[0].func.clone(), p.line));
         plan.next().unwrap_or(Command::Continue)
     });
-    let mut m = rt.object("Mover", &[]).unwrap();
-    rt.call_method(&mut m, "walk", &[Value::Int(1)]).unwrap();
+    let m = rt.object("Mover", &[]).unwrap();
+    rt.call_method(&m, "walk", &[Value::Int(1)]).unwrap();
     let want = [
         ("Mover.walk", 4),
         ("Mover.walk", 5),
@@ -129,9 +129,9 @@ fn a_stop_can_change_a_variable() {
         }
         Command::Continue
     });
-    let mut m = rt.object("Mover", &[]).unwrap();
+    let m = rt.object("Mover", &[]).unwrap();
     assert_eq!(
-        rt.call_method(&mut m, "walk", &[Value::Int(1)]).unwrap(),
+        rt.call_method(&m, "walk", &[Value::Int(1)]).unwrap(),
         Value::Float(100.5)
     );
 }
@@ -220,10 +220,10 @@ mod parked {
     #[test]
     fn a_stop_parks_the_call_until_it_is_resumed() {
         let mut rt = on_wasmi();
-        let mut m = rt.object("Mover", &[]).unwrap();
+        let m = rt.object("Mover", &[]).unwrap();
         rt.debugger().set_breakpoint(5);
         let p = paused(
-            rt.call_method_steppable(&mut m, "walk", &[Value::Int(2)])
+            rt.call_method_steppable(&m, "walk", &[Value::Int(2)])
                 .unwrap(),
         );
         assert_eq!((p.line, p.reason), (5, StopReason::Breakpoint));
@@ -234,10 +234,10 @@ mod parked {
             "ran beside a parked call"
         );
 
-        let p = paused(rt.resume(Command::StepOver, &mut m).unwrap());
+        let p = paused(rt.resume(Command::StepOver).unwrap());
         assert_eq!((p.line, p.reason), (6, StopReason::Step));
         rt.debugger().clear_breakpoint(5);
-        let done = rt.resume(Command::Continue, &mut m).unwrap();
+        let done = rt.resume(Command::Continue).unwrap();
         assert_eq!(done, Step::Done(Value::Float(3.0)));
         assert_eq!(rt.get(&m, "steps"), Some(Value::Int(2)));
         assert!(rt.paused().is_none());
@@ -250,17 +250,17 @@ mod parked {
     #[test]
     fn a_direct_module_parks_and_resumes_as_the_ordinary_one_does() {
         let mut rt = on_wasmi_with(true);
-        let mut m = rt.object("Mover", &[]).unwrap();
+        let m = rt.object("Mover", &[]).unwrap();
         rt.debugger().set_breakpoint(5);
         let p = paused(
-            rt.call_method_steppable(&mut m, "walk", &[Value::Int(2)])
+            rt.call_method_steppable(&m, "walk", &[Value::Int(2)])
                 .unwrap(),
         );
         assert_eq!((p.line, p.reason), (5, StopReason::Breakpoint));
-        let p = paused(rt.resume(Command::StepOver, &mut m).unwrap());
+        let p = paused(rt.resume(Command::StepOver).unwrap());
         assert_eq!((p.line, p.reason), (6, StopReason::Step));
         rt.debugger().clear_breakpoint(5);
-        let done = rt.resume(Command::Continue, &mut m).unwrap();
+        let done = rt.resume(Command::Continue).unwrap();
         assert_eq!(done, Step::Done(Value::Float(3.0)));
         assert_eq!(rt.get(&m, "steps"), Some(Value::Int(2)));
     }
@@ -268,14 +268,14 @@ mod parked {
     #[test]
     fn an_asked_pause_stops_at_the_next_line() {
         let mut rt = on_wasmi();
-        let mut m = rt.object("Mover", &[]).unwrap();
+        let m = rt.object("Mover", &[]).unwrap();
         rt.debugger().pause();
         let p = paused(
-            rt.call_method_steppable(&mut m, "walk", &[Value::Int(1)])
+            rt.call_method_steppable(&m, "walk", &[Value::Int(1)])
                 .unwrap(),
         );
         assert_eq!(p.reason, StopReason::Asked);
-        let done = rt.resume(Command::Continue, &mut m).unwrap();
+        let done = rt.resume(Command::Continue).unwrap();
         assert_eq!(done, Step::Done(Value::Float(0.5)));
     }
 
@@ -310,34 +310,28 @@ impl Guard {
             ..Limits::default()
         };
         let mut rt = Runtime::new(&c, host, limits).unwrap();
-        let mut g = rt.object("Guard", &[]).unwrap();
+        let g = rt.object("Guard", &[]).unwrap();
         rt.debugger().set_breakpoint(7);
         let mut task = rt.start("Guard.patrol", &[Value::Int(2)]).unwrap();
         assert_eq!(
-            rt.poll_steppable(&mut task, Some(&mut g)).unwrap(),
+            rt.poll_steppable(&mut task, Some(&g)).unwrap(),
             Step::Waiting
         );
         rt.advance(1.0);
-        let p = paused(rt.poll_steppable(&mut task, Some(&mut g)).unwrap());
+        let p = paused(rt.poll_steppable(&mut task, Some(&g)).unwrap());
         assert_eq!((p.line, p.frames[0].func.as_str()), (7, "Guard.patrol"));
         assert_eq!(local(&p, 0, "r"), Value::Int(0));
-        assert!(
-            rt.resume(Command::Continue, &mut g).is_err(),
-            "not a method"
-        );
+        assert!(rt.resume(Command::Continue).is_err(), "not a method");
 
-        let p = paused(
-            rt.resume_task(Command::StepOver, &mut task, Some(&mut g))
-                .unwrap(),
-        );
+        let p = paused(rt.resume_task(Command::StepOver, &mut task).unwrap());
         assert_eq!((p.line, p.reason), (5, StopReason::Step));
-        let done = rt.resume_task(Command::Continue, &mut task, Some(&mut g));
+        let done = rt.resume_task(Command::Continue, &mut task);
         assert_eq!(done.unwrap(), Step::Waiting);
         rt.advance(1.0);
-        let p = paused(rt.poll_steppable(&mut task, Some(&mut g)).unwrap());
+        let p = paused(rt.poll_steppable(&mut task, Some(&g)).unwrap());
         assert_eq!(local(&p, 0, "r"), Value::Int(1));
         rt.debugger().clear_breakpoint(7);
-        let done = rt.resume_task(Command::Continue, &mut task, Some(&mut g));
+        let done = rt.resume_task(Command::Continue, &mut task);
         assert_eq!(done.unwrap(), Step::Done(Value::Int(3)));
         assert_eq!(rt.get(&g, "hp"), Some(Value::Int(3)));
         rt.drop_object(g);

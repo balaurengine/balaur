@@ -1,0 +1,557 @@
+//! Export packs: what a shipped game runs from. A pack that does not decode to
+//! what was encoded is a game that does not start.
+
+use balaur_core::Pack;
+use balaur_script::ScriptCompiler;
+
+/// Claims `.txt` and "compiles" by reversing, so the test proves the pack
+/// stores whatever the backend produced rather than the source.
+struct Reversing;
+
+impl ScriptCompiler for Reversing {
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+
+    fn compile(&self, _rel: &str, source: &str) -> anyhow::Result<Vec<u8>> {
+        Ok(source.bytes().rev().collect())
+    }
+}
+
+struct Failing;
+
+impl ScriptCompiler for Failing {
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+
+    fn compile(&self, rel: &str, _source: &str) -> anyhow::Result<Vec<u8>> {
+        Err(anyhow::anyhow!("no good: {rel}"))
+    }
+}
+
+/// Claims `.txt`, and each line `use path` names a file the script links in.
+struct Importing;
+
+impl ScriptCompiler for Importing {
+    fn extensions(&self) -> &[&str] {
+        &["txt"]
+    }
+
+    fn compile(&self, _rel: &str, source: &str) -> anyhow::Result<Vec<u8>> {
+        Ok(source.as_bytes().to_vec())
+    }
+
+    fn uses(&self, _rel: &str, source: &str) -> anyhow::Result<Vec<String>> {
+        Ok(source
+            .lines()
+            .filter_map(|line| line.strip_prefix("use "))
+            .map(str::to_string)
+            .collect())
+    }
+}
+
+fn project() -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("m.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("s.txt"), "abc").unwrap();
+    // A texture that has to travel, and a note that must not.
+    std::fs::create_dir_all(dir.path().join("art")).unwrap();
+    std::fs::write(dir.path().join("art/hero.png"), PNG).unwrap();
+    std::fs::write(dir.path().join("art/notes.md"), "not shippable").unwrap();
+    dir
+}
+
+/// The smallest valid PNG: one transparent pixel.
+const PNG: &[u8] = &[
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+    0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+    0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+    0x42, 0x60, 0x82,
+];
+
+#[test]
+fn a_pack_round_trips_through_bytes() {
+    let dir = project();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    let decoded = Pack::decode(&pack.encode()).unwrap();
+
+    assert_eq!(decoded.manifest, pack.manifest);
+    assert_eq!(decoded.scenes, pack.scenes);
+    assert_eq!(decoded.scripts, pack.scripts);
+    assert_eq!(decoded.assets, pack.assets);
+}
+
+/// The gap this section closes: before it, a shipped game's textures and
+/// sounds stayed behind on the build machine.
+#[test]
+fn binary_assets_travel_inside_the_pack() {
+    let dir = project();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+
+    assert_eq!(
+        pack.assets.get("art/hero.png").map(Vec::as_slice),
+        Some(PNG),
+        "the texture should be in the pack byte for byte"
+    );
+    assert!(
+        !pack.assets.contains_key("art/notes.md"),
+        "only shippable extensions travel"
+    );
+    let decoded = Pack::decode(&pack.encode()).unwrap();
+    assert_eq!(
+        decoded.assets.get("art/hero.png").map(Vec::as_slice),
+        Some(PNG)
+    );
+}
+
+#[test]
+fn a_corrupted_asset_is_caught_by_its_hash() {
+    let dir = project();
+    let mut bytes = balaur_project::packing::build(dir.path(), &Reversing)
+        .unwrap()
+        .encode();
+    // Flip the asset section's last byte: the payload ends on the `api`
+    // section, its count alone (four bytes) for a compiler that keeps none.
+    let last = bytes.len() - 5;
+    bytes[last] ^= 0xff;
+
+    let err = Pack::decode(&bytes).expect_err("a corrupted asset must not decode");
+    assert!(
+        err.to_string().contains("art/hero.png"),
+        "the error should name the file that failed: {err}"
+    );
+}
+
+#[test]
+fn project_files_serve_a_packed_asset_without_touching_disk() {
+    use balaur_core::project::{AssetSource, ProjectFiles};
+    let dir = project();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    // A root that does not exist: anything found had to come from the pack.
+    let files = ProjectFiles::packed(
+        "/nonexistent".into(),
+        pack.assets.clone(),
+        AssetSource::Embedded,
+    );
+
+    assert_eq!(files.read("art/hero.png").unwrap(), PNG);
+    assert_eq!(files.list("art"), vec!["art/hero.png".to_string()]);
+    assert!(files.read("art/missing.png").is_err());
+}
+
+/// The default is strict on purpose: a shipped game that quietly reads the
+/// working directory works on the machine that built it and nowhere else.
+#[test]
+fn an_embedded_game_will_not_read_a_file_beside_it() {
+    use balaur_core::project::{AssetSource, ProjectFiles};
+    let dir = project();
+    // Packed with nothing, pointed at a real directory that has the file.
+    let strict = ProjectFiles::packed(
+        dir.path().to_path_buf(),
+        std::collections::BTreeMap::new(),
+        AssetSource::Embedded,
+    );
+    let err = strict
+        .read("art/hero.png")
+        .expect_err("embedded must not fall through to disk");
+    assert!(
+        err.to_string().contains("embedded_then_files"),
+        "the error should say how to allow it: {err}"
+    );
+
+    let permissive = ProjectFiles::packed(
+        dir.path().to_path_buf(),
+        std::collections::BTreeMap::new(),
+        AssetSource::EmbeddedThenFiles,
+    );
+    assert_eq!(
+        permissive.read("art/hero.png").unwrap(),
+        PNG,
+        "embedded_then_files falls through to the directory"
+    );
+}
+
+/// A missing asset has to say where it looked; "not found" alone is the least
+/// useful sentence a shipped game can print.
+#[test]
+fn a_missing_asset_names_where_it_looked() {
+    use balaur_core::project::{AssetSource, ProjectFiles};
+    let files = ProjectFiles::packed(
+        "/some/root".into(),
+        std::collections::BTreeMap::new(),
+        AssetSource::EmbeddedThenFiles,
+    );
+    let err = files.read("art/gone.png").unwrap_err().to_string();
+    assert!(err.contains("art/gone.png"), "names the asset: {err}");
+    assert!(err.contains("/some/root"), "names the directory: {err}");
+}
+
+#[test]
+fn the_backend_decides_what_a_script_compiles_to() {
+    let dir = project();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    assert_eq!(
+        pack.scripts.get("s.txt").map(Vec::as_slice),
+        Some(b"cba".as_slice())
+    );
+}
+
+/// A face's licence travels with it, and a text file anywhere else does not.
+#[test]
+fn a_font_s_licence_ships_beside_it() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("fonts")).unwrap();
+    std::fs::write(dir.path().join("fonts/Inter.ttc"), b"face").unwrap();
+    std::fs::write(
+        dir.path().join("fonts/Inter.OFL.txt"),
+        "SIL Open Font License",
+    )
+    .unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    assert!(
+        pack.assets.contains_key("fonts/Inter.ttc"),
+        "a collection is a face"
+    );
+    assert!(pack.assets.contains_key("fonts/Inter.OFL.txt"));
+    assert!(!pack.assets.contains_key("s.txt"));
+}
+
+#[test]
+fn unclaimed_extensions_are_left_alone() {
+    let dir = project();
+    std::fs::write(dir.path().join("readme.md"), "hello").unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    assert!(!pack.scripts.contains_key("readme.md"));
+    assert!(!pack.scenes.contains_key("readme.md"));
+}
+
+#[test]
+fn scenes_are_gathered_but_the_manifest_is_not_one_of_them() {
+    let dir = project();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    assert!(pack.scenes.contains_key("m.toml"));
+    assert!(!pack.scenes.contains_key("project.toml"));
+    assert!(pack.manifest.contains("name = \"p\""));
+}
+
+#[test]
+fn a_compile_error_fails_the_build() {
+    let dir = project();
+    let err = balaur_project::packing::build(dir.path(), &Failing).unwrap_err();
+    assert!(err.to_string().contains("no good"), "unhelpful: {err}");
+}
+
+#[test]
+fn every_script_that_fails_to_compile_is_named_not_only_the_first() {
+    let dir = project();
+    std::fs::write(dir.path().join("b.txt"), "second").unwrap();
+    let err = balaur_project::packing::build(dir.path(), &Failing)
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("2 script(s) did not compile"), "{err}");
+    assert!(err.contains("no good: b.txt"), "{err}");
+}
+
+#[test]
+fn a_project_without_a_manifest_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    assert!(balaur_project::packing::build(dir.path(), &Reversing).is_err());
+}
+
+#[test]
+fn truncated_or_foreign_bytes_do_not_decode() {
+    let dir = project();
+    let bytes = balaur_project::packing::build(dir.path(), &Reversing)
+        .unwrap()
+        .encode();
+    assert!(Pack::decode(&bytes[..bytes.len() / 2]).is_err());
+    assert!(Pack::decode(b"not a pack at all").is_err());
+    assert!(Pack::decode(&[]).is_err());
+}
+
+/// Shipping the same sources twice must produce the same bytes, on any machine
+/// that builds them. `encode` walks the scene and script maps, so a hashed map
+/// would leak its iteration order into the file: before this was an ordered
+/// map, ten exports of a three-script project produced five different files.
+///
+/// Insertion order is the lever a hashed map would react to, so the two packs
+/// here are filled in opposite orders.
+#[test]
+fn a_pack_encodes_the_same_whatever_order_it_was_filled_in() {
+    let entries = ["a.toml", "m.toml", "z.toml", "b.toml", "q.toml"];
+    let mut forward = Pack {
+        manifest: "name = \"p\"\n".into(),
+        ..Default::default()
+    };
+    let mut backward = forward.clone();
+    for name in entries {
+        forward.scenes.insert((*name).into(), name.to_uppercase());
+        forward
+            .scripts
+            .insert((*name).into(), name.as_bytes().into());
+    }
+    for name in entries.iter().rev() {
+        backward.scenes.insert((*name).into(), name.to_uppercase());
+        backward
+            .scripts
+            .insert((*name).into(), name.as_bytes().into());
+    }
+    assert_eq!(
+        forward.encode(),
+        backward.encode(),
+        "pack bytes depend on the order entries were added"
+    );
+}
+
+#[test]
+fn a_pack_writes_its_entries_in_sorted_order() {
+    let mut pack = Pack {
+        manifest: "name = \"p\"\n".into(),
+        ..Default::default()
+    };
+    for name in ["z.txt", "a.txt", "m.txt"] {
+        pack.scripts.insert(name.into(), name.as_bytes().into());
+    }
+    let bytes = pack.encode();
+    let positions: Vec<_> = ["a.txt", "m.txt", "z.txt"]
+        .iter()
+        .map(|n| {
+            bytes
+                .windows(n.len())
+                .position(|w| w == n.as_bytes())
+                .expect("every key is in the encoding")
+        })
+        .collect();
+    let mut sorted = positions.clone();
+    sorted.sort_unstable();
+    assert_eq!(positions, sorted, "keys are not written in sorted order");
+}
+
+/// The builder reads through the file backend, which is what lets a browser
+/// export a project it only ever held in memory.
+///
+/// On a thread of its own: the default backend is thread-local, and no other
+/// test in this binary may find a memory filesystem where the disk should be.
+#[test]
+fn a_pack_builds_from_a_project_the_backend_holds_in_memory() {
+    std::thread::spawn(|| {
+        let root = std::path::Path::new("/project");
+        let fs = std::rc::Rc::new(balaur_core::files::MemoryFs::new());
+        fs.seed(
+            root,
+            [
+                (
+                    "project.toml".to_string(),
+                    b"[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n".to_vec(),
+                ),
+                (
+                    "m.toml".to_string(),
+                    b"[[nodes]]\nid = \"n\"\nname = \"Root\"\n".to_vec(),
+                ),
+                ("s.txt".to_string(), b"abc".to_vec()),
+                ("art/hero.png".to_string(), PNG.to_vec()),
+                ("art/notes.md".to_string(), b"not shippable".to_vec()),
+            ],
+        );
+        balaur_core::files::set_default(fs);
+        let pack = balaur_project::packing::build(root, &Reversing).unwrap();
+        assert!(pack.manifest.contains("name = \"p\""), "{}", pack.manifest);
+        assert_eq!(
+            pack.scripts.get("s.txt").map(Vec::as_slice),
+            Some(b"cba".as_slice()),
+            "the compiler's output, not the source"
+        );
+        assert!(pack.scenes.contains_key("m.toml"), "no scene in the pack");
+        assert_eq!(
+            pack.assets.get("art/hero.png").map(Vec::as_slice),
+            Some(PNG),
+            "no texture in the pack"
+        );
+        assert!(
+            !pack.assets.contains_key("art/notes.md"),
+            "a note is not shippable"
+        );
+    })
+    .join()
+    .unwrap();
+}
+
+/// `application/ignore`: work in progress beside the art it came from stays
+/// out of the shipped pack, folder and file pattern alike.
+#[test]
+fn a_pack_leaves_out_what_the_project_ignores() {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\nignore = [\"art/wip/**\", \"**/*.blend1\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("art/wip")).unwrap();
+    std::fs::write(dir.path().join("art/wip/sketch.png"), PNG).unwrap();
+    std::fs::write(dir.path().join("art/hero.blend1"), "backup").unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    let held: Vec<&String> = pack.assets.keys().chain(pack.scenes.keys()).collect();
+    assert!(
+        held.iter().any(|path| path.as_str() == "art/hero.png"),
+        "the art itself still travels: {held:?}"
+    );
+    assert!(
+        !held.iter().any(|path| path.starts_with("art/wip")),
+        "an ignored folder is not shipped: {held:?}"
+    );
+    assert!(
+        !held.iter().any(|path| path.ends_with(".blend1")),
+        "nor a file the pattern names: {held:?}"
+    );
+}
+
+/// A project ignoring `addons/gamend/**`, whose shipped script `s.txt`
+/// writes `script`, and an ignored module beside it.
+fn ignoring_a_module(script: &str) -> tempfile::TempDir {
+    let dir = project();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\nignore = [\"art/wip/**\", \"addons/gamend/**\"]\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("addons/gamend")).unwrap();
+    std::fs::write(dir.path().join("addons/gamend/prefs.txt"), "prefs").unwrap();
+    std::fs::write(dir.path().join("s.txt"), script).unwrap();
+    dir
+}
+
+/// A script compiles against the project, where an ignored module is still
+/// on disk; the shipped game looks for it in the pack and fails on its
+/// first `use`. The build names the script, the module and the pattern.
+#[test]
+fn a_shipped_script_that_uses_an_ignored_module_fails_the_build() {
+    let dir = ignoring_a_module("use addons/gamend/prefs.txt\n");
+    let err = balaur_project::packing::build(dir.path(), &Importing)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("s.txt uses addons/gamend/prefs.txt"),
+        "the script and its module are named: {err}"
+    );
+    assert!(
+        err.contains("\"addons/gamend/**\""),
+        "so is the pattern: {err}"
+    );
+}
+
+#[test]
+fn a_script_left_out_with_the_module_it_uses_builds() {
+    let dir = ignoring_a_module("use lib.txt\n");
+    std::fs::write(dir.path().join("lib.txt"), "shipped").unwrap();
+    std::fs::create_dir_all(dir.path().join("art/wip")).unwrap();
+    std::fs::write(
+        dir.path().join("art/wip/sketch.txt"),
+        "use addons/gamend/prefs.txt\n",
+    )
+    .unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Importing).unwrap();
+    assert!(pack.scripts.contains_key("lib.txt"));
+    assert!(!pack.scripts.contains_key("art/wip/sketch.txt"));
+}
+
+#[test]
+fn a_pack_carries_the_json_and_csv_a_game_reads_at_run_time() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("data")).unwrap();
+    std::fs::write(dir.path().join("data/levels.json"), "{\"first\": 1}").unwrap();
+    std::fs::write(dir.path().join("data/words.csv"), "en,ro\nsea,mare\n").unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    assert_eq!(
+        pack.assets.get("data/levels.json").map(Vec::as_slice),
+        Some(&b"{\"first\": 1}"[..])
+    );
+    assert!(
+        pack.assets.contains_key("data/words.csv"),
+        "{:?}",
+        pack.assets.keys()
+    );
+}
+
+/// A nested project's scripts are its own: `editor/library` is a project, and
+/// its `addons/<name>/<file>.bs` resolve only when mounted at *its* root.
+#[test]
+fn a_nested_projects_scripts_ship_as_source() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("library")).unwrap();
+    std::fs::write(
+        dir.path().join("library/project.toml"),
+        "[application]\nname = \"lib\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("library/s.txt"), "abc").unwrap();
+
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+
+    assert_eq!(
+        pack.scripts.get("s.txt").map(Vec::as_slice),
+        Some(&b"cba"[..]),
+        "this project's own script is still compiled"
+    );
+    assert_eq!(
+        pack.scripts.get("library/s.txt").map(Vec::as_slice),
+        Some(&b"abc"[..]),
+        "the nested one travels verbatim, for copying into a new project"
+    );
+}
+
+/// And it is never handed to the compiler at all, so an import that only
+/// resolves at the nested root cannot fail this project's export.
+#[test]
+fn a_nested_projects_scripts_are_not_compiled() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"p\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("m.toml"),
+        "[[nodes]]\nid = \"n\"\nname = \"Root\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.path().join("library")).unwrap();
+    std::fs::write(
+        dir.path().join("library/project.toml"),
+        "[application]\nname = \"lib\"\nmain_scene = \"m.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("library/s.txt"), "abc").unwrap();
+
+    let pack = balaur_project::packing::build(dir.path(), &Failing)
+        .expect("the nested script is not compiled");
+
+    assert_eq!(
+        pack.scripts.get("library/s.txt").map(Vec::as_slice),
+        Some(&b"abc"[..])
+    );
+}
+
+#[test]
+fn a_pack_leaves_out_a_projects_tests() {
+    let dir = project();
+    std::fs::create_dir_all(dir.path().join("tests/shots")).unwrap();
+    std::fs::write(dir.path().join("tests/shots/one.png"), PNG).unwrap();
+    std::fs::write(dir.path().join("tests/smoke.toml"), "[[nodes]]\n").unwrap();
+    let pack = balaur_project::packing::build(dir.path(), &Reversing).unwrap();
+    let held: Vec<&String> = pack.assets.keys().chain(pack.scenes.keys()).collect();
+    assert!(
+        !held.iter().any(|path| path.starts_with("tests/")),
+        "`balaur test` owns that folder: {held:?}"
+    );
+}

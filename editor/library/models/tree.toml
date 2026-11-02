@@ -11,9 +11,7 @@ parent = "Tree"
 position = [0, 1.1, 0]
 
 [nodes.shape3d]
-kind = "cone"
-radius = 0.16
-height = 2.2
+shape = { kind = "cone", radius = 0.16, height = 2.2 }
 color = "#6b4f34"
 
 [[nodes]]
@@ -24,8 +22,7 @@ parent = "Tree"
 position = [0.12, 2.0, -0.08]
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.78
+shape = { kind = "sphere", radius = 0.78 }
 color = "#3f6b3a"
 
 [[nodes]]
@@ -36,6 +33,5 @@ parent = "Tree"
 position = [-0.1, 2.62, 0.06]
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.56
+shape = { kind = "sphere", radius = 0.56 }
 color = "#4b7d42"

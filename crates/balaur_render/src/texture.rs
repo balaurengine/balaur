@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 ///
 /// Not a decode: a scene full of sprites would pay for every one at load.
 pub(crate) fn image_size(bytes: &[u8], name: &str, settings: &toml::Table) -> Result<(u32, u32)> {
-    balaur_core::pixels::size(bytes, settings)
+    balaur_asset::pixels::size(bytes, settings)
         .map_err(|why| anyhow!("reading the size of {name}: {why}"))
 }
 
@@ -53,7 +53,7 @@ pub(crate) fn size_of(eng: &crate::Engine, reference: &str) -> Result<(u32, u32)
     }
     // A smaller copy shipped in the file's place still measures as the size
     // it was drawn at; only the upload needs the pixels actually there.
-    let source = balaur_core::texture_asset::source(eng, reference)?;
+    let source = balaur_asset::texture_asset::source(eng, reference)?;
     let size = match balaur_core::import::drawn_size(eng, &source.path) {
         Some(drawn) => drawn,
         None => shipped_size_of(eng, reference)?,
@@ -66,7 +66,7 @@ pub(crate) fn size_of(eng: &crate::Engine, reference: &str) -> Result<(u32, u32)
 /// nothing: its `pixels_per_unit` import setting, else the engine's 100.
 pub(crate) fn pixels_per_unit(eng: &crate::Engine, reference: &str) -> f32 {
     let fallback = crate::DEFAULT_PIXELS_PER_UNIT;
-    let Ok(source) = balaur_core::texture_asset::source(eng, reference) else {
+    let Ok(source) = balaur_asset::texture_asset::source(eng, reference) else {
         return fallback;
     };
     let key = balaur_core::import::keys::PIXELS_PER_UNIT;
@@ -83,7 +83,7 @@ pub(crate) fn shipped_size_of(eng: &crate::Engine, reference: &str) -> Result<(u
     if let Some(size) = cache.borrow().shipped.get(reference) {
         return Ok(*size);
     }
-    let source = balaur_core::texture_asset::source(eng, reference)?;
+    let source = balaur_asset::texture_asset::source(eng, reference)?;
     let bytes = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
@@ -126,11 +126,10 @@ pub(crate) fn upload_name(path: &str, stamp: Option<f64>, settings: &str) -> Str
 /// naming one premultiplied file each get their own rather than sharing
 /// whichever was drawn first.
 #[cfg(any(feature = "window", test))]
-pub(crate) fn upload_stamp(settings: &str, premultiply: bool) -> String {
-    if premultiply {
-        return settings.to_string();
-    }
-    format!("{settings}s")
+pub(crate) fn upload_stamp(settings: &str, premultiply: bool, mips: bool) -> String {
+    let straight = if premultiply { "" } else { "s" };
+    let surface = if mips { "m" } else { "" };
+    format!("{settings}{straight}{surface}")
 }
 
 #[cfg(feature = "window")]
@@ -161,7 +160,7 @@ mod windowed {
 
     /// The same for a 3D mesh's `texture`.
     pub(crate) fn attach_texture_3d(eng: &Engine, node: &mut SceneNode3d, path: &str) {
-        if let Some(texture) = upload(eng, path, PREMULTIPLY_DROPPED) {
+        if let Some(texture) = upload_for_surface(eng, path) {
             node.set_texture(texture);
         }
     }
@@ -221,18 +220,33 @@ mod windowed {
         .sane()
     }
 
+    /// A picture for a 3D surface: seen at every distance, so it takes the
+    /// smaller copies that stop it shimmering unless its settings say or its
+    /// filter is the nearest texel.
+    pub(crate) fn upload_for_surface(eng: &Engine, reference: &str) -> Option<Arc<Texture>> {
+        uploaded(eng, reference, PREMULTIPLY_DROPPED, true)
+    }
+
     /// The uploaded texture, or `None` to leave the node's default one.
-    ///
+    pub(crate) fn upload(eng: &Engine, reference: &str, premultiply: bool) -> Option<Arc<Texture>> {
+        uploaded(eng, reference, premultiply, false)
+    }
+
     /// Decoded here rather than through kiss3d's `add_image_from_memory`,
     /// which is an `expect` on content a scene file names.
-    pub(crate) fn upload(eng: &Engine, reference: &str, premultiply: bool) -> Option<Arc<Texture>> {
+    fn uploaded(
+        eng: &Engine,
+        reference: &str,
+        premultiply: bool,
+        on_surface: bool,
+    ) -> Option<Arc<Texture>> {
         if reference.is_empty() {
             return None;
         }
         let files = eng.resource::<balaur_core::project::ProjectFiles>();
         // Resolved rather than read: this runs on every attach, and a sprite
         // is attached on every frame that draws it.
-        let source = match balaur_core::texture_asset::source(eng, reference) {
+        let source = match balaur_asset::texture_asset::source(eng, reference) {
             Ok(source) => source,
             Err(err) => {
                 tracing::error!("texture '{reference}': {err:#}");
@@ -240,7 +254,9 @@ mod windowed {
             }
         };
         let (path, settings) = (source.path.as_str(), &source.settings);
-        let stamp = super::upload_stamp(&settings.stamp, premultiply);
+        let mips =
+            on_surface && balaur_core::import::texture::mips_on_a_surface(&settings.settings);
+        let stamp = super::upload_stamp(&settings.stamp, premultiply, mips);
         let name = super::upload_name(path, files.borrow().mtime(path), &stamp);
         if let Some(cached) = TextureManager::get_global_manager(|tm| tm.get(&name)) {
             return Some(cached);
@@ -258,13 +274,14 @@ mod windowed {
         };
         // Built on the miss rather than on every attach, which is also what
         // keeps the two warnings in `sampling` to one a texture.
-        let asked = sampling(path, &settings.settings, premultiply);
+        let mut asked = sampling(path, &settings.settings, premultiply);
+        asked.mipmaps |= mips;
         let alpha = if asked.premultiply {
-            balaur_core::pixels::Alpha::Premultiplied
+            balaur_asset::pixels::Alpha::Premultiplied
         } else {
-            balaur_core::pixels::Alpha::Straight
+            balaur_asset::pixels::Alpha::Straight
         };
-        match balaur_core::pixels::decode(&bytes, &settings.settings, alpha) {
+        match balaur_asset::pixels::decode(&bytes, &settings.settings, alpha) {
             Ok(pixels) => {
                 let image = image::DynamicImage::ImageRgba8(pixels);
                 Some(TextureManager::get_global_manager(|tm| {
@@ -280,7 +297,9 @@ mod windowed {
 }
 
 #[cfg(feature = "window")]
-pub(crate) use windowed::{PREMULTIPLY_DROPPED, attach_texture_2d, attach_texture_3d, upload};
+pub(crate) use windowed::{
+    PREMULTIPLY_DROPPED, attach_texture_2d, attach_texture_3d, upload, upload_for_surface,
+};
 
 #[cfg(test)]
 mod tests {
@@ -355,9 +374,9 @@ mod tests {
     #[test]
     fn the_same_image_straight_is_a_second_upload() {
         assert_ne!(
-            upload_stamp("a1b2", PREMULTIPLY_HONOURED),
-            upload_stamp("a1b2", PREMULTIPLY_DROPPED)
+            upload_stamp("a1b2", PREMULTIPLY_HONOURED, false),
+            upload_stamp("a1b2", PREMULTIPLY_DROPPED, false)
         );
-        assert_eq!(upload_stamp("a1b2", PREMULTIPLY_HONOURED), "a1b2");
+        assert_eq!(upload_stamp("a1b2", PREMULTIPLY_HONOURED, false), "a1b2");
     }
 }

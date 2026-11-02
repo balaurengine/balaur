@@ -31,14 +31,12 @@ impl Chips {
 
     /// A chip has run its own handler by now, so what is left is to show what
     /// it changed.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" {
-            self.refresh();
-        }
+    pub fn refill() {
+        self.refresh();
     }
 
     fn refresh() {
         let shown = self.editor.call("chips_fill", self.near);
-        self.node.patch_component("widget", map().with("visible", shown.as_bool() == true));
+        self.node.set_visible(shown.as_bool() == true);
     }
 }

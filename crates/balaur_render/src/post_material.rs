@@ -435,9 +435,9 @@ pub(crate) fn feed_gi(chain: &mut PostChain, app: &balaur_core::App) {
                 (light.kind != crate::light::LightKind2d::Directional).then(|| {
                     post::GiEmitter2d::new(
                         glamx::Vec2::new(global.position.x, global.position.y),
-                        light.source_radius,
+                        light.source_radius.max(0.0),
                         kiss3d::color::Color::new(r, g, b, 1.0),
-                        light.intensity,
+                        light.intensity.max(0.0),
                     )
                 })
             })
@@ -510,7 +510,8 @@ fn build(
             ..crate::material::Material3d::default()
         };
         let modules = crate::shaders::plugin_modules(&app.engine);
-        let compiled = crate::material::compile_with(&material, crate::shaders::FINISH, &modules)?;
+        let compiled =
+            crate::material::compile(&material, crate::shaders::FINISH, &modules, false)?;
         return Ok(Pass::Material(PostMaterial::new(&compiled, format)));
     }
     let asset =
@@ -520,7 +521,7 @@ fn build(
     }
     let source = crate::material::shader_text(&app.engine, reference, &asset.shader)?;
     let modules = crate::shaders::plugin_modules(&app.engine);
-    let compiled = crate::material::compile_with(&asset, &source, &modules)?;
+    let compiled = crate::material::compile(&asset, &source, &modules, false)?;
     Ok(Pass::Material(PostMaterial::new(&compiled, format)))
 }
 

@@ -1,8 +1,8 @@
 //! What a host and its players say besides inputs: the lobby handshake, the
 //! start, and who left. Carried reliably, as a session's control messages.
 
-use balaur_core::netsession;
 use balaur_core::rollback::{Input, PlayerId};
+use balaur_net::netsession;
 use serde::{Deserialize, Serialize};
 
 /// Bumped whenever a message below changes shape.

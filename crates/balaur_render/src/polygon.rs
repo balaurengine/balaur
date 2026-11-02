@@ -12,13 +12,44 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::MeshSkin;
+use balaur_geometry::mesh::MeshSkin;
 use glamx::Vec2;
 
-use crate::vocabulary::{keys as k, words};
-use crate::{Renderable2d, Shape2d, color_from_params, color_to_toml, set_color, set_polygon};
+use crate::vocabulary::words;
+use crate::{Renderable2d, set_color, set_polygon};
+
+/// A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.
+// The node draws the [`PolygonMesh`] each write resolves into its
+// [`Renderable2d`].
+#[derive(Clone, Component)]
+#[component(
+    name = "polygon",
+    on_remove = polygon_removed,
+    tags = [words::ORTHOGRAPHIC, "render", "animation"],
+    after_write = polygon_written,
+)]
+pub struct Polygon {
+    /// Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space
+    #[property(asset = "mesh")]
+    pub mesh: String,
+    /// Image file, project-relative, or a `texture` asset; empty draws the tint alone
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// The material this draws with; empty takes an inherited `material` component, else the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// The rig root; empty means this node
+    #[property(node)]
+    pub skeleton: String,
+    /// Texture pixels per world unit, for the default UV mapping
+    #[property(default = 100.0, min = 0.01, group = "placement")]
+    pub pixels_per_unit: f32,
+}
 
 /// What a `Shape2d::Polygon` draws: resolved geometry, its texture, and the
 /// rig it deforms with.
@@ -52,78 +83,39 @@ impl PolygonMesh {
     }
 }
 
-fn polygon_schema() -> String {
-    balaur_core::components::ComponentDef::schema(&[
-        (
-            k::MESH,
-            &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Vertices, triangulation, UVs and skin weights; positions are [x, y] in the node's space" }}"#,
-                balaur_core::mesh::MESH_ASSET_TYPE
-            ),
-        ),
-        (
-            k::TEXTURE,
-            &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the tint alone" }}"#,
-                balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-            ),
-        ),
-        (
-            k::COLOR,
-            r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
-        ),
-        (k::MATERIAL, &crate::material::material_line_2d()),
-        (
-            k::SKELETON,
-            r#"{ type = "node", default = "", description = "The rig root; empty means this node" }"#,
-        ),
-        (
-            k::PIXELS_PER_UNIT,
-            r#"{ type = "float", default = 100.0, min = 0.01, description = "Texture pixels per world unit, for the default UV mapping", group = "placement" }"#,
-        ),
-    ])
+/// What a removed `Polygon` leaves behind, taken with it.
+fn polygon_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
 }
 
 /// The `polygon` component: writes `Shape2d::Polygon` and a [`PolygonMesh`]
 /// into `Renderable2d`.
 pub(crate) fn register_polygon_component(reg: &mut Registry<'_>) {
     reg.add_system(balaur_core::Stage::SceneSync, resolve_solved_2d_system);
-    reg.register_component(
-        "polygon",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A filled, textured 2D polygon from the `mesh` asset's points and triangles. With skin weights, the rig `skeleton` names deforms it.",
-            schema: ComponentDef::parse_schema("polygon", &polygon_schema()),
-            tags: &[words::ORTHOGRAPHIC, "render", "animation"],
-            expects: &[],
-            apply: Box::new(apply_polygon),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
-            get: Box::new(polygon_of),
-        },
-    );
+    reg.add_component::<Polygon>();
 }
 
-fn apply_polygon(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let text = |key: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string()
+/// What a write of `polygon` leaves to be worked out again.
+fn polygon_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    polygon_laid_out(eng, entity)
+}
+
+/// The polygon's geometry, tint and material, resolved again from what was
+/// written.
+fn polygon_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&Polygon>(entity)
+        .ok()
+        .map(|asked| Polygon::clone(&asked))
+    else {
+        return Ok(());
     };
-    let ppu = params
-        .get(k::PIXELS_PER_UNIT)
-        .and_then(as_f64)
-        .map_or(crate::DEFAULT_PIXELS_PER_UNIT, |v| v as f32)
-        .max(0.01);
-    let polygon = resolve(eng, text("mesh"), text(k::TEXTURE), text(k::SKELETON), ppu)?;
+    let ppu = asked.pixels_per_unit.max(0.01);
+    let polygon = resolve(eng, asked.mesh, asked.texture, asked.skeleton, ppu)?;
     set_polygon(eng, entity, Arc::new(polygon))?;
-    set_color(eng, entity, color_from_params(params))?;
-    crate::material::set_material_2d(eng, entity, &text(k::MATERIAL))
+    set_color(eng, entity, asked.color)?;
+    crate::material::set_material_2d(eng, entity, &asked.material)
 }
 
 /// The geometry a `polygon` draws, with a missing or unreadable mesh warned
@@ -149,7 +141,7 @@ pub(crate) fn resolve(
     if polygon.mesh.is_empty() {
         return Ok(polygon);
     }
-    let data = match balaur_core::mesh::resolved(eng, &polygon.mesh) {
+    let data = match balaur_geometry::mesh::resolved(eng, &polygon.mesh) {
         Ok(data) => data,
         Err(why) => {
             tracing::warn!("polygon mesh '{}': {why:#}", polygon.mesh);
@@ -186,44 +178,6 @@ fn texture_size(eng: &Engine, texture: &str) -> Result<(u32, u32)> {
     crate::texture::size_of(eng, texture)
 }
 
-fn polygon_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    // A `boolean2d` draws its result as a polygon too, and so do a soft body
-    // a generator laid out and a `multimesh2d`; none is a `polygon` the
-    // author added.
-    if world.get::<&crate::boolean::Boolean2d>(entity).is_ok()
-        || world.get::<&SolverDrawn2d>(entity).is_ok()
-        || crate::multimesh::holds(&world, entity)
-    {
-        return None;
-    }
-    let renderable = world.get::<&Renderable2d>(entity).ok()?;
-    if renderable.shape != Shape2d::Polygon {
-        return None;
-    }
-    let polygon = renderable.polygon.as_ref()?;
-    let mut map = toml::map::Map::new();
-    map.insert("mesh".into(), toml::Value::String(polygon.mesh.clone()));
-    map.insert(
-        k::TEXTURE.into(),
-        toml::Value::String(polygon.texture.clone()),
-    );
-    map.insert(
-        k::PIXELS_PER_UNIT.into(),
-        toml::Value::Float(f64::from(polygon.pixels_per_unit)),
-    );
-    map.insert(
-        k::SKELETON.into(),
-        toml::Value::String(polygon.skeleton.clone()),
-    );
-    map.insert(k::COLOR.into(), color_to_toml(renderable.color));
-    map.insert(
-        k::MATERIAL.into(),
-        toml::Value::String(renderable.material.clone()),
-    );
-    Some(toml::Value::Table(map))
-}
-
 /// On a node drawn from a 2D solver's cells, with the topology it was built
 /// at: a soft body a generator laid out has no polygon of its own to deform.
 struct SolverDrawn2d(u32);
@@ -238,7 +192,9 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     let mut tinted: Vec<(Entity, [f32; 4])> = Vec::new();
     {
         let world = eng.world();
-        for (entity, solved) in &mut world.query::<(Entity, &balaur_core::mesh::SolvedPolygon)>() {
+        for (entity, solved) in
+            &mut world.query::<(Entity, &balaur_geometry::mesh::SolvedPolygon)>()
+        {
             if solved.positions.is_empty() || solved.indices.is_empty() {
                 continue;
             }
@@ -256,27 +212,27 @@ fn resolve_solved_2d_system(eng: &Engine, _dt: f32) {
     }
     for (entity, mesh, topology) in wanted {
         let _ = set_polygon(eng, entity, Arc::new(mesh));
-        let _ = eng.world_mut().insert_one(entity, SolverDrawn2d(topology));
+        let _ = eng.insert_one(entity, SolverDrawn2d(topology));
     }
     for (entity, color) in tinted {
-        if let Ok(mut drawn) = eng.world_mut().get::<&mut Renderable2d>(entity) {
+        if let Ok(mut drawn) = eng.world().get::<&mut Renderable2d>(entity) {
             drawn.color = color;
         }
     }
-    let mut world = eng.world_mut();
-    let gone: Vec<Entity> = world
+    let gone: Vec<Entity> = eng
+        .world()
         .query::<Entity>()
         .with::<&SolverDrawn2d>()
-        .without::<&balaur_core::mesh::SolvedPolygon>()
+        .without::<&balaur_geometry::mesh::SolvedPolygon>()
         .iter()
         .collect();
     for entity in gone {
-        let _ = world.remove_one::<SolverDrawn2d>(entity);
-        let _ = world.remove_one::<Renderable2d>(entity);
+        let _ = eng.remove_one::<SolverDrawn2d>(entity);
+        let _ = eng.remove_one::<Renderable2d>(entity);
     }
 }
 
-fn cells_of(solved: &balaur_core::mesh::SolvedPolygon) -> PolygonMesh {
+fn cells_of(solved: &balaur_geometry::mesh::SolvedPolygon) -> PolygonMesh {
     PolygonMesh {
         mesh: String::new(),
         texture: String::new(),

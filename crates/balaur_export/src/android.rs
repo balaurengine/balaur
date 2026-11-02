@@ -388,12 +388,14 @@ impl Sdk {
     }
 }
 
+/// Where Android Studio installs the SDK on this platform.
 fn default_sdk_root() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME").map(PathBuf::from)?;
     let candidate = if cfg!(target_os = "macos") {
-        home.join("Library/Android/sdk")
+        dirs::home_dir()?.join("Library/Android/sdk")
+    } else if cfg!(windows) {
+        dirs::data_local_dir()?.join("Android").join("Sdk")
     } else {
-        home.join("Android/Sdk")
+        dirs::home_dir()?.join("Android/Sdk")
     };
     candidate.is_dir().then_some(candidate)
 }
@@ -751,9 +753,7 @@ fn keystore_for(project: &Path, config: &AndroidConfig) -> Result<Keystore> {
 fn debug_keystore() -> Result<PathBuf> {
     let path = std::env::var_os("DEBUG_KEYSTORE")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".android/debug.keystore"))
-        })
+        .or_else(|| dirs::home_dir().map(|home| home.join(".android").join("debug.keystore")))
         .context("no home directory to keep the Android debug keystore in")?;
     if path.is_file() {
         return Ok(path);

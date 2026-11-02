@@ -22,18 +22,20 @@ yanked = "deny"
 # The unmaintained crates (rusttype, ttf-parser, paste) all come from kiss3d.
 # Actual vulnerabilities stay errors in cargo-deny regardless of this setting.
 unmaintained = "none"
-# `quick-xml` denial of service, reachable only through `balaur import
+# `quick-xml` and `zstd` under `tiled`, reachable only through `balaur import
 # level.tmx`; docs/PLAN-tilemap.md "The Tiled dependency" says why and until when.
-ignore = ["RUSTSEC-2026-0194", "RUSTSEC-2026-0195"]
+ignore = [
+    "RUSTSEC-2026-0194", "RUSTSEC-2026-0195",
+    "RUSTSEC-2026-0391", "RUSTSEC-2026-0398", "RUSTSEC-2026-0403",
+]
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Four forks, none on crates.io, all pinned in the root Cargo.toml: kiss3d,
-# rune (docs/DETERMINISM.md), cosmic-text on epaint's harfrust, egui on zeno.
+# Three forks, none on crates.io, all pinned in the root Cargo.toml: kiss3d,
+# cosmic-text on epaint's harfrust, egui on zeno.
 allow-git = [
     "https://github.com/Ughuuu/kiss3d.git",
-    "https://github.com/balaurengine/rune.git",
     "https://github.com/Ughuuu/cosmic-text.git",
     "https://github.com/Ughuuu/egui.git",
 ]

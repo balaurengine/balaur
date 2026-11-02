@@ -22,14 +22,11 @@ impl Rail {
         self.handle();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        if node.name() == "Open" && node.parent().name() == "Handle" {
-            self.editor.call("stage_verb", "open_left");
-            return;
-        }
+    pub fn open_left() {
+        self.editor.call("stage_verb", "open_left");
+    }
+
+    pub fn refill() {
         self.editor.call("rail_fill");
     }
 
@@ -39,12 +36,13 @@ impl Rail {
             return;
         }
         let sheet = self.node.get_node("RailTop/Handle");
-        sheet.patch_component("widget", map().with("visible", view.get("rail_handle")).with("padding", view.get("pad")));
-        sheet.get_node("Open").patch_component("widget", map()
-            .with("icon", view.get("left").get("icon"))
-            .with("tooltip", view.get("left").get("tooltip"))
-            .with("width", view.get("diameter"))
-            .with("height", view.get("diameter"))
-            .with("corner_radius", view.get("diameter").as_float() / 2.0));
+        sheet.set_visible(view["rail_handle"].as_bool());
+        sheet.patch_component("widget", { "padding": view["pad"] });
+        let patched = sheet.get_node("Open");
+        patched.widget.icon = view["left"]["icon"].as_str();
+        patched.widget.tooltip = view["left"]["tooltip"].as_str();
+        patched.widget.width = view["diameter"].as_float();
+        patched.widget.height = view["diameter"].as_float();
+        patched.widget.corner_radius = view["diameter"].as_float() / 2.0;
     }
 }

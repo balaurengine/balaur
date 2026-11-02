@@ -26,6 +26,12 @@ use crate::engine::Engine;
 use crate::scene::{self, Appearance, Tags};
 
 pub use crate::project_files::{AssetSource, ProjectFiles, path_of};
+mod instances;
+mod scene_walks;
+
+use instances::{apply_overrides, apply_own_keys, instance};
+pub use scene_walks::FileStamps;
+pub(crate) use scene_walks::{file_stamps, instantiate_main_scene, preload_scene, unload_scene};
 
 /// The file that makes a directory a project.
 pub const MANIFEST: &str = "project.toml";
@@ -40,9 +46,6 @@ pub const MANIFEST: &str = "project.toml";
 pub struct ProjectManifest {
     pub name: String,
     pub main_scene: String,
-    /// Which scripting language this project is written in. The assembling
-    /// crate maps the name to a backend; core does not know the set.
-    pub language: String,
     /// Which plugins this project wants. Every module the build linked in
     /// loads unless it is named `false` here.
     pub plugins: BTreeMap<String, PluginChoice>,
@@ -232,6 +235,8 @@ pub struct UiSettings {
     /// The `widget_theme` every root widget starts from; empty is the
     /// built-in look.
     pub theme: String,
+    /// That theme's form for a dark system; empty keeps `theme`.
+    pub theme_dark: String,
     /// How large the game's own UI is drawn, as egui's zoom factor.
     pub scale: f32,
     /// Whether the reader's own preferred text size multiplies that scale.
@@ -245,6 +250,7 @@ impl Default for UiSettings {
         Self {
             system_fonts: true,
             theme: String::new(),
+            theme_dark: String::new(),
             scale: 1.0,
             system_text_size: true,
             classes: crate::facts::ClassLines::default(),
@@ -253,13 +259,18 @@ impl Default for UiSettings {
 }
 
 impl UiSettings {
-    /// `[ui]` as this run resolves it.
+    /// `[ui]` as this run resolves it, worked out once per change of a setting.
     #[must_use]
-    pub fn from_settings(eng: &Engine) -> Self {
+    pub fn of(eng: &Engine) -> std::rc::Rc<Self> {
+        crate::settings::kept(eng, Self::from_settings)
+    }
+
+    fn from_settings(eng: &Engine) -> Self {
         let fallback = Self::default();
         Self {
             system_fonts: setting_bool(eng, "ui/system_fonts", fallback.system_fonts),
             theme: setting_string(eng, "ui/theme"),
+            theme_dark: setting_string(eng, "ui/theme_dark"),
             scale: setting_f32(eng, "ui/scale", fallback.scale),
             system_text_size: setting_bool(eng, "ui/system_text_size", fallback.system_text_size),
             classes: crate::facts::ClassLines {
@@ -338,8 +349,6 @@ struct RawManifest {
 struct Application {
     name: String,
     main_scene: String,
-    #[serde(default = "default_language", rename = "script_language")]
-    language: String,
 }
 
 impl From<RawManifest> for ProjectManifest {
@@ -347,7 +356,6 @@ impl From<RawManifest> for ProjectManifest {
         Self {
             name: raw.application.name,
             main_scene: raw.application.main_scene,
-            language: raw.application.language,
             plugins: raw.plugins,
             check: raw.check,
         }
@@ -358,10 +366,6 @@ impl<'de> Deserialize<'de> for ProjectManifest {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         RawManifest::deserialize(deserializer).map(Self::from)
     }
-}
-
-fn default_language() -> String {
-    "bs".to_string()
 }
 
 impl ProjectManifest {
@@ -424,12 +428,9 @@ pub(crate) struct SceneNode {
     z_index: Option<i32>,
     /// False makes `z_index` absolute rather than added to the parent's.
     z_as_relative: Option<bool>,
-    /// When this node and its subtree tick: `pausable`, `always`,
-    /// `when_paused`, `disabled`, or `inherit` to take the parent's.
+    /// When this node and its subtree tick: `pausable`, `always`, `disabled`,
+    /// or `inherit` to take the parent's.
     process: Option<String>,
-    /// Draw this node between fixed steps, whatever it is made of. Unset
-    /// leaves it to the body or the `fixed_update` on it.
-    interpolate: Option<bool>,
     /// Names the node is filed under, for `scene.tagged`.
     #[serde(default)]
     tags: Vec<String>,
@@ -601,8 +602,8 @@ pub fn instantiate_scene_file(
     base: Entity,
     attach_scripts: bool,
 ) -> Result<()> {
-    let (source, root) = scene_from_file(eng, path)?;
-    instantiate_from(eng, &source, base, attach_scripts, root.as_deref())
+    let (source, doc) = scene_doc(eng, path)?;
+    instantiate_doc(eng, &doc, &source, base, attach_scripts)
 }
 
 fn instantiate_from(
@@ -611,6 +612,22 @@ fn instantiate_from(
     base: Entity,
     attach_scripts: bool,
     foreign: Option<&std::path::Path>,
+) -> Result<()> {
+    instantiate_doc(
+        eng,
+        &parse_scene(eng, source, foreign)?,
+        source,
+        base,
+        attach_scripts,
+    )
+}
+
+fn instantiate_doc(
+    eng: &Engine,
+    doc: &SceneDoc,
+    source: &str,
+    base: Entity,
+    attach_scripts: bool,
 ) -> Result<()> {
     let mut build = Build {
         prefix: String::new(),
@@ -622,7 +639,7 @@ fn instantiate_from(
     // A document's paths are the game's spelling by now, whichever script
     // asked for the scene; each script it attaches runs as its own file's.
     let _game = crate::dependencies::as_game(eng);
-    build_scene(eng, source, base, &mut build, foreign)?;
+    build_doc(eng, doc, source, base, &mut build)?;
     children_first(eng, base, &mut build.pending);
     attach_pending(eng, &build)
 }
@@ -669,14 +686,10 @@ struct Build {
 /// Parse and build one scene document under `base`. `foreign` is the root the
 /// document came from when that is not the project's, and every path it names
 /// is made absolute against it before anything reads one.
-fn build_scene(
-    eng: &Engine,
-    source: &str,
-    base: Entity,
-    build: &mut Build,
-    foreign: Option<&std::path::Path>,
-) -> Result<()> {
-    let doc: SceneDoc = match foreign {
+/// A scene's text as a document, its paths made the project's where it
+/// came from another root.
+fn parse_scene(eng: &Engine, source: &str, foreign: Option<&std::path::Path>) -> Result<SceneDoc> {
+    Ok(match foreign {
         Some(root) => {
             let mut value: toml::Value = toml::from_str(source).context("parsing scene")?;
             // A scene is never written back through the engine, so an `id://`
@@ -685,13 +698,78 @@ fn build_scene(
             value.try_into().context("parsing scene")?
         }
         None => toml::from_str(source).context("parsing scene")?,
-    };
+    })
+}
+
+/// Every scene file read and parsed so far, kept while its file is
+/// unchanged: a screen of 54 cards built from one prefab reads and parses it
+/// once, not 54 times. Checked against the file's modified time on every
+/// use, so a save from anywhere -- the editor, a script, another program --
+/// is read again; a pack, which never changes, has none and is kept.
+#[derive(Default)]
+struct SceneFiles(DetHashMap<String, SceneFile>);
+
+struct SceneFile {
+    stamp: Option<f64>,
+    source: std::rc::Rc<str>,
+    doc: std::rc::Rc<SceneDoc>,
+}
+
+/// A scene file's text and document, parsed once while the file is unchanged.
+fn scene_doc(eng: &Engine, path: &str) -> Result<(std::rc::Rc<str>, std::rc::Rc<SceneDoc>)> {
+    let key = path_of(eng, path)?;
+    let stamp = stamp_of(eng, &key);
+    let files = eng.try_resource::<SceneFiles>().unwrap_or_else(|| {
+        eng.insert_resource(SceneFiles::default());
+        eng.resource::<SceneFiles>()
+    });
+    if let Some(file) = files.borrow().0.get(&key)
+        && file.stamp == stamp
+    {
+        return Ok((file.source.clone(), file.doc.clone()));
+    }
+    let (text, root) = scene_from_file(eng, path)?;
+    let doc = std::rc::Rc::new(parse_scene(eng, &text, root.as_deref())?);
+    let source: std::rc::Rc<str> = text.into();
+    files.borrow_mut().0.insert(
+        key,
+        SceneFile {
+            stamp,
+            source: source.clone(),
+            doc: doc.clone(),
+        },
+    );
+    Ok((source, doc))
+}
+
+/// When the file a scene path reads from last changed, under the first root
+/// that has it, as [`scene_from_file`] looks; `None` where none does.
+fn stamp_of(eng: &Engine, path: &str) -> Option<f64> {
+    let backend = crate::files::backend(eng);
+    let roots = crate::file_api::project_roots(eng);
+    if roots.is_empty() {
+        return backend.mtime(std::path::Path::new(path));
+    }
+    roots
+        .iter()
+        .find_map(|root| backend.mtime(&root.join(path)))
+}
+
+/// Build a parsed scene under `base`; `source` is its text, which names its
+/// `[[assets]]` scope.
+fn build_doc(
+    eng: &Engine,
+    doc: &SceneDoc,
+    source: &str,
+    base: Entity,
+    build: &mut Build,
+) -> Result<()> {
     // A scene's `[[assets]]` are in scope only while it is being built, so
     // `#id` never resolves against a sibling scene; a prefab's own blocks nest
     // inside that rather than accumulating.
     crate::variables::declare_from_toml(eng, &doc.variables)?;
     let previous = crate::assets::enter_scene_scope(eng, source, &doc.assets)?;
-    let outcome = instantiate_nodes(eng, &doc, base, build);
+    let outcome = instantiate_nodes(eng, doc, base, build);
     crate::assets::leave_scene_scope(eng, previous);
     outcome
 }
@@ -768,7 +846,9 @@ fn attach_named(eng: &Engine, pending: &[PendingScript]) -> Result<()> {
         .ok_or_else(|| anyhow!("the scene attaches scripts but no script backend is running"))?;
     host.hold_inits();
     let attached = pending.iter().try_for_each(|(entity, script, props)| {
-        host.attach_with_props(crate::node_id_of(*entity), script, props)
+        host.attach_with_props(crate::node_id_of(*entity), script, props)?;
+        crate::interpolate::follow_script(eng, *entity, host.as_ref());
+        Ok(())
     });
     host.release_inits();
     attached
@@ -867,227 +947,6 @@ fn instantiate_nodes(eng: &Engine, doc: &SceneDoc, base: Entity, build: &mut Bui
     Ok(())
 }
 
-/// Build the prefab `node` names into `entity`, which is its root.
-fn instance(
-    eng: &Engine,
-    node: &SceneNode,
-    id: &str,
-    entity: Entity,
-    build: &mut Build,
-) -> Result<()> {
-    build.merge_into = Some(entity);
-    let prefab = node.instance.as_deref().unwrap_or_default();
-    let outcome = build_instance(eng, node, id, entity, build)
-        .with_context(|| format!("instance '{prefab}' on node '{}'", node.name));
-    build.merge_into = None;
-    outcome
-}
-
-/// A node's own keys: what every node has, its tags, its components and its
-/// script. A script already pending on the node, a merged prefab root's, is
-/// replaced by the node's own.
-fn apply_own_keys(
-    eng: &Engine,
-    node: &SceneNode,
-    entity: Entity,
-    handlers: &[(String, SceneKeyHandler)],
-    build: &mut Build,
-) -> Result<()> {
-    {
-        let world = eng.world();
-        // spawn_node inserts an Appearance on every node it creates.
-        let mut appearance = world.get::<&mut Appearance>(entity).unwrap();
-        if let Some(on) = node.visible {
-            appearance.visible = on;
-        }
-        if let Some(colour) = node.tint.as_ref().and_then(crate::components::rgba) {
-            appearance.tint = glamx::Vec4::from(colour);
-        }
-        if let Some(z) = node.z_index {
-            appearance.z_index = z;
-        }
-        if let Some(on) = node.z_as_relative {
-            appearance.z_as_relative = on;
-        }
-    }
-    apply_process(eng, entity, node.process.as_deref(), &node.name)?;
-    if let Some(on) = node.interpolate {
-        crate::interpolate::set(eng, entity, Some(on));
-    }
-    if !node.tags.is_empty() {
-        let mut tags = eng
-            .world()
-            .get::<&Tags>(entity)
-            .map(|t| (*t).clone())
-            .unwrap_or_default();
-        for tag in &node.tags {
-            tags.add(tag);
-        }
-        eng.world_mut().insert_one(entity, tags)?;
-    }
-    for (key, handler) in handlers {
-        let Some(value) = node.extra.get(key) else {
-            continue;
-        };
-        if let Err(why) = handler(eng, entity, value) {
-            // A component it refuses leaves the node without it, and says why
-            // on the node, rather than failing the whole scene over one value.
-            if crate::components::is_registered(eng, key) {
-                tracing::error!(node = %node.name, component = %key, "{why:#}");
-                continue;
-            }
-            return Err(why.context(format!("scene key '{key}' on node '{}'", node.name)));
-        }
-    }
-    // Kept to be written back: a plugin this build lacks still owns the key.
-    let mut unhandled = toml::Table::new();
-    for (key, value) in &node.extra {
-        if !handlers.iter().any(|(k, _)| k == key) {
-            tracing::warn!(
-                "scene key '{key}' on node '{}' has no registered handler",
-                node.name
-            );
-            unhandled.insert(key.clone(), value.clone());
-        }
-    }
-    if !unhandled.is_empty() {
-        eng.world_mut()
-            .insert_one(entity, crate::scene_toml::Unhandled(unhandled))?;
-    }
-    if let Some(script) = &node.script {
-        if script.source().is_empty() {
-            bail!("node '{}' has a script key with no source", node.name);
-        }
-        let props = script
-            .props()
-            .with_context(|| format!("script properties on node '{}'", node.name))?;
-        build.pending.retain(|(e, _, _)| *e != entity);
-        build
-            .pending
-            .push((entity, script.source().to_string(), props));
-    }
-    Ok(())
-}
-
-/// Build a prefab under the node that names it, with every id inside it
-/// prefixed by this node's own.
-fn build_instance(
-    eng: &Engine,
-    node: &SceneNode,
-    id: &str,
-    entity: Entity,
-    build: &mut Build,
-) -> Result<()> {
-    let prefab = node.instance.as_deref().unwrap_or_default();
-    if build.open.iter().any(|open| open == prefab) {
-        let mut chain = build.open.clone();
-        chain.push(prefab.to_string());
-        bail!("a prefab cannot contain itself: {}", chain.join(" -> "));
-    }
-    let (source, root) = scene_from_file(eng, prefab)?;
-    let inner = format!("{}{}/", build.prefix, id);
-    let outer = std::mem::replace(&mut build.prefix, inner);
-    build.open.push(prefab.to_string());
-    let outcome = build_scene(eng, &source, entity, build, root.as_deref());
-    build.open.pop();
-    build.prefix = outer;
-    outcome
-}
-
-/// Apply this node's `overrides` to the instance it just built, answering
-/// the ones whose path names nothing inside it.
-///
-/// A path that no longer names anything is reported and kept: the prefab may
-/// have moved a node, and dropping the edit would lose work the file still
-/// holds. Everything else is dispatched exactly as a node's own keys are, so
-/// an override reaches components and the transform both.
-fn apply_overrides(
-    eng: &Engine,
-    node: &SceneNode,
-    entity: Entity,
-    handlers: &[(String, SceneKeyHandler)],
-    build: &mut Build,
-) -> toml::Table {
-    let mut unmatched = toml::Table::new();
-    for (path, table) in &node.overrides {
-        let Some(target) = scene::find_node(&eng.world(), entity, path) else {
-            tracing::warn!(
-                "override '{path}' on node '{}' names nothing inside the instance",
-                node.name
-            );
-            unmatched.insert(path.clone(), table.clone());
-            continue;
-        };
-        let Some(table) = table.as_table() else {
-            tracing::warn!(
-                "override '{path}' on node '{}' is not a table of scene keys",
-                node.name
-            );
-            continue;
-        };
-        apply_node_keys(eng, target, table);
-        if let Some(script) = table.get("script")
-            && let Err(err) = override_script(build, target, script)
-        {
-            tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
-        }
-        for (key, handler) in handlers {
-            let Some(value) = table.get(key) else {
-                continue;
-            };
-            // An override *patches* one property of a component the prefab
-            // already described. The scene key handler would rebuild it from
-            // the schema defaults, resetting every property it does not name.
-            let applied = if crate::components::is_registered(eng, key) {
-                crate::components::patch(eng, target, key, value)
-            } else {
-                handler(eng, target, value)
-            };
-            if let Err(err) = applied {
-                tracing::error!("override '{path}.{key}' on node '{}': {err:#}", node.name);
-            }
-        }
-        for key in table.keys() {
-            if key != "script"
-                && !NODE_KEYS.contains(&key.as_str())
-                && !handlers.iter().any(|(k, _)| k == key)
-            {
-                tracing::warn!(
-                    "override '{path}.{key}' on node '{}' has no registered handler",
-                    node.name
-                );
-            }
-        }
-    }
-    unmatched
-}
-
-/// Retune a prefab node's script from the instance that named it: the
-/// override's `props` are merged over the ones the prefab set, and its
-/// `source` replaces the file.
-///
-/// This edits the pending attachment rather than the node, because a script
-/// is attached once the whole tree exists — which has not happened yet. An
-/// override on a node the prefab gave no script to is one nothing can act on,
-/// so it says so.
-fn override_script(build: &mut Build, target: Entity, value: &toml::Value) -> Result<()> {
-    let over: ScriptRef = value.clone().try_into().context("reading the script key")?;
-    let props = over.props()?;
-    let Some(pending) = build.pending.iter_mut().find(|(e, _, _)| *e == target) else {
-        bail!("the node it names has no script to retune");
-    };
-    if !over.source().is_empty() {
-        pending.1 = over.source().to_string();
-    }
-    for (name, value) in props {
-        match pending.2.iter_mut().find(|(n, _)| *n == name) {
-            Some(slot) => slot.1 = value,
-            None => pending.2.push((name, value)),
-        }
-    }
-    Ok(())
-}
-
 /// A node's `process` key, refusing a word that is not a mode rather than
 /// silently ticking it the default way.
 fn apply_process(eng: &Engine, entity: Entity, named: Option<&str>, node: &str) -> Result<()> {
@@ -1102,13 +961,12 @@ fn apply_process(eng: &Engine, entity: Entity, named: Option<&str>, node: &str) 
 }
 
 /// The keys every node has, which an override may set like any other.
-const NODE_KEYS: [&str; 7] = [
+const NODE_KEYS: [&str; 6] = [
     "visible",
     "tint",
     "z_index",
     "z_as_relative",
     crate::process::KEY,
-    crate::interpolate::KEY,
     "tags",
 ];
 
@@ -1137,12 +995,6 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
         .and_then(crate::process::ProcessMode::parse)
     {
         crate::process::set(&mut eng.world_mut(), entity, mode);
-    }
-    if let Some(on) = table
-        .get(crate::interpolate::KEY)
-        .and_then(toml::Value::as_bool)
-    {
-        crate::interpolate::set(eng, entity, Some(on));
     }
     let world = eng.world();
     if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {

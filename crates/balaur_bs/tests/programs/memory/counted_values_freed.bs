@@ -1,0 +1,44 @@
+// Counted values are freed when the last reference goes, an early return
+// included; arrays are shared references.
+
+struct Item { name: str, tags: [str] }
+
+pub fn strings(n: int) -> int {
+    let s = "";
+    for i in 0..n { s = s + "{i},"; }
+    s.len()
+}
+
+pub fn nested(n: int) -> int {
+    let items: [Item] = [];
+    for i in 0..n {
+        let tags = ["a", "b"];
+        tags.push("tag {i}");
+        items.push(Item { name: "item {i}", tags: tags });
+    }
+    let kept = items[n - 1];
+    items = [];
+    kept.tags.len()
+}
+
+pub fn early(n: int) -> str {
+    let words = ["x", "y"];
+    for i in 0..n {
+        let w = "w{i}";
+        if i == 3 { return w; }
+    }
+    words[0]
+}
+
+pub fn shared() -> int {
+    let a = ["one", "two"];
+    let b = a;
+    b.push("three");
+    a.len()
+}
+
+// expect: strings(500) == 1890
+// expect: nested(50) == 3
+// expect: early(10) == "w3"
+// expect: shared() == 3
+// live: 0

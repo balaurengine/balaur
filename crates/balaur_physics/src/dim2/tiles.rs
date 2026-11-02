@@ -1,6 +1,6 @@
 //! `tile_collision`: the colliders a tile map's own cells make.
 //!
-//! The cells come from `balaur_core::tiles::TileGrid`, which the renderer's
+//! The cells come from `balaur_geometry::tiles::TileGrid`, which the renderer's
 //! `tilemap` writes and physics reads — neither crate sees the other. Full
 //! cells become one parry voxel collider per group, which classifies every
 //! cell from its neighbours, so a body sliding along a wall of tiles cannot
@@ -8,18 +8,21 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
-use balaur_core::tiles::{Collision, Group, TileGrid, TileSet};
 use balaur_core::{Engine, assets};
+use balaur_geometry::tiles::{Collision, Group, TileGrid, TileSet};
 use balaur_plugin::Registry;
 
-use crate::collider::spec;
 use crate::dim2::PhysicsState2d;
-use crate::dim2::collider::{add_collider_at, with_material};
+use crate::dim2::collider::{add_collider_at, hooks_of, with_rows};
 use crate::dim2::events::Surface;
+use crate::properties::{ContactPair, Fit3d, LayerTest};
 use crate::rapier2d::prelude::{ColliderBuilder as ColliderBuilder2, SharedShape};
 use crate::scalar::{self, Pose2, Real, Rotation2, Vector2};
-use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use crate::shared::beside::{self, Beside};
+use crate::vocabulary::component as c;
+use balaur_core::layers::Layer;
 
 /// What each node's colliders were built from, so a map rebuilds only when
 /// its cells or its tileset moved.
@@ -29,67 +32,192 @@ pub(crate) struct Built {
     generation: u64,
 }
 
-/// The `tile_collision` component: the material a map's cells collide with.
-/// The shapes come from the map; a tile that names no collision is a hole.
+// The material a map's cells collide with. The shapes come from the map; a
+// tile that names no collision is a hole.
+/// Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.
+#[derive(Clone, Component)]
+#[component(name = "tile_collision", on_remove = tile_collision_removed, after_write = after_write)]
+pub struct TileCollision {
+    /// Collide at all; a disabled collider keeps its shape and costs nothing
+    #[property(default = true)]
+    pub enabled: bool,
+    /// Detects overlaps without colliding: bodies pass through and are reported
+    pub sensor: bool,
+    /// What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults
+    #[property(asset = "physics_material")]
+    pub physics_material: String,
+    /// The layers this collider is on
+    #[property(flags, default = vec![Layer(1)], group = "filtering")]
+    pub collision_layer: Vec<Layer>,
+    /// The layers it collides with; empty means every layer
+    #[property(flags, group = "filtering")]
+    pub collision_mask: Vec<Layer>,
+    /// Whether a pair is tested when both colliders' layers accept the other, or when either does; two colliders that differ use both
+    #[property(default = LayerTest::Both, group = "filtering")]
+    pub collision_test: LayerTest,
+    /// Layers for the solver alone: a pair can be detected but not resolved
+    #[property(flags, default = vec![Layer(1)], group = "filtering")]
+    pub solver_layer: Vec<Layer>,
+    /// Which solver layers this one pushes against; empty means all of them
+    #[property(flags, group = "filtering")]
+    pub solver_mask: Vec<Layer>,
+    /// The same choice for the solver layers
+    #[property(default = LayerTest::Both, group = "filtering")]
+    pub solver_test: LayerTest,
+    /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
+    #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
+    pub contact_pairs: Vec<ContactPair>,
+    /// A platform bodies land on from the side one_way_axis names and pass through from the other
+    #[property(group = "contacts")]
+    pub one_way: bool,
+    /// The side a one-way cell holds bodies on, in the map's axes: [0, 1] lands them from above and lets them up through from below. A flipped or turned shaped tile turns it with its polygon
+    #[property(default = [0.0, 1.0], group = "contacts")]
+    pub one_way_axis: [f32; 2],
+    /// How far a contact's normal may lean from one_way_axis and still hold the body; radians in the file
+    #[property(
+        default = 0.1,
+        group = "contacts",
+        max = 180.0,
+        min = 0.0,
+        unit = "degrees"
+    )]
+    pub one_way_angle: f32,
+    /// How fast every cell's surface slides along itself, in the map's axes: a conveyor belt carries what rests on it
+    #[property(group = "contacts")]
+    pub surface_velocity: [f32; 2],
+    /// A margin the solver treats as already touching; stops thin shapes tunnelling and jittering
+    #[property(group = "contacts", min = 0.0)]
+    pub collision_margin: f32,
+    /// Mass per volume, so the shape's size sets its mass; 0 makes a collider that adds no mass to its body
+    #[property(default = 1.0, group = "mass", min = 0.0)]
+    pub density: f32,
+    /// Mass in kilograms, overriding what density works out to; 0 keeps the density
+    #[property(group = "mass", min = 0.0)]
+    pub mass: f32,
+    /// Where the whole map's mass sits, in the node's own space; read with inertia, and both 0 keep the shapes' own
+    #[property(group = "mass")]
+    pub center_of_mass: [f32; 2],
+    /// The whole map's resistance to spin about center_of_mass, shared over its colliders by area; 0 takes the shapes' own about that centre
+    #[property(group = "mass", min = 0.0)]
+    pub inertia: f32,
+    /// How hard a contact must be before on_contact_force is called
+    #[property(group = "events", min = 0.0)]
+    pub contact_force_threshold: f32,
+}
+
+/// How the node's `tile_collision` builds the tiles whose collision is polygons, the ones a tileset gives `collision = [[[x, y], ...]]`: what each polygon becomes and how far it is rounded. Whole cells read none of it.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "tile_shapes")]
+pub struct TileShapes {
+    /// What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline
+    #[property(default = Fit3d::ConvexHull)]
+    pub fit: Fit3d,
+    /// Rounds each shaped tile's polygon by this radius
+    #[property(min = 0.0)]
+    pub edge_radius: f32,
+}
+
+impl Beside for TileShapes {
+    type Main = TileCollision;
+
+    // Whether a map has shaped tiles is its tileset's, not the component's.
+    fn reads(_: &TileCollision) -> bool {
+        true
+    }
+}
+
+/// The components whose rows a map's colliders are built from: its own,
+/// then the one beside it.
+pub(crate) const PARAMS: &[&str] = &[c::TILE_COLLISION, <TileShapes as Component>::NAME];
+
+/// What a node's map colliders are built from: the `tile_collision`, and
+/// the `tile_shapes` beside it.
+#[derive(Clone)]
+pub(crate) struct TileAsked {
+    pub collision: TileCollision,
+    pub shapes: TileShapes,
+}
+
+impl TileAsked {
+    /// What `entity` asks for, `None` without a `tile_collision`.
+    fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let collision = (*world.get::<&TileCollision>(entity).ok()?).clone();
+        Some(Self {
+            shapes: beside::held(world, entity, &collision),
+            collision,
+        })
+    }
+
+    /// Both as one table, the way a snapshot keeps it.
+    pub(crate) fn to_table(&self) -> toml::Value {
+        let mut table = derived::to_table(&self.collision);
+        beside::table_in(&mut table, &self.shapes, true);
+        table
+    }
+
+    /// Both out of one table, as [`Self::to_table`] wrote it.
+    pub(crate) fn from_table(params: &toml::Value) -> Result<Self> {
+        let collision: TileCollision = derived::from_table(params)?;
+        Ok(Self {
+            shapes: beside::from_table(params, &collision)?,
+            collision,
+        })
+    }
+}
+
+/// The map's colliders, built again from what the component asks for.
+fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let Some(asked) = TileAsked::of(&eng.world(), entity) else {
+        return Ok(());
+    };
+    let state = eng.resource::<PhysicsState2d>();
+    state.borrow_mut().tile_params.insert(entity, asked);
+    rebuild(eng, entity)
+}
+
+/// What a removed `TileCollision` leaves behind, taken with it.
+/// A parked tile map's colliders leave the simulation with the rest of it.
+pub(crate) fn parked_changed(eng: &Engine, nodes: &[Entity], parked: bool) {
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    let state = &mut *state;
+    let world = eng.world();
+    for node in nodes {
+        let asked = world
+            .get::<&TileCollision>(*node)
+            .map_or(true, |held| held.enabled);
+        for &handle in state.tile_colliders.get(node).into_iter().flatten() {
+            if let Some(collider) = state.world.colliders.get_mut(handle) {
+                collider.set_enabled(!parked && asked);
+            }
+        }
+    }
+}
+
+fn tile_collision_removed(eng: &Engine, entity: Entity) {
+    clear(eng, entity);
+    let state = eng.resource::<PhysicsState2d>();
+    let mut state = state.borrow_mut();
+    state.tile_params.swap_remove(&entity);
+    state.tile_built.swap_remove(&entity);
+}
+
+/// `tile_collision`: what was asked, held on the node; the colliders its map
+/// makes and the table they were built from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_tile_collision_component(reg: &mut Registry<'_>) {
-    let fits = v::options(w::FIT_MODES);
-    let hull = w::CONVEX_HULL;
-    let schema = [
-        v::schema(&[
-            (k::ENABLED, &spec::enabled()),
-            (k::SENSOR, &spec::sensor()),
-            (k::PHYSICS_MATERIAL, &crate::material::row_spec()),
-            (k::FIT, &format!(r#"{{ type = "enum", default = "{hull}", options = [{fits}], description = "What a shaped tile's polygon becomes: its hull, its box, its oriented box, or convex pieces that keep a concave outline", group = "shape" }}"#)),
-            (k::EDGE_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "Rounds each shaped tile's polygon by this radius; full cells have no border to round", group = "shape" }"#),
-        ]),
-        crate::collider::filtering_schema(),
-        v::schema(&[
-            (k::ONE_WAY, &spec::one_way()),
-            (k::ONE_WAY_AXIS, r#"{ type = "vec2", default = [0.0, 1.0], description = "The side a one-way cell holds bodies on, in the map's axes: [0, 1] lands them from above and lets them up through from below. A flipped or turned shaped tile turns it with its polygon", group = "contacts" }"#),
-            (k::ONE_WAY_ANGLE, &spec::one_way_angle()),
-            (k::SURFACE_VELOCITY, r#"{ type = "vec2", default = [0.0, 0.0], description = "How fast every cell's surface slides along itself, in the map's axes: a conveyor belt carries what rests on it", group = "contacts" }"#),
-            (k::COLLISION_MARGIN, &spec::collision_margin()),
-            (k::DENSITY, &spec::density()),
-            (k::MASS, &spec::mass()),
-            (k::CENTER_OF_MASS, r#"{ type = "vec2", default = [0.0, 0.0], description = "Where the whole map's mass sits, in the node's own space; read with inertia, and both 0 keep the shapes' own", group = "mass" }"#),
-            (k::INERTIA, r#"{ type = "float", default = 0.0, min = 0.0, description = "The whole map's resistance to spin about center_of_mass, shared over its colliders by area; 0 takes the shapes' own about that centre", group = "mass" }"#),
-        ]),
-        crate::collider::events_schema(),
-    ]
-    .join("\n");
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_2D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    beside::register::<TileShapes>(reg, &[c::TILE_COLLISION], tags, after_write);
+    // After the component beside it, so a scene gives the node that first.
     reg.register_component(
-        c::TILE_COLLISION,
+        TileCollision::NAME,
         ComponentDef {
             events: crate::vocabulary::hook::COLLIDER,
-            warnings: None,
-            doc: "Collision for the node's `tilemap` cells: every tile the tileset marks solid, one shape per behaviour, with the material keys a `collider2d` takes. `mass` weighs the whole map, shared across its colliders by area; `one_way` makes every cell a platform, holding bodies on `one_way_axis`.",
-            schema: ComponentDef::parse_schema(c::TILE_COLLISION, &schema),
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::PHYSICS,
-            ],
+            tags,
             expects: &["tilemap"],
-            apply: Box::new(|eng, entity, params| {
-                let state = eng.resource::<PhysicsState2d>();
-                state
-                    .borrow_mut()
-                    .tile_params
-                    .insert(entity, params.clone());
-                rebuild(eng, entity)
-            }),
-            remove: Box::new(|eng, entity| {
-                clear(eng, entity);
-                let state = eng.resource::<PhysicsState2d>();
-                let mut state = state.borrow_mut();
-                state.tile_params.swap_remove(&entity);
-                state.tile_built.swap_remove(&entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let state = eng.resource::<PhysicsState2d>();
-                let state = state.borrow();
-                state.tile_params.get(&entity).cloned()
-            }),
+            ..ComponentDef::of::<TileCollision>()
         },
     );
 }
@@ -156,7 +284,7 @@ fn clear(eng: &Engine, entity: Entity) {
 /// One voxel collider per group, one ordinary collider per shaped cell.
 fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     clear(eng, entity);
-    let params = {
+    let asked = {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         state
@@ -186,20 +314,21 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
             },
         );
     }
-    if !crate::vocabulary::boolean(&params, k::ENABLED, true) {
+    if !asked.collision.enabled {
         return Ok(());
     }
     let set = assets::load_typed::<TileSet>(eng, &grid.tileset)?;
-    let material = crate::material::of(eng, &params)?;
-    let pieces = pieces(&grid, &set, &params, &material);
+    let material = crate::material::named(eng, &asked.collision.physics_material)?;
+    let pieces = pieces(&grid, &set, &asked, &material);
+    let asked = &asked.collision;
     // `mass` is the whole map's, shared out by area: one density over every
     // piece weighs the map `mass` however many colliders its cells make.
-    let mass = scalar::real(crate::vocabulary::f(&params, k::MASS, 0.0));
+    let mass = asked.mass;
     let area: scalar::Real = pieces
         .iter()
         .map(|piece| piece.builder.shape.mass_properties(1.0).mass())
         .sum();
-    let stated = Stated::of(&params, mass, area);
+    let stated = Stated::of(asked, mass, area);
     let before = handles_of(eng, entity);
     for piece in pieces {
         let builder = if let Some(stated) = &stated {
@@ -235,9 +364,9 @@ struct Stated {
 
 impl Stated {
     /// `None` when the map states neither, and its shapes keep their own.
-    fn of(params: &toml::Value, mass: Real, area: Real) -> Option<Self> {
-        let com = v::vec2(params, k::CENTER_OF_MASS, [0.0; 2]);
-        let inertia = scalar::real(v::f(params, k::INERTIA, 0.0));
+    fn of(asked: &TileCollision, mass: Real, area: Real) -> Option<Self> {
+        let com = asked.center_of_mass;
+        let inertia = asked.inertia;
         if (crate::body::is_default(&com) && inertia == 0.0) || area <= 0.0 {
             return None;
         }
@@ -246,7 +375,7 @@ impl Stated {
             inertia,
             mass,
             area,
-            density: scalar::real(v::f(params, k::DENSITY, 1.0).max(0.0)),
+            density: asked.density.max(0.0),
         })
     }
 
@@ -275,11 +404,12 @@ struct Piece {
 fn pieces(
     grid: &TileGrid,
     set: &TileSet,
-    params: &toml::Value,
+    both: &TileAsked,
     material: &crate::material::PhysicsMaterial,
 ) -> Vec<Piece> {
-    let all_one_way = v::boolean(params, k::ONE_WAY, false);
-    let axis = v::vec2(params, k::ONE_WAY_AXIS, [0.0, 1.0]);
+    let (asked, shapes) = (&both.collision, &both.shapes);
+    let all_one_way = asked.one_way;
+    let axis = asked.one_way_axis;
     let mut out = Vec::new();
     for group in [Group::Solid, Group::OneWay] {
         let cells = grid.group_cells(set, group);
@@ -292,16 +422,16 @@ fn pieces(
             .collect();
         let size = scalar::v2(grid.tile_world[0], grid.tile_world[1]);
         let one_way = all_one_way || group == Group::OneWay;
-        let builder = with_material(ColliderBuilder2::voxels(size, &keys), params, material);
+        let builder = with_rows(ColliderBuilder2::voxels(size, &keys), asked, material);
         out.push(Piece {
-            builder: builder.active_hooks(hooks_for(params, one_way)),
+            builder: builder.active_hooks(hooks_for(asked, one_way)),
             // The voxel lattice is the grid's own: cell (0, 0) starts at the
             // node, so the collider needs no offset.
             offset: Pose2::IDENTITY,
-            surface: surface(params, one_way, axis),
+            surface: surface(asked, one_way, axis),
         });
     }
-    let border = scalar::real(v::f(params, k::EDGE_RADIUS, 0.0)).max(0.0);
+    let border = shapes.edge_radius.max(0.0);
     for (centre, tile, flags) in grid.shaped_cells(set) {
         let Collision::Shape(polygons) = &tile.collision else {
             continue;
@@ -309,7 +439,7 @@ fn pieces(
         let one_way = all_one_way || tile.is_one_way();
         let turned = turned_axis(axis, set.tile_size, flags);
         for polygon in polygons {
-            let points: Vec<_> = balaur_core::tiles::polygon_in_world(
+            let points: Vec<_> = balaur_geometry::tiles::polygon_in_world(
                 polygon,
                 set.tile_size,
                 grid.tile_world,
@@ -318,7 +448,7 @@ fn pieces(
             .iter()
             .map(|p| scalar::v2(p.x, p.y))
             .collect();
-            let Some(shape) = tile_shape(&points, params, border) else {
+            let Some(shape) = tile_shape(&points, shapes.fit, border) else {
                 tracing::warn!("tile_collision: a tile's polygon has no area to collide with");
                 continue;
             };
@@ -326,10 +456,9 @@ fn pieces(
             // platform one-way has to go on its own collider — after the
             // material, which writes every hook the component asked for.
             out.push(Piece {
-                builder: with_material(shape, params, material)
-                    .active_hooks(hooks_for(params, one_way)),
+                builder: with_rows(shape, asked, material).active_hooks(hooks_for(asked, one_way)),
                 offset: Pose2::from_parts(scalar::v2(centre.x, centre.y), Rotation2::IDENTITY),
-                surface: surface(params, one_way, turned),
+                surface: surface(asked, one_way, turned),
             });
         }
     }
@@ -338,7 +467,7 @@ fn pieces(
 
 /// What `fit` makes of one tile polygon, around its cell's centre, rounded by
 /// `border`. A fitted box keeps the pose it was fitted at.
-fn tile_shape(points: &[Vector2], params: &toml::Value, border: Real) -> Option<ColliderBuilder2> {
+fn tile_shape(points: &[Vector2], fit: Fit3d, border: Real) -> Option<ColliderBuilder2> {
     use crate::rapier2d::prelude::MeshConverter;
     let fitted = |converter: MeshConverter| {
         let (shape, pose) = converter.convert(points.to_vec(), Vec::new()).ok()?;
@@ -351,10 +480,10 @@ fn tile_shape(points: &[Vector2], params: &toml::Value, border: Real) -> Option<
         };
         Some(ColliderBuilder2::new(shape).position(pose))
     };
-    match v::text(params, k::FIT, w::CONVEX_HULL) {
-        w::AABB => fitted(MeshConverter::Aabb),
-        w::OBB => fitted(MeshConverter::Obb),
-        w::CONVEX_DECOMPOSITION => {
+    match fit {
+        Fit3d::Aabb => fitted(MeshConverter::Aabb),
+        Fit3d::Obb => fitted(MeshConverter::Obb),
+        Fit3d::ConvexDecomposition => {
             let pieces = crate::dim2::decompose::decompose_polygon(points, 0.0).ok()?;
             let shapes: Vec<_> = pieces
                 .into_iter()
@@ -369,8 +498,8 @@ fn tile_shape(points: &[Vector2], params: &toml::Value, border: Real) -> Option<
                 .collect();
             (!shapes.is_empty()).then(|| ColliderBuilder2::compound(shapes))
         }
-        _ if border > 0.0 => ColliderBuilder2::round_convex_hull(points, border),
-        _ => ColliderBuilder2::convex_hull(points),
+        Fit3d::ConvexHull if border > 0.0 => ColliderBuilder2::round_convex_hull(points, border),
+        Fit3d::ConvexHull => ColliderBuilder2::convex_hull(points),
     }
 }
 
@@ -382,7 +511,7 @@ fn turned_axis(axis: [f32; 2], tile_size: [f32; 2], flags: u8) -> [f32; 2] {
     }
     // A cell two units wide, so a unit axis of the tile lands as a unit vector.
     let probe = |x: f32, y: f32| {
-        balaur_core::tiles::polygon_in_world(&[[x, y]], tile_size, [2.0, 2.0], flags)[0]
+        balaur_geometry::tiles::polygon_in_world(&[[x, y]], tile_size, [2.0, 2.0], flags)[0]
     };
     let along_x = probe(tile_size[0], tile_size[1] / 2.0);
     let along_y = probe(tile_size[0] / 2.0, 0.0);
@@ -392,15 +521,15 @@ fn turned_axis(axis: [f32; 2], tile_size: [f32; 2], flags: u8) -> [f32; 2] {
 
 /// The contact hook's row for one piece: its platform axis when it is one-way,
 /// and the map's surface velocity.
-fn surface(params: &toml::Value, one_way: bool, axis: [f32; 2]) -> Option<Surface> {
+fn surface(asked: &TileCollision, one_way: bool, axis: [f32; 2]) -> Option<Surface> {
     let one_way = one_way.then(|| {
-        let angle = scalar::real(v::f(params, k::ONE_WAY_ANGLE, 0.1).max(0.0));
+        let angle = asked.one_way_angle.max(0.0);
         (
             scalar::v2a(axis).try_normalize().unwrap_or(Vector2::Y),
             angle,
         )
     });
-    let velocity = scalar::v2a(v::vec2(params, k::SURFACE_VELOCITY, [0.0; 2]));
+    let velocity = scalar::v2a(asked.surface_velocity);
     (one_way.is_some() || velocity != Vector2::ZERO).then_some(Surface { one_way, velocity })
 }
 
@@ -410,8 +539,8 @@ fn surface(params: &toml::Value, one_way: bool, axis: [f32; 2]) -> Option<Surfac
 ///
 /// Set after the material, which writes the whole set of hooks from the
 /// component's own keys, and folded into those rather than over them.
-fn hooks_for(params: &toml::Value, one_way: bool) -> crate::rapier2d::prelude::ActiveHooks {
-    let mut hooks = crate::dim2::collider::active_hooks(params);
+fn hooks_for(asked: &TileCollision, one_way: bool) -> crate::rapier2d::prelude::ActiveHooks {
+    let mut hooks = hooks_of(asked);
     if one_way {
         hooks |= crate::rapier2d::prelude::ActiveHooks::MODIFY_SOLVER_CONTACTS;
     }
@@ -433,3 +562,5 @@ fn handles_of(eng: &Engine, entity: Entity) -> Vec<crate::rapier2d::prelude::Col
     let state = state.borrow();
     state.colliders.get(&entity).cloned().unwrap_or_default()
 }
+
+crate::properties::collider_rows!(TileCollision);

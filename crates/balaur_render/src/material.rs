@@ -17,8 +17,7 @@ use balaur_plugin::Registry;
 #[cfg(feature = "compile")]
 pub use crate::material_compile::fields;
 pub use crate::material_compile::{
-    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, compile_on, compile_with, pack,
-    transparent_variant,
+    Compiled, Field, FieldType, TRANSPARENT_ENTRY, compile, pack, transparent_variant,
 };
 
 pub(crate) use crate::material_check::{install_material_check, install_material_params};
@@ -421,7 +420,7 @@ pub fn flat_surface_of(eng: &Engine, reference: &str) -> Surface {
 /// owns its pipeline, so it cannot be swapped onto a node already built
 /// against a different one.
 pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut renderable = world
         .get::<&mut crate::Renderable2d>(entity)
         .map_err(|_| anyhow!("node has no 2D shape yet"))?;
@@ -432,19 +431,12 @@ pub(crate) fn set_material_2d(eng: &Engine, entity: Entity, reference: &str) -> 
     Ok(())
 }
 
-/// The `material` schema line a 2D drawable spells, so each says the same.
-pub(crate) fn material_line_2d() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{MATERIAL_ASSET_TYPE}", default = "", description = "The material this draws with; empty takes an inherited `material` component, else the built-in one" }}"#
-    )
-}
-
 /// Point `entity` at the `material` asset its 3D shape draws with.
 ///
 /// The 3D counterpart of [`set_material_2d`]; a change rebuilds the node for
 /// the same reason.
 pub(crate) fn set_material_3d(eng: &Engine, entity: Entity, reference: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut renderable = world
         .get::<&mut crate::Renderable3d>(entity)
         .map_err(|_| anyhow!("node has no 3D shape yet"))?;
@@ -471,10 +463,10 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MATERIAL_COMPONENT,
         ComponentDef {
-            events: &[],
-            warnings: None,
             doc: "`source` is the `material` asset this node and everything under it draw with. A renderable's own `material` property overrides it for that node alone.",
-            schema: ComponentDef::parse_schema(
+            tags: &[balaur_core::components::tag::RENDER],
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema(
                 MATERIAL_COMPONENT,
                 &ComponentDef::schema(&[(
                     crate::vocabulary::keys::SOURCE,
@@ -483,33 +475,29 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                     ),
                 )]),
             ),
-            tags: &[balaur_core::components::tag::RENDER],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
+                Box::new(|eng, entity, params| {
                 let reference = params
                     .get(crate::vocabulary::keys::SOURCE)
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default();
-                let mut world = eng.world_mut();
-                world
+                eng.world()
                     .get::<&mut Appearance>(entity)
                     .map_err(|_| anyhow!("node is dead"))?
                     .material = MaterialId::intern(reference);
-                world
+                eng
                     .insert_one(entity, NodeMaterial)
                     .map_err(|_| anyhow!("node is dead"))
             }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<NodeMaterial>(entity);
-                if let Ok(mut appearance) = world.get::<&mut Appearance>(entity) {
+                Box::new(|eng, entity| {
+                let _ = eng.remove_one::<NodeMaterial>(entity);
+                if let Ok(mut appearance) = eng.world().get::<&mut Appearance>(entity) {
                     appearance.material = MaterialId::NONE;
                 }
                 Ok(())
             }),
-            // Present when put on, or when a script named a material for the
-            // node: either way the node carries one.
-            get: Box::new(|eng, entity| {
+                // Present when put on, or when a script named a material for the
+// node: either way the node carries one.
+Box::new(|eng, entity| {
                 let world = eng.world();
                 let material = world.get::<&Appearance>(entity).ok()?.material;
                 if material.is_none() && world.get::<&NodeMaterial>(entity).is_err() {
@@ -522,6 +510,7 @@ pub(crate) fn register_material_component(reg: &mut Registry<'_>) {
                 );
                 Some(toml::Value::Table(map))
             }),
+            )
         },
     );
 }
@@ -737,7 +726,7 @@ struct Params { speed: f32, tint: vec4<f32> }
             "shader = \"s.wesl\"\nparams = { speed = 2.0, tint = [0.25, 0.5, 0.75, 1.0] }",
         ))
         .unwrap();
-        let compiled = compile(&material, WITH_PARAMS).unwrap();
+        let compiled = compile(&material, WITH_PARAMS, &[], false).unwrap();
         assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
         assert_eq!(compiled.params.len(), 32);
         let at = |o: usize| f32::from_le_bytes(compiled.params[o..o + 4].try_into().unwrap());
@@ -755,12 +744,12 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
 ";
         let on = parse(&table("shader = \"s.wesl\"\nfeatures = { screen = true }")).unwrap();
         assert!(on.reads_screen());
-        let wgsl = compile(&on, READS).unwrap().wgsl;
+        let wgsl = compile(&on, READS, &[], false).unwrap().wgsl;
         assert!(wgsl.contains("screen_texture"), "{wgsl}");
         let off = parse(&table("shader = \"s.wesl\"")).unwrap();
         assert!(!off.reads_screen());
         assert!(
-            compile(&off, READS).is_err(),
+            compile(&off, READS, &[], false).is_err(),
             "without the feature there is nothing to sample"
         );
     }
@@ -770,13 +759,13 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
         let on = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = true }")).unwrap();
         let off = parse(&table("shader = \"s.wesl\"\nfeatures = { lit = false }")).unwrap();
         assert!(
-            compile(&on, WITH_VARIANT)
+            compile(&on, WITH_VARIANT, &[], false)
                 .unwrap()
                 .wgsl
                 .contains("return 2f")
         );
         assert!(
-            compile(&off, WITH_VARIANT)
+            compile(&off, WITH_VARIANT, &[], false)
                 .unwrap()
                 .wgsl
                 .contains("return 1f")
@@ -786,7 +775,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex, screen_uv, sample_sc
     #[test]
     fn a_shader_that_does_not_link_names_the_file_the_material_pointed_at() {
         let material = parse(&table("shader = \"shaders/broken.wesl\"")).unwrap();
-        let err = compile(&material, "fn broken(").err().unwrap();
+        let err = compile(&material, "fn broken(", &[], false).err().unwrap();
         assert!(
             format!("{err:#}").contains("shaders/broken.wesl"),
             "{err:#}"
@@ -822,7 +811,10 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
     return vertex(in)
 }
 ";
-        let err = format!("{:#}", compile(&material, broken).err().unwrap());
+        let err = format!(
+            "{:#}",
+            compile(&material, broken, &[], false).err().unwrap()
+        );
         assert!(err.contains("shaders/water.wesl:6"), "{err}");
         assert!(!err.contains("package::material"), "{err}");
     }
@@ -833,7 +825,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
             "shader = \"shaders/water.wesl\"\nparams = { speed = 3.0, glow = \"#204080\" }",
         ))
         .unwrap();
-        let compiled = compile(&material, PROJECT_SHADER).unwrap();
+        let compiled = compile(&material, PROJECT_SHADER, &[], false).unwrap();
         assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
         assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
         // The contract's helpers were pulled in, not left as imports.
@@ -880,7 +872,7 @@ struct Params { pulse: f32 }
             "shader = \"shaders/rock.wesl\"\nparams = { pulse = 0.2 }",
         ))
         .unwrap();
-        let compiled = compile(&material, PROJECT_SHADER_3D).unwrap();
+        let compiled = compile(&material, PROJECT_SHADER_3D, &[], false).unwrap();
         assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
         assert!(!compiled.wgsl.contains("import "), "{}", compiled.wgsl);
         // The lighting loop came in with `shade`.
@@ -933,7 +925,7 @@ struct Out { @location(0) color: vec4<f32> }
 ";
         let material = parse(&table("shader = \"shaders/rock.wesl\"")).unwrap();
         assert!(
-            compile(&material, source).is_ok(),
+            compile(&material, source, &[], false).is_ok(),
             "the shader itself links"
         );
         assert!(transparent_variant(&material, source, &[], false).is_none());
@@ -961,7 +953,7 @@ import package::pbr::{shade, default_surface, shade_pbr};
             shader: "shaders/metal.wesl".into(),
             ..Default::default()
         };
-        compile(&material, shader).expect("package::pbr links");
+        compile(&material, shader, &[], false).expect("package::pbr links");
     }
 
     /// A `[params]` string that names an image binds a texture slot; one that
@@ -1012,7 +1004,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo};
 }
 ";
         let material = parse(&table("shader = \"shaders/w.wesl\"")).unwrap();
-        let compiled = compile_with(&material, shader, std::slice::from_ref(&plugin)).unwrap();
+        let compiled = compile(&material, shader, std::slice::from_ref(&plugin), false).unwrap();
         assert!(compiled.wgsl.contains("6.28318"), "{}", compiled.wgsl);
     }
 
@@ -1023,7 +1015,7 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo};
 @fragment fn fs_main() -> @location(0) vec4<f32> {
     return vec4<f32>(ripple(1.0));
 }";
-        let err = compile(&material, shader).err().unwrap();
+        let err = compile(&material, shader, &[], false).err().unwrap();
         assert!(format!("{err:#}").contains("water"), "{err:#}");
     }
 

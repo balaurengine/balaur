@@ -35,7 +35,7 @@ ios | ios-sim)
   if [ -n "$variant" ]; then
     flags=(--no-default-features --features "window,apple,$(game_features "$variant")")
   else
-    flags=(--features "window,apple")
+    flags=(--features "apple")
   fi
   step "build ($target, windowed, min iOS $ios_min${variant:+, $variant})"
   rustup target add "$target"
@@ -191,7 +191,7 @@ web)
     # std itself has to be rebuilt with atomics, and `-Z build-std` is nightly
     # only. The pinned stable in rust-toolchain.toml stays the default; this
     # names its own toolchain so the two never fight.
-    toolchain=${WEB_THREADS_TOOLCHAIN:-nightly}
+    toolchain=$WEB_THREADS_TOOLCHAIN
     rustup component add rust-src --toolchain "$toolchain"
     # Shared, imported memory is what a worker attaches to: `+atomics` alone
     # links a private one, and posting it to a worker fails to clone. A shared

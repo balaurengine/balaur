@@ -33,9 +33,10 @@ pub struct Completion {
     pub detail: String,
 }
 
-const KEYWORDS: [&str; 23] = [
+const KEYWORDS: [&str; 25] = [
     "let", "if", "else", "while", "for", "in", "loop", "return", "break", "continue", "fn", "pub",
-    "struct", "class", "impl", "async", "await", "true", "false", "self", "const", "extern", "as",
+    "struct", "class", "enum", "match", "impl", "async", "await", "true", "false", "self", "const",
+    "extern", "as",
 ];
 
 /// The value types every script holds, each with its fields: `Vec2` and the

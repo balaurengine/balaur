@@ -1,14 +1,12 @@
 //! The `animation` script module, declared against the neutral seam.
 //!
-//! One declaration list, no language named, so every function here reaches
-//! Rune and a second language the day its backend lands. The
-//! module is `animation` rather than `anim` because the script API spells
+//! The module is `animation` rather than `anim` because the script API spells
 //! words out (`docs/NAMING.md` D4), and the readers are named for what they
 //! return with `is_` kept for the one that answers a boolean (N7).
 
 use anyhow::{Result, anyhow};
 use balaur_core::{Engine, entity_of, node_api};
-use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::ease::Easing;
 use crate::keys as k;
@@ -16,7 +14,7 @@ use crate::player;
 use crate::tween::{self, TweenId};
 
 /// Declare `animation` into a binding group.
-pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_animation_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Clip playback on a node's `animation` component: play, pause, seek and query. `tween` builds a short clip from a table of steps and returns a handle.",
     );
@@ -49,7 +47,7 @@ pub fn install_animation_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Driving a node's `state_machine`.
-fn install_machine_api(m: &mut dyn Bindings<Engine>) {
+fn install_machine_api(m: &mut Module<Engine>) {
     const MACHINE: &[&str] = &[crate::machine::COMPONENT];
     m.describe(&[
         ("travel", MACHINE, "", "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly."),
@@ -75,17 +73,20 @@ fn install_machine_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Starting, queueing and holding a clip.
-fn install_transport_api(m: &mut dyn Bindings<Engine>) {
+fn install_transport_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("play", &[crate::COMPONENT], "", "Start the clip of that name on this node; the trailing options table takes `speed_scale` (a multiplier), `from_start`, `blend_time` (seconds to blend out of the clip before), `ease` (the blend's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
+        ("play", &[crate::COMPONENT], "(node: node, name: string, opts: PlayOptions?)", "Start the clip of that name on this node; the trailing options table takes `speed_scale` (a multiplier), `from_start`, `blend_time` (seconds to blend out of the clip before), `ease` (the blend's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
         ("queue", &[crate::COMPONENT], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
         ("stop", &[], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
         ("pause", &[crate::COMPONENT], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
         ("resume", &[crate::COMPONENT], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
         ("add_clip", &[crate::COMPONENT], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
     ]);
-    // `opts` is `{ speed_scale = 1.5, from_start = false, blend_time = 0.2,
-    // ease = EASE_IN_SINE, retarget = "maps/hero.toml" }`, all optional (N9).
+    m.records(&[(
+        "PlayOptions",
+        "{ speed_scale: float?, from_start: bool?, blend_time: float?, ease: string?, retarget: string? }",
+        "How `play` starts a clip: its speed, whether from the start, the seconds and curve it blends over, and a `bone_map` to retarget another rig's clip.",
+    )]);
     m.function(
         "play",
         |eng: &Engine, (node, name, opts): (NodeId, String, Option<Value>)| {
@@ -150,13 +151,12 @@ fn install_transport_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Where the playhead is, and what it just did.
-fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
+fn install_playhead_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("seek", &[crate::COMPONENT], "", "Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip."),
         ("current_clip", &[crate::COMPONENT], "", "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started."),
         ("time", &[crate::COMPONENT], "", "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped."),
         ("is_playing", &[crate::COMPONENT], "", "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false."),
-        ("just_finished", &[crate::COMPONENT], "", "The clip that ended on this node during the last step, and nil on every other frame."),
     ]);
     // Poses the node even on a paused or ended clip, and does not fire the
     // method keys it skips over.
@@ -184,9 +184,6 @@ fn install_playhead_api(m: &mut dyn Bindings<Engine>) {
     // The clip that ended on this node last frame, and nil every other frame.
     // The polling half of `on_animation_finished`, for a script that would
     // rather ask than define a method.
-    m.function("just_finished", |eng: &Engine, node: NodeId| {
-        Ok(player::just_finished(eng, entity_of(node)?))
-    });
 }
 
 /// A number from an options entry, whichever way the language spelled it.
@@ -211,20 +208,33 @@ fn option(opts: Option<&Value>, key: &str) -> Option<Value> {
 /// A tween is a generated clip, so the only new surface here is how one is
 /// described and how it is addressed afterwards: the playing of it is the
 /// same code path a clip goes through.
-fn install_tween_api(m: &mut dyn Bindings<Engine>) {
+fn install_tween_api(m: &mut Module<Engine>) {
     // No component: a tween is generated from the node's current values and
     // kept beside the players, so the node needs no `animation` of its own.
     m.describe(&[
-        ("tween", &[], "", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method or passes a function; the node's `on_tween_finished(handle)` is called when it runs out."),
+        ("tween", &[], "(node: node, spec: Tween) -> int", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out."),
         ("is_tween_running", &[], "", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
         ("tween_value", &[], "(from: number, to: number, seconds: float, ease: string) -> int", "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes."),
         ("tween_value_of", &[], "(handle: int) -> number", "Where a value tween has got to, in the shape it was started with; nil once it is over."),
     ]);
-    // `{ loops = 1, speed_scale = 1.0, steps = { ... } }`. Steps run one after
-    // another; `parallel = true` joins a step to the one before it. Returns
-    // the handle `stop` and `is_tween_running` take.
+    m.records(&[
+        (
+            "Tween",
+            "{ steps: [Step], loops: int?, speed_scale: float?, delay: float?, then: int? }",
+            "A tween: its steps in order, how often it loops, its speed, the seconds it waits, and the tween it waits for.",
+        ),
+        (
+            "Step",
+            "{ property: string?, to: any, by: any, from: any, duration: float?, ease: string?, parallel: bool?, target: string?, call: any, interval: float? }",
+            "One step of a tween: a `property` going `to` a value or `by` an offset over `duration` seconds on an `ease`, a `call` of a method, or an `interval` waited; `parallel` runs it beside the step before, `target` names the node it acts on.",
+        ),
+    ]);
     m.function("tween", |eng: &Engine, (node, spec): (NodeId, Value)| {
-        tween::start_script(eng, entity_of(node)?, &spec)
+        tween::start(
+            eng,
+            entity_of(node)?,
+            &balaur_core::node_api::to_toml(&spec)?,
+        )
     });
     // The 90% case without a table: one property, one destination, one
     // duration, and the curve to get there on.

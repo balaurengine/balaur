@@ -6,23 +6,22 @@
 id = "complete"
 name = "Complete"
 script = { source = "scripts/panels/complete.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 anchor = "top_left"
 width = 320
 padding = [6, 6, 6, 6]
-layer = "shell"
-visible = false
+whole_window = true
 
 [[nodes]]
 id = "list"
 name = "List"
 parent = "complete"
 [nodes.widget]
+on_click = "list_clicked"
 kind = "list"
-text = ""
 row_height = 22
 font_size = 11
 
@@ -30,13 +29,12 @@ font_size = 11
 id = "doc"
 name = "Doc"
 parent = "complete"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
 truncate = true
-text = ""
-visible = false
 
 # A scroll with no room in it: the keys are laid out, so their chords fire,
 # and clipped, so nothing of them shows.
@@ -48,8 +46,9 @@ parent = "complete"
 kind = "scroll"
 axis = "horizontal"
 height = 1
-scrollbar = "never"
 interactive = false
+[nodes.widget_scroll]
+scrollbar = "never"
 
 [[nodes]]
 id = "keys_row"
@@ -63,8 +62,8 @@ id = "up"
 name = "Up"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
-text = ""
 focusable = false
 shortcut = "arrowup"
 takes_typing = true
@@ -74,8 +73,8 @@ id = "down"
 name = "Down"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
-text = ""
 focusable = false
 shortcut = "arrowdown"
 takes_typing = true
@@ -85,8 +84,8 @@ id = "accept"
 name = "Accept"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
-text = ""
 focusable = false
 shortcut = "enter"
 takes_typing = true
@@ -96,8 +95,8 @@ id = "tab"
 name = "Tab"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
-text = ""
 focusable = false
 shortcut = "tab"
 takes_typing = true
@@ -107,8 +106,8 @@ id = "close"
 name = "Close"
 parent = "keys_row"
 [nodes.widget]
+on_click = "key"
 kind = "button"
-text = ""
 focusable = false
 shortcut = "escape"
 takes_typing = true

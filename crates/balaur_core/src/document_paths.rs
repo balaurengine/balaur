@@ -125,7 +125,7 @@ pub(crate) fn relative_in(eng: &Engine, root: &Path, value: &mut toml::Value) {
 /// is the game's: a path naming one of the dependency's files, or an `id://`
 /// its own index knows, becomes `<prefix>/<path>`. `exists` answers for a
 /// path under the dependency's root.
-pub(crate) fn prefixed_in(
+pub fn prefixed_in(
     prefix: &str,
     value: &mut toml::Value,
     exists: &dyn Fn(&str) -> bool,

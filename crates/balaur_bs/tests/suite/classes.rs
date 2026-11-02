@@ -1,4 +1,4 @@
-use super::{call, compile_error, run};
+use super::run;
 use balaur_bs::runtime::{HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
 
@@ -45,7 +45,7 @@ impl Editor {
         ring[1].count = 5;
         let first = ring[1];
         first.count += 1;
-        self.said = "{self.s.sel} {self.s.history.len()} {self.s.count} {self.s.inner.hits} {drag} {self.s.gizmo.drag.is_none()} {self.s.gizmo.marks.len()} {self.s.next.unwrap().count} {ring[1].count}";
+        self.said = "{self.s.sel} {self.s.history.len()} {self.s.count} {self.s.inner.hits} {drag} {self.s.gizmo.drag == nil} {self.s.gizmo.marks.len()} {self.s.next.unwrap().count} {ring[1].count}";
     }
 }
 "#;
@@ -54,9 +54,9 @@ impl Editor {
 fn a_class_is_one_object_every_holder_shares() {
     let mut rt = run(EDITOR);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "init", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "init", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(
         rt.get(&e, "said"),
         Some(Value::Str("y 2 2 2 7 true 2 42 6".into())),
@@ -115,14 +115,14 @@ fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     let c1 = compile(v1, &Options::default()).unwrap();
     let mut rt = Runtime::new(&c1, HostFns::default(), Limits::default()).unwrap();
     let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "edit", &[]).unwrap();
+    rt.call_method(&e, "edit", &[]).unwrap();
     let doc = |rev: i64, extra: Option<bool>| {
         let mut fields = vec![
-            ("name".to_string(), Value::Str("a".into())),
-            ("rev".to_string(), Value::Int(rev)),
+            ("name".into(), Value::Str("a".into())),
+            ("rev".into(), Value::Int(rev)),
         ];
         if let Some(b) = extra {
-            fields.push(("saved".to_string(), Value::Bool(b)));
+            fields.push(("saved".into(), Value::Bool(b)));
         }
         Some(Value::Struct("Doc".into(), fields))
     };
@@ -130,7 +130,7 @@ fn the_host_reads_a_class_field_and_a_reload_keeps_it() {
     let c2 = compile(v2, &Options::default()).unwrap();
     let kept = rt.reload(&c2, HostFns::default(), &mut [&mut e]).unwrap();
     assert_eq!(kept[0], ["doc"]);
-    rt.call_method(&mut e, "edit", &[]).unwrap();
+    rt.call_method(&e, "edit", &[]).unwrap();
     assert_eq!(
         rt.get(&e, "doc"),
         doc(11, Some(true)),
@@ -166,26 +166,20 @@ fn a_class_boxes_as_its_fields_and_comes_back_a_new_object() {
                 let back: P = held;
                 back.x += 10;
                 let q = P { x: 4, tags: ["a"] };
-                self.said = "{held.x} {p.x} {back.x} {p == q} {p}";
+                self.said = "{held["x"]} {p.x} {back.x} {p == q} {p}";
             }
         }
     "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut packer = rt.object("Packer", &[]).unwrap();
-    rt.call_method(&mut packer, "go", &[]).unwrap();
+    let packer = rt.object("Packer", &[]).unwrap();
+    rt.call_method(&packer, "go", &[]).unwrap();
     assert_eq!(
         rt.get(&packer, "said"),
         Some(Value::Str(r#"3 4 13 true {"x": 4, "tags": ["a"]}"#.into()))
     );
     rt.drop_object(packer);
     assert_eq!(rt.live(), base);
-}
-
-#[test]
-fn a_class_names_its_missing_field() {
-    let e = compile_error("pub class P { x: int }\nfn f(p: P) -> int { p.y }");
-    assert!(e.contains("class P has no field `y`"), "{e}");
 }
 
 #[test]
@@ -232,16 +226,6 @@ pub fn fill(k: int) -> int {
     );
 }
 
-#[test]
-fn only_a_class_may_hold_itself_through_an_optional() {
-    let e = compile_error("pub struct A { next: A? }");
-    assert!(e.contains("contains itself through `next`"), "{e}");
-    let e = compile_error("pub class N { next: N }");
-    assert!(e.contains("make it `N?`"), "{e}");
-    let ok = compile("pub class N { next: N?, kids: [N] }", &Options::default());
-    assert!(ok.is_ok(), "{:?}", ok.err());
-}
-
 // A script's own object is a class, so `self.node` is read out of memory:
 // its component's property is still the engine's to read and write.
 #[test]
@@ -285,38 +269,55 @@ impl Ball {
         other => Err(format!("no {other}")),
     });
     let mut rt = Runtime::new(&compiled, host, Limits::default()).unwrap();
-    let mut ball = rt.object("Ball", &[("node", Value::Node(7))]).unwrap();
-    rt.call_method(&mut ball, "update", &[]).unwrap();
+    let ball = rt.object("Ball", &[("node", Value::Node(7))]).unwrap();
+    rt.call_method(&ball, "update", &[]).unwrap();
     assert_eq!(rt.get(&ball, "seen"), Some(Value::Float(2.5)));
     let Value::Struct(_, fields) = &set.borrow()[0] else {
         panic!("the position was not written");
     };
-    assert_eq!(fields[1], ("y".to_string(), Value::Float(3.5)));
+    assert_eq!(fields[1], ("y".into(), Value::Float(3.5)));
     rt.drop_object(ball);
     assert_eq!(rt.live(), 0);
 }
 
-// A spec is a struct: a literal names what differs from the declared
-// defaults, and an optional field it leaves out is nil.
+/// A misspelt component or property on a node says which half is wrong.
 #[test]
-fn a_struct_literal_leaves_out_what_has_a_default() {
-    let mut rt = run(
-        r#"pub struct Label { kind: str = "label", size: int = 3, text: str, tip: str? }
-pub fn plain() -> str {
-    let label = Label { text: "hi" };
-    "{label.kind} {label.size} {label.text} {label.tip.is_none()}"
-}
-pub fn sized() -> int { Label { text: "x", size: 9 }.size }
-"#,
-    );
-    assert_eq!(
-        call(&mut rt, "plain", &[]),
-        Value::Str("label 3 hi true".into())
-    );
-    assert_eq!(call(&mut rt, "sized", &[]), Value::Int(9));
-    let missing = compile_error("pub struct Label { text: str }\npub fn f() { let l = Label {}; }");
+fn a_property_the_component_lacks_does_not_compile() {
+    use balaur_bs::{HostApi, Ty};
+    let options = Options {
+        host: HostApi {
+            components: vec![(
+                "transform".into(),
+                vec![
+                    ("position".into(), Ty::Struct("Vec3".into())),
+                    ("skew".into(), Ty::Float),
+                ],
+            )],
+            ..HostApi::default()
+        },
+        ..Options::default()
+    };
+    let with = |line: &str| {
+        let src = format!(
+            "pub class Ball {{ node: Node }}\nimpl Ball {{\n    pub fn go() {{ {line} }}\n}}\n"
+        );
+        compile(&src, &options).map(|_| ()).unwrap_err().to_string()
+    };
+    let read = with("let at = self.node.get_component(\"transform\", \"skew\");");
     assert!(
-        missing.contains("missing field `text` of Label"),
-        "{missing}"
+        read.contains("read a property as `node.transform.skew`"),
+        "{read}"
     );
+    let write = with("self.node.patch_component(\"transform\", { \"skew\": 1.0 });");
+    assert!(
+        write.contains("write a property as `node.transform.skew = v`"),
+        "{write}"
+    );
+    let wrong = with("self.node.transform.positoin = vec3(0.0, 0.0, 0.0);");
+    assert!(
+        wrong.contains("`transform` has no property `positoin`; it has `position`, `skew`"),
+        "{wrong}"
+    );
+    let wrong = with("let x = self.node.transfrom.position;");
+    assert!(wrong.contains("no component `transfrom`"), "{wrong}");
 }

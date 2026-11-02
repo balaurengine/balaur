@@ -56,7 +56,7 @@ id = "n_body"
 name = "Body"
 parent = "n_world"
 body{dim} = {{ kind = "dynamic", gravity_scale = {gravity_scale:?} }}
-collider{dim} = {{ kind = "{shape}" }}
+collider{dim} = {{ shape = {{ kind = "{shape}" }} }}
 follow{dim} = {{ target = "/World/Goal", {follow} }}
 "#
     )

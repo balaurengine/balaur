@@ -7,12 +7,12 @@
 use anyhow::Context;
 use balaur_core::Engine;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::{
-    AppIconConfig, CameraConfig2d, CameraConfig3d, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT,
-    DebugLineBuffer2d, DebugLineBuffer3d, DrawLineArgs, GridConfig, ScreenshotRequest,
-    ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
+    AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d,
+    DrawLineArgs, GridConfig, ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d,
+    WindowConfig,
 };
 
 /// Queue one block of text for this frame. `pixels_per_unit` sizes the quad;
@@ -54,27 +54,13 @@ fn push_text(
 
 /// The 3D camera: where it looks from, and the pose, matrix and picking ray
 /// it published this frame.
-pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_camera_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_camera", &[], "", "Point the 3D camera: the eye position xyz, then the world point it looks at, in world units."),
         ("camera_matrix", &[], "", "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window."),
         ("camera_pose", &[], "", "The camera the renderer actually used: eye xyz, target xyz, vertical fov in radians, HiDPI scale."),
         ("hold_cameras", &[], "(root: node?)", "Let no camera under a node drive the view, whatever its `current` says, until it is called with nil: an editor looking at a game through its own camera. The cameras keep what the scene asked of them."),
         ("bounds", &[], "(node: node) -> [vec3]?", "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built; a text, the lines it was last laid out in."),
     ]);
-    // Writes `CameraConfig3d`; not an accessor pair with `render.camera_pose`,
-    // which reads what the renderer actually did with the request.
-    m.function(
-        "set_camera",
-        |eng: &Engine, (ex, ey, ez, tx, ty, tz): (f32, f32, f32, f32, f32, f32)| {
-            let config = eng.resource::<CameraConfig3d>();
-            let mut config = config.borrow_mut();
-            config.eye = glamx::Vec3::new(ex, ey, ez);
-            config.target = glamx::Vec3::new(tx, ty, tz);
-            config.changed = true;
-            Ok(())
-        },
-    );
     // The camera's exact projection*view matrix (column-major, 16
     // numbers): scripts project points precisely as the renderer does.
     m.function("camera_matrix", |eng: &Engine, ()| {
@@ -83,7 +69,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
         Ok(view_proj.to_vec())
     });
     // Eye xyz, target xyz, fov (rad), HiDPI scale; zeros and a scale of one
-    // with no windowed backend. Reads the published snapshot, not `set_camera`.
+    // with no windowed backend. Reads the published snapshot.
     m.function("camera_pose", |eng: &Engine, ()| {
         let cam = eng.resource::<ViewportSnapshot3d>();
         let cam = cam.borrow();
@@ -138,7 +124,7 @@ pub(crate) fn install_camera_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Picking: the ray through the mouse, and what a ray meets first.
-fn install_pick_api(m: &mut dyn Bindings<Engine>) {
+fn install_pick_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("mouse_ray", &[], "", "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units."),
         ("pick_ray", &[], "", "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz."),
@@ -197,27 +183,11 @@ fn install_pick_api(m: &mut dyn Bindings<Engine>) {
 
 /// The 2D camera: its target center and zoom, the state it published this
 /// frame, and the mouse unprojected through it.
-pub(crate) fn install_camera_2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_camera_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_camera_2d", &[], "", "Point the 2D camera: the world centre xy, then the zoom in logical pixels per world unit."),
         ("camera_2d", &[], "", "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window."),
         ("mouse_world_2d", &[], "", "The mouse position in 2D world coordinates, for picking."),
     ]);
-    // World center + zoom in logical pixels per world unit. Not an accessor
-    // pair with `render.camera_2d`, which reads the published snapshot.
-    m.function(
-        "set_camera_2d",
-        |eng: &Engine, (cx, cy, zoom): (f32, f32, f32)| {
-            let config = eng.resource::<CameraConfig2d>();
-            let mut config = config.borrow_mut();
-            config.center = [cx, cy];
-            // The floor the `camera` component's schema states, so a script
-            // and a scene file cannot disagree about the same number.
-            config.zoom = zoom.max(crate::camera::MIN_ZOOM_2D);
-            config.changed = true;
-            Ok(())
-        },
-    );
     // Center xy, zoom, from the published snapshot rather than the config —
     // so headless answers all zeros, zoom included, not the config's default.
     m.function("camera_2d", |eng: &Engine, ()| {
@@ -244,13 +214,13 @@ pub(crate) fn resolve_project_path(eng: &Engine, path: &str) -> std::path::PathB
 }
 
 /// `render.screenshot`: the next rendered frame, to a PNG.
-fn install_screenshot_api(m: &mut dyn Bindings<Engine>) {
+fn install_screenshot_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "screenshot",
             &[],
             "",
-            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `#{ path, error }` when it cannot be, a run with no renderer included.",
+            "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         ),
         (
             "snap_aov",
@@ -300,21 +270,32 @@ pub(crate) fn register_window_module(reg: &mut Registry<'_>) -> anyhow::Result<(
     m.module_doc(
         "The OS window and the display under it: mode, cursor, app icon, keep-awake, the safe area and the refresh rate.",
     );
-    install_window_api(&mut *m);
+    install_window_api(&mut m);
     Ok(())
 }
 
 /// The OS window and the display it sits on.
-fn install_window_api(m: &mut dyn Bindings<Engine>) {
+fn install_window_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_app_icon", &[], "(path: string, opts: table)", "Set the application icon, the dock or taskbar one, from a PNG or an SVG in the project. `opts.plate` colours the disc a macOS dock icon sits on, white by default. Replaces `[application] icon` for the run."),
-        ("set_fullscreen", &[], "", "Put the window into borderless fullscreen on the current monitor, or back into a window."),
+        ("set_app_icon", &[], "(path: string, opts: AppIconOptions?)", "Set the application icon, the dock or taskbar one, from a PNG or an SVG in the project. `opts.plate` colours the disc a macOS dock icon sits on, white by default. Replaces `[application] icon` for the run."),
         ("set_window_mode", &[], "(mode: string)", "`windowed`, `maximized`, `fullscreen` (borderless) or `exclusive` (the monitor's largest video mode): the same choice as `[window] mode`."),
         ("set_cursor_grab", &[], "", "Confine the cursor to the window, for FPS-style mouse look."),
         ("set_cursor_hidden", &[], "", "Hide or show the mouse cursor over the window."),
         ("set_keep_awake", &[], "(on: bool)", "Keep the screen from dimming while the game runs: a page takes a wake lock, a phone its equivalent, a desktop needs nothing."),
-        ("safe_area", &[], "() -> map", "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop."),
+        ("safe_area", &[], "() -> SafeArea", "The display's insets in pixels, `{ left, top, right, bottom }`: what a notch or a home bar covers, read once per frame and recorded. Zero on a desktop."),
         ("refresh_rate", &[], "() -> float", "Frames per second the display refreshes at, as measured over the last frames; 60 with no window."),
+    ]);
+    m.records(&[
+        (
+            "AppIconOptions",
+            "{ plate: any }",
+            "The colour of the disc a macOS dock icon sits on, `plate`; white unless given.",
+        ),
+        (
+            "SafeArea",
+            "{ left: float, top: float, right: float, bottom: float }",
+            "The display's insets in pixels: what a notch or a home bar covers.",
+        ),
     ]);
     // OS application icon (dock icon on macOS) from a PNG in the project.
     // No reader by design: add `app_icon` when a caller needs it back.
@@ -337,19 +318,8 @@ fn install_window_api(m: &mut dyn Bindings<Engine>) {
             Ok(())
         },
     );
-    // Borderless fullscreen on the current monitor. No readers by design
-    // (N8): `WindowConfig` already holds what a backend last applied.
-    m.function("set_fullscreen", |eng: &Engine, fullscreen: bool| {
-        let config = eng.resource::<WindowConfig>();
-        let mut config = config.borrow_mut();
-        config.mode = if fullscreen {
-            balaur_core::project::WindowMode::Fullscreen
-        } else {
-            balaur_core::project::WindowMode::Windowed
-        };
-        config.changed = true;
-        Ok(())
-    });
+    // No readers by design (N8): `WindowConfig` already holds what a backend
+    // last applied.
     m.function("set_window_mode", |eng: &Engine, mode: String| {
         let Some(mode) = balaur_core::project::WindowMode::parse(&mode) else {
             anyhow::bail!("no window mode '{mode}': windowed, maximized, fullscreen or exclusive");
@@ -491,21 +461,26 @@ fn ring(center: [f32; 3], radius: f32, axis: usize, out: &mut Vec<([f32; 3], [f3
     }
 }
 
-pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_background", &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
         ("set_grid", &[], "", "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent."),
         ("set_grid_colors", &[], "", "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
         ("draw_line_3d", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
-        ("draw_line_2d", &[], "", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
+        ("draw_line_2d", &[], "(x1: float, y1: float, x2: float, y2: float, r: float, g: float, b: float, width: float?, opts: DrawOptions?)", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
         ("draw_lines", &[], "(flat)", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
         ("draw_box", &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: color)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
         ("draw_sphere", &[], "(x: float, y: float, z: float, radius: float, color: color)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
         ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: color)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
-        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: table)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` take a reference or a definition table."),
-        ("draw_text_3d", &[], "(x: float, y: float, z: float, text: string, opts: table)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
-        ("text_size", &[], "(text: string, opts: table) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
+        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` take a reference or a definition table."),
+        ("draw_text_3d", &[], "(x: float, y: float, z: float, text: string, opts: TextOptions?)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
+        ("text_size", &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
+    m.records(&[(
+        "TextOptions",
+        "{ font_size: float?, font_weight: int?, font_style: string?, color: any, text_align: string?, markup: bool?, max_width: float?, max_height: float?, max_lines: int?, line_break: string?, truncate: bool?, truncate_at: string?, tab_width: int?, font: any, text_style: any, alpha_cutoff: float?, pixels_per_unit: float?, z_index: int? }",
+        "How drawn text is shaped and placed: the `text2d` keys, a `font` or `text_style` as a reference or a definition table, `pixels_per_unit` for its size in the world and `z_index` among the nodes of that index.",
+    )]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
     m.function(
@@ -582,7 +557,7 @@ pub(crate) fn install_backdrop_api(m: &mut dyn Bindings<Engine>) {
 
 /// The immediate text calls, split from [`install_backdrop_api`] under
 /// `MAX_FN_LINES`: a line in either pass, and what one measures.
-fn install_text_api(m: &mut dyn Bindings<Engine>) {
+fn install_text_api(m: &mut Module<Engine>) {
     m.function(
         "draw_text_2d",
         |eng: &Engine, (x, y, text, opts): (f32, f32, String, Option<Value>)| {
@@ -646,7 +621,7 @@ type LineArgs2d = (
 /// The 3D immediate primitives, split from [`install_backdrop_api`] under
 /// `MAX_FN_LINES`: a box, a sphere and a capsule as wireframes, the shapes
 /// the 2D side fills.
-fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
+fn install_wireframe_api(m: &mut Module<Engine>) {
     m.function(
         "draw_box",
         |eng: &Engine,
@@ -694,7 +669,7 @@ fn install_wireframe_api(m: &mut dyn Bindings<Engine>) {
 
 /// Shape3d and colour on a node, 3D and 2D.
 /// The `sprite` bindings: a textured 2D quad, its sheet and its frame.
-pub(crate) fn install_sprite_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_sprite_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 
@@ -745,7 +720,7 @@ impl TraceOpts {
 /// Adjusting a sprite a node already has, and reading it back.
 /// The image's pixel size, from its header: what a tool placing UVs over a
 /// texture needs, in every build.
-pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_texture_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "texture_size",
@@ -763,7 +738,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         (
             "trace_texture",
             &[],
-            "(path: string, opts: table) -> [[vec2]]",
+            "(path: string, opts: TraceOptions?) -> [[vec2]]",
             "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, \
              ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as \
              opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, \
@@ -773,6 +748,11 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
              sprite at the same `pixels_per_unit` is drawn.",
         ),
     ]);
+    m.records(&[(
+        "TraceOptions",
+        "{ threshold: float?, tolerance: float?, pixels_per_unit: float?, holes: bool? }",
+        "How `trace_texture` reads an image: the alpha counted as opaque, the pixels of detail dropped, the pixels in a world unit, and whether every loop is kept.",
+    )]);
     m.function("texture_size", |eng: &Engine, path: String| {
         crate::texture::size_of(eng, &path)
     });
@@ -783,14 +763,14 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
         "trace_texture",
         |eng: &Engine, (path, opts): (String, Option<Value>)| {
             let opts = TraceOpts::of(opts.as_ref());
-            let source = balaur_core::texture_asset::source(eng, &path)?;
+            let source = balaur_asset::texture_asset::source(eng, &path)?;
             let bytes = eng
                 .resource::<balaur_core::project::ProjectFiles>()
                 .borrow()
                 .read(&source.path)?;
             // Only alpha is traced, so nothing is bled into the clear texels.
-            let alpha = balaur_core::pixels::Alpha::Premultiplied;
-            let image = balaur_core::pixels::decode(&bytes, &source.settings.settings, alpha)
+            let alpha = balaur_asset::pixels::Alpha::Premultiplied;
+            let image = balaur_asset::pixels::decode(&bytes, &source.settings.settings, alpha)
                 .with_context(|| format!("decoding the image {path}"))?;
             let (w, h) = (image.width() as usize, image.height() as usize);
             // The file may be a smaller copy of what was drawn; the outline is
@@ -801,7 +781,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
             let cut = opts.threshold * 255.0;
             let mask: Vec<bool> = image.pixels().map(|p| f32::from(p.0[3]) >= cut).collect();
             let ppu = opts.pixels_per_unit;
-            let loops = balaur_core::geometry2d::trace(&mask, w, h);
+            let loops = balaur_geometry::geometry2d::trace(&mask, w, h);
             let keep = if opts.holes { loops.len() } else { 1 };
             // Pixel corners are y-down and measured from the top left; a
             // polygon's points are y-up and centred, the same frame
@@ -817,7 +797,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
                         // `local`'s y flip turns a traced outline clockwise; reversed, an
                         // outline winds counter-clockwise and a hole clockwise.
                         let simplified =
-                            balaur_core::geometry2d::simplify(&outline, opts.tolerance);
+                            balaur_geometry::geometry2d::simplify(&outline, opts.tolerance);
                         Value::List(simplified.into_iter().rev().map(local).collect())
                     })
                     .collect(),
@@ -826,7 +806,7 @@ pub(crate) fn install_texture_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
-pub(crate) fn install_sprite_state_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_sprite_state_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 

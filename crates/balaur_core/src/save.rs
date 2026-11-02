@@ -8,7 +8,7 @@
 //! ```toml
 //! [save]
 //! version = 3                       # what this build writes
-//! migrate = "scripts/saves.rn"      # brings an older file forward
+//! migrate_script = "scripts/saves.bs"      # brings an older file forward
 //! ```
 
 use std::path::PathBuf;

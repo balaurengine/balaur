@@ -8,6 +8,7 @@
 //! module's own imports decide; its named parameters carry the handful of
 //! names that are spelled differently in 2D.
 
+pub(crate) mod beside;
 pub(crate) mod body;
 pub(crate) mod character;
 pub(crate) mod collider;

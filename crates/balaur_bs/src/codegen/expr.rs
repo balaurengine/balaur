@@ -1,5 +1,5 @@
 use super::Site;
-use super::func::{FnGen, LVal, Mode, R, err, op_text, show};
+use super::func::{FnGen, LVal, Mode, R, any_read, err, op_text, show, vector_fn};
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, StmtKind, Ty, UnOp};
@@ -44,19 +44,17 @@ impl FnGen<'_> {
             }
             ExprKind::Index(arr, idx) if self.type_of(arr).ok() == Some(Ty::Any) => {
                 let by = if self.type_of(idx)? == Ty::Str {
-                    "get"
+                    "#get"
                 } else {
-                    "at"
+                    "#at"
                 };
-                self.any_method(arr, by, std::slice::from_ref(&**idx), e.pos)?
+                self.prelude_method("any", arr, by, std::slice::from_ref(&**idx), e.pos)?
             }
-            // `a.name` on an `any` is `a.get("name")`.
             ExprKind::Field(base, f) if self.type_of(base).ok() == Some(Ty::Any) => {
-                let key = Expr {
-                    kind: ExprKind::Str(f.clone()),
-                    pos: e.pos,
-                };
-                self.any_method(base, "get", std::slice::from_ref(&key), e.pos)?
+                return err(
+                    e.pos,
+                    format!("an `any` has no fields: read the key as `[\"{f}\"]`"),
+                );
             }
             ExprKind::Var(_) | ExprKind::SelfRef | ExprKind::Field(..) | ExprKind::Index(..) => {
                 self.read(e)?
@@ -64,7 +62,11 @@ impl FnGen<'_> {
             ExprKind::Bin(op, a, b) => self.binary(*op, a, b, e.pos)?,
             ExprKind::Unary(op, a) => self.unary(*op, a, e.pos)?,
             ExprKind::Call(name, args) => self.call(name, args, e.pos)?,
-            ExprKind::Method(base, name, args) => self.method(base, name, args, e.pos)?,
+            ExprKind::Method(base, name, args) => {
+                self.dropped_form(base, name, e.pos)?;
+                self.dropped_property_call(base, name, args, e.pos)?;
+                self.method(base, name, args, e.pos)?
+            }
             ExprKind::StructLit(s, fields) => self.struct_lit(s, fields, e.pos)?,
             ExprKind::ArrayLit(items) => self.array_lit(items, None, e.pos)?,
             ExprKind::MapLit(_) => {
@@ -75,6 +77,13 @@ impl FnGen<'_> {
             }
             ExprKind::ArrayRepeat(v, n) => self.array_repeat(v, n)?,
             ExprKind::If(c, then, els) => self.if_expr(c, then, els.as_ref(), e.pos)?,
+            ExprKind::Block(b) => {
+                self.scopes.push(vec![]);
+                let t = self.block_body(b)?;
+                self.scopes.pop();
+                t
+            }
+            ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
             ExprKind::Cast(a, to) => self.cast(a, to, e.pos)?,
             ExprKind::Await(_) => {
                 return err(
@@ -140,14 +149,16 @@ impl FnGen<'_> {
             (UnOp::Neg, Ty::Float) => self.e(I::F64Neg),
             (UnOp::Not, Ty::Bool) => self.e(I::I32Eqz),
             (UnOp::Neg, Ty::Any) => {
-                self.unbox_any(&Ty::Float);
-                self.e(I::F64Neg);
-                return Ok(Ty::Float);
+                return err(
+                    pos,
+                    "cannot negate an `any`: read it with `.as_float()` or `.as_int()`",
+                );
             }
             (UnOp::Not, Ty::Any) => {
-                self.unbox_any(&Ty::Bool);
-                self.e(I::I32Eqz);
-                return Ok(Ty::Bool);
+                return err(
+                    pos,
+                    "`!` needs a bool, not an `any`: read it with `.as_bool()`",
+                );
             }
             (UnOp::Neg, _) => return err(pos, format!("cannot negate {}", show(&t))),
             (UnOp::Not, _) => return err(pos, format!("`!` needs a bool, got {}", show(&t))),
@@ -156,7 +167,8 @@ impl FnGen<'_> {
     }
 
     // What a literal of struct `s` gives field `f` of type `t`: what it
-    // names, else the field's declared default, else nil for an optional.
+    // names, else the field's declared default, else nil for an optional or
+    // an `any`.
     fn field_value(
         &self,
         s: &str,
@@ -175,7 +187,7 @@ impl FnGen<'_> {
             .and_then(|defaults| defaults.iter().find(|(n, _)| n == f));
         match declared {
             Some((_, default)) => Ok(default.clone()),
-            None if matches!(t, Ty::Optional(_)) => Ok(Expr {
+            None if matches!(t, Ty::Optional(_) | Ty::Any) => Ok(Expr {
                 kind: ExprKind::Nil,
                 pos,
             }),
@@ -187,6 +199,15 @@ impl FnGen<'_> {
     }
 
     fn struct_lit(&mut self, s: &str, fields: &[(String, Expr)], pos: Pos) -> R<Ty> {
+        // The converter a vector comes out of an `any` by writes one this way.
+        if !self.prelude
+            && let Some(made) = vector_fn(s)
+        {
+            return err(
+                pos,
+                format!("a {s} is written `{made}(..)`, not `{s} {{ .. }}`"),
+            );
+        }
         let decl = self.g.structs.get(s).cloned().ok_or(Error {
             pos,
             msg: format!("unknown struct `{s}`"),
@@ -195,7 +216,11 @@ impl FnGen<'_> {
             .iter()
             .find(|(f, _)| !decl.iter().any(|(n, _)| n == f))
         {
-            return err(pos, format!("struct {s} has no field `{f}`"));
+            let names: Vec<String> = decl.iter().map(|(n, _)| format!("`{n}`")).collect();
+            return err(
+                pos,
+                format!("struct {s} has no field `{f}`; it has {}", names.join(", ")),
+            );
         }
         let ty = Ty::Struct(s.to_string());
         // A class's fields go into a new object, counted once for its holder.
@@ -337,11 +362,25 @@ impl FnGen<'_> {
     pub(crate) fn array_lit(&mut self, items: &[Expr], want: Option<&Ty>, pos: Pos) -> R<Ty> {
         let et = match (items.first(), want) {
             (_, Some(t)) => t.clone(),
-            (Some(first), None) => {
-                let first = self.type_of(first)?;
+            (Some(_), None) => {
+                // A map literal is typed by the other elements, and an `any`
+                // beside elements of another kind.
+                let typed: Vec<&Expr> = items
+                    .iter()
+                    .filter(|item| !matches!(item.kind, ExprKind::MapLit(_)))
+                    .collect();
+                let Some(first) = typed.first() else {
+                    return self.type_of(&items[0]);
+                };
+                let mut et = self.type_of(first)?;
+                if typed.len() < items.len()
+                    && !matches!(et, Ty::Any)
+                    && self.map_class(first).is_none()
+                {
+                    et = Ty::Any;
+                }
                 // Elements of more than one kind make a list of anys.
-                let mut et = first;
-                for item in &items[1..] {
+                for item in &typed[1..] {
                     let t = self.type_of(item)?;
                     if t != et && !matches!((&et, &t), (Ty::Float, Ty::Int)) {
                         et = if matches!((&et, &t), (Ty::Int, Ty::Float)) {
@@ -383,7 +422,10 @@ impl FnGen<'_> {
     // The type `e` would have, with nothing emitted.
     pub(crate) fn type_of(&mut self, e: &Expr) -> R<Ty> {
         let at = (std::ptr::from_ref(e) as usize, e.pos.line, e.pos.col);
-        if let Some(t) = self.typed.get(&at) {
+        // Generated code has no line, and its clones reuse each other's
+        // addresses, so only a position tells two expressions apart.
+        let known = e.pos.line > 0;
+        if known && let Some(t) = self.typed.get(&at) {
             return Ok(t.clone());
         }
         let marks = (
@@ -397,7 +439,7 @@ impl FnGen<'_> {
         self.locals.truncate(marks.1);
         self.owned.truncate(marks.2);
         self.patches.truncate(marks.3);
-        if let Ok(t) = &t {
+        if known && let Ok(t) = &t {
             self.typed.insert(at, t.clone());
         }
         t
@@ -467,8 +509,8 @@ impl FnGen<'_> {
     }
 
     fn if_expr(&mut self, c: &Expr, then: &Block, els: Option<&Block>, pos: Pos) -> R<Ty> {
-        // `if c { x } else { nil }` or `{ [] }`: the other branch says what
-        // `nil` or `[]` stands for.
+        // `if c { x } else { nil }`, `{ [] }` or `{ { "k": v } }`: the other
+        // branch says what `nil`, `[]` or the map stands for.
         if let Some(e) = els
             && is_open(then) != is_open(e)
         {
@@ -490,6 +532,7 @@ impl FnGen<'_> {
             let want = match t {
                 Ty::Any | Ty::Optional(_) => t,
                 Ty::Array(_) if !is_nil(open) => t,
+                t if is_map_lit(open) => t,
                 t => Ty::Optional(Box::new(t)),
             };
             self.if_as(c, then, els, &want, pos)?;
@@ -509,7 +552,6 @@ impl FnGen<'_> {
                 "an `if` without `else` has no value; end the block with `;` or add `else`",
             );
         }
-        let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
         // A branch that leaves has whatever type the other gives: it never
         // hands a value to the `if`.
         let (tt, et) = match els {
@@ -527,19 +569,6 @@ impl FnGen<'_> {
             (Ty::Int, Ty::Float) => {
                 then_code.push(I::F64ConvertI64S);
                 Ty::Float
-            }
-            // An `any` branch is read as the other branch's plain kind.
-            (Ty::Any, t) if plain(t) => {
-                let mark = self.code.len();
-                self.unbox_any(t);
-                then_code.extend(self.code.drain(mark..));
-                t.clone()
-            }
-            (t, Ty::Any) if plain(t) => {
-                let mark = self.code.len();
-                self.unbox_any(t);
-                else_code.extend(self.code.drain(mark..));
-                t.clone()
             }
             (Ty::Float, Ty::Int) => {
                 else_code.push(I::F64ConvertI64S);
@@ -609,21 +638,25 @@ impl FnGen<'_> {
         let mut tb = self.expr(b)?;
         let plain = |t: &Ty| matches!(t, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
         // `==` asks whether the `any` holds that value, so nil is no `false`
-        // and no `""`: both are compared as values. Anything else meets the
-        // plain value as that value's kind.
+        // and no `""`: both are compared as values. Anything but `==` wants the
+        // `any` read first.
         let mixed = (ta == Ty::Any && plain(&tb)) || (tb == Ty::Any && plain(&ta));
         if mixed && matches!(op, BinOp::Eq | BinOp::Ne) {
             return self.equal_as_values(op, &ta, &tb, pos);
         }
-        if ta == Ty::Any && plain(&tb) {
-            let held = self.temp(&tb);
-            self.set_raw(&held);
-            self.unbox_any(&tb);
-            self.take_out(&held);
-            ta = tb.clone();
-        } else if tb == Ty::Any && plain(&ta) {
-            self.unbox_any(&ta);
-            tb = ta.clone();
+        let boxed = |t: &Ty| matches!(t, Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_));
+        if ta == Ty::Any || tb == Ty::Any {
+            if (ta == tb || boxed(&ta) || boxed(&tb)) && matches!(op, BinOp::Eq | BinOp::Ne) {
+                return self.equal_as_values(op, &ta, &tb, pos);
+            }
+            let read = any_read(if ta == Ty::Any { &tb } else { &ta }).unwrap_or("as_float");
+            return err(
+                pos,
+                format!(
+                    "`{}` on an `any`: read it first, as with `.{read}()`",
+                    op_text(op)
+                ),
+            );
         }
         if ta == Ty::Int && tb == Ty::Float {
             self.code.insert(mark, I::F64ConvertI64S);
@@ -632,21 +665,7 @@ impl FnGen<'_> {
             self.e(I::F64ConvertI64S);
             tb = Ty::Float;
         }
-        // Two `any`s: equal as values, else compared and counted as floats.
-        if ta == Ty::Any && tb == Ty::Any {
-            if matches!(op, BinOp::Eq | BinOp::Ne) {
-                return self.equal_as_values(op, &ta, &tb, pos);
-            }
-            let held = self.temp(&Ty::Any);
-            self.set_raw(&held);
-            self.unbox_any(&Ty::Float);
-            self.take_out(&held);
-            self.unbox_any(&Ty::Float);
-            ta = Ty::Float;
-            tb = Ty::Float;
-        }
         // Lists or structs are equal as values: both boxed and compared.
-        let boxed = |t: &Ty| matches!(t, Ty::Array(_) | Ty::Struct(_) | Ty::Optional(_));
         if matches!(op, BinOp::Eq | BinOp::Ne) && (boxed(&ta) || boxed(&tb)) {
             return self.equal_as_values(op, &ta, &tb, pos);
         }
@@ -668,15 +687,14 @@ impl FnGen<'_> {
         Ok(out)
     }
 
-    // The two values on the stack, `a` under `b`, boxed and compared as
-    // `any.equals` compares them.
+    // The two values on the stack, `a` under `b`, boxed and compared.
     fn equal_as_values(&mut self, op: BinOp, ta: &Ty, tb: &Ty, pos: Pos) -> R<Ty> {
         let b = self.temp(tb);
         self.set_raw(&b);
         self.coerce(ta, &Ty::Any, pos)?;
         self.take_out(&b);
         self.coerce(tb, &Ty::Any, pos)?;
-        self.call_prelude("any::equals");
+        self.call_prelude("any::#equals");
         if op == BinOp::Ne {
             self.e(I::I32Eqz);
         }
@@ -792,4 +810,14 @@ fn is_open(b: &Block) -> bool {
     is_nil(b)
         || (b.stmts.is_empty()
             && matches!(b.tail.as_deref().map(|e| &e.kind), Some(ExprKind::ArrayLit(items)) if items.is_empty()))
+        || is_map_lit(b)
+}
+
+// A branch that is a map literal, which the other branch types.
+fn is_map_lit(b: &Block) -> bool {
+    b.stmts.is_empty()
+        && matches!(
+            b.tail.as_deref().map(|e| &e.kind),
+            Some(ExprKind::MapLit(_))
+        )
 }

@@ -30,12 +30,11 @@ impl Dock {
         // Told once it is visible, so a panel that fills itself never reads
         // itself as hidden and skips the fill.
         if shown.kind() == "str" && shown.as_str() != "" {
-            self.node.get_node(shown).call("refresh");
+            self.node.get_node(shown.as_str()).call("refresh");
         }
     }
 
     /// The tabs, the "+N" list and the fold run the Editor's own handlers, so
     /// a dock has nothing to add; a panel with a script of its own hears its
     /// controls first.
-    pub fn on_widget_event(event: str, node: Node, value: any) {}
 }

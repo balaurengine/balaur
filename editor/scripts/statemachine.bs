@@ -6,7 +6,6 @@ use docks;
 use editor;
 use history;
 use model;
-use pool;
 use selftest;
 use shell;
 use signals;
@@ -37,11 +36,11 @@ const COMPONENT: str = "state_machine";
 
 const MACHINE_TYPE: str = "state_machine";
 
-const ROW_H: float = 24.0;
+const ROW_HEIGHT: float = 24.0;
 
-const NAME_W: float = 96.0;
+const NAME_WIDTH: float = 96.0;
 
-const FIELD_W: float = 120.0;
+const FIELD_WIDTH: float = 120.0;
 
 /// The dock's own state, hung on `state.machine`.
 pub fn state() -> StatemachineState {
@@ -56,14 +55,14 @@ fn source(state: &mut editor::State) -> Source? {
     if !found.is_valid() || !found.has_component(COMPONENT) {
         return nil;
     }
-    let comp = found.authored(COMPONENT);
-    let machine = comp.machine;
+    let component = found.authored(COMPONENT);
+    let machine = component["machine"];
     if machine.kind() == "map" {
         return Source { doc: machine, path: nil };
     }
     if machine.kind() == "str" && machine.as_str() != "" {
         let path = machine.as_str();
-        if state.machine.file.is_some() {
+        if state.machine.file != nil {
             let held = state.machine.file.unwrap();
             if held.path == path {
                 return Source { doc: held.doc, path: path };
@@ -75,14 +74,14 @@ fn source(state: &mut editor::State) -> Source? {
             return Source { doc: loaded, path: path };
         }
     }
-    Source { doc: map().with("type", MACHINE_TYPE).with("states", map()).with("transitions", []), path: nil }
+    Source { doc: { "type": MACHINE_TYPE, "states": {}, "transitions": [] }, path: nil }
 }
 
 // A copy to change, so the edit lands after the history step: a machine in
 // the scene is read afresh from the node, one in a file is the held copy.
 fn editable(state: &mut editor::State) -> Source? {
     let found = source(state);
-    if found.is_none() {
+    if found == nil {
         return nil;
     }
     Source { doc: util::deep(found.unwrap().doc), path: found.unwrap().path }
@@ -93,16 +92,16 @@ fn write(state: &mut editor::State, found: Source, label: str) {
     if !model::has_selection(state) {
         return;
     }
-    if found.path.is_some() {
+    if found.path != nil {
         let path = found.path.unwrap();
-        let abs = util::engine_path(state.game_root, path);
-        fs::write(abs, toml::encode(found.doc));
-        assets::reload(abs);
+        let absolute_path = util::engine_path(state.game_root, path);
+        fs::write(absolute_path, toml::encode(found.doc));
+        assets::reload(absolute_path);
         state.machine.file = File { path: path, doc: found.doc };
         log::info("{label}: {path}");
     } else {
         history::record(state, label, nil);
-        model::selected_node(state).patch_component(COMPONENT, map().with("machine", found.doc));
+        model::selected_node(state).patch_component(COMPONENT, { "machine": found.doc });
         history::commit(state);
     }
     signals::changed(state, "machine");
@@ -114,19 +113,19 @@ pub fn create(state: &mut editor::State) {
         return;
     }
     history::record(state, "add state machine", nil);
-    let machine = map().with("type", MACHINE_TYPE).with("start", "").with("states", map()).with("transitions", []);
-    model::selected_node(state).set_component(COMPONENT, map().with("machine", machine).with("player", "").with("active", true));
+    let machine: any = { "type": MACHINE_TYPE, "start": "", "states": {}, "transitions": [] };
+    model::selected_node(state).set_component(COMPONENT, { "machine": machine, "player": "", "active": true });
     history::commit(state);
 }
 
 fn states(doc: any) -> any {
-    let held = doc.states;
-    if held.kind() == "map" { held } else { map() }
+    let held = doc["states"];
+    if held.kind() == "map" { held } else { {} }
 }
 
 fn transitions(doc: any) -> [any] {
     let out: [any] = [];
-    for transition in util::vec(doc.transitions) {
+    for transition in util::list_or_empty(doc["transitions"]) {
         out.push(transition);
     }
     out
@@ -144,11 +143,11 @@ fn state_names(doc: any) -> [str] {
 /// Add a state playing the clip of its own name.
 pub fn add_state(state: &mut editor::State, name: str) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
-    if name == "" || name == animation::STATE_END.as_str() || states(found.doc).has(name) {
+    if name == "" || name == animation::STATE_END || states(found.doc).has(name) {
         return;
     }
     // The clip of its own name when the library has one, and otherwise the
@@ -156,10 +155,10 @@ pub fn add_state(state: &mut editor::State, name: str) {
     let clips = anim::clip_names(state);
     let held = states(found.doc);
     let own = clips.len() == 0 || util::contains(clips, name);
-    held.set(name, if own { "" } else { clips[0] });
-    found.doc.set("states", held);
-    if found.doc.start.as_str() == "" {
-        found.doc.set("start", name);
+    held[name] = if own { "" } else { clips[0] };
+    found.doc["states"] = held;
+    if found.doc["start"].as_str() == "" {
+        found.doc["start"] = name;
     }
     write(state, found, "add state");
 }
@@ -167,22 +166,22 @@ pub fn add_state(state: &mut editor::State, name: str) {
 /// Remove a state, and every transition into or out of it.
 pub fn remove_state(state: &mut editor::State, name: str) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
     let held = states(found.doc);
     held.remove(name);
-    found.doc.set("states", held);
+    found.doc["states"] = held;
     let kept: [any] = [];
     for transition in transitions(found.doc) {
-        if transition.from.as_str() != name && transition.to.as_str() != name {
+        if transition["from"].as_str() != name && transition["to"].as_str() != name {
             kept.push(transition);
         }
     }
-    found.doc.set("transitions", kept);
-    if found.doc.start.as_str() == name {
-        found.doc.set("start", "");
+    found.doc["transitions"] = kept;
+    if found.doc["start"].as_str() == name {
+        found.doc["start"] = "";
     }
     state.machine.open = nil;
     write(state, found, "remove state");
@@ -190,30 +189,30 @@ pub fn remove_state(state: &mut editor::State, name: str) {
 
 fn set_state_clip(state: &mut editor::State, name: str, clip: any) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
     let held = states(found.doc);
-    held.set(name, if clip.as_str() == name { "" } else { clip.as_str() });
-    found.doc.set("states", held);
+    held[name] = if clip.as_str() == name { "" } else { clip.as_str() };
+    found.doc["states"] = held;
     write(state, found, "state clip");
 }
 
 fn set_start(state: &mut editor::State, name: str) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
-    found.doc.set("start", name);
+    found.doc["start"] = name;
     write(state, found, "start state");
 }
 
 /// Add a transition between the first two states, open for editing.
 pub fn add_transition(state: &mut editor::State) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -223,15 +222,15 @@ pub fn add_transition(state: &mut editor::State) {
     }
     let to = if names.len() > 1 { names[1] } else { names[0] };
     let held = transitions(found.doc);
-    held.push(map().with("from", names[0]).with("to", to).with("advance_mode", animation::ADVANCE_MODE_ENABLED));
+    held.push({ "from": names[0], "to": to, "advance_mode": animation::ADVANCE_MODE_ENABLED });
     state.machine.open = held.len() - 1;
-    found.doc.set("transitions", held);
+    found.doc["transitions"] = held;
     write(state, found, "add transition");
 }
 
 pub fn remove_transition(state: &mut editor::State, at: int) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -240,7 +239,7 @@ pub fn remove_transition(state: &mut editor::State, at: int) {
         return;
     }
     held.remove(at);
-    found.doc.set("transitions", held);
+    found.doc["transitions"] = held;
     state.machine.open = nil;
     write(state, found, "remove transition");
 }
@@ -248,7 +247,7 @@ pub fn remove_transition(state: &mut editor::State, at: int) {
 /// Set one field of transition `at`; an empty text or the default removes it.
 pub fn set_field(state: &mut editor::State, at: int, key: str, value: any) {
     let copy = editable(state);
-    if copy.is_none() {
+    if copy == nil {
         return;
     }
     let found = copy.unwrap();
@@ -259,9 +258,9 @@ pub fn set_field(state: &mut editor::State, at: int, key: str, value: any) {
     if value.kind() == "str" && value.as_str() == "" {
         held[at].remove(key);
     } else {
-        held[at].set(key, value);
+        held[at][key] = value;
     }
-    found.doc.set("transitions", held);
+    found.doc["transitions"] = held;
     write(state, found, "edit transition");
 }
 
@@ -274,20 +273,20 @@ const ROWS: str = "Editor/Shell/Body/Centre/Bottom/StateMachine/Rows/Column";
 /// and the header fills the panel's own strip.
 pub fn body(state: &mut editor::State) {
     let authored = source(state);
-    if authored.is_none() {
+    if authored == nil {
         docks::toolbar(state, PANEL + "Chrome", [offer(state)]);
-        pool::sync(state, ROWS, [], NAME_W, false);
+        ui::fill_rows(ROWS, [], NAME_WIDTH, false);
         return;
     }
     let found = authored.unwrap();
     let doc = found.doc;
     docks::toolbar(state, PANEL + "Chrome", [header_controls(state, found)]);
-    pool::sync(state, ROWS, row_specs(state, doc), NAME_W, false);
+    ui::fill_rows(ROWS, row_specs(state, doc), NAME_WIDTH, false);
 }
 
 /// What the strip says when the node runs no machine: why, and the verb that
 /// gives it one.
-fn offer(state: editor::State) -> [any] {
+fn offer(state: editor::State) -> [ui::Control] {
     // Bound, never a literal after a `}`: the block's value would be indexed
     // by the array rather than followed by it.
     if !model::selected_node(state).is_valid() {
@@ -295,18 +294,19 @@ fn offer(state: editor::State) -> [any] {
     }
     return [
         caption("no state machine on this node"),
-        map()
-            .with("kind", "button")
-            .with("role", "action_form_secondary")
-            .with("text", "add state machine")
-            .with("tooltip", "Give the node an embedded `state_machine` over its own player")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_add_machine_pressed)),
+        ui::Control {
+            kind: "button",
+            role: "action_form_secondary",
+            text: "add state machine",
+            tooltip: "Give the node an embedded `state_machine` over its own player",
+            on_click: "handle",
+            data: { "fn": on_add_machine_pressed },
+        },
     ];
 }
 
-fn caption(text: str) -> any {
-    map().with("kind", "label").with("role", "text_caption").with("text", text)
+fn caption(text: str) -> ui::Control {
+    ui::Control { kind: "label", role: "text_caption", text: text }
 }
 
 fn on_add_machine_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -315,24 +315,25 @@ fn on_add_machine_pressed(state: &mut editor::State, data: any, _value: any) {
 
 /// The strip over the rows: where the machine lives, the state it starts in,
 /// and the state it is in while the game runs.
-fn header_controls(state: editor::State, found: Source) -> [any] {
+fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
     let doc = found.doc;
-    let place = if found.path.is_some() { found.path.unwrap() } else { "inline" };
+    let place = if found.path != nil { found.path.unwrap() } else { "inline" };
     let out = [
         caption(place),
         caption("start"),
-        map()
-            .with("kind", "dropdown")
-            .with("role", "choice_form")
-            .with("width", FIELD_W)
-            .with("text", doc.start.as_str())
-            .with("options", state_names(doc))
-            .with("on", "handle")
-            .with("data", map().with("fn", on_start_picked)),
+        ui::Control {
+            kind: "dropdown",
+            role: "choice_form",
+            width: FIELD_WIDTH,
+            text: doc["start"].as_str(),
+            options: state_names(doc),
+            on_change: "handle",
+            data: { "fn": on_start_picked },
+        },
     ];
     let now = live_state(state);
     if now != "" {
-        out.push(map().with("kind", "label").with("role", "chip").with("checked", true).with("text", "now {now}"));
+        out.push(ui::Control { kind: "label", role: "chip", checked: true, text: "now {now}" });
     }
     out
 }
@@ -357,75 +358,79 @@ fn live_state(state: editor::State) -> str {
 
 /// Every row the dock shows: the states, the new-state row, the transitions,
 /// and the fields of whichever transition is open.
-fn row_specs(state: &mut editor::State, doc: any) -> [any] {
+fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
     let out = [head_spec("STATES", [])];
     let clips = anim::clip_names(state);
     let machine_states = states(doc);
     for name in machine_states.keys() {
-        let clip = machine_states.get(name);
+        let clip = machine_states[name];
         // Bound afresh: a closure made in a loop captures the binding.
         let state_name = name;
-        let control = if clip.kind() == "str" {
-            map()
-                .with("kind", "dropdown")
-                .with("role", "choice_form")
-                .with("width", FIELD_W)
-                .with("text", if clip.as_str() == "" { state_name } else { clip.as_str() })
-                .with("options", clips)
-                .with("on", "handle")
-                .with("data", map().with("fn", on_state_clip_picked).with("state", state_name))
+        let control: ui::Control = if clip.kind() == "str" {
+            ui::Control {
+                kind: "dropdown",
+                role: "choice_form",
+                width: FIELD_WIDTH,
+                text: if clip.as_str() == "" { state_name } else { clip.as_str() },
+                options: clips,
+                on_change: "handle",
+                data: { "fn": on_state_clip_picked, "state": state_name },
+            }
         } else {
             caption("nested machine")
         };
-        out.push(map()
-            .with("full", false)
-            .with("height", ROW_H)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
+        out.push(ui::Row {
+            height: ROW_HEIGHT,
+            slot_role: "layout_actions",
+            controls: [
                 control,
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip_quiet")
-                    .with("text", "×")
-                    .with("tooltip", "Remove the state and its transitions")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_state_remove_pressed).with("state", state_name)),
-            ])
-            .with("label", state_name));
+                ui::Control {
+                    kind: "button",
+                    role: "chip_quiet",
+                    text: "×",
+                    tooltip: "Remove the state and its transitions",
+                    on_click: "handle",
+                    data: { "fn": on_state_remove_pressed, "state": state_name },
+                },
+            ],
+            label: state_name,
+        });
     }
-    out.push(map()
-        .with("full", true)
-        .with("height", ROW_H)
-        .with("slot_role", "layout_actions")
-        .with("controls", [
-            map()
-                .with("kind", "text_field")
-                .with("role", "input_form")
-                .with("width", NAME_W + FIELD_W)
-                .with("text", state.machine.naming)
-                .with("placeholder", "new state")
-                .with("on", "handle")
-                .with("on_submit", "handle_submit")
-                .with("data", map().with("fn", on_new_state_typed).with("submit", on_new_state_submitted)),
-            map()
-                .with("kind", "button")
-                .with("role", "action_form_secondary")
-                .with("text", "add state")
-                .with("tooltip", "A state playing the clip of its own name")
-                .with("on", "handle")
-                .with("data", map().with("fn", on_add_state_pressed)),
-        ]));
+    out.push(ui::Row {
+        height: ROW_HEIGHT,
+        slot_role: "layout_actions",
+        controls: [
+            ui::Control {
+                kind: "text_field",
+                role: "input_form",
+                width: NAME_WIDTH + FIELD_WIDTH,
+                text: state.machine.naming,
+                placeholder: "new state",
+                on_change: "handle",
+                on_submit: "handle_submit",
+                data: { "fn": on_new_state_typed, "submit": on_new_state_submitted },
+            },
+            ui::Control {
+                kind: "button",
+                role: "action_form_secondary",
+                text: "add state",
+                tooltip: "A state playing the clip of its own name",
+                on_click: "handle",
+                data: { "fn": on_add_state_pressed },
+            },
+        ],
+    });
     transition_specs(state, doc, out);
     out
 }
 
 fn on_state_clip_picked(state: &mut editor::State, data: any, picked: any) {
-    let state_name: str = data.state;
+    let state_name: str = data["state"].as_str();
     set_state_clip(state, state_name, picked);
 }
 
 fn on_state_remove_pressed(state: &mut editor::State, data: any, _value: any) {
-    let state_name: str = data.state;
+    let state_name: str = data["state"].as_str();
     remove_state(state, state_name);
 }
 
@@ -450,15 +455,16 @@ fn named(state: &mut editor::State, text: str) {
     state.machine.naming = "";
 }
 
-fn transition_specs(state: editor::State, doc: any, out: [any]) {
+fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
     out.push(head_spec("TRANSITIONS", [
-        map()
-            .with("kind", "button")
-            .with("role", "action_form_secondary")
-            .with("text", "add transition")
-            .with("tooltip", "A transition between two states, opened for editing")
-            .with("on", "handle")
-            .with("data", map().with("fn", on_add_transition_pressed)),
+        ui::Control {
+            kind: "button",
+            role: "action_form_secondary",
+            text: "add transition",
+            tooltip: "A transition between two states, opened for editing",
+            on_click: "handle",
+            data: { "fn": on_add_transition_pressed },
+        },
     ]));
     let names = state_names(doc);
     // `end` is somewhere a transition goes, never somewhere one leaves.
@@ -469,32 +475,34 @@ fn transition_specs(state: editor::State, doc: any, out: [any]) {
         let transition = all_transitions[at];
         // Bound afresh: a closure made in a loop captures the binding.
         let index = at;
-        let open = state.machine.open.is_some() && state.machine.open.unwrap() == index;
-        let from = if transition.from.is_nil() { "?" } else { transition.from.as_str() };
-        let to = if transition.to.is_nil() { "?" } else { transition.to.as_str() };
-        let mode = if transition.advance_mode.is_nil() { animation::ADVANCE_MODE_ENABLED } else { transition.advance_mode.as_str() };
-        out.push(map()
-            .with("full", true)
-            .with("height", ROW_H)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                map()
-                    .with("kind", "button")
-                    .with("min_width", NAME_W + FIELD_W)
-                    .with("role", "item_list")
-                    .with("checked", open)
-                    .with("text", "{from} → {to}  {mode}")
-                    .with("tooltip", "Open the transition's fields")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_transition_picked).with("open", open).with("index", index)),
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip_quiet")
-                    .with("text", "×")
-                    .with("tooltip", "Remove the transition")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_transition_remove_pressed).with("index", index)),
-            ]));
+        let open = state.machine.open != nil && state.machine.open.unwrap() == index;
+        let from = if transition["from"] == nil { "?" } else { transition["from"].as_str() };
+        let to = if transition["to"] == nil { "?" } else { transition["to"].as_str() };
+        let mode = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
+        out.push(ui::Row {
+            height: ROW_HEIGHT,
+            slot_role: "layout_actions",
+            controls: [
+                ui::Control {
+                    kind: "button",
+                    min_width: NAME_WIDTH + FIELD_WIDTH,
+                    role: "item_list",
+                    checked: open,
+                    text: "{from} → {to}  {mode}",
+                    tooltip: "Open the transition's fields",
+                    on_click: "handle",
+                    data: { "fn": on_transition_picked, "open": open, "index": index },
+                },
+                ui::Control {
+                    kind: "button",
+                    role: "chip_quiet",
+                    text: "×",
+                    tooltip: "Remove the transition",
+                    on_click: "handle",
+                    data: { "fn": on_transition_remove_pressed, "index": index },
+                },
+            ],
+        });
         if open {
             field_specs(state, index, transition, names, targets, out);
         }
@@ -506,63 +514,65 @@ fn on_add_transition_pressed(state: &mut editor::State, data: any, _value: any) 
 }
 
 fn on_transition_picked(state: &mut editor::State, data: any, _value: any) {
-    let open: bool = data.open;
-    let index: int = data.index;
+    let open: bool = data["open"].as_bool();
+    let index: int = data["index"].as_int();
     state.machine.open = if open { nil } else { index };
 }
 
 fn on_transition_remove_pressed(state: &mut editor::State, data: any, _value: any) {
-    let index: int = data.index;
+    let index: int = data["index"].as_int();
     remove_transition(state, index);
 }
 
 /// A heading across the rows, with whatever verbs belong beside it.
-fn head_spec(text: str, verbs: [any]) -> any {
+fn head_spec(text: str, verbs: [ui::Control]) -> ui::Row {
     let controls = [caption(text)];
     for verb in verbs {
         controls.push(verb);
     }
-    map().with("full", true).with("height", ROW_H).with("slot_role", "layout_actions").with("controls", controls)
+    ui::Row { height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
-fn field_spec(label: str, control: any) -> any {
-    map().with("full", false).with("height", ROW_H).with("controls", [control]).with("label", "    " + label)
+fn field_spec(label: str, control: ui::Control) -> ui::Row {
+    ui::Row { height: ROW_HEIGHT, controls: [control], label: "    " + label }
 }
 
-fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> any {
-    map()
-        .with("kind", "dropdown")
-        .with("role", "choice_form")
-        .with("width", FIELD_W)
-        .with("text", current)
-        .with("options", choices)
-        .with("on", "handle")
-        .with("data", map().with("fn", on_choice_picked).with("at", at).with("key", key))
+fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> ui::Control {
+    ui::Control {
+        kind: "dropdown",
+        role: "choice_form",
+        width: FIELD_WIDTH,
+        text: current,
+        options: choices,
+        on_change: "handle",
+        data: { "fn": on_choice_picked, "at": at, "key": key },
+    }
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
-    let at: int = data.at;
-    let key: str = data.key;
+    let at: int = data["at"].as_int();
+    let key: str = data["key"].as_str();
     set_field(state, at, key, picked);
 }
 
-fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: str) -> any {
-    map()
-        .with("kind", "text_field")
-        .with("role", "input_form")
-        .with("width", FIELD_W)
-        .with("text", current)
-        .with("placeholder", placeholder)
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("submit", on_text_submitted).with("current", current).with("at", at).with("key", key))
+fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: str) -> ui::Control {
+    ui::Control {
+        kind: "text_field",
+        role: "input_form",
+        width: FIELD_WIDTH,
+        text: current,
+        placeholder: placeholder,
+        on_submit: "handle_submit",
+        data: { "submit": on_text_submitted, "current": current, "at": at, "key": key },
+    }
 }
 
 fn on_text_submitted(state: &mut editor::State, data: any, value: any) {
-    let current: str = data.current;
-    let at: int = data.at;
-    let key: str = data.key;
+    let current: str = data["current"].as_str();
+    let at: int = data["at"].as_int();
+    let key: str = data["key"].as_str();
     if value.as_str() != current {
         set_field(state, at, key, value);
     }
@@ -570,23 +580,24 @@ fn on_text_submitted(state: &mut editor::State, data: any, value: any) {
 
 // `whole` is both how it steps and what it writes: a drag value shows as many
 // decimals as its speed has, and `priority` parses a whole number only.
-fn number(state: editor::State, at: int, key: str, current: float, whole: bool) -> any {
-    map()
-        .with("kind", "number_field")
-        .with("role", "input_number")
-        .with("width", FIELD_W)
-        .with("value", current.as_float())
-        .with("min", 0.0)
-        .with("max", if whole { 1000.0 } else { 100.0 })
-        .with("drag_speed", if whole { 1.0 } else { 0.01 })
-        .with("on", "handle")
-        .with("data", map().with("fn", on_number_changed).with("at", at).with("key", key).with("whole", whole))
+fn number(state: editor::State, at: int, key: str, current: float, whole: bool) -> ui::Control {
+    ui::Control {
+        kind: "number_field",
+        role: "input_number",
+        width: FIELD_WIDTH,
+        value: current,
+        min: 0.0,
+        max: if whole { 1000.0 } else { 100.0 },
+        drag_speed: if whole { 1.0 } else { 0.01 },
+        on_change: "handle",
+        data: { "fn": on_number_changed, "at": at, "key": key, "whole": whole },
+    }
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    let at: int = data.at;
-    let key: str = data.key;
-    let whole: bool = data.whole;
+    let at: int = data["at"].as_int();
+    let key: str = data["key"].as_str();
+    let whole: bool = data["whole"].as_bool();
     if whole {
         set_field(state, at, key, (value.as_float() as int));
     } else {
@@ -594,37 +605,38 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
     }
 }
 
-fn flag(state: editor::State, at: int, key: str, on: bool) -> any {
-    map()
-        .with("kind", "switch")
-        .with("role", "switch_form")
-        .with("checked", on)
-        .with("on", "handle")
-        .with("data", map().with("fn", on_flag_changed).with("at", at).with("key", key))
+fn flag(state: editor::State, at: int, key: str, on: bool) -> ui::Control {
+    ui::Control {
+        kind: "switch",
+        role: "switch_form",
+        checked: on,
+        on_change: "handle",
+        data: { "fn": on_flag_changed, "at": at, "key": key },
+    }
 }
 
 fn on_flag_changed(state: &mut editor::State, data: any, value: any) {
-    let at: int = data.at;
-    let key: str = data.key;
+    let at: int = data["at"].as_int();
+    let key: str = data["key"].as_str();
     set_field(state, at, key, value);
 }
 
-fn field_specs(state: editor::State, at: int, transition: any, names: [str], targets: [str], out: [any]) {
-    let ease = if transition.ease.is_nil() { animation::EASE_LINEAR } else { transition.ease.as_str() };
-    let advance = if transition.advance_mode.is_nil() { animation::ADVANCE_MODE_ENABLED } else { transition.advance_mode.as_str() };
-    let switch = if transition.switch_mode.is_nil() { animation::SWITCH_MODE_IMMEDIATE } else { transition.switch_mode.as_str() };
-    let priority = if transition.priority.is_nil() { 1 } else { transition.priority.as_int() };
-    out.push(field_spec("from", choice(state, at, "from", transition.from.as_str(), names)));
-    out.push(field_spec("to", choice(state, at, "to", transition.to.as_str(), targets)));
-    out.push(field_spec("blend time", number(state, at, "blend_time", transition.blend_time.as_float(), false)));
+fn field_specs(state: editor::State, at: int, transition: any, names: [str], targets: [str], out: [ui::Row]) {
+    let ease = if transition["ease"] == nil { animation::EASE_LINEAR } else { transition["ease"].as_str() };
+    let advance = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
+    let switch = if transition["switch_mode"] == nil { animation::SWITCH_MODE_IMMEDIATE } else { transition["switch_mode"].as_str() };
+    let priority = if transition["priority"] == nil { 1 } else { transition["priority"].as_int() };
+    out.push(field_spec("from", choice(state, at, "from", transition["from"].as_str(), names)));
+    out.push(field_spec("to", choice(state, at, "to", transition["to"].as_str(), targets)));
+    out.push(field_spec("blend time", number(state, at, "blend_time", transition["blend_time"].as_float(), false)));
     out.push(field_spec("ease", choice(state, at, "ease", ease, animation::ease_names())));
     out.push(field_spec("advance mode", choice(state, at, "advance_mode", advance, [animation::ADVANCE_MODE_DISABLED, animation::ADVANCE_MODE_ENABLED, animation::ADVANCE_MODE_AUTO])));
     out.push(field_spec("switch mode", choice(state, at, "switch_mode", switch, [animation::SWITCH_MODE_IMMEDIATE, animation::SWITCH_MODE_SYNC, animation::SWITCH_MODE_AT_END])));
-    out.push(field_spec("condition", text_of(state, at, "condition", transition.condition.as_str(), "none")));
-    out.push(field_spec("check", text_of(state, at, "check", transition.check.as_str(), "no method")));
+    out.push(field_spec("condition", text_of(state, at, "condition", transition["condition"].as_str(), "none")));
+    out.push(field_spec("check", text_of(state, at, "check", transition["check"].as_str(), "no method")));
     out.push(field_spec("priority", number(state, at, "priority", priority as float, true)));
-    out.push(field_spec("reset", flag(state, at, "reset", transition.reset.is_nil() || transition.reset.as_bool())));
-    out.push(field_spec("break loop at end", flag(state, at, "break_loop_at_end", transition.break_loop_at_end.as_bool())));
+    out.push(field_spec("reset", flag(state, at, "reset", transition["reset"] == nil || transition["reset"].as_bool())));
+    out.push(field_spec("break loop at end", flag(state, at, "break_loop_at_end", transition["break_loop_at_end"].as_bool())));
 }
 
 fn check(ok: bool, what: str) {
@@ -645,17 +657,17 @@ pub fn selftest(state: &mut editor::State) {
             break;
         }
     }
-    if player.is_none() {
+    if player == nil {
         log::info("selftest state machine: no player; skipped");
         return;
     }
     let node_index = player.unwrap();
     shell::choose(state, node_index);
     let before = model::node_text(state, state.nodes[node_index]);
-    if source(state).is_none() {
+    if source(state) == nil {
         create(state);
     }
-    check(source(state).is_some(), "the node runs a state machine");
+    check(source(state) != nil, "the node runs a state machine");
     add_state(state, "sm_probe");
     let doc = source(state).unwrap().doc;
     check(states(doc).has("sm_probe"), "a state is added");
@@ -667,8 +679,8 @@ pub fn selftest(state: &mut editor::State) {
     set_field(state, at, "advance_mode", animation::ADVANCE_MODE_AUTO);
     set_field(state, at, "priority", 2);
     let transition = transitions(source(state).unwrap().doc)[at];
-    check(transition.blend_time.as_float() == 0.3 && transition.advance_mode.as_str() == animation::ADVANCE_MODE_AUTO, "a transition's fields are written");
-    check(transition.priority.kind() == "int" && transition.priority.as_int() == 2, "priority stays a whole number");
+    check(transition["blend_time"].as_float() == 0.3 && transition["advance_mode"].as_str() == animation::ADVANCE_MODE_AUTO, "a transition's fields are written");
+    check(transition["priority"].kind() == "int" && transition["priority"].as_int() == 2, "priority stays a whole number");
     set_field(state, at, "condition", "go");
     set_field(state, at, "condition", "");
     let transition = transitions(source(state).unwrap().doc)[at];
@@ -677,7 +689,7 @@ pub fn selftest(state: &mut editor::State) {
     let doc = source(state).unwrap().doc;
     let dangling = false;
     for transition in transitions(doc) {
-        if transition.to.as_str() == "sm_probe" {
+        if transition["to"].as_str() == "sm_probe" {
             dangling = true;
         }
     }
@@ -694,7 +706,7 @@ pub fn selftest(state: &mut editor::State) {
     // Only where the scene authored one: the undo above took back the machine
     // this test made, so a node that came with none has none now.
     let found = source(state);
-    if found.is_some() {
+    if found != nil {
         if transitions(found.unwrap().doc).len() > 0 {
             state.machine.open = 0;
             state.machine.demo = 0;
@@ -721,8 +733,8 @@ pub fn demo_step(state: &mut editor::State) {
     let labels: [str] = [];
     for row in host.children() {
         let label = row.get_node("L");
-        if label.is_valid() && label.get_component("widget", "visible").as_bool() {
-            labels.push(label.get_component("widget", "text").as_str());
+        if label.is_valid() && label.visible() {
+            labels.push(label.widget.text);
         }
     }
     let seen = util::join(labels, ", ");

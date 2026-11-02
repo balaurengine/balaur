@@ -1,300 +1,546 @@
-//! The `shape` and `shape2d` components and the `render.set_*` shape API:
+//! The `shape3d` and `shape2d` components and the `render.set_*` shape API:
 //! untextured primitives, in both dimensions.
 
-use crate::vocabulary::{keys as k, options, words};
 use anyhow::Result;
-use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_i64, prop_str, prop_vec2};
-use balaur_core::primitive::{Flat, Solid};
-use balaur_core::stroke::{self, Cap, Join, Stroke};
-use balaur_core::{Engine, entity_of};
+use balaur_core::Engine;
+use balaur_core::components::derived::{Component, Enum, Property, Record, Variant, Written};
+use balaur_core::hecs::Entity;
+use balaur_geometry::primitive::{Flat, Solid};
+use balaur_geometry::stroke::{Cap, Join, Stroke};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
 
+use crate::vocabulary::words;
 use crate::{
-    Renderable2d, Renderable3d, Shape2d, Shape3d, color_from_params, color_to_toml, set_color,
-    set_polyline, set_shape, set_shape2d,
+    Renderable2d, Renderable3d, Shape2d, Shape3d, set_color, set_polyline, set_shape, set_shape2d,
 };
+use balaur_core::layers::Layer;
 
-pub(crate) fn install_shape_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("set_sphere", &["shape3d"], "", "Draw the node as a sphere of the given radius in world units, replacing any other 3D shape."),
-        ("set_box", &["shape3d"], "", "Draw the node as a box from its three half-extents, in world units, replacing any other 3D shape."),
-        ("set_rectangle", &["shape2d"], "", "Draw the node as a rectangle from its two half-extents, in world units, replacing any other 2D shape."),
-    ]);
-    m.function(
-        "set_sphere",
-        |eng: &Engine, (node, radius): (NodeId, f32)| {
-            set_shape(eng, entity_of(node)?, Shape3d::Solid(Solid::ball(radius)))
-        },
-    );
-    m.function(
-        "set_box",
-        |eng: &Engine, (node, hx, hy, hz): (NodeId, f32, f32, f32)| {
-            set_shape(
-                eng,
-                entity_of(node)?,
-                Shape3d::Solid(Solid::cuboid(hx, hy, hz)),
-            )
-        },
-    );
-    m.function(
-        "set_rectangle",
-        |eng: &Engine, (node, hx, hy): (NodeId, f32, f32)| {
-            set_shape2d(eng, entity_of(node)?, Shape2d::Flat(Flat::rect(hx, hy)))
-        },
-    );
+/// What a `shape3d` draws, and the dimensions that primitive reads: the
+/// table the mesher builds from (`Solid::from_params`).
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum SolidShape {
+    /// A ball
+    Sphere(SphereSize),
+    /// A box, its edges rounded when `corner_radius` is above zero
+    #[option(default)]
+    Box(BoxSize),
+    /// A cylinder with round ends
+    Capsule(CapsuleSize),
+    /// A cylinder standing along y
+    Cylinder(RoundSize),
+    /// A cone standing along y, its point up
+    Cone(RoundSize),
+    /// A flat quad in the xz plane, for ground and walls
+    Plane(PlaneSize),
+    /// A ring
+    Torus(TorusSize),
+    /// A pyramid on a regular base
+    Pyramid(PyramidSize),
+    /// A prism on a regular base, standing along y
+    Prism(PrismSize),
+    /// A cylinder with a hole down its axis
+    Tube(TubeSize),
 }
 
-// Components below are schema-driven, and each key doubles as a scene key.
-
-/// The `shape` component: 3D primitives, editable from the editor.
-/// The `Shape3d` a `shape` component's params describe. The reader is the
-/// mesher's, so what a scene names is what a mesh can be built from.
-fn shape_from_params(params: &toml::Value) -> Result<Shape3d> {
-    Ok(Shape3d::Solid(Solid::from_params(params)?))
+/// A sphere's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct SphereSize {
+    /// Radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// Cuts along the axis
+    #[property(default = 16, min = 3)]
+    pub rings: i64,
 }
 
-/// A `shape` component's params for `shape`, or `None` when another
-/// component owns it: a mesh is saved by `mesh`, not by this.
-fn shape_to_params(shape: Shape3d) -> Option<toml::Value> {
-    Some(shape.solid()?.to_params())
+/// A box's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct BoxSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0, 1.0])]
+    pub size: [f32; 3],
+    /// How far the edges are rounded off; zero is a square edge
+    #[property(min = 0.0)]
+    pub corner_radius: f32,
+    /// Cuts around a rounded edge
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A capsule's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct CapsuleSize {
+    /// Radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y, tip to tip
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// Cuts across each round end
+    #[property(default = 16, min = 3)]
+    pub rings: i64,
+}
+
+/// A cylinder's or a cone's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct RoundSize {
+    /// Radius of the base
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y, base to top
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A plane's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct PlaneSize {
+    /// Whole size along x and z; y is not read
+    #[property(default = [1.0, 0.0, 1.0])]
+    pub size: [f32; 3],
+    /// Cuts across each side
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A torus's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct TorusSize {
+    /// From the centre to the middle of the ring
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Thickness of the ring
+    #[property(default = 0.2, min = 0.01)]
+    pub tube_radius: f32,
+    /// Cuts around the centre
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// Cuts around the ring
+    #[property(default = 16, min = 3)]
+    pub rings: i64,
+}
+
+/// A pyramid's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct PyramidSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0, 1.0])]
+    pub size: [f32; 3],
+    /// Flat faces around the base
+    #[property(default = 4, min = 3)]
+    pub sides: i64,
+}
+
+/// A prism's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct PrismSize {
+    /// From the axis to each corner of the base
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Flat faces around the axis
+    #[property(default = 4, min = 3)]
+    pub sides: i64,
+}
+
+/// A tube's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct TubeSize {
+    /// Outer radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Radius of the hole
+    #[property(default = 0.25, min = 0.01)]
+    pub inner_radius: f32,
+    /// Length along y
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around the axis
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// What a `shape2d` draws, and the dimensions that shape reads: the table
+/// the mesher builds from (`Flat::from_params`).
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum FlatShape {
+    /// A disc
+    Circle(CircleSize),
+    /// A rectangle, its corners rounded when `corner_radius` is above zero
+    #[option(default)]
+    Rectangle(RectangleSize),
+    /// A rectangle with round ends, standing along y
+    Capsule(FlatCapsuleSize),
+    /// An ellipse
+    Ellipse(EllipseSize),
+    /// A star
+    Star(StarSize),
+    /// A regular polygon
+    Ngon(NgonSize),
+}
+
+/// A circle's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct CircleSize {
+    /// Radius
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Cuts around the edge
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A rectangle's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct RectangleSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0])]
+    pub size: [f32; 2],
+    /// How far the corners are rounded off; zero is a square corner
+    #[property(min = 0.0)]
+    pub corner_radius: f32,
+    /// Cuts around a rounded corner
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A 2D capsule's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct FlatCapsuleSize {
+    /// Radius of the round ends
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// Length along y, tip to tip
+    #[property(default = 2.0, min = 0.01)]
+    pub height: f32,
+    /// Cuts around each round end
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// An ellipse's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct EllipseSize {
+    /// Whole size along each axis
+    #[property(default = [1.0, 1.0])]
+    pub size: [f32; 2],
+    /// Cuts around the edge
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+}
+
+/// A star's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct StarSize {
+    /// Tips
+    #[property(default = 5, min = 3)]
+    pub points: i64,
+    /// From the centre to a tip
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+    /// From the centre to the notch between two tips
+    #[property(default = 0.2, min = 0.01)]
+    pub inner_radius: f32,
+}
+
+/// A regular polygon's dimensions.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct NgonSize {
+    /// Sides
+    #[property(default = 4, min = 3)]
+    pub sides: i64,
+    /// From the centre to each corner
+    #[property(default = 0.5, min = 0.01)]
+    pub radius: f32,
+}
+
+/// How a polyline's segments meet: `balaur_geometry::stroke::Join`'s words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum LineJoin {
+    Round,
+    Miter,
+    Bevel,
+}
+
+/// How an open polyline ends: `balaur_geometry::stroke::Cap`'s words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum LineCap {
+    Round,
+    Butt,
+    Square,
+}
+
+/// A 3D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`, and the dimensions that kind reads.
+// The `shape3d` component; the node draws the [`Renderable3d`] each write
+// leaves beside it.
+#[derive(Component)]
+#[component(
+    name = "shape3d",
+    on_remove = shape3d_removed,
+    tags = [words::PERSPECTIVE, "render"],
+    after_write = shape3d_written,
+)]
+pub struct Primitive3d {
+    /// The primitive drawn, and its dimensions
+    pub shape: SolidShape,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
+    pub color: [f32; 4],
+    /// Image file, project-relative, or a `texture` asset, drawn over the shape's own UVs; empty draws the colour alone
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material this draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Whether this casts a shadow from the lights that cast
+    #[property(default = true, group = "shadows")]
+    pub cast_shadow: bool,
+    /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub render_layers: Vec<Layer>,
+    /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub light_layers: Vec<Layer>,
+    /// Whether shadows land on it; off lights it as if nothing stood between it and every light
+    #[property(default = true, group = "shadows")]
+    pub receive_shadows: bool,
+    /// The id `render.snap_aov("segmentation")` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up
+    #[property(min = 0, group = "layers")]
+    pub segmentation_id: i64,
+}
+
+/// A 2D primitive at the node, tinted by `color` and drawn with `texture`: `shape` is a `circle`, `rectangle`, `capsule`, `ellipse`, `star` or `ngon`, and the dimensions that kind reads. A stroked line is `line2d`.
+// The `shape2d` component; the node draws the [`Renderable2d`] each write
+// leaves beside it.
+#[derive(Component)]
+#[component(
+    name = "shape2d",
+    on_remove = shape2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = shape2d_written,
+)]
+pub struct Primitive2d {
+    /// The shape drawn, and its dimensions
+    pub shape: FlatShape,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
+    pub color: [f32; 4],
+    /// An image, or a `texture` asset, the shape draws with over its own UVs
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material this draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+}
+
+/// A stroked line at the node through the points of a `mesh` or `path2d` asset, tinted by `color` and drawn with `texture`.
+// The node draws the [`Renderable2d`] each write leaves beside it, as a
+// `shape2d` does.
+#[derive(Component)]
+#[component(
+    name = "line2d",
+    on_remove = line2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = line2d_written,
+)]
+pub struct Line2d {
+    /// Where the line's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve
+    #[property(asset = "mesh")]
+    pub mesh: String,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [0.8, 0.8, 0.8, 1.0])]
+    pub color: [f32; 4],
+    /// An image, or a `texture` asset, the line draws with, repeating once per world unit of its length
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material this draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// Join the last point back to the first, making a polygon outline
+    pub closed: bool,
+    /// Line thickness in world units
+    #[property(default = 0.02, min = 0.001)]
+    pub width: f32,
+    /// Multipliers on `width` at the line's start and end, blended along it; anything but [1, 1] draws round joins and caps
+    #[property(default = [1.0, 1.0])]
+    pub taper: [f32; 2],
+    /// How the line's segments meet
+    #[property(default = LineJoin::Round)]
+    pub join: LineJoin,
+    /// How an open line ends
+    #[property(default = LineCap::Round)]
+    pub cap: LineCap,
+    /// How far a miter join may reach, in half-widths, before its corner is cut to a bevel
+    #[property(default = 4.0, min = 1.0)]
+    pub miter_limit: f32,
+    /// Cuts around a round join or cap
+    #[property(default = 32, min = 3)]
+    pub segments: i64,
+    /// The colour the line fades to at its far end, from `color` at its start; a zero alpha means no gradient
+    #[property(color, group = "gradient")]
+    pub gradient: [f32; 4],
+    /// How many colours the gradient steps through along the line
+    #[property(default = 32, min = 1, group = "gradient")]
+    pub gradient_steps: i64,
+}
+
+/// What a write of `shape3d` leaves to be worked out again.
+fn shape3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    shape3d_laid_out(eng, entity)
+}
+
+/// A `shape3d`'s primitive, tint, texture, lighting and material, worked
+/// out again from what was written. The dimensions are read by the mesher's
+/// own reader, so what a scene names is what a mesh can be built from.
+fn shape3d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let (solid, color, texture, material, lighting) = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Primitive3d>(entity) else {
+            return Ok(());
+        };
+        (
+            Solid::from_params(&asked.shape.to_value()),
+            asked.color,
+            asked.texture.clone(),
+            asked.material.clone(),
+            crate::Lighting3d::of(
+                asked.cast_shadow,
+                &asked.light_layers,
+                &asked.render_layers,
+                asked.receive_shadows,
+                asked.segmentation_id,
+            ),
+        )
+    };
+    set_shape(eng, entity, Shape3d::Solid(solid?))?;
+    set_color(eng, entity, color)?;
+    crate::set_texture_3d(eng, entity, &texture)?;
+    crate::set_lighting(eng, entity, &lighting);
+    crate::material::set_material_3d(eng, entity, &material)
+}
+
+/// What a removed `Primitive3d` leaves behind, taken with it.
+fn shape3d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable3d>(entity);
 }
 
 pub(crate) fn register_shape_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "shape3d",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A 3D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `sphere`, `box`, `capsule`, `cylinder`, `cone`, `plane`, `torus`, `pyramid`, `prism` or `tube`.",
-            schema: ComponentDef::parse_schema(
-                "shape3d",
-                &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(&[
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 3D shape" }}"#, words::BOX, options(words::SHAPES))),
-                    (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset, drawn over the shape's own UVs; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
-                    (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::SIZE, r#"{ type = "vec3", default = [1.0, 1.0, 1.0], description = "Whole size along each axis, when kind is box, plane or pyramid", group = "shape" }"#),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, for every kind but box, plane and pyramid", group = "shape" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, for capsule, cylinder, cone, prism and tube", group = "shape" }"#),
-                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.25, min = 0.01, description = "Radius of the hole, when kind is tube", group = "shape" }"#),
-                    (k::TUBE_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "Thickness of the ring, when kind is torus", group = "shape" }"#),
-                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the edges are rounded off, when kind is box; zero is a square edge", group = "shape" }"#),
-                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Flat faces, when kind is pyramid or prism", group = "shape" }"#),
-                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around the axis, or across a plane", group = "shape" }"#),
-                    (k::RINGS, r#"{ type = "int", default = 16, min = 3, description = "Cuts along the axis, for ball, capsule and torus", group = "shape" }"#),
-                    (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast", group = "shadows" }"#),
-                    (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
-                    (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")),
-                ], &crate::overlay::schema_3d())),
-            ),
-            tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                set_shape(eng, entity, shape_from_params(params)?)?;
-                set_color(eng, entity, color_from_params(params))?;
-                crate::set_texture_3d(eng, entity, prop_str(params, k::TEXTURE))?;
-                crate::lighting_from_params(eng, entity, params);
-                crate::material::set_material_3d(
-                    eng,
-                    entity,
-                    params
-                        .get("material")
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or_default(),
-                )
-            }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Renderable3d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let renderable = world.get::<&Renderable3d>(entity).ok()?;
-                let mut params = shape_to_params(renderable.shape)?;
-                if let Some(map) = params.as_table_mut() {
-                    map.insert(k::COLOR.into(), color_to_toml(renderable.color));
-                    map.insert(k::TEXTURE.into(), toml::Value::String(renderable.texture.clone()));
-                    map.insert(
-                        "material".into(),
-                        toml::Value::String(renderable.material.clone()),
-                    );
-                    map.insert(k::CAST_SHADOW.into(), toml::Value::Boolean(renderable.shadows));
-                    map.insert(
-                        k::LIGHT_LAYERS.into(),
-                        balaur_core::layers::names(renderable.layers),
-                    );
-                    map.insert(
-                        k::RENDER_LAYERS.into(),
-                        balaur_core::layers::names(renderable.render_layers),
-                    );
-                    crate::overlay::overlay_3d_to_map(renderable.overlay, map);
-                }
-                Some(params)
-            }),
-        },
-    );
+    reg.add_component::<Primitive3d>();
 }
 
-/// A polyline's gradient and texture, from its params. A gradient with no
-/// alpha is no gradient: the schema's default.
-fn line_style_from_params(params: &toml::Value) -> crate::LineStyle {
-    let gradient = params.get(k::GRADIENT).map(|_| {
-        let table = toml::Value::Table(
-            [("color".to_string(), params[k::GRADIENT].clone())]
-                .into_iter()
-                .collect(),
-        );
-        color_from_params(&table)
-    });
-    crate::LineStyle {
-        gradient: gradient.filter(|c| c[3] > 0.0),
-        gradient_steps: prop_i64(params, k::GRADIENT_STEPS).clamp(1, i64::from(u32::MAX)) as u32,
-    }
+/// What a write of `shape2d` leaves to be worked out again.
+fn shape2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    shape2d_laid_out(eng, entity)
 }
 
-/// A `shape2d` component's params, as the shape plus -- for a polyline --
-/// the mesh asset its points come from.
-fn shape2d_from_params(params: &toml::Value) -> Result<(Shape2d, Option<String>)> {
-    let kind = prop_str(params, k::KIND);
-    // A polyline is the one 2D kind with no dimensions of its own: its points
-    // come from a mesh asset, so it is read here rather than by the mesher.
-    if kind == words::POLYLINE {
-        let source = params
-            .get(k::MESH)
-            .and_then(|v| v.as_str())
-            .unwrap_or_default()
-            .to_string();
-        let shape = Shape2d::Polyline(Stroke {
-            width: prop_f32(params, k::WIDTH).max(0.001),
-            closed: prop_bool(params, k::CLOSED),
-            join: Join::from_word(prop_str(params, k::JOIN)).unwrap_or_default(),
-            cap: Cap::from_word(prop_str(params, k::CAP)).unwrap_or_default(),
-            miter_limit: prop_f32(params, k::MITER_LIMIT),
-            taper: prop_vec2(params, k::TAPER),
-            segments: prop_i64(params, k::SEGMENTS).max(1).cast_unsigned() as u32,
-        });
-        return Ok((shape, Some(source)));
-    }
-    Ok((Shape2d::Flat(Flat::from_params(params)?), None))
+/// A `shape2d`'s shape, tint, texture and material, worked out again from
+/// what was written.
+fn shape2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let (flat, color, texture, material) = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Primitive2d>(entity) else {
+            return Ok(());
+        };
+        (
+            Flat::from_params(&asked.shape.to_value()),
+            asked.color,
+            asked.texture.clone(),
+            asked.material.clone(),
+        )
+    };
+    set_shape2d(eng, entity, Shape2d::Flat(flat?))?;
+    set_color(eng, entity, color)?;
+    crate::set_texture_2d(eng, entity, &texture)?;
+    crate::material::set_material_2d(eng, entity, &material)
 }
 
-/// A polyline's params, as `shape2d` saves them.
-fn polyline_params(
-    map: &mut toml::map::Map<String, toml::Value>,
-    stroke: &Stroke,
-    renderable: &crate::Renderable2d,
-) {
-    let float = |v: f32| toml::Value::Float(f64::from(v));
-    let word = |w: &str| toml::Value::String(w.into());
-    map.insert(k::KIND.into(), word(words::POLYLINE));
-    map.insert(k::WIDTH.into(), float(stroke.width));
-    map.insert(k::CLOSED.into(), toml::Value::Boolean(stroke.closed));
-    map.insert(k::JOIN.into(), word(stroke.join.word()));
-    map.insert(k::CAP.into(), word(stroke.cap.word()));
-    map.insert(k::MITER_LIMIT.into(), float(stroke.miter_limit));
-    let whole = |v: u32| toml::Value::Integer(i64::from(v));
-    map.insert(k::SEGMENTS.into(), whole(stroke.segments));
-    map.insert(
-        k::TAPER.into(),
-        toml::Value::Array(stroke.taper.map(float).to_vec()),
-    );
-    if let Some(source) = &renderable.polyline {
-        map.insert(k::MESH.into(), word(source));
-    }
-    if let Some(style) = &renderable.line
-        && let Some(gradient) = style.gradient
-    {
-        map.insert(k::GRADIENT.into(), color_to_toml(gradient));
-        map.insert(k::GRADIENT_STEPS.into(), whole(style.gradient_steps));
-    }
+/// What a write of `line2d` leaves to be worked out again.
+fn line2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    line2d_laid_out(eng, entity)
+}
+
+/// A `line2d`'s stroke, the points it follows, its tint, texture and
+/// material, worked out again from what was written.
+fn line2d_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let (stroke, source, style, color, texture, material) = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Line2d>(entity) else {
+            return Ok(());
+        };
+        let stroke = Stroke {
+            width: asked.width.max(0.001),
+            closed: asked.closed,
+            join: Join::from_word(asked.join.option()).unwrap_or_default(),
+            cap: Cap::from_word(asked.cap.option()).unwrap_or_default(),
+            miter_limit: asked.miter_limit,
+            taper: asked.taper,
+            segments: u32::try_from(asked.segments.max(1)).unwrap_or(u32::MAX),
+        };
+        // A gradient with no alpha is no gradient: the schema's default.
+        let style = crate::LineStyle {
+            gradient: Some(asked.gradient).filter(|gradient| gradient[3] > 0.0),
+            gradient_steps: u32::try_from(asked.gradient_steps.max(1)).unwrap_or(u32::MAX),
+        };
+        (
+            stroke,
+            asked.mesh.clone(),
+            style,
+            asked.color,
+            asked.texture.clone(),
+            asked.material.clone(),
+        )
+    };
+    set_polyline(eng, entity, source, Shape2d::Polyline(stroke), style)?;
+    set_color(eng, entity, color)?;
+    crate::set_texture_2d(eng, entity, &texture)?;
+    crate::material::set_material_2d(eng, entity, &material)
+}
+
+/// What a removed `Primitive2d` leaves behind, taken with it.
+fn shape2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
 }
 
 /// The `shape2d` component: 2D primitives.
 pub(crate) fn register_shape2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "shape2d",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A 2D primitive at the node, tinted by `color` and drawn with `texture`. `kind` is `circle`, `rectangle`, `capsule`, `ellipse`, `star`, `ngon` or `polyline`; a `polyline` follows a `mesh` or `path2d` asset.",
-            schema: ComponentDef::parse_schema(
-                "shape2d",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Rendered 2D shape" }}"#, words::RECTANGLE, options(&words::shapes_2d()))),
-                    (k::COLOR, r#"{ type = "color", default = [0.8, 0.8, 0.8, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, the shape draws with: over a primitive's own UVs, and along a polyline repeating once per world unit of its length" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
-                    (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size along each axis, when kind is rectangle or ellipse", group = "shape" }"#),
-                    (k::RADIUS, r#"{ type = "float", default = 0.5, min = 0.01, description = "Radius, when kind is circle, capsule, star or ngon", group = "shape" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 2.0, min = 0.01, description = "Length along y, tip to tip, when kind is capsule", group = "shape" }"#),
-                    (k::CORNER_RADIUS, r#"{ type = "float", default = 0.0, min = 0.0, description = "How far the corners are rounded off, when kind is rectangle; zero is a square corner", group = "shape" }"#),
-                    (k::SIDES, r#"{ type = "int", default = 4, min = 3, description = "Sides, when kind is ngon", group = "shape" }"#),
-                    (k::POINTS, r#"{ type = "int", default = 5, min = 3, description = "Tips, when kind is star", group = "shape" }"#),
-                    (k::INNER_RADIUS, r#"{ type = "float", default = 0.2, min = 0.01, description = "How far the notches between a star's tips reach", group = "shape" }"#),
-                    (k::SEGMENTS, r#"{ type = "int", default = 32, min = 3, description = "Cuts around a circle, an ellipse, a rounded corner, or a polyline's round joins and caps", group = "shape" }"#),
-                    (k::MESH, r#"{ type = "asset", asset = "mesh", default = "", description = "Where a polyline's points come from: a `mesh` asset's vertices, or a `path2d` asset, which is sampled into points and so draws as a stroked curve", group = "line" }"#),
-                    (k::CLOSED, r#"{ type = "bool", default = false, description = "Join the last point back to the first, making a polygon outline", group = "line" }"#),
-                    (k::WIDTH, r#"{ type = "float", default = 0.02, min = 0.001, description = "Line thickness in world units, when kind is polyline", group = "line" }"#),
-                    (k::TAPER, r#"{ type = "vec2", default = [1.0, 1.0], description = "Multipliers on `width` at a polyline's start and end, blended along it; anything but [1, 1] draws round joins and caps", group = "line" }"#),
-                    (k::JOIN, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How a polyline's segments meet", group = "line" }}"#, stroke::ROUND, options(stroke::JOINS))),
-                    (k::CAP, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "How an open polyline ends", group = "line" }}"#, stroke::ROUND, options(stroke::CAPS))),
-                    (k::MITER_LIMIT, r#"{ type = "float", default = 4.0, min = 1.0, description = "How far a miter join may reach, in half-widths, before its corner is cut to a bevel", group = "line" }"#),
-                    (k::GRADIENT, r#"{ type = "color", default = [0.0, 0.0, 0.0, 0.0], description = "The colour a polyline fades to at its far end, from `color` at its start; a zero alpha means no gradient", group = "line" }"#),
-                    (k::GRADIENT_STEPS, &format!(r#"{{ type = "int", default = {}, min = 1, description = "How many colours a polyline's gradient steps through along its length", group = "line" }}"#, stroke::GRADIENT_STEPS)),
-                ]),
-            ),
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let (shape, polyline) = shape2d_from_params(params)?;
-                match polyline {
-                    Some(source) => {
-                        let style = line_style_from_params(params);
-                        set_polyline(eng, entity, source, shape, style)?;
-                    }
-                    None => set_shape2d(eng, entity, shape)?,
-                }
-                set_color(eng, entity, color_from_params(params))?;
-                crate::set_texture_2d(eng, entity, prop_str(params, k::TEXTURE))?;
-                crate::material::set_material_2d(
-                    eng,
-                    entity,
-                    params
-                        .get("material")
-                        .and_then(toml::Value::as_str)
-                        .unwrap_or_default(),
-                )
-            }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Renderable2d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let renderable = world.get::<&Renderable2d>(entity).ok()?;
-                let mut map = toml::map::Map::new();
-                match renderable.shape {
-                    // A sprite is saved by the `sprite` component and a
-                    // polygon by `polygon`, not this one.
-                    Shape2d::Sprite { .. } | Shape2d::Polygon => return None,
-                    Shape2d::Flat(flat) => {
-                        if let Some(table) = flat.to_params().as_table() {
-                            map.extend(table.clone());
-                        }
-                    }
-                    Shape2d::Polyline(stroke) => polyline_params(&mut map, &stroke, &renderable),
-                }
-                map.insert(k::COLOR.into(), color_to_toml(renderable.color));
-                map.insert(k::TEXTURE.into(), toml::Value::String(renderable.texture.clone()));
-                map.insert(
-                    "material".into(),
-                    toml::Value::String(renderable.material.clone()),
-                );
-                Some(toml::Value::Table(map))
-            }),
-        },
-    );
+    reg.add_component::<Primitive2d>();
+}
+
+/// What a removed `Line2d` leaves behind, taken with it.
+fn line2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<Renderable2d>(entity);
+}
+
+/// The `line2d` component: a stroked line through an asset's points.
+pub(crate) fn register_line2d_component(reg: &mut Registry<'_>) {
+    reg.add_component::<Line2d>();
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_geometry::primitive::words as primitive;
+    use balaur_geometry::stroke;
+
+    use super::{FlatShape, LineCap, LineJoin, SolidShape};
+
+    /// The kinds a shape offers are the ones the mesher builds, and a line's
+    /// joins and caps the ones a stroke reads: core owns each list.
+    #[test]
+    fn a_shape_offers_the_words_core_reads() {
+        assert_eq!(SolidShape::OPTIONS, primitive::SOLIDS);
+        assert_eq!(FlatShape::OPTIONS, primitive::FLATS);
+        assert_eq!(LineJoin::OPTIONS, stroke::JOINS);
+        assert_eq!(LineCap::OPTIONS, stroke::CAPS);
+    }
 }

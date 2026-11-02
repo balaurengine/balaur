@@ -1,26 +1,26 @@
-// `.bs` scripts behind the seam: every file a unit of the project's one
-// instance (or, built whole for a debugger or a profiler, an instance of its
-// own), one host-held object per node, its lifecycle methods called by name
-// when the script has them.
+//! `.bs` scripts behind the seam: every file a unit of the project's one
+//! instance (or, built whole for a debugger or a profiler, an instance of its
+//! own), one host-held object per node, its lifecycle methods called by name
+//! when the script has them.
 
-use crate::api::{self, Module, Registry};
+use crate::api::{self, Registry};
 use crate::convert::{from_neutral, to_neutral};
 use anyhow::{Context, Result, anyhow};
 use balaur_bs::runtime::{HostFns, Limits, Object, Reentry, Runtime, Value as L};
 use balaur_bs::{Compiled, HostApi, Literal, Options, Ty};
 use balaur_core::{Engine, Pack};
-use balaur_script::{
-    Bindings, CallbackId, NodeId, Pause, ScriptCompiler, ScriptHost, StepMode, Value,
-};
+use balaur_script::{Module, NodeId, Pause, ScriptCompiler, ScriptHost, StepMode, Value};
 use debug::Held;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
-use tasks::Pending;
+use tasks::{Pending, WaitingStart};
 
 mod debug;
+mod engine_facing;
+mod holds;
 mod profile;
 mod tasks;
 mod tools;
@@ -48,12 +48,15 @@ const PROJECT_KEY: &str = "#project";
 struct Home {
     rt: RefCell<Runtime>,
     reentry: Reentry,
+    /// A loaded native build runs it: only a unit the build has joins it.
+    native: bool,
 }
 
 impl Home {
     fn new(rt: Runtime) -> Rc<Home> {
         Rc::new(Home {
             reentry: rt.reentry(),
+            native: rt.runs_natively(),
             rt: RefCell::new(rt),
         })
     }
@@ -144,12 +147,16 @@ struct Inner {
     engine: Engine,
     root: PathBuf,
     pack: Option<Pack>,
-    registry: Rc<RefCell<Registry>>,
+    registry: Rc<Registry>,
     api: RefCell<Option<HostApi>>,
     files: RefCell<BTreeMap<String, Rc<File>>>,
     /// The instance every file built as units shares, made with the first.
     project: RefCell<Option<Rc<Home>>>,
     instances: RefCell<Vec<Rc<Instance>>>,
+    /// Instances of a parked scene, and what they await: no pass or call
+    /// finds them, and a wake waits in the runtime until they come back.
+    parked: RefCell<Vec<Rc<Instance>>>,
+    parked_tasks: RefCell<Vec<Pending>>,
     held: RefCell<Vec<u64>>,
     holds: Cell<u32>,
     /// What the file watcher heard, and the watcher itself; `None` in a
@@ -166,6 +173,8 @@ struct Inner {
     /// [`api::line`]: what the pack records.
     called: RefCell<std::collections::BTreeSet<String>>,
     tasks: RefCell<Vec<Pending>>,
+    /// Async methods asked of an instance busy in the call that asked.
+    waiting_starts: RefCell<Vec<WaitingStart>>,
     /// Files built with probes, on an engine that can hold a call at a line.
     debugging: RefCell<HashSet<String>>,
     /// The lines a debugger asked to stop at, by file, as it asked for them.
@@ -181,6 +190,9 @@ struct Inner {
     /// Files to rebuild between frames for another reason than an edit: a
     /// profiler switched on or off.
     rebuild: RefCell<Vec<String>>,
+    /// Files whose code changed, and whose instances are owed `on_hot_reload`
+    /// once the build lands.
+    reload_owed: RefCell<Vec<String>>,
     /// Each file built as a unit, by key: a script links the units of the
     /// modules it uses, each built once for every script ([`BsHost::unit`]).
     units: RefCell<HashMap<String, Arc<Compiled>>>,
@@ -194,6 +206,10 @@ struct Inner {
     read: RefCell<HashMap<String, String>>,
     /// The engine's API, by hash: a unit kept on disk was built against one.
     api_hash: Cell<Option<String>>,
+    /// A file built as a unit has no module in the loaded native build (it
+    /// changed since the build was made), so the project's instance runs on
+    /// its engine.
+    skip_native: Cell<bool>,
 }
 
 /// The `.bs` backend. Cheap to clone; clones share the one host.
@@ -204,6 +220,12 @@ pub struct BsHost {
 
 pub(crate) fn key_of(path: &str) -> String {
     path.trim_start_matches("./").replace('\\', "/")
+}
+
+/// A file from outside the project the host runs, as the editor reads a
+/// game's scripts: its key is an absolute path.
+fn outside(key: &str) -> bool {
+    balaur_core::files::rooted(std::path::Path::new(key))
 }
 
 impl BsHost {
@@ -257,6 +279,9 @@ impl BsHost {
                 files: RefCell::default(),
                 project: RefCell::default(),
                 instances: RefCell::default(),
+                parked: RefCell::default(),
+                parked_tasks: RefCell::default(),
+                reload_owed: RefCell::default(),
                 held: RefCell::default(),
                 holds: Cell::new(0),
                 events,
@@ -265,6 +290,7 @@ impl BsHost {
                 watch_mounts,
                 called: RefCell::default(),
                 tasks: RefCell::default(),
+                waiting_starts: RefCell::default(),
                 debugging: RefCell::default(),
                 breaks: RefCell::default(),
                 stopped: RefCell::new(None),
@@ -277,6 +303,7 @@ impl BsHost {
                 sources: RefCell::default(),
                 read: RefCell::default(),
                 api_hash: Cell::new(None),
+                skip_native: Cell::new(false),
             }),
         }
     }
@@ -415,13 +442,13 @@ impl BsHost {
     /// The records a plugin declared whose fields a script cannot read,
     /// `module::Name`: empty when every declaration reads.
     pub fn unread_records(&self) -> Vec<String> {
-        self.inner.registry.borrow().unread()
+        self.inner.registry.unread()
     }
 
     /// The script reference: each module's functions, what each takes and
     /// does, and its constants, as `script::api()` answers it.
     pub fn reference(&self) -> balaur_script::Value {
-        crate::api::reference(&self.api(), &self.inner.registry.borrow())
+        crate::api::reference(&self.api(), &self.inner.registry)
     }
 
     /// What a script compiles against: the engine's functions, component
@@ -432,7 +459,7 @@ impl BsHost {
             .api
             .borrow_mut()
             .get_or_insert_with(|| {
-                let built = api::build(&self.inner.engine, &self.inner.registry.borrow());
+                let built = api::build(&self.inner.engine, &self.inner.registry);
                 if let Some(pack) = &self.inner.pack {
                     Self::compare_api(&built, &pack.api);
                 }
@@ -469,6 +496,23 @@ impl BsHost {
     /// engine's API: the first error, where the compiler stopped.
     /// Every error in the file, one per function that does not compile;
     /// empty when it runs.
+    /// [`Self::check`], for a script a scene attaches to a node: also that it
+    /// declares the class its nodes are, which running it requires.
+    pub fn check_attached(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
+        let found = self.check(rel, source);
+        if !found.is_empty() {
+            return found;
+        }
+        let key = key_of(rel);
+        match self.compile_module(&key) {
+            Ok((_, ty)) if ty.is_empty() => vec![balaur_bs::Error {
+                pos: balaur_bs::Pos { line: 1, col: 1 },
+                msg: no_class(&key),
+            }],
+            _ => vec![],
+        }
+    }
+
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         let key = key_of(rel);
         // As units, a file's own functions: each module answers for its own.
@@ -558,38 +602,29 @@ impl BsHost {
     fn load(&self, key: &str) -> Result<Rc<File>> {
         let (compiled, ty) = self.compile_module(key)?;
         if ty.is_empty() {
-            let name = balaur_bs::script_class(key);
-            return Err(anyhow!(
-                "{key}: a script declares `pub class {name}`, named after its file; a file without one is a module other scripts `use`"
-            ));
+            return Err(anyhow!("{key}: {}", no_class(key)));
         }
         balaur_bs::runtime::cache_compiled_in(
             &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
         );
-        // A unit joins the project's instance.
-        if compiled.meta.unit.is_some() {
-            let home = self.project()?;
+        // A unit joins the project's instance, when that can run it.
+        let (compiled, ty) = if compiled.meta.unit.is_some() {
             let unit = self.unit(key)?;
-            let index = home
-                .either(
-                    |rt| rt.link(key, &unit, &compiled.linked),
-                    |re| re.link(key, &unit, &compiled.linked),
-                )
-                .map_err(|e| anyhow!("{key}: {e}"))?;
-            return Ok(Rc::new(File {
-                home,
-                unit: index,
-                native: false,
-                compiled,
-                ty,
-            }));
-        }
+            if self.joins_project(key, &unit, &compiled.linked) {
+                return self.join_project(key, &unit, compiled, ty);
+            }
+            // The whole file alone, on its engine.
+            self.compile_with(key, &self.source(key)?, self.inner.profiling.get())?
+        } else {
+            (compiled, ty)
+        };
         // The native build first, so this script's own module can be in it.
         #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
         let built = crate::native::load_beside_executable();
         let native = crate::native::has_native(&compiled.wasm);
+        // A build never holds a file from outside the project.
         #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
-        if built && !compiled.meta.debug && !native {
+        if built && !compiled.meta.debug && !native && !outside(key) {
             tracing::warn!(
                 "{key}: the native build has no module {}; it runs interpreted",
                 balaur_bs::module_hash(&compiled.wasm)
@@ -601,6 +636,30 @@ impl BsHost {
             home: Home::new(rt),
             unit: 0,
             native,
+            compiled,
+            ty,
+        }))
+    }
+
+    // The unit at `key` linked into the project's instance.
+    fn join_project(
+        &self,
+        key: &str,
+        unit: &Arc<Compiled>,
+        compiled: Compiled,
+        ty: String,
+    ) -> Result<Rc<File>> {
+        let home = self.project()?;
+        let index = home
+            .either(
+                |rt| rt.link(key, unit, &compiled.linked),
+                |re| re.link(key, unit, &compiled.linked),
+            )
+            .map_err(|e| anyhow!("{key}: {e}"))?;
+        Ok(Rc::new(File {
+            native: home.native,
+            home,
+            unit: index,
             compiled,
             ty,
         }))
@@ -663,11 +722,13 @@ impl BsHost {
         into: &mut Runtime,
         unit_of: impl Fn(&str) -> Option<usize>,
     ) -> Result<()> {
+        let parked = self.inner.parked.borrow();
         let insts: Vec<(Rc<Instance>, usize)> = self
             .inner
             .instances
             .borrow()
             .iter()
+            .chain(parked.iter())
             .filter(|inst| inst.obj.borrow().is_some())
             .filter_map(|inst| unit_of(&inst.path).map(|unit| (inst.clone(), unit)))
             .collect();
@@ -706,12 +767,18 @@ impl BsHost {
         Ok(home)
     }
 
+    /// The unit a project's instance starts from: an empty file.
+    pub(crate) fn project_unit(&self) -> Result<Compiled> {
+        balaur_bs::compile("", &self.unit_options(PROJECT_KEY))
+            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))
+    }
+
     // A project instance with no file in it yet.
     fn project_runtime(&self) -> Result<Runtime> {
-        let root = balaur_bs::compile("", &self.unit_options(PROJECT_KEY))
-            .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))?;
+        let root = self.project_unit()?;
         let limits = Limits {
             memory_bytes: Some(PROJECT_MEMORY_CAP),
+            skip_native: self.inner.skip_native.get(),
             ..Limits::default()
         };
         Runtime::new(&root, self.host_fns(None), limits).map_err(|e| anyhow!("{PROJECT_KEY}: {e}"))
@@ -784,21 +851,93 @@ impl BsHost {
         Some((file, inst))
     }
 
+    // A parked scene's: what freeing its node and a snapshot still reach.
+    fn parked_instance(&self, node: NodeId) -> Option<(Rc<File>, Rc<Instance>)> {
+        let inst = self
+            .inner
+            .parked
+            .borrow()
+            .iter()
+            .find(|i| i.node == node.0)
+            .cloned()?;
+        let file = self.inner.files.borrow().get(&inst.path).cloned()?;
+        Some((file, inst))
+    }
+
+    // `method` on every instance nothing holds.
+    fn each(&self, method: &str, args: &[Value], sync_only: bool) {
+        let holds = self.holds();
+        let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+        all.retain(|inst| self.ticks(inst.node, holds) && !self.stopped_in(&inst.path));
+        self.each_of(&all, method, args, sync_only);
+    }
+
+    // `method` on every instance but those a stop or a paused replay holds.
+    fn tell(&self, method: &str, args: &[Value], about: impl Fn(&Instance) -> bool) {
+        let holds = self.holds();
+        let mut all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+        all.retain(|inst| {
+            about(inst) && !self.frozen(inst.node, holds) && !self.stopped_in(&inst.path)
+        });
+        self.each_of(&all, method, args, false);
+    }
+
+    // Every instance of a file just rebuilt, its fields carried across: the
+    // one place a script whose fields moved can bring them forward. A parked
+    // one catches up when it returns.
+    fn announce_reloads(&self) {
+        let owed: Vec<String> = {
+            let rebuilding = self.inner.rebuild.borrow();
+            let mut owed = self.inner.reload_owed.borrow_mut();
+            let (waiting, ready) = std::mem::take(&mut *owed)
+                .into_iter()
+                .partition(|key| rebuilding.contains(key));
+            *owed = waiting;
+            ready
+        };
+        if !owed.is_empty() {
+            self.tell(balaur_core::hooks::ON_HOT_RELOAD, &[], |inst| {
+                owed.contains(&inst.path)
+            });
+        }
+    }
+
+    // `key` built again, with no word to its script: what a reload and a
+    // debugger's or profiler's rebuild share.
+    pub(crate) fn rebuild_key(&self, key: &str) -> Result<()> {
+        if self.holds_file(key) {
+            return Err(anyhow!(
+                "{key} is stopped at a breakpoint; it reloads once it goes on"
+            ));
+        }
+        // Asked for by name, a reload reads the file again.
+        self.invalidate(key);
+        if self.as_units(key) {
+            self.rebuild_project(&[key.to_string()])
+        } else {
+            self.reload_alone(key)
+        }
+    }
+
     // `update` and `fixed_update` run every frame, so an async one would
     // start a task a frame: those two are called only when they do not await.
-    fn each(&self, method: &str, args: &[Value], sync_only: bool) {
-        let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
+    fn each_of(&self, all: &[Rc<Instance>], method: &str, args: &[Value], sync_only: bool) {
         let mut start = 0;
         while start < all.len() {
-            // A stop freezes the game, the rest of this pass with it.
-            if self.is_held() {
-                break;
+            // A stop in this pass holds the rest of what it holds.
+            let held = |inst: &Instance| {
+                self.is_held()
+                    && (self.frozen(inst.node, self.holds()) || self.stopped_in(&inst.path))
+            };
+            if held(&all[start]) {
+                start += 1;
+                continue;
             }
             // The nodes in a row that run one script, in scene order.
             let path = &all[start].path;
             let run = all[start..]
                 .iter()
-                .take_while(|inst| inst.path == *path)
+                .take_while(|inst| inst.path == *path && !held(inst))
                 .count();
             let group = &all[start..start + run];
             start += run;
@@ -820,10 +959,10 @@ impl BsHost {
         }
     }
 
-    // `method` on every object of `group` in one call. False when it cannot
-    // be: a debug build steps each call, an object out in a call stays out,
-    // and a method that takes or gives a string, an array or an `any` has no
-    // batch entry.
+    /// `method` on every object of `group` in one call. False when it cannot
+    /// be: a debug build steps each call, an object out in a call stays out,
+    /// and a method that takes or gives a string, an array or an `any` has no
+    /// batch entry.
     fn batch(&self, file: &File, group: &[Rc<Instance>], method: &str, args: &[Value]) -> bool {
         if file.compiled.meta.debug {
             return false;
@@ -849,7 +988,7 @@ impl BsHost {
             .params
             .iter()
             .zip(args.iter().chain(std::iter::repeat(&Value::Nil)))
-            .map(|(ty, value)| from_neutral(value, ty))
+            .map(|(ty, value)| from_neutral(value, ty, &file.compiled.meta))
             .collect();
         let before = rt.steps();
         let out = rt.call_batch(&file.ty, &objs, method, &args);
@@ -891,7 +1030,7 @@ impl BsHost {
             .params
             .iter()
             .zip(args.iter().chain(std::iter::repeat(&Value::Nil)))
-            .map(|(t, v)| from_neutral(v, t))
+            .map(|(t, v)| from_neutral(v, t, &file.compiled.meta))
             .collect();
         let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
             return self.reenter(file, inst, method, &args, info.is_async, done);
@@ -904,13 +1043,13 @@ impl BsHost {
             drop(rt);
             return self.run_steppable(file, inst, method, &args);
         }
-        let Some(mut obj) = inst.obj.borrow_mut().take() else {
+        let Some(obj) = inst.obj.borrow_mut().take() else {
             drop(rt);
             return Self::nested(file, inst, method, &args);
         };
         *inst.lent.borrow_mut() = rt.share(&obj);
         let before = rt.steps();
-        let out = rt.call_info(&mut obj, info, &args);
+        let out = rt.call_info(&obj, info, &args);
         self.charge(&inst.path, before, rt.steps());
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {
@@ -930,15 +1069,15 @@ impl BsHost {
                 inst.path
             )
         };
-        let mut copy = {
+        let copy = {
             let lent = inst.lent.borrow();
             let lent = lent.as_ref().ok_or_else(busy)?;
             file.either(|rt| rt.share(lent), |re| re.share(lent))
                 .ok_or_else(busy)?
         };
         let out = match file.home.rt.try_borrow_mut() {
-            Ok(mut rt) => rt.call_method(&mut copy, method, args),
-            Err(_) => file.home.reentry.call_method(&mut copy, method, args),
+            Ok(mut rt) => rt.call_method(&copy, method, args),
+            Err(_) => file.home.reentry.call_method(&copy, method, args),
         };
         file.drop_object(copy);
         let v = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
@@ -957,9 +1096,15 @@ impl BsHost {
         is_async: bool,
         done: Option<u64>,
     ) -> Result<Option<Value>> {
-        let Some(mut obj) = inst.obj.borrow_mut().take() else {
+        let Some(obj) = inst.obj.borrow_mut().take() else {
             if is_async {
-                return Err(anyhow!("[{}] {method}: the instance is busy", inst.path));
+                self.inner.waiting_starts.borrow_mut().push(WaitingStart {
+                    node: inst.node,
+                    method: method.to_string(),
+                    args: args.iter().map(to_neutral).collect(),
+                    done,
+                });
+                return Ok(None);
             }
             return Self::nested(file, inst, method, args);
         };
@@ -968,7 +1113,7 @@ impl BsHost {
             let key = format!("{}.{method}", file.ty);
             file.home
                 .reentry
-                .start(&key, args, &mut obj)
+                .start(&key, args, &obj)
                 .map(|(task, out)| {
                     if out.is_none() {
                         self.inner.tasks.borrow_mut().push(Pending {
@@ -982,10 +1127,7 @@ impl BsHost {
                     out
                 })
         } else {
-            file.home
-                .reentry
-                .call_method(&mut obj, method, args)
-                .map(Some)
+            file.home.reentry.call_method(&obj, method, args).map(Some)
         };
         *inst.obj.borrow_mut() = Some(obj);
         if let Some(lent) = inst.lent.borrow_mut().take() {
@@ -994,6 +1136,14 @@ impl BsHost {
         let out = out.map_err(|e| anyhow!("[{}] {method}: {e}", inst.path))?;
         Ok(out.map(|v| to_neutral(&v)))
     }
+}
+
+/// What a node's script lacks when it declares no class named after its file.
+fn no_class(key: &str) -> String {
+    let name = balaur_bs::script_class(key);
+    format!(
+        "a script declares `pub class {name}`, named after its file; a file without one is a module other scripts `use`"
+    )
 }
 
 /// The class a script's nodes are: the one named after its file,
@@ -1029,368 +1179,3 @@ fn spec(lit: &Literal, ty: &Ty) -> Value {
 }
 
 // An export compiles every `.bs` as a check and packs the source it checked.
-impl ScriptCompiler for BsHost {
-    fn extensions(&self) -> &[&str] {
-        &[EXTENSION]
-    }
-
-    fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>> {
-        let (compiled, _) = self.compile_source(&key_of(rel), source)?;
-        self.inner
-            .called
-            .borrow_mut()
-            .extend(compiled.meta.host_calls.iter().map(api::line));
-        Ok(source.as_bytes().to_vec())
-    }
-
-    fn uses(&self, rel: &str, source: &str) -> Result<Vec<String>> {
-        let key = key_of(rel);
-        let options = Options {
-            modules: Some(self.modules()),
-            path: key.clone(),
-            ..Options::default()
-        };
-        balaur_bs::uses(source, &options).map_err(|e| anyhow!("{key}:{e}"))
-    }
-
-    fn api(&self) -> Vec<String> {
-        self.inner.called.borrow().iter().cloned().collect()
-    }
-}
-
-impl ScriptHost<Engine> for BsHost {
-    fn module(&self, name: &str) -> Result<Box<dyn Bindings<Engine>>> {
-        Ok(Box::new(Module {
-            name: name.to_string(),
-            registry: self.inner.registry.clone(),
-        }))
-    }
-
-    fn attach_with_props(&self, node: NodeId, path: &str, props: &[(String, Value)]) -> Result<()> {
-        let file = self.file(path)?;
-        let mut init: Vec<(String, L)> = vec![];
-        for (name, v) in props {
-            match file.field_ty(name) {
-                Some(t) => init.push((name.clone(), from_neutral(v, &t))),
-                None => {
-                    tracing::warn!("[{path}] property '{name}' is set on a node but not exported");
-                }
-            }
-        }
-        if file.field_ty(NODE_FIELD) == Some(Ty::Node) {
-            init.push((NODE_FIELD.into(), L::Node(node.0.cast_signed())));
-        }
-        let init_ref: Vec<(&str, L)> = init.iter().map(|(n, v)| (n.as_str(), v.clone())).collect();
-        let obj = file
-            .either(
-                |rt| rt.in_unit(file.unit, |rt| rt.object(&file.ty, &init_ref)),
-                |re| re.object(file.unit, &file.ty, &init_ref),
-            )
-            .map_err(|e| anyhow!("[{path}] {e}"))?;
-        self.detach(node);
-        self.inner.instances.borrow_mut().push(Rc::new(Instance {
-            node: node.0,
-            path: key_of(path),
-            pointer: Cell::new(Runtime::pointer(&obj)),
-            obj: RefCell::new(Some(obj)),
-            lent: RefCell::new(None),
-            gone: Cell::new(false),
-        }));
-        if self.inner.holds.get() > 0 {
-            self.inner.held.borrow_mut().push(node.0);
-        } else {
-            self.init(node.0);
-        }
-        Ok(())
-    }
-
-    fn hold_inits(&self) {
-        self.inner.holds.set(self.inner.holds.get() + 1);
-    }
-
-    fn release_inits(&self) {
-        let depth = self.inner.holds.get().saturating_sub(1);
-        self.inner.holds.set(depth);
-        if depth == 0 {
-            let held = std::mem::take(&mut *self.inner.held.borrow_mut());
-            for node in held {
-                self.init(node);
-            }
-        }
-    }
-
-    fn exports(&self, path: &str) -> Result<Vec<(String, Value)>> {
-        let file = self.file(path)?;
-        let meta = &file.compiled.meta;
-        Ok(meta
-            .defaults(&file.ty)
-            .iter()
-            .filter(|(_, public, _)| *public)
-            .map(|(n, _, lit)| (n.clone(), spec(lit, &file.field_ty(n).unwrap_or(Ty::Void))))
-            .collect())
-    }
-
-    fn detach(&self, node: NodeId) {
-        let Some((file, inst)) = self.instance(node) else {
-            return;
-        };
-        if file.method("on_free").is_some() {
-            let r = self.run(&file, &inst, "on_free", &[], None);
-            report(r);
-        }
-        self.cancel(node.0);
-        self.inner
-            .instances
-            .borrow_mut()
-            .retain(|i| i.node != node.0);
-        inst.gone.set(true);
-        if let Some(obj) = inst.obj.borrow_mut().take() {
-            file.drop_object(obj);
-        }
-    }
-
-    fn update(&self, dt: f32) {
-        if self.is_held() {
-            return;
-        }
-        // A task a busy instance could not take last time runs on here.
-        if self.has_tasks() {
-            self.run_tasks();
-        }
-        self.each("update", &[Value::Num(f64::from(dt))], true);
-    }
-
-    fn fixed_update(&self, dt: f32) {
-        if self.is_held() {
-            return;
-        }
-        self.each("fixed_update", &[Value::Num(f64::from(dt))], true);
-    }
-
-    fn save_state(&self) -> Vec<(NodeId, Value)> {
-        let all: Vec<Rc<Instance>> = self.inner.instances.borrow().clone();
-        let mut out = vec![];
-        for inst in all {
-            let Some(file) = self.inner.files.borrow().get(&inst.path).cloned() else {
-                continue;
-            };
-            let fields = inst
-                .obj
-                .borrow()
-                .as_ref()
-                .map(|o| file.home.rt.borrow_mut().fields(o))
-                .unwrap_or_default();
-            out.push((
-                NodeId(inst.node),
-                Value::Map(
-                    fields
-                        .iter()
-                        .map(|(k, v)| (k.clone(), to_neutral(v)))
-                        .collect(),
-                ),
-            ));
-        }
-        out
-    }
-
-    fn load_state(&self, states: &[(NodeId, Value)]) {
-        for (node, state) in states {
-            let (Some((file, inst)), Value::Map(fields)) = (self.instance(*node), state) else {
-                continue;
-            };
-            let mut guard = inst.obj.borrow_mut();
-            let Some(obj) = guard.as_mut() else { continue };
-            for (name, v) in fields {
-                if let Some(t) = file.field_ty(name)
-                    && let Err(e) = file
-                        .home
-                        .rt
-                        .borrow_mut()
-                        .set(obj, name, &from_neutral(v, &t))
-                {
-                    tracing::error!("[{}] load_state: {e}", inst.path);
-                }
-            }
-        }
-    }
-
-    fn pump_reloads(&self) {
-        let mut todo: Vec<String> = self.inner.rebuild.take();
-        for key in self.edited() {
-            self.invalidate(&key);
-            // A module is no script of its own: what uses it reloads.
-            let users: Vec<String> = self
-                .inner
-                .files
-                .borrow()
-                .iter()
-                .filter(|(k, f)| {
-                    **k == key
-                        || f.compiled.meta.uses.contains(&key)
-                        || f.compiled.linked.iter().any(|(l, _)| *l == key)
-                })
-                .map(|(k, _)| k.clone())
-                .collect();
-            for k in users {
-                if !todo.contains(&k) {
-                    todo.push(k);
-                }
-            }
-        }
-        // Every file built as units reloads with the project, once.
-        let (units, alone): (Vec<String>, Vec<String>) =
-            todo.into_iter().partition(|key| self.as_units(key));
-        if !units.is_empty() {
-            match self.rebuild_project(&units) {
-                Ok(()) => tracing::info!("reloaded {}", units.join(", ")),
-                Err(e) => tracing::error!("{e:#}"),
-            }
-        }
-        for key in alone {
-            match ScriptHost::reload(self, &key) {
-                Ok(()) => tracing::info!("reloaded {key}"),
-                Err(e) => tracing::error!("{e:#}"),
-            }
-        }
-    }
-
-    // A new module, with every instance of the file carried across by field
-    // name: as a unit, the whole project's instance made again.
-    fn reload(&self, key: &str) -> Result<()> {
-        let key = key_of(key);
-        if self.holds_file(&key) {
-            return Err(anyhow!(
-                "{key} is stopped at a breakpoint; it reloads once it goes on"
-            ));
-        }
-        // Asked for by name, a reload reads the file again.
-        self.invalidate(&key);
-        if self.as_units(&key) {
-            self.rebuild_project(&[key])
-        } else {
-            self.reload_alone(&key)
-        }
-    }
-
-    fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {
-        let (file, inst) = self.instance(node)?;
-        let r = self.run(&file, &inst, method, args, None);
-        report(r)
-    }
-
-    fn call_on_async(
-        &self,
-        node: NodeId,
-        method: &str,
-        args: &[Value],
-        done: u64,
-    ) -> Option<Value> {
-        let Some((file, inst)) = self.instance(node) else {
-            return Some(Value::Nil);
-        };
-        if file.method(method).is_none() {
-            return Some(Value::Nil);
-        }
-        match self.run(&file, &inst, method, args, Some(done)) {
-            Ok(out) => out,
-            Err(e) => {
-                tracing::error!("{e:#}");
-                Some(Value::Nil)
-            }
-        }
-    }
-
-    fn has_method(&self, node: NodeId, method: &str) -> bool {
-        self.instance(node)
-            .is_some_and(|(f, _)| f.method(method).is_some())
-    }
-
-    fn script_field(&self, node: NodeId, name: &str) -> Option<Value> {
-        let (file, inst) = self.instance(node)?;
-        let obj = inst.obj.borrow();
-        let obj = obj.as_ref()?;
-        file.either(|rt| rt.get(obj, name), |re| re.get(obj, name))
-            .map(|v| to_neutral(&v))
-    }
-
-    fn call_all(&self, method: &str) {
-        self.each(method, &[], false);
-    }
-
-    fn call_all_with(&self, method: &str, args: &[Value]) {
-        self.each(method, args, false);
-    }
-
-    fn wake(&self, token: u64, payload: &Value) {
-        self.deliver(token, payload);
-    }
-
-    fn scene_source(&self, rel: &str) -> Option<String> {
-        let key = key_of(rel);
-        if let Some(pack) = &self.inner.pack {
-            return pack.scenes.get(&key).cloned();
-        }
-        let bytes = balaur_core::files::backend(&self.inner.engine)
-            .read(&self.inner.root.join(&key))
-            .ok()?;
-        String::from_utf8(bytes).ok()
-    }
-
-    fn instance_count(&self) -> usize {
-        self.inner.instances.borrow().len()
-    }
-
-    fn set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>> {
-        self.debug_set_breakpoints(path, lines)
-    }
-
-    fn breakpoints(&self, path: &str) -> Vec<usize> {
-        self.debug_breakpoints(path)
-    }
-
-    fn set_profiling(&self, on: bool) {
-        self.profile_set(on);
-    }
-
-    fn script_costs(&self) -> Vec<(String, u64, u64)> {
-        self.profile_scripts()
-    }
-
-    fn function_costs(&self) -> Vec<(String, u64, u64)> {
-        self.profile_functions()
-    }
-
-    fn set_break_on_error(&self, on: bool) {
-        self.debug_set_break_on_error(on);
-    }
-
-    fn break_on_error(&self) -> bool {
-        self.debug_break_on_error()
-    }
-
-    fn request_break(&self) {
-        self.debug_request_break();
-    }
-
-    fn paused(&self) -> Option<Pause> {
-        self.debug_paused()
-    }
-
-    fn resume(&self, mode: StepMode) {
-        self.debug_resume(mode);
-    }
-
-    fn invoke(&self, _callback: CallbackId, _args: &[Value]) -> Result<Value> {
-        Err(anyhow!(
-            "`.{EXTENSION}` scripts pass no functions to the engine"
-        ))
-    }
-
-    fn tools_for(&self, path: &str) -> Option<&dyn balaur_script::LanguageTools> {
-        BsHost::claims(path).then_some(self as &dyn balaur_script::LanguageTools)
-    }
-
-    fn as_any(&self) -> &dyn core::any::Any {
-        self
-    }
-}

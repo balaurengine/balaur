@@ -11,7 +11,7 @@
 //! — and it is what an articulated arm with inverse kinematics wants.
 
 use crate::rapier3d::dynamics::InverseKinematicsOption;
-use crate::rapier3d::dynamics::{JointEnabled, Multibody, MultibodyDofCoupling, RevoluteJoint};
+use crate::rapier3d::dynamics::{JointEnabled, MultibodyDofCoupling, RevoluteJoint};
 use crate::rapier3d::prelude::{
     FixedJointBuilder, GenericJoint, GenericJointBuilder, ImpulseJoint, ImpulseJointHandle,
     JointAxesMask, JointAxis, MotorModel, MultibodyJointHandle, PrismaticJointBuilder,
@@ -19,16 +19,19 @@ use crate::rapier3d::prelude::{
     SpringCoefficients, SpringJointBuilder,
 };
 use crate::scalar::{self, Real, Vector};
+use crate::shared::joint::JointAsk as _;
 use anyhow::{Result, anyhow};
-use balaur_core::components::{ComponentDef, as_node};
+use balaur_core::components::derived::{self, Component, Record, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
+use crate::properties::{Axis3d, JointAxis3d, JointKind3d, Motor, MotorStrength};
 use crate::rapier3d::pipeline::PhysicsWorld;
-use crate::shared::joint::DEFAULT_DAMPING;
+use crate::shared::beside::{self, Beside};
+use crate::shared::joint::{DEFAULT_DAMPING, DEFAULT_SOFTNESS_HZ};
 use crate::vocabulary::{self as v, component as c, keys as k, words as w};
 
 /// Which handle a node's joint has, because rapier keeps the two solvers in
@@ -65,48 +68,64 @@ const AXIS_WORDS: &[(&str, JointAxis)] = &[
 ///
 /// A rope and a spring couple the three linear axes into one distance, which
 /// `x` names, and leave the turn free.
-fn free_axes(kind: &str, params: &toml::Value) -> JointAxesMask {
+fn free_axes(kind: &str, ask: &JointAsk3d) -> JointAxesMask {
     match kind {
         w::HINGE => JointAxesMask::FREE_REVOLUTE_AXES,
         w::SLIDER => JointAxesMask::FREE_PRISMATIC_AXES,
         w::BALL_SOCKET => JointAxesMask::FREE_SPHERICAL_AXES,
         w::ROPE | w::SPRING => JointAxesMask::LIN_X | JointAxesMask::ANG_AXES,
-        w::GENERIC => (JointAxesMask::LIN_AXES | JointAxesMask::ANG_AXES) - locked_axes(params),
+        w::GENERIC => {
+            (JointAxesMask::LIN_AXES | JointAxesMask::ANG_AXES) - locked_axes(&ask.generic)
+        }
         _ => JointAxesMask::empty(),
     }
 }
 
-/// The axes a `generic` joint locks, from its `flags` property.
-fn locked_axes(params: &toml::Value) -> JointAxesMask {
-    let mut mask = JointAxesMask::empty();
-    for (key, name, axis) in [
-        (k::LOCK_TRANSLATION, w::X, JointAxesMask::LIN_X),
-        (k::LOCK_TRANSLATION, w::Y, JointAxesMask::LIN_Y),
-        (k::LOCK_TRANSLATION, w::Z, JointAxesMask::LIN_Z),
-        (k::LOCK_ROTATION, w::X, JointAxesMask::ANG_X),
-        (k::LOCK_ROTATION, w::Y, JointAxesMask::ANG_Y),
-        (k::LOCK_ROTATION, w::Z, JointAxesMask::ANG_Z),
-    ] {
-        if v::flag(params, key, name) {
-            mask |= axis;
-        }
-    }
-    mask
+/// The mask three axes make, translation first: `lin` the ones along, `ang`
+/// the ones about.
+fn mask_of(lin: &[Axis3d], ang: &[Axis3d]) -> JointAxesMask {
+    let bit = |axis: &Axis3d, x, y, z| match axis {
+        Axis3d::X => x,
+        Axis3d::Y => y,
+        Axis3d::Z => z,
+    };
+    let along = lin.iter().fold(JointAxesMask::empty(), |mask, axis| {
+        mask | bit(
+            axis,
+            JointAxesMask::LIN_X,
+            JointAxesMask::LIN_Y,
+            JointAxesMask::LIN_Z,
+        )
+    });
+    ang.iter().fold(along, |mask, axis| {
+        mask | bit(
+            axis,
+            JointAxesMask::ANG_X,
+            JointAxesMask::ANG_Y,
+            JointAxesMask::ANG_Z,
+        )
+    })
 }
 
-/// The joint a `joint3d` table describes.
-pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
-    let kind = v::text(params, k::KIND, w::FIXED);
-    let axis = scalar::v3a(v::vec3(params, k::AXIS, [0.0, 0.0, 1.0]));
+/// The axes a `generic` joint locks.
+fn locked_axes(generic: &GenericJoint3d) -> JointAxesMask {
+    mask_of(&generic.lock_translation, &generic.lock_rotation)
+}
+
+/// The joint a node asks for.
+pub(crate) fn joint_of(ask: &JointAsk3d) -> Result<GenericJoint> {
+    let held = &ask.joint;
+    let kind = held.kind.option();
+    let axis = scalar::v3a(held.axis);
     let axis = if axis.length_squared() < 1.0e-12 {
         Vector::Z
     } else {
         axis.normalize()
     };
-    let anchor1 = scalar::v3a(v::vec3(params, k::ANCHOR, [0.0; 3]));
-    let anchor2 = scalar::v3a(v::vec3(params, k::CONNECTED_ANCHOR, [0.0; 3]));
-    let max_length = scalar::real(v::f(params, k::MAX_LENGTH, 0.0));
-    let rest_length = scalar::real(v::f(params, k::REST_LENGTH, 0.0));
+    let anchor1 = scalar::v3a(held.anchor);
+    let anchor2 = scalar::v3a(held.connected_anchor);
+    let max_length = ask.rope.max_length;
+    let rest_length = ask.spring.rest_length;
     let mut joint: GenericJoint = match kind {
         w::FIXED => FixedJointBuilder::new()
             .local_anchor1(anchor1)
@@ -134,14 +153,12 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
             .build()
             .into(),
         // The pull itself is the `x` record's; without one the spring is slack.
-        w::SPRING => {
-            SpringJointBuilder::new(rest_length.max(0.0), 0.0, scalar::real(DEFAULT_DAMPING))
-                .local_anchor1(anchor1)
-                .local_anchor2(anchor2)
-                .build()
-                .into()
-        }
-        w::GENERIC => GenericJointBuilder::new(locked_axes(params))
+        w::SPRING => SpringJointBuilder::new(rest_length.max(0.0), 0.0, DEFAULT_DAMPING)
+            .local_anchor1(anchor1)
+            .local_anchor2(anchor2)
+            .build()
+            .into(),
+        w::GENERIC => GenericJointBuilder::new(locked_axes(&ask.generic))
             .local_anchor1(anchor1)
             .local_anchor2(anchor2)
             .local_axis1(axis)
@@ -150,41 +167,23 @@ pub(crate) fn joint_of(params: &toml::Value) -> Result<GenericJoint> {
         other => return Err(anyhow!("unknown joint kind '{other}'")),
     };
     // The other end's own axis when it names one; `axis` reaches both ends otherwise.
-    let connected = scalar::v3a(v::vec3(params, k::CONNECTED_AXIS, [0.0; 3]));
+    let connected = scalar::v3a(held.connected_axis);
     if matches!(kind, w::HINGE | w::SLIDER | w::GENERIC) && connected.length_squared() >= 1.0e-12 {
         joint.set_local_axis2(connected.normalize());
     }
-    let turn = |key: &str| {
-        let [x, y, z] = v::vec3(params, key, [0.0; 3]);
-        scalar::rotation_of(glamx::Quat::from_euler(glamx::EulerRot::XYZ, x, y, z))
-    };
-    joint.local_frame1.rotation *= turn(k::ANCHOR_ROTATION);
-    joint.local_frame2.rotation *= turn(k::CONNECTED_ANCHOR_ROTATION);
-    let (hz, ratio) = crate::shared::joint::softness(params);
+    let turn = |[x, y, z]: [f32; 3]| glamx::Quat::from_euler(glamx::EulerRot::XYZ, x, y, z);
+    joint.local_frame1.rotation *= turn(held.anchor_rotation);
+    joint.local_frame2.rotation *= turn(held.connected_anchor_rotation);
+    let (hz, ratio) = crate::shared::joint::softness(held.softness_hz, held.softness_damping_ratio);
     joint.softness = SpringCoefficients::new(hz, ratio);
-    joint.coupled_axes |= coupled_axes(params);
-    joint.set_contacts_enabled(v::boolean(params, k::COLLIDE_CONNECTED, false));
-    joint.set_enabled(v::boolean(params, k::ENABLED, true));
-    write_axes(&mut joint, params, kind)?;
+    joint.coupled_axes |= mask_of(
+        &ask.generic.coupled_translation,
+        &ask.generic.coupled_rotation,
+    );
+    joint.set_contacts_enabled(held.collide_connected);
+    joint.set_enabled(held.enabled);
+    write_axes(&mut joint, ask, kind)?;
     Ok(joint)
-}
-
-/// The axes `coupled_translation` and `coupled_rotation` tie into one.
-fn coupled_axes(params: &toml::Value) -> JointAxesMask {
-    let mut mask = JointAxesMask::empty();
-    for (key, name, axis) in [
-        (k::COUPLED_TRANSLATION, w::X, JointAxesMask::LIN_X),
-        (k::COUPLED_TRANSLATION, w::Y, JointAxesMask::LIN_Y),
-        (k::COUPLED_TRANSLATION, w::Z, JointAxesMask::LIN_Z),
-        (k::COUPLED_ROTATION, w::X, JointAxesMask::ANG_X),
-        (k::COUPLED_ROTATION, w::Y, JointAxesMask::ANG_Y),
-        (k::COUPLED_ROTATION, w::Z, JointAxesMask::ANG_Z),
-    ] {
-        if v::flag(params, key, name) {
-            mask |= axis;
-        }
-    }
-    mask
 }
 
 /// The two bodies a joint ties: the node it sits on, and the one `connected_body` names.
@@ -192,8 +191,8 @@ fn coupled_axes(params: &toml::Value) -> JointAxesMask {
 /// Either end may be a bodiless child, which stands for the nearest body
 /// above it — as a collider on a child does. A joint is one per node, so
 /// this is how one body carries several.
-fn ends(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<(Entity, Entity)> {
-    let other = as_node(eng, entity, params.get(k::CONNECTED_BODY)).ok_or_else(|| {
+fn ends(eng: &Engine, entity: Entity, connected_body: &str) -> Result<(Entity, Entity)> {
+    let other = crate::shared::joint::node_named(eng, entity, connected_body).ok_or_else(|| {
         anyhow!("a joint needs a `connected_body` naming the node at its other end")
     })?;
     Ok((body_above(eng, entity), body_above(eng, other)))
@@ -205,7 +204,374 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
     crate::collider::nearest_body(eng, entity).map_or(entity, |(node, _)| node)
 }
 
+/// Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.
+#[derive(Clone, Component)]
+#[component(
+    name = "joint3d",
+    on_remove = joint3d_removed,
+    events = crate::vocabulary::hook::JOINT,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    expects = [c::BODY_3D],
+    after_write = after_write,
+)]
+pub struct Joint3d {
+    /// How the two bodies may move relative to each other
+    #[property(default = JointKind3d::Fixed)]
+    pub kind: JointKind3d,
+    /// The node at the joint's other end; this node is the first end
+    #[property(node)]
+    pub connected_body: String,
+    /// Hold the two bodies together at all. Off keeps the joint and stops solving it; an articulation leaves its chain instead, as rapier's chains ignore the switch
+    #[property(default = true)]
+    pub enabled: bool,
+    /// Let the two joined bodies collide with each other
+    pub collide_connected: bool,
+    /// One record per free axis to limit or drive. A rope's x takes no limits (max_length is its limit); a spring's x is its spring, whose motor stays off
+    pub axes: Vec<FreeAxis3d>,
+    /// Where the joint attaches on this node, in its own space
+    #[property(group = "anchors")]
+    pub anchor: [f32; 3],
+    /// Where it attaches on the other node, in that node's space
+    #[property(group = "anchors")]
+    pub connected_anchor: [f32; 3],
+    /// The joint frame's x axis: what a hinge turns about, a slider slides along, and a generic joint's x and rotation_x name
+    #[property(default = [0.0, 0.0, 1.0], group = "anchors")]
+    pub axis: [f32; 3],
+    /// The same axis in the other node's space, for a hinge, a slider or a generic joint; zero takes axis
+    #[property(group = "anchors")]
+    pub connected_axis: [f32; 3],
+    /// Turns this end's joint frame about its own axes, x first: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file
+    #[property(group = "anchors", unit = "degrees")]
+    pub anchor_rotation: [f32; 3],
+    /// The same for the other end's frame
+    #[property(group = "anchors", unit = "degrees")]
+    pub connected_anchor_rotation: [f32; 3],
+    /// How stiffly the joint's locked axes and limits are held, as a spring frequency in hertz; lower lets them stretch and spring back
+    #[property(default = DEFAULT_SOFTNESS_HZ, group = "softness", min = 0.0)]
+    pub softness_hz: f32,
+    /// The damping ratio of that spring; 1 settles without overshooting
+    #[property(default = 1.0, group = "softness", min = 0.0)]
+    pub softness_damping_ratio: f32,
+}
+
+/// What snaps the node's `joint3d`: past either, it breaks and calls on_joint_break. An articulation never breaks, so this sits beside a joint that is not one.
+#[derive(Clone, Component)]
+#[component(name = "breakable_joint3d")]
+pub struct BreakableJoint3d {
+    /// The force, in newtons, that snaps the joint; 0 never breaks it by force
+    #[property(min = 0.0)]
+    pub break_force: f32,
+    /// The torque about the anchor, in newton metres, that snaps the joint; 0 never breaks it by torque
+    #[property(min = 0.0)]
+    pub break_torque: f32,
+}
+
+impl Beside for BreakableJoint3d {
+    type Main = Joint3d;
+
+    fn reads(_: &Joint3d) -> bool {
+        true
+    }
+}
+
+/// How long a `joint3d` of kind rope may stretch.
+#[derive(Clone, Component)]
+#[component(name = "rope_joint3d")]
+pub struct RopeJoint3d {
+    /// The rope's greatest length
+    #[property(min = 0.0)]
+    pub max_length: f32,
+}
+
+impl Beside for RopeJoint3d {
+    type Main = Joint3d;
+
+    fn reads(main: &Joint3d) -> bool {
+        main.kind == JointKind3d::Rope
+    }
+}
+
+/// The length a `joint3d` of kind spring pulls back to.
+#[derive(Clone, Component)]
+#[component(name = "spring_joint3d")]
+pub struct SpringJoint3d {
+    /// The length a spring pulls back to
+    #[property(min = 0.0)]
+    pub rest_length: f32,
+}
+
+impl Beside for SpringJoint3d {
+    type Main = Joint3d;
+
+    fn reads(main: &Joint3d) -> bool {
+        main.kind == JointKind3d::Spring
+    }
+}
+
+/// Which axes a `joint3d` of kind generic locks, and which free ones it ties into one.
+#[derive(Clone, Component)]
+#[component(name = "generic_joint3d")]
+pub struct GenericJoint3d {
+    /// The axes a generic joint may not slide along
+    #[property(flags)]
+    pub lock_translation: Vec<Axis3d>,
+    /// The axes a generic joint may not turn about
+    #[property(flags)]
+    pub lock_rotation: Vec<Axis3d>,
+    /// Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already
+    #[property(flags)]
+    pub coupled_translation: Vec<Axis3d>,
+    /// Free turning axes tied into one angle, whose limit and motor come from the first of them
+    #[property(flags)]
+    pub coupled_rotation: Vec<Axis3d>,
+}
+
+impl Beside for GenericJoint3d {
+    type Main = Joint3d;
+
+    fn reads(main: &Joint3d) -> bool {
+        main.kind == JointKind3d::Generic
+    }
+}
+
+/// Solves the node's `joint3d` in reduced coordinates: the chain never drifts and can be solved for inverse kinematics, but cannot close a loop or break.
+#[derive(Clone, Component)]
+#[component(name = "articulation3d")]
+pub struct Articulation3d {
+    /// On an articulation: let the chain's links collide with each other. One setting for the whole chain, off when any of its joints says off
+    #[property(default = true)]
+    pub self_collision: bool,
+    /// On an articulation: the solver never changes this joint's velocity, so the link holds its pose against its parent and moves only by solve_ik
+    pub kinematic_link: bool,
+    /// On an articulation: a spring on each free axis pulling it towards passive_rest; 0 is none
+    #[property(min = 0.0)]
+    pub passive_stiffness: f32,
+    /// On an articulation: where that spring rests, in radians about a rotation axis and units along a linear one
+    pub passive_rest: f32,
+    /// On an articulation: another joint node of the same chain this joint follows, its first free axis tied to that joint's first free axis
+    #[property(node)]
+    pub gear_with: String,
+    /// How far this joint turns or slides per unit of the gear_with joint's
+    #[property(default = 1.0)]
+    pub gear_ratio: f32,
+    /// Where this joint stands when the gear_with joint is at 0
+    pub gear_offset: f32,
+    /// One record per free axis whose link moves differently from rapier's own: its damping, the inertia a rotor adds, and dry friction
+    pub link_axes: Vec<LinkAxis3d>,
+}
+
+/// How one free axis of an articulated link moves, as `link_axes` holds it.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct LinkAxis3d {
+    /// The free axis, in the joint's frame
+    #[property(default = JointAxis3d::RotationX)]
+    pub axis: JointAxis3d,
+    /// Damping on this axis; below zero takes rapier's, 0.1 about a rotation axis and 0 along a linear one
+    #[property(default = -1.0, min = -1.0)]
+    pub link_damping: f32,
+    /// Inertia added to this axis, as a motor's own rotor adds it
+    #[property(min = 0.0)]
+    pub armature: f32,
+    /// The most force or torque dry friction resists this axis with
+    #[property(min = 0.0)]
+    pub friction: f32,
+}
+
+impl Beside for Articulation3d {
+    type Main = Joint3d;
+
+    fn reads(_: &Joint3d) -> bool {
+        true
+    }
+}
+
+/// The components whose rows a `joint3d`'s build reads: its own, then
+/// those beside it.
+pub(crate) const PARAMS: &[&str] = &[
+    c::JOINT_3D,
+    <RopeJoint3d as Component>::NAME,
+    <SpringJoint3d as Component>::NAME,
+    <GenericJoint3d as Component>::NAME,
+    <Articulation3d as Component>::NAME,
+    <BreakableJoint3d as Component>::NAME,
+];
+
+/// What a node's joint is built from: the `joint3d` and the components
+/// beside it as its kind reads them.
+#[derive(Clone)]
+pub struct JointAsk3d {
+    pub joint: Joint3d,
+    pub rope: RopeJoint3d,
+    pub spring: SpringJoint3d,
+    pub generic: GenericJoint3d,
+    pub breakable: BreakableJoint3d,
+    /// The `articulation3d` beside it, when one stands there.
+    pub articulation: Option<Articulation3d>,
+}
+
+impl JointAsk3d {
+    /// What `entity` asks for, `None` without a `joint3d`.
+    pub fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let joint = (*world.get::<&Joint3d>(entity).ok()?).clone();
+        Some(Self {
+            rope: beside::held(world, entity, &joint),
+            spring: beside::held(world, entity, &joint),
+            generic: beside::held(world, entity, &joint),
+            breakable: beside::held(world, entity, &joint),
+            articulation: world
+                .get::<&Articulation3d>(entity)
+                .ok()
+                .map(|held| (*held).clone()),
+            joint,
+        })
+    }
+
+    /// The ask as one table, the way a snapshot keeps it: every row of the
+    /// components beside the joint, and whether an articulation stands there.
+    pub fn to_table(&self) -> toml::Value {
+        let mut table = derived::to_table(&self.joint);
+        let articulation = self.articulation.clone().unwrap_or_default();
+        for beside in [
+            derived::to_table(&self.rope),
+            derived::to_table(&self.spring),
+            derived::to_table(&self.generic),
+            derived::to_table(&articulation),
+            derived::to_table(&self.breakable),
+        ] {
+            if let (Some(rows), toml::Value::Table(more)) = (table.as_table_mut(), beside) {
+                rows.extend(more);
+            }
+        }
+        if let Some(rows) = table.as_table_mut() {
+            rows.insert(k::ARTICULATION.into(), self.articulation.is_some().into());
+        }
+        table
+    }
+
+    /// The ask out of one table, as [`Self::to_table`]
+    /// wrote it.
+    pub fn from_table(params: &toml::Value) -> Result<Self> {
+        Ok(Self {
+            joint: derived::from_table(params)?,
+            rope: derived::from_table(params)?,
+            spring: derived::from_table(params)?,
+            generic: derived::from_table(params)?,
+            breakable: derived::from_table(params)?,
+            articulation: v::boolean(params, k::ARTICULATION, false)
+                .then(|| derived::from_table(params))
+                .transpose()?,
+        })
+    }
+}
+
+impl crate::shared::joint::JointAsk for JointAsk3d {
+    fn kind_word(&self) -> &'static str {
+        self.joint.kind.option()
+    }
+    fn enabled(&self) -> bool {
+        self.joint.enabled
+    }
+    fn articulated(&self) -> bool {
+        self.articulation.is_some()
+    }
+    fn kinematic_link(&self) -> bool {
+        self.articulation
+            .as_ref()
+            .is_some_and(|held| held.kinematic_link)
+    }
+    fn connected_body(&self) -> &str {
+        &self.joint.connected_body
+    }
+    fn gear_with(&self) -> &str {
+        self.articulation
+            .as_ref()
+            .map_or("", |held| &held.gear_with)
+    }
+    fn gear(&self) -> (f32, f32) {
+        self.articulation
+            .as_ref()
+            .map_or((1.0, 0.0), |held| (held.gear_ratio, held.gear_offset))
+    }
+    fn self_collision(&self) -> bool {
+        self.articulation
+            .as_ref()
+            .is_none_or(|held| held.self_collision)
+    }
+    fn passive(&self) -> (f32, f32) {
+        self.articulation.as_ref().map_or((0.0, 0.0), |held| {
+            (held.passive_stiffness, held.passive_rest)
+        })
+    }
+    fn link_record(&self, word: &str) -> crate::shared::joint::LinkRecord {
+        self.articulation
+            .as_ref()
+            .and_then(|held| held.link_axes.iter().find(|row| row.axis.option() == word))
+            .map_or(crate::shared::joint::LinkRecord::NONE, |row| {
+                crate::shared::joint::LinkRecord {
+                    link_damping: row.link_damping,
+                    armature: row.armature.max(0.0),
+                    friction: row.friction.max(0.0),
+                }
+            })
+    }
+    fn breaks(&self) -> (f32, f32) {
+        (self.breakable.break_force, self.breakable.break_torque)
+    }
+    fn rest_length(&self) -> f32 {
+        self.spring.rest_length
+    }
+    fn axis_records(&self) -> Vec<crate::shared::joint::AxisRecord> {
+        self.joint
+            .axes
+            .iter()
+            .map(|row| crate::shared::joint::AxisRecord {
+                axis: row.axis.option(),
+                limits: row.limits,
+                motor: row.motor.option(),
+                target: row.motor_target,
+                target_velocity: row.motor_target_velocity,
+                max_force: row.motor_max_force,
+                model: row.motor_model.option(),
+                stiffness: row.stiffness,
+                damping: row.damping,
+            })
+            .collect()
+    }
+}
+
+/// One free axis of a `joint3d` to limit or drive, as its `axes` list
+/// holds it.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct FreeAxis3d {
+    /// The free axis this record limits and drives, in the joint's frame
+    #[property(default = JointAxis3d::RotationX)]
+    pub axis: JointAxis3d,
+    /// How far the axis may travel, low then high, in radians about a rotation axis; equal values mean no limit
+    pub limits: [f32; 2],
+    /// Drive the axis towards a speed, towards a position, or not at all
+    #[property(default = Motor::Off)]
+    pub motor: Motor,
+    /// The speed or the position the motor drives towards
+    pub motor_target: f32,
+    /// The speed a position motor wants at its target
+    pub motor_target_velocity: f32,
+    /// The most force or torque the motor may use; 0 means as much as it takes
+    #[property(min = 0.0)]
+    pub motor_max_force: f32,
+    /// Whether the motor's strength is an acceleration, ignoring mass, or a force; auto is force for a spring's x and acceleration elsewhere
+    #[property(default = MotorStrength::Auto)]
+    pub motor_model: MotorStrength,
+    /// Spring stiffness, for a position motor or a spring's x
+    #[property(min = 0.0)]
+    pub stiffness: f32,
+    /// How quickly the motion settles, for a motor or a spring's x
+    #[property(default = DEFAULT_DAMPING, min = 0.0)]
+    pub damping: f32,
+}
+
 crate::shared::joint::functions!(
+    joint = Joint3d,
+    ask = JointAsk3d,
     state = PhysicsState3d,
     world = PhysicsWorld,
     reference = JointRef3d,
@@ -215,31 +581,28 @@ crate::shared::joint::functions!(
     impulse_parts = impulse_parts
 );
 
-pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    if toggled_in_place(eng, entity, params) {
+pub(crate) fn apply_joint(eng: &Engine, entity: Entity, ask: &JointAsk3d) -> Result<()> {
+    if toggled_in_place(eng, entity, ask) {
         return Ok(());
     }
     remove_joint(eng, entity);
     {
         let state = eng.resource::<PhysicsState3d>();
-        state
-            .borrow_mut()
-            .joint_params
-            .insert(entity, params.clone());
+        state.borrow_mut().joint_params.insert(entity, ask.clone());
     }
-    let reduced = v::boolean(params, k::ARTICULATION, false);
+    let reduced = ask.articulated();
     // rapier's chains ignore a joint's switch, so an articulation that is off
     // stays out of its chain.
-    if reduced && !v::boolean(params, k::ENABLED, true) {
+    if reduced && !ask.enabled() {
         return Ok(());
     }
-    let (break_force, break_torque) = crate::shared::joint::thresholds(params, reduced)?;
+    let (break_force, break_torque) = crate::shared::joint::thresholds(ask.breaks(), reduced)?;
     // A joint whose other end is not in the scene yet is inert rather than an
     // error: a scene file names nodes in whatever order it likes.
-    let Ok((a, b)) = ends(eng, entity, params) else {
+    let Ok((a, b)) = ends(eng, entity, ask.connected_body()) else {
         return Ok(());
     };
-    let joint = joint_of(params)?;
+    let joint = joint_of(ask)?;
     let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     let (first, second) = handles(&state, a, b)?;
@@ -249,13 +612,13 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
         let mut joint = joint;
         joint.flip();
         let set = &mut state.world.multibody_joints;
-        let made = if v::boolean(params, k::KINEMATIC_LINK, false) {
+        let made = if ask.kinematic_link() {
             set.insert_kinematic(second, first, joint, true)
         } else {
             set.insert(second, first, joint, true)
         };
         made.map(JointHandle3d::Multibody).ok_or_else(|| {
-            anyhow!("an articulation cannot close a loop; set articulation = false")
+            anyhow!("an articulation cannot close a loop; take the articulation3d off this joint")
         })?
     } else {
         JointHandle3d::Impulse(state.world.insert_impulse_joint(first, second, joint))
@@ -276,51 +639,6 @@ pub(crate) fn apply_joint(eng: &Engine, entity: Entity, params: &toml::Value) ->
 }
 
 /// What `apply` wrote, read back off the joint.
-pub(crate) fn get_joint_params(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<PhysicsState3d>();
-    let state = state.borrow();
-    // Authored values first, so a joint waiting for its other end still
-    // reports what it is waiting to be. A script's limit or motor call
-    // rewrites them, so they hold what the joint runs.
-    let params = state.joint_params.get(&entity)?;
-    let mut map = params.as_table().cloned()?;
-    let spring = v::text(params, k::KIND, w::FIXED) == w::SPRING;
-    map.insert(
-        k::AXES.into(),
-        crate::shared::joint::resolved_axes(params, |axis| spring && axis == w::X),
-    );
-    let Some(reference) = state.joints.get(&entity) else {
-        return Some(toml::Value::Table(map));
-    };
-    let data = match &reference.handle {
-        JointHandle3d::Impulse(handle) => state.world.impulse_joints.get(*handle)?.data,
-        JointHandle3d::Multibody(handle) => {
-            let (multibody, link) = state.world.multibody_joints.get(*handle)?;
-            read_chain(&mut map, multibody, link);
-            let mut data = multibody.link(link)?.joint.data;
-            data.flip();
-            data
-        }
-    };
-    let f = |value: Real| toml::Value::Float(f64::from(value));
-    let vec3 = |v: Vector| toml::Value::Array(vec![f(v.x), f(v.y), f(v.z)]);
-    map.insert(k::SOFTNESS_HZ.into(), f(data.softness.natural_frequency));
-    map.insert(
-        k::SOFTNESS_DAMPING_RATIO.into(),
-        f(data.softness.damping_ratio),
-    );
-    map.insert(k::ANCHOR.into(), vec3(data.local_anchor1()));
-    map.insert(k::CONNECTED_ANCHOR.into(), vec3(data.local_anchor2()));
-    map.insert(k::COLLIDE_CONNECTED.into(), data.contacts_enabled().into());
-    map.insert(
-        k::ARTICULATION.into(),
-        matches!(reference.handle, JointHandle3d::Multibody(_)).into(),
-    );
-    map.insert(k::BREAK_FORCE.into(), f(reference.break_force));
-    map.insert(k::BREAK_TORQUE.into(), f(reference.break_torque));
-    Some(toml::Value::Table(map))
-}
-
 /// The impulse an impulse joint held through the last substep: its linear
 /// part and its torque about the anchor, each as one magnitude.
 ///
@@ -430,15 +748,15 @@ fn impulse_parts(world: &PhysicsWorld, joint: &ImpulseJoint) -> Option<(Real, Re
     Some((force.length(), (about_com - r1.cross(force)).length()))
 }
 
-pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_joint_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("remove_joint", &[c::JOINT_3D], "", "Undo the node's joint, leaving both bodies free."),
         ("set_motor_velocity", &[c::JOINT_3D], "(node: node, axis: string, velocity: float, damping: float)", "Drive one of the joint's free axes towards a speed: how a wheel is powered or a door swings itself shut. Rewrites that axis's `axes` record."),
         ("set_motor_position", &[c::JOINT_3D], "(node: node, axis: string, target: float, stiffness: float, damping: float)", "Drive one of the joint's free axes towards an angle or a distance, with a spring's stiffness and damping. Rewrites that axis's `axes` record."),
         ("set_joint_limits", &[c::JOINT_3D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel, in radians about a rotation axis and units along a linear one; equal values lift the limit. Rewrites that axis's `axes` record."),
-        ("joint_state", &[c::JOINT_3D], "(node: node) -> map", "What the joint is doing: `#{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge's turn in radians; the impulse maps hold each free axis's last limit and motor impulse; an articulation adds each free axis's coordinate and velocity."),
-        ("joint_force", &[c::JOINT_3D], "(node: node) -> map", "The force and the torque the joint held through the last step, `#{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so."),
-        ("solve_ik", &[c::JOINT_3D], "(node: node, x: float, y: float, z: float, opts: table)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
+        ("joint_state", &[c::JOINT_3D], "(node: node) -> map", "What the joint is doing: `{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge's turn in radians; the impulse maps hold each free axis's last limit and motor impulse; an articulation adds each free axis's coordinate and velocity."),
+        ("joint_force", &[c::JOINT_3D], "(node: node) -> map", "The force and the torque the joint held through the last step, `{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so."),
+        ("solve_ik", &[c::JOINT_3D], "(node: node, x: float, y: float, z: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (euler radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `z`, `rotation_x`, `rotation_y`, `rotation_z`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
     ]);
     m.function("remove_joint", |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
@@ -475,6 +793,11 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
     m.function("joint_state", |eng: &Engine, node: NodeId| {
         joint_state(eng, node)
     });
+    m.records(&[(
+        "IkOptions",
+        "{ rotation: any, constrain: [string]?, damping: float?, iterations: int?, tolerance: float? }",
+        "How `solve_ik` reaches: the `rotation` to turn the last link to, the world axes it matches, and the solver's damping, iterations and tolerance.",
+    )]);
     m.function(
         "solve_ik",
         |eng: &Engine, (node, x, y, z, opts): (NodeId, f32, f32, f32, Option<Value>)| {
@@ -492,11 +815,11 @@ pub(crate) fn install_joint_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Rapier's own solver, damped least squares, every joint's limits respected.
 /// Impulse joints have no such thing — there are no generalised coordinates to
-/// solve for — so this is `articulation = true` only, and says so.
+/// solve for — so this is a joint with an `articulation3d` only, and says so.
 fn solve_ik(eng: &Engine, entity: Entity, target: Vector, opts: &v::Opts<'_>) -> Result<()> {
     let rotation = opts.get(k::ROTATION).map(|_| {
         let [x, y, z] = opts.vec3(k::ROTATION, [0.0; 3]);
-        scalar::rotation_of(glamx::Quat::from_euler(glamx::EulerRot::ZYX, z, y, x))
+        glamx::Quat::from_euler(glamx::EulerRot::ZYX, z, y, x)
     });
     let options = ik_options(opts, rotation.is_some())?;
     let pose = scalar::Pose::from_parts(target, rotation.unwrap_or(scalar::Rotation::IDENTITY));
@@ -505,7 +828,7 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vector, opts: &v::Opts<'_>) ->
     let state = &mut *state;
     let Some(JointHandle3d::Multibody(handle)) = state.joints.get(&entity).map(|j| j.handle) else {
         return Err(anyhow!(
-            "inverse kinematics needs a chain of reduced-coordinates joints (articulation = true)"
+            "inverse kinematics needs a chain of reduced-coordinates joints: an articulation3d beside each joint3d"
         ));
     };
     // The solver reads the bodies and writes the chain, so the two borrows are
@@ -539,95 +862,32 @@ fn solve_ik(eng: &Engine, entity: Entity, target: Vector, opts: &v::Opts<'_>) ->
     Ok(())
 }
 
+/// The joint the component asks for, made again.
+fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let Some(ask) = JointAsk3d::of(&eng.world(), entity) else {
+        return Ok(());
+    };
+    apply_joint(eng, entity, &ask)
+}
+
+/// What a removed `Joint3d` leaves behind, taken with it.
+fn joint3d_removed(eng: &Engine, entity: Entity) {
+    remove_joint(eng, entity);
+}
+
+/// `joint3d`: what was asked, held on the node; the joint and the table it was
+/// made from are in [`crate::PhysicsState3d`].
 pub(crate) fn register_joint_component(reg: &mut Registry<'_>) {
-    let kinds = v::options(w::JOINT_KINDS);
-    let axes = v::options(w::LOCK_AXES);
-    let default = w::FIXED;
-    let schema = crate::shared::joint::schema(
-        w::JOINT_AXES,
-        w::ROTATION_X,
-        &crate::shared::joint::OwnRows {
-            primary: v::schema(&[
-                (
-                    k::KIND,
-                    &format!(
-                        r#"{{ type = "enum", default = "{default}", options = [{kinds}], description = "How the two bodies may move relative to each other" }}"#
-                    ),
-                ),
-                (
-                    k::CONNECTED_BODY,
-                    r#"{ type = "node", default = "", description = "The node at the joint's other end; this node is the first end" }"#,
-                ),
-            ]),
-            anchors: v::schema(&[
-                (
-                    k::ANCHOR,
-                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where the joint attaches on this node, in its own space", group = "anchors" }"#,
-                ),
-                (
-                    k::CONNECTED_ANCHOR,
-                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "Where it attaches on the other node, in that node's space", group = "anchors" }"#,
-                ),
-                (
-                    k::AXIS,
-                    r#"{ type = "vec3", default = [0.0, 0.0, 1.0], description = "The joint frame's x axis: what a hinge turns about, a slider slides along, and a generic joint's x and rotation_x name", group = "anchors" }"#,
-                ),
-                (
-                    k::CONNECTED_AXIS,
-                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "The same axis in the other node's space, for a hinge, a slider or a generic joint; zero takes axis", group = "anchors" }"#,
-                ),
-                (
-                    k::ANCHOR_ROTATION,
-                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "Turns this end's joint frame about its own axes, x first: what a hinge's angle and its limits measure from, and the relative turn a fixed joint holds. Euler radians in the file", group = "anchors" }"#,
-                ),
-                (
-                    k::CONNECTED_ANCHOR_ROTATION,
-                    r#"{ type = "vec3", default = [0.0, 0.0, 0.0], unit = "degrees", description = "The same for the other end's frame", group = "anchors" }"#,
-                ),
-            ]),
-            locks: v::schema(&[
-                (
-                    k::LOCK_TRANSLATION,
-                    &format!(
-                        r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not slide along", group = "locks" }}"#
-                    ),
-                ),
-                (
-                    k::LOCK_ROTATION,
-                    &format!(
-                        r#"{{ type = "flags", default = [], options = [{axes}], description = "The axes a generic joint may not turn about", group = "locks" }}"#
-                    ),
-                ),
-                (
-                    k::COUPLED_TRANSLATION,
-                    &format!(
-                        r#"{{ type = "flags", default = [], options = [{axes}], description = "Free linear axes tied into one distance, whose limit and motor come from the first of them; a rope and a spring couple all three already", group = "locks" }}"#
-                    ),
-                ),
-                (
-                    k::COUPLED_ROTATION,
-                    &format!(
-                        r#"{{ type = "flags", default = [], options = [{axes}], description = "Free turning axes tied into one angle, whose limit and motor come from the first of them", group = "locks" }}"#
-                    ),
-                ),
-            ]),
-        },
-    );
-    reg.register_component(
-        c::JOINT_3D,
-        ComponentDef {
-            events: crate::vocabulary::hook::JOINT,
-            warnings: None,
-            doc: "Joins this node's body to `connected_body`. `kind` is `fixed`, `hinge`, `slider`, `ball_socket`, `rope`, `spring` or `generic`; both ends need a `body3d` on or above the node. `axes` limits and drives each free axis.",
-            schema: ComponentDef::parse_schema(c::JOINT_3D, &schema),
-            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
-            expects: &[c::BODY_3D],
-            apply: Box::new(apply_joint),
-            remove: Box::new(|eng, entity| {
-                remove_joint(eng, entity);
-                Ok(())
-            }),
-            get: Box::new(get_joint_params),
-        },
-    );
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_3D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    let main: &'static [&'static str] = &[c::JOINT_3D];
+    beside::register::<RopeJoint3d>(reg, main, tags, after_write);
+    beside::register::<SpringJoint3d>(reg, main, tags, after_write);
+    beside::register::<GenericJoint3d>(reg, main, tags, after_write);
+    beside::register::<Articulation3d>(reg, main, tags, after_write);
+    beside::register::<BreakableJoint3d>(reg, main, tags, after_write);
+    // After the components beside it, so a scene gives the node those first.
+    reg.add_component::<Joint3d>();
 }

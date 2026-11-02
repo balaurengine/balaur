@@ -38,8 +38,7 @@ name = "Terrain"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "voxels"
-voxels = "#pillar"
+shape = { kind = "voxels", voxels = "#pillar" }
 "##,
     )
     .unwrap();
@@ -89,8 +88,8 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
 impl Scenario {
     fn init() {
         let mesh = self.node.collider3d.collider_mesh();
-        if mesh.get("points").len() <= 0 { log::error("the grid tessellated to nothing"); }
-        if mesh.get("indices").len() % 3 != 0 { log::error("the triangles are not triples"); }
+        if mesh["points"].len() <= 0 { log::error("the grid tessellated to nothing"); }
+        if mesh["indices"].len() % 3 != 0 { log::error("the triangles are not triples"); }
     }
 }
 "#,
@@ -104,12 +103,12 @@ fn the_mesh_backed_shapes_build() {
 impl Scenario {
     fn init() {
         for kind in ["convex_hull", "convex_decomposition", "triangle_mesh"] {
-            self.node.collider3d.set_collider(map().with("kind", kind).with("mesh", "#wedge"));
+            self.node.set_component("collider3d", { "shape": { "kind": kind, "mesh": "#wedge" } });
         }
         for fit in ["aabb", "obb", "convex_hull"] {
-            self.node.collider3d.set_collider(map().with("kind", "fit").with("fit", fit).with("mesh", "#wedge"));
+            self.node.set_component("collider3d", { "shape": { "kind": "fit", "mesh": "#wedge", "fit": fit } });
         }
-        self.node.collider3d.set_collider(map().with("kind", "voxelized_mesh").with("mesh", "#wedge").with("voxel_size", 0.25));
+        self.node.set_component("collider3d", { "shape": { "kind": "voxelized_mesh", "mesh": "#wedge", "voxel_size": 0.25 } });
     }
 }
 "##,
@@ -122,17 +121,17 @@ fn the_solver_knobs_are_set_and_read_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics::set_tuning(map().with("solver_iterations", 8).with("length_unit", 64.0).with("ccd_substeps", 2));
-        let tuning = physics::tuning().get("3d");
-        let iterations = tuning.get("solver_iterations").as_float();
+        physics::set_tuning({ "solver_iterations": 8, "length_unit": 64.0, "ccd_substeps": 2 });
+        let tuning = physics::tuning()["3d"];
+        let iterations = tuning["solver_iterations"].as_float();
         if iterations != 8.0 { log::error("iterations read back as {iterations}"); }
-        let unit = tuning.get("length_unit").as_float();
+        let unit = tuning["length_unit"].as_float();
         if unit != 64.0 { log::error("the length unit read back as {unit}"); }
-        let substeps = tuning.get("ccd_substeps").as_float();
+        let substeps = tuning["ccd_substeps"].as_float();
         if substeps != 2.0 { log::error("substeps read back as {substeps}"); }
         let quarantined = physics::quarantined();
-        for world in [quarantined.get("physics3d"), quarantined.get("physics2d")] {
-            if world.get("bodies").len() + world.get("colliders").len() + world.get("soft_bodies").len() != 0 {
+        for world in [quarantined["physics3d"], quarantined["physics2d"]] {
+            if world["bodies"].len() + world["colliders"].len() + world["soft_bodies"].len() != 0 {
                 log::error("something was quarantined in a still world");
             }
         }
@@ -150,16 +149,16 @@ fn the_geometry_toolkit_works_on_a_mesh() {
 impl Scenario {
     fn init() {
         let hull = geometry3d::convex_hull("#wedge");
-        let points = hull.get("points").len();
+        let points = hull["points"].len();
         if points < 4 { log::error("the hull of a tetrahedron has four points, not {points}"); }
 
-        let pieces = geometry3d::convex_decomposition("#wedge", map().with("resolution", 16.0));
+        let pieces = geometry3d::convex_decomposition("#wedge", geometry3d::DecompositionOptions { resolution: 16 });
         if pieces.len() < 1 { log::error("the decomposition found no pieces"); }
 
-        let grid = geometry3d::voxelize("#wedge", map().with("resolution", 8.0));
-        if grid.get("cells").len() <= 0 { log::error("voxelising found no cells"); }
+        let grid = geometry3d::voxelize("#wedge", geometry3d::VoxelizeOptions { resolution: 8 });
+        if grid.cells.len() <= 0 { log::error("voxelising found no cells"); }
 
-        let halves = geometry3d::split("#wedge", map().with("point", [0.25, 0.0, 0.0]).with("normal", [1.0, 0.0, 0.0]));
+        let halves = geometry3d::split("#wedge", geometry3d::Plane { point: vec3(0.25, 0.0, 0.0), normal: vec3(1.0, 0.0, 0.0) });
         if halves.len() != 2 { log::error("a cut gives two halves, not {halves.len()}"); }
     }
 }
@@ -174,13 +173,13 @@ fn debug_draw_is_set_and_read_back() {
 impl Scenario {
     fn init() {
         physics::set_debug_draw(true);
-        if !physics::debug_draw().get("enabled").as_bool() { log::error("the switch did not stay on"); }
-        physics::set_debug_draw(map().with("colliders", true).with("impulse_joints", true).with("contacts", false));
+        if !physics::debug_draw()["enabled"].as_bool() { log::error("the switch did not stay on"); }
+        physics::set_debug_draw({ "colliders": true, "impulse_joints": true, "contacts": false });
         let modes = physics::debug_draw();
-        if !(modes.get("colliders").as_bool() && modes.get("impulse_joints").as_bool()) { log::error("the named modes were not kept"); }
-        if modes.get("contacts").as_bool() { log::error("a mode that was not named came on"); }
+        if !(modes["colliders"].as_bool() && modes["impulse_joints"].as_bool()) { log::error("the named modes were not kept"); }
+        if modes["contacts"].as_bool() { log::error("a mode that was not named came on"); }
         physics::set_debug_draw(false);
-        if physics::debug_draw().get("enabled").as_bool() { log::error("the switch did not go off"); }
+        if physics::debug_draw()["enabled"].as_bool() { log::error("the switch did not go off"); }
     }
 }
 "#,
@@ -215,13 +214,13 @@ name = "World"
 id = "n_aabb"
 name = "Aabb"
 parent = "n_world"
-collider3d = { kind = "fit", fit = "aabb", mesh = "#aside" }
+collider3d = { shape = { kind = "fit", mesh = "#aside", fit = "aabb" } }
 
 [[nodes]]
 id = "n_obb"
 name = "Obb"
 parent = "n_world"
-collider3d = { kind = "fit", fit = "obb", mesh = "#aside" }
+collider3d = { shape = { kind = "fit", mesh = "#aside", fit = "obb" } }
 "##,
     )
     .unwrap();
@@ -257,7 +256,7 @@ collider3d = { kind = "fit", fit = "obb", mesh = "#aside" }
 
     let back = balaur_core::components::get(&app.engine, aabb_node, "collider3d").unwrap();
     assert_eq!(
-        back.get("kind").and_then(toml::Value::as_str),
+        back["shape"].get("kind").and_then(toml::Value::as_str),
         Some("fit"),
         "a fitted box reads back as the fit that made it"
     );
@@ -298,14 +297,14 @@ id = "n_ball3"
 name = "Ball3"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.5 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
 
 [[nodes]]
 id = "n_ball2"
 name = "Ball2"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.5 }
+collider2d = { shape = { kind = "circle", radius = 0.5 } }
 "#,
     )
     .unwrap();

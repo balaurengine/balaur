@@ -30,14 +30,14 @@ pub(crate) struct Pointer {
 
 /// What input says from no node when the pointer moved, with where it is in
 /// window pixels, `[x, y]`; and when a button went down or up anywhere, the
-/// UI included, as `#{ button, x, y }`. Only while someone listens: what an
+/// UI included, as `{ button, x, y }`. Only while someone listens: what an
 /// overlay showing the input listens for instead of reading it every frame.
 pub(crate) const POINTER_MOVED: &str = "pointer_moved";
 pub(crate) const POINTER_PRESSED: &str = "pointer_pressed";
 pub(crate) const POINTER_RELEASED: &str = "pointer_released";
 
 /// What input says from no node when the wheel turned, with the turn as
-/// `[x, y]`; and when two fingers pinched or panned, as `#{ scale, x, y,
+/// `[x, y]`; and when two fingers pinched or panned, as `{ scale, x, y,
 /// pan_x, pan_y }`, `scale` zero for a pan alone. Only while someone listens:
 /// what a viewport's camera listens for instead of reading them every frame.
 pub(crate) const POINTER_SCROLLED: &str = "pointer_scrolled";
@@ -152,6 +152,20 @@ fn broadcast(eng: &Engine, event: &str, args: &[Value], skip: Option<Entity>) {
             return;
         }
     }
+}
+
+/// Whether a script in the scene has this hook.
+fn someone_declares(eng: &Engine, hook: &str) -> bool {
+    let Some(host) = eng.script_host() else {
+        return false;
+    };
+    let everyone = {
+        let world = eng.world();
+        balaur_core::scene::collect_subtree(&world, eng.root())
+    };
+    everyone
+        .into_iter()
+        .any(|entity| host.has_method(node_id_of(entity), hook))
 }
 
 /// The node under the pointer, or `None`.
@@ -303,7 +317,12 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
             taken(&|key| input.key_just_released(key)),
         )
     };
+    let hook = hooks::hook_of(hooks::KEY_DOWN);
     for key in down {
+        // A script hearing a key makes it the game's, as reading it does.
+        if balaur_input::FOCUS_KEYS.contains(&key.as_str()) && someone_declares(eng, &hook) {
+            input.borrow_mut().note_focus_key_read();
+        }
         broadcast(eng, hooks::KEY_DOWN, &[Value::text(key)], None);
     }
     for key in up {
@@ -389,7 +408,7 @@ fn fill_action_runners(app: &balaur_core::App) {
         eng,
         Action::OpenUrl,
         Rc::new(|_eng: &Engine, _entity, value: &Value| {
-            balaur_core::desktop::open_url(&text_of(value))
+            balaur_project::desktop::open_url(&text_of(value))
         }),
     );
     set_runner(

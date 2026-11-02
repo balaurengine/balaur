@@ -28,11 +28,11 @@ pub(super) fn draw(
             crate::instancing::draw_multimesh_3d(companion, &multimesh, global);
         }
     }
-    if let Ok(emitter) = world.get::<&crate::particles_3d::Particles3d>(entity) {
+    if let Ok(emitter) = world.get::<&crate::particles_3d::Emitter3d>(entity) {
         let live = slot
             .particles
             .get_or_insert_with(|| crate::particles_3d::Live3d::new(entity));
-        let delta = app.engine.delta();
+        let delta = crate::particles::step_of(&app.engine, world, entity, app.engine.delta());
         let any = crate::particles_3d::draw(&mut slot.node, live, &emitter, global, (eye, delta));
         slot.node.set_visible(visible && any);
     }

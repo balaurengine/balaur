@@ -1,0 +1,1158 @@
+//! A glTF model — a `.glb`, or a `.gltf` with its side files — as a `mesh`
+//! asset and as a scene to import.
+//!
+//! Two readers over one file. [`parse_gltf`] is what `mesh::parse` calls: the
+//! file's triangles, with rigid primitives baked into the file's own frame
+//! and skinned ones left in bind space, plus the first skin's joints,
+//! weights and inverse bind matrices. [`import`] is what `balaur import`
+//! calls: the node hierarchy as scene nodes — joints carrying `bone3d` rest
+//! poses — one mesh node at the model's root, and every animation as a clip
+//! that keys those nodes by path. Both name nodes the same way, which is
+//! what lets a skin in the mesh find its bones in the scene.
+//!
+//! Buffers come from the binary chunk, from a `data:` URI decoded here, or
+//! from a file beside the model through a [`SideReader`] the caller supplies
+//! — the project reader at load, the file system at import. Of a material,
+//! only the base colour texture is kept, as the mesh node's `texture`;
+//! cameras and morph targets are read past, and a KHR_lights_punctual light
+//! becomes a `light3d`.
+
+use anyhow::{Context, Result, anyhow, bail};
+use glamx::{Mat4, Quat, Vec3};
+
+use crate::glb_material::{
+    DEFAULT_MATERIAL, Images, Surface, drawn_with, material_names, surfaces,
+};
+/// The stock surface an imported material draws with, and where it is
+/// written. Named here because this is the module `balaur import` calls.
+pub use crate::glb_material::{MATERIAL_SHADER, MATERIAL_SHADER_PATH};
+use balaur_core::App;
+use balaur_core::collections::DetHashMap;
+use balaur_geometry::mesh::{INFLUENCES_PER_VERTEX, MeshData, MeshSkin};
+use balaur_geometry::skeleton::euler_from_quat;
+
+/// Reads a file the model names by relative URI — a `.bin` beside a
+/// `.gltf`, an image — or says why it cannot.
+pub type SideReader<'a> = &'a dyn Fn(&str) -> Result<Vec<u8>>;
+
+/// A file to write beside the model, and where its bytes come from.
+///
+/// A model's textures are the bulk of it -- Sponza's 69 are 41 MB of its 50 --
+/// and nothing here decodes one: they are copied. So a file the model *named*
+/// is carried as that name and read when it is written, and only what the
+/// model itself holds is carried as bytes.
+pub enum Beside {
+    /// Bytes out of the model: an embedded image, or a `data:` URI, or a
+    /// sidecar written here rather than read from anywhere.
+    Bytes(Vec<u8>),
+    /// A file the model named beside itself, by the same relative URI its
+    /// [`SideReader`] takes.
+    Named(String),
+}
+
+impl Beside {
+    /// The bytes, for a file the model carried. `None` for one still to be
+    /// read from beside the source.
+    #[must_use]
+    pub fn bytes(&self) -> Option<&[u8]> {
+        match self {
+            Self::Bytes(bytes) => Some(bytes),
+            Self::Named(_) => None,
+        }
+    }
+}
+
+/// The reader for a model that must stand alone: a `.glb`, or a `.gltf`
+/// whose buffers are all `data:` URIs.
+///
+/// # Errors
+/// Always: the point is the message a side file gets.
+pub fn no_side_files(uri: &str) -> Result<Vec<u8>> {
+    Err(anyhow!(
+        "'{uri}' is a side file, and this reader has no directory to find it in"
+    ))
+}
+
+/// Install this reader as the one a `mesh` asset's `.glb` or `.gltf` source
+/// is read with.
+pub fn register_model_reader(app: &mut App) {
+    app.engine
+        .insert_resource(balaur_geometry::mesh::ModelReader(Box::new(
+            |bytes, name, side, part| parse_gltf_part(bytes, name, side, part),
+        )));
+}
+
+/// A loaded file with the node facts every reader needs.
+pub(crate) struct Model {
+    pub(crate) document: gltf::Document,
+    /// One per glTF buffer, in index order.
+    buffers: Vec<Vec<u8>>,
+    /// The files the buffers were read from, by URI, to carry along on
+    /// import. Names rather than bytes: a `.bin` is the second largest thing
+    /// in a model and the copy re-reads it.
+    side_files: Vec<String>,
+    /// Unique per node, so a path of names resolves to one node.
+    names: Vec<String>,
+    parent: Vec<Option<usize>>,
+}
+
+impl Model {
+    fn load(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<Self> {
+        let file = gltf::Gltf::from_slice(bytes).with_context(|| format!("reading {name}"))?;
+        let mut blob = file.blob;
+        let document = file.document;
+        let mut buffers = Vec::new();
+        let mut side_files = Vec::new();
+        for buffer in document.buffers() {
+            let data = match buffer.source() {
+                gltf::buffer::Source::Bin => blob
+                    .take()
+                    .ok_or_else(|| anyhow!("{name} names its binary chunk and has none"))?,
+                gltf::buffer::Source::Uri(uri) => {
+                    let data =
+                        uri_bytes(uri, side).with_context(|| format!("{name}: buffer '{uri}'"))?;
+                    if !uri.starts_with("data:") {
+                        side_files.push(percent_decoded(uri));
+                    }
+                    data
+                }
+            };
+            if data.len() < buffer.length() {
+                bail!(
+                    "{name}: buffer {} holds {} bytes, fewer than the {} it declares",
+                    buffer.index(),
+                    data.len(),
+                    buffer.length()
+                );
+            }
+            buffers.push(data);
+        }
+        let count = document.nodes().count();
+        let mut parent = vec![None; count];
+        for node in document.nodes() {
+            for child in node.children() {
+                parent[child.index()] = Some(node.index());
+            }
+        }
+        let mut names = Vec::with_capacity(count);
+        let mut taken: DetHashMap<String, u32> = DetHashMap::default();
+        for node in document.nodes() {
+            let base = node
+                .name()
+                .filter(|n| !n.is_empty())
+                .map_or_else(|| format!("Node{}", node.index()), |n| n.replace('/', "_"));
+            let seen = taken.entry(base.clone()).or_insert(0);
+            *seen += 1;
+            names.push(if *seen == 1 {
+                base
+            } else {
+                format!("{base}_{seen}")
+            });
+        }
+        Ok(Self {
+            document,
+            buffers,
+            side_files,
+            names,
+            parent,
+        })
+    }
+
+    fn buffer(&self, buffer: &gltf::Buffer<'_>) -> Option<&[u8]> {
+        self.buffers.get(buffer.index()).map(Vec::as_slice)
+    }
+
+    /// The bytes of a buffer view, for an image the file embeds. The end is
+    /// checked rather than added: both numbers come off the file.
+    pub(crate) fn view_bytes(&self, view: &gltf::buffer::View<'_>) -> Option<&[u8]> {
+        let data = self.buffer(&view.buffer())?;
+        let end = view.offset().checked_add(view.length())?;
+        data.get(view.offset()..end)
+    }
+
+    fn local(&self, node: usize) -> Mat4 {
+        let (t, r, s) = self
+            .document
+            .nodes()
+            .nth(node)
+            .map_or(([0.0; 3], [0.0, 0.0, 0.0, 1.0], [1.0; 3]), |n| {
+                n.transform().decomposed()
+            });
+        Mat4::from_scale_rotation_translation(
+            Vec3::from(s),
+            Quat::from_xyzw(r[0], r[1], r[2], r[3]),
+            Vec3::from(t),
+        )
+    }
+
+    /// The node's transform composed from the scene root.
+    fn global(&self, node: usize) -> Mat4 {
+        let mut matrix = self.local(node);
+        for p in self.ancestors(node) {
+            matrix = self.local(p) * matrix;
+        }
+        matrix
+    }
+
+    /// Root-first chain of ancestors, the node itself last.
+    fn lineage(&self, node: usize) -> Vec<usize> {
+        let mut chain = vec![node];
+        chain.extend(self.ancestors(node));
+        chain.reverse();
+        chain
+    }
+
+    /// The node's ancestors, nearest first. Bounded because a file's node
+    /// graph is whatever the file says and a cycle would walk forever.
+    fn ancestors(&self, node: usize) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut current = self.parent[node];
+        while let Some(p) = current {
+            if out.len() >= self.parent.len() {
+                tracing::warn!(node, "the model's node parents form a cycle");
+                break;
+            }
+            out.push(p);
+            current = self.parent[p];
+        }
+        out
+    }
+
+    /// The deepest node that is every joint's ancestor or self: the rig
+    /// root the skin's bone paths are relative to.
+    fn rig_root(&self, skin: &gltf::Skin<'_>) -> Option<usize> {
+        if let Some(root) = skin.skeleton() {
+            return Some(root.index());
+        }
+        let mut joints = skin.joints().map(|j| j.index());
+        let first = self.lineage(joints.next()?);
+        let mut depth = first.len();
+        for joint in joints {
+            let other = self.lineage(joint);
+            let shared = first.iter().zip(&other).take_while(|(a, b)| a == b).count();
+            depth = depth.min(shared);
+        }
+        (depth > 0).then(|| first[depth - 1])
+    }
+
+    /// `A/B/C` from `from` down to `node`, empty when they are the same.
+    fn path(&self, from: usize, node: usize) -> String {
+        let chain = self.lineage(node);
+        let start = chain.iter().position(|&n| n == from).map_or(0, |i| i + 1);
+        chain[start..]
+            .iter()
+            .map(|&n| self.names[n].as_str())
+            .collect::<Vec<_>>()
+            .join("/")
+    }
+
+    fn scene_roots(&self) -> Vec<usize> {
+        self.document
+            .default_scene()
+            .or_else(|| self.document.scenes().next())
+            .map(|scene| scene.nodes().map(|n| n.index()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Every node of the scene, parents before children, siblings in order.
+    fn scene_nodes(&self) -> Vec<usize> {
+        let mut out = Vec::new();
+        let mut stack: Vec<usize> = self.scene_roots().into_iter().rev().collect();
+        while let Some(node) = stack.pop() {
+            out.push(node);
+            if let Some(n) = self.document.nodes().nth(node) {
+                let children: Vec<usize> = n.children().map(|c| c.index()).collect();
+                stack.extend(children.into_iter().rev());
+            }
+        }
+        out
+    }
+}
+
+/// The skin the mesh binds to: the first one in the file.
+struct Rig {
+    skin_index: usize,
+    rig_root: usize,
+    joints: Vec<usize>,
+    bone_paths: Vec<String>,
+    inverse_bind: Vec<Mat4>,
+}
+
+impl Rig {
+    fn first(model: &Model) -> Result<Option<Self>> {
+        let Some(skin) = model.document.skins().next() else {
+            return Ok(None);
+        };
+        let rig_root = model
+            .rig_root(&skin)
+            .ok_or_else(|| anyhow!("the skin's joints share no ancestor"))?;
+        let joints: Vec<usize> = skin.joints().map(|j| j.index()).collect();
+        let bone_paths = joints.iter().map(|&j| model.path(rig_root, j)).collect();
+        // The file's inverse bind matrices are relative to its scene root;
+        // the palette wants them relative to the rig root.
+        let rig_global = model.global(rig_root);
+        let inverse_bind: Vec<Mat4> = match skin
+            .reader(|b| model.buffer(&b))
+            .read_inverse_bind_matrices()
+        {
+            Some(matrices) => matrices
+                .map(|m| Mat4::from_cols_array_2d(&m) * rig_global)
+                .collect(),
+            None => joints
+                .iter()
+                .map(|&j| model.global(j).inverse() * rig_global)
+                .collect(),
+        };
+        if inverse_bind.len() != joints.len() {
+            bail!(
+                "the skin has {} inverse bind matrices for {} joints",
+                inverse_bind.len(),
+                joints.len()
+            );
+        }
+        Ok(Some(Self {
+            skin_index: skin.index(),
+            rig_root,
+            joints,
+            bone_paths,
+            inverse_bind,
+        }))
+    }
+}
+
+/// A URI's bytes: a `data:` URI is decoded here, anything else is read
+/// beside the model.
+pub(crate) fn uri_bytes(uri: &str, side: SideReader<'_>) -> Result<Vec<u8>> {
+    if let Some(rest) = uri.strip_prefix("data:") {
+        let (_, payload) = rest
+            .split_once(',')
+            .ok_or_else(|| anyhow!("a data URI with no payload"))?;
+        return base64_decode(payload);
+    }
+    side(&percent_decoded(uri))
+}
+
+/// `%20` and friends back to the characters a file name has.
+pub(crate) fn percent_decoded(uri: &str) -> String {
+    let bytes = uri.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let escaped = bytes
+            .get(i + 1..i + 3)
+            .filter(|_| bytes[i] == b'%')
+            .and_then(|hex| std::str::from_utf8(hex).ok())
+            .and_then(|hex| u8::from_str_radix(hex, 16).ok());
+        if let Some(byte) = escaped {
+            out.push(byte);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Standard base64 with optional padding, the alphabet a `data:` URI uses.
+fn base64_decode(text: &str) -> Result<Vec<u8>> {
+    let value = |c: u8| -> Result<u32> {
+        Ok(match c {
+            b'A'..=b'Z' => u32::from(c - b'A'),
+            b'a'..=b'z' => u32::from(c - b'a') + 26,
+            b'0'..=b'9' => u32::from(c - b'0') + 52,
+            b'+' | b'-' => 62,
+            b'/' | b'_' => 63,
+            other => bail!("'{}' is not a base64 digit", char::from(other)),
+        })
+    };
+    let mut out = Vec::with_capacity(text.len() * 3 / 4);
+    let mut acc: u32 = 0;
+    let mut bits = 0;
+    for &c in text.as_bytes() {
+        if c == b'=' || c.is_ascii_whitespace() {
+            continue;
+        }
+        acc = (acc << 6) | value(c)?;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+            acc &= (1 << bits) - 1;
+        }
+    }
+    Ok(out)
+}
+
+/// Vertex streams gathered across primitives, every one per vertex.
+#[derive(Default)]
+struct Streams {
+    mesh: MeshData,
+    normals: Vec<[f32; 3]>,
+    uvs: Vec<[f32; 2]>,
+    joints: Vec<[u32; 4]>,
+    weights: Vec<[f32; 4]>,
+    colors: Vec<[f32; 4]>,
+    /// One entry per target, each gathered across every primitive so its
+    /// deltas line up with the vertices they belong to.
+    morphs: Vec<balaur_geometry::mesh::MorphTarget>,
+    had_normals: bool,
+    had_uvs: bool,
+    had_colors: bool,
+}
+
+impl Streams {
+    /// One primitive's vertices, placed by `frame`, with its joints when it
+    /// is skinned and empty influences when it is rigid.
+    fn add<'a, 's, F>(
+        &mut self,
+        reader: &gltf::mesh::Reader<'a, 's, F>,
+        frame: Mat4,
+        skinned: bool,
+        name: &str,
+    ) -> Result<()>
+    where
+        F: Clone + Fn(gltf::Buffer<'a>) -> Option<&'s [u8]>,
+    {
+        let base = self.mesh.positions.len() as u32;
+        let positions: Vec<[f32; 3]> = reader
+            .read_positions()
+            .ok_or_else(|| anyhow!("{name}: a primitive has no positions"))?
+            .map(|p| frame.transform_point3(Vec3::from(p)).to_array())
+            .collect();
+        let count = positions.len();
+        match reader.read_indices() {
+            Some(indices) => {
+                let flat: Vec<u32> = indices.into_u32().collect();
+                // A file is a user's, so a face past its vertices is an error
+                // here and never a panic in the renderer that draws it.
+                if let Some(past) = flat.iter().find(|&&i| i as usize >= count) {
+                    bail!("{name}: a face names vertex {past} but its primitive has {count}");
+                }
+                for tri in flat.as_chunks::<3>().0 {
+                    self.mesh
+                        .indices
+                        .push([base + tri[0], base + tri[1], base + tri[2]]);
+                }
+            }
+            None => {
+                for i in (0..count as u32).step_by(3) {
+                    if i + 2 < count as u32 {
+                        self.mesh
+                            .indices
+                            .push([base + i, base + i + 1, base + i + 2]);
+                    }
+                }
+            }
+        }
+        match reader.read_normals() {
+            Some(ns) => {
+                self.had_normals = true;
+                self.normals.extend(ns.map(|n| {
+                    frame
+                        .transform_vector3(Vec3::from(n))
+                        .normalize_or_zero()
+                        .to_array()
+                }));
+            }
+            None => self
+                .normals
+                .extend(std::iter::repeat_n([0.0, 1.0, 0.0], count)),
+        }
+        match reader.read_tex_coords(0) {
+            Some(ts) => {
+                self.had_uvs = true;
+                self.uvs.extend(ts.into_f32());
+            }
+            None => self.uvs.extend(std::iter::repeat_n([0.0, 0.0], count)),
+        }
+        // A primitive with no colours of its own is white, so one that has
+        // them can be mixed with one that has not in the same mesh.
+        match reader.read_colors(0) {
+            Some(cs) => {
+                self.had_colors = true;
+                self.colors.extend(cs.into_rgba_f32());
+            }
+            None => self.colors.extend(std::iter::repeat_n([1.0; 4], count)),
+        }
+        if skinned {
+            let js = reader
+                .read_joints(0)
+                .ok_or_else(|| anyhow!("{name}: a skinned primitive has no joints"))?
+                .into_u16();
+            let ws = reader
+                .read_weights(0)
+                .ok_or_else(|| anyhow!("{name}: a skinned primitive has no weights"))?
+                .into_f32();
+            for (j, w) in js.zip(ws) {
+                self.joints.push(j.map(u32::from));
+                self.weights.push(w);
+            }
+        } else {
+            self.joints
+                .extend(std::iter::repeat_n([0; INFLUENCES_PER_VERTEX], count));
+            self.weights
+                .extend(std::iter::repeat_n([0.0; INFLUENCES_PER_VERTEX], count));
+        }
+        self.mesh.positions.extend(positions);
+        Ok(())
+    }
+
+    /// One primitive's morph targets, named by the mesh that owns them.
+    ///
+    /// A target the primitive does not carry leaves this primitive's
+    /// vertices where they are, so a mesh whose primitives disagree about
+    /// which shapes they have still blends the ones they share.
+    fn add_morphs<'a, 's, F>(
+        &mut self,
+        reader: &gltf::mesh::Reader<'a, 's, F>,
+        frame: Mat4,
+        names: &[String],
+        count: usize,
+    ) where
+        F: Clone + Fn(gltf::Buffer<'a>) -> Option<&'s [u8]>,
+    {
+        let base = self.mesh.positions.len() - count;
+        for (index, name) in names.iter().enumerate() {
+            if self.morphs.len() <= index {
+                self.morphs.push(balaur_geometry::mesh::MorphTarget {
+                    name: name.clone(),
+                    positions: vec![[0.0; 3]; base],
+                    normals: None,
+                });
+            }
+        }
+        let mut targets = reader.read_morph_targets();
+        for target in &mut self.morphs {
+            let (positions, normals, _) = targets.next().unwrap_or((None, None, None));
+            target.positions.resize(base, [0.0; 3]);
+            match positions {
+                Some(ps) => target
+                    .positions
+                    .extend(ps.map(|p| frame.transform_vector3(Vec3::from(p)).to_array())),
+                None => target
+                    .positions
+                    .extend(std::iter::repeat_n([0.0; 3], count)),
+            }
+            if let Some(ns) = normals {
+                let moved = target.normals.get_or_insert_with(|| vec![[0.0; 3]; base]);
+                moved.resize(base, [0.0; 3]);
+                moved.extend(ns.map(|n| frame.transform_vector3(Vec3::from(n)).to_array()));
+            }
+        }
+    }
+}
+
+/// The file's geometry as one mesh. `side` reads what a `.gltf` names
+/// beside itself; a `.glb` never asks it anything.
+///
+/// # Errors
+/// If the file does not read, a buffer is missing, or a primitive is not
+/// triangles.
+pub fn parse_gltf(bytes: &[u8], name: &str, side: SideReader<'_>) -> Result<MeshData> {
+    parse_gltf_part(bytes, name, side, None)
+}
+
+/// [`parse_gltf`], keeping only the primitives `part` names the material of.
+///
+/// # Errors
+/// As [`parse_gltf`], and if the file names no material `part`.
+pub fn parse_gltf_part(
+    bytes: &[u8],
+    name: &str,
+    side: SideReader<'_>,
+    part: Option<&str>,
+) -> Result<MeshData> {
+    let model = Model::load(bytes, name, side)?;
+    let materials = material_names(&model.document);
+    if let Some(part) = part
+        && part != DEFAULT_MATERIAL
+        && !materials.iter().any(|known| known == part)
+    {
+        bail!(
+            "{name} has no material '{part}'; it names {}",
+            materials.join(", ")
+        );
+    }
+    let rig = Rig::first(&model)?;
+    let mut streams = Streams::default();
+    for node_index in model.scene_nodes() {
+        let Some(node) = model.document.nodes().nth(node_index) else {
+            continue;
+        };
+        let Some(mesh) = node.mesh() else {
+            continue;
+        };
+        let skinned = matches!((&rig, node.skin()), (Some(rig), Some(skin)) if skin.index() == rig.skin_index);
+        // A skinned primitive is authored in bind space and its node's
+        // transform is ignored (the glTF rule); a rigid one bakes its place.
+        let frame = if skinned {
+            Mat4::IDENTITY
+        } else {
+            model.global(node_index)
+        };
+        for primitive in mesh.primitives() {
+            if part.is_some_and(|part| drawn_with(&materials, &primitive) != part) {
+                continue;
+            }
+            if primitive.mode() != gltf::mesh::Mode::Triangles {
+                bail!(
+                    "{name}: mesh '{}' is not triangles",
+                    model.names[node_index]
+                );
+            }
+            let reader = primitive.reader(|b| model.buffer(&b));
+            let count = primitive
+                .get(&gltf::Semantic::Positions)
+                .map_or(0, |accessor| accessor.count());
+            streams.add(&reader, frame, skinned, name)?;
+            streams.add_morphs(
+                &reader,
+                frame,
+                &morph_names(&mesh, primitive.index()),
+                count,
+            );
+        }
+    }
+    let Streams {
+        mut mesh,
+        normals,
+        uvs,
+        joints,
+        weights,
+        colors,
+        morphs,
+        had_normals,
+        had_uvs,
+        had_colors,
+    } = streams;
+    if mesh.positions.is_empty() {
+        match part {
+            Some(part) => bail!("{name}: material '{part}' draws no triangles"),
+            None => bail!("{name} draws no triangles"),
+        }
+    }
+    if had_normals {
+        mesh.normals = Some(normals);
+    }
+    if had_uvs {
+        mesh.uvs = Some(uvs);
+    }
+    if had_colors {
+        mesh.colors = Some(colors);
+    }
+    // A target whose deltas fell short of the last primitive is padded, so
+    // every target is one delta per vertex whatever the file did.
+    mesh.morphs = morphs
+        .into_iter()
+        .map(|mut target| {
+            target.positions.resize(mesh.positions.len(), [0.0; 3]);
+            if let Some(normals) = &mut target.normals {
+                normals.resize(mesh.positions.len(), [0.0; 3]);
+            }
+            target
+        })
+        .collect();
+    if let Some(rig) = rig {
+        mesh.skin = Some(MeshSkin {
+            bones: rig.bone_paths,
+            joints,
+            weights,
+            inverse_bind: Some(rig.inverse_bind),
+        });
+    }
+    Ok(mesh)
+}
+
+/// What a mesh's morph targets are called: the `targetNames` extra glTF
+/// writes, or `morph0`, `morph1` and so on when the file names none.
+fn morph_names(mesh: &gltf::Mesh<'_>, primitive: usize) -> Vec<String> {
+    let count = mesh
+        .primitives()
+        .nth(primitive)
+        .map_or(0, |p| p.morph_targets().count());
+    let named: Vec<String> = mesh
+        .extras()
+        .as_deref()
+        .and_then(|extras| serde_json::from_str::<serde_json::Value>(extras.get()).ok())
+        .and_then(|extras| {
+            extras.get("targetNames")?.as_array().map(|names| {
+                names
+                    .iter()
+                    .filter_map(|n| n.as_str().map(str::to_string))
+                    .collect()
+            })
+        })
+        .unwrap_or_default();
+    (0..count)
+        .map(|i| named.get(i).cloned().unwrap_or_else(|| format!("morph{i}")))
+        .collect()
+}
+
+/// What `balaur import` writes for a model: a scene and, when the file has
+/// animations, a clip library.
+pub struct GlbImport {
+    /// A scene document: the model's root node, its hierarchy with `bone3d`
+    /// on every joint, one `mesh` node per material, and a `material` asset
+    /// carrying each one's factors and maps.
+    pub scene: toml::Value,
+    /// An `animation_library` with one entry per animation, or `None`.
+    pub clips: Option<toml::Value>,
+    /// Files to write beside the model under `models/`: the `.bin` a
+    /// `.gltf` names, every texture its materials name, and a sidecar per
+    /// texture. Each says whether its bytes are here or still beside the
+    /// source, so importing a model never holds its textures.
+    pub files: Vec<(String, Beside)>,
+    /// Text files to write at their own project-relative paths: the shader
+    /// the generated materials draw with.
+    pub documents: Vec<(String, String)>,
+}
+
+impl GlbImport {
+    /// The scene as the text `scenes/<stem>.toml` holds.
+    pub fn scene_toml(&self) -> Result<String> {
+        Ok(toml::to_string(&self.scene)?)
+    }
+
+    /// The clip library as the text `animations/<stem>.toml` holds.
+    pub fn clips_toml(&self) -> Result<Option<String>> {
+        self.clips
+            .as_ref()
+            .map(|clips| toml::to_string(clips).map_err(Into::into))
+            .transpose()
+    }
+}
+
+pub(crate) fn floats(values: impl IntoIterator<Item = f32>) -> toml::Value {
+    toml::Value::Array(
+        values
+            .into_iter()
+            .map(|v| toml::Value::Float(f64::from(v)))
+            .collect(),
+    )
+}
+
+pub(crate) fn slug(name: &str) -> String {
+    let mut out = String::from("n_");
+    let mut gap = true;
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c.to_ascii_lowercase());
+            gap = false;
+        } else if !gap {
+            out.push('_');
+            gap = true;
+        }
+    }
+    out.trim_end_matches('_').to_string()
+}
+
+/// The scene and clips a model becomes. `model_file` is the name the model
+/// will have under `models/` (`hero.glb`, `hero.gltf`); its stem names the
+/// clip library, `animations/<stem>.toml`, and the scene's root node.
+///
+/// # Errors
+/// If the file does not read.
+pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<GlbImport> {
+    let stem = std::path::Path::new(model_file)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow!("'{model_file}' has no file name"))?;
+    let model = Model::load(bytes, model_file, side)?;
+    let rig = Rig::first(&model)?;
+    let clips = clips_of(&model);
+    let mut files: Vec<(String, Beside)> = model
+        .side_files
+        .iter()
+        .map(|uri| (uri.clone(), Beside::Named(uri.clone())))
+        .collect();
+    let mut images = Images {
+        stem,
+        by_index: DetHashMap::default(),
+        files: Vec::new(),
+    };
+    let surfaces = surfaces(&model, stem, side, &mut images)?;
+    files.extend(images.files);
+    let root_name = {
+        let mut chars = stem.chars();
+        chars.next().map_or_else(String::new, |c| {
+            c.to_uppercase().collect::<String>() + chars.as_str()
+        })
+    };
+    let root_id = slug(&root_name);
+    let mut nodes: Vec<toml::Value> = Vec::new();
+    let mut root = toml::map::Map::new();
+    root.insert("id".into(), toml::Value::String(root_id.clone()));
+    root.insert("name".into(), toml::Value::String(root_name.clone()));
+    root.insert("parent".into(), toml::Value::String(String::new()));
+    if let Some(first) = clips.as_ref().and_then(first_clip_name) {
+        let mut animation = toml::map::Map::new();
+        animation.insert(
+            "library".into(),
+            toml::Value::String(format!("animations/{stem}.toml")),
+        );
+        animation.insert("autoplay".into(), toml::Value::String(first));
+        root.insert("animation".into(), toml::Value::Table(animation));
+    }
+    nodes.push(toml::Value::Table(root));
+
+    let joints: DetHashMap<usize, ()> = rig
+        .as_ref()
+        .map(|r| r.joints.iter().map(|&j| (j, ())).collect())
+        .unwrap_or_default();
+    nodes.extend(scene_nodes(&model, &joints, &root_id));
+
+    // One mesh node per material, so a scene exported with a surface per
+    // material draws each with its own. A file with one keeps one node and
+    // names no part, which is what it always wrote.
+    let drawn = drawn_surfaces(&model, &surfaces);
+    if drawn.len() > 1 {
+        for surface in &drawn {
+            nodes.push(mesh_node(
+                &model,
+                rig.as_ref(),
+                &root_id,
+                &root_name,
+                model_file,
+                Some(surface),
+            ));
+        }
+    } else {
+        nodes.push(mesh_node(
+            &model,
+            rig.as_ref(),
+            &root_id,
+            &root_name,
+            model_file,
+            drawn.first().copied(),
+        ));
+    }
+
+    let mut scene = toml::map::Map::new();
+    if !drawn.is_empty() {
+        scene.insert(
+            "assets".into(),
+            toml::Value::Array(drawn.iter().map(|s| s.asset()).collect()),
+        );
+    }
+    scene.insert("nodes".into(), toml::Value::Array(nodes));
+    let documents = if drawn.is_empty() {
+        Vec::new()
+    } else {
+        vec![(
+            MATERIAL_SHADER_PATH.to_string(),
+            MATERIAL_SHADER.to_string(),
+        )]
+    };
+    Ok(GlbImport {
+        scene: toml::Value::Table(scene),
+        clips,
+        files,
+        documents,
+    })
+}
+
+/// The materials the file's triangles actually draw with, in file order.
+///
+/// A material a scene declares but nothing references would become a mesh
+/// node with no triangles, which fails to load rather than drawing nothing.
+fn drawn_surfaces<'a>(model: &Model, surfaces: &'a [Surface]) -> Vec<&'a Surface> {
+    let names = material_names(&model.document);
+    let mut used: Vec<&str> = Vec::new();
+    for node_index in model.scene_nodes() {
+        let Some(mesh) = model
+            .document
+            .nodes()
+            .nth(node_index)
+            .and_then(|node| node.mesh())
+        else {
+            continue;
+        };
+        for primitive in mesh.primitives() {
+            let name = drawn_with(&names, &primitive);
+            if let Some(found) = surfaces.iter().find(|s| s.part == name)
+                && !used.contains(&found.part.as_str())
+            {
+                used.push(&found.part);
+            }
+        }
+    }
+    surfaces
+        .iter()
+        .filter(|s| used.contains(&s.part.as_str()))
+        .collect()
+}
+
+/// The model's hierarchy as scene nodes, joints carrying their rest pose.
+///
+/// A leaf that only carried geometry is left out: its triangles are in the
+/// mesh node the import writes at the root, so the node itself has nothing
+/// left to say.
+fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> Vec<toml::Value> {
+    let mut out = Vec::new();
+    let mut ids: DetHashMap<usize, String> = DetHashMap::default();
+    for node_index in model.scene_nodes() {
+        let carries_only_a_mesh = model.document.nodes().nth(node_index).is_some_and(|n| {
+            n.mesh().is_some()
+                && n.children().len() == 0
+                && n.light().is_none()
+                && !joints.contains_key(&node_index)
+        });
+        if carries_only_a_mesh {
+            continue;
+        }
+        let name = model.names[node_index].clone();
+        let id = format!("{root_id}_{}", slug(&name).trim_start_matches("n_"));
+        ids.insert(node_index, id.clone());
+        let parent_id = model.parent[node_index]
+            .and_then(|p| ids.get(&p).cloned())
+            .unwrap_or_else(|| root_id.to_string());
+        let (t, r, s) = model
+            .document
+            .nodes()
+            .nth(node_index)
+            .map_or(([0.0; 3], [0.0, 0.0, 0.0, 1.0], [1.0; 3]), |n| {
+                n.transform().decomposed()
+            });
+        let euler = euler_from_quat(Quat::from_xyzw(r[0], r[1], r[2], r[3]));
+        let mut entry = toml::map::Map::new();
+        entry.insert("id".into(), toml::Value::String(id));
+        entry.insert("name".into(), toml::Value::String(name));
+        entry.insert("parent".into(), toml::Value::String(parent_id));
+        // In the component, not beside it: a bare `position` on a node is a
+        // scene key nothing handles, and every bone sits at the origin.
+        let mut placed = toml::map::Map::new();
+        placed.insert("position".into(), floats(t));
+        placed.insert("rotation_euler".into(), floats(euler.to_array()));
+        placed.insert("scale".into(), floats(s));
+        entry.insert(
+            balaur_core::transform::COMPONENT.into(),
+            toml::Value::Table(placed),
+        );
+        if let Some(light) = model
+            .document
+            .nodes()
+            .nth(node_index)
+            .and_then(|n| n.light())
+        {
+            entry.insert("light3d".into(), light_of(&light));
+        }
+        if joints.contains_key(&node_index) {
+            let mut bone = toml::map::Map::new();
+            bone.insert("rest_position".into(), floats(t));
+            bone.insert("rest_rotation".into(), floats(euler.to_array()));
+            bone.insert("rest_scale".into(), floats(s));
+            entry.insert("bone3d".into(), toml::Value::Table(bone));
+        }
+        out.push(toml::Value::Table(entry));
+    }
+    out
+}
+
+/// A KHR_lights_punctual light as the `light3d` it becomes. Both aim down
+/// the node's -z. glTF's photometric intensity is written as it is: lux for
+/// a directional light, candela for the others.
+fn light_of(light: &gltf::khr_lights_punctual::Light<'_>) -> toml::Value {
+    use gltf::khr_lights_punctual::Kind;
+    let mut table = toml::map::Map::new();
+    let kind = match light.kind() {
+        Kind::Directional => "directional",
+        Kind::Point => "point",
+        Kind::Spot {
+            inner_cone_angle,
+            outer_cone_angle,
+        } => {
+            table.insert(
+                "inner_angle_degrees".into(),
+                toml::Value::Float(inner_cone_angle.to_degrees().into()),
+            );
+            table.insert(
+                "outer_angle_degrees".into(),
+                toml::Value::Float(outer_cone_angle.to_degrees().into()),
+            );
+            "spot"
+        }
+    };
+    table.insert("kind".into(), toml::Value::String(kind.into()));
+    let [r, g, b] = light.color();
+    table.insert("color".into(), floats([r, g, b, 1.0]));
+    table.insert(
+        "intensity".into(),
+        toml::Value::Float(light.intensity().into()),
+    );
+    if let Some(range) = light.range() {
+        table.insert("range".into(), toml::Value::Float(range.into()));
+    }
+    toml::Value::Table(table)
+}
+
+/// One mesh node at the root, drawing `surface`'s triangles: rigid
+/// primitives were baked into the root's frame and skinned ones live in bind
+/// space. `surface` is `None` only for a file whose triangles name no
+/// material at all.
+fn mesh_node(
+    model: &Model,
+    rig: Option<&Rig>,
+    root_id: &str,
+    root_name: &str,
+    model_file: &str,
+    surface: Option<&Surface>,
+) -> toml::Value {
+    // A file with one material keeps the plain name it always had; only a
+    // file split across several needs one node id per part.
+    let suffix = surface
+        .map(|s| format!("_{}", s.id.rsplit_once('_').map_or("", |(_, tail)| tail)))
+        .unwrap_or_default();
+    let split = model.document.materials().count() > 1;
+    let (id, name) = if split {
+        (
+            format!("{root_id}_mesh{suffix}"),
+            format!("{root_name}Mesh{suffix}"),
+        )
+    } else {
+        (format!("{root_id}_mesh"), format!("{root_name}Mesh"))
+    };
+    let mut mesh_node = toml::map::Map::new();
+    mesh_node.insert("id".into(), toml::Value::String(id));
+    mesh_node.insert("name".into(), toml::Value::String(name));
+    mesh_node.insert("parent".into(), toml::Value::String(root_id.to_string()));
+    // An asset reference names a definition, so the file goes inside one:
+    // a table is a definition, and this one just points at the model.
+    let mut definition = toml::map::Map::new();
+    definition.insert(
+        "source".into(),
+        toml::Value::String(format!("models/{model_file}")),
+    );
+    if split && let Some(surface) = surface {
+        definition.insert("part".into(), toml::Value::String(surface.part.clone()));
+    }
+    let mut mesh = toml::map::Map::new();
+    mesh.insert("source".into(), toml::Value::Table(definition));
+    if let Some(surface) = surface {
+        mesh.insert(
+            "material".into(),
+            toml::Value::String(format!("#{}", surface.id)),
+        );
+    }
+    if let Some(rig) = rig {
+        let scene_roots = model.scene_roots();
+        let rig_path = if scene_roots.contains(&rig.rig_root) {
+            model.names[rig.rig_root].clone()
+        } else {
+            let top = model.lineage(rig.rig_root)[0];
+            format!("{}/{}", model.names[top], model.path(top, rig.rig_root))
+        };
+        mesh.insert(
+            "skeleton".into(),
+            toml::Value::String(format!("../{rig_path}")),
+        );
+    }
+    mesh_node.insert("mesh".into(), toml::Value::Table(mesh));
+    toml::Value::Table(mesh_node)
+}
+
+fn first_clip_name(clips: &toml::Value) -> Option<String> {
+    clips
+        .get("clips")
+        .and_then(toml::Value::as_table)
+        .and_then(|t| t.keys().next().cloned())
+}
+
+/// Every animation as a clip keyed by node path from the model's root.
+/// Cubic-spline samplers keep their values and drop their tangents, which
+/// the clip format has no slot for; morph-target channels are skipped.
+fn clips_of(model: &Model) -> Option<toml::Value> {
+    let mut clips = toml::map::Map::new();
+    for (index, animation) in model.document.animations().enumerate() {
+        let name = animation
+            .name()
+            .filter(|n| !n.is_empty())
+            .map_or_else(|| format!("clip{index}"), |n| n.replace(['/', ' '], "_"));
+        let mut tracks: Vec<toml::Value> = Vec::new();
+        let mut length: f32 = 0.0;
+        for channel in animation.channels() {
+            let reader = channel.reader(|b| model.buffer(&b));
+            let Some(times) = reader.read_inputs() else {
+                continue;
+            };
+            let Some(outputs) = reader.read_outputs() else {
+                continue;
+            };
+            let times: Vec<f32> = times.collect();
+            let cubic =
+                channel.sampler().interpolation() == gltf::animation::Interpolation::CubicSpline;
+            let (property, values): (&str, Vec<Vec<f32>>) = match outputs {
+                gltf::animation::util::ReadOutputs::Translations(it) => {
+                    ("position", it.map(|v| v.to_vec()).collect())
+                }
+                gltf::animation::util::ReadOutputs::Scales(it) => {
+                    ("scale", it.map(|v| v.to_vec()).collect())
+                }
+                // Kept as the quaternion the file holds, so a re-export gives
+                // the same numbers back.
+                gltf::animation::util::ReadOutputs::Rotations(rotations) => (
+                    "rotation",
+                    rotations.into_f32().map(|q| q.to_vec()).collect(),
+                ),
+                gltf::animation::util::ReadOutputs::MorphTargetWeights(_) => continue,
+            };
+            // A cubic key is (in tangent, value, out tangent); the value is
+            // the middle one.
+            let values: Vec<Vec<f32>> = if cubic {
+                values.chunks(3).filter_map(|c| c.get(1).cloned()).collect()
+            } else {
+                values
+            };
+            let keys: Vec<toml::Value> = times
+                .iter()
+                .zip(&values)
+                .map(|(t, v)| {
+                    let mut key = toml::map::Map::new();
+                    key.insert("time".into(), toml::Value::Float(f64::from(*t)));
+                    key.insert("value".into(), floats(v.iter().copied()));
+                    toml::Value::Table(key)
+                })
+                .collect();
+            if keys.is_empty() {
+                continue;
+            }
+            length = length.max(times.iter().copied().fold(0.0, f32::max));
+            let mut track = toml::map::Map::new();
+            let target = model.path(usize::MAX, channel.target().node().index());
+            track.insert("target".into(), toml::Value::String(target));
+            track.insert("property".into(), toml::Value::String(property.into()));
+            let interpolation = match channel.sampler().interpolation() {
+                gltf::animation::Interpolation::Step => "step",
+                _ => "linear",
+            };
+            track.insert(
+                "interpolation".into(),
+                toml::Value::String(interpolation.into()),
+            );
+            track.insert("keys".into(), toml::Value::Array(keys));
+            tracks.push(toml::Value::Table(track));
+        }
+        if tracks.is_empty() {
+            continue;
+        }
+        let mut clip = toml::map::Map::new();
+        clip.insert(
+            "length".into(),
+            toml::Value::Float(f64::from(length.max(0.001))),
+        );
+        clip.insert("loop_mode".into(), toml::Value::String("linear".into()));
+        clip.insert("tracks".into(), toml::Value::Array(tracks));
+        clips.insert(name, toml::Value::Table(clip));
+    }
+    if clips.is_empty() {
+        return None;
+    }
+    let mut document = toml::map::Map::new();
+    document.insert(
+        "type".into(),
+        toml::Value::String("animation_library".into()),
+    );
+    document.insert("clips".into(), toml::Value::Table(clips));
+    Some(toml::Value::Table(document))
+}

@@ -27,6 +27,5 @@ parent = "page"
 position = [0, 0, -1]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = ["{{page_width}}", "{{page_height}}"]
+shape = { kind = "rectangle", size = ["{{page_width}}", "{{page_height}}"] }
 color = "#ffffff"

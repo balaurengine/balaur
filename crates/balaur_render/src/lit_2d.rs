@@ -93,7 +93,12 @@ pub(crate) fn feed_lights(app: &balaur_core::App) {
     let world = app.engine.world();
     let root = app.engine.root();
     let mut lights: Vec<Light2d> = Vec::new();
-    for entity in balaur_core::scene::collect_subtree(&world, root) {
+    let found: Vec<_> = world
+        .query::<(balaur_core::hecs::Entity, &crate::light::Light2d)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .collect();
+    for entity in balaur_core::scene::tree_rank(&world, root).sorted(found) {
         let (Ok(light), Ok(global)) = (
             world.get::<&crate::light::Light2d>(entity),
             world.get::<&balaur_core::GlobalTransform>(entity),
@@ -105,24 +110,22 @@ pub(crate) fn feed_lights(app: &balaur_core::App) {
         let at = glamx::Vec2::new(global.position.x, global.position.y);
         let aimed = global.rotation * glamx::Vec3::NEG_Y;
         let aim = glamx::Vec2::new(aimed.x, aimed.y);
+        let (intensity, range) = (light.intensity.max(0.0), light.range.max(0.0));
+        let [inner, outer] = light.cone_degrees();
         let made = match light.kind {
-            crate::light::LightKind2d::Point => {
-                Light2d::point(at, color, light.intensity, light.radius)
-            }
+            crate::light::LightKind2d::Point => Light2d::point(at, color, intensity, range),
             crate::light::LightKind2d::Spot => Light2d::spot(
                 at,
                 aim,
                 color,
-                light.intensity,
-                light.radius,
-                light.inner_angle_degrees.to_radians(),
-                light.outer_angle_degrees.to_radians(),
+                intensity,
+                range,
+                inner.to_radians(),
+                outer.to_radians(),
             ),
-            crate::light::LightKind2d::Directional => {
-                Light2d::directional(aim, color, light.intensity)
-            }
+            crate::light::LightKind2d::Directional => Light2d::directional(aim, color, intensity),
         };
-        lights.push(made.with_height(light.height));
+        lights.push(made.with_height(light.height.max(0.0)));
     }
     let ambient = if lights.is_empty() {
         [1.0; 3]

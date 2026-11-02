@@ -45,7 +45,7 @@ const HERO: &str = r#"
 pub class Hero { node: Node }
 impl Hero {
     fn init() {
-        self.node.animation.play("hop", map().with("speed_scale", 1.0));
+        self.node.animation.play("hop", animation::PlayOptions { speed_scale: 1.0 });
     }
     pub fn on_animation_finished(name: str) {
         // The clip that ended is the argument, so the handler branches on it
@@ -90,7 +90,7 @@ fn app_in(dir: &std::path::Path) -> App {
         ..AppConfig::bare(dir.to_path_buf())
     })
     .unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 
@@ -201,10 +201,9 @@ impl Watch {
         self.clip = self.node.animation.current_clip().or("");
         self.playing = self.node.animation.is_playing();
         self.elapsed = self.node.animation.time();
-        let ended = self.node.animation.just_finished();
-        if ended.is_some() {
-            self.ended = ended.unwrap();
-        }
+    }
+    fn on_animation_finished(clip: str) {
+        self.ended = clip;
     }
 }
 "#;
@@ -227,7 +226,7 @@ impl Watch {
     assert_eq!(
         field(&app, entity, "ended"),
         Value::Str("hop".into()),
-        "`just_finished` never named the clip that ended"
+        "`on_animation_finished` never named the clip that ended"
     );
     assert_eq!(field(&app, entity, "playing"), Value::Bool(false));
     assert_eq!(
@@ -243,12 +242,12 @@ fn a_script_defines_a_clip_of_its_own_and_plays_it() {
 pub class Define { node: Node }
 impl Define {
     fn init() {
-        let keys = [
-            map().with("time", 0.0).with("value", [0.0, 0.0, 0.0]),
-            map().with("time", 1.0).with("value", [0.0, 8.0, 0.0]),
+        let keys: [any] = [
+            { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+            { "time": 1.0, "value": [0.0, 8.0, 0.0] },
         ];
-        let track = map().with("property", "position").with("keys", keys);
-        self.node.animation.add_clip("hurt", map().with("length", 1.0).with("tracks", [track]));
+        let track: any = { "property": "position", "keys": keys };
+        self.node.animation.add_clip("hurt", { "length": 1.0, "tracks": [track] });
         self.node.animation.play("hurt");
     }
 }
@@ -371,17 +370,25 @@ const TWEEN: &str = r#"
 pub class Mover { node: Node, handle: int, running: bool }
 impl Mover {
     fn init() {
-        let rise = map().with("property", "position").with("to", [0.0, 6.0, 0.0])
-            .with("duration", 0.5).with("ease", "out_back");
-        self.handle = animation::tween(self.node, map().with("steps", [rise, map().with("call", "on_landed")]));
+        let rise = animation::Step {
+            property: "position",
+            to: [0.0, 6.0, 0.0],
+            duration: 0.5,
+            ease: "out_back",
+        };
+        self.handle = animation::tween(self.node, animation::Tween { steps: [rise, animation::Step { call: "on_landed" }] });
     }
     fn update(dt: float) {
         self.running = animation::is_tween_running(self.handle);
     }
     pub fn on_landed() {
-        let step = map().with("property", "position").with("to", [0.0, 9.0, 0.0])
-            .with("duration", 0.2).with("ease", "linear");
-        animation::tween(self.node, map().with("steps", [step]));
+        let step = animation::Step {
+            property: "position",
+            to: [0.0, 9.0, 0.0],
+            duration: 0.2,
+            ease: "linear",
+        };
+        animation::tween(self.node, animation::Tween { steps: [step] });
     }
     pub fn halt() {
         animation::stop(self.handle);
@@ -452,9 +459,13 @@ fn a_script_reaches_for_the_shorter_spelling() {
 pub class Hop { node: Node }
 impl Hop {
     fn init() {
-        let step = map().with("property", "position").with("to", [0.0, 4.0, 0.0])
-            .with("duration", 0.5).with("ease", "in_quad");
-        animation::tween(self.node, map().with("steps", [step]));
+        let step = animation::Step {
+            property: "position",
+            to: [0.0, 4.0, 0.0],
+            duration: 0.5,
+            ease: "in_quad",
+        };
+        animation::tween(self.node, animation::Tween { steps: [step] });
     }
 }
 "#;
@@ -482,9 +493,13 @@ const FINISHED: &str = r#"
 pub class Mover { node: Node, handle: int, finished: int, meter: int, read: float, over: bool }
 impl Mover {
     fn init() {
-        let step = map().with("property", "position").with("to", [0.0, 6.0, 0.0])
-            .with("duration", 0.25).with("ease", "linear");
-        self.handle = animation::tween(self.node, map().with("steps", [step]));
+        let step = animation::Step {
+            property: "position",
+            to: [0.0, 6.0, 0.0],
+            duration: 0.25,
+            ease: "linear",
+        };
+        self.handle = animation::tween(self.node, animation::Tween { steps: [step] });
         self.meter = animation::tween_value(0.0, 10.0, 0.5, "linear");
     }
     fn update(dt: float) {
@@ -531,16 +546,22 @@ const CONSTANTS: &str = r#"
 pub class Constants { node: Node }
 impl Constants {
     fn init() {
-        let keys = [
-            map().with("time", 0.0).with("value", [0.0, 0.0, 0.0]),
-            map().with("time", 1.0).with("value", [0.0, 2.0, 0.0]).with("ease", animation::EASE_IN_OUT_SINE),
+        let keys: [any] = [
+            { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+            { "time": 1.0, "value": [0.0, 2.0, 0.0], "ease": animation::EASE_IN_OUT_SINE },
         ];
-        let track = map().with("property", animation::PROPERTY_POSITION)
-            .with("interpolation", animation::INTERPOLATION_CUBIC).with("keys", keys);
-        self.node.animation.add_clip("swing", map().with("length", 1.0)
-            .with("loop_mode", animation::LOOP_PINGPONG).with("tracks", [track]));
+        let track: any = {
+            "property": animation::PROPERTY_POSITION,
+            "interpolation": animation::INTERPOLATION_CUBIC,
+            "keys": keys,
+        };
+        self.node.animation.add_clip("swing", {
+            "length": 1.0,
+            "loop_mode": animation::LOOP_PINGPONG,
+            "tracks": [track],
+        });
         self.node.animation.play("wave");
-        self.node.animation.play("swing", map().with("blend_time", 0.5).with("ease", animation::EASE_IN_QUAD));
+        self.node.animation.play("swing", animation::PlayOptions { blend_time: 0.5, ease: animation::EASE_IN_QUAD });
     }
 }
 "#;

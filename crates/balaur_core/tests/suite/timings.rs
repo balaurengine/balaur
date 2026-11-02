@@ -33,6 +33,51 @@ fn spans(app: &App) -> Vec<(String, f64)> {
         .collect()
 }
 
+/// The boot table lives per thread, so a case about it gets a thread of its own.
+fn on_its_own_thread(case: impl FnOnce() + Send + 'static) {
+    std::thread::spawn(case).join().expect("the case passed");
+}
+
+#[test]
+fn a_run_that_draws_nothing_ends_its_boot_when_the_first_frame_publishes() {
+    on_its_own_thread(|| {
+        balaur_core::timings::mark_start();
+        let mut app = app();
+        assert!(!balaur_core::timings::boot_report().contains("to first frame"));
+        app.tick(DEFAULT_FIXED_DT);
+        assert!(balaur_core::timings::boot_report().contains("to first frame"));
+    });
+}
+
+#[test]
+fn a_run_that_draws_ends_its_boot_at_the_first_picture() {
+    on_its_own_thread(|| {
+        balaur_core::timings::mark_start();
+        balaur_core::timings::draws_pictures();
+        let mut app = app();
+        app.tick(DEFAULT_FIXED_DT);
+        assert!(
+            !balaur_core::timings::boot_report().contains("to first frame"),
+            "the frame's stages ran, and nothing is on the screen yet"
+        );
+        balaur_core::timings::note_first_frame();
+        assert!(balaur_core::timings::boot_report().contains("to first frame"));
+    });
+}
+
+#[test]
+fn shaders_built_after_the_boot_add_up_in_the_boot_table() {
+    on_its_own_thread(|| {
+        balaur_core::timings::note_boot("engine", Duration::from_millis(1));
+        balaur_core::timings::note_later_shaders(1, 1, Duration::from_millis(2));
+        balaur_core::timings::note_later_shaders(0, 2, Duration::from_millis(3));
+        assert!(
+            balaur_core::timings::boot_report()
+                .contains("later shaders: 1 modules, 3 pipelines, 5.000 ms")
+        );
+    });
+}
+
 #[test]
 fn a_tick_publishes_the_frame_it_just_ran() {
     let mut app = app();
@@ -144,6 +189,32 @@ fn a_share_is_measured_against_one_sixty_hertz_frame() {
 fn a_log_with_no_frames_says_so_rather_than_dividing_by_zero() {
     let report = TimingLog::default().report();
     assert!(report.contains("nothing to report"), "{report}");
+}
+
+#[test]
+fn a_spike_is_named_after_what_the_loop_filed_after_it() {
+    let mut log = TimingLog::default();
+    let table = |frame_ms, spans: &[(&str, u64)]| {
+        let mut timings = Timings::default();
+        timings.frame = Duration::from_millis(frame_ms);
+        timings.spans = spans
+            .iter()
+            .map(|(name, ms)| ((*name).into(), Duration::from_millis(*ms)))
+            .collect();
+        timings
+    };
+    for _ in 0..10 {
+        log.observe(&table(2, &[("ui", 1)]));
+    }
+    log.observe(&table(900, &[("ui", 1)]));
+    log.observe(&table(2, &[("ui", 1)]));
+    log.observe(&table(2, &[("shader build", 880)]));
+    log.observe(&table(2, &[("ui", 1)]));
+    let report = log.report();
+    assert!(
+        report.contains("frame 10: 900.000 ms, most in shader build (880.000 ms)"),
+        "{report}"
+    );
 }
 
 #[test]

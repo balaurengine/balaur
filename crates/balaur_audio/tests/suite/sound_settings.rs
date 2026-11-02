@@ -1,7 +1,7 @@
 //! The `sound` keys that shape a play: where it starts and stops, what
-//! plays with it and after it, its fades, its pause, and the effects it
-//! passes through. Every assertion reads the intent the component keeps and
-//! the clock it counts on the fixed step, never a sink.
+//! plays with it and after it, its fades, its pause and its pan. Every
+//! assertion reads the intent the component keeps and the clock it counts on
+//! the fixed step, never a sink.
 
 use balaur_audio::AudioState;
 use balaur_core::hecs::Entity;
@@ -62,20 +62,6 @@ fade_out_time = 1.5
 crossfade_time = 2.0
 pan = -0.5
 attenuation = "inverse_square"
-low_pass_hz = 800.0
-low_pass_q = 0.75
-high_pass_hz = 60.0
-high_pass_q = 1.25
-distortion_gain = 3.0
-distortion_threshold = 0.5
-reverb_time = 0.25
-reverb_level = 0.5
-auto_gain = true
-auto_gain_target = 0.75
-auto_gain_attack_time = 2.0
-auto_gain_release_time = 0.5
-auto_gain_max = 5.0
-auto_gain_floor = 0.25
 "#,
     );
     let table = components::get(&app.engine, entity, "sound").unwrap();
@@ -89,19 +75,6 @@ auto_gain_floor = 0.25
         ("fade_out_time", 1.5),
         ("crossfade_time", 2.0),
         ("pan", -0.5),
-        ("low_pass_hz", 800.0),
-        ("low_pass_q", 0.75),
-        ("high_pass_hz", 60.0),
-        ("high_pass_q", 1.25),
-        ("distortion_gain", 3.0),
-        ("distortion_threshold", 0.5),
-        ("reverb_time", 0.25),
-        ("reverb_level", 0.5),
-        ("auto_gain_target", 0.75),
-        ("auto_gain_attack_time", 2.0),
-        ("auto_gain_release_time", 0.5),
-        ("auto_gain_max", 5.0),
-        ("auto_gain_floor", 0.25),
     ] {
         assert!(
             (number(key) - want).abs() < 1e-6,
@@ -111,10 +84,6 @@ auto_gain_floor = 0.25
     }
     assert_eq!(
         table.get("paused").and_then(toml::Value::as_bool),
-        Some(true)
-    );
-    assert_eq!(
-        table.get("auto_gain").and_then(toml::Value::as_bool),
         Some(true)
     );
     assert_eq!(
@@ -383,29 +352,38 @@ fn a_new_file_crossfades_with_the_old_one() {
 }
 
 #[test]
-fn effects_land_on_a_sound_already_playing() {
+fn pan_lands_on_a_sound_already_playing() {
     let dir = tempfile::tempdir().unwrap();
     write_wav_of(dir.path(), "tone.wav", tenths(5));
     let app = app_in(dir.path());
     let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\nloop = true\n");
     let handle = handle_of(&app, entity).unwrap();
-    patch(
-        &app,
-        entity,
-        "low_pass_hz = 500.0\nhigh_pass_hz = 80.0\ndistortion_threshold = 0.5\npan = 0.5\nreverb_level = 0.25\nauto_gain_target = 0.5",
-    );
+    patch(&app, entity, "pan = 0.5");
     assert_eq!(
         handle_of(&app, entity),
         Some(handle),
         "a retune does not restart"
     );
-    let effects = state(&app).borrow().effects_of(handle).unwrap();
-    assert!((effects.low_pass_hz - 500.0).abs() < 1e-6);
-    assert!((effects.high_pass_hz - 80.0).abs() < 1e-6);
-    assert!((effects.distortion_threshold - 0.5).abs() < 1e-6);
-    assert!((effects.pan - 0.5).abs() < 1e-6);
-    assert!((effects.reverb_level - 0.25).abs() < 1e-6);
-    assert!((effects.auto_gain.target - 0.5).abs() < 1e-6);
+    let pan = state(&app).borrow().pan_of(handle).unwrap();
+    assert!((pan - 0.5).abs() < 1e-6, "{pan}");
+}
+
+/// The filters, the reverb, the distortion and gain control are a bus's, so
+/// a sound that names one is refused by the key's name rather than played
+/// without it.
+#[test]
+fn an_effect_key_on_a_sound_is_refused_by_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let root = app.engine.root();
+    let entity = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Chime", root);
+    let params: toml::Value = toml::from_str("file = \"tone.wav\"\nlow_pass_hz = 800.0\n").unwrap();
+    let err = components::add(&app.engine, entity, "sound", Some(&params))
+        .expect_err("a sound has no low-pass of its own");
+    assert!(
+        format!("{err:#}").contains("`sound` has no property `low_pass_hz`"),
+        "{err:#}"
+    );
 }
 
 /// The component's `loop_offset` wins over the file's own, and below zero
@@ -457,4 +435,69 @@ fn listing_devices_names_each_one() {
     for name in balaur_audio::devices() {
         assert!(!name.is_empty(), "a listed device has a name");
     }
+}
+
+/// The component holds what it was asked, a `pan` past full included; the
+/// play is what takes the clamp.
+#[test]
+fn a_pan_past_full_reads_back_as_written_and_plays_at_full() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav_of(dir.path(), "tone.wav", tenths(1));
+    let app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\npan = 2.0\n");
+    let handle = handle_of(&app, entity).expect("autoplay started it");
+    let table = components::get(&app.engine, entity, "sound").unwrap();
+    assert_eq!(table.get("pan").and_then(toml::Value::as_float), Some(2.0));
+    assert_eq!(state(&app).borrow().pan_of(handle), Some(1.0));
+}
+
+/// An `attenuation` naming neither curve is refused where it was written,
+/// rather than played as `inverse`.
+#[test]
+fn an_attenuation_naming_no_curve_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\n");
+    let params: toml::Value = toml::from_str("attenuation = \"linear\"").unwrap();
+    let why = components::patch(&app.engine, entity, "sound", &params).unwrap_err();
+    assert!(format!("{why:#}").contains("inverse_square"), "{why:#}");
+    let table = components::get(&app.engine, entity, "sound").unwrap();
+    assert_eq!(
+        table.get("attenuation").and_then(toml::Value::as_str),
+        Some("inverse"),
+        "a refused write keeps what was held"
+    );
+}
+
+#[test]
+fn a_pause_holds_a_node_sound_and_an_always_node_keeps_playing() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav_of(dir.path(), "tone.wav", tenths(100));
+    let mut app = app_in(dir.path());
+    let entity = sound_node(&app, "file = \"tone.wav\"\nautoplay = true\n");
+    for _ in 0..3 {
+        app.tick(STEP);
+    }
+    let before = playback_time(&app, entity);
+    assert!(before > 0.0, "the control: it plays");
+
+    app.engine.set_paused(true);
+    app.tick(STEP);
+    let held = playback_time(&app, entity);
+    for _ in 0..10 {
+        app.tick(STEP);
+    }
+    assert!(
+        (playback_time(&app, entity) - held).abs() < 1e-9,
+        "it holds"
+    );
+
+    balaur_core::process::set(
+        &mut app.engine.world_mut(),
+        entity,
+        balaur_core::process::ProcessMode::Always,
+    );
+    app.tick(STEP);
+    app.tick(STEP);
+    assert!(playback_time(&app, entity) > held, "always keeps playing");
 }

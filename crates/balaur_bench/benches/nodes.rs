@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 
 use balaur_bench::{Backend, Project, app as app_fn, attach_many, script};
 use balaur_core::node_api::NODE_OPS;
-use balaur_core::{Command, Engine, components, scene};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_core::{Engine, components, scene};
+use balaur_script::{Module, Value};
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 
 const COUNT: usize = 1000;
@@ -140,7 +140,7 @@ fn drain_side(c: &mut Criterion) {
             for _ in 0..iters {
                 let made = spawn_batch(&app.engine);
                 for &e in &made {
-                    app.engine.push_command(Command::Free(e));
+                    app.engine.defer_free(e);
                 }
                 let start = Instant::now();
                 app.tick(dt);
@@ -246,7 +246,7 @@ fn script_side(c: &mut Criterion) {
         let mut app = app_fn(Backend::Bs, &project).unwrap();
         {
             let mut m = app.script_module("bench").unwrap();
-            let m: &mut dyn Bindings<Engine> = &mut *m;
+            let m: &mut Module<Engine> = &mut m;
             m.function("noop", |_: &Engine, _: i64| Ok(()));
         }
         attach_many(&app, Backend::Bs, 1).unwrap();
@@ -256,7 +256,7 @@ fn script_side(c: &mut Criterion) {
             // a command per call for the whole run.
             b.iter(|| {
                 host.update(1.0 / 60.0);
-                drop(app.engine.take_commands());
+                drop(app.engine.take_frees());
             });
         });
     }

@@ -25,57 +25,48 @@ fn register_pair(app: &mut App) {
     app.register_component(
         "lonely",
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "lonely",
-                r#"on = { type = "bool", default = true }"#,
-            ),
             tags: &["test"],
             expects: &["partner"],
-            apply: Box::new(|eng, entity, _| {
-                let _ = eng.world_mut().insert_one(entity, Lonely);
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Lonely>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                eng.world()
-                    .get::<&Lonely>(entity)
-                    .ok()
-                    .map(|_| empty_table())
-            }),
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema("lonely", r#"on = { type = "bool", default = true }"#),
+                Box::new(|eng, entity, _| {
+                    let _ = eng.world_mut().insert_one(entity, Lonely);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    let _ = eng.world_mut().remove_one::<Lonely>(entity);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    eng.world()
+                        .get::<&Lonely>(entity)
+                        .ok()
+                        .map(|_| empty_table())
+                }),
+            )
         },
     );
     app.register_component(
         "partner",
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "partner",
-                r#"on = { type = "bool", default = true }"#,
-            ),
             tags: &["test"],
-            expects: &[],
-            apply: Box::new(|eng, entity, _| {
-                let _ = eng.world_mut().insert_one(entity, Partner);
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Partner>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                eng.world()
-                    .get::<&Partner>(entity)
-                    .ok()
-                    .map(|_| empty_table())
-            }),
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema("partner", r#"on = { type = "bool", default = true }"#),
+                Box::new(|eng, entity, _| {
+                    let _ = eng.world_mut().insert_one(entity, Partner);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    let _ = eng.world_mut().remove_one::<Partner>(entity);
+                    Ok(())
+                }),
+                Box::new(|eng, entity| {
+                    eng.world()
+                        .get::<&Partner>(entity)
+                        .ok()
+                        .map(|_| empty_table())
+                }),
+            )
         },
     );
 }
@@ -148,11 +139,8 @@ fn a_project_preset_without_components_is_an_error() {
 struct PackedHost(balaur_core::Pack);
 
 impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
-    fn module(
-        &self,
-        _: &str,
-    ) -> anyhow::Result<Box<dyn balaur_script::Bindings<balaur_core::Engine>>> {
-        Ok(Box::new(balaur_script::NoBindings))
+    fn module(&self, name: &str) -> anyhow::Result<balaur_script::Module<balaur_core::Engine>> {
+        Ok(balaur_script::Module::detached(name))
     }
     fn attach_with_props(
         &self,
@@ -190,27 +178,6 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
     fn instance_count(&self) -> usize {
         0
     }
-    fn invoke(
-        &self,
-        _: balaur_script::CallbackId,
-        _: &[balaur_script::Value],
-    ) -> anyhow::Result<balaur_script::Value> {
-        Ok(balaur_script::Value::Nil)
-    }
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-}
-
-struct NoScripts;
-
-impl balaur_script::ScriptCompiler for NoScripts {
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
-    fn compile(&self, _: &str, _: &str) -> anyhow::Result<Vec<u8>> {
-        Ok(Vec::new())
-    }
 }
 
 /// A shipped game had no presets at all: `ProjectFiles` serves the pack's
@@ -234,7 +201,7 @@ fn a_packed_run_resolves_a_project_preset_as_a_dev_run_does() {
     )
     .unwrap();
 
-    let pack = balaur_core::Pack::build(dir.path(), &NoScripts).unwrap();
+    let pack = crate::packs::of_files(dir.path());
     // A project root that does not exist, so nothing can fall back to disk.
     let mut packed = App::new(AppConfig {
         pack: Some(pack.clone()),

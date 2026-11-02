@@ -1,11 +1,11 @@
 //! When the UI pass runs.
 //!
-//! Every frame by default: a HUD reads live state each pass. A script that
-//! turns `ui.set_lazy` on gets a pass only when something asks for one:
-//! input, a widget node written, `ui.request_repaint`, a log line, an asset
-//! reload or an egui animation, and the frames between re-present the last
-//! pass's shapes. Nothing is polled: a lazy UI nobody touches draws nothing. The editor asks for it: on the web its
-//! shell is most of the frame, and nothing in it moves while nobody touches
+//! Every frame by default: a HUD reads live state each pass. Under `[window]
+//! low_processor` a pass runs only when something asks for one: input, a widget
+//! node written or hidden, `ui.request_repaint`, a log line, an asset reload or an egui
+//! animation, and the frames between re-present the last pass's shapes. Nothing
+//! is polled: an untouched UI draws nothing. The editor asks for it: on the web
+//! its shell is most of the frame, and nothing in it moves while nobody touches
 //! it. A focused field's caret blinks for [`BLINK_FOR`] after the last input
 //! and then holds still: egui owes a pass for every blink, for as long as the
 //! field keeps focus.
@@ -16,9 +16,9 @@ use std::time::Duration;
 
 use balaur_core::Engine;
 use balaur_core::time::Instant;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
-use crate::{UiConfig, UiState};
+use crate::UiState;
 
 /// Seconds a caret blinks after the last input before it holds still, as
 /// GTK's `gtk-cursor-blink-timeout` does. Every blink is a pass, so a lazy UI
@@ -35,7 +35,7 @@ const RERUN: &str = "ui rerun";
 #[derive(Default)]
 #[allow(
     clippy::struct_excessive_bools,
-    reason = "independent switches, each with its own writer: a script, the loop, egui's hook"
+    reason = "independent switches, each with its own writer: the loop, a script, egui's hook"
 )]
 pub struct Pacing {
     lazy: bool,
@@ -51,8 +51,9 @@ pub struct Pacing {
     passes: u32,
     logs_seen: u64,
     assets_seen: u64,
+    shown_seen: u64,
     /// When passes are owed: egui's delayed requests, which it reports from
-    /// any thread, and a script's `request_repaint(#{ after })`. Every one is
+    /// any thread, and a script's `request_repaint({ after })`. Every one is
     /// kept, so one asked for as another comes due is not lost behind it.
     due: Arc<Mutex<BTreeSet<Instant>>>,
     /// Whether egui reports its requests into `due` yet.
@@ -136,12 +137,9 @@ pub fn next_frame(eng: &Engine, ctx: &egui::Context) -> NextFrame {
 
 /// Fonts, a theme swap and a forgotten scene each take a pass to settle.
 fn settling(eng: &Engine) -> bool {
-    eng.try_resource::<UiState>().is_some_and(|state| {
-        let state = state.borrow();
-        !state.fonts_installed || state.forget_egui
-    }) || eng
-        .try_resource::<UiConfig>()
-        .is_some_and(|config| config.borrow().changed)
+    eng.try_resource::<UiState>()
+        .is_some_and(|state| !state.borrow().fonts_installed)
+        || crate::theme::out_of_date(eng)
 }
 
 /// Whether a repaint egui or a script scheduled has come due, clearing what has.
@@ -157,11 +155,13 @@ fn take_due(pacing: &Pacing) -> bool {
     due.len() < before
 }
 
-/// Let `ui.set_lazy` take effect: the loop calling this re-presents the last
-/// pass's shapes on a frame that skips one.
+/// Let `[window] low_processor` take effect: the loop calling this re-presents
+/// the last pass's shapes on a frame that skips one.
 pub fn honour_lazy(eng: &Engine) {
     if let Some(pacing) = eng.try_resource::<Pacing>() {
-        pacing.borrow_mut().honoured = true;
+        let mut pacing = pacing.borrow_mut();
+        pacing.honoured = true;
+        pacing.lazy = balaur_core::project::WindowSettings::from_settings(eng).low_processor;
     }
 }
 
@@ -182,9 +182,12 @@ pub fn wants_pass(eng: &Engine, ctx: &egui::Context, input_seen: bool) -> bool {
     hold_caret(&mut pacing, ctx, input_seen);
     let logs = balaur_core::logbuf::total();
     let assets = balaur_core::assets::generation(eng);
-    let changed = logs != pacing.logs_seen || assets != pacing.assets_seen;
+    let shown = balaur_core::scene::appearance_revision();
+    let changed =
+        logs != pacing.logs_seen || assets != pacing.assets_seen || shown != pacing.shown_seen;
     pacing.logs_seen = logs;
     pacing.assets_seen = assets;
+    pacing.shown_seen = shown;
     let written = crate::widget::arena::has_dirty();
     input_seen || written || requested || changed || settling(eng) || due
 }
@@ -231,15 +234,15 @@ fn later(seconds: f64) -> Instant {
 }
 
 /// `ui.*` bindings: pacing.
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_lazy", &[], "", "Run the UI pass only when something asks for it (input, a widget node written, `request_repaint`, a log line, an asset reload or an egui animation) and re-present the last pass in between: nothing is polled, so state that moves without any of those has to write a widget or ask. Off by default: a HUD that reads live state each frame should leave it off. Ignored offscreen."),
-        ("request_repaint", &[], "(opts: map?)", "Run the UI pass this frame even when lazy, and the frame itself under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `#{ after: seconds }` asks for one that far ahead instead."),
+        ("request_repaint", &[], "(opts: RepaintOptions?)", "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead."),
     ]);
-    m.function("set_lazy", |eng: &Engine, on: bool| {
-        eng.resource::<Pacing>().borrow_mut().lazy = on;
-        Ok(())
-    });
+    m.records(&[(
+        "RepaintOptions",
+        "{ after: float? }",
+        "When `request_repaint` asks: `after` seconds ahead, else this frame.",
+    )]);
     m.function("request_repaint", |eng: &Engine, opts: Option<Value>| {
         let after = match &opts {
             Some(Value::Map(entries)) => entries

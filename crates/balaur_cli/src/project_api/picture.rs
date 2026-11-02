@@ -9,10 +9,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
-use crate::jobs::{Reported, Reporting, install_listen, pump};
+use crate::jobs::{Reported, Reporting, pump};
 
 /// Frames the run takes before its picture: a text is laid out and an image
 /// uploaded a frame or two after the scene is built.
@@ -26,6 +26,8 @@ pub(crate) enum PictureEvent {
 }
 
 impl Reported for PictureEvent {
+    const EVENT: &'static str = "picture_event";
+
     fn value(&self) -> Value {
         let (kind, path, message) = match self {
             Self::Written { path } => ("written", path, None),
@@ -56,11 +58,11 @@ pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(PictureState(Reporting::new(PathBuf::new())));
     reg.add_system(Stage::First, pump::<PictureState, PictureEvent>);
     let mut m = reg.script_module("picture")?;
-    install_picture_api(&mut *m);
+    install_picture_api(&mut m);
     Ok(())
 }
 
-fn install_picture_api(m: &mut dyn Bindings<Engine>) {
+fn install_picture_api(m: &mut Module<Engine>) {
     m.module_doc(
         "A picture of a project: its scene through its current camera, at its `[window]` size, written to a PNG by a second process running `balaur run --offscreen --shot`.",
     );
@@ -69,13 +71,7 @@ fn install_picture_api(m: &mut dyn Bindings<Engine>) {
             "write",
             &[],
             "(project: string, scene: string) -> string?",
-            "Write a picture of the project at `project`, of `scene` (project-relative; its main scene when empty), as the files on disk say. Answers where the PNG will be: `[export] output`'s `picture` folder, or beside the project's manifest. Nil where no second process can run, as in a browser tab.",
-        ),
-        (
-            "listen",
-            &[],
-            "(node: node, options: map)",
-            "Have the node's `on_picture_event(event)`, or the `on_event` method the options name, called when a picture is written, `{ kind: \"written\", path }`, or fails, `{ kind: \"failed\", path, message }`.",
+            "Write a picture of the project at `project`, of `scene` (project-relative; its main scene when empty), as the files on disk say. Answers where the PNG will be: `[export] output`'s `picture` folder, or beside the project's manifest. The `picture_event` event reports it, `{ kind: \"written\", path }` or `{ kind: \"failed\", path, message }`. Nil where no second process can run, as in a browser tab.",
         ),
     ]);
     m.function(
@@ -88,7 +84,6 @@ fn install_picture_api(m: &mut dyn Bindings<Engine>) {
             )
         },
     );
-    install_listen::<PictureState, PictureEvent>(m, "on_picture_event");
 }
 
 /// Where a picture of `scene` lands: the folder `[export] output` names, or

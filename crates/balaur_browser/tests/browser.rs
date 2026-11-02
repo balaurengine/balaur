@@ -1,7 +1,7 @@
 //! The `browser` plugin off the web, and fed from a recording.
 
 use balaur::{App, AppConfig, standard_app};
-use balaur_browser::{BrowserSnapshot, BrowserState};
+use balaur_browser::{BrowserState, MESSAGE_EVENT};
 use balaur_script::Value;
 use serde_json::json;
 
@@ -55,8 +55,7 @@ fn a_recorded_tick_delivers_the_pages_reports_as_the_browser_did() {
     balaur_core::replay::restore(&app.engine, &sources);
     app.tick(1.0 / 60.0);
 
-    let snapshot = app.engine.resource::<BrowserSnapshot>();
-    let messages = &snapshot.borrow().messages;
+    let messages = balaur_core::events::delivered(&app.engine, MESSAGE_EVENT);
     assert_eq!(messages.len(), 1, "one message arrived this tick");
     let Value::Map(pairs) = &messages[0] else {
         panic!("a message is a map, got {:?}", messages[0]);

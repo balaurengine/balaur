@@ -5,20 +5,21 @@
 id = "textedit"
 name = "TextEdit"
 script = { source = "scripts/panels/textedit.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 anchor = "top_left"
 padding = [8, 4, 8, 4]
-layer = "shell"
-visible = false
+whole_window = true
 
 [[nodes]]
 id = "field"
 name = "Field"
 parent = "textedit"
 [nodes.widget]
+on_blur = "blurred"
+on_submit = "submitted"
+on_change = "typed"
 kind = "text_field"
 role = "input_form"
-text = ""

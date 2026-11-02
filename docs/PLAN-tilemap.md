@@ -10,7 +10,9 @@
 > ships. What is left is the open questions in §8. The
 > tileset editor is a panel in the Tiles dock rather than a document tab, and
 > an asset file's definition is inlined into the mirror, so a tileset
-> kept in a file draws in the editor.
+> kept in a file draws in the editor. Since 2026-10-31 `cells` is a variant,
+> `{ kind = "inline", rows = [...] }` or `{ kind = "file", path = "x.cells" }`,
+> and `terrain` and `flags` are rows of whole numbers.
 
 # Plan: tile maps — collision, rules and terrains, animated and occluding tiles, and the two tile editors
 
@@ -50,7 +52,7 @@ Three constraints the code imposes on everything below:
 
 ## 1. Design
 
-**Core owns the data.** `balaur_core::tiles` holds the tileset parse, the
+**Core owns the data.** `balaur_geometry::tiles` holds the tileset parse, the
 grid, the layout functions (cell to world and back, for every layout), the
 occluder outline union — core already has `geometry2d` — and the rule
 resolver. Backend-free, so a headless test asserts a merged run count or a
@@ -345,6 +347,15 @@ dependency of `balaur_cli` alone: no shipped game links it, and nothing in the
 engine parses XML at run time. A pipeline that imported maps a stranger
 uploaded would be a different question, and would want a wall-clock bound
 around the parse.
+
+Its `zstd` 0.13, for a layer written as zstd-compressed base64, carries three
+more (RUSTSEC-2026-0391, -0398, -0403); the fixes are in `zstd-safe` 8.2,
+which `zstd` 0.13 cannot take. None is reached: `tiled` turns off `zstd`'s
+default features, so `zstd-safe` is built with `std` alone and its seekable
+and legacy-frame decoders, where -0398 and -0403 live, are not compiled; and
+it opens a decoder per layer, where -0391 needs one context reused after an
+abandoned stream. `deny.toml` ignores all three, on the same ground as above,
+until a `tiled` release moves to `zstd` 0.14.
 
 Drop the ignore the day `tiled` moves to `quick-xml` 0.41, or the day the
 `.tmx` reader is the engine's own.

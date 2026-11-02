@@ -11,6 +11,7 @@ graph TD
   balaur_android[balaur_android]
   balaur_animation[balaur_animation]
   balaur_apple[balaur_apple]
+  balaur_asset[balaur_asset]
   balaur_audio[balaur_audio]
   balaur_bench[balaur_bench]
   balaur_browser[balaur_browser]
@@ -18,16 +19,20 @@ graph TD
   balaur_cfg[balaur_cfg]
   balaur_cli[balaur_cli]
   balaur_core[balaur_core]
+  balaur_debug[balaur_debug]
+  balaur_derive[balaur_derive]
   balaur_export[balaur_export]
   balaur_gamend[balaur_gamend]
+  balaur_geometry[balaur_geometry]
   balaur_http[balaur_http]
   balaur_import[balaur_import]
   balaur_input[balaur_input]
   balaur_multiplayer[balaur_multiplayer]
+  balaur_net[balaur_net]
   balaur_physics[balaur_physics]
   balaur_platform[balaur_platform]
   balaur_plugin[balaur_plugin]
-  balaur_port[balaur_port]
+  balaur_project[balaur_project]
   balaur_render[balaur_render]
   balaur_script[balaur_script]
   balaur_script_bs[balaur_script_bs]
@@ -38,16 +43,21 @@ graph TD
   balaur_webtransport[balaur_webtransport]
   balaur --> balaur_animation
   balaur --> balaur_apple
+  balaur --> balaur_asset
   balaur --> balaur_audio
   balaur --> balaur_browser
   balaur --> balaur_core
+  balaur --> balaur_debug
   balaur --> balaur_gamend
+  balaur --> balaur_geometry
   balaur --> balaur_http
   balaur --> balaur_input
   balaur --> balaur_multiplayer
+  balaur --> balaur_net
   balaur --> balaur_physics
   balaur --> balaur_platform
   balaur --> balaur_plugin
+  balaur --> balaur_project
   balaur --> balaur_render
   balaur --> balaur_script
   balaur --> balaur_script_bs
@@ -56,12 +66,15 @@ graph TD
   balaur --> balaur_webtransport
   balaur_android --> balaur
   balaur_animation --> balaur_core
+  balaur_animation --> balaur_geometry
   balaur_animation --> balaur_plugin
   balaur_animation --> balaur_script
   balaur_apple --> balaur_core
   balaur_apple --> balaur_platform
   balaur_apple --> balaur_plugin
   balaur_apple --> balaur_script
+  balaur_asset --> balaur_core
+  balaur_asset --> balaur_geometry
   balaur_audio --> balaur_core
   balaur_audio --> balaur_plugin
   balaur_audio --> balaur_script
@@ -77,10 +90,12 @@ graph TD
   balaur_cli --> balaur_export
   balaur_cli --> balaur_import
   balaur_cli --> balaur_plugin
-  balaur_cli --> balaur_port
   balaur_cli --> balaur_script
   balaur_cli --> balaur_text
+  balaur_core --> balaur_derive
   balaur_core --> balaur_script
+  balaur_debug --> balaur_core
+  balaur_debug --> balaur_script
   balaur_export --> balaur
   balaur_export --> balaur_plugin
   balaur_export --> balaur_text
@@ -88,10 +103,13 @@ graph TD
   balaur_gamend --> balaur_plugin
   balaur_gamend --> balaur_script
   balaur_gamend --> balaur_websocket
+  balaur_geometry --> balaur_core
+  balaur_geometry --> balaur_script
   balaur_http --> balaur_core
   balaur_http --> balaur_plugin
   balaur_http --> balaur_script
   balaur_import --> balaur
+  balaur_import --> balaur_asset
   balaur_import --> balaur_core
   balaur_import --> balaur_render
   balaur_import --> balaur_text
@@ -99,11 +117,15 @@ graph TD
   balaur_input --> balaur_plugin
   balaur_input --> balaur_script
   balaur_multiplayer --> balaur_core
+  balaur_multiplayer --> balaur_net
   balaur_multiplayer --> balaur_plugin
   balaur_multiplayer --> balaur_script
   balaur_multiplayer --> balaur_websocket
   balaur_multiplayer --> balaur_webtransport
+  balaur_net --> balaur_core
+  balaur_net --> balaur_script
   balaur_physics --> balaur_core
+  balaur_physics --> balaur_geometry
   balaur_physics --> balaur_plugin
   balaur_physics --> balaur_script
   balaur_platform --> balaur_core
@@ -111,7 +133,11 @@ graph TD
   balaur_platform --> balaur_script
   balaur_plugin --> balaur_core
   balaur_plugin --> balaur_script
+  balaur_project --> balaur_core
+  balaur_project --> balaur_script
+  balaur_render --> balaur_asset
   balaur_render --> balaur_core
+  balaur_render --> balaur_geometry
   balaur_render --> balaur_input
   balaur_render --> balaur_plugin
   balaur_render --> balaur_script
@@ -123,14 +149,18 @@ graph TD
   balaur_testkit --> balaur
   balaur_testkit --> balaur_core
   balaur_text --> balaur_core
+  balaur_text --> balaur_geometry
   balaur_text --> balaur_plugin
+  balaur_ui --> balaur_asset
   balaur_ui --> balaur_core
   balaur_ui --> balaur_input
   balaur_ui --> balaur_plugin
   balaur_ui --> balaur_script
   balaur_ui --> balaur_text
   balaur_websocket --> balaur_core
+  balaur_websocket --> balaur_net
   balaur_websocket --> balaur_plugin
   balaur_websocket --> balaur_script
   balaur_webtransport --> balaur_core
+  balaur_webtransport --> balaur_net
 ```

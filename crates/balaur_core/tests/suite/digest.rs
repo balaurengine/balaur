@@ -115,33 +115,28 @@ fn app_with_dial() -> App {
     let mut app = app();
     app.register_component(
         "dial",
-        balaur_core::components::ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: balaur_core::components::ComponentDef::parse_schema(
+        balaur_core::components::ComponentDef::by_hand(
+            balaur_core::components::ComponentDef::parse_schema(
                 "dial",
                 r#"
 turns = { type = "float", default = 0.0 }
 clicked = { type = "bool", default = false, readonly = true }
 "#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &balaur_core::Engine, entity, params| {
+            Box::new(|eng: &balaur_core::Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Dial(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &balaur_core::Engine, entity| {
+            Box::new(|eng: &balaur_core::Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Dial>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &balaur_core::Engine, entity| {
+            Box::new(|eng: &balaur_core::Engine, entity| {
                 eng.world().get::<&Dial>(entity).ok().map(|d| d.0.clone())
             }),
-        },
+        ),
     );
     app
 }

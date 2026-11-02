@@ -22,7 +22,7 @@ fn app(manifest: &str) -> (tempfile::TempDir, App) {
     std::fs::write(dir.path().join("project.toml"), manifest).unwrap();
     std::fs::write(dir.path().join("main.toml"), "").unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut InputPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut InputPlugin).unwrap();
     app.load_project().unwrap();
     (dir, app)
 }

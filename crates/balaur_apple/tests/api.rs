@@ -12,8 +12,8 @@ use balaur_script::Value;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PlatformPlugin::default()).unwrap();
-    balaur_plugin::load(&mut app, &mut ApplePlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PlatformPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut ApplePlugin).unwrap();
     app
 }
 
@@ -58,7 +58,6 @@ fn presence_is_unsupported_rather_than_pretended() {
         Call::SetPresence {
             text: "in the caves".into(),
         },
-        None,
     );
     drop(state);
     app.tick(1.0 / 60.0);

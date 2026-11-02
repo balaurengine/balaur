@@ -191,3 +191,49 @@ fn an_engine_record_is_a_struct_a_script_reads_and_builds() {
     assert_eq!(call("area"), Value::Float(6.0));
     assert_eq!(rt.live(), base, "a record's strings or arrays leaked");
 }
+
+#[test]
+fn a_call_that_answers_by_await_refuses_a_node_by_name() {
+    let request = HostSignature {
+        key: "http::request".into(),
+        params: vec![Ty::Str],
+        ret: Ty::Int,
+        is_async: false,
+    };
+    let options = Options {
+        host: HostApi {
+            functions: vec![request],
+            ..HostApi::default()
+        },
+        ..Options::default()
+    };
+    let source = "pub fn ask(node: Node) -> int { http::request(node) }";
+    let error = compile(source, &options)
+        .map(|_| ())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("`http::request` takes no node"), "{error}");
+}
+
+#[test]
+fn a_function_that_drives_a_component_is_refused_by_its_module_and_names_it() {
+    let on = |key: &str| HostSignature {
+        key: key.into(),
+        params: vec![Ty::Node, Ty::Float],
+        ret: Ty::Void,
+        is_async: false,
+    };
+    let options = Options {
+        host: HostApi {
+            functions: vec![on("node.body2d.apply_impulse")],
+            ..HostApi::default()
+        },
+        ..Options::default()
+    };
+    let source = "pub fn push(node: Node) { physics2d::apply_impulse(node, 1.0); }";
+    let error = compile(source, &options)
+        .map(|_| ())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("`node.body2d.apply_impulse(..)`"), "{error}");
+}

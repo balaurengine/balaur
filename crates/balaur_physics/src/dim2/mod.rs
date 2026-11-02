@@ -15,13 +15,14 @@ use balaur_core::entity_of;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage, Transform};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 use glamx::{EulerRot, Quat};
 use serde::Deserialize as _;
 
 pub mod body;
 pub mod character;
 pub mod collider;
+pub mod collider_shape;
 pub mod decompose;
 pub mod events;
 pub mod follow;
@@ -58,17 +59,17 @@ pub struct PhysicsState2d {
     pub joints: DetHashMap<Entity, joint::JointRef2d>,
     /// Soft bodies per entity, and what each was built from, as in 3D.
     pub soft_bodies: DetHashMap<Entity, softbody::SoftRef2d>,
-    pub soft_params: DetHashMap<Entity, toml::Value>,
+    pub soft_params: DetHashMap<Entity, softbody::SoftAsked2d>,
     /// What each collider and joint was authored from, as in the 3D world:
     /// rapier keeps the shape, not the asset or the choices behind it.
-    pub collider_params: DetHashMap<Entity, toml::Value>,
+    pub collider_params: DetHashMap<Entity, collider::Asked2d>,
     /// What each `tile_collision` was authored from, what it was last built
     /// from, and the colliders it made — so a rebuild drops its own and
     /// leaves the ones the node authored.
-    pub(crate) tile_params: DetHashMap<Entity, toml::Value>,
+    pub(crate) tile_params: DetHashMap<Entity, tiles::TileAsked>,
     pub(crate) tile_built: DetHashMap<Entity, tiles::Built>,
     pub(crate) tile_colliders: DetHashMap<Entity, Vec<ColliderHandle2>>,
-    pub joint_params: DetHashMap<Entity, toml::Value>,
+    pub joint_params: DetHashMap<Entity, joint::JointAsk2d>,
     /// What the contact hook reads per collider, as in 3D.
     pub(crate) surfaces: events::Surfaces,
     /// The asset generation the material files were last read at
@@ -132,14 +133,18 @@ pub(crate) fn node_pose_2d(eng: &Engine, entity: Entity) -> Result<Pose2> {
     let (angle, _, _) = global.rotation.to_euler(EulerRot::ZYX);
     Ok(Pose2::from_parts(
         scalar::v2(global.position.x, global.position.y),
-        Rotation2::from_angle(scalar::real(angle)),
+        Rotation2::from_angle(angle),
     ))
 }
 
 crate::shared::world::functions!(
     state = PhysicsState2d,
     component = c::JOINT_2D,
-    prune = prune_freed_nodes_except_tiles
+    prune = prune_freed_nodes_except_tiles,
+    body = body::Body2d,
+    collider = collider::Collider2d,
+    soft = softbody::Softbody2d,
+    events = crate::rapier2d::prelude::ActiveEvents
 );
 
 pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState2d) {
@@ -190,7 +195,7 @@ fn step_system(eng: &Engine, _dt: f32) {
                     let (angle, _, _) = t.rotation.to_euler(EulerRot::ZYX);
                     body.set_next_kinematic_position(Pose2::from_parts(
                         scalar::v2(t.position.x, t.position.y),
-                        Rotation2::from_angle(scalar::real(angle)),
+                        Rotation2::from_angle(angle),
                     ));
                 }
             }
@@ -199,7 +204,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at the fixed
         // step, and a second accumulator here would drift out of step with
         // the scripts.
-        state.world.integration_parameters.dt = scalar::real(fixed_dt());
+        state.world.integration_parameters.dt = fixed_dt();
         // The step rebuilds the broad phase itself, as in 3D; without this a
         // query after a collider was added rebuilds it a second time.
         state.queries_ready = true;
@@ -220,9 +225,9 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
             if let Ok(mut t) = world.get::<&mut Transform>(entity) {
                 let pos = body.translation();
-                t.position.x = scalar::f32_of(pos.x);
-                t.position.y = scalar::f32_of(pos.y);
-                t.rotation = Quat::from_rotation_z(scalar::f32_of(body.rotation().angle()));
+                t.position.x = pos.x;
+                t.position.y = pos.y;
+                t.rotation = Quat::from_rotation_z(body.rotation().angle());
             }
         }
         (
@@ -298,30 +303,30 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
 
     {
         let mut m = reg.script_module(crate::vocabulary::module::PHYSICS_2D)?;
-        crate::install_constants(&mut *m, crate::CONSTANTS_2D);
-        install_physics2d_api(&mut *m);
-        body::install_body2d_force_api(&mut *m);
-        body::install_body2d_state_api(&mut *m);
-        body::install_body2d_mass_api(&mut *m);
-        body::install_body2d_ccd_api(&mut *m);
-        body::install_body2d_lock_api(&mut *m);
-        body::install_body2d_sleep_api(&mut *m);
-        body::install_body2d_force_reader_api(&mut *m);
-        query::install_physics2d_query_api(&mut *m);
-        query::install_physics2d_raycast_all_api(&mut *m);
-        query::install_physics2d_shapecast_api(&mut *m);
-        query::install_physics2d_volume_query_api(&mut *m);
-        query::install_physics2d_shape_query_api(&mut *m);
-        query::install_physics2d_pair_query_api(&mut *m);
-        query::install_physics2d_world_list_api(&mut *m);
-        joint::install_joint2d_api(&mut *m);
-        softbody::install_softbody_api_2d(&mut *m);
-        character::install_character2d_api(&mut *m);
-        follow::install_follow2d_api(&mut *m);
-        collider::install_voxel_2d_api(&mut *m);
-        readers::install_collider2d_api(&mut *m);
-        readers::install_collider2d_reader_api(&mut *m);
-        readers::install_heightfield_2d_api(&mut *m);
+        crate::install_constants(&mut m, crate::CONSTANTS_2D);
+        install_physics2d_api(&mut m);
+        body::install_body2d_force_api(&mut m);
+        body::install_body2d_state_api(&mut m);
+        body::install_body2d_mass_api(&mut m);
+        body::install_body2d_ccd_api(&mut m);
+        body::install_body2d_lock_api(&mut m);
+        body::install_body2d_sleep_api(&mut m);
+        body::install_body2d_force_reader_api(&mut m);
+        query::install_physics2d_query_api(&mut m);
+        query::install_physics2d_raycast_all_api(&mut m);
+        query::install_physics2d_shapecast_api(&mut m);
+        query::install_physics2d_volume_query_api(&mut m);
+        query::install_physics2d_shape_query_api(&mut m);
+        query::install_physics2d_pair_query_api(&mut m);
+        query::install_physics2d_world_list_api(&mut m);
+        joint::install_joint2d_api(&mut m);
+        softbody::install_softbody_api_2d(&mut m);
+        character::install_character2d_api(&mut m);
+        follow::install_follow2d_api(&mut m);
+        collider::install_voxel_2d_api(&mut m);
+        readers::install_collider2d_api(&mut m);
+        readers::install_collider2d_reader_api(&mut m);
+        readers::install_heightfield_2d_api(&mut m);
     }
     body::register_body2d_component(reg);
     collider::register_collider2d_component(reg);
@@ -379,10 +384,17 @@ pub fn build(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::PHYSICS,
             ],
-            &[(
-                c::SOFTBODY_2D,
-                Some("kind = \"rope\"\nparticle_count = 24\npinned_particles = [0]"),
-            )],
+            &[
+                // Beside first, so the body is built once, with its shape.
+                (
+                    <softbody::SoftRope2d as balaur_core::components::derived::Component>::NAME,
+                    Some("particle_count = 24"),
+                ),
+                (
+                    c::SOFTBODY_2D,
+                    Some("kind = \"rope\"\npinned_particles = [0]"),
+                ),
+            ],
         )?,
     );
 
@@ -406,6 +418,7 @@ struct PhysicsFrame2d {
     bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
     colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     body_authored: Vec<(crate::NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(crate::NodeKey, toml::Value)>,
     joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
     soft_bodies: Vec<(crate::NodeKey, softbody::SoftRef2d)>,
     soft_params: Vec<(crate::NodeKey, toml::Value)>,
@@ -417,6 +430,7 @@ struct PhysicsFrame2d {
     surfaces: Vec<(ColliderHandle2, events::Surface)>,
     grounded: Vec<(crate::NodeKey, bool)>,
     follows: Vec<(crate::NodeKey, follow::FollowRef2d)>,
+    beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
@@ -429,6 +443,7 @@ struct PhysicsFrameRef2d<'a> {
     bodies: Vec<(crate::NodeKey, RigidBodyHandle2)>,
     colliders: Vec<(crate::NodeKey, Vec<ColliderHandle2>)>,
     body_authored: Vec<(crate::NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(crate::NodeKey, toml::Value)>,
     joints: Vec<(crate::NodeKey, joint::JointRef2d)>,
     soft_bodies: Vec<(crate::NodeKey, softbody::SoftRef2d)>,
     soft_params: Vec<(crate::NodeKey, toml::Value)>,
@@ -440,10 +455,32 @@ struct PhysicsFrameRef2d<'a> {
     surfaces: Vec<(ColliderHandle2, events::Surface)>,
     grounded: Vec<(crate::NodeKey, bool)>,
     follows: Vec<(crate::NodeKey, follow::FollowRef2d)>,
+    beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
 }
+
+/// Every component beside a 2D physics one, as a frame carries it.
+const CARRIED: &[crate::shared::beside::Carried] = &[
+    crate::shared::beside::carried::<collider::MeshCollider2d>(),
+    crate::shared::beside::carried::<collider::ConvexDecomposition2d>(),
+    crate::shared::beside::carried::<softbody::SoftGrid2d>(),
+    crate::shared::beside::carried::<softbody::SoftCircle2d>(),
+    crate::shared::beside::carried::<softbody::SoftRope2d>(),
+    crate::shared::beside::carried::<softbody::SoftOutline2d>(),
+    crate::shared::beside::carried::<softbody::SoftPolyline2d>(),
+    crate::shared::beside::carried::<softbody::SoftVolumetric2d>(),
+    crate::shared::beside::carried::<softbody::SoftCustom2d>(),
+    crate::shared::beside::carried::<softbody::SoftCollision2d>(),
+    crate::shared::beside::carried::<softbody::SoftSkin2d>(),
+    crate::shared::beside::carried::<tiles::TileShapes>(),
+    crate::shared::beside::carried::<joint::RopeJoint2d>(),
+    crate::shared::beside::carried::<joint::SpringJoint2d>(),
+    crate::shared::beside::carried::<joint::GenericJoint2d>(),
+    crate::shared::beside::carried::<joint::Articulation2d>(),
+    crate::shared::beside::carried::<joint::BreakableJoint2d>(),
+];
 
 fn save_physics2d(eng: &Engine) -> serde_json::Value {
     let state = eng.resource::<PhysicsState2d>();
@@ -454,17 +491,55 @@ fn save_physics2d(eng: &Engine) -> serde_json::Value {
         bodies: crate::keyed(&world, &state.bodies),
         colliders: crate::keyed(&world, &state.colliders),
         body_authored: crate::keyed(&world, &state.body_authored),
+        body_params: crate::asked_rows::<body::Body2d>(eng, &world),
         joints: crate::keyed(&world, &state.joints),
         soft_bodies: crate::keyed(&world, &state.soft_bodies),
-        soft_params: crate::authored(eng, &world, &state.soft_params, c::SOFTBODY_2D),
-        collider_params: crate::authored(eng, &world, &state.collider_params, c::COLLIDER_2D),
-        tile_params: crate::authored(eng, &world, &state.tile_params, c::TILE_COLLISION),
+        soft_params: crate::authored(
+            eng,
+            &world,
+            &state
+                .soft_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            softbody::PARAMS,
+        ),
+        collider_params: crate::authored(
+            eng,
+            &world,
+            &state
+                .collider_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            collider::PARAMS,
+        ),
+        tile_params: crate::authored(
+            eng,
+            &world,
+            &state
+                .tile_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            tiles::PARAMS,
+        ),
         tile_built: crate::keyed(&world, &state.tile_built),
         tile_colliders: crate::keyed(&world, &state.tile_colliders),
-        joint_params: crate::authored(eng, &world, &state.joint_params, c::JOINT_2D),
+        joint_params: crate::authored(
+            eng,
+            &world,
+            &state
+                .joint_params
+                .iter()
+                .map(|(entity, ask)| (*entity, ask.to_table()))
+                .collect(),
+            joint::PARAMS,
+        ),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
         grounded: crate::keyed(&world, &state.grounded),
         follows: crate::keyed(&world, &state.follows),
+        beside: crate::shared::beside::save(eng, &world, CARRIED),
         shape_revision: state.shape_revision,
         paused: state.paused,
         sleeping_allowed: state.sleeping_allowed,
@@ -483,22 +558,26 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     let bodies = crate::resolved(eng, frame.bodies);
     let colliders = crate::resolved(eng, frame.colliders);
     let body_authored = crate::resolved(eng, frame.body_authored);
+    let body_params = crate::resolved(eng, crate::filled(eng, frame.body_params, &[c::BODY_2D]));
     let joints = crate::resolved(eng, frame.joints);
     let soft_bodies = crate::resolved(eng, frame.soft_bodies);
-    let soft_params = crate::resolved(eng, crate::filled(eng, frame.soft_params, c::SOFTBODY_2D));
+    let soft_params = crate::resolved(eng, crate::filled(eng, frame.soft_params, softbody::PARAMS));
     let collider_params = crate::resolved(
         eng,
-        crate::filled(eng, frame.collider_params, c::COLLIDER_2D),
+        crate::filled(eng, frame.collider_params, collider::PARAMS),
     );
-    let tile_params = crate::resolved(
-        eng,
-        crate::filled(eng, frame.tile_params, c::TILE_COLLISION),
-    );
+    let tile_params = crate::resolved(eng, crate::filled(eng, frame.tile_params, tiles::PARAMS));
     let tile_built = crate::resolved(eng, frame.tile_built);
     let tile_colliders = crate::resolved(eng, frame.tile_colliders);
-    let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, c::JOINT_2D));
+    let joint_params = crate::resolved(eng, crate::filled(eng, frame.joint_params, joint::PARAMS));
     let grounded = crate::resolved(eng, frame.grounded);
     let follows = crate::resolved(eng, frame.follows);
+    crate::restore_asked::<body::Body2d>(eng, &body_params);
+    crate::restore_asked::<collider::Collider2d>(eng, &collider_params);
+    crate::restore_asked::<joint::Joint2d>(eng, &joint_params);
+    crate::restore_asked::<softbody::Softbody2d>(eng, &soft_params);
+    crate::restore_asked::<tiles::TileCollision>(eng, &tile_params);
+    crate::shared::beside::restore(eng, CARRIED, frame.beside);
     let state = eng.resource::<PhysicsState2d>();
     let mut state = state.borrow_mut();
     state.world = frame.world;
@@ -510,12 +589,56 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
     state.body_authored = body_authored;
     state.joints = joints;
     state.soft_bodies = soft_bodies;
-    state.soft_params = soft_params;
-    state.collider_params = collider_params;
-    state.tile_params = tile_params;
+    state.soft_params = soft_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match softbody::SoftAsked2d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a softbody2d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
+    state.collider_params = collider_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match collider::Asked2d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a collider2d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
+    state.tile_params = tile_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match tiles::TileAsked::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a tile_collision: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.tile_built = tile_built;
     state.tile_colliders = tile_colliders;
-    state.joint_params = joint_params;
+    state.joint_params = joint_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match joint::JointAsk2d::from_table(params) {
+                Ok(ask) => Some((*entity, ask)),
+                Err(why) => {
+                    tracing::error!("restoring a joint: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.surfaces = frame.surfaces.into_iter().collect();
     state.grounded = grounded;
     state.follows = follows;
@@ -586,7 +709,7 @@ fn build_physics2d_digest(reg: &mut Registry<'_>) {
 
 /// `physics2d`: bodies, colliders, gravity, velocities, contact impulse and
 /// overlap queries.
-fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
+fn install_physics2d_api(m: &mut Module<Engine>) {
     m.module_doc(
         "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
@@ -633,7 +756,6 @@ fn install_physics2d_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_angular_velocity",
         |eng: &Engine, (node, w): (NodeId, f32)| {
-            let w = scalar::real(w);
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_angvel(w, true);
             })

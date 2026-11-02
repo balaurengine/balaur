@@ -36,7 +36,7 @@ Built, and not built for this:
 | Every shader a game draws with linked at export into the export pack; kiss3d's own linked when it compiles | `balaur_render::prelinked`, `.balaur/shaders.toml.deflate`, kiss3d's `build.rs` |
 | Each physics world behind a feature, both on by default, and each audio codec | `physics2d`, `physics3d`, `flac`, `mp3`, `mp4`, `vorbis`, `wav` |
 | A template per world for every target, built, exported and run in CI | `scripts/export_check.sh`, `scripts/package.sh`, the `build-templates` job |
-| The project picks its runtime, and an export refuses one missing a physics world a scene or script uses | `[export] runtime = "2d"`, the Export sheet's Runtime choice, `balaur_export::fits` |
+| The project picks its runtime, and an export refuses one missing a physics world a scene or script uses | `[export] runtime`, `auto` by default, the Export sheet's Runtime choice, `balaur_export::fits` |
 | A dedicated server per desktop, a target of its own | `--target linux-x64-server` |
 | A runtime downloaded on first export, a bundle's unpacked | `balaur export --download`, the sheet's "download & export" |
 | The site's examples on the runtime their export picked | `scripts/package_play.sh`, `/play/web-2d/`, forge's `Forge.Site.Play.runtime/1` |

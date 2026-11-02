@@ -11,10 +11,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::vocabulary::{keys as k, tokens as t};
+use balaur_core::Engine;
 use balaur_text::FontProject;
-use balaur_text::fonts::{FontFace, system_static_bytes};
+use balaur_text::fonts::FontFace;
 use egui::{Color32, CornerRadius, FontFamily, Shadow, Stroke};
+use smol_str::SmolStr;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct ThemeTokens {
@@ -89,8 +92,94 @@ impl ThemeTokens {
     }
 }
 
+/// The theme `ui.set_theme` named, and the project it was named in.
+pub(crate) struct AskedTheme {
+    pub(crate) reference: SmolStr,
+    /// A theme dresses the widgets of the project that asked for it: an editor
+    /// wearing one does not put it on a game it plays.
+    pub(crate) under: Option<std::path::PathBuf>,
+}
+
+/// The project's own theme now: `[ui] theme`, or `theme_dark` on a dark system.
+fn of_project(eng: &Engine) -> SmolStr {
+    let settings = balaur_core::project::UiSettings::of(eng);
+    if !settings.theme_dark.is_empty() && balaur_core::facts::dark_mode(eng) {
+        return settings.theme_dark.as_str().into();
+    }
+    settings.theme.as_str().into()
+}
+
+/// The theme a widget starts from where no ancestor names its own.
+pub(crate) fn for_widgets(eng: &Engine) -> SmolStr {
+    let asked = eng.try_resource::<crate::UiConfig>().and_then(|config| {
+        config
+            .borrow()
+            .asked_theme
+            .as_ref()
+            .filter(|asked| asked.under == balaur_core::project::content_root(eng))
+            .map(|asked| asked.reference.clone())
+    });
+    asked.unwrap_or_else(|| of_project(eng))
+}
+
+/// The theme egui's own controls should be in now.
+fn for_controls(eng: &Engine) -> SmolStr {
+    let asked = eng.try_resource::<crate::UiConfig>().and_then(|config| {
+        config
+            .borrow()
+            .asked_theme
+            .as_ref()
+            .map(|asked| asked.reference.clone())
+    });
+    asked.unwrap_or_else(|| of_project(eng))
+}
+
+/// Whether another theme came into force since egui's controls were dressed.
+pub(crate) fn out_of_date(eng: &Engine) -> bool {
+    eng.try_resource::<crate::UiConfig>()
+        .is_some_and(|config| config.borrow().worn_theme != for_controls(eng))
+}
+
+/// Dress egui's own controls in the theme in force, when another came in.
+pub(crate) fn wear(eng: &Engine, ctx: &egui::Context) {
+    let config = eng.resource::<crate::UiConfig>();
+    let wanted = for_controls(eng);
+    if config.borrow().worn_theme == wanted {
+        return;
+    }
+    let tokens = if wanted.is_empty() {
+        ThemeTokens::default()
+    } else {
+        match balaur_core::assets::definition(eng, &wanted) {
+            Ok(doc) => ThemeTokens::from_doc(&doc),
+            Err(why) => {
+                tracing::warn!("theme '{wanted}': {why:#}");
+                ThemeTokens::default()
+            }
+        }
+    };
+    apply(&tokens, ctx);
+    config.borrow_mut().worn_theme = wanted;
+}
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::{App, AppConfig, facts, settings};
+
+    #[test]
+    fn a_dark_system_wears_the_projects_dark_theme() {
+        let app = App::new(AppConfig::bare(".")).unwrap();
+        for (key, theme) in [("ui/theme", "light.toml"), ("ui/theme_dark", "dark.toml")] {
+            settings::set(&app.engine, key, toml::Value::String(theme.into()));
+        }
+        assert_eq!(super::for_widgets(&app.engine), "light.toml");
+        facts::update_device(&app.engine, |facts| facts.dark_mode = true);
+        assert_eq!(super::for_widgets(&app.engine), "dark.toml");
+    }
+}
+
 thread_local! {
-    /// The theme `ui::set_theme` put in force: what a kind falls back to for
+    /// The theme in force on egui's own controls: what a kind falls back to for
     /// a colour its `widget_theme` does not name.
     static IN_FORCE: RefCell<Rc<ThemeTokens>> = RefCell::new(Rc::new(ThemeTokens::default()));
 }
@@ -241,15 +330,51 @@ thread_local! {
     /// The families egui has taken. One given to `set_fonts` is taken at the
     /// start of the next pass, and a family egui has not taken is a panic, not
     /// a fallback.
-    static BOUND: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
+    static BOUND: RefCell<Families> = RefCell::new(Families::default());
+    /// How many times `BOUND` was replaced: a look worked out before asks again.
+    static TAKEN: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     /// The families given this pass, taken at the start of the next.
     static GIVEN: RefCell<Option<HashSet<FontKey>>> = const { RefCell::new(None) };
     /// The fonts a widget asked for that egui has no family for yet: the next
     /// pass has the shaper read them, and egui takes their families after.
-    static WANTED: RefCell<HashSet<(FontProject, String)>> = RefCell::new(HashSet::new());
+    static WANTED: RefCell<rustc_hash::FxHashMap<FontProject, HashSet<String>>> = RefCell::default();
+    static ASKED: RefCell<AskedOfEgui> = RefCell::new(AskedOfEgui::default());
     /// The fonts and weights whose italic has no face of its own, so egui
     /// slants the upright one. Written where the fonts are given.
     static SLANTED: RefCell<HashSet<FontKey>> = RefCell::new(HashSet::new());
+}
+
+/// The families egui has taken, each with the name egui knows it by, found
+/// without building a key: every widget of a screen asks, on every redraw.
+#[derive(Default)]
+struct Families(
+    rustc_hash::FxHashMap<(FontProject, u16, bool), rustc_hash::FxHashMap<String, Arc<str>>>,
+);
+
+impl Families {
+    fn of(given: HashSet<FontKey>) -> Self {
+        let mut families = Self::default();
+        for key in given {
+            let name: Arc<str> = family_name(&key).into();
+            let (project, reference, weight, italic) = key;
+            families
+                .0
+                .entry((project, weight, italic))
+                .or_default()
+                .insert(reference, name);
+        }
+        families
+    }
+
+    fn name(
+        &self,
+        project: FontProject,
+        reference: &str,
+        weight: u16,
+        italic: bool,
+    ) -> Option<&Arc<str>> {
+        self.0.get(&(project, weight, italic))?.get(reference)
+    }
 }
 
 /// A weight as a family is registered at: the nearest hundred, 100 to 900.
@@ -273,22 +398,33 @@ pub(crate) fn weighted(
     weight: f32,
     italic: bool,
 ) -> FontFamily {
-    let key = (project, reference.to_string(), weight_step(weight), italic);
-    let bound = BOUND.with(|bound| bound.borrow().contains(&key));
-    if bound {
-        return FontFamily::Name(family_name(&key).into());
-    }
-    if !reference.is_empty() {
-        WANTED.with(|wanted| {
-            wanted.borrow_mut().insert((project, reference.to_string()));
-        });
-    }
-    let default = (project, String::new(), key.2, italic);
-    if BOUND.with(|bound| bound.borrow().contains(&default)) {
-        FontFamily::Name(family_name(&default).into())
-    } else {
-        FontFamily::Proportional
-    }
+    let step = weight_step(weight);
+    BOUND.with(|bound| {
+        let bound = bound.borrow();
+        if let Some(name) = bound.name(project, reference, step, italic) {
+            return FontFamily::Name(Arc::clone(name));
+        }
+        if !reference.is_empty() {
+            WANTED.with(|wanted| {
+                let mut wanted = wanted.borrow_mut();
+                let asked = wanted.entry(project).or_default();
+                if !asked.contains(reference) {
+                    asked.insert(reference.to_string());
+                }
+            });
+        }
+        bound
+            .name(project, "", step, italic)
+            .map_or(FontFamily::Proportional, |name| {
+                FontFamily::Name(Arc::clone(name))
+            })
+    })
+}
+
+/// How many times egui took a new set of families. A look worked out under
+/// another count named a font that may have a family of its own by now.
+pub(crate) fn families_taken() -> u64 {
+    TAKEN.with(std::cell::Cell::get)
 }
 
 /// Whether egui has to slant `reference`'s glyphs itself to draw it italic at
@@ -306,34 +442,64 @@ pub(crate) fn slanted(project: FontProject, reference: &str, weight: f32, italic
 /// asked egui for: what the start of every pass does.
 pub(crate) fn take_fonts(eng: &balaur_core::Engine, ctx: &egui::Context) {
     if let Some(given) = GIVEN.with(|given| given.borrow_mut().take()) {
-        BOUND.with(|bound| *bound.borrow_mut() = given);
+        BOUND.with(|bound| *bound.borrow_mut() = Families::of(given));
+        TAKEN.with(|taken| taken.set(taken.get() + 1));
         // egui's own text styles name families, which may only now exist.
         let tokens = IN_FORCE.with(|theme| Rc::clone(&theme.borrow()));
         text_styles(ctx, &tokens);
     }
-    let wanted: Vec<(FontProject, String)> =
-        WANTED.with(|wanted| wanted.borrow_mut().drain().collect());
-    for (project, reference) in wanted {
-        balaur_text::load_font(eng, project, &reference);
+    let wanted = WANTED.with(|wanted| std::mem::take(&mut *wanted.borrow_mut()));
+    for (project, references) in wanted {
+        for reference in references {
+            balaur_text::load_font(eng, project, &reference);
+        }
     }
+    let asked = ASKED.with(|asked| std::mem::take(&mut asked.borrow_mut().unheard));
+    if !asked.is_empty() {
+        balaur_text::shaper(eng).borrow_mut().cover(&asked);
+    }
+}
+
+/// The characters past ASCII egui has been asked to lay out, and those the
+/// shaper has yet to hear of.
+#[derive(Default)]
+struct AskedOfEgui {
+    seen: HashSet<char>,
+    unheard: String,
+}
+
+/// Note `text`, which egui is about to lay out: it draws only the faces it was
+/// given and never says what it lacked, so the shaper hears from here what the
+/// operating system may have to draw, next pass.
+pub(crate) fn asked_of_egui(text: &str) {
+    if text.is_ascii() {
+        return;
+    }
+    ASKED.with(|asked| {
+        let asked = &mut *asked.borrow_mut();
+        for c in text.chars().filter(|c| !c.is_ascii()) {
+            if asked.seen.insert(c) {
+                asked.unheard.push(c);
+            }
+        }
+    });
 }
 
 /// Every face of each project's under a name of its own, with its import
 /// settings as egui's tweak.
 fn face_data(fonts: &mut egui::FontDefinitions, project: FontProject, faces: &[FontFace]) {
     for face in faces {
-        // An OS face is cached for the process, so egui borrows those bytes;
-        // a project's own are small and reload, so they keep a copy.
-        let data = match system_static_bytes(&face.name) {
-            Some(bytes) => egui::FontData::from_static(bytes),
-            None => egui::FontData::from_owned((*face.bytes).clone()),
-        }
-        .tweak(egui::FontTweak {
-            scale: face.tweak.scale,
-            y_offset_factor: face.tweak.y_offset,
-            hinting: face.tweak.hinting,
-            ..egui::FontTweak::default()
-        });
+        // The face's own bytes, the same allocation every pass: egui compares
+        // a new definition with the last by pointer first, so a face it holds
+        // already is not read again, and nothing is copied.
+        let data = egui::FontData::from_blob(std::sync::Arc::clone(&face.bytes), 0).tweak(
+            egui::FontTweak {
+                scale: face.tweak.scale,
+                y_offset_factor: face.tweak.y_offset,
+                hinting: face.tweak.hinting,
+                ..egui::FontTweak::default()
+            },
+        );
         fonts
             .font_data
             .insert(face_name(project, face), std::sync::Arc::new(data));
@@ -350,6 +516,8 @@ fn face_name(project: FontProject, face: &FontFace) -> String {
 /// project's every face in order, then egui's own. Taken at the start of the
 /// next pass.
 pub(crate) fn load_fonts(ctx: &egui::Context, state: &balaur_text::TextState) {
+    // These may be faces read anew, which have heard of no character yet.
+    ASKED.with(|asked| asked.borrow_mut().seen.clear());
     let mut fonts = egui::FontDefinitions::default();
     let egui_own = fonts
         .families

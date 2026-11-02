@@ -1,0 +1,3 @@
+fn f(a: any) -> any { a.get("k") }
+
+// error: 1:24: an `any` reads a key as `a["k"]`, not `a.get("k")`

@@ -4,10 +4,10 @@
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
-use crate::jobs::{Reported, Reporting, install_listen, pump};
+use crate::jobs::{Reported, Reporting, pump};
 
 /// One report of a Forge job, crossing from the thread into a tick.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,6 +54,8 @@ impl Row {
 }
 
 impl Reported for ForgeEvent {
+    const EVENT: &'static str = "forge_event";
+
     fn value(&self) -> Value {
         let (kind, mut pairs): (&str, Vec<(String, Value)>) = match self {
             Self::Listed { rows } => (
@@ -93,11 +95,11 @@ pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(ForgeState(Reporting::new(std::path::PathBuf::new())));
     reg.add_system(Stage::First, pump::<ForgeState, ForgeEvent>);
     let mut m = reg.script_module("forge")?;
-    install_forge_api(&mut *m);
+    install_forge_api(&mut m);
     Ok(())
 }
 
-fn install_forge_api(m: &mut dyn Bindings<Engine>) {
+fn install_forge_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Projects kept on Forge, for the editor's pickers, and adding one to a game as a dependency. `balaur add` and `balaur fetch` are the same code. `BALAUR_FORGE` names the Forge and `BALAUR_FORGE_TOKEN` reads private projects.",
     );
@@ -112,31 +114,25 @@ fn install_forge_api(m: &mut dyn Bindings<Engine>) {
             "search",
             &[],
             "(query: string, tag: string) -> bool",
-            "List public projects on a thread, either filter empty for none. `listen` hears `{ kind: \"listed\", rows }`, each `{ project, description, tags, license }` with `project` as `owner/name`, or `{ kind: \"failed\", job: \"search\", message }`. False while a recording plays.",
+            "List public projects on a thread, either filter empty for none. `forge_event` hears `{ kind: \"listed\", rows }`, each `{ project, description, tags, license }` with `project` as `owner/name`, or `{ kind: \"failed\", job: \"search\", message }`. False while a recording plays.",
         ),
         (
             "add",
             &[],
             "(game: string, project: string) -> bool",
-            "Add `owner/name` to the game's `[dependencies]` and fetch it into `deps/<alias>/`, on a thread. `listen` hears `{ kind: \"fetched\", alias }` or `failed` with `job: \"add\"`.",
+            "Add `owner/name` to the game's `[dependencies]` and fetch it into `deps/<alias>/`, on a thread. `forge_event` hears `{ kind: \"fetched\", alias }` or `failed` with `job: \"add\"`.",
         ),
         (
             "fetch",
             &[],
             "(game: string, update: bool) -> bool",
-            "Fill the game's `deps/` from `project.lock`, or with `update` move each dependency to its newest commit, on a thread. `listen` hears `{ kind: \"fetched\", alias: \"\" }` or `failed` with `job: \"fetch\"`.",
+            "Fill the game's `deps/` from `project.lock`, or with `update` move each dependency to its newest commit, on a thread. `forge_event` hears `{ kind: \"fetched\", alias: \"\" }` or `failed` with `job: \"fetch\"`.",
         ),
         (
             "copy",
             &[],
             "(project: string, parent: string) -> bool",
-            "Copy `owner/name` at its default branch into a new folder under `parent`, with its dependencies fetched, on a thread: the project manager's Open a copy. `listen` hears `{ kind: \"copied\", path }` or `failed` with `job: \"copy\"`.",
-        ),
-        (
-            "listen",
-            &[],
-            "(node: node, opts: map?)",
-            "Call a method on `node` with every report: `on_forge_event` unless `opts.on_event` names another.",
+            "Copy `owner/name` at its default branch into a new folder under `parent`, with its dependencies fetched, on a thread: the project manager's Open a copy. `forge_event` hears `{ kind: \"copied\", path }` or `failed` with `job: \"copy\"`.",
         ),
     ]);
     m.function("url", |_: &Engine, ()| Ok(Value::Str(url())));
@@ -171,7 +167,6 @@ fn install_forge_api(m: &mut dyn Bindings<Engine>) {
             }))
         },
     );
-    install_listen::<ForgeState, ForgeEvent>(m, "on_forge_event");
 }
 
 /// `work` on a thread, its answer or its error reported; false while a

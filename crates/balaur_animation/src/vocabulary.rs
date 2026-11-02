@@ -1,54 +1,39 @@
-//! Every key and word an animation component, asset, tween or option table
-//! spells, and the script constants beside them. One list for the crate, so a
-//! schema, its parser and the read-back cannot disagree about a spelling.
+//! Every key and word an animation asset, tween or option table spells, and
+//! the script constants beside them. One list for the crate, so a parser and
+//! its read-back cannot disagree about a spelling. A component spells its
+//! properties once, in its struct.
 
 /// The component key, as the registry and every `describe` entry spell it.
-pub(crate) const COMPONENT: &str = "animation";
+pub(crate) const COMPONENT: &str =
+    <crate::Animation as balaur_core::components::derived::Component>::NAME;
 
-/// Every key a component, an asset, a tween or a `play` option table spells,
-/// for the schemas, the parsers, the readers and the importer alike.
+/// Every key an asset, a tween or a `play` option table spells, for the
+/// parsers, the readers and the importer alike.
 pub mod keys {
     pub const ADVANCE_MODE: &str = "advance_mode";
-    pub const ANGLE_LIMIT: &str = "angle_limit";
-    pub const AUTOPLAY: &str = "autoplay";
     pub const BLEND_CURVE: &str = "blend_curve";
     pub const BLEND_TIME: &str = "blend_time";
-    pub const BONE: &str = "bone";
     pub const BONES: &str = "bones";
     pub const BREAK_LOOP_AT_END: &str = "break_loop_at_end";
     pub const BY: &str = "by";
     pub const CALL: &str = "call";
     /// What a method key hands the method it calls.
     pub const ARGS: &str = "args";
-    pub const CHAIN_COUNT: &str = "chain_count";
     pub const CHECK: &str = "check";
-    pub const CHECK_NODE: &str = "check_node";
     pub const CONDITION: &str = "condition";
-    pub const DAMPING: &str = "damping";
     pub const DELAY: &str = "delay";
     pub const DURATION: &str = "duration";
     pub const EASE: &str = "ease";
-    pub const ENABLED: &str = "enabled";
-    pub const FLIP_BEND_DIRECTION: &str = "flip_bend_direction";
     pub const FROM: &str = "from";
     pub const FROM_START: &str = "from_start";
-    pub const GRAVITY: &str = "gravity";
     pub const INTERPOLATION: &str = "interpolation";
     pub const INTERVAL: &str = "interval";
-    pub const ITERATIONS: &str = "iterations";
     pub const KEYS: &str = "keys";
-    pub const KIND: &str = "kind";
-    pub const LAG: &str = "lag";
     pub const LENGTH: &str = "length";
-    pub const LIBRARY: &str = "library";
     pub const LOOPS: &str = "loops";
     pub const LOOP_MODE: &str = "loop_mode";
-    pub const MACHINE: &str = "machine";
-    pub const MASS: &str = "mass";
     pub const NAME: &str = "name";
-    pub const OFFSET: &str = "offset";
     pub const PARALLEL: &str = "parallel";
-    pub const PLAYER: &str = "player";
     pub const PRIORITY: &str = "priority";
     pub const PROFILE: &str = "profile";
     pub const PROPERTY: &str = "property";
@@ -56,7 +41,6 @@ pub mod keys {
     pub const REST_POSITION: &str = "rest_position";
     pub const REST_ROTATION: &str = "rest_rotation";
     pub const RETARGET: &str = "retarget";
-    pub const ROOT_NODE: &str = "root_node";
     pub const SPEED_SCALE: &str = "speed_scale";
     pub const START: &str = "start";
     pub const STATES: &str = "states";
@@ -66,16 +50,13 @@ pub mod keys {
     pub const TWEEN: &str = "tween";
     /// How many times a tween has run through, in a `tween_looped` payload.
     pub const PLAYED: &str = "played";
-    pub const STIFFNESS: &str = "stiffness";
     pub const SWITCH_MODE: &str = "switch_mode";
     pub const TARGET: &str = "target";
     pub const THEN: &str = "then";
     pub const TIME: &str = "time";
     pub const TO: &str = "to";
-    pub const TOLERANCE: &str = "tolerance";
     pub const TRACKS: &str = "tracks";
     pub const TRANSITIONS: &str = "transitions";
-    pub const USE_GRAVITY: &str = "use_gravity";
     pub const VALUE: &str = "value";
 }
 
@@ -121,7 +102,6 @@ pub mod words {
     pub const CCDIK: &str = "ccdik";
     pub const JIGGLE: &str = "jiggle";
     pub const FOLLOW: &str = "follow";
-    pub const MODIFIER_KINDS: &[&str] = &[LOOK_AT, TWO_BONE_IK, FABRIK, CCDIK, JIGGLE, FOLLOW];
 }
 
 use words as w;

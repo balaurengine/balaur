@@ -1,0 +1,36 @@
+// An enum sits in a struct, an array and another enum, and holds a struct,
+// an optional and an `any`.
+
+struct Point { x: int, y: int }
+enum Hit { Miss, At(Point), Maybe(int?), Raw(any) }
+enum Turn { Move(Hit), Pass }
+struct Board { last: Turn, hits: [Hit] }
+
+fn score(h: Hit) -> int {
+    match h {
+        Hit::At(p) => p.x * 10 + p.y,
+        Hit::Maybe(n) => n.or(-1),
+        Hit::Raw(a) => a.len(),
+        Hit::Miss => 0,
+    }
+}
+
+fn turn(t: Turn) -> int {
+    match t {
+        Turn::Move(h) => match h {
+            Hit::Miss => -100,
+            other => score(other),
+        },
+        Turn::Pass => 1000,
+    }
+}
+
+pub fn board() -> str {
+    let b = Board { last: Turn::Move(Hit::At(Point { x: 2, y: 5 })), hits: [Hit::Miss, Hit::Maybe(nil), Hit::Maybe(4), Hit::Raw([1, 2, 3])] };
+    let total = 0;
+    for h in b.hits { total += score(h); }
+    "{turn(b.last)} {turn(Turn::Pass)} {turn(Turn::Move(Hit::Miss))} {total}"
+}
+
+// expect: board() == "25 1000 -100 6"
+// live: 0

@@ -11,7 +11,7 @@ use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
 fn app() -> App {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -40,6 +40,23 @@ fn add(app: &App, e: Entity, component: &str, text: &str) -> anyhow::Result<()> 
     )
 }
 
+/// Add a `joint3d` from `text`, a scene node's rows: a table in it is a
+/// component beside the joint, added first as a scene adds it.
+fn add_joint(app: &App, e: Entity, text: &str) -> anyhow::Result<()> {
+    let mut rows: toml::Value = toml::from_str(text).unwrap();
+    let table = rows.as_table_mut().unwrap();
+    let beside: Vec<String> = table
+        .iter()
+        .filter(|(_, value)| value.is_table())
+        .map(|(name, _)| name.clone())
+        .collect();
+    for name in beside {
+        let held = table.remove(&name).unwrap();
+        components::add(&app.engine, e, &name, Some(&held))?;
+    }
+    components::add(&app.engine, e, "joint3d", Some(&rows))
+}
+
 fn tick(app: &mut App, steps: u32) {
     for _ in 0..steps {
         app.tick(1.0 / 60.0);
@@ -51,10 +68,20 @@ fn tick(app: &mut App, steps: u32) {
 fn hanging(app: &App, at: [f32; 3], joint: &str) -> anyhow::Result<Entity> {
     let anchor = node(app, "Anchor", [0.0; 3]);
     add(app, anchor, "body3d", "kind = \"static\"")?;
-    add(app, anchor, "collider3d", "kind = \"sphere\"\nradius = 0.2")?;
+    add(
+        app,
+        anchor,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.2 }",
+    )?;
     let ball = node(app, "Ball", at);
     add(app, ball, "body3d", "kind = \"dynamic\"\nmass = 2.0")?;
-    add(app, ball, "collider3d", "kind = \"sphere\"\nradius = 0.2")?;
+    add(
+        app,
+        ball,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.2 }",
+    )?;
     // Anchored at the anchor body's middle unless the table says otherwise.
     let anchor_at = if joint.contains("anchor =") {
         String::new()
@@ -62,7 +89,7 @@ fn hanging(app: &App, at: [f32; 3], joint: &str) -> anyhow::Result<Entity> {
         format!("anchor = [{}, {}, {}]\n", -at[0], -at[1], -at[2])
     };
     let table = format!("connected_body = \"/Anchor\"\n{anchor_at}{joint}");
-    add(app, ball, "joint3d", &table)?;
+    add_joint(app, ball, &table)?;
     Ok(ball)
 }
 
@@ -85,14 +112,18 @@ fn swing(joint: &str) -> f32 {
 
 #[test]
 fn a_generic_joint_limits_the_turn_its_record_names() {
-    let generic = "kind = \"generic\"\naxis = [0.0, 0.0, 1.0]\nlock_translation = [\"x\", \"y\", \"z\"]\nlock_rotation = [\"y\", \"z\"]";
-    let free = swing(generic);
+    let generic = |axes: &str| {
+        format!(
+            "kind = \"generic\"\naxis = [0.0, 0.0, 1.0]\n{axes}\n[generic_joint3d]\nlock_translation = [\"x\", \"y\", \"z\"]\nlock_rotation = [\"y\", \"z\"]"
+        )
+    };
+    let free = swing(&generic(""));
     assert!(
         free < -0.6,
         "the generic joint never swung: the ball is at {free}"
     );
-    let limited = swing(&format!(
-        "{generic}\naxes = [{{ axis = \"rotation_x\", limits = [-0.2, 0.2] }}]"
+    let limited = swing(&generic(
+        "axes = [{ axis = \"rotation_x\", limits = [-0.2, 0.2] }]",
     ));
     assert!(
         limited > -0.3,
@@ -150,7 +181,7 @@ fn a_rope_takes_its_length_limit_from_max_length_alone() {
     let why = hanging(
         &app,
         [1.0, 0.0, 0.0],
-        "kind = \"rope\"\nmax_length = 1.0\naxes = [{ axis = \"x\", limits = [0.0, 2.0] }]",
+        "kind = \"rope\"\naxes = [{ axis = \"x\", limits = [0.0, 2.0] }]\n[rope_joint3d]\nmax_length = 1.0",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("max_length"), "{why:#}");
@@ -158,7 +189,7 @@ fn a_rope_takes_its_length_limit_from_max_length_alone() {
     let ball = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"rope\"\nmax_length = 1.5\nanchor = [0.0, 0.0, 0.0]\naxes = [{ axis = \"x\", motor = \"velocity\", motor_target = 0.0 }]",
+        "kind = \"rope\"\nanchor = [0.0, 0.0, 0.0]\naxes = [{ axis = \"x\", motor = \"velocity\", motor_target = 0.0 }]\n[rope_joint3d]\nmax_length = 1.5",
     )
     .unwrap();
     tick(&mut app, 120);
@@ -169,14 +200,14 @@ fn a_rope_takes_its_length_limit_from_max_length_alone() {
     );
 }
 
-/// The spring's own model unless its record names one, read back as the
-/// model rapier runs.
+/// The model rapier runs on a spring's x, and the one its record reads back
+/// as: what was asked, `auto` unless it names another.
 fn spring_model(record: &str) -> (MotorModel, String) {
     let app = app();
     let ball = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        &format!("kind = \"spring\"\nrest_length = 1.0\naxes = [{record}]"),
+        &format!("kind = \"spring\"\naxes = [{record}]\n[spring_joint3d]\nrest_length = 1.0"),
     )
     .unwrap();
     let state = app.engine.resource::<PhysicsState3d>();
@@ -196,10 +227,7 @@ fn spring_model(record: &str) -> (MotorModel, String) {
 fn a_spring_runs_rapiers_force_model_unless_its_record_names_another() {
     let (ran, read) = spring_model("{ axis = \"x\", stiffness = 50.0 }");
     assert_eq!(ran, MotorModel::ForceBased);
-    assert_eq!(
-        read, "force",
-        "the spring reads back a model it does not run"
-    );
+    assert_eq!(read, "auto", "the record reads back what it asked for");
     let (ran, read) =
         spring_model("{ axis = \"x\", stiffness = 50.0, motor_model = \"acceleration\" }");
     assert_eq!(
@@ -216,7 +244,7 @@ fn a_motor_on_a_springs_own_axis_is_refused() {
     let why = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"spring\"\nrest_length = 1.0\naxes = [{ axis = \"x\", motor = \"velocity\" }]",
+        "kind = \"spring\"\naxes = [{ axis = \"x\", motor = \"velocity\" }]\n[spring_joint3d]\nrest_length = 1.0",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("rest_length"), "{why:#}");
@@ -247,11 +275,11 @@ fn break_force_is_a_force_in_newtons_whatever_the_substeps() {
     let below = [0.0, -1.0, 0.0];
     for substeps in [4, 8] {
         assert!(
-            !holds(below, "break_force = 15.0", substeps),
+            !holds(below, "[breakable_joint3d]\nbreak_force = 15.0", substeps),
             "a 15 N joint held 19.6 N at {substeps} substeps"
         );
         assert!(
-            holds(below, "break_force = 25.0", substeps),
+            holds(below, "[breakable_joint3d]\nbreak_force = 25.0", substeps),
             "a 25 N joint snapped under 19.6 N at {substeps} substeps"
         );
     }
@@ -262,15 +290,15 @@ fn break_force_is_a_force_in_newtons_whatever_the_substeps() {
 fn break_torque_is_measured_apart_from_the_pull() {
     let level = [1.0, 0.0, 0.0];
     assert!(
-        !holds(level, "break_torque = 15.0", 4),
+        !holds(level, "[breakable_joint3d]\nbreak_torque = 15.0", 4),
         "a 15 N m joint held"
     );
     assert!(
-        holds(level, "break_torque = 25.0", 4),
+        holds(level, "[breakable_joint3d]\nbreak_torque = 25.0", 4),
         "a 25 N m joint snapped"
     );
     assert!(
-        holds(level, "break_force = 25.0", 4),
+        holds(level, "[breakable_joint3d]\nbreak_force = 25.0", 4),
         "the torque was counted against break_force"
     );
 }
@@ -281,7 +309,7 @@ fn an_articulation_refuses_a_break_threshold() {
     let why = hanging(
         &app,
         [0.0, -1.0, 0.0],
-        "kind = \"fixed\"\narticulation = true\nbreak_force = 10.0",
+        "kind = \"fixed\"\n[breakable_joint3d]\nbreak_force = 10.0\n[articulation3d]",
     )
     .unwrap_err();
     assert!(format!("{why:#}").contains("articulation"), "{why:#}");
@@ -303,8 +331,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -317,8 +344,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -334,9 +360,9 @@ impl Scenario {
         self.node.joint3d.collide_connected = true;
         let axes = self.node.joint3d.axes;
         if axes.len() != 1 { log::error("the two calls wrote other than one record"); }
-        if axes[0].get("axis").as_str() != physics3d::AXIS_ROTATION_X { log::error("the record names another axis"); }
-        if axes[0].get("motor").as_str() != physics3d::MOTOR_VELOCITY { log::error("the motor call wrote no motor"); }
-        if math::abs(axes[0].get("limits").at(1).as_float() - 0.2) >= 0.0001 { log::error("the motor call dropped the limit"); }
+        if axes[0]["axis"].as_str() != physics3d::AXIS_ROTATION_X { log::error("the record names another axis"); }
+        if axes[0]["motor"].as_str() != physics3d::MOTOR_VELOCITY { log::error("the motor call wrote no motor"); }
+        if math::abs(axes[0]["limits"][1].as_float() - 0.2) >= 0.0001 { log::error("the motor call dropped the limit"); }
     }
 
     fn fixed_update(dt: float) {
@@ -389,7 +415,8 @@ SHAPE
 kind = "hinge"
 connected_body = "/World/Base"
 anchor = [-1.0, 0.0V]
-articulation = true
+
+[nodes.articulationDIM]
 
 [[nodes]]
 id = "n_lower"
@@ -408,7 +435,8 @@ SHAPE
 kind = "hinge"
 connected_body = "/World/Upper"
 anchor = [-1.0, 0.0V]
-articulation = true
+
+[nodes.articulationDIM]
 "#;
 
 fn arm_3d() -> String {
@@ -448,7 +476,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
     let arm = arm_3d();
     let reach = arm_reach(
         &arm,
-        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, map().with(\"damping\", 0.1).with(\"iterations\", 100))",
+        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, physics3d::IkOptions { damping: 0.1, iterations: 100 })",
     );
     assert!(
         reach < 0.05,
@@ -456,7 +484,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
     );
     let held = arm_reach(
         &arm,
-        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, map().with(\"damping\", 0.1).with(\"iterations\", 100).with(\"constrain\", [\"x\", \"y\", \"z\", \"rotation_x\", \"rotation_y\", \"rotation_z\"]))",
+        "self.node.joint3d.solve_ik(1.2, 1.2, 0.0, physics3d::IkOptions { damping: 0.1, iterations: 100, constrain: [\"x\", \"y\", \"z\", \"rotation_x\", \"rotation_y\", \"rotation_z\"] })",
     );
     assert!(
         held > reach,
@@ -468,7 +496,7 @@ fn solving_for_a_position_leaves_the_end_links_turn_free() {
 fn a_2d_chain_is_solved_for_a_position() {
     let reach = arm_reach(
         &arm_2d(),
-        "self.node.joint2d.solve_ik(1.2, 1.2, map().with(\"damping\", 0.1).with(\"iterations\", 100))",
+        "self.node.joint2d.solve_ik(1.2, 1.2, physics2d::IkOptions { damping: 0.1, iterations: 100 })",
     );
     assert!(
         reach < 0.05,

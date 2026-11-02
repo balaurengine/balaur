@@ -1,0 +1,5 @@
+// An unknown type is an error, not a crash.
+
+fn w(x: nosuchtype) {}
+
+// error: 3:6: unknown type `nosuchtype`

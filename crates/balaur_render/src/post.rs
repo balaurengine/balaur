@@ -9,6 +9,7 @@ use balaur_core::components::{prop_f32, prop_i64, prop_str, prop_vec2, prop_vec3
 
 use crate::PostConfig;
 use crate::vocabulary::{keys as k, words};
+use balaur_plugin::Registry;
 
 /// One pass on a camera's chain.
 ///
@@ -639,7 +640,7 @@ fn parse_effects(table: &toml::Value) -> anyhow::Result<Rc<dyn std::any::Any>> {
     Ok(Rc::new(post_from_params(table)))
 }
 
-pub(crate) fn register_camera_effects_asset(reg: &mut balaur_plugin::Registry<'_>) {
+pub(crate) fn register_camera_effects_asset(reg: &mut Registry<'_>) {
     reg.register_record_asset(
         k::CAMERA_EFFECTS,
         "camera_effects",
@@ -647,14 +648,6 @@ pub(crate) fn register_camera_effects_asset(reg: &mut balaur_plugin::Registry<'_
         effects_schema(),
         parse_effects,
     );
-}
-
-/// The row a camera names its effects in.
-pub(crate) fn effects_row() -> String {
-    format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "The passes the frame resolves through and how each is tuned; empty draws the frame as it is" }}"#,
-        k::CAMERA_EFFECTS
-    )
 }
 
 /// The effects the current camera's row named, read again only when the row

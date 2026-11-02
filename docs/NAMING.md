@@ -120,11 +120,10 @@ Recorded so each stops being cited as precedent for the next.
 | `resource` for the typemap | D1 |
 | `DetHashMap` / `DetHashSet` | The prefix is the whole job: it says which one the house lint wants you to use |
 | `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
-| `render.set_camera` / `camera_pose` | Not an accessor pair: the setter writes `CameraConfig3d`, the reader reads the published `ViewportSnapshot3d`. Command in, truth out — fixed by a doc line under N8 |
-| `render.camera_2d`, `set_camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
+| `render.camera_pose` | Reads the published `ViewportSnapshot3d`, what a `camera3d` node asked as the backend applied it — fixed by a doc line under N8 |
+| `render.camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
 | `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
 | `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
-| `render.set_sphere` / `set_box` | N9 does not reach them: `balaur_render` has no physics dependency, and in a dynamic API a function whose argument count and meaning differ stays its own function |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
 | `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |
 | `SHAPE_KINDS_2D` | SCREAMING_SNAKE has no lowercase to be consistent with (N4) |
@@ -230,6 +229,7 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Slider | `slider` | every surveyed toolkit |
 | On and off | `switch` | every surveyed toolkit but Godot |
 | Checkbox | `checkbox` | HTML, ARIA, Godot, Flutter, egui |
+| A theme table's fill through colours, and its shadow | `gradient` (`kind`: `linear`, `radial`; `stops`, `at`, `angle`, `center`, `radius`), `shadow` (`x`, `y`, `blur`, `spread`, `color`) | CSS's `linear-gradient`, `radial-gradient`, `box-shadow` |
 | One line of text | `text_field` | Flutter, SwiftUI, Unity |
 | Many lines of text | `text_area` | HTML, shadcn |
 | A number | `number_field` | Unity |
@@ -253,7 +253,6 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Where the next widget lands | `layout_y` | none |
 | This frame's paste | `pasted_text` | none |
 | Loading screen | `set_load_progress`, `finish_loading` | none |
-| Tab moves focus | `set_keyboard_navigation` | none |
 | The focused widget | `focused_widget` | none |
 | Overwrite a field's text | `set_field_text` | none |
 | Theme in use, and a theme with its gaps derived | `set_theme`, `complete_theme` | none |
@@ -341,7 +340,7 @@ An editor role is `<component>[_<context>][_<emphasis>]`, as in `action_form_dan
 | Tags | `tags`, `add_tag`, `has_tag` | Unreal |
 | When a node runs | `process_mode`, `set_process_mode`, `can_process` | Godot |
 | Skip interpolation after a jump | `reset_physics_interpolation` | Godot |
-| Position, scale, move | `position`, `scale`, `translate` | Godot, Unity |
+| Position, scale | `position`, `scale` | Godot, Unity |
 | Rotation in radians | `rotation_euler` | Blender |
 | Rotation in degrees | `rotation_degrees`, `set_rotation_degrees` | Godot |
 | Reserved: rotation as a quaternion | `rotation_quaternion` | Blender |
@@ -511,7 +510,7 @@ Most names match Godot 4. A clip is Unity's word, because `animation` is already
 | A key | `time`, `value`, `ease`, `call` | Godot, Unity |
 | A track | `target`, `property`, `keys`, in a clip's `tracks` | Godot, Unity |
 | Cross-fade | `blend_time` | Godot |
-| Playback | `play`, `queue`, `pause`, `resume`, `stop`, `seek`, `is_playing`, `time`, `just_finished` | Godot |
+| Playback | `play`, `queue`, `pause`, `resume`, `stop`, `seek`, `is_playing`, `time` | Godot |
 | The clip playing, a new clip | `current_clip`, `add_clip` | Godot |
 | State machine | `state_machine`, with `machine`, `start`, `states`, `enabled` | Godot, Unity |
 | Transition | `from`, `to`, `priority`, `reset`, `condition`, `blend_time`, `blend_curve`, `break_loop_at_end` | Godot |
@@ -539,7 +538,7 @@ A volume names its unit, because Godot reads a bare `volume` as decibels. A cue 
 | Pitch multiplier | `pitch_scale`, `set_pitch_scale` | Godot |
 | Doppler amount, 0 to 1 | `doppler_level` | Unity |
 | Playback | `play`, `stop`, `stop_all`, `is_playing` | Godot, Unity |
-| Where it is heard | `emitter_position`, `distance_gain`, `pan`, `listener_position`, `set_listener_position`, `listener.current` | Godot |
+| Where it is heard | `emitter_position`, `distance_gain`, `pan`, `listener_position`, `listener.current` | Godot |
 | The audio device is up | `device_ready` | none |
 | Buses | `[audio.buses]`, `master`, `parent`, `buses` | Godot, Unity, FMOD |
 | Bus loudness | `bus_volume_linear`, `set_bus_volume_linear` | Godot |
@@ -567,7 +566,7 @@ Every string is sentence case, and a button is a verb.
 | Logs | Output, Problems | VS Code, Godot |
 | Command search | Command palette | Godot, VS Code |
 | Settings | Settings…, with Editor settings and Project settings pages | Godot |
-| Rust, dylib and Rune additions | plugin, extension, addon in `addons/` | Godot, Blender |
+| Rust, dylib and Balaur Script additions | plugin, extension, addon in `addons/` | Godot, Blender |
 | A crate | `balaur_<plugin name>`: `balaur_animation`, `balaur_physics`; the facade re-exports each under its crate name without `balaur_`, `balaur::script_rune` | none |
 | A cargo feature | one name for a concept in every crate, never the backend's: `window`, `extensions` | N14 |
 | The page a browser build runs in | the `browser` plugin: crate `balaur_browser`, feature `browser`, module `browser.*`, handler `on_browser_event` | none |
@@ -623,7 +622,7 @@ A command is a verb, a long flag is kebab-case, and an environment variable spel
 | Positional argument | what the command acts on; a destination is `--project <DIR>` | Cargo |
 | Environment variable | `BALAUR_` and the settings path in capitals | Cargo |
 | A setting with a unit | the unit last: `timeout_seconds`, `delay_ticks`, `long_press_slop_pixels`, `narrow_below_pixels`, `max_rate_hz`, `min_ccd_seconds` | none |
-| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[application] script_language`, `[locale] initial`, `[import.audio] force_mono` | none |
+| A setting that reads as another type | `[log] to_file`, `[multiplayer] simulate_faults`, `[save] migrate_script`, `[locale] initial`, `[import.audio] force_mono` | none |
 | Signing identities | `[apple] macos_identity`, `notarize`, `ios_identity`, `ios_provisioning_profile`; `[android] keystore`, `key`, `bundletool`; `[windows] certificate`, `timestamp_url` | none |
 | How an export re-encodes | `[export] image_recode`, `font_recode`, `audio_recode` and a file's `recode`, `original` among the values; `image_quality`, `audio_quality` | none |
 | Globs an export takes whatever it decides | `[export] include`, `font_original` | none |
@@ -650,6 +649,26 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Concept | Balaur name | Follows |
 | --- | --- | --- |
 | Where this build runs | `engine.target` | Cargo |
+| What an app registers before any plugin, in order | `AppConfig::builtins`, `Builtins` (`steps`, `api`), `ApiPart`; the kernel's `Builtins::kernel` | none |
+| A value that is one of several records, by name | `type = "variant"`, `variants`, the value's `kind`; `#[derive(Variant)]`, `#[option(default)]` | Rust enums |
+| A primitive and its dimensions, on a shape | `shape` (`shape3d`, `shape2d`): `kind` and that kind's fields | Godot's mesh resources |
+| A component written by hand, not derived | `ComponentDef::by_hand(schema, apply, remove, get)` | none |
+| A component as a save writes it | `components::written`, `written_of`; `node.authored` | none |
+| The counter writes are stamped with, apart from the simulation's `tick` | `Engine::change_tick`, `advance_change_tick`; `engine.change_tick` | Bevy's change ticks |
+| What a component runs at each point of its life on a node | `Lifecycle` (`on_add`, `on_insert`, `on_replace`, `on_remove`, `on_despawn`), declared as `#[component(on_add = f)]` | Bevy's component hooks |
+| A write asked for now and made at the end of the stage | `Engine::defer`, `defer_spawn_node`, `defer_spawn`, `defer_insert`, `defer_insert_one`, `defer_remove_one`, `defer_despawn`, `apply_deferred` | Bevy's `Commands`, `apply_deferred` |
+| A typed value one Rust system sends and others read once each | `App::add_messages`, `Engine::send`, `Messages`, `MessageCursor` (`read`, `read_cloned`) | Bevy's `Events`, `EventReader` |
+| Rust run the moment an event is announced | `events::observe`, `unobserve`, `bubble`; `Observed` (`target`, `at`, `stop`), `ObserverId` | Bevy's observers, the DOM's bubbling and `stopPropagation` |
+| Two components kept in step: one target, its sources in order | `relationships::Relationship`, `Sources`; `relate`, `link`, `unlink`, `place`, `unlink_all`, `linked`, `target_of`, `sources_of`; the scene tree's `Parent` and `Children` | Bevy's relationships |
+| A node freed with the frame's batch | `Engine::defer_free`, `take_frees`; `node.queue_free` | Godot's `queue_free` |
+| Components a component brings at their defaults | `#[component(requires = [..])]`, `ComponentDef::requires`; `scene.component_requires` | Bevy's required components |
+| A stage's systems in order | `schedule::System` (`new`, `in_set`, `before`, `after`, `run_if`), `Set`; `App::add_scheduled`, `configure_set`, `check_schedules`, `system_count` | Bevy's schedules and system sets |
+| A query term whose writes change detection sees, and its item | `system_param::Tracked<T>`, `Mut` (`node`) | Bevy's `Mut` |
+| A derived component's change tick, in a column beside it | `components::ticks::Ticked<T>` (`changed`), `TickColumn` | Bevy's component ticks |
+| A system whose parameters say what it reads and writes | `system_param::SystemParam`, `TypedSystem`; `Res`, `ResMut`, `Query` (`borrow`, `for_each`, `one`), `Commands`, `Local`, `Step`, `MessageReader`, `MessageWriter`, `Changed`, `Added`; `App::add_typed`, `System::typed` | Bevy's system parameters |
+| The tree in order, kept until its shape moves | `scene::tree_rank`, `TreeRank` (`of`, `order`, `sorted`) | none |
+| A system's matches worked in batches on the thread pool | `Query::par_for_each`, `par_fold` | Bevy's `par_iter` |
+| What was put on, written or taken off after a tick | `ticks::added_since`, `changed_since`, `removed_since` (and `scene.` in scripts); a component's `Stamp` (`added`, `changed`); `ChangeCursor::read` | Bevy's `Added`, `Changed`, `RemovedComponents` |
 | Count what scripts cost | `engine.set_script_profiling`, `script_costs`, `function_costs` | none |
 | Where the debugger stopped | `debugger.stop_location` | none |
 | Jobs in flight | `export.running_count`, `import.running_count` | none |
@@ -667,6 +686,7 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | A node's named look | `node.states.set_state` | none |
 | Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible`, `toast` | none |
 | A boolean beside the value | an options key: `set_z_index(z, #{ z_as_relative: false })`, `release.install(channel, tag, #{ allow_downgrade: true })` | N9 |
+| A function's options table, as a script's struct | a record named for the function, `<Function>Options`, in its module: `ui::ClickOptions`, `ui::RepaintOptions`; a pooled control `ui::Control`, a form's row `ui::Row` | none |
 
 ### Lifecycle and events
 

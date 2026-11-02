@@ -5,9 +5,9 @@
 id = "imports"
 name = "Imports"
 script = { source = "scripts/panels/imports.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 role = "sheet"
 anchor = "top_right"
 x = 20.0
@@ -15,8 +15,7 @@ y = 52.0
 padding = [12, 8, 12, 8]
 gap = [2, 2]
 interactive = false
-layer = "shell"
-visible = false
+whole_window = true
 
 [[nodes]]
 id = "lines"
@@ -31,9 +30,9 @@ interactive = false
 id = "bar"
 name = "Bar"
 parent = "imports"
+visible = false
 [nodes.widget]
 kind = "progress_bar"
 width = 180
 height = 4
 interactive = false
-visible = false

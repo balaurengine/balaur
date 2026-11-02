@@ -4,7 +4,6 @@
 
 use editor;
 use model;
-use pool;
 use rig;
 use signals;
 use util;
@@ -16,9 +15,9 @@ pub class BonemapState {
     picking: str?,
 }
 
-const NAME_W: float = 128.0;
+const NAME_WIDTH: float = 128.0;
 
-const PICK_W: float = 190.0;
+const PICK_WIDTH: float = 190.0;
 
 // The canonical humanoid, in the spelling `balaur_animation::retarget::HUMANOID`
 // uses. One list, because a map written against another one would not load.
@@ -52,7 +51,7 @@ fn HUMANOID() -> [str] {
 
 /// The dock's own state, hung on `state.bonemap`.
 pub fn state() -> BonemapState {
-    BonemapState { bones: map(), path: "", rig: "", picking: nil }
+    BonemapState { bones: {}, path: "", rig: "", picking: nil }
 }
 
 // The rig this map is being built against: the selection, or the rig above it
@@ -62,7 +61,7 @@ fn rig_root(state: editor::State) -> Node {
     if !found.is_valid() {
         return nil;
     }
-    if rig::bone_count(state, state.sel) > 0 {
+    if rig::bone_count(state, state.selected) > 0 {
         return found;
     }
     // A selected bone maps the rig it hangs in, not itself: climbing to the
@@ -73,7 +72,7 @@ fn rig_root(state: editor::State) -> Node {
     let top = found;
     let parent = found.parent();
     while parent.is_valid() {
-        if model::index_of_node(state, parent).is_none() || !rig::is_bone(parent) {
+        if model::index_of_node(state, parent) == nil || !rig::is_bone(parent) {
             break;
         }
         top = parent;
@@ -123,8 +122,8 @@ pub fn guess(canonical: str, paths: [str]) -> str? {
 // `Left Upper Arm` and `mixamorig:LeftUpperArm` all compare the same.
 fn squash(name: str) -> str {
     let out = name.to_lower();
-    for sep in ["_", " ", ".", "-", ":"] {
-        out = out.replace(sep, "");
+    for separator in ["_", " ", ".", "-", ":"] {
+        out = out.replace(separator, "");
     }
     out
 }
@@ -140,8 +139,8 @@ pub fn autofill(state: &mut editor::State) {
     let found = 0;
     for name in HUMANOID() {
         let matched = guess(name, paths);
-        if matched.is_some() {
-            state.bonemap.bones.set(name, matched.unwrap());
+        if matched != nil {
+            state.bonemap.bones[name] = matched.unwrap();
             found += 1;
         }
     }
@@ -150,7 +149,7 @@ pub fn autofill(state: &mut editor::State) {
 }
 
 pub fn clear(state: &mut editor::State) {
-    state.bonemap.bones = map();
+    state.bonemap.bones = {};
     signals::changed(state, "bonemap");
 }
 
@@ -163,12 +162,12 @@ fn default_path(state: editor::State) -> str {
 }
 
 pub fn save(state: &mut editor::State) {
-    let mapped = map();
+    let mapped: any = {};
     let bones = state.bonemap.bones;
     for name in bones.keys() {
-        let path = bones.get(name);
+        let path = bones[name];
         if path.as_str() != "" {
-            mapped.set(name, path);
+            mapped[name] = path;
         }
     }
     if mapped.len() == 0 {
@@ -176,7 +175,7 @@ pub fn save(state: &mut editor::State) {
         return;
     }
     let path = if state.bonemap.path == "" { default_path(state) } else { state.bonemap.path };
-    let doc = map().with("type", "bone_map").with("bones", mapped);
+    let doc: any = { "type": "bone_map", "bones": mapped };
     fs::write(state.game_root + "/" + path, toml::encode(doc));
     state.bonemap.path = path;
     log::info("{mapped.len()} bones written to {path}");
@@ -191,28 +190,27 @@ const PANEL: str = "Editor/Shell/Body/Centre/Bottom/Bonemap";
 pub fn fill(state: editor::State) {
     let paths = bone_paths(state);
     if paths.len() == 0 {
-        util::fill(PANEL + "/Missing", map().with("visible", true));
-        util::fill(PANEL + "/Body", map().with("visible", false));
+        util::set_visible(PANEL + "/Missing", true);
+        util::set_visible(PANEL + "/Body", false);
         return;
     }
-    util::fill(PANEL + "/Missing", map().with("visible", false));
-    util::fill(PANEL + "/Body", map().with("visible", true));
+    util::set_visible(PANEL + "/Missing", false);
+    util::set_visible(PANEL + "/Body", true);
     let filled = 0;
     let bones = state.bonemap.bones;
     for name in bones.keys() {
-        if bones.get(name).as_str() != "" {
+        if bones[name].as_str() != "" {
             filled += 1;
         }
     }
-    util::fill(PANEL + "/Body/Verbs/Count", map()
-        .with("text", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig"));
-    let rows: [any] = [];
+    util::set_text(PANEL + "/Body/Verbs/Count", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig");
+    let rows: [ui::Row] = [];
     for name in HUMANOID() {
         for spec in row(state, paths, name) {
             rows.push(spec);
         }
     }
-    pool::sync(state, PANEL + "/Body/Scroll/Rows", rows, 0.0, false);
+    ui::fill_rows(PANEL + "/Body/Scroll/Rows", rows);
 }
 
 /// A verb by the name of its button.
@@ -229,81 +227,85 @@ pub fn verb(state: &mut editor::State, name: str) {
 // A canonical bone's row, and the rig's bones under it while it is the one
 // being picked for: a dock this narrow has nowhere to put a floating list,
 // and the row it belongs to is the one thing a reader has to keep track of.
-fn row(state: editor::State, paths: [str], name: str) -> [any] {
-    let picked = state.bonemap.bones.get(name).as_str();
+fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
+    let picked = state.bonemap.bones[name].as_str();
     let open = state.bonemap.picking == name;
-    let controls = [
-        map()
-            .with("kind", "label")
-            .with("role", if picked == "" { "text_code_quiet" } else { "text_code" })
-            .with("font_size", 12)
-            .with("width", NAME_W)
-            .with("text", name),
-        map()
-            .with("kind", "button")
-            .with("role", "chip")
-            .with("width", PICK_W)
-            .with("height", 22)
-            .with("text", if picked == "" { "—" } else { picked })
-            .with("text_align", "start")
-            .with("checked", open)
-            .with("tooltip", "Pick the bone this canonical name means on this rig")
-            .with("on", "handle")
-            .with("data", map().with("fn", toggle_picker).with("open", open).with("name", name)),
+    let controls: [ui::Control] = [
+        ui::Control {
+            kind: "label",
+            role: if picked == "" { "text_code_quiet" } else { "text_code" },
+            font_size: 12,
+            width: NAME_WIDTH,
+            text: name,
+        },
+        ui::Control {
+            kind: "button",
+            role: "chip",
+            width: PICK_WIDTH,
+            height: 22,
+            text: if picked == "" { "—" } else { picked },
+            text_align: "start",
+            checked: open,
+            tooltip: "Pick the bone this canonical name means on this rig",
+            on_click: "handle",
+            data: { "fn": toggle_picker, "open": open, "name": name },
+        },
     ];
     if picked != "" {
-        controls.push(map()
-            .with("kind", "button")
-            .with("role", "chip_quiet")
-            .with("text", "×")
-            .with("tooltip", "Leave this row empty")
-            .with("on", "handle")
-            .with("data", map().with("fn", leave_row_empty).with("name", name)));
+        controls.push(ui::Control {
+            kind: "button",
+            role: "chip_quiet",
+            text: "×",
+            tooltip: "Leave this row empty",
+            on_click: "handle",
+            data: { "fn": leave_row_empty, "name": name },
+        });
     }
-    let out = [map().with("full", true).with("height", 24).with("controls", controls)];
+    let out: [ui::Row] = [ui::Row { height: 24, controls: controls }];
     if !open {
         return out;
     }
     for bone_path in paths {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = bone_path;
-        out.push(map()
-            .with("full", true)
-            .with("height", 20)
-            .with("controls", [
-                map().with("kind", "label").with("width", NAME_W).with("text", ""),
-                map()
-                    .with("kind", "button")
-                    .with("role", "chip")
-                    .with("width", PICK_W)
-                    .with("height", 20)
-                    .with("text", path)
-                    .with("text_align", "start")
-                    .with("checked", path == picked)
-                    .with("on", "handle")
-                    .with("data", map().with("fn", pick_bone_path).with("name", name).with("path", path)),
-            ]));
+        out.push(ui::Row {
+            height: 20,
+            controls: [
+                ui::Control { kind: "label", width: NAME_WIDTH, text: "" },
+                ui::Control {
+                    kind: "button",
+                    role: "chip",
+                    width: PICK_WIDTH,
+                    height: 20,
+                    text: path,
+                    text_align: "start",
+                    checked: path == picked,
+                    on_click: "handle",
+                    data: { "fn": pick_bone_path, "name": name, "path": path },
+                },
+            ],
+        });
     }
     out
 }
 
 fn toggle_picker(state: &mut editor::State, data: any, _value: any) {
-    let open: bool = data.open;
-    let name: str = data.name;
+    let open: bool = data["open"].as_bool();
+    let name: str = data["name"].as_str();
     state.bonemap.picking = if open { nil } else { name };
     signals::changed(state, "bonemap");
 }
 
 fn leave_row_empty(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data.name;
-    state.bonemap.bones.set(name, "");
+    let name: str = data["name"].as_str();
+    state.bonemap.bones[name] = "";
     signals::changed(state, "bonemap");
 }
 
 fn pick_bone_path(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data.name;
-    let path: str = data.path;
-    state.bonemap.bones.set(name, path);
+    let name: str = data["name"].as_str();
+    let path: str = data["path"].as_str();
+    state.bonemap.bones[name] = path;
     state.bonemap.picking = nil;
     signals::changed(state, "bonemap");
 }

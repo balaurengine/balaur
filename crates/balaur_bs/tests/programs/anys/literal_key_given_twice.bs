@@ -1,0 +1,3 @@
+pub fn f() -> any { { "a": 1, "a": 2 } }
+
+// error: 1:31: the key "a" is given twice

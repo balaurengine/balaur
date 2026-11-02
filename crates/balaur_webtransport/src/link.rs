@@ -15,7 +15,7 @@ use std::net::SocketAddr;
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use anyhow::{Context, Result};
-use balaur_core::transport::{Delivery, Received};
+use balaur_net::transport::{Delivery, Received};
 use web_transport_quinn::{Client, ClientBuilder, RecvStream, SendStream, ServerBuilder, Session};
 
 use crate::queue::{Commands, Queued};

@@ -1,6 +1,9 @@
-// Ship a run's log lines to Gamend in batches, as the Godot addon's
-// GamendLogs did. Functions over one `Sink`: `log_sink.bs` keeps it on its
-// node and pumps it each frame, and a game with its own loop can too.
+// Ship a run's log lines to Gamend in batches. Functions over one `Sink`:
+// `log_sink.bs` keeps it on its node, pumps it, and settles what it asked in a
+// `settle_reply` method; a game with its own loop writes the same.
+
+/// The method on the node given to `pump` that awaits a request.
+const SETTLE_REPLY: str = "settle_reply";
 
 const POLICY_PATH: str = "/api/v1/client_logs/policy";
 const INGEST_PATH: str = "/api/v1/client_logs";
@@ -92,7 +95,7 @@ pub fn setup(url: str) -> Sink {
         policy: 0,
         retry_in: 0.0,
         level: "info",
-        categories: map(),
+        categories: {},
         batch_max: 200,
         in_flight: 0,
         elapsed: 0.0,
@@ -178,7 +181,7 @@ pub fn flush(sink: &mut Sink, node: Node) -> bool {
 
 /// A reply to one of the sink's requests; false when it was someone else's.
 pub fn settle(sink: &mut Sink, reply: any) -> bool {
-    let request = reply.get("request").as_int();
+    let request = reply["request"].as_int();
     if sink.policy != 0 && request == sink.policy {
         sink.policy = 0;
         policy_came(sink, reply);
@@ -190,17 +193,17 @@ pub fn settle(sink: &mut Sink, reply: any) -> bool {
     sink.in_flight = 0;
     let batch = sink.sending;
     sink.sending = [];
-    let status = reply.get("status").as_int();
+    let status = reply["status"].as_int();
     if status >= 200 && status < 300 {
         // Written now, not on the next second: a run that quits after this
         // reply must not leave delivered lines to be sent again.
         spool(sink);
         sink.registered = true;
-        let counts = unwrap(parsed(reply.get("body")));
-        let accepted = if counts.has("accepted") { counts.get("accepted").as_int() } else { batch.len() };
+        let counts = unwrap(parsed(reply["body"]));
+        let accepted = if counts.has("accepted") { counts["accepted"].as_int() } else { batch.len() };
         sink.accepted += accepted;
         if counts.has("dropped") {
-            sink.dropped = counts.get("dropped").as_int();
+            sink.dropped = counts["dropped"].as_int();
         }
         sink.last_flush = "{status} · {accepted} lines";
         return true;
@@ -224,23 +227,24 @@ pub fn settle(sink: &mut Sink, reply: any) -> bool {
 
 /// How the sink is doing, as the Gamend dock shows it.
 pub fn report(sink: Sink) -> any {
-    map()
-        .with("shipping", sink.state)
-        .with("floor", sink.level)
-        .with("run", sink.run)
-        .with("pending", sink.pending.len())
-        .with("last flush", sink.last_flush)
-        .with("accepted", sink.accepted)
-        .with("dropped", sink.dropped)
+    {
+        "shipping": sink.state,
+        "floor": sink.level,
+        "run": sink.run,
+        "pending": sink.pending.len(),
+        "last flush": sink.last_flush,
+        "accepted": sink.accepted,
+        "dropped": sink.dropped,
+    }
 }
 
 /// The headers every call carries: the run's id, and the player's token
 /// once there is one, so an early line is adopted when the run signs in.
 pub fn headers(sink: Sink) -> any {
-    let out = map().with("content-type", "application/json").with("x-gamend-session", sink.run);
+    let out: any = { "content-type": "application/json", "x-gamend-session": sink.run };
     let session = gamend::session();
-    if session.is_some() && session.unwrap().access_token != "" {
-        out = out.with("authorization", "Bearer " + session.unwrap().access_token);
+    if session != nil && session.unwrap().access_token != "" {
+        out["authorization"] = "Bearer " + session.unwrap().access_token;
     }
     out
 }
@@ -248,13 +252,14 @@ pub fn headers(sink: Sink) -> any {
 fn ask_policy(sink: &mut Sink, node: Node) {
     sink.retry_in = RETRY;
     let url = sink.url + POLICY_PATH;
-    let opts = map().with("headers", headers(sink)).with("timeout_seconds", 10.0);
-    sink.policy = http::request(node, url, opts);
+    let opts: any = { "headers": headers(sink), "timeout_seconds": 10.0 };
+    sink.policy = http::request(url, opts);
+    node.call(SETTLE_REPLY, sink.policy);
 }
 
 fn policy_came(sink: &mut Sink, reply: any) {
-    let status = reply.get("status").as_int();
-    let policy = if status == 200 { parsed(reply.get("body")) } else { nil() };
+    let status = reply["status"].as_int();
+    let policy = if status == 200 { parsed(reply["body"]) } else { nil() };
     if policy.kind() != "map" {
         sink.state = "no policy ({describe(reply)}): asking again";
         return;
@@ -270,20 +275,20 @@ fn parsed(body: any) -> any {
 /// Every API answer carries its payload under `data`; a server from before
 /// that change sent it bare, so take either.
 fn unwrap(body: any) -> any {
-    if body.get("data").kind() == "map" { body.get("data") } else { body }
+    if body["data"].kind() == "map" { body["data"] } else { body }
 }
 
 /// What the server asked for: on or off, a level floor, per-category floors.
 pub fn apply_policy(sink: &mut Sink, policy: any) {
-    sink.enabled = policy.get("enabled").as_bool();
-    let level = policy.get("level");
+    sink.enabled = policy["enabled"].as_bool();
+    let level = policy["level"];
     sink.level = if level.kind() == "str" { level.as_str() } else { "info" };
-    let most = policy.get("batch_max");
+    let most = policy["batch_max"];
     sink.batch_max = if most.kind() == "int" && most.as_int() > 0 { most.as_int() } else { 200 };
-    let floors = map();
-    let categories = policy.get("categories");
+    let floors: any = {};
+    let categories = policy["categories"];
     for name in categories.keys() {
-        floors = floors.with(name, categories.get(name).text());
+        floors[name] = categories[name].text();
     }
     sink.categories = floors;
     if !sink.enabled {
@@ -328,7 +333,7 @@ fn take(sink: &mut Sink) -> bool {
 }
 
 fn wanted(sink: Sink, line: Line) -> bool {
-    let floor = sink.categories.get(line.category);
+    let floor = sink.categories[line.category];
     let at = if floor.kind() == "str" { floor.as_str() } else { sink.level };
     rank(line.level) >= rank(at)
 }
@@ -417,14 +422,17 @@ fn trim(sink: &mut Sink) {
 
 /// Post a batch: the request's id, or 0 when none went out.
 fn send(sink: Sink, node: Node, lines: [Line]) -> int {
-    let body = json::encode(map().with("session", session_payload(sink)).with("entries", rendered(lines)));
+    let body = json::encode({ "session": session_payload(sink), "entries": rendered(lines) });
     let url = sink.url + INGEST_PATH;
-    let opts = map()
-        .with("method", "POST")
-        .with("headers", headers(sink))
-        .with("body", body)
-        .with("timeout_seconds", 15.0);
-    http::request(node, url, opts)
+    let opts: any = {
+        "method": "POST",
+        "headers": headers(sink),
+        "body": body,
+        "timeout_seconds": 15.0,
+    };
+    let asked = http::request(url, opts);
+    node.call(SETTLE_REPLY, asked);
+    asked
 }
 
 /// Lines as the server takes them, a repeat folded into its message.
@@ -432,14 +440,15 @@ fn rendered(lines: [Line]) -> any {
     let list: [any] = [];
     for line in lines {
         let message = if line.repeat > 1 { "{line.message}  (x{line.repeat})" } else { line.message };
-        list.push(map()
-            .with("seq", line.seq)
-            .with("at", line.at)
-            .with("level", line.level)
-            .with("category", line.category)
-            .with("message", message)
-            .with("lobby_id", line.lobby_id)
-            .with("screen", line.screen));
+        list.push({
+            "seq": line.seq,
+            "at": line.at,
+            "level": line.level,
+            "category": line.category,
+            "message": message,
+            "lobby_id": line.lobby_id,
+            "screen": line.screen,
+        });
     }
     list
 }
@@ -447,18 +456,19 @@ fn rendered(lines: [Line]) -> any {
 /// The run described until a batch is accepted; its id alone after that.
 fn session_payload(sink: Sink) -> any {
     if sink.registered {
-        return map().with("client_session_id", sink.run);
+        return { "client_session_id": sink.run };
     }
     let host = engine::target();
     let platform = if host.web { "web" } else { host.os };
     let build = if host.dev { "debug" } else { "release" };
-    map()
-        .with("client_session_id", sink.run)
-        .with("device_id", engine::device_id())
-        .with("platform", platform)
-        .with("build", build)
-        .with("started_at", sink.started_at)
-        .with("meta", map().with("engine", "balaur").with("os", host.os))
+    {
+        "client_session_id": sink.run,
+        "device_id": engine::device_id(),
+        "platform": platform,
+        "build": build,
+        "started_at": sink.started_at,
+        "meta": { "engine": "balaur", "os": host.os },
+    }
 }
 
 /// Unsent lines written down, so a crash leaves them for the next launch.
@@ -476,36 +486,32 @@ fn spool(sink: &mut Sink) {
         forget_spool();
         return;
     }
-    save::write(SPOOL, map().with("entries", rendered(held)));
+    save::write(SPOOL, { "entries": rendered(held) });
 }
 
 fn forget_spool() {
-    for slot in save::slots() {
-        if slot == SPOOL {
-            save::remove(SPOOL);
-        }
-    }
+    // Not an error when it was never written.
+    save::remove(SPOOL);
 }
 
 /// The lines the last run spooled and never saw delivered.
 fn recovered() -> [Line] {
     let out: [Line] = [];
-    for slot in save::slots() {
-        if slot == SPOOL {
-            let entries = save::read(SPOOL).get("entries");
-            for i in 0..entries.len() {
-                let kept = entries.at(i);
-                out.push(Line {
-                    seq: kept.get("seq").as_int(),
-                    at: kept.get("at").as_float(),
-                    level: kept.get("level").text(),
-                    category: "recovered",
-                    message: kept.get("message").text(),
-                    lobby_id: kept.get("lobby_id").text(),
-                    screen: kept.get("screen").text(),
-                    repeat: 1,
-                });
-            }
+    let spool = save::read(SPOOL);
+    if spool.kind() == "map" {
+        let entries = spool["entries"];
+        for i in 0..entries.len() {
+            let kept = entries[i];
+            out.push(Line {
+                seq: kept["seq"].as_int(),
+                at: kept["at"].as_float(),
+                level: kept["level"].text(),
+                category: "recovered",
+                message: kept["message"].text(),
+                lobby_id: kept["lobby_id"].text(),
+                screen: kept["screen"].text(),
+                repeat: 1,
+            });
         }
     }
     forget_spool();
@@ -516,11 +522,11 @@ fn recovered() -> [Line] {
 fn previous_tail() -> [Line] {
     let out: [Line] = [];
     let path = log::file();
-    if path.is_none() {
+    if path == nil {
         return out;
     }
     let text = fs::read(path.unwrap().replace("run.log", "run.1.log"));
-    if text.is_none() {
+    if text == nil {
         return out;
     }
     let lines: [str] = [];
@@ -594,6 +600,6 @@ fn trimmed(url: str) -> str {
 }
 
 fn describe(reply: any) -> str {
-    let error = reply.get("error");
-    if error.kind() == "str" { error.as_str() } else { reply.get("status").text() }
+    let error = reply["error"];
+    if error.kind() == "str" { error.as_str() } else { reply["status"].text() }
 }

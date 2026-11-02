@@ -80,7 +80,7 @@ Lets one rig play another's clips: `[bones]` pairs canonical bone names with nod
 ```toml
 type = "bone_map"
 # profile = "animations/humanoid.toml"   # left out, the built-in humanoid profile
-# Used as animation.play(node, clip, { retarget = "maps/hero.toml" })
+# Used as node.animation.play(clip, { retarget = "maps/hero.toml" })
 
 [bones]
 Hips = "Armature/Hips"
@@ -185,7 +185,7 @@ features = ["smcp", "liga=0"]
 
 ### `heightfield`
 
-Files: `heightfields/`. Used by: `collider2d.heightfield`, `collider3d.heightfield`.
+Files: `heightfields/`. Used by: `collider2d.shape.heightfield.heightfield`, `collider3d.shape.heightfield.heightfield`.
 
 A grid of heights for terrain: `rows` by `columns` samples in `heights`, row-major, one value per grid point. `holes` lists cells with no ground, each as the `[row, column]` of its first corner; a 2D collider reads the heights as one line, and a hole there removes the segment starting at that point.
 
@@ -201,7 +201,7 @@ holes = [[1, 1]]
 
 ### `material`
 
-Files: `materials/`. Used by: `boolean2d.material`, `boolean3d.material`, `material.source`, `mesh.material`, `multimesh2d.material`, `multimesh3d.material`, `particles2d.material`, `particles3d.material`, `polygon.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `text2d.material`, `text3d.material`, `tilemap.material`.
+Files: `materials/`. Used by: `boolean2d.material`, `boolean3d.material`, `line2d.material`, `material.source`, `mesh.material`, `multimesh2d.material`, `multimesh3d.material`, `particles2d.material`, `particles3d.material`, `polygon.material`, `shape2d.material`, `shape3d.material`, `sprite.material`, `text2d.material`, `text3d.material`, `tilemap.material`.
 
 A shader and its values, or kiss3d's own surface and its values. `shader` names a `.wesl` file, `[features]` sets its `@if` flags, `[params]` fills its `Params` struct by field name. A material with no `shader` draws a 3D node with kiss3d's own material, and its `[params]` are that material's; on a 2D node it draws the built-in material, lit per pixel by every `light2d` when its `normal` slot names a normal map. Its `[surface]` is read in both dimensions: how a node blends, which sides draw and whether the scene hides it.
 
@@ -277,7 +277,7 @@ parallax_relief_steps = 8
 
 ### `mesh`
 
-Files: `models/`. Used by: `collider2d.mesh`, `collider3d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `shape2d.mesh`, `softbody2d.collision_mesh`, `softbody2d.mesh`, `softbody3d.collision_mesh`, `softbody3d.mesh`.
+Files: `models/`. Used by: `collider2d.shape.convex_decomposition.mesh`, `collider2d.shape.convex_hull.mesh`, `collider2d.shape.convex_polygon.mesh`, `collider2d.shape.fit.mesh`, `collider2d.shape.polyline.mesh`, `collider2d.shape.triangle_mesh.mesh`, `collider2d.shape.voxelized_mesh.mesh`, `collider2d.shape.voxelized_points.mesh`, `collider3d.shape.convex_decomposition.mesh`, `collider3d.shape.convex_hull.mesh`, `collider3d.shape.convex_mesh.mesh`, `collider3d.shape.fit.mesh`, `collider3d.shape.polyline.mesh`, `collider3d.shape.triangle_mesh.mesh`, `collider3d.shape.voxelized_mesh.mesh`, `collider3d.shape.voxelized_points.mesh`, `line2d.mesh`, `mesh.source`, `occluder2d.mesh`, `polygon.mesh`, `soft_collision2d.collision_mesh`, `soft_collision3d.collision_mesh`, `softbody2d.mesh`, `softbody3d.mesh`.
 
 Geometry for `mesh` properties: a `source` file, a primitive `kind`, or its own `positions` and `indices`. `skin`, `colors` and `morphs` add bone weights, vertex tints and blend shapes.
 
@@ -545,7 +545,7 @@ shadow_offset_y = 3.0
 
 ### `texture`
 
-Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.texture`, `shape3d.texture`, `sprite.texture`.
+Files: `textures/`. Used by: `boolean2d.texture`, `boolean3d.texture`, `line2d.texture`, `mesh.texture`, `multimesh2d.texture`, `multimesh3d.texture`, `particles2d.texture`, `particles3d.texture`, `polygon.texture`, `shape2d.texture`, `shape3d.texture`, `sprite.texture`.
 
 An image and the import settings it is read with. A texture property takes a plain image path, which reads the image with its sidecar; this is for one use of a picture that reads it differently. Any key the image's sidecar takes may be written here, and wins over it.
 
@@ -587,7 +587,7 @@ first_tile = 16
 
 ### `voxels`
 
-Files: `voxels/`. Used by: `collider2d.voxels`, `collider3d.voxels`.
+Files: `voxels/`. Used by: `collider2d.shape.voxels.voxels`, `collider3d.shape.voxels.voxels`.
 
 A voxel grid for a collider: `size` is one cell in world units, `cells` the filled coordinates. `physics3d.set_voxel` adds or removes a cell.
 
@@ -664,6 +664,11 @@ arrow = "art/folded.png"         # the header's arrow picture; the ▸ and ▾ g
 [fold.body]                      # the frame around what an open fold shows
 fill = "bg_panel"
 padding = 8.0
+
+[roles.card]                     # any table may carry a gradient and a shadow
+gradient = { kind = "linear", stops = ["primary_fill", "bg_panel"], angle = 90 }  # in place of fill; 0 runs left to right
+# kind = "radial" with center = [0.5, 0.5] and radius = 0.5 runs out from the middle; at = [0, 0.3, 1] places three stops
+shadow = { y = 2, blur = 8, spread = 0, color = "#00000040" }     # a blurred box under it; x too
 
 [roles.danger]                   # what a widget with role = "danger" takes
 fill = "danger_fill"

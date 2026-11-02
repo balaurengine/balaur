@@ -3,9 +3,18 @@
 //! moves it, so a game's camera control is a script's.
 
 use anyhow::{Result, bail};
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::derived::Enum;
 
-use crate::vocabulary::{keys as k, words as w};
+use crate::camera::Camera3d;
+use balaur_core::layers::Layer;
+
+/// How a `camera3d` projects.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum Projection {
+    Perspective,
+    /// Parallel lines that stay parallel.
+    Orthographic,
+}
 
 /// The 3D camera's lens, as `camera3d` states it. Angles are in degrees here;
 /// the backend hands kiss3d radians.
@@ -41,171 +50,52 @@ impl Default for Lens3d {
     }
 }
 
-fn number(params: &toml::Value, key: &str, default: f32) -> f32 {
-    params
-        .get(key)
-        .and_then(as_f64)
-        .map_or(default, |v| v as f32)
-}
-
-fn float(value: f32) -> toml::Value {
-    toml::Value::Float(f64::from(value))
-}
-
-/// The rows `camera3d` adds past `current`: how it projects, where it looks,
-/// the effects its frame resolves through, and what it draws.
-pub(crate) fn lens_schema() -> String {
-    let d = Lens3d::default();
-    let projections = crate::vocabulary::options(w::PROJECTIONS);
-    ComponentDef::schema(&[
-        (
-            k::PROJECTION,
-            &format!(
-                r#"{{ type = "enum", default = "{}", options = [{projections}], description = "Perspective, or parallel lines that stay parallel" }}"#,
-                w::PERSPECTIVE_PROJECTION
-            ),
-        ),
-        (
-            k::FOV_DEGREES,
-            &format!(
-                r#"{{ type = "float", default = {:.1}, min = 1.0, max = 179.0, description = "The vertical field of view; in orthographic, how much of the distance to the point looked at the frame covers" }}"#,
-                d.fov_degrees
-            ),
-        ),
-        (
-            k::LOOK_AT,
-            r#"{ type = "vec3", default = [0.0, 0.0, 0.0], description = "World point the camera looks at" }"#,
-        ),
-        (k::EFFECTS, &crate::post::effects_row()),
-        (
-            k::ORTHOGRAPHIC_HEIGHT,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The orthographic frame's full height in world units; zero sizes it from the distance to the point looked at and `fov_degrees`", group = "lens" }"#,
-        ),
-        (
-            k::NEAR,
-            &format!(
-                r#"{{ type = "float", default = {}, min = 0.000001, description = "The nearest distance drawn, in world units", group = "lens" }}"#,
-                d.near
-            ),
-        ),
-        (
-            k::FAR,
-            &format!(
-                r#"{{ type = "float", default = {:.1}, min = 0.000001, description = "The farthest distance drawn, in world units", group = "lens" }}"#,
-                d.far
-            ),
-        ),
-        (
-            k::UP,
-            r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "The direction the camera keeps up", group = "lens" }"#,
-        ),
-        (
-            k::EYE_SEPARATION,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "Above zero, a stereo pair this far apart in world units: one eye in each half of the frame, both converging on the point looked at. A stereo camera ignores `projection` and keeps +y up", group = "lens" }"#,
-        ),
-        (
-            k::RENDER_LAYERS,
-            &balaur_core::layers::row_of_all(
-                "The layers this camera draws: a node whose `render_layers` share one",
-                "layers",
-            ),
-        ),
-    ])
-}
-
-/// The lens a full `camera3d` table describes.
-pub(crate) fn lens_from_params(params: &toml::Value) -> Result<Lens3d> {
-    let d = Lens3d::default();
-    let up = params
-        .get(k::UP)
-        .and_then(toml::Value::as_array)
-        .map_or(d.up, |a| {
-            let at = |i: usize| a.get(i).and_then(as_f64).unwrap_or(0.0) as f32;
-            glamx::Vec3::new(at(0), at(1), at(2))
-        });
-    if up.length_squared() == 0.0 {
-        bail!("`{}` has no direction", k::UP);
+/// The lens `camera` states, held to what kiss3d can draw. A lens it
+/// cannot draw is refused, naming why.
+pub(crate) fn lens_of(camera: &Camera3d) -> Result<Lens3d> {
+    if camera.up.length_squared() == 0.0 {
+        bail!("`up` has no direction");
     }
-    let projection = params
-        .get(k::PROJECTION)
-        .and_then(toml::Value::as_str)
-        .unwrap_or(w::PERSPECTIVE_PROJECTION);
-    let orthographic = match projection {
-        w::PERSPECTIVE_PROJECTION => false,
-        w::ORTHOGRAPHIC_PROJECTION => true,
-        other => bail!(
-            "`{}` is one of {}, not `{other}`",
-            k::PROJECTION,
-            w::PROJECTIONS.join(", ")
-        ),
-    };
-    let near = number(params, k::NEAR, d.near);
-    let far = number(params, k::FAR, d.far);
+    let (near, far) = (camera.near, camera.far);
     if far <= near {
-        bail!("`{}` ({far}) has to be past `{}` ({near})", k::FAR, k::NEAR);
+        bail!("`far` ({far}) has to be past `near` ({near})");
     }
     Ok(Lens3d {
-        fov_degrees: number(params, k::FOV_DEGREES, d.fov_degrees).clamp(1.0, 179.0),
+        fov_degrees: camera.fov_degrees.clamp(1.0, 179.0),
         near,
         far,
-        orthographic,
-        orthographic_height: number(params, k::ORTHOGRAPHIC_HEIGHT, d.orthographic_height).max(0.0),
-        up: up.normalize(),
-        render_layers: params
-            .get(k::RENDER_LAYERS)
-            .map_or(d.render_layers, |layers| {
-                balaur_core::layers::bits(Some(layers), true)
-            }),
-        eye_separation: number(params, k::EYE_SEPARATION, d.eye_separation).max(0.0),
+        orthographic: camera.projection == Projection::Orthographic,
+        orthographic_height: camera.orthographic_height.max(0.0),
+        up: camera.up.normalize(),
+        render_layers: Layer::bits(&camera.render_layers, true),
+        eye_separation: camera.eye_separation.max(0.0),
     })
-}
-
-/// The lens read back, which `camera3d`'s `get` adds.
-pub(crate) fn lens_to_map(lens: &Lens3d, map: &mut toml::map::Map<String, toml::Value>) {
-    let projection = if lens.orthographic {
-        w::ORTHOGRAPHIC_PROJECTION
-    } else {
-        w::PERSPECTIVE_PROJECTION
-    };
-    map.insert(k::FOV_DEGREES.into(), float(lens.fov_degrees));
-    map.insert(k::NEAR.into(), float(lens.near));
-    map.insert(k::FAR.into(), float(lens.far));
-    map.insert(k::PROJECTION.into(), toml::Value::String(projection.into()));
-    map.insert(
-        k::ORTHOGRAPHIC_HEIGHT.into(),
-        float(lens.orthographic_height),
-    );
-    map.insert(
-        k::UP.into(),
-        toml::Value::Array(lens.up.to_array().map(float).to_vec()),
-    );
-    map.insert(
-        k::RENDER_LAYERS.into(),
-        balaur_core::layers::names(lens.render_layers),
-    );
-    map.insert(k::EYE_SEPARATION.into(), float(lens.eye_separation));
 }
 
 #[cfg(test)]
 mod tests {
+    use balaur_core::components::derived::from_table;
+
     use super::*;
 
+    fn camera(text: &str) -> Result<Camera3d> {
+        from_table(&toml::from_str(text)?)
+    }
+
     #[test]
-    fn an_empty_table_is_the_default_lens_and_reads_back_whole() {
-        let lens = lens_from_params(&toml::Value::Table(toml::map::Map::new())).unwrap();
-        assert_eq!(lens, Lens3d::default());
-        let mut map = toml::map::Map::new();
-        lens_to_map(&lens, &mut map);
-        assert_eq!(lens_from_params(&toml::Value::Table(map)).unwrap(), lens);
+    fn a_camera_at_its_defaults_has_the_default_lens() {
+        assert_eq!(lens_of(&Camera3d::default()).unwrap(), Lens3d::default());
     }
 
     #[test]
     fn a_lens_reads_every_row_it_states() {
-        let params: toml::Value = toml::from_str(
-            "fov_degrees = 70.0\nnear = 0.5\nfar = 50.0\nprojection = \"orthographic\"\nrender_layers = [\"1\", \"2\"]\neye_separation = 0.1",
+        let lens = lens_of(
+            &camera(
+                "fov_degrees = 70.0\nnear = 0.5\nfar = 50.0\nprojection = \"orthographic\"\nrender_layers = [\"1\", \"2\"]\neye_separation = 0.1",
+            )
+            .unwrap(),
         )
         .unwrap();
-        let lens = lens_from_params(&params).unwrap();
         assert!(
             [
                 lens.fov_degrees - 70.0,
@@ -223,9 +113,10 @@ mod tests {
     #[test]
     fn a_lens_refuses_what_it_cannot_draw() {
         let refused = |text: &str| {
-            lens_from_params(&toml::from_str(text).unwrap())
-                .unwrap_err()
-                .to_string()
+            let why = camera(text)
+                .and_then(|camera| lens_of(&camera))
+                .unwrap_err();
+            format!("{why:#}")
         };
         assert!(refused("near = 5.0\nfar = 1.0").contains("past"));
         assert!(refused("projection = \"fisheye\"").contains("fisheye"));

@@ -13,38 +13,6 @@ use kiss3d::resource::{PipelineCache, multisample_state};
 use kiss3d::scene::Blend2d;
 use kiss3d::wgpu;
 
-/// How a pipeline blends its colour over the target: straight alpha, which
-/// every 3D colour pass takes, or any of the fork's 2D modes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Blend {
-    Straight,
-    /// For a texture whose colour already carries its alpha: blending it
-    /// straight multiplies by the alpha twice and draws it dark.
-    Premultiplied,
-    Mode(Blend2d),
-}
-
-impl Blend {
-    /// The blend a 2D node asks for, as its `blend_mode` or its texture's
-    /// upload set it.
-    pub(crate) fn of_2d(blend: Blend2d) -> Self {
-        match blend {
-            Blend2d::Alpha => Self::Straight,
-            Blend2d::PremultipliedAlpha => Self::Premultiplied,
-            other => Self::Mode(other),
-        }
-    }
-
-    /// `None` for an opaque surface, which writes over what is there.
-    fn state(self) -> Option<wgpu::BlendState> {
-        match self {
-            Self::Straight => Some(wgpu::BlendState::ALPHA_BLENDING),
-            Self::Premultiplied => Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-            Self::Mode(mode) => mode.blend_state(),
-        }
-    }
-}
-
 /// Every 2D blend, in the order [`Pipelines2d`] keeps their pipelines.
 const BLENDS_2D: [Blend2d; 6] = [
     Blend2d::Alpha,
@@ -63,7 +31,7 @@ pub(crate) struct Pipelines2d {
 
 impl Pipelines2d {
     pub(crate) fn new(
-        build: impl Fn(Blend, Option<wgpu::Face>, u32) -> wgpu::RenderPipeline + 'static,
+        build: impl Fn(Blend2d, Option<wgpu::Face>, u32) -> wgpu::RenderPipeline + 'static,
     ) -> Self {
         let build = Rc::new(build);
         let caches = BLENDS_2D
@@ -71,9 +39,7 @@ impl Pipelines2d {
             .flat_map(|blend| [(*blend, None), (*blend, Some(wgpu::Face::Back))])
             .map(|(blend, cull)| {
                 let build = Rc::clone(&build);
-                PipelineCache::new(move |sample_count| {
-                    build(Blend::of_2d(blend), cull, sample_count)
-                })
+                PipelineCache::new(move |sample_count| build(blend, cull, sample_count))
             })
             .collect();
         Self { caches }
@@ -132,7 +98,8 @@ pub(crate) struct Raster {
     /// drop the triangle it flipped.
     pub(crate) cull: Option<wgpu::Face>,
     pub(crate) depth: Depth,
-    pub(crate) blend: Blend,
+    /// `Opaque` writes over what is there; 3D colour passes take `Alpha`.
+    pub(crate) blend: Blend2d,
 }
 
 /// One material's pipeline at one sample count.
@@ -161,7 +128,7 @@ pub(crate) fn material_pipeline(
             targets: &[Some(wgpu::ColorTargetState {
                 // The HDR rasterization target; the resolve pass tonemaps.
                 format: Context::render_format(),
-                blend: raster.blend.state(),
+                blend: raster.blend.blend_state(),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -304,37 +271,4 @@ pub(crate) fn prepass_pipeline(
         multiview_mask: None,
         cache: None,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Blend;
-    use kiss3d::scene::Blend2d;
-    use kiss3d::wgpu::BlendState;
-
-    #[test]
-    fn a_premultiplied_texture_is_blended_without_its_alpha_again() {
-        let premultiplied = Blend::of_2d(Blend2d::PremultipliedAlpha);
-        assert_eq!(
-            premultiplied.state(),
-            Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING)
-        );
-        assert_eq!(
-            Blend::of_2d(Blend2d::Alpha).state(),
-            Some(BlendState::ALPHA_BLENDING)
-        );
-    }
-
-    #[test]
-    fn every_2d_blend_mode_builds_its_own_state() {
-        assert_eq!(
-            Blend::of_2d(Blend2d::Additive).state(),
-            Blend2d::Additive.blend_state()
-        );
-        assert_eq!(
-            Blend::of_2d(Blend2d::Screen).state(),
-            Blend2d::Screen.blend_state()
-        );
-        assert_eq!(Blend::of_2d(Blend2d::Opaque).state(), None);
-    }
 }

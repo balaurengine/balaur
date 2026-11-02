@@ -77,7 +77,7 @@ pub(crate) fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()
     let mut app = balaur::standard_app(AppConfig::export(project_root))?;
     app.load_project()?;
     let root = app.engine.root();
-    let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), "Test", root);
+    let node = app.engine.spawn_node("Test", root);
     let host = app
         .engine
         .script_host()

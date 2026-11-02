@@ -3,7 +3,7 @@
 
 use anyhow::{Result, bail};
 use balaur_core::Engine;
-use balaur_core::transport::Transport;
+use balaur_net::transport::Transport;
 
 use crate::vocabulary::TransportKind;
 

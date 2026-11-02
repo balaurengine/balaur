@@ -1,0 +1,8 @@
+// One place is never handed to two `&mut` parameters of one call.
+
+pub struct I { n: int }
+fn two(a: &mut I, b: &mut I) {}
+pub struct E { a: I }
+pub fn f(e: E) { two(e.a, e.a); }
+
+// error: 6:28: `two` would change this twice: it is part of another `&mut` argument

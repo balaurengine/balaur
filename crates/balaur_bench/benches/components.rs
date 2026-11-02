@@ -7,7 +7,7 @@
 
 use balaur_bench::{Backend, Project, app, attach_many, script};
 use balaur_core::{Engine, components};
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use hecs::Entity;
 
@@ -156,7 +156,7 @@ fn seam_arg_cost(c: &mut Criterion) {
         let mut app = app(Backend::Bs, &project).unwrap();
         {
             let mut m = app.script_module("bench").unwrap();
-            let m: &mut dyn Bindings<Engine> = &mut *m;
+            let m: &mut Module<Engine> = &mut m;
             m.function_raw("take0", Box::new(|_, _| Ok(Value::Nil)));
             m.function_raw("take1", Box::new(|_, _| Ok(Value::Nil)));
             m.describe(&[

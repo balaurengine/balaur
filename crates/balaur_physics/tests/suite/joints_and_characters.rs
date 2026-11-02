@@ -55,10 +55,8 @@ parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "box"
-size = [4.0, 4.0, 4.0]
+shape = { kind = "box", size = [4.0, 4.0, 4.0] }
 sensor = true
-events = ["collision"]
 
 [[nodes]]
 id = "n_faller"
@@ -70,8 +68,7 @@ body3d = { kind = "dynamic" }
 position = [0.0, 6.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, seen: int, left: int, ticks: int }
 impl Scenario {
@@ -104,8 +101,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -118,8 +114,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -159,9 +154,7 @@ body3d = { kind = "static" }
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "box"
-size = [8.0, 0.4, 8.0]
-events = ["contact_force"]
+shape = { kind = "box", size = [8.0, 0.4, 8.0] }
 
 [[nodes]]
 id = "n_crate"
@@ -173,13 +166,12 @@ body3d = { kind = "dynamic" }
 position = [0.0, 3.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, hits: int, ticks: int }
 impl Scenario {
     pub fn on_contact_force(contact: any) {
-        if contact.get("force").as_float() > 0.0 && contact.get("other").as_node().name() == "Crate" {
+        if contact["force"].as_float() > 0.0 && contact["other"].as_node().name() == "Crate" {
             self.hits += 1;
         }
     }
@@ -210,8 +202,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -224,22 +215,23 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
 connected_body = "/World/Anchor"
 axis = [0.0, 0.0, 1.0]
 anchor = [-1.0, 0.0, 0.0]
+
+[nodes.breakable_joint3d]
 break_force = 0.001
 "#,
         r#"pub class Scenario { node: Node, broke: int, ticks: int }
 impl Scenario {
     pub fn on_joint_break(broke: any) {
-        let a = broke.get("a").as_node().name();
-        let b = broke.get("b").as_node().name();
-        if broke.get("force").as_float() > 0.001 && (a == "Anchor" || b == "Anchor") {
+        let a = broke["a"].as_node().name();
+        let b = broke["b"].as_node().name();
+        if broke["force"].as_float() > 0.001 && (a == "Anchor" || b == "Anchor") {
             self.broke += 1;
         }
     }
@@ -271,8 +263,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -285,8 +276,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [[nodes]]
 id = "n_link"
@@ -329,8 +319,7 @@ parent = "n_world"
 body2d = { kind = "static" }
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.2
+shape = { kind = "circle", radius = 0.2 }
 
 [[nodes]]
 id = "n_hanging"
@@ -343,8 +332,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.2
+shape = { kind = "circle", radius = 0.2 }
 
 [[nodes]]
 id = "n_link"
@@ -392,8 +380,7 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -407,8 +394,7 @@ parent = "n_world"
 body3d = { kind = "static" }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.2
+shape = { kind = "sphere", radius = 0.2 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
@@ -443,8 +429,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = { kind = "box", size = [1.0, 8.0, 16.0] }
 
 [[nodes]]
 id = "n_player"
@@ -453,9 +438,7 @@ parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = { kind = "capsule", radius = 0.4, height = 1.0 }
 
 [nodes.character3d]
 floor_snap_length = 0.0
@@ -487,7 +470,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
     use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
 
     let root = app.engine.root();
     let spawn = |name: &str, x: f32| -> Entity {
@@ -509,7 +492,7 @@ fn joints_and_shape_edits_survive_a_snapshot() {
             &app.engine,
             e,
             "collider3d",
-            Some(&toml::from_str("kind = \"sphere\"\nradius = 0.2").unwrap()),
+            Some(&toml::from_str("shape = { kind = \"sphere\", radius = 0.2 }").unwrap()),
         )
         .unwrap();
         e
@@ -520,10 +503,14 @@ fn joints_and_shape_edits_survive_a_snapshot() {
         &app.engine,
         hanging,
         "joint3d",
-        Some(
-            &toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nbreak_force = 500.0")
-                .unwrap(),
-        ),
+        Some(&toml::from_str("kind = \"hinge\"\nconnected_body = \"/Anchor\"").unwrap()),
+    )
+    .unwrap();
+    components::add(
+        &app.engine,
+        hanging,
+        "breakable_joint3d",
+        Some(&toml::from_str("break_force = 500.0").unwrap()),
     )
     .unwrap();
     let _ = anchor;
@@ -582,8 +569,7 @@ parent = "n_world"
 position = [0.0, -1.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [16.0, 1.0, 16.0]
+shape = { kind = "box", size = [16.0, 1.0, 16.0] }
 
 [[nodes]]
 id = "n_player"
@@ -595,9 +581,7 @@ script = { source = "scripts/scenario.bs" }
 position = [0.0, 1.0, 0.0]
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = { kind = "capsule", radius = 0.4, height = 1.0 }
 
 [nodes.character3d]
 "#,
@@ -644,8 +628,7 @@ script = { source = "scripts/scenario.bs" }
 rotation_euler = [0.0, 0.0, 1.5707963]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [2.0, 0.1]
+shape = { kind = "rectangle", size = [2.0, 0.1] }
 
 [nodes.character2d]
 floor_snap_length = 0.0
@@ -657,10 +640,10 @@ impl Scenario {
         self.ticks += 1;
         self.node.character2d.move_character(0.0, 0.0);
         if self.ticks == 30 {
-            let flat = physics2d::raycast(map().with("origin", [0.5, 3.0]).with("direction", [0.0, -1.0]).with("max_distance", 100.0));
-            if !flat.is_nil() { log::error("the character lay back down: a ray beside it still hits"); }
-            let upright = physics2d::raycast(map().with("origin", [0.0, 3.0]).with("direction", [0.0, -1.0]).with("max_distance", 100.0));
-            if upright.is_nil() { log::error("the character is not where the test thinks it is"); }
+            let flat = physics2d::raycast(physics2d::RayQuery { origin: vec2(0.5, 3.0), direction: vec2(0.0, -1.0), max_distance: 100.0 });
+            if flat != nil { log::error("the character lay back down: a ray beside it still hits"); }
+            let upright = physics2d::raycast(physics2d::RayQuery { origin: vec2(0.0, 3.0), direction: vec2(0.0, -1.0), max_distance: 100.0 });
+            if upright == nil { log::error("the character is not where the test thinks it is"); }
         }
     }
 }
@@ -687,8 +670,7 @@ parent = "n_world"
 position = [0.0, -10.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [16.0, 1.0, 16.0]
+shape = { kind = "box", size = [16.0, 1.0, 16.0] }
 
 [[nodes]]
 id = "n_faller"
@@ -701,8 +683,7 @@ script = { source = "scripts/scenario.bs" }
 position = [0.0, -8.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int, seen: int }
 impl Scenario {
@@ -711,7 +692,7 @@ impl Scenario {
         if self.ticks == 110 {
             for contact in self.node.collider3d.contacts() {
                 self.seen += 1;
-                let y = contact.get("point").at(1).as_float();
+                let y = contact["point"][1].as_float();
                 if y >= -8.0 { log::error("the contact point is in local space: y is {y}"); }
             }
             if self.seen <= 0 { log::error("the body never landed, so nothing was checked"); }

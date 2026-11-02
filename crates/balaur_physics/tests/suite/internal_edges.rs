@@ -55,9 +55,7 @@ id = "n_ground"
 name = "Ground"
 
 [nodes.collider3d]
-kind = "heightfield"
-heightfield = "#ground"
-{extra}
+shape = {{ kind = "heightfield", heightfield = "#ground"{extra} }}
 "##
     )
 }
@@ -70,8 +68,7 @@ id = "n_floor"
 name = "Floor"
 
 [nodes.collider2d]
-kind = "{kind}"
-mesh = "#floor"
+shape = {{ kind = "{kind}", mesh = "#floor" }}
 {extra}
 "##
     )
@@ -118,7 +115,7 @@ fn a_heightfield_fixes_its_internal_edges_unless_it_is_told_not_to() {
         "without the flag a body catches on the seam between two cells"
     );
     assert!(
-        !flags(heightfield_scene("fix_internal_edges = false"))
+        !flags(heightfield_scene(", fix_internal_edges = false"))
             .contains(HeightFieldFlags::FIX_INTERNAL_EDGES),
         "the key has to be able to turn it off"
     );
@@ -158,7 +155,11 @@ fn a_polyline_is_two_sided_until_it_is_asked_to_be_oriented() {
             "the winding decides which side is solid, so this one is opt-in"
         );
     }
-    let oriented = run(&mesh_scene_2d("polyline", "oriented = true"), "", 1);
+    let oriented = run(
+        &mesh_scene_2d("polyline", "\n[nodes.mesh_collider2d]\noriented = true"),
+        "",
+        1,
+    );
     let handle = only_collider_2d(&oriented);
     let state = oriented.engine.resource::<PhysicsState2d>();
     let state = state.borrow();
@@ -187,8 +188,7 @@ parent = "n_level"
 position = [0.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [8.0, 0.2]
+shape = { kind = "rectangle", size = [8.0, 0.2] }
 one_way = true
 
 [[nodes]]
@@ -204,8 +204,7 @@ position = [0.0, -2.0, 0.0]
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.3
+shape = { kind = "circle", radius = 0.3 }
 
 [[nodes]]
 id = "n_body_b"
@@ -220,8 +219,7 @@ position = [10.0, -2.0, 0.0]
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.3
+shape = { kind = "circle", radius = 0.3 }
 
 [[nodes]]
 id = "n_platform_b"
@@ -232,8 +230,7 @@ parent = "n_level"
 position = [10.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [8.0, 0.2]
+shape = { kind = "rectangle", size = [8.0, 0.2] }
 one_way = true
 "#;
 

@@ -11,13 +11,10 @@ in [components.md](./components.md).
 <thead><tr><th>hook</th><th>when</th></tr></thead>
 <tbody>
 <tr><td><code>init()</code></td><td>Once, when the script is attached and its scene has loaded.</td></tr>
-<tr><td><code>update(dt)</code></td><td>Every frame, with the seconds since the last; not while paused.</td></tr>
-<tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while paused.</td></tr>
+<tr><td><code>update(dt)</code></td><td>Every frame, with the seconds since the last; not while a pause or the node&#x27;s <code>process</code> mode holds it.</td></tr>
+<tr><td><code>fixed_update(dt)</code></td><td>Every fixed step, with the step&#x27;s length; not while a pause or the node&#x27;s <code>process</code> mode holds it.</td></tr>
 <tr><td><code>on_free()</code></td><td>Once, as the node is freed or its script detached.</td></tr>
 <tr><td><code>on_hot_reload()</code></td><td>After the script&#x27;s file changed and it was rebuilt, with its state kept.</td></tr>
-<tr><td><code>defaults()</code></td><td>When the instance is made, before the scene&#x27;s properties land.</td></tr>
-<tr><td><code>save_state()</code></td><td>When a rollback or a save snapshots the world; answers the state to keep.</td></tr>
-<tr><td><code>load_state(state)</code></td><td>When a rollback or a load puts that state back.</td></tr>
 <tr><td><code>on_pointer_enter()</code></td><td>The pointer came over the node.</td></tr>
 <tr><td><code>on_pointer_exit()</code></td><td>The pointer left the node.</td></tr>
 <tr><td><code>on_pointer_down(button)</code></td><td>A button went down over the node, then over every other node unless one answers <code>true</code>.</td></tr>
@@ -31,10 +28,10 @@ in [components.md](./components.md).
 <tr><td><code>on_action_released(name)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_scroll(dx, dy)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
 <tr><td><code>on_resize(width, height)</code></td><td>The window changed size, told to every node.</td></tr>
-<tr><td><code>on_widget_event(event, node, value)</code></td><td>A widget at or under the node had an event (<code>click</code>, <code>change</code>, <code>submit</code> and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it.</td></tr>
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>
+<tr><td><code>on_parked_changed(parked)</code></td><td>A <code>scene.switch</code> parked the script&#x27;s scene, or brought it back; nothing else reaches it between the two, and <code>init</code> does not run again, so coming back is where it catches up.</td></tr>
 <tr><td><code>on_focused_changed(focused)</code></td><td>The window came to the front or left it, told to every script.</td></tr>
 <tr><td><code>on_dark_mode_changed(dark)</code></td><td>The system switched dark mode, told to every script.</td></tr>
 <tr><td><code>on_quit_requested()</code></td><td>The window was asked to close; every script hears it, then the app goes.</td></tr>
@@ -45,7 +42,7 @@ in [components.md](./components.md).
 <tr><td><code>on_gamepad_connected(pad)</code></td><td>A gamepad was plugged in, with the id <code>input</code> names it by; told to every script.</td></tr>
 <tr><td><code>on_gamepad_disconnected(pad)</code></td><td>A gamepad went away, with its id; told to every script.</td></tr>
 <tr><td><code>on_gamepad_rumble_finished(pad)</code></td><td>A pad&#x27;s rumble ran its course, with the pad&#x27;s id, the frame after; not sent for one stopped or replaced. Told to every script.</td></tr>
-<tr><td><code>on_setting_changed(change)</code></td><td>A script set a setting, <code>#{ path, value }</code>; every script hears it the next frame.</td></tr>
+<tr><td><code>on_setting_changed(change)</code></td><td>A script set a setting, <code>{ path, value }</code>; every script hears it the next frame.</td></tr>
 <tr><td><code>on_locale_changed(locale)</code></td><td>The language changed; every script hears it the next frame.</td></tr>
 </tbody>
 </table>

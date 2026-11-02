@@ -23,8 +23,8 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
              [[nodes]]\nid = \"shown\"\nname = \"Shown\"\nparent = \"root\"\n\
              widget = {{ kind = \"label\", text = \"hi\", anchor = \"bottom_right\" }}\n\n\
              [[nodes]]\nid = \"form\"\nname = \"Form\"\nparent = \"root\"\n\
-             widget = {{ kind = \"inspector\", anchor = \"fill\", label_width = 80, \
-             target = \"Root{}\", component = \"{component}\", on_change = \"edited\"{extra} }}\n",
+             widget = {{ kind = \"inspector\", anchor = \"fill\", on_change = \"edited\"{extra} }}\n\
+             widget_inspector = {{ label_width = 80, target = \"Root{}\", component = \"{component}\" }}\n",
             if component == "widget" { "/Shown" } else { "" }
         ),
     )
@@ -36,9 +36,9 @@ impl Root {
     fn init() { self.depth = -1.0; }
     pub fn edited(edit: any) {
         self.edits += 1.0;
-        self.depth = edit.get(\"path\").len() as float;
-        let property = edit.get(\"property\");
-        let value = edit.get(\"value\");
+        self.depth = edit[\"path\"].len() as float;
+        let property = edit[\"property\"];
+        let value = edit[\"value\"];
         self.seen = \"{property} {value}\";
     }
 }
@@ -80,7 +80,7 @@ fn shown_rows(app: &App) -> usize {
         .unwrap_or_default();
     drop(world);
     kids.iter()
-        .filter(|row| prop(app, **row, "visible") == Some(toml::Value::Boolean(true)))
+        .filter(|row| crate::support::own_visible(app, **row))
         .count()
 }
 
@@ -117,7 +117,12 @@ fn an_inspector_draws_a_row_for_every_property_its_component_declares() {
             .map(|text| Some(toml::Value::String(text.into())))
     );
     assert_eq!(
-        prop(&app, control(&app, 0, 1), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 1),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(2.0))
     );
     assert_eq!(
@@ -153,7 +158,12 @@ fn an_edit_on_one_channel_reports_the_whole_vector_and_writes_nothing_itself() {
     // The script did not write it, so the node and the row keep what it was.
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
-        prop(&app, control(&app, 0, 1), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 1),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(2.0))
     );
 }
@@ -193,7 +203,12 @@ fn the_rows_follow_the_node_once_told_it_moved() {
     balaur_core::components::patch(&app.engine, root, "transform", &write.into()).unwrap();
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
-        prop(&app, control(&app, 0, 2), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 2),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(3.0)),
         "a pass read the component without being told"
     );
@@ -201,7 +216,12 @@ fn the_rows_follow_the_node_once_told_it_moved() {
     assert!(balaur_ui::reread(&app.engine, root, None, None));
     crate::support::pass(&app, &ctx, vec![]);
     assert_eq!(
-        prop(&app, control(&app, 0, 2), "value"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 2),
+            "widget_range",
+            "value"
+        ),
         Some(toml::Value::Float(9.0))
     );
 }
@@ -219,7 +239,10 @@ fn a_set_s_pill_reports_the_set_with_its_option_turned_round() {
     assert!(balaur_ui::click(&app.engine, top, false));
     app.tick(1.0 / 60.0);
     assert_eq!(number(&app, "edits"), Some(1.0));
-    assert_eq!(seen(&app).as_deref(), Some("safe_area [\"top\"]"));
+    assert_eq!(
+        seen(&app).as_deref(),
+        Some("safe_area [\"left\", \"right\", \"bottom\"]")
+    );
 }
 
 #[test]
@@ -270,10 +293,16 @@ fn an_inspector_a_script_pools_fills_and_draws_its_rows() {
 impl Root {
     fn update(dt: float) {
         self.path = scene::get_node(\"Root\").path();
-        let inspector = map().with(\"kind\", \"inspector\").with(\"grow\", 1).with(\"gap\", [2, 2])
-            .with(\"target\", self.path).with(\"component\", \"transform\").with(\"label_width\", 60.0)
-            .with(\"on\", \"edited\");
-        let rows: [any] = [map().with(\"full\", true).with(\"height\", 0).with(\"controls\", [inspector])];
+        let inspector: any = {
+            \"kind\": \"inspector\",
+            \"grow\": 1,
+            \"gap\": [2, 2],
+            \"target\": self.path,
+            \"component\": \"transform\",
+            \"label_width\": 60.0,
+            \"on_change\": \"edited\",
+        };
+        let rows: [any] = [{ \"height\": 0, \"controls\": [inspector] }];
         ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
     }
     pub fn edited(data: any, edit: any) { self.edits += 1.0; }
@@ -297,7 +326,10 @@ impl Root {
     );
     // `node.path()` starts with the root's own name, which `get_node` does not.
     let first = node(&app, "Root/Bar/R0/H/C/C0/R0/H/C/C0").expect("its first row's control");
-    assert_eq!(prop(&app, first, "value"), Some(toml::Value::Float(1.0)));
+    assert_eq!(
+        balaur_core::components::property(&app.engine, first, "widget_range", "value"),
+        Some(toml::Value::Float(1.0))
+    );
     let drawn = balaur_ui::widget_rect(first).expect("drawn");
     assert!(drawn.width() > 0.0 && drawn.height() > 0.0, "{drawn:?}");
     assert!(balaur_ui::edit(&app.engine, first, &Value::Num(4.0)));
@@ -329,13 +361,13 @@ fn a_slot_that_stops_being_an_inspector_takes_its_rows_with_it() {
         "pub class Root { node: Node, flipped: bool }
 impl Root {
     fn update(dt: float) {
-        let control = if self.flipped {
-            let labels: [any] = [map().with(\"kind\", \"label\").with(\"text\", \"a\"), map().with(\"kind\", \"label\").with(\"text\", \"b\")];
-            map().with(\"controls\", labels)
+        let control: any = if self.flipped {
+            let labels: [any] = [{ \"kind\": \"label\", \"text\": \"a\" }, { \"kind\": \"label\", \"text\": \"b\" }];
+            { \"controls\": labels }
         } else {
-            map().with(\"kind\", \"inspector\").with(\"grow\", 1).with(\"target\", \"Root\").with(\"component\", \"transform\")
+            { \"kind\": \"inspector\", \"grow\": 1, \"target\": \"Root\", \"component\": \"transform\" }
         };
-        let rows: [any] = [map().with(\"full\", true).with(\"height\", 0).with(\"controls\", [control])];
+        let rows: [any] = [{ \"height\": 0, \"controls\": [control] }];
         ui::fill_rows(\"Root/Bar\", rows, 60.0, false);
     }
     pub fn flip() { self.flipped = !self.flipped; }
@@ -383,5 +415,8 @@ impl Root {
     settle(&mut app, &ctx);
     assert_eq!(kids(&app), 4, "and back as an inspector, its rows again");
     let first = node(&app, "Root/Bar/R0/H/C/C0/R0/H/C/C0").expect("its first row's control");
-    assert_eq!(prop(&app, first, "value"), Some(toml::Value::Float(1.0)));
+    assert_eq!(
+        balaur_core::components::property(&app.engine, first, "widget_range", "value"),
+        Some(toml::Value::Float(1.0))
+    );
 }

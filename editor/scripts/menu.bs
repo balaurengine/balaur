@@ -15,21 +15,21 @@ use themewin;
 
 // A row, and the two columns the panel list runs in: seventeen panels down
 // one column is taller than the window the editor is asked to fit.
-const ROW_W: float = 216.0;
+const ROW_WIDTH: float = 216.0;
 
-const CELL_W: float = 108.0;
+const CELL_WIDTH: float = 108.0;
 
 /// The menu's rows, as the nodes the pool keeps under the mark. Filled once a
 /// pass; the menu node draws them in its popup when it is opened.
-pub fn rows(state: &mut editor::State) -> [any] {
-    let out = [
+pub fn rows(state: &mut editor::State) -> [ui::Control] {
+    let out: [ui::Control] = [
         action(icons::ui("search"), "Command palette", "⌘K", "palette"),
         action(icons::ui("settings"), "Settings", "⌘,", "settings"),
         action(icons::ui("dark"), "Theme", "", "theme"),
         action(icons::ui("export"), "Export", "⌘E", "export"),
         action(icons::ui("about"), "About Balaur", "", "about"),
         rule(),
-        map().with("kind", "label").with("role", "text_heading_menu").with("text", "PANELS").with("width", ROW_W),
+        ui::Control { kind: "label", role: "text_heading_menu", text: "PANELS", width: ROW_WIDTH },
     ];
     for pair in panel_pairs(state) {
         out.push(pair);
@@ -41,7 +41,7 @@ pub fn rows(state: &mut editor::State) -> [any] {
 
 // One of the menu's verbs, by the name its row carries.
 fn act(state: &mut editor::State, data: any, _value: any) {
-    let verb = data.verb.as_str();
+    let verb = data["verb"].as_str();
     if verb == "palette" {
         shell::open_palette(state, "");
     } else if verb == "settings" {
@@ -57,53 +57,53 @@ fn act(state: &mut editor::State, data: any, _value: any) {
     }
 }
 
-fn action(icon: str, label: str, key: str, verb: str) -> any {
-    let row = map()
-        .with("kind", "button")
-        .with("role", "item_menu")
-        .with("text", label)
-        .with("width", ROW_W)
-        .with("icon", icon)
-        .with("trailing", key);
-    pool::on(row, act, map().with("verb", verb))
+fn action(icon: str, label: str, key: str, verb: str) -> ui::Control {
+    let row: ui::Control = ui::Control {
+        kind: "button",
+        role: "item_menu",
+        text: label,
+        width: ROW_WIDTH,
+        icon: icon,
+        trailing: key,
+    };
+    pool::on(row, act, { "verb": verb })
 }
 
 // A rule the width of the menu: a bare one takes the width it is offered.
-fn rule() -> any {
-    map().with("kind", "separator").with("width", ROW_W)
+fn rule() -> ui::Control {
+    ui::Control { kind: "separator", width: ROW_WIDTH }
 }
 
 // Every panel, ticked where it is open, two to a line. Clicking one closes it
 // or puts it back in the dock it belongs to, and the menu stays up.
-fn panel_pairs(state: &mut editor::State) -> [any] {
+fn panel_pairs(state: &mut editor::State) -> [ui::Control] {
     let ids = docks::known(state);
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     let index = 0;
     while index < ids.len() {
-        let pair = [cell(state, ids[index])];
+        let pair: [ui::Control] = [cell(state, ids[index])];
         if index + 1 < ids.len() {
             pair.push(cell(state, ids[index + 1]));
         }
-        out.push(map().with("kind", "row").with("controls", pair));
+        out.push(ui::Control { kind: "row", controls: pair });
         index += 2;
     }
     out
 }
 
-fn cell(state: &mut editor::State, id: str) -> any {
-    let open = docks::side_of(state, id).is_some();
-    let row = map()
-        .with("kind", "button")
-        .with("role", if open { "item_menu" } else { "item_menu_quiet" })
-        // An em space where the tick would be: as wide as the glyph, so a shut
-        // panel's name starts where an open one's does.
-        .with("icon", if open { icons::ui("check") } else { " " })
-        .with("text", docks::name(state, id))
-        .with("width", CELL_W)
-        .with("keep_open", true);
-    pool::on(row, toggled, map().with("id", id))
+fn cell(state: &mut editor::State, id: str) -> ui::Control {
+    let open = docks::side_of(state, id) != nil;
+    let row: ui::Control = ui::Control {
+        kind: "button",
+        role: if open { "item_menu" } else { "item_menu_quiet" },
+        icon: if open { icons::ui("check") } else { " " },
+        text: docks::name(state, id),
+        width: CELL_WIDTH,
+        keep_open: true,
+    };
+    pool::on(row, toggled, { "id": id })
 }
 
 fn toggled(state: &mut editor::State, data: any, _value: any) {
-    docks::toggle(state, data.id.as_str());
+    docks::toggle(state, data["id"].as_str());
 }

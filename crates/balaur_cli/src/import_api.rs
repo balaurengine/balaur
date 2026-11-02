@@ -28,10 +28,10 @@ use anyhow::Result;
 use balaur::{Engine, Stage};
 #[cfg(feature = "import")]
 use balaur_core::task::{self, Progress, Stepped};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
-use crate::jobs::{Reported, Reporting, install_listen, pump};
+use crate::jobs::{Reported, Reporting, pump};
 
 /// How many files one slice of an import writes before giving the frame back.
 ///
@@ -102,6 +102,8 @@ fn count(n: usize) -> Value {
 }
 
 impl Reported for ImportEvent {
+    const EVENT: &'static str = "import_event";
+
     fn value(&self) -> Value {
         let mut pairs = vec![
             ("kind".into(), Value::Str(self.kind().into())),
@@ -159,23 +161,19 @@ impl AsMut<Reporting<ImportEvent>> for ImportState {
 }
 
 pub(crate) struct ImportPlugin {
-    manifest: balaur_plugin::Manifest,
     project: PathBuf,
 }
 
 impl ImportPlugin {
     #[must_use]
     pub(crate) fn new(project: PathBuf) -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("import", env!("CARGO_PKG_VERSION")),
-            project,
-        }
+        Self { project }
     }
 }
 
 impl balaur_plugin::Plugin for ImportPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "import"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -188,12 +186,12 @@ impl balaur_plugin::Plugin for ImportPlugin {
         // own First work.
         reg.add_system(Stage::First, pump::<ImportState, ImportEvent>);
         let mut m = reg.script_module("import")?;
-        install_import_api(&mut *m);
+        install_import_api(&mut m);
         Ok(())
     }
 }
 
-fn install_import_api(m: &mut dyn Bindings<Engine>) {
+fn install_import_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.",
     );
@@ -214,7 +212,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "start",
             &[],
             "(path: string, project: string?) -> bool",
-            "Import one file into the edited project, or into `project` when one is named, a few files per frame, reporting each to whatever `listen` named. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
+            "Import one file into the edited project, or into `project` when one is named, a few files per frame, each reported as the `import_event` event: `events::listen(node, \"import_event\")`, heard as `on_import_event`, as an import starts, writes each file, finishes or fails. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
             "running_count",
@@ -222,7 +220,6 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             "() -> int",
             "How many imports are in flight.",
         ),
-        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
         (
             "choose",
             &[],
@@ -255,10 +252,12 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
     );
     m.function("choose", |eng: &Engine, ()| Ok(Value::Bool(choose(eng))));
     m.function("cancel", |eng: &Engine, ()| {
-        eng.resource::<ImportState>()
-            .borrow()
-            .cancel
-            .store(true, Ordering::Relaxed);
+        let state = eng.resource::<ImportState>();
+        let state = state.borrow();
+        // With nothing running, the press would stop the next job instead.
+        if state.running.load(Ordering::Relaxed) > 0 {
+            state.cancel.store(true, Ordering::Relaxed);
+        }
         Ok(Value::Nil)
     });
     m.function("running_count", |eng: &Engine, ()| {
@@ -269,11 +268,7 @@ fn install_import_api(m: &mut dyn Bindings<Engine>) {
             .load(Ordering::Relaxed);
         Ok(count(running))
     });
-    install_listen::<ImportState, ImportEvent>(m, "on_import_event");
 }
-
-/// What `listen` is documented as.
-const LISTEN_DOC: &str = "Have the node's `on_import_event(event)`, or the `on_event` method the options name, called as an import starts, writes each file, finishes or fails.";
 
 /// Ask for a file and import it. A desktop dialog answers with a path, so
 /// this is the picker and `start`; a tab's chooser answers on an event, so
@@ -499,7 +494,10 @@ impl ImportJob {
     fn over(&mut self, event: ImportEvent) -> Progress {
         // Let go first: on a thread, the tick may read the count as soon as
         // the end arrives. Counted up once when the job was made.
-        self.running.fetch_sub(1, Ordering::Relaxed);
+        // The last job out takes a press nothing read with it.
+        if self.running.fetch_sub(1, Ordering::Relaxed) == 1 {
+            self.cancel.store(false, Ordering::Relaxed);
+        }
         balaur_core::replay::report(&self.report, event);
         self.state = JobState::Over;
         Progress::Done

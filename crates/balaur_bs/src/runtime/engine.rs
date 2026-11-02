@@ -64,6 +64,11 @@ pub(crate) trait Wasm {
         Err(format!("{key}: this script is not built as units"))
     }
     fn read(&self, at: usize, len: usize) -> Vec<u8>;
+    /// `out.len()` bytes at `at` into `out`, zeros past the end: the read a
+    /// word of the module's memory wants, allocating nothing.
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        out.copy_from_slice(&self.read(at, out.len()));
+    }
     fn memory_len(&self) -> usize;
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
@@ -91,6 +96,10 @@ pub(crate) trait Wasm {
     fn resume(&mut self) -> Result<Outcome, String> {
         Err("this engine cannot carry on a parked call".into())
     }
+    /// Whether a native build runs it.
+    fn native(&self) -> bool {
+        false
+    }
 }
 
 /// How a resumable call came back.
@@ -106,6 +115,10 @@ pub(crate) enum Outcome {
 /// The module, as a host function sees it while it runs.
 pub(crate) trait ImportCtx {
     fn read(&self, at: usize, len: usize) -> Vec<u8>;
+    /// [`Wasm::read_into`], as a host function sees the module.
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        out.copy_from_slice(&self.read(at, out.len()));
+    }
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
     fn set_global(&mut self, name: &str, value: i32);
@@ -145,6 +158,14 @@ pub(crate) trait ImportCtx {
     }
 }
 
+/// `data[at..]` into `out`, or zeros where `data` ends first.
+pub(crate) fn copy_from(data: &[u8], at: usize, out: &mut [u8]) {
+    match data.get(at..at + out.len()) {
+        Some(bytes) => out.copy_from_slice(bytes),
+        None => out.fill(0),
+    }
+}
+
 /// Reads past the end of memory come back as zeros, as an unwritten slot would.
 #[cfg(any(feature = "wasmi", native, jit))]
 pub(crate) fn read_from(data: &[u8], at: usize, len: usize) -> Vec<u8> {
@@ -179,12 +200,27 @@ pub(crate) struct Setup<'a> {
     pub fuel: Option<u64>,
     pub memory_bytes: Option<usize>,
     /// A unit's file key and the units of the modules it uses.
+    #[cfg_attr(
+        not(any(jit, native, feature = "wasmi")),
+        allow(dead_code, reason = "only an engine that links units reads it")
+    )]
     pub key: &'a str,
+    #[cfg_attr(
+        not(any(jit, native, feature = "wasmi")),
+        allow(dead_code, reason = "only an engine that links units reads them")
+    )]
     pub linked: &'a [(String, std::sync::Arc<crate::Compiled>)],
+    /// Whether a loaded native build may run it ([`super::Limits::skip_native`]).
+    #[cfg_attr(
+        not(native),
+        allow(dead_code, reason = "only a build that loads native code reads it")
+    )]
+    pub native: bool,
 }
 
 /// Where each unit of a linked script puts its static data, its own first,
 /// then `linked`'s in order; and where its heap starts after them all.
+#[cfg(any(jit, native, feature = "wasmi"))]
 pub(crate) fn unit_layout(
     meta: &Meta,
     linked: &[(String, std::sync::Arc<crate::Compiled>)],
@@ -209,8 +245,18 @@ pub(crate) fn unit_layout(
     )
 )]
 pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
-    // A unit links with the units it uses, which wasmtime and wasmi do.
+    // A unit links with the units it uses: natively when a loaded build has
+    // every one, else on wasmtime or wasmi.
     if setup.meta.unit.is_some() {
+        #[cfg(native)]
+        if setup.native && matches!(kind, EngineKind::Auto | EngineKind::Native) {
+            if super::native_engine::has_units(&setup) {
+                return super::native_engine::instantiate_linked(setup);
+            }
+            if kind == EngineKind::Native {
+                return Err("no loaded native build has every unit of this script".into());
+            }
+        }
         return match kind {
             #[cfg(jit)]
             EngineKind::Wasmtime | EngineKind::Auto => super::wasmtime_engine::instantiate(&setup),
@@ -228,7 +274,7 @@ pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn 
     }
     // A native build beats every engine, when one has this module.
     #[cfg(native)]
-    if matches!(kind, EngineKind::Auto | EngineKind::Native) {
+    if setup.native && matches!(kind, EngineKind::Auto | EngineKind::Native) {
         if let Some(module) = super::native_engine::find(setup.wasm) {
             return super::native_engine::instantiate(module, setup);
         }

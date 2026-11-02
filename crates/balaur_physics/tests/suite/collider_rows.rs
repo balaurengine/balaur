@@ -14,7 +14,7 @@ use crate::boot::{self, Booted, entry, float, floats, number};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -61,7 +61,7 @@ fn a_capsule_lies_along_its_up_axis_or_runs_between_its_ends() {
         "AlongX",
         &[(
             "collider3d",
-            "kind = \"capsule\"\nradius = 0.5\nheight = 3.0\nup_axis = \"x\"",
+            "shape = { kind = \"capsule\", radius = 0.5, height = 3.0, up_axis = \"x\" }",
         )],
     );
     let ends = node_with(
@@ -69,19 +69,22 @@ fn a_capsule_lies_along_its_up_axis_or_runs_between_its_ends() {
         "Ends",
         &[(
             "collider3d",
-            "kind = \"capsule\"\nradius = 0.25\nheight = 0.0\na = [0.0, 0.0, 0.0]\nb = [0.0, 1.0, 1.0]",
+            "shape = { kind = \"capsule\", radius = 0.25, height = 0.0, a = [0.0, 0.0, 0.0], b = [0.0, 1.0, 1.0] }",
         )],
     );
     let segment = collider3d(&app, along_x, |c| c.shape().as_capsule().unwrap().segment);
     assert_eq!((segment.a.x, segment.b.x), (-1.0, 1.0), "{segment:?}");
     let back = components::get(&app.engine, along_x, "collider3d").unwrap();
-    assert_eq!(back.get("up_axis").and_then(toml::Value::as_str), Some("x"));
-    assert!((float(&back, "height") - 3.0).abs() < 1e-5);
+    assert_eq!(
+        back["shape"].get("up_axis").and_then(toml::Value::as_str),
+        Some("x")
+    );
+    assert!((float(&back["shape"], "height") - 3.0).abs() < 1e-5);
     let segment = collider3d(&app, ends, |c| c.shape().as_capsule().unwrap().segment);
     assert_eq!(segment.b.to_array(), [0.0, 1.0, 1.0]);
     let back = components::get(&app.engine, ends, "collider3d").unwrap();
-    assert_eq!(float(&back, "height"), 0.0);
-    assert_eq!(floats(&back, "b"), [0.0, 1.0, 1.0]);
+    assert_eq!(float(&back["shape"], "height"), 0.0);
+    assert_eq!(floats(&back["shape"], "b"), [0.0, 1.0, 1.0]);
 }
 
 #[test]
@@ -96,7 +99,7 @@ fn a_2d_capsule_lies_along_x_or_runs_between_its_ends() {
         "AlongX",
         &[(
             "collider2d",
-            "kind = \"capsule\"\nradius = 0.5\nheight = 3.0\nup_axis = \"x\"",
+            "shape = { kind = \"capsule\", radius = 0.5, height = 3.0, up_axis = \"x\" }",
         )],
     );
     let ends = node_with(
@@ -104,17 +107,20 @@ fn a_2d_capsule_lies_along_x_or_runs_between_its_ends() {
         "Ends",
         &[(
             "collider2d",
-            "kind = \"capsule\"\nheight = 0.0\na = [0.0, 0.0]\nb = [2.0, 1.0]",
+            "shape = { kind = \"capsule\", height = 0.0, a = [0.0, 0.0], b = [2.0, 1.0] }",
         )],
     );
     let segment = collider2d(&app, along_x, |c| c.shape().as_capsule().unwrap().segment);
     assert_eq!((segment.a.x, segment.b.x), (-1.0, 1.0));
     let back = components::get(&app.engine, along_x, "collider2d").unwrap();
-    assert_eq!(back.get("up_axis").and_then(toml::Value::as_str), Some("x"));
+    assert_eq!(
+        back["shape"].get("up_axis").and_then(toml::Value::as_str),
+        Some("x")
+    );
     let segment = collider2d(&app, ends, |c| c.shape().as_capsule().unwrap().segment);
     assert_eq!(segment.b.to_array(), [2.0, 1.0]);
     let back = components::get(&app.engine, ends, "collider2d").unwrap();
-    assert_eq!(floats(&back, "b"), [2.0, 1.0]);
+    assert_eq!(floats(&back["shape"], "b"), [2.0, 1.0]);
 }
 
 /// A cube's corners and outward triangles, `half` from its centre to a face.
@@ -184,19 +190,19 @@ fn edge_radius_rounds_the_convex_kinds_and_convex_mesh_takes_the_mesh_as_given()
         &[
             (
                 "Hull",
-                "collider3d = { kind = \"convex_hull\", mesh = \"#cube\", edge_radius = 0.1 }",
+                "collider3d = { shape = { kind = \"convex_hull\", mesh = \"#cube\", edge_radius = 0.1 } }",
             ),
             (
                 "Mesh",
-                "collider3d = { kind = \"convex_mesh\", mesh = \"#cube\" }",
+                "collider3d = { shape = { kind = \"convex_mesh\", mesh = \"#cube\" } }",
             ),
             (
                 "RoundMesh",
-                "collider3d = { kind = \"convex_mesh\", mesh = \"#cube\", edge_radius = 0.1 }",
+                "collider3d = { shape = { kind = \"convex_mesh\", mesh = \"#cube\", edge_radius = 0.1 } }",
             ),
             (
                 "Pieces",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", edge_radius = 0.1, max_convex_hulls = 1 }",
+                "collider3d = { shape = { kind = \"convex_decomposition\", mesh = \"#cube\", edge_radius = 0.1 } }\nconvex_decomposition3d = { max_convex_hulls = 1 }",
             ),
         ],
     );
@@ -241,15 +247,15 @@ fn the_vhacd_keys_and_method_shape_a_3d_decomposition() {
         &[
             (
                 "Fine",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\" }",
+                "collider3d = { shape = { kind = \"convex_decomposition\", mesh = \"#cube\" } }",
             ),
             (
                 "One",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", max_concavity = 1.0, max_convex_hulls = 1, resolution = 16, symmetry_bias = 0.1, revolution_bias = 0.1, plane_downsampling = 2, hull_downsampling = 2, approximate_hulls = false }",
+                "collider3d = { shape = { kind = \"convex_decomposition\", mesh = \"#cube\" } }\nconvex_decomposition3d = { max_concavity = 1.0, max_convex_hulls = 1, resolution = 16, symmetry_bias = 0.1, revolution_bias = 0.1, plane_downsampling = 2, hull_downsampling = 2, approximate_hulls = false }",
             ),
             (
                 "Voxels",
-                "collider3d = { kind = \"convex_decomposition\", mesh = \"#cube\", method = \"voxels\", resolution = 8 }",
+                "collider3d = { shape = { kind = \"convex_decomposition\", mesh = \"#cube\" } }\nconvex_decomposition3d = { method = \"voxels\", resolution = 8 }",
             ),
         ],
     );
@@ -278,7 +284,7 @@ fn the_vhacd_keys_and_method_shape_a_3d_decomposition() {
         voxels,
         "method = voxels built something other than voxel parts"
     );
-    let back = b.get(b.node("World/One"), "collider3d");
+    let back = b.get(b.node("World/One"), "convex_decomposition3d");
     assert_eq!(float(&back, "max_convex_hulls"), 1.0);
     assert_eq!(
         back.get("approximate_hulls").and_then(toml::Value::as_bool),
@@ -298,15 +304,15 @@ fn voxel_size_resizes_an_asset_and_sizes_voxelized_points() {
         &[
             (
                 "Grid",
-                "collider3d = { kind = \"voxels\", voxels = \"#cells\", voxel_size = 0.5 }",
+                "collider3d = { shape = { kind = \"voxels\", voxels = \"#cells\", voxel_size = 0.5 } }",
             ),
             (
                 "Own",
-                "collider3d = { kind = \"voxels\", voxels = \"#cells\" }",
+                "collider3d = { shape = { kind = \"voxels\", voxels = \"#cells\" } }",
             ),
             (
                 "Points",
-                "collider3d = { kind = \"voxelized_points\", mesh = \"#cube\", voxel_size = 0.5 }",
+                "collider3d = { shape = { kind = \"voxelized_points\", mesh = \"#cube\", voxel_size = 0.5 } }",
             ),
         ],
     );
@@ -335,11 +341,11 @@ fn fill_cavities_leaves_a_walled_off_hollow_empty() {
         &[
             (
                 "Filled",
-                "collider3d = { kind = \"voxelized_mesh\", mesh = \"#hollow\", voxel_size = 0.25 }",
+                "collider3d = { shape = { kind = \"voxelized_mesh\", mesh = \"#hollow\", voxel_size = 0.25 } }",
             ),
             (
                 "Hollow",
-                "collider3d = { kind = \"voxelized_mesh\", mesh = \"#hollow\", voxel_size = 0.25, fill_cavities = true }",
+                "collider3d = { shape = { kind = \"voxelized_mesh\", mesh = \"#hollow\", voxel_size = 0.25 } }\nmesh_collider3d = { fill_cavities = true }",
             ),
         ],
     );
@@ -377,23 +383,23 @@ fn the_triangle_mesh_cleanup_keys_reach_the_mesh() {
         &[
             (
                 "Raw",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false }",
+                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false } }\nmesh_collider3d = { merge_vertices = false, drop_degenerate_triangles = false, drop_duplicate_triangles = false }",
             ),
             (
                 "Merged",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false, merge_vertices = true }",
+                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false } }\nmesh_collider3d = { merge_vertices = true }",
             ),
             (
                 "Deduped",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false, drop_duplicate_triangles = true }",
+                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\", fix_internal_edges = false } }\nmesh_collider3d = { drop_duplicate_triangles = true }",
             ),
             (
                 "Topology",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", topology = true, connected_components = true, drop_bad_topology = true, drop_degenerate_triangles = true }",
+                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\" } }\nmesh_collider3d = { topology = true, connected_components = true, drop_bad_topology = true, drop_degenerate_triangles = true }",
             ),
             (
                 "TwoSided",
-                "collider3d = { kind = \"triangle_mesh\", mesh = \"#quad\", two_sided_edges = true }",
+                "collider3d = { shape = { kind = \"triangle_mesh\", mesh = \"#quad\", two_sided_edges = true } }",
             ),
         ],
     );
@@ -430,7 +436,7 @@ fn the_triangle_mesh_cleanup_keys_reach_the_mesh() {
             balaur_physics::rapier3d::prelude::TriMeshFlags::FIX_INTERNAL_EDGES_TWO_SIDED
         )
     );
-    let back = b.get(b.node("World/Merged"), "collider3d");
+    let back = b.get(b.node("World/Merged"), "mesh_collider3d");
     assert_eq!(
         back.get("merge_vertices").and_then(toml::Value::as_bool),
         Some(true)
@@ -448,11 +454,11 @@ fn a_polyline_takes_every_edge_of_its_mesh_when_asked() {
         &[
             (
                 "Chain",
-                "collider3d = { kind = \"polyline\", mesh = \"#quad\" }",
+                "collider3d = { shape = { kind = \"polyline\", mesh = \"#quad\" } }",
             ),
             (
                 "Edges",
-                "collider3d = { kind = \"polyline\", mesh = \"#quad\", edges = \"mesh\" }",
+                "collider3d = { shape = { kind = \"polyline\", mesh = \"#quad\", edges = \"mesh\" } }",
             ),
         ],
     );
@@ -489,7 +495,7 @@ fn a_heightfield_loses_its_asset_holes_and_the_ones_a_script_cuts() {
             HOLED,
             &[(
                 "Ground",
-                "collider3d = { kind = \"heightfield\", heightfield = \"#ground\" }",
+                "collider3d = { shape = { kind = \"heightfield\", heightfield = \"#ground\" } }",
             )],
         )
         .replace(
@@ -537,7 +543,7 @@ fn a_2d_heightfield_loses_the_segments_its_holes_name() {
             HOLED,
             &[(
                 "Ground",
-                "collider2d = { kind = \"heightfield\", heightfield = \"#ground\" }",
+                "collider2d = { shape = { kind = \"heightfield\", heightfield = \"#ground\" } }",
             )],
         )
         .replace(
@@ -586,7 +592,7 @@ fn a_collider_states_its_own_mass_properties() {
         "Stated",
         &[(
             "collider3d",
-            "kind = \"box\"\nmass = 2.0\ncenter_of_mass = [0.0, 1.0, 0.0]\ninertia = [1.0, 2.0, 3.0]\ninertia_rotation = [0.5, 0.0, 0.0]",
+            "shape = { kind = \"box\" }\nmass = 2.0\ncenter_of_mass = [0.0, 1.0, 0.0]\ninertia = [1.0, 2.0, 3.0]\ninertia_rotation = [0.5, 0.0, 0.0]",
         )],
     );
     let shifted = node_with(
@@ -594,7 +600,7 @@ fn a_collider_states_its_own_mass_properties() {
         "Shifted",
         &[(
             "collider3d",
-            "kind = \"box\"\nmass = 2.0\ncenter_of_mass = [0.0, 1.0, 0.0]",
+            "shape = { kind = \"box\" }\nmass = 2.0\ncenter_of_mass = [0.0, 1.0, 0.0]",
         )],
     );
     let props = collider3d(
@@ -636,12 +642,13 @@ fn a_collider_of_density_zero_adds_no_mass_and_says_so() {
         "Body",
         &[
             ("body3d", "kind = \"dynamic\""),
-            ("collider3d", "kind = \"box\""),
+            ("collider3d", "shape = { kind = \"box\" }"),
         ],
     );
     let ghost = scene::spawn_node(&mut app.engine.world_mut(), "Ghost", body);
     let params: toml::Value =
-        toml::from_str("kind = \"box\"\nsize = [4.0, 4.0, 4.0]\ndensity = 0.0").unwrap();
+        toml::from_str("shape = { kind = \"box\", size = [4.0, 4.0, 4.0] }\ndensity = 0.0")
+            .unwrap();
     components::add(&app.engine, ghost, "collider3d", Some(&params)).unwrap();
     app.tick(1.0 / 60.0);
     let mass = {
@@ -669,7 +676,7 @@ fn restitution_may_exceed_one() {
         "Bouncy",
         &[(
             "collider3d",
-            "kind = \"sphere\"\nphysics_material = { restitution = 1.5 }",
+            "shape = { kind = \"sphere\" }\nphysics_material = { restitution = 1.5 }",
         )],
     );
     assert_eq!(
@@ -694,7 +701,7 @@ fn either_layer_test_lets_one_side_accept_the_pair() {
             &[(
                 "collider3d",
                 &format!(
-                    "kind = \"box\"\nsize = [10.0, 1.0, 10.0]\ncollision_mask = [\"2\"]\ncollision_test = \"{test}\""
+                    "shape = {{ kind = \"box\", size = [10.0, 1.0, 10.0] }}\ncollision_mask = [\"2\"]\ncollision_test = \"{test}\""
                 ),
             )],
         );
@@ -705,7 +712,9 @@ fn either_layer_test_lets_one_side_accept_the_pair() {
                 ("body3d", "kind = \"dynamic\""),
                 (
                     "collider3d",
-                    &format!("kind = \"sphere\"\nradius = 0.5\ncollision_test = \"{test}\""),
+                    &format!(
+                        "shape = {{ kind = \"sphere\", radius = 0.5 }}\ncollision_test = \"{test}\""
+                    ),
                 ),
             ],
         );
@@ -753,7 +762,7 @@ id = "n_part"
 name = "Part"
 parent = "n_body"
 script = { source = "scripts/scenario.bs" }
-collider3d = { kind = "box", mass = 3.0, collision_margin = 0.1 }
+collider3d = { shape = { kind = "box" }, mass = 3.0, collision_margin = 0.1 }
 transform = { position = [1.0, 0.0, 0.0] }
 "#,
         r"pub class Scenario { node: Node }
@@ -801,7 +810,7 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-collider3d = { kind = "box", size = [10.0, 1.0, 10.0] }
+collider3d = { shape = { kind = "box", size = [10.0, 1.0, 10.0] } }
 
 [[nodes]]
 id = "n_crate"
@@ -809,15 +818,15 @@ name = "Crate"
 parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic" }
-collider3d = { kind = "box", events = ["contact_force"] }
+collider3d = { shape = { kind = "box" } }
 transform = { position = [0.0, 1.0, 0.0] }
 "#,
         r#"pub class Scenario { node: Node }
 impl Scenario {
     pub fn on_contact_force(contact: any) {
-        scene::set_variable("max_force", contact.get("max_force"));
-        scene::set_variable("total_y", contact.get("total_force").at(1));
-        if contact.get("started").as_bool() {
+        scene::set_variable("max_force", contact["max_force"]);
+        scene::set_variable("total_y", contact["total_force"][1]);
+        if contact["started"].as_bool() {
             scene::set_variable("started", scene::variable("started").as_int() + 1);
         }
     }

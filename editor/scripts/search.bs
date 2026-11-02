@@ -7,26 +7,27 @@ use editor;
 /// A search control a pooled strip holds, rather than one drawn: the same
 /// state under the same `id`, so `query` answers for either. Its edit comes
 /// back to the Editor's `search_typed` with the `id` it carries.
-pub fn control(state: editor::State, id: str, placeholder: str, width: float) -> any {
-    map()
-        .with("kind", "text_field")
-        .with("role", "input_dock")
-        .with("width", width)
-        .with("text", query(state, id))
-        .with("placeholder", placeholder)
-        .with("on", "search_typed")
-        .with("data", id)
+pub fn control(state: editor::State, id: str, placeholder: str, width: float) -> ui::Control {
+    ui::Control {
+        kind: "text_field",
+        role: "input_dock",
+        width: width,
+        text: query(state, id),
+        placeholder: placeholder,
+        on_change: "search_typed",
+        data: id,
+    }
 }
 
 /// What a search control's edit writes: the query under its `id`.
 pub fn typed(state: &mut editor::State, id: str, text: str) {
-    state.search.set(id, text);
+    state.search[id] = text;
 }
 
 /// The query a dock is filtering by, "" when it is not.
 pub fn query(state: editor::State, id: str) -> str {
-    let held = state.search.get(id);
-    if held.is_nil() { "" } else { held.as_str() }
+    let held = state.search[id];
+    if held == nil { "" } else { held.as_str() }
 }
 
 /// Whether `text` satisfies `query`. Case-insensitive, and every word of the
@@ -36,9 +37,9 @@ pub fn matches(query: str, text: str) -> bool {
     if query == "" {
         return true;
     }
-    let hay = text.to_lower();
+    let haystack = text.to_lower();
     for word in query.to_lower().split(" ") {
-        if word != "" && !hay.contains(word) {
+        if word != "" && !haystack.contains(word) {
             return false;
         }
     }

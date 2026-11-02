@@ -1,0 +1,30 @@
+//! `--state bench:<edit>`: one edit a frame to the selection, the way the
+//! Inspector writes it, so a run can be measured by the instructions it
+//! retires against one that edits nothing (PLAN-editor-performance §10). The
+//! edits: `text` and `color` on a `text2d`, `position` on its transform, and
+//! `engine_text`, the engine's own write that the Inspector's rows follow.
+
+use editor;
+use model;
+
+/// One edit, every frame while a bench runs.
+pub fn step(state: &mut editor::State) {
+    if state.bench == "" {
+        return;
+    }
+    let found = model::selected_node(state);
+    if !found.is_valid() {
+        return;
+    }
+    let flip = state.frame % 2 == 0;
+    if state.bench == "text" {
+        model::set_component_property(state, "text2d", "text", if flip { "one" } else { "two" });
+    } else if state.bench == "color" {
+        model::set_component_property(state, "text2d", "color", if flip { [1.0, 0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0, 1.0] });
+    } else if state.bench == "position" {
+        model::set_component_property(state, "transform", "position", [if flip { 0.0 } else { 0.5 }, 0.0, 0.0]);
+    } else if state.bench == "engine_text" {
+        found.text2d.text = if flip { "one" } else { "two" };
+    }
+    ui::request_repaint();
+}

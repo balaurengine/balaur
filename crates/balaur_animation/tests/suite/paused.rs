@@ -8,7 +8,7 @@ use balaur_core::{App, AppConfig, components};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare("tests/fixtures")).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 

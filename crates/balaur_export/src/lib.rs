@@ -35,7 +35,7 @@ use apple::AppleConfig;
 pub use bundle::web_shell;
 use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
 pub use config::{DEFAULT_OUTPUT, ExportConfig, NativeScripts, Runtime};
-pub use fits::fits;
+pub use fits::{fits, smallest};
 
 /// Everything an export was asked for.
 #[derive(Default)]
@@ -122,8 +122,8 @@ pub type ObtainRuntime = dyn Fn(&str) -> Result<PathBuf>;
 ///
 /// The same policy split as [`ObtainRuntime`]: this crate compiles a
 /// project, and which modules that project may call is the caller's. The
-/// editor's own scripts call the CLI's `export`, and Rune resolves a module
-/// while compiling, so exporting the editor has to load it first.
+/// editor's own scripts call the CLI's `export`, and a script's modules resolve
+/// while it compiles, so exporting the editor has to load it first.
 pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 
 /// Every target `--target` accepts, in the order an export sheet lists them:
@@ -160,16 +160,49 @@ pub fn runtime_for(target: &str, runtime: Runtime) -> String {
     }
 }
 
+/// What `auto` comes to for a project, worked out once for however many
+/// targets ask.
+#[derive(Default)]
+pub struct SmallestRuntime(std::cell::OnceCell<Runtime>);
+
+impl SmallestRuntime {
+    fn of(&self, project: &Path) -> Runtime {
+        *self
+            .0
+            .get_or_init(|| smallest(project, &fits::sources(project)))
+    }
+}
+
 /// [`runtime_for`] with the project's own `[export] runtime`, as `target`
-/// resolves it.
+/// resolves it. `auto` comes to the smallest its sources fit.
 ///
 /// # Errors
 /// If `project.toml` does not parse.
-pub fn runtime_of(project: &Path, target: &str) -> Result<String> {
-    Ok(runtime_for(
-        target,
-        ExportConfig::load(project, Some(target))?.runtime,
-    ))
+pub fn runtime_of(project: &Path, target: &str, smallest: &SmallestRuntime) -> Result<String> {
+    let runtime = match ExportConfig::load(project, Some(target))?.runtime {
+        Runtime::Auto => smallest.of(project),
+        named => named,
+    };
+    Ok(runtime_for(target, runtime))
+}
+
+/// [`runtime_of`] as an export that fetches nothing lands on it: `auto` takes
+/// the target's full runtime where only that one is on `roots`.
+///
+/// # Errors
+/// If `project.toml` does not parse.
+pub fn runtime_on_hand(
+    project: &Path,
+    target: &str,
+    smallest: &SmallestRuntime,
+    roots: &[PathBuf],
+) -> Result<String> {
+    let name = runtime_of(project, target, smallest)?;
+    let auto = ExportConfig::load(project, Some(target))?.runtime == Runtime::Auto;
+    if auto && !runtime_installed(&name, roots) && runtime_installed(target, roots) {
+        return Ok(target.to_string());
+    }
+    Ok(name)
 }
 
 /// A target and the variant it names, if any: `ios-2d` is `("ios", Some("2d"))`.
@@ -272,9 +305,33 @@ fn runtime_name(
              `[export] runtime = \"{variant}\"`, or `[override.{base}.export] runtime` for {base} alone"
         );
     }
+    let runtime = match runtime {
+        Runtime::Auto => smallest(project, pack),
+        named => named,
+    };
     let name = runtime_for(target, runtime);
     fits(project, pack, &name)?;
     Ok(name)
+}
+
+/// `lookup` of `name`, or of `full`, the target's whole runtime, where `auto`
+/// chose a smaller one that is neither here nor fetched: the same game, larger,
+/// so an export still works with only the runtime the editor came with.
+fn smallest_on_hand<T>(
+    name: &str,
+    full: Option<&str>,
+    lookup: impl Fn(&str) -> Result<T>,
+) -> Result<T> {
+    let missing = match lookup(name) {
+        Ok(found) => return Ok(found),
+        Err(missing) => missing,
+    };
+    let Some(full) = full.filter(|full| *full != name) else {
+        return Err(missing);
+    };
+    let found = lookup(full).map_err(|_| missing)?;
+    tracing::warn!("no {name} runtime here, so this export goes on {full}, which is larger");
+    Ok(found)
 }
 
 /// A bundle's runtime directory off the roots, or fetched and unpacked.
@@ -289,6 +346,17 @@ fn bundle_runtime(kind: Bundle, name: &str, opts: &Options<'_>) -> Result<PathBu
                 let root = obtain(name).with_context(|| missing.to_string())?;
                 find_bundle_runtime(kind, name, std::slice::from_ref(&root))
             }
+            None => Err(missing),
+        },
+    }
+}
+
+/// A runtime executable off the roots, or fetched.
+fn flat_runtime(name: &str, opts: &Options<'_>) -> Result<PathBuf> {
+    match find_runtime(name, &opts.runtime_roots) {
+        Ok(found) => Ok(found),
+        Err(missing) => match opts.obtain {
+            Some(obtain) => obtain(name).with_context(|| missing.to_string()),
             None => Err(missing),
         },
     }
@@ -311,11 +379,12 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     let runtime_name = target
         .map(|t| runtime_name(t, config.runtime, &opts.path, &pack))
         .transpose()?;
+    let full = target.filter(|_| config.runtime == Runtime::Auto);
     let (title, icons) = presented(opts, &manifest)?;
     fold_variants(&mut pack, &opts.path, target)?;
     bake_tags(&mut pack, &config.tags)?;
     let summary = size::prepare_for(&mut pack, &config, &manifest)?;
-    tracing::info!("\n{}", pack.report_with(&config.include));
+    tracing::info!("\n{}", balaur::packing::report_with(&pack, &config.include));
     if summary.total_saved() > 0 {
         tracing::info!("{summary}");
     }
@@ -328,7 +397,8 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     // inside it as a resource rather than onto the end of a binary.
     if let Some((kind, target)) = bundle {
         extensions::warn_left_behind(&extensions::in_project(&opts.path), kind.platform());
-        let runtime = bundle_runtime(kind, runtime_name.as_deref().unwrap_or(target), opts)?;
+        let wanted = runtime_name.as_deref().unwrap_or(target);
+        let runtime = smallest_on_hand(wanted, full, |name| bundle_runtime(kind, name, opts))?;
         let shell = web_shell(&opts.path)?.replace("{{title}}", &title);
         let web_assets = bundle::web_files(&opts.path)?;
         let output = declared_output(opts, &config, kind.platform(), &bundle_name(kind, &name));
@@ -349,13 +419,9 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
     }
     let runtime = match (opts.runtime.clone(), runtime_name.as_deref()) {
         (Some(explicit), _) => Some(explicit),
-        (None, Some(target)) => Some(match find_runtime(target, &opts.runtime_roots) {
-            Ok(found) => found,
-            Err(missing) => match opts.obtain {
-                Some(obtain) => obtain(target).with_context(|| missing.to_string())?,
-                None => return Err(missing),
-            },
-        }),
+        (None, Some(name)) => Some(smallest_on_hand(name, full, |name| {
+            flat_runtime(name, opts)
+        })?),
         (None, None) => None,
     };
     let windows = target.is_some_and(|t| t.contains("windows"))
@@ -579,7 +645,7 @@ fn finish_bundle(
                     "signing an iOS build needs a provisioning profile: pass \
                      --provisioning-profile, or name one in [apple] ios_provisioning_profile"
                 );
-                let entitlements = apple.write_entitlements(written, name)?;
+                let entitlements = apple.write_entitlements(written, name, false)?;
                 sign::codesign(written, identity, entitlements.as_deref(), true)?;
                 sign::verify(written)?;
                 tracing::info!("signed {}", written.display());

@@ -36,6 +36,30 @@ pub(crate) fn check_types(prog: &Program) -> R<()> {
         unknown(&x.ret, x.pos)?;
     }
     for f in &prog.fns {
+        if let Some(owner) = &f.owner
+            && !names.contains(&owner)
+        {
+            return err(
+                f.pos,
+                format!("`impl {owner}` names no class: declare `class {owner}`"),
+            );
+        }
+        if let Some(owner) = &f.owner
+            && !prog.classes.contains(owner)
+        {
+            return err(
+                f.pos,
+                format!(
+                    "`impl {owner}`: a struct has no methods; make it a `class`, or write a function that takes it"
+                ),
+            );
+        }
+        if f.owner.is_some() && f.name.rsplit("::").next() == Some("on_widget_event") {
+            return err(
+                f.pos,
+                "`on_widget_event` is gone: name a method in the widget's key, `on_click = \"pressed\"`; it is handed the value, then the widget's node",
+            );
+        }
         for p in &f.params {
             unknown(&p.ty, p.pos)?;
             if p.by_ref && f.is_async {

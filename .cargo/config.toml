@@ -47,3 +47,9 @@ rustflags = ["-Ctarget-feature=+crt-static"]
 # target, so no other host sees the flag.
 [env]
 CXXFLAGS_x86_64-pc-windows-msvc = "/bigobj"
+
+# The editor and the tests on one feature set, so an edit compiles each crate
+# once for both (docs/QUALITY.md); `-p balaur_cli` compiles a second copy.
+[alias]
+editor = "build --workspace --bin balaur"
+suite = "nextest run --workspace"

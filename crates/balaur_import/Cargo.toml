@@ -7,6 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+balaur_asset.workspace = true
 balaur = { workspace = true, default-features = false }
 balaur_core.workspace = true
 # `balaur import file.aseprite` reads the editor's own format.

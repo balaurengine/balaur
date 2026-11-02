@@ -43,6 +43,14 @@ pub(crate) fn folded(entity: Entity, widget: &Widget) -> bool {
     })
 }
 
+/// Let go of the fold of each window freed.
+pub(crate) fn forget_freed(world: &balaur_core::hecs::World) {
+    FOLDED.with(|held| {
+        held.borrow_mut()
+            .retain(|bits, _| Entity::from_bits(*bits).is_some_and(|node| world.contains(node)));
+    });
+}
+
 fn set_folded(entity: Entity, now: bool) {
     FOLDED.with(|held| {
         held.borrow_mut().insert(entity.to_bits().get(), now);
@@ -59,17 +67,18 @@ pub(crate) fn window(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
+    let nodes = at.arena;
+    let placed = &nodes[index];
     let entity = placed.entity;
-    let widget = placed.widget.clone();
+    let widget = &placed.widget;
     if !widget.open {
         return;
     }
     at.shown.push(entity);
-    let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style);
-    let folded_now = folded(entity, &widget);
-    let mut box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let style = at.style(index);
+    let pad = padding_of(widget, &style);
+    let folded_now = folded(entity, widget);
+    let mut box_size = solved_of(widget, &at.style(index), at.assigned);
     if folded_now {
         box_size.y = 0.0;
     }
@@ -102,7 +111,7 @@ pub(crate) fn window(
     let background = pad.around(inner.min_rect());
     Brush::of(ui).set(
         plate,
-        crate::widget::theme::frame_shape(
+        crate::widget::frame::frame_shape(
             background,
             egui::CornerRadius::same(style.radius.unwrap_or(8.0) as u8),
             style.fill.unwrap_or(Color32::from_black_alpha(160)),
@@ -110,7 +119,7 @@ pub(crate) fn window(
         ),
     );
     if widget.egui.resizable && !folded_now {
-        grip(ui, at, entity, &widget, background, color);
+        grip(ui, at, entity, widget, background, color);
     }
     ui.advance_cursor_after_rect(background);
 }
@@ -124,13 +133,14 @@ fn title_bar(
     (caption, font, color): (&str, &egui::FontId, Color32),
     rect: egui::Rect,
 ) {
-    let (entity, widget) = (at.arena[index].entity, at.arena[index].widget.clone());
+    let nodes = at.arena;
+    let (entity, widget) = (nodes[index].entity, &nodes[index].widget);
     let line = rect.height();
     let mut left = rect.min.x;
     let mut right = rect.max.x;
     if widget.egui.collapsible {
         let arrow = egui::Rect::from_min_size(rect.min, vec2(line, line));
-        let shut = folded(entity, &widget);
+        let shut = folded(entity, widget);
         let mark = if shut { FOLDED_MARK } else { UNFOLDED };
         Brush::of(ui).text(
             arrow.center(),
@@ -175,7 +185,7 @@ fn title_bar(
     if widget.egui.movable {
         let title = ui.interact(handle, ui.scope_id().with(("title", entity)), Sense::drag());
         if title.dragged() {
-            let moved = constrained(at, &widget, ui.max_rect(), title.drag_delta());
+            let moved = constrained(at, widget, ui.max_rect(), title.drag_delta());
             at.edits.push((entity, Edit::Moved([moved.x, moved.y])));
         }
     }

@@ -22,10 +22,8 @@ impl Keys {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" {
-            self.editor.call("command", node.name());
-        }
+    pub fn pressed(_value: any, node: Node) {
+        self.editor.call("command", node.name());
     }
 
     fn refresh() {
@@ -34,9 +32,9 @@ impl Keys {
             return;
         }
         for name in STOPPED() {
-            self.node.get_node(name).patch_component("widget", map().with("enabled", state.get("stopped")));
+            self.node.get_node(name).widget.enabled = state["stopped"].as_bool();
         }
-        self.node.get_node("play").patch_component("widget", map().with("enabled", !state.get("stopped").as_bool()));
-        self.node.get_node("break").patch_component("widget", map().with("enabled", state.get("playing") && !state.get("stopped").as_bool()));
+        self.node.get_node("play").widget.enabled = !state["stopped"].as_bool();
+        self.node.get_node("break").widget.enabled = state["playing"].as_bool() && !state["stopped"].as_bool();
     }
 }

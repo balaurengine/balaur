@@ -5,7 +5,7 @@ use anyhow::Result;
 use balaur_core::hecs::Entity;
 
 use crate::tile_quad::{corners_of, rect_uvs, tile_uvs};
-use crate::tilemap::{TileSet, Tilemap, grid_of};
+use crate::tilemap::{TileLayout, TileSet, grid_of};
 
 /// How many cells one chunk of the mesh covers along each edge.
 ///
@@ -39,7 +39,7 @@ struct Chunk {
     digest: u64,
 }
 
-/// Mirror [`Tilemap`] + `GlobalTransform` into the kiss3d 2D scene graph.
+/// Mirror [`TileLayout`] + `GlobalTransform` into the kiss3d 2D scene graph.
 ///
 /// Each map is one mesh node (kiss3d's own `Tilemap`, a quad per non-empty
 /// cell with the same anti-bleed UV inset `sync_sprite_uvs` uses), built once
@@ -57,7 +57,7 @@ pub(crate) fn sync_tilemaps(
     let channel = crate::debug_view::channel_view(&app.engine);
     let world = app.engine.world();
     let mut seen: std::collections::HashSet<Entity> = std::collections::HashSet::new();
-    for (entity, map, global) in &mut world.query::<(Entity, &Tilemap, &GlobalTransform)>() {
+    for (entity, map, global) in &mut world.query::<(Entity, &TileLayout, &GlobalTransform)>() {
         seen.insert(entity);
         // Every map is built from a file — the tileset document and the
         // atlas it names — so a reload rebuilds all of them.
@@ -167,7 +167,7 @@ pub(crate) fn sync_tilemaps(
 fn rebuild_chunks(
     app: &balaur_core::App,
     slot: &mut TilemapSlot,
-    map: &Tilemap,
+    map: &TileLayout,
     frame: i64,
 ) -> Result<()> {
     let eng = &app.engine;
@@ -215,7 +215,7 @@ fn rebuild_chunks(
 /// that was rescaled or a tile that turned over rebuilds like an edit.
 #[cfg(feature = "window")]
 fn chunks_of(
-    grid: &balaur_core::tiles::TileGrid,
+    grid: &balaur_geometry::tiles::TileGrid,
     set: &TileSet,
     seconds: f32,
     frame: i64,
@@ -285,7 +285,7 @@ fn mix(hash: u64, value: u64) -> u64 {
 #[cfg(feature = "window")]
 fn build_chunk_node(
     tileset: &TileSet,
-    grid: &balaur_core::tiles::TileGrid,
+    grid: &balaur_geometry::tiles::TileGrid,
     sheet: glamx::Vec2,
     cells: &[Cell],
 ) -> kiss3d::scene::SceneNode2d {

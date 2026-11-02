@@ -1,0 +1,9 @@
+// Unwrapping nil traps, and the module runs on.
+
+pub fn unwrapped(k: int) -> int {
+    let x: int? = if k > 0 { k } else { nil };
+    x.unwrap()
+}
+
+// expect: unwrapped(0) traps
+// expect: unwrapped(3) == 3

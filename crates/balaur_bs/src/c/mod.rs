@@ -3,6 +3,7 @@
 // what the compiler emits; anything else is refused by name.
 
 mod func;
+mod unit;
 
 use std::fmt::Write as _;
 use wasmparser::{ExternalKind, FuncType, Operator, Parser, Payload, TypeRef, ValType};
@@ -45,12 +46,20 @@ pub(crate) struct Module<'a> {
     pub funcs: Vec<u32>,
     pub imports: usize,
     pub memory: (u64, Option<u64>),
-    pub globals: Vec<(ValType, u64)>,
+    /// Each global's type and where it lives, the imported ones first.
+    pub globals: Vec<(ValType, unit::Place)>,
+    /// Each defined global's starting bits.
+    pub inits: Vec<u64>,
     pub exports: Vec<(String, ExternalKind, u32)>,
-    pub data: Vec<(u32, &'a [u8])>,
+    /// Each data segment, at a fixed address or at the unit's memory base.
+    pub data: Vec<(unit::Offset, &'a [u8])>,
     pub bodies: Vec<wasmparser::FunctionBody<'a>>,
     /// The table `fn` values index: the function in each slot, if any.
     pub table: Vec<Option<u32>>,
+    /// A unit's: it imports the script's memory, table and globals.
+    pub unit: bool,
+    /// A unit's own `fn` values, in the slots from its table base.
+    pub unit_refs: Vec<u32>,
 }
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -65,10 +74,13 @@ impl<'a> Module<'a> {
             imports: 0,
             memory: (0, None),
             globals: vec![],
+            inits: vec![],
             exports: vec![],
             data: vec![],
             bodies: vec![],
             table: vec![],
+            unit: false,
+            unit_refs: vec![],
         };
         for payload in Parser::new(0).parse_all(wasm) {
             match payload.map_err(err)? {
@@ -81,8 +93,16 @@ impl<'a> Module<'a> {
                 }
                 Payload::ImportSection(r) => {
                     for import in r.into_imports() {
-                        match import.map_err(err)?.ty {
+                        let import = import.map_err(err)?;
+                        match import.ty {
                             TypeRef::Func(t) => m.funcs.push(t),
+                            // A unit's: the script's memory and table.
+                            TypeRef::Memory(_) => m.unit = true,
+                            TypeRef::Table(_) => {}
+                            TypeRef::Global(g) => {
+                                let place = unit::Place::imported(import.name)?;
+                                m.globals.push((g.content_type, place));
+                            }
                             other => return Err(format!("an import of {other:?}")),
                         }
                     }
@@ -103,7 +123,9 @@ impl<'a> Module<'a> {
                     for g in r {
                         let g = g.map_err(err)?;
                         let init = constant(&g.init_expr)?;
-                        m.globals.push((g.ty.content_type, init));
+                        let own = unit::Place::Own(m.inits.len());
+                        m.globals.push((g.ty.content_type, own));
+                        m.inits.push(init);
                     }
                 }
                 Payload::ExportSection(r) => {
@@ -118,8 +140,7 @@ impl<'a> Module<'a> {
                         let wasmparser::DataKind::Active { offset_expr, .. } = d.kind else {
                             return Err("a passive data segment".into());
                         };
-                        let at = u32::try_from(constant(&offset_expr)?).map_err(err)?;
-                        m.data.push((at, d.data));
+                        m.data.push((unit::Offset::of(&offset_expr)?, d.data));
                     }
                 }
                 Payload::CodeSectionEntry(body) => m.bodies.push(body),
@@ -150,7 +171,16 @@ impl<'a> Module<'a> {
         let wasmparser::ElementItems::Functions(funcs) = e.items else {
             return Err("an element segment of expressions".into());
         };
-        let start = usize::try_from(constant(&offset_expr)?).map_err(err)?;
+        let start = match unit::Offset::of(&offset_expr)? {
+            unit::Offset::At(at) => usize::try_from(at).map_err(err)?,
+            // A unit fills the script's table from its own base.
+            unit::Offset::Base => {
+                for f in funcs {
+                    self.unit_refs.push(f.map_err(err)?);
+                }
+                return Ok(());
+            }
+        };
         for (at, f) in (start..).zip(funcs) {
             let slot = self
                 .table
@@ -181,7 +211,9 @@ impl<'a> Module<'a> {
         for f in 0..self.imports {
             self.import_thunk(p, f as u32, out);
         }
-        if !self.table.is_empty() {
+        if self.unit {
+            unit::indirect(self, p, out);
+        } else if !self.table.is_empty() {
             self.indirect(p, out);
         }
         for (i, body) in self.bodies.iter().enumerate() {
@@ -251,7 +283,8 @@ impl<'a> Module<'a> {
         }
         let _ = writeln!(
             out,
-            "  int32_t c = I->host->import(I->host_ctx, {f}u, a, r);\n  if (c) bs_trap(I, c);"
+            "  int32_t c = I->host->import(I->host_ctx, I->unit ? I->unit->number : 0u, {f}u, a, r);\n  \
+             if (c) bs_trap(I, c);"
         );
         match nr {
             0 => {}
@@ -314,8 +347,8 @@ impl<'a> Module<'a> {
         out.push_str("  }\n}\n");
         let _ = writeln!(
             out,
-            "static int32_t {p}_call(bs_inst *I, uint32_t f, const uint64_t *a, uint64_t *r) {{\n  \
-             return bs_run(I, {p}_dispatch, f, a, r);\n}}"
+            "static int32_t {p}_call(bs_inst *I, bs_unit *U, uint32_t f, const uint64_t *a, uint64_t *r) {{\n  \
+             return bs_run(I, U, {p}_dispatch, f, a, r);\n}}"
         );
     }
 
@@ -369,6 +402,36 @@ impl<'a> Module<'a> {
                 list.join(",")
             );
         }
+        if self.unit {
+            unit::make(self, p, out);
+        } else {
+            self.new_instance(p, out);
+        }
+        let _ = writeln!(
+            out,
+            "static const bs_module {p}_module = {{BS_ABI, {}u, {p}_fnames, {p}_fres, {}u, {p}_gnames, {p}_gidx, \
+             {}u, {p}_ipar, {p}_ires, {p}_new, {p}_call, bs_destroy, bs_memory, bs_globals, {}u, {}, {}, \
+             bs_link_instance, bs_table}};",
+            funcs.len(),
+            globals.len(),
+            self.imports,
+            u32::from(self.unit),
+            if self.unit {
+                format!("{p}_refs")
+            } else {
+                "0".into()
+            },
+            if self.unit {
+                format!("{p}_make")
+            } else {
+                "0".into()
+            },
+        );
+    }
+
+    // A whole module's instance: its memory, its static data at fixed
+    // addresses, and its globals' starting bits.
+    fn new_instance(&self, p: &str, out: &mut String) {
         let (initial, max) = self.memory;
         let max_bytes = max.map_or(1u64 << 32, |m| m << 16);
         let _ = writeln!(
@@ -380,6 +443,7 @@ impl<'a> Module<'a> {
             initial << 16
         );
         for (j, (at, bytes)) in self.data.iter().enumerate() {
+            let unit::Offset::At(at) = at else { continue };
             if !bytes.is_empty() {
                 let _ = writeln!(
                     out,
@@ -389,18 +453,10 @@ impl<'a> Module<'a> {
                 );
             }
         }
-        for (j, (_, init)) in self.globals.iter().enumerate() {
+        for (j, init) in self.inits.iter().enumerate() {
             let _ = writeln!(out, "  I->g[{j}] = {init}ull;");
         }
         out.push_str("  return I;\n}\n");
-        let _ = writeln!(
-            out,
-            "static const bs_module {p}_module = {{BS_ABI, {}u, {p}_fnames, {p}_fres, {}u, {p}_gnames, {p}_gidx, \
-             {}u, {p}_ipar, {p}_ires, {p}_new, {p}_call, bs_destroy, bs_memory, bs_globals}};",
-            funcs.len(),
-            globals.len(),
-            self.imports
-        );
     }
 }
 

@@ -359,6 +359,13 @@ fn orientation(facts: &DeviceFacts) -> Option<&'static str> {
     Some(if height > width { PORTRAIT } else { LANDSCAPE })
 }
 
+/// Whether the system is dark as of this tick.
+#[must_use]
+pub fn dark_mode(eng: &Engine) -> bool {
+    eng.try_resource::<Device>()
+        .is_some_and(|d| d.borrow().now.dark_mode)
+}
+
 /// The device facts as of this tick.
 pub fn device(eng: &Engine) -> DeviceFacts {
     eng.try_resource::<Device>()
@@ -385,6 +392,14 @@ pub(crate) fn announce_device_system(eng: &Engine, _: f32) {
     let Some(device) = eng.try_resource::<Device>() else {
         return;
     };
+    let warned = {
+        let device = device.borrow();
+        device.now.memory_warnings > device.was.memory_warnings
+    };
+    // A warning is recorded, so a replay frees them on the same frame.
+    if warned {
+        crate::parked::free_all(eng);
+    }
     let said = {
         let mut device = device.borrow_mut();
         let Device { now, was, notices } = &mut *device;

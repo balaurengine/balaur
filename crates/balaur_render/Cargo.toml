@@ -17,12 +17,14 @@ default = ["compile"]
 compile = ["dep:wesl"]
 # The windowed kiss3d/wgpu backend. Off by default so headless tools, tests,
 # and servers build without a graphics stack.
-window = ["dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:windows-sys", "dep:libloading", "dep:bytemuck"]
+window = ["dep:naga", "dep:kiss3d", "dep:pollster", "dep:balaur_text", "dep:balaur_ui", "dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation", "dep:objc2-ui-kit", "dep:mundy", "dep:bytemuck"]
 # `balaur import file.aseprite`: reads the editor's own format. A tool's
 # dependency, so a game build carries none of it.
 aseprite = ["dep:aseprite-loader"]
 
 [dependencies]
+balaur_asset.workspace = true
+balaur_geometry.workspace = true
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 glamx.workspace = true
@@ -56,6 +58,9 @@ aseprite-loader = { version = "0.4", optional = true }
 # asserts on a `@const` function — before naga and without a GPU, which is what
 # lets a headless test catch a shader that will not link.
 wesl = { version = "0.6", features = ["eval"], optional = true }
+# The dev-dependency's features, on the naga wgpu already links: a test build
+# would otherwise give naga, wgpu and every crate above them a second copy.
+naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"], optional = true }
 
 # A hidden tab gets no animation frames, so the simulation is stepped on a
 # timer there instead; the page's clock and visibility come from web-sys.
@@ -75,11 +80,9 @@ objc2-foundation = { version = "0.3", optional = true }
 objc2-foundation = { version = "0.3", optional = true }
 objc2-ui-kit = { version = "0.3", features = ["UIInterface", "UIResponder", "UIScreen", "UITraitCollection", "UIView"], optional = true }
 
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_Registry"], optional = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-libloading = { version = "0.9", optional = true }
+# The desktop's dark mode on Linux and Windows, heard as it changes.
+[target.'cfg(any(target_os = "linux", windows))'.dependencies]
+mundy = { version = "0.2", default-features = false, features = ["async-io", "callback", "color-scheme"], optional = true }
 
 [dev-dependencies]
 balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "bs"] }

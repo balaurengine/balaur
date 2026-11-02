@@ -6,12 +6,12 @@
 id = "panel"
 name = "StateMachine"
 script = { source = "scripts/panels/statemachine.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "chrome"

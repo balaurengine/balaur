@@ -247,14 +247,10 @@ fn build_pipeline(
 
 impl ShaderMaterial {
     /// Build the pipeline for one linked material; `reads_screen` binds the
-    /// frame so far at the texture group's bindings 2 and 3.
-    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>, reads_screen: bool) -> Self {
-        Self::with_textures(compiled, probe, reads_screen, Vec::new())
-    }
-
-    /// [`Self::new`], with an image per [`crate::material::SPRITE_TEXTURE_SLOTS`]
-    /// name, `None` for a slot the material left out.
-    pub(crate) fn with_textures(
+    /// frame so far at the texture group's bindings 2 and 3, and `slots` holds
+    /// an image per [`crate::material::SPRITE_TEXTURE_SLOTS`] name, `None` for
+    /// a slot the material left out.
+    pub(crate) fn new(
         compiled: &Compiled,
         probe: Option<&Probe>,
         reads_screen: bool,
@@ -565,7 +561,7 @@ crate::material_cache::define!(
 
 /// The channel view's own material, which takes no params and writes no probe.
 fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial {
-    ShaderMaterial::new(compiled, None, false)
+    ShaderMaterial::new(compiled, None, false, Vec::new())
 }
 
 /// A material and, when its shader carries one, the probe it writes into;
@@ -587,7 +583,7 @@ fn build(
     if !crate::shaders::fits(reference, found, crate::shaders::Contract::Sprite) {
         return Ok(None);
     }
-    let compiled = crate::material::compile_with(&asset, &source, &modules)?;
+    let compiled = crate::material::compile(&asset, &source, &modules, false)?;
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
     let slots = asset
         .sprite_textures()
@@ -600,7 +596,6 @@ fn build(
             })
         })
         .collect();
-    let material =
-        ShaderMaterial::with_textures(&compiled, probe.as_deref(), asset.reads_screen(), slots);
+    let material = ShaderMaterial::new(&compiled, probe.as_deref(), asset.reads_screen(), slots);
     Ok(Some((material, probe)))
 }

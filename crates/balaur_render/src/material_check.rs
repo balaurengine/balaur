@@ -2,25 +2,23 @@
 //! on the CPU, for the editor's Problems list and its inspector rows.
 
 use anyhow::Result;
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
-use crate::material::{
-    FieldType, Material3d, Param, TEXTURE_SLOTS, compile_with, parse, shader_text,
-};
+use crate::material::{FieldType, Material3d, Param, TEXTURE_SLOTS, compile, parse, shader_text};
 
 /// `render::check_material(path)` — what is wrong with a material asset, as
-/// `[#{ file, line, column, severity, message }]`, empty when it links.
+/// `[{ file, line, column, severity, message }]`, empty when it links.
 ///
 /// Linking is CPU work with no GPU in it, so a check runs in a headless
 /// editor and in CI. The asset layer deliberately parses a material without
 /// linking it — a scene must load on a machine that cannot draw — which is
 /// why a broken shader needs asking about rather than waiting for.
-pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) {
+pub(crate) fn install_material_check(m: &mut Module<balaur_core::Engine>) {
     m.describe(&[(
         "check_material",
         &[],
         "-> [script::Diagnostic]",
-        "Every diagnostic about the material at that path, as `[#{ file, line, column, severity, message }]`; empty when it links.",
+        "Every diagnostic about the material at that path, as `[{ file, line, column, severity, message }]`; empty when it links.",
     )]);
     m.function(
         "check_material",
@@ -36,7 +34,7 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
 }
 
 /// `render::material_params(path)` — the values a material's shader takes, as
-/// `[#{ name, type, value }]` in the order the uniform lays them out.
+/// `[{ name, type, value }]` in the order the uniform lays them out.
 ///
 /// `type` is the vocabulary a component schema uses (`float`, `vec2`, `vec3`,
 /// `color`), so an inspector draws these with the editors it already has.
@@ -45,11 +43,11 @@ pub(crate) fn install_material_check(m: &mut dyn Bindings<balaur_core::Engine>) 
 ///
 /// A material that will not link has no rows. What is wrong with it is
 /// `check_material`'s answer, not this one's.
-pub(crate) fn install_material_params(m: &mut dyn Bindings<balaur_core::Engine>) {
+pub(crate) fn install_material_params(m: &mut Module<balaur_core::Engine>) {
     m.describe(&[(
         "material_params",
         &[],
-        "-> [Param]", "The material's editable rows, one `#{ name, type, value }` per field its linked shader declares; empty when it will not link.",
+        "-> [Param]", "The material's editable rows, one `{ name, type, value }` per field its linked shader declares; empty when it will not link.",
     )]);
     m.records(&[(
         "Param",
@@ -110,7 +108,12 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
         return Ok(rows);
     }
     let source = shader_text(eng, path, &material.shader)?;
-    let compiled = compile_with(&material, &source, &crate::shaders::plugin_modules(eng))?;
+    let compiled = compile(
+        &material,
+        &source,
+        &crate::shaders::plugin_modules(eng),
+        false,
+    )?;
     let mut rows: Vec<Value> = compiled
         .fields
         .iter()
@@ -197,7 +200,7 @@ fn check_material(eng: &balaur_core::Engine, path: &str) -> Result<()> {
     }
     let source = shader_text(eng, path, &material.shader)?;
     let modules = crate::shaders::plugin_modules(eng);
-    compile_with(&material, &source, &modules).map(|_| ())
+    compile(&material, &source, &modules, false).map(|_| ())
 }
 
 /// The `--> file:line:column` a WESL diagnostic carries, if it has one.
@@ -249,7 +252,10 @@ import package::sprite::{VertexInput, VertexOutput, vertex};
     return vertex(in)
 }
 ";
-        let message = format!("{:#}", compile(&material, broken).err().unwrap());
+        let message = format!(
+            "{:#}",
+            compile(&material, broken, &[], false).err().unwrap()
+        );
         assert_eq!(
             span_of(&message),
             Some(("shaders/water.wesl".to_string(), 6, 1))

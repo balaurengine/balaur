@@ -6,12 +6,12 @@
 id = "panel"
 name = "SceneTree"
 script = { source = "scripts/panels/scene_tree.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 # The search, and the "+" that adds a child to the selection beside it.
 [[nodes]]
@@ -28,20 +28,21 @@ id = "search"
 name = "Search"
 parent = "find"
 [nodes.widget]
+on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
-text = ""
-placeholder = "Search"
 grow = 1
+[nodes.widget_field]
+placeholder = "Search"
 
 [[nodes]]
 id = "add"
 name = "Add"
 parent = "find"
 [nodes.widget]
+on_click = "add"
 kind = "button"
 role = "icon_action_primary"
-text = ""
 tooltip = "Add child node"
 width = 24
 
@@ -52,6 +53,7 @@ id = "facet"
 name = "Facet"
 parent = "panel"
 [nodes.widget]
+on_change = "facet_picked"
 kind = "dropdown"
 role = "choice"
 text = "All nodes"
@@ -62,27 +64,28 @@ options = ["All nodes", "3D", "2D", "Physics", "Rendering", "UI", "Script"]
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-visible = false
 
 [[nodes]]
 id = "tree"
 name = "Tree"
 parent = "panel"
 [nodes.widget]
+on_change = "tree_picked"
 kind = "tree"
 grow = 1
 # The row a click landed on, which the script reads once and clears.
-text = ""
 multi_select = true
 row_height = 23
 # A right click or a long press picks the row it lands on and opens these.
 context = "tree_menu"
-# The eye and the lock a row draws at its right; the Editor answers them.
+[nodes.widget_list]
 on_mark = "tree_mark"
 
+# The eye and the lock a row draws at its right; the Editor answers them.
 [nodes.widget.touch]
 row_height = 33
 
@@ -95,8 +98,6 @@ name = "tree_menu"
 parent = "panel"
 [nodes.widget]
 kind = "menu"
-text = ""
-visible = false
 
 [[nodes]]
 id = "tree_add"

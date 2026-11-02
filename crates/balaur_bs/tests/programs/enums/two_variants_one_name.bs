@@ -1,0 +1,4 @@
+enum Light { Red, Red }
+pub fn f() -> int { 1 }
+
+// error: 1:19: enum Light has two variants named `Red`

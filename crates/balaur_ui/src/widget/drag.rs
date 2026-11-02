@@ -1,17 +1,18 @@
 //! A number dragged sideways, or typed into after a click: what a
-//! `number_field` is, and what a `slider` shows beside its rail.
+//! `number_field` is.
 //!
 //! Ported from egui 0.36's `DragValue` (MIT OR Apache-2.0, Emil Ernerfeldt
 //! and the egui contributors), so the drag, the typing and the keys behave as
-//! they did. The box is painted from egui's visuals, which the theme dresses.
+//! they did. The box is painted from egui's visuals, which the theme dresses,
+//! and the number typed is shaped as a label is (`widget::typing`).
 
 use std::ops::RangeInclusive;
 
-use egui::{Key, Modifiers, Sense, TextEdit, TextWrapMode};
+use egui::{Key, Modifiers, Sense};
 
 use crate::vocabulary::words as w;
 use crate::widget::paint::Brush;
-use crate::widget::text::select_all;
+use crate::widget::typing::{Field, Typesetter, Typing};
 
 /// How a number is spelled: the decimals a drag settles on, or a base.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -43,11 +44,16 @@ impl Spelling {
     }
 
     /// The number in this spelling, a minus sign before the digits of a base.
-    fn format(self, ui: &egui::Ui, n: f64, decimals: RangeInclusive<usize>) -> String {
+    pub(crate) fn format(
+        self,
+        style: &egui::Style,
+        n: f64,
+        decimals: RangeInclusive<usize>,
+    ) -> String {
         let sign = if n < 0.0 { "\u{2212}" } else { "" };
         let whole = n.abs() as i64;
         match self {
-            Self::Decimal => ui.style().number_formatter.format(n, decimals),
+            Self::Decimal => style.number_formatter.format(n, decimals),
             Self::Binary => format!("{sign}{whole:b}"),
             Self::Octal => format!("{sign}{whole:o}"),
             Self::Hex => format!("{sign}{whole:x}"),
@@ -84,15 +90,14 @@ pub(crate) struct DragNumber<'a> {
     pub(crate) spelling: Spelling,
     /// Take every keystroke while typing, rather than the text left behind.
     pub(crate) update_while_editing: bool,
+    pub(crate) eng: &'a balaur_core::Engine,
+    /// What the typed number is shaped from: the widget's face.
+    pub(crate) setter: Typesetter<'a>,
 }
 
-/// The text being typed, and the value it was typed over: a value changed by
-/// something else meanwhile makes the text stale.
-#[derive(Clone, Default)]
-struct Typed {
-    text: String,
-    value: f64,
-}
+/// The value a typed number was typed over: a value changed by something
+/// else meanwhile makes the text stale. Kept under the field's id with this.
+const TYPED_OVER: &str = "typed-over";
 
 /// What one pass of a dragged number knows before it draws.
 #[allow(
@@ -115,6 +120,24 @@ struct Moment {
 }
 
 impl DragNumber<'_> {
+    /// The text the number is held in while it is typed into, which the
+    /// field keeps between passes.
+    fn field(&self, id: egui::Id) -> Option<Field> {
+        self.eng
+            .resource::<crate::UiState>()
+            .borrow_mut()
+            .fields
+            .remove(&id)
+    }
+
+    fn keep(&self, id: egui::Id, field: Field) {
+        self.eng
+            .resource::<crate::UiState>()
+            .borrow_mut()
+            .fields
+            .insert(id, field);
+    }
+
     #[allow(clippy::float_cmp, reason = "a value written, not one measured")]
     pub(crate) fn show(mut self, ui: &mut egui::Ui) -> egui::Response {
         let moment = self.moment(ui);
@@ -122,7 +145,7 @@ impl DragNumber<'_> {
         self.step(ui, &moment);
         let shown = self
             .spelling
-            .format(ui, *self.value, moment.auto..=moment.most);
+            .format(ui.style(), *self.value, moment.auto..=moment.most);
         self.keep_typed(ui, &moment, before);
         let mut response = if moment.typing {
             self.typed(ui, &moment, &shown, before)
@@ -157,17 +180,20 @@ impl DragNumber<'_> {
         ui.data_mut(|data| data.insert_temp(held_focus, has));
         let (gained, lost) = (has && !was, was && !has);
         if gained {
-            ui.data_mut(|data| data.remove::<Typed>(id));
+            self.field(id);
         }
         let aim = f64::from(ui.input(egui::InputState::aim_radius));
-        let auto = libm::log10(aim / self.speed.abs()).ceil().clamp(0.0, 15.0) as usize
-            + usize::from(slow);
-        let most = self.max_decimals.unwrap_or(auto + 2).max(self.min_decimals);
+        let (auto, most) = decimals(
+            aim,
+            self.speed,
+            slow,
+            (self.min_decimals, self.max_decimals),
+        );
         Moment {
             id,
             slow,
             aim,
-            auto: auto.clamp(self.min_decimals, most),
+            auto,
             most,
             typing,
             gained,
@@ -196,7 +222,7 @@ impl DragNumber<'_> {
         }
         if before != value {
             *self.value = value;
-            ui.data_mut(|data| data.remove::<Typed>(moment.id));
+            self.field(moment.id);
         }
     }
 
@@ -207,16 +233,17 @@ impl DragNumber<'_> {
         if !moment.lost || ui.input(|i| i.key_pressed(Key::Escape)) {
             return;
         }
-        let left = ui.data_mut(|data| data.remove_temp::<Typed>(moment.id));
-        if let Some(typed) = left.filter(|typed| typed.value == before)
-            && let Some(parsed) = self.spelling.parse(&typed.text)
+        let over = ui.data(|data| data.get_temp::<f64>(moment.id.with(TYPED_OVER)));
+        if let Some(field) = self.field(moment.id)
+            && over == Some(before)
+            && let Some(parsed) = self.spelling.parse(field.editing.text())
         {
             *self.value = clamp(parsed, &self.range);
         }
     }
 
     /// The field typed into, keeping last pass's text unless the value
-    /// moved under it.
+    /// moved under it, in the box the number rests in.
     #[allow(clippy::float_cmp, reason = "a value written, not one measured")]
     fn typed(
         &mut self,
@@ -226,42 +253,55 @@ impl DragNumber<'_> {
         before: f64,
     ) -> egui::Response {
         let id = moment.id;
-        let mut text = ui
-            .data_mut(|data| data.remove_temp::<Typed>(id))
-            .filter(|typed| typed.value == before)
-            .map_or_else(|| shown.to_owned(), |typed| typed.text);
-        let spacing = ui.spacing().clone();
-        let response = ui.add(
-            TextEdit::singleline(&mut text)
-                .clip_text(false)
-                .align(egui::Align2([
-                    ui.layout().horizontal_align(),
-                    ui.layout().vertical_align(),
-                ]))
-                .margin(spacing.button_padding)
-                .min_size(spacing.interact_size)
-                .id(id)
-                .desired_width(spacing.interact_size.x - 2.0 * spacing.button_padding.x)
-                .font(ui.style().drag_value_text_style.clone()),
-        );
+        let over = ui.data(|data| data.get_temp::<f64>(id.with(TYPED_OVER)));
+        let mut field = self
+            .field(id)
+            .unwrap_or_else(|| Field::new(shown, false, true));
+        if over.is_some_and(|over| over != before) {
+            field.editing.set_text(shown);
+        }
         // The whole number as the field opens, so typing replaces it.
         if moment.gained {
-            select_all(ui, id, &text);
+            field.editing.set_text(shown);
+            field.editing.select_all();
         }
+        let pieces = faces(ui.ctx(), ui.style(), (self.prefix, shown, self.suffix));
+        let size = face_size(ui.spacing(), &pieces);
+        let (_, rect) = ui.allocate_space(size);
+        let pad = ui.spacing().button_padding;
+        let typed = Typing {
+            id,
+            multiline: false,
+            secret: false,
+            editable: true,
+            clip: true,
+            frame: true,
+            tab_inserts: false,
+            numeric: false,
+            max_chars: 0,
+            submit: Some(egui::KeyboardShortcut::new(Modifiers::NONE, Key::Enter)),
+            align: ui.layout().horizontal_align(),
+            margin: crate::widget::arrange::Pad::of([pad.x, pad.y, pad.x, pad.y]),
+            color: ui.visuals().text_color(),
+            placeholder: None,
+            prefix: None,
+            suffix: None,
+            colors: None,
+            underline: None,
+        }
+        .show(ui, self.eng, rect, &mut field, &self.setter);
         let take = if self.update_while_editing {
-            response.changed()
+            typed.changed
         } else {
-            response.lost_focus() && !ui.input(|i| i.key_pressed(Key::Escape))
+            typed.response.lost_focus() && !ui.input(|i| i.key_pressed(Key::Escape))
         };
-        if take && let Some(parsed) = self.spelling.parse(&text) {
+        if take && let Some(parsed) = self.spelling.parse(field.editing.text()) {
             *self.value = clamp(parsed, &self.range);
         }
-        let typed = Typed {
-            text,
-            value: *self.value,
-        };
-        ui.data_mut(|data| data.insert_temp(id, typed));
-        response
+        let value = *self.value;
+        ui.data_mut(|data| data.insert_temp(id.with(TYPED_OVER), value));
+        self.keep(id, field);
+        typed.response
     }
 
     /// The resting box: a click starts typing, a drag moves the number.
@@ -281,9 +321,10 @@ impl DragNumber<'_> {
             ui.data_mut(|data| data.remove::<f64>(id));
         }
         if response.clicked() {
-            ui.data_mut(|data| data.remove::<Typed>(id));
+            let mut field = Field::new(shown, false, true);
+            field.editing.select_all();
+            self.keep(id, field);
             ui.memory_mut(|mem| mem.request_focus(id));
-            select_all(ui, id, shown);
             return response;
         }
         if !response.dragged() {
@@ -322,34 +363,69 @@ impl egui::Widget for DragNumber<'_> {
     }
 }
 
-/// The resting box: the number in egui's button frame, dragged or clicked.
-/// The prefix, the number and the suffix are three runs of text side by
-/// side, as egui lays a button's parts out.
-fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui::Response {
-    let style = ui.style().drag_value_text_style.clone();
-    let pieces: Vec<std::sync::Arc<egui::Galley>> =
-        [(prefix, false), (value, true), (suffix, false)]
-            .into_iter()
-            .filter(|(text, _)| !text.is_empty())
-            .map(|(text, number)| {
-                let mut rich = egui::RichText::new(text);
-                if number {
-                    rich = rich.text_style(style.clone());
-                }
-                egui::WidgetText::from(rich).into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    f32::INFINITY,
-                    egui::TextStyle::Button,
-                )
-            })
-            .collect();
-    let inner = pieces.iter().fold(egui::Vec2::ZERO, |sum, piece| {
+/// The decimals a drag at `speed` settles on and the most it shows, with
+/// `aim` how far the pointer may be off and `slow` a shift held through it.
+pub(crate) fn decimals(
+    aim: f64,
+    speed: f64,
+    slow: bool,
+    (least, most): (usize, Option<usize>),
+) -> (usize, usize) {
+    let auto = libm::log10(aim / speed.abs()).ceil().clamp(0.0, 15.0) as usize + usize::from(slow);
+    let most = most.unwrap_or(auto + 2).max(least);
+    (auto.clamp(least, most), most)
+}
+
+/// The prefix, the number and the suffix as three runs of text side by side,
+/// as egui lays a button's parts out: the number in egui's drag value style.
+pub(crate) fn faces(
+    ctx: &egui::Context,
+    style: &egui::Style,
+    (prefix, value, suffix): (&str, &str, &str),
+) -> Vec<std::sync::Arc<egui::Galley>> {
+    let number = style.drag_value_text_style.clone();
+    [(prefix, false), (value, true), (suffix, false)]
+        .into_iter()
+        .filter(|(text, _)| !text.is_empty())
+        .map(|(text, is_number)| {
+            crate::theme::asked_of_egui(text);
+            let mut rich = egui::RichText::new(text);
+            if is_number {
+                rich = rich.text_style(number.clone());
+            }
+            egui::WidgetText::from(rich).into_galley_impl(
+                ctx,
+                style,
+                egui::text::TextWrapping::no_max_width(),
+                egui::TextStyle::Button.into(),
+                egui::Align::Center,
+            )
+        })
+        .collect()
+}
+
+/// The runs laid end to end.
+fn runs_size(pieces: &[std::sync::Arc<egui::Galley>]) -> egui::Vec2 {
+    pieces.iter().fold(egui::Vec2::ZERO, |sum, piece| {
         egui::vec2(sum.x + piece.size().x, sum.y.max(piece.size().y))
-    });
+    })
+}
+
+/// The box a number rests in, typed into or not: its runs in a button's
+/// padding, never smaller than a control.
+pub(crate) fn face_size(
+    spacing: &egui::style::Spacing,
+    pieces: &[std::sync::Arc<egui::Galley>],
+) -> egui::Vec2 {
+    (runs_size(pieces) + spacing.button_padding * 2.0).max(spacing.interact_size)
+}
+
+/// The resting box: the number in egui's button frame, dragged or clicked.
+fn face(ui: &mut egui::Ui, (prefix, value, suffix): (&str, &str, &str)) -> egui::Response {
+    let pieces = faces(ui.ctx(), ui.style(), (prefix, value, suffix));
+    let inner = runs_size(&pieces);
     let pad = ui.spacing().button_padding;
-    let size = (inner + pad * 2.0).max(ui.spacing().interact_size);
-    let (id, rect) = ui.allocate_space(size);
+    let (id, rect) = ui.allocate_space(face_size(ui.spacing(), &pieces));
     let response = ui.interact(rect, id, Sense::click_and_drag());
     if ui.is_rect_visible(rect) {
         let look = ui.style().interact(&response);

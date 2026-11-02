@@ -1,6 +1,8 @@
 // wasmi: a pure-Rust interpreter, so it runs everywhere, iOS included.
 
-use super::engine::{Args, ImportCtx, Outcome, Raw, Setup, Shared, Wasm, read_from, unit_layout};
+use super::engine::{
+    Args, ImportCtx, Outcome, Raw, Setup, Shared, Wasm, copy_from, read_from, unit_layout,
+};
 use super::host::dispatch;
 use super::values::float;
 use crate::{Compiled, Slot, words};
@@ -85,6 +87,12 @@ impl ImportCtx for Ctx<'_, '_> {
             .data()
             .mem
             .map_or_else(|| vec![0; len], |m| read_from(m.data(&*self.0), at, len))
+    }
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        match self.0.data().mem {
+            Some(m) => copy_from(m.data(&*self.0), at, out),
+            None => out.fill(0),
+        }
     }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         if let Some(m) = self.0.data().mem {
@@ -379,10 +387,10 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     }))
 }
 
-// `unit` as unit `key` of the script, added unless it is one: its index. Its
-// static data takes a block of the heap, since the space before the heap was
-// laid out for the units known when the store was made. It is made on its
-// first call.
+/// `unit` as unit `key` of the script, added unless it is one: its index. Its
+/// static data takes a block of the heap, since the space before the heap was
+/// laid out for the units known when the store was made. It is made on its
+/// first call.
 fn link_unit(
     mut cx: impl AsContextMut<Data = Data>,
     key: &str,
@@ -720,6 +728,12 @@ impl Wasm for Wasmi {
             .data()
             .mem
             .map_or_else(|| vec![0; len], |m| read_from(m.data(&self.store), at, len))
+    }
+    fn read_into(&self, at: usize, out: &mut [u8]) {
+        match self.store.data().mem {
+            Some(m) => copy_from(m.data(&self.store), at, out),
+            None => out.fill(0),
+        }
     }
     fn memory_len(&self) -> usize {
         self.store

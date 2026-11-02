@@ -1,0 +1,4 @@
+pub struct Label { text: str }
+pub fn f() { let l = Label {}; }
+
+// error: 2:22: missing field `text` of Label: name it, or declare its default in Label

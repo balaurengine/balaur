@@ -56,28 +56,32 @@ fn the_2d_mesh_kinds_build_what_they_name() {
     let b = booted(&[
         (
             "Polygon",
-            r##"{ kind = "convex_polygon", mesh = "#square" }"##,
+            r##"{ shape = { kind = "convex_polygon", mesh = "#square" } }"##,
         ),
         (
             "Collinear",
-            r##"{ kind = "convex_polygon", mesh = "#square", keep_collinear = true }"##,
+            r##"{ shape = { kind = "convex_polygon", mesh = "#square", keep_collinear = true } }"##,
         ),
-        ("Fit", r##"{ kind = "fit", mesh = "#far", fit = "aabb" }"##),
+        (
+            "Fit",
+            r##"{ shape = { kind = "fit", mesh = "#far", fit = "aabb" } }"##,
+        ),
         (
             "Voxelized",
-            r##"{ kind = "voxelized_mesh", mesh = "#square", voxel_size = 0.25 }"##,
+            r##"{ shape = { kind = "voxelized_mesh", mesh = "#square", voxel_size = 0.25 } }"##,
         ),
         (
             "Points",
-            r##"{ kind = "voxelized_points", mesh = "#square", voxel_size = 0.5 }"##,
+            r##"{ shape = { kind = "voxelized_points", mesh = "#square", voxel_size = 0.5 } }"##,
         ),
         (
             "RoundHull",
-            r##"{ kind = "convex_hull", mesh = "#square", edge_radius = 0.1 }"##,
+            r##"{ shape = { kind = "convex_hull", mesh = "#square", edge_radius = 0.1 } }"##,
         ),
         (
             "Parts",
-            r##"{ kind = "convex_decomposition", mesh = "#square", method = "voxels", resolution = 8 }"##,
+            r##"{ shape = { kind = "convex_decomposition", mesh = "#square" } }
+"convex_decomposition2d" = { method = { kind = "voxels", resolution = 8 } }"##,
         ),
     ]);
     let corners = |path: &str| {
@@ -128,14 +132,17 @@ fn the_2d_mesh_kinds_build_what_they_name() {
 #[test]
 fn a_2d_polyline_takes_its_outline_or_every_edge_when_asked() {
     let b = booted(&[
-        ("Chain", r##"{ kind = "polyline", mesh = "#far" }"##),
+        (
+            "Chain",
+            r##"{ shape = { kind = "polyline", mesh = "#far" } }"##,
+        ),
         (
             "Outline",
-            r##"{ kind = "polyline", mesh = "#far", edges = "outline" }"##,
+            r##"{ shape = { kind = "polyline", mesh = "#far", edges = "outline" } }"##,
         ),
         (
             "Edges",
-            r##"{ kind = "polyline", mesh = "#far", edges = "mesh" }"##,
+            r##"{ shape = { kind = "polyline", mesh = "#far", edges = "mesh" } }"##,
         ),
     ]);
     let segments = |path: &str| {
@@ -177,27 +184,27 @@ script = { source = "scripts/scenario.bs" }
 id = "n_a"
 name = "A"
 parent = "n_world"
-collider2d = { kind = "voxels", voxels = "#row" }
+collider2d = { shape = { kind = "voxels", voxels = "#row" } }
 
 [[nodes]]
 id = "n_b"
 name = "B"
 parent = "n_world"
-collider2d = { kind = "voxels", voxels = "#one" }
+collider2d = { shape = { kind = "voxels", voxels = "#one" } }
 transform = { position = [3.0, 0.0, 0.0] }
 
 [[nodes]]
 id = "n_alone"
 name = "Alone"
 parent = "n_world"
-collider2d = { kind = "voxels", voxels = "#row" }
+collider2d = { shape = { kind = "voxels", voxels = "#row" } }
 transform = { position = [0.0, 5.0, 0.0] }
 
 [[nodes]]
 id = "n_cropped"
 name = "Cropped"
 parent = "n_world"
-collider2d = { kind = "voxels", voxels = "#row" }
+collider2d = { shape = { kind = "voxels", voxels = "#row" } }
 transform = { position = [0.0, 10.0, 0.0] }
 "##;
 
@@ -261,20 +268,20 @@ name = "Ball"
 parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 body2d = { kind = "dynamic", gravity_scale = 0.0, initial_linear_velocity = [6.0, 0.0] }
-collider2d = { kind = "circle", radius = 0.5 }
+collider2d = { shape = { kind = "circle", radius = 0.5 } }
 
 [[nodes]]
 id = "n_wall"
 name = "Wall"
 parent = "n_world"
-collider2d = { kind = "rectangle", size = [1.0, 4.0] }
+collider2d = { shape = { kind = "rectangle", size = [1.0, 4.0] } }
 transform = { position = [3.0, 0.0, 0.0] }
 
 [[nodes]]
 id = "n_cells"
 name = "Cells"
 parent = "n_world"
-collider2d = { kind = "voxels", voxels = "#one" }
+collider2d = { shape = { kind = "voxels", voxels = "#one" } }
 transform = { position = [0.0, 8.0, 0.0] }
 "##,
         r#"pub class Scenario { node: Node }
@@ -286,10 +293,10 @@ impl Scenario {
         let found = [n.collider2d.aabb()[2], n.collider2d.swept_aabb()[2], n.collider2d.collision_aabb()[2],
             n.collider2d.broad_phase_aabb()[2], n.collider2d.collider_mass(), n.collider2d.collider_volume(),
             physics2d::closest_points(n, wall),
-            physics2d::time_of_impact(n, wall, map().with("velocity_a", [6.0, 0.0])),
+            physics2d::time_of_impact(n, wall, physics2d::ImpactOptions { velocity_a: [6.0, 0.0] }),
             n.collider2d.collider_mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),
             cells.collider2d.collider_mesh(), true];
-        n.collider2d.set_collider(map().with("kind", "rectangle").with("size", [2.0, 2.0]));
+        n.set_component("collider2d", { "shape": { "kind": "rectangle", "size": [2.0, 2.0] } });
         found
     }
 }
@@ -333,5 +340,5 @@ impl Scenario {
     let replaced = collider(&b, "World/Ball", |c| {
         c.shape().as_cuboid().map(|s| s.half_extents.to_array())
     });
-    assert_eq!(replaced, Some([1.0, 1.0]), "set_collider left the circle");
+    assert_eq!(replaced, Some([1.0, 1.0]), "set_component left the circle");
 }

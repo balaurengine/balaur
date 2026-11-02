@@ -29,9 +29,9 @@ pub struct Caret {
 }
 
 /// A 1-based line and column.
-pub struct LineCol {
+pub struct LineColumn {
     line: int,
-    col: int,
+    column: int,
 }
 
 /// What the list shows: where it opens, under the caret, its rows, the one
@@ -40,7 +40,7 @@ pub struct View {
     open: bool,
     x: float,
     y: float,
-    items: [str],
+    items: [ui::Item],
     picked: str,
     list_h: float,
     doc: str,
@@ -64,19 +64,19 @@ pub fn reset(state: &mut editor::State) {
 }
 
 /// The 1-based line and column of a character index into `source`.
-pub fn line_col(source: str, index: int) -> LineCol {
+pub fn line_column(source: str, index: int) -> LineColumn {
     let line = 1;
-    let col = 1;
+    let column = 1;
     let chars = source.chars();
-    for at in 0..util::imin(index, chars.len()) {
+    for at in 0..util::int_min(index, chars.len()) {
         if chars[at] == "\n" {
             line += 1;
-            col = 1;
+            column = 1;
         } else {
-            col += 1;
+            column += 1;
         }
     }
-    LineCol { line: line, col: col }
+    LineColumn { line: line, column: column }
 }
 
 // Whether a one-character string is part of a name.
@@ -89,7 +89,7 @@ fn word_char(character: str) -> bool {
 pub fn prefix_at(source: str, index: int) -> str {
     let out = "";
     let chars = source.chars();
-    for at in 0..util::imin(index, chars.len()) {
+    for at in 0..util::int_min(index, chars.len()) {
         if word_char(chars[at]) {
             out = out + chars[at];
         } else {
@@ -128,12 +128,12 @@ pub fn update(state: &mut editor::State, rel: str, source: str, caret: Caret) {
         state.complete.items = [];
         return;
     }
-    let at = line_col(source, index);
-    let found = script::complete(rel, source, at.line, at.col);
+    let at = line_column(source, index);
+    let found = script::complete(rel, source, at.line, at.column);
     state.complete.items = found;
     state.complete.pick = 0;
     state.complete.open = found.len() > 0;
-    state.complete.signature = script::signature(rel, source, at.line, at.col);
+    state.complete.signature = script::signature(rel, source, at.line, at.column);
 }
 
 /// The list's keys while it is up: the arrows move the pick, Enter and Tab
@@ -157,15 +157,9 @@ pub fn key(state: &mut editor::State, name: str) {
 
 /// A row clicked: accept that one.
 pub fn pick(state: &mut editor::State, row: str) {
-    let shown = rows(state);
-    for index in 0..shown.len() {
-        if shown[index] == row {
-            state.complete.pick = index;
-            accept(state);
-            signals::changed(state, "complete");
-            return;
-        }
-    }
+    state.complete.pick = row.parse_int();
+    accept(state);
+    signals::changed(state, "complete");
 }
 
 // Replace the prefix under the caret with the chosen item.
@@ -188,8 +182,8 @@ fn accept(state: &mut editor::State) {
         }
     }
     let path = state.game_root + "/" + state.complete.rel;
-    state.script_buffers.set(path, head + state.complete.items[picked].insert + tail);
-    state.script_dirty.set(path, true);
+    state.script_buffers[path] = head + state.complete.items[picked].insert + tail;
+    state.script_dirty[path] = engine::unix_time();
     lint::touched(state);
     signals::bars(state);
     center::code_written(state);
@@ -220,11 +214,13 @@ fn glyph(kind: str) -> str {
 /// The list, under the caret, with the picked entry's doc line under it. One
 /// sheet, not two: a second overlay beside this one runs off the pane.
 // A row each completion, its mark, its label and its detail.
-fn rows(state: editor::State) -> [str] {
-    let tint = state.theme.text_muted.as_str();
-    let out: [str] = [];
-    for one in state.complete.items {
-        out.push(util::row(glyph(one.kind), one.label, one.detail, tint));
+fn rows(state: editor::State) -> [ui::Item] {
+    let tint = state.theme["text_muted"].as_str();
+    let out: [ui::Item] = [];
+    let shown = state.complete.items;
+    for index in 0..shown.len() {
+        let one = shown[index];
+        out.push(ui::Item { icon: glyph(one.kind), label: one.label, note: one.detail, tint: tint, key: "{index}" });
     }
     out
 }
@@ -236,15 +232,15 @@ pub fn view(state: editor::State) -> View {
         return View { open: false, x: 0.0, y: 0.0, items: [], picked: "", list_h: 0.0, doc: "" };
     }
     let items = rows(state);
-    let pick = util::imin(state.complete.pick, items.len() - 1);
+    let pick = util::int_min(state.complete.pick, items.len() - 1);
     let doc = state.complete.items[pick].doc;
     View {
         open: true,
         x: state.complete.x,
         y: state.complete.y + 4.0,
         items: items,
-        picked: items[pick],
-        list_h: (util::imin(items.len(), MAX_ROWS) as float) * ROW,
+        picked: "{pick}",
+        list_h: (util::int_min(items.len(), MAX_ROWS) as float) * ROW,
         doc: clip(doc, 78),
     }
 }

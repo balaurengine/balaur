@@ -500,7 +500,7 @@ pub fn slerp(from: Quat, to: Quat, t: f32) -> Quat {
 pub fn quat_from_euler(euler: Vec3) -> Quat {
     // One implementation for a clip key and a bone's rest pose, so the two
     // agree to the bit.
-    balaur_core::skeleton::quat_from_euler(euler)
+    balaur_geometry::skeleton::quat_from_euler(euler)
 }
 
 /// A quaternion back to the euler triple [`quat_from_euler`] would build it
@@ -513,5 +513,5 @@ pub fn quat_from_euler(euler: Vec3) -> Quat {
 /// describes is still the right one.
 #[must_use]
 pub fn euler_from_quat(q: Quat) -> Vec3 {
-    balaur_core::skeleton::euler_from_quat(q)
+    balaur_geometry::skeleton::euler_from_quat(q)
 }

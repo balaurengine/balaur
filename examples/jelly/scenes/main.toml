@@ -29,6 +29,17 @@ shot = ""
 frames = ""
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_main"
+
+[nodes.transform]
+position = [0.0, 0.5, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 85.0
+
+[[nodes]]
 id = "n_ground"
 name = "Ground"
 parent = "n_main"
@@ -37,13 +48,11 @@ parent = "n_main"
 position = [0.0, -4.6, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [22.0, 0.6]
+shape = { kind = "rectangle", size = [22.0, 0.6] }
 color = [0.20, 0.22, 0.26, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [22.0, 0.6]
+shape = { kind = "rectangle", size = [22.0, 0.6] }
 physics_material = { friction = 0.8 }
 
 # Cells laid out by a generator, draped over a peg.
@@ -56,13 +65,11 @@ parent = "n_main"
 position = [-8.0, -3.7, 0.0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.6
+shape = { kind = "circle", radius = 0.6 }
 color = [0.34, 0.36, 0.40, 1.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.6
+shape = { kind = "circle", radius = 0.6 }
 
 [[nodes]]
 id = "n_block"
@@ -72,10 +79,12 @@ parent = "n_main"
 [nodes.transform]
 position = [-8.0, 1.5, 0.0]
 
-[nodes.softbody2d]
-kind = "grid"
+[nodes.soft_grid2d]
 size = [2.0, 1.5]
 cells = [10.0, 8.0]
+
+[nodes.softbody2d]
+kind = "grid"
 color = [0.88, 0.42, 0.28, 1.0]
 soft_material = { edge_hz = 12.0 }
 
@@ -89,10 +98,12 @@ parent = "n_main"
 [nodes.transform]
 position = [-4.0, 0.0, 0.0]
 
-[nodes.softbody2d]
-kind = "circle"
+[nodes.soft_circle2d]
 radius = 1.0
 particle_count = 32
+
+[nodes.softbody2d]
+kind = "circle"
 color = [0.29, 0.56, 0.82, 1.0]
 
 [[nodes]]
@@ -105,13 +116,11 @@ body2d = { kind = "dynamic" }
 position = [-4.0, 4.0, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [1.0, 1.0]
+shape = { kind = "rectangle", size = [1.0, 1.0] }
 color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.0, 1.0]
+shape = { kind = "rectangle", size = [1.0, 1.0] }
 density = 3.0
 
 # The outline of the star the node draws, with the polygon riding it.
@@ -145,10 +154,12 @@ position = [4.0, 1.0, 0.0]
 mesh = "#arch"
 color = [0.62, 0.45, 0.78, 1.0]
 
+[nodes.soft_volumetric2d]
+cell_size = 0.15
+
 [nodes.softbody2d]
 kind = "volumetric"
 mesh = "#arch"
-cell_size = 0.15
 soft_material = { cell_model = "corotational", young_modulus = 60000.0 }
 
 # A rope pinned at both ends, and a ball dropped into it.
@@ -160,11 +171,13 @@ parent = "n_main"
 [nodes.transform]
 position = [8.0, -1.0, 0.0]
 
-[nodes.softbody2d]
-kind = "rope"
+[nodes.soft_rope2d]
 a = [-1.8, 0.0]
 b = [1.8, 0.0]
 particle_count = 24
+
+[nodes.softbody2d]
+kind = "rope"
 pinned_particles = [0, 23]
 color = [0.79, 0.63, 0.25, 1.0]
 
@@ -178,11 +191,9 @@ body2d = { kind = "dynamic" }
 position = [8.0, 3.0, 0.0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.45
+shape = { kind = "circle", radius = 0.45 }
 color = [0.88, 0.45, 0.30, 1.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.45
+shape = { kind = "circle", radius = 0.45 }
 density = 4.0

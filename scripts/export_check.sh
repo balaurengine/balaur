@@ -31,12 +31,12 @@ ls "$work/runtimes"
 step "build the exporter"
 # Headless: exporting compiles scripts and copies files, and never opens a
 # window, so the windowed feature would only cost build time here.
-cargo build --release -p balaur_cli
+cargo build --release -p balaur_cli --no-default-features --features headless
 balaur=$PWD/target/release/balaur
 
 step "export a game"
-# A one-world template gets an example whose `[export] runtime` names it, so
-# exporting for the platform proves the setting picks it; the full one a new
+# A one-world template gets an example that uses that world alone, so exporting
+# for the platform proves `[export] runtime = "auto"` lands on it; the full one a new
 # project from the `viewer` template, which draws: web_smoke.mjs fails a flat canvas.
 case $platform in
 *-2d) cp -R examples/angrynerds "$work/project" ;;

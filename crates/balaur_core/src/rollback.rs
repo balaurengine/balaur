@@ -115,6 +115,9 @@ pub fn input(eng: &Engine, player: PlayerId) -> Option<Input> {
 /// A local rollback session: the tick clock, the snapshot ring and the
 /// journal, driving one [`App`].
 pub struct Session {
+    /// The engine this session has run ticks on, whose clock it set. Dropping
+    /// the session puts that clock back: with none, everything is final.
+    ran_on: Option<crate::engine::Engine>,
     players: Vec<PlayerId>,
     /// The tick [`Session::advance`] will run next.
     next: u64,
@@ -148,6 +151,7 @@ impl Session {
     #[must_use]
     pub fn new(players: &[PlayerId], depth: usize) -> Self {
         Self {
+            ran_on: None,
             players: players.to_vec(),
             next: 1,
             ring: CheckpointRing::new(depth),
@@ -357,6 +361,7 @@ impl Session {
     /// The capture goes in before the step, so the ring holds the world a
     /// tick started from — which is what restoring that tick has to mean.
     fn run_tick(&mut self, app: &mut App, tick: u64, dt: f32) {
+        self.ran_on.get_or_insert_with(|| app.engine.clone());
         self.ring.push(tick, snapshot::capture(&app.engine));
         set_clock(&app.engine, tick, self.ring.earliest().unwrap_or(0));
         let inputs = self.inputs_for(tick);
@@ -418,6 +423,14 @@ fn prune(journal: &mut BTreeMap<(u64, PlayerId), Input>, earliest: u64) {
         newest.insert(player, tick);
     }
     journal.retain(|&(tick, player), _| tick >= earliest || newest.get(&player) == Some(&tick));
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        if let Some(clock) = self.ran_on.as_ref().and_then(Engine::try_resource::<Clock>) {
+            *clock.borrow_mut() = Clock::default();
+        }
+    }
 }
 
 fn set_clock(eng: &Engine, tick: u64, settled: u64) {

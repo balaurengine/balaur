@@ -6,13 +6,13 @@
 id = "hud"
 name = "Hud"
 script = { source = "scripts/panels/hud.bs" }
+visible = false
 [nodes.widget]
 kind = "row"
 absolute = true
 inset = [0.0, -1.0, 0.0, 0.0]
 height = 28
 align_items = "center"
-visible = false
 
 [[nodes]]
 id = "axes"
@@ -20,7 +20,6 @@ name = "Axes"
 parent = "hud"
 [nodes.widget]
 kind = "panel"
-text = ""
 fill = "bg_panel"
 corner_radius = 8
 padding = [10, 3, 10, 3]
@@ -82,7 +81,6 @@ name = "Zoom"
 parent = "hud"
 [nodes.widget]
 kind = "panel"
-text = ""
 fill = "bg_panel"
 corner_radius = 8
 padding = [6, 3, 6, 3]
@@ -101,6 +99,7 @@ id = "out"
 name = "Out"
 parent = "zoom_row"
 [nodes.widget]
+on_click = "zoom_out"
 kind = "button"
 text = "−"
 fill = "none"
@@ -121,8 +120,8 @@ id = "in"
 name = "In"
 parent = "zoom_row"
 [nodes.widget]
+on_click = "zoom_in"
 kind = "button"
-text = ""
 fill = "none"
 padding = 0
 
@@ -130,21 +129,20 @@ padding = 0
 id = "bottom"
 name = "Bottom"
 parent = "hud"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 fill = "bg_panel"
 corner_radius = 8
 padding = 0
-visible = false
 
 [[nodes]]
 id = "bottom_open"
 name = "Open"
 parent = "bottom"
 [nodes.widget]
+on_click = "open_bottom"
 kind = "button"
-text = ""
 fill = "none"
 padding = 0
 tooltip = "Open the dock"

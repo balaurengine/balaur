@@ -7,19 +7,237 @@
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::Bindings;
+use balaur_script::Module;
 
-use crate::vocabulary::keys as k;
 use crate::vocabulary::words;
-use crate::world_text::{Align, TextRenderable, TextStyle};
+use crate::world_text::{Align, Layers3d, Shaping, SpaceOptions, TextRenderable, TextStyle};
+use balaur_core::layers::Layer;
+
+/// Upright, italic, or the upright face slanted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum FontStyle {
+    Normal,
+    Italic,
+    Oblique,
+}
+
+/// Where a wrapped line may break.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum LineBreak {
+    WordOrGlyph,
+    Word,
+    Glyph,
+}
+
+/// Which part of a cut line the ellipsis stands in for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum TruncateAt {
+    End,
+    Start,
+    Middle,
+}
+
+/// A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.
+#[derive(Component)]
+#[component(
+    name = "text2d",
+    on_remove = text2d_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = text2d_written,
+)]
+pub struct Text2d {
+    /// The text drawn; `text_key` wins over it
+    pub text: String,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// Height in font pixels, before pixels_per_unit sizes it in the world
+    #[property(default = 32.0, min = 1.0)]
+    pub font_size: f32,
+    /// Where the block sits across the node's origin, and its lines within it: start and end follow the text's direction, left and right do not, justify stretches every full line
+    #[property(default = Align::Center)]
+    pub text_align: Align,
+    /// The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. Its `[surface]` says whether the glyphs are cut out (`alpha = "mask"`), which sides of a `text3d` draw and whether the scene hides it
+    #[property(asset = "material")]
+    pub material: String,
+    /// The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font
+    #[property(asset = "font", group = "font")]
+    pub font: String,
+    /// Stroke weight, 400 regular and 700 bold
+    #[property(default = 400, min = 100, max = 900, group = "font")]
+    pub font_weight: i64,
+    /// Upright, the family's italic face, or the upright face slanted; a family with no italic is slanted either way
+    #[property(default = FontStyle::Normal, group = "font")]
+    pub font_style: FontStyle,
+    /// How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain
+    #[property(asset = "text_style", group = "font")]
+    pub text_style: String,
+    /// A key in the project's strings, re-read every frame so a language change shows at once
+    #[property(group = "text")]
+    pub text_key: String,
+    /// Read the text as markup: bold, italic, colour, alignment, wave and inline images
+    #[property(group = "text")]
+    pub markup: bool,
+    /// Font pixels the lines wrap at; zero runs the text on one line
+    #[property(min = 0.0, group = "text")]
+    pub max_width: f32,
+    /// Font pixels to one world unit, sizing the block the way a sprite is sized
+    #[property(default = 100.0, min = 0.01, group = "placement")]
+    pub pixels_per_unit: f32,
+    /// Font pixels the lines stop at; zero has no limit
+    #[property(min = 0.0, group = "text")]
+    pub max_height: f32,
+    /// The most lines a block keeps; zero keeps every line
+    #[property(min = 0, group = "text")]
+    pub max_lines: i64,
+    /// Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere
+    #[property(default = LineBreak::WordOrGlyph, group = "text")]
+    pub line_break: LineBreak,
+    /// End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line
+    #[property(group = "text")]
+    pub truncate: bool,
+    /// Which part of a cut line the ellipsis stands in for
+    #[property(default = TruncateAt::End, group = "text")]
+    pub truncate_at: TruncateAt,
+    /// Spaces between tab stops
+    #[property(default = 8, min = 1, max = 64, group = "text")]
+    pub tab_width: i64,
+}
+
+/// A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.
+#[derive(Component)]
+#[component(name = "text3d", after_write = text3d_written)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is its own property, not a state machine"
+)]
+pub struct Text3d {
+    /// The text drawn; `text_key` wins over it
+    pub text: String,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// Height in font pixels, before pixels_per_unit sizes it in the world
+    #[property(default = 32.0, min = 1.0)]
+    pub font_size: f32,
+    /// Where the block sits across the node's origin, and its lines within it: start and end follow the text's direction, left and right do not, justify stretches every full line
+    #[property(default = Align::Center)]
+    pub text_align: Align,
+    /// The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. Its `[surface]` says whether the glyphs are cut out (`alpha = "mask"`), which sides of a `text3d` draw and whether the scene hides it
+    #[property(asset = "material")]
+    pub material: String,
+    /// The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font
+    #[property(asset = "font", group = "font")]
+    pub font: String,
+    /// Stroke weight, 400 regular and 700 bold
+    #[property(default = 400, min = 100, max = 900, group = "font")]
+    pub font_weight: i64,
+    /// Upright, the family's italic face, or the upright face slanted; a family with no italic is slanted either way
+    #[property(default = FontStyle::Normal, group = "font")]
+    pub font_style: FontStyle,
+    /// How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain
+    #[property(asset = "text_style", group = "font")]
+    pub text_style: String,
+    /// A key in the project's strings, re-read every frame so a language change shows at once
+    #[property(group = "text")]
+    pub text_key: String,
+    /// Read the text as markup: bold, italic, colour, alignment, wave and inline images
+    #[property(group = "text")]
+    pub markup: bool,
+    /// Font pixels the lines wrap at; zero runs the text on one line
+    #[property(min = 0.0, group = "text")]
+    pub max_width: f32,
+    /// Font pixels to one world unit, sizing the block the way a sprite is sized
+    #[property(default = 100.0, min = 0.01, group = "placement")]
+    pub pixels_per_unit: f32,
+    /// Font pixels the lines stop at; zero has no limit
+    #[property(min = 0.0, group = "text")]
+    pub max_height: f32,
+    /// The most lines a block keeps; zero keeps every line
+    #[property(min = 0, group = "text")]
+    pub max_lines: i64,
+    /// Where a wrapped line may break: between words with a too-long word cut anywhere, between words only, or anywhere
+    #[property(default = LineBreak::WordOrGlyph, group = "text")]
+    pub line_break: LineBreak,
+    /// End a block cut short with an ellipsis; needs `max_width`, and cuts at `max_lines` or `max_height` when either is set, else at one line
+    #[property(group = "text")]
+    pub truncate: bool,
+    /// Which part of a cut line the ellipsis stands in for
+    #[property(default = TruncateAt::End, group = "text")]
+    pub truncate_at: TruncateAt,
+    /// Spaces between tab stops
+    #[property(default = 8, min = 1, max = 64, group = "text")]
+    pub tab_width: i64,
+    /// Turn to face the camera every frame; off leaves it in the node's own plane
+    #[property(default = true)]
+    pub billboard: bool,
+    /// Whether it casts a shadow from the lights that cast. Through a material whose surface cuts the glyphs out, the shadow keeps their shapes; otherwise each glyph shadows as its whole quad
+    #[property(default = true, group = "shadows")]
+    pub cast_shadow: bool,
+    /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub render_layers: Vec<Layer>,
+    /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub light_layers: Vec<Layer>,
+    /// Whether shadows land on it; off lights it as if nothing stood between it and every light
+    #[property(default = true, group = "shadows")]
+    pub receive_shadows: bool,
+    /// The id `render.snap_aov("segmentation")` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up
+    #[property(min = 0, group = "layers")]
+    pub segmentation_id: i64,
+}
+
+/// The renderable a `text2d` or a `text3d` describes, from the rows the two
+/// share, every number held to what the shaper takes; `in_3d`, `in_space`
+/// and `overlay_3d` are the 3D pass's.
+macro_rules! renderable_of {
+    ($asked:expr, $in_3d:expr, $in_space:expr, $overlay_3d:expr) => {{
+        let asked = $asked;
+        TextRenderable {
+            text: asked.text.clone(),
+            text_key: asked.text_key.clone(),
+            style: TextStyle {
+                size: asked.font_size.max(1.0),
+                weight: u16::try_from(asked.font_weight.max(0)).unwrap_or(u16::MAX),
+                color: asked.color,
+                align: asked.text_align,
+                markup: asked.markup,
+                max_width: (asked.max_width > 0.0).then_some(asked.max_width),
+                font: asked.font.clone(),
+                text_style: asked.text_style.clone(),
+                in_content: false,
+                // A component's cutoff is its material's `[surface]`, read as
+                // the block is drawn; this one is the immediate API's.
+                alpha_cutoff: 0.0,
+                shaping: Shaping {
+                    font_style: asked.font_style.option().into(),
+                    line_break: asked.line_break.option().into(),
+                    truncate: asked.truncate,
+                    truncate_at: asked.truncate_at.option().into(),
+                    max_lines: u32::try_from(asked.max_lines.max(0)).unwrap_or(u32::MAX),
+                    max_height: asked.max_height.max(0.0),
+                    tab_width: u16::try_from(asked.tab_width.clamp(1, 64)).unwrap_or(8),
+                },
+            },
+            pixels_per_unit: asked.pixels_per_unit.max(0.01),
+            in_3d: $in_3d,
+            in_space: $in_space,
+            material: asked.material.clone(),
+            overlay_3d: $overlay_3d,
+            version: 0,
+        }
+    }};
+}
 
 /// Write the component, keeping the version so the backend rebuilds.
 pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -> Result<()> {
     // Not a property: where the node sits says whose faces it draws in.
     next.style.in_content = balaur_core::project::in_content(eng, entity);
-    let world = eng.world_mut();
+    let world = eng.world();
     if let Ok(current) = world.get::<&TextRenderable>(entity) {
         if *current == next {
             return Ok(());
@@ -27,216 +245,83 @@ pub(crate) fn set_text(eng: &Engine, entity: Entity, mut next: TextRenderable) -
         next.version = current.version.wrapping_add(1);
     }
     drop(world);
-    eng.world_mut()
-        .insert_one(entity, next)
+    eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))
 }
 
-/// Every key both components share, as schema lines.
-fn shared_schema() -> Vec<(&'static str, String)> {
-    vec![
-        (k::TEXT, r#"{ type = "string", default = "", description = "The text drawn; `text_key` wins over it" }"#.into()),
-        (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#.into()),
-        (k::FONT_SIZE, r#"{ type = "float", default = 32.0, min = 1.0, description = "Height in font pixels, before pixels_per_unit sizes it in the world" }"#.into()),
-        (k::TEXT_ALIGN, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Where the block sits across the node's origin, and its lines within it: start and end follow the text's direction, left and right do not, justify stretches every full line" }}"#, words::CENTER, crate::vocabulary::options(words::TEXT_ALIGNS))),
-        (k::MATERIAL, format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material every layer draws with, reading the glyph atlas as its texture; empty takes an inherited `material` component, else the built-in one. Its `[surface]` says whether the glyphs are cut out (`alpha = \"mask\"`), which sides of a `text3d` draw and whether the scene hides it" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-        (k::FONT, balaur_core::assets::font_row_spec("font")),
-        (k::FONT_WEIGHT, r#"{ type = "int", default = 400, min = 100, max = 900, description = "Stroke weight, 400 regular and 700 bold", group = "font" }"#.into()),
-        (k::FONT_STYLE, format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Upright, the family's italic face, or the upright face slanted; a family with no italic is slanted either way", group = "font" }}"#, words::NORMAL, crate::vocabulary::options(words::FONT_STYLES))),
-        (k::TEXT_STYLE, balaur_core::assets::text_style_row_spec("font")),
-        (k::TEXT_KEY, r#"{ type = "string", default = "", description = "A key in the project's strings, re-read every frame so a language change shows at once", group = "text" }"#.into()),
-        (k::MARKUP, r#"{ type = "bool", default = false, description = "Read the text as markup: bold, italic, colour, alignment, wave and inline images", group = "text" }"#.into()),
-        (k::MAX_WIDTH, r#"{ type = "float", default = 0.0, min = 0.0, description = "Font pixels the lines wrap at; zero runs the text on one line", group = "text" }"#.into()),
-        (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Font pixels to one world unit, sizing the block the way a sprite is sized", group = "placement" }"#.into()),
-    ]
-    .into_iter()
-    .chain(crate::world_text::Shaping::schema())
-    .collect()
+/// A `text2d`'s renderable, laid out again from what was written.
+fn text2d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let next = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Text2d>(entity) else {
+            return Ok(());
+        };
+        renderable_of!(
+            &*asked,
+            false,
+            SpaceOptions::default(),
+            crate::overlay::Overlay3d::default()
+        )
+    };
+    set_text(eng, entity, next)
 }
 
-/// One component's parameters read back into a renderable.
-fn from_params(params: &toml::Value, in_3d: bool) -> TextRenderable {
-    let text = |key: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string()
-    };
-    let number = |key: &str, fallback: f32| {
-        params
-            .get(key)
-            .and_then(balaur_core::components::as_f64)
-            .map_or(fallback, |v| v as f32)
-    };
-    let flag = |key: &str, fallback: bool| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(fallback)
-    };
-    let mask = |key: &str| balaur_core::layers::bits(params.get(key), true);
-    let max_width = number(k::MAX_WIDTH, 0.0);
-    let overlay_3d = if in_3d {
-        crate::overlay::overlay_3d(params)
-    } else {
-        crate::overlay::Overlay3d::default()
-    };
-    TextRenderable {
-        text: text(k::TEXT),
-        text_key: text(k::TEXT_KEY),
-        style: TextStyle {
-            size: number(k::FONT_SIZE, 32.0).max(1.0),
-            weight: number(k::FONT_WEIGHT, 400.0) as u16,
-            color: crate::color_from_params(params),
-            align: Align::of(&text(k::TEXT_ALIGN)),
-            markup: flag(k::MARKUP, false),
-            max_width: (max_width > 0.0).then_some(max_width),
-            font: text(k::FONT),
-            text_style: text(k::TEXT_STYLE),
-            in_content: false,
-            // A component's cutoff is its material's `[surface]`, read as
-            // the block is drawn; this one is the immediate API's.
-            alpha_cutoff: 0.0,
-            shaping: crate::world_text::Shaping::from_params(params),
-        },
-        pixels_per_unit: number(k::PIXELS_PER_UNIT, 100.0).max(0.01),
-        in_3d,
-        in_space: crate::world_text::SpaceOptions {
-            billboard: flag(k::BILLBOARD, true),
-            layers: crate::world_text::Layers3d {
-                cast_shadow: flag(k::CAST_SHADOW, true),
-                light_layers: mask(k::LIGHT_LAYERS),
-                render_layers: mask(k::RENDER_LAYERS),
+/// A `text3d`'s renderable, laid out again from what was written.
+fn text3d_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let next = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Text3d>(entity) else {
+            return Ok(());
+        };
+        let lighting = crate::Lighting3d::of(
+            asked.cast_shadow,
+            &asked.light_layers,
+            &asked.render_layers,
+            asked.receive_shadows,
+            asked.segmentation_id,
+        );
+        let in_space = SpaceOptions {
+            billboard: asked.billboard,
+            layers: Layers3d {
+                cast_shadow: lighting.shadows,
+                light_layers: lighting.layers,
+                render_layers: lighting.render_layers,
             },
-        },
-        material: text(k::MATERIAL),
-        overlay_3d,
-        version: 0,
-    }
+        };
+        renderable_of!(&*asked, true, in_space, lighting.overlay)
+    };
+    set_text(eng, entity, next)
 }
 
-/// A renderable back into the table a scene file would have written.
-fn to_params(text: &TextRenderable) -> toml::Value {
-    let mut out = toml::map::Map::new();
-    let mut put = |key: &str, value: toml::Value| {
-        out.insert(key.to_string(), value);
-    };
-    put(k::TEXT, toml::Value::String(text.text.clone()));
-    put(k::TEXT_KEY, toml::Value::String(text.text_key.clone()));
-    put(k::FONT_SIZE, toml::Value::Float(f64::from(text.style.size)));
-    put(
-        k::FONT_WEIGHT,
-        toml::Value::Integer(i64::from(text.style.weight)),
-    );
-    put(k::COLOR, crate::color_to_toml(text.style.color));
-    put(
-        k::TEXT_ALIGN,
-        toml::Value::String(text.style.align.word().into()),
-    );
-    put(
-        k::MAX_WIDTH,
-        toml::Value::Float(f64::from(text.style.max_width.unwrap_or(0.0))),
-    );
-    put(k::MARKUP, toml::Value::Boolean(text.style.markup));
-    put(k::FONT, toml::Value::String(text.style.font.clone()));
-    put(
-        k::TEXT_STYLE,
-        toml::Value::String(text.style.text_style.clone()),
-    );
-    put(
-        k::PIXELS_PER_UNIT,
-        toml::Value::Float(f64::from(text.pixels_per_unit)),
-    );
-    put(k::MATERIAL, toml::Value::String(text.material.clone()));
-    if text.in_3d {
-        put(k::BILLBOARD, toml::Value::Boolean(text.in_space.billboard));
-
-        let layers = text.in_space.layers;
-        put(k::CAST_SHADOW, toml::Value::Boolean(layers.cast_shadow));
-        let mask = |bits: u32| balaur_core::layers::names(bits);
-        put(k::LIGHT_LAYERS, mask(layers.light_layers));
-        put(k::RENDER_LAYERS, mask(layers.render_layers));
-        crate::overlay::overlay_3d_to_map(text.overlay_3d, &mut out);
-    }
-    text.style.shaping.put_into(&mut out);
-    toml::Value::Table(out)
+/// What a removed `Text2d` leaves behind, taken with it.
+fn text2d_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TextRenderable>(entity);
 }
 
 /// `text2d`: a block of text in the 2D pass, sized like a sprite.
 pub(crate) fn register_text2d_component(reg: &mut Registry<'_>) {
-    let schema = shared_schema();
-    let lines: Vec<(&str, &str)> = schema.iter().map(|(k, v)| (*k, v.as_str())).collect();
-    reg.register_component(
-        "text2d",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A block of `text` drawn in the 2D pass, `pixels_per_unit` font pixels per world unit.",
-            schema: ComponentDef::parse_schema(
-                "text2d",
-                &balaur_core::components::ComponentDef::schema(&lines),
-            ),
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                set_text(eng, entity, from_params(params, false))
-            }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<TextRenderable>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let text = world.get::<&TextRenderable>(entity).ok()?;
-                (!text.in_3d).then(|| to_params(&text))
-            }),
-        },
-    );
+    reg.add_component::<Text2d>();
 }
 
 /// `text3d`: the same block in the 3D pass, facing the camera by default.
 pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
-    let mut schema = shared_schema();
-    schema.push((k::BILLBOARD, r#"{ type = "bool", default = true, description = "Turn to face the camera every frame; off leaves it in the node's own plane" }"#.into()));
-    schema.push((k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether it casts a shadow from the lights that cast. Through a material whose surface cuts the glyphs out, the shadow keeps their shapes; otherwise each glyph shadows as its whole quad", group = "shadows" }"#.into()));
-    schema.push((k::RENDER_LAYERS, balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")));
-    schema.push((k::LIGHT_LAYERS, balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")));
-    schema.extend(crate::overlay::schema_3d());
-    let lines: Vec<(&str, &str)> = schema.iter().map(|(k, v)| (*k, v.as_str())).collect();
     reg.register_component(
-        "text3d",
+        Text3d::NAME,
         ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A block of `text` drawn in the 3D pass on a quad, `pixels_per_unit` font pixels per world unit; `billboard` turns it to the camera.",
-            schema: ComponentDef::parse_schema(
-                "text3d",
-                &balaur_core::components::ComponentDef::schema(&lines),
-            ),
             tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                set_text(eng, entity, from_params(params, true))
-            }),
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<TextRenderable>(entity);
+                let _ = eng.remove_one::<Text3d>(entity);
+                let _ = eng.remove_one::<TextRenderable>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let text = world.get::<&TextRenderable>(entity).ok()?;
-                text.in_3d.then(|| to_params(&text))
-            }),
+            ..ComponentDef::of::<Text3d>()
         },
     );
 }
 
 /// `render.set_text` and `render.text`: the string a node draws, for a score
 /// that changes every frame without rewriting the whole component.
-pub(crate) fn install_text_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_text_api(m: &mut Module<Engine>) {
     m.describe(&[]);
 }
 
@@ -345,7 +430,7 @@ pub(crate) fn sync_text(
         // Shaped at `raster`, wanted at `font_size`: the block is scaled back.
         let scale = (text.style.size / raster) / text.pixels_per_unit;
         let (centre, half) = crate::world_text::laid_box(&block, scale, text.style.align);
-        let _ = app.engine.world_mut().insert_one(
+        let _ = app.engine.insert_one(
             entity,
             LaidText {
                 centre: centre.extend(0.0),

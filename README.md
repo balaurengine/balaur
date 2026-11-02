@@ -20,7 +20,7 @@ Written in Rust. A game exports to a single executable.
 ## Features
 
 - **Nodes and scenes** — a tree of named nodes with scripts attached; scenes are plain TOML.
-- **Rune scripting** — Rust's syntax, async/await, a debugger in the editor.
+- **Balaur Script** — a typed language compiled to WebAssembly: Rust's look, enums and `match`, async/await, a debugger in the editor.
 - **Hot reload** — save a script while the game runs; live in milliseconds, state intact.
 - **Determinism** — same inputs, same bits, every platform. Record a session and replay it.
 - **Physics** — Rapier in 2D and 3D, stepped on a fixed tick, 60 Hz by default.
@@ -47,7 +47,7 @@ Other platforms and distros: [Build from source](https://balaurengine.org/docs/b
 ```bash
 cargo run -p balaur_cli -- new my-game
 cargo run -p balaur_cli -- run my-game                        # dev mode, hot reload on
-cargo run -p balaur_cli --features window -- edit my-game     # open in the editor
+cargo run -p balaur_cli -- edit my-game                       # open in the editor
 cargo build --release -p balaur_cli                           # the runtime a game ships on
 cargo run -p balaur_cli -- export my-game --runtime target/release/balaur
 ```
@@ -64,8 +64,8 @@ name = "Ball"
 script = { source = "scripts/ball.bs", props = { speed = 3.5 } }
 transform = { position = [0.0, 6.0, 0.0] }        # from balaur_core
 body3d = { kind = "dynamic" }                     # from balaur_physics
-collider3d = { kind = "ball", radius = 0.5 }      # from balaur_physics
-shape3d = { kind = "ball", radius = 0.5 }         # from balaur_render
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }  # from balaur_physics
+shape3d = { shape = { kind = "sphere", radius = 0.5 } }     # from balaur_render
 ```
 
 ```rust

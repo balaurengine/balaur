@@ -4,7 +4,6 @@
 
 use editor;
 use manager;
-use pool;
 use style;
 use util;
 
@@ -109,7 +108,7 @@ fn KEYS() -> [str] {
 }
 
 pub fn state() -> any {
-    map()
+    {}
 }
 
 fn key_label(key: str) -> str {
@@ -174,14 +173,14 @@ fn key_label(key: str) -> str {
 pub fn view(state: editor::State) -> View {
     let viewport_rect = state.viewport;
     let window_size = ui::window_size();
-    let sh = window_size.at(1);
-    let staged = !manager::showing(state) && !state.focus && viewport_rect.width.as_float() > 0.0;
-    let vx = if staged { viewport_rect.x.as_float() } else { 0.0 };
-    let vy = if staged { viewport_rect.y.as_float() } else { 0.0 };
-    let vh = if staged { viewport_rect.height.as_float() } else { sh };
+    let window_height = window_size.y;
+    let staged = !manager::showing(state) && !state.focus && viewport_rect.width > 0.0;
+    let viewport_x = if staged { viewport_rect.x } else { 0.0 };
+    let viewport_y = if staged { viewport_rect.y } else { 0.0 };
+    let viewport_height = if staged { viewport_rect.height } else { window_height };
     let pose = render::camera_pose();
-    let dpi = pose.at(7);
-    View { shown: state.show_input, factor: dpi.as_float() * state.ui_scale, chips_x: vx + 130.0, chips_y: vy + vh.as_float() - 46.0 }
+    let dpi = pose[7];
+    View { shown: state.show_input, factor: dpi * state.ui_scale, chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height - 46.0 }
 }
 
 /// A key's chip, or "" for a key worth none: the rest of the key list is
@@ -203,19 +202,20 @@ fn is_known_key(key: str, items: [str]) -> bool {
 /// pressed, each in the look it had.
 pub fn fill_chips(state: editor::State, names: [any]) {
     let tokens = state.theme;
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for name in names {
-        let action = name.starts_with(ACTION);
-        out.push(map()
-            .with("kind", "button")
-            .with("text", if action { name.slice(ACTION.len(), name.len()) } else { name })
-            .with("height", 30)
-            .with("font_size", style::MD)
-            .with("font_weight", 700)
-            .with("interactive", false)
-            .with("fill", (if action { tokens.get("bg_control") } else { tokens.get("primary_fill") }).as_str())
-            .with("stroke", (if action { tokens.get("primary_text") } else { "" }).as_str())
-            .with("text_color", (if action { tokens.get("primary_text") } else { tokens.get("text_on_primary") }).as_str()));
+        let action = name.as_str().starts_with(ACTION);
+        out.push(ui::Control {
+            kind: "button",
+            text: if action { name.as_str().slice(ACTION.len(), name.len()) } else { name },
+            height: 30,
+            font_size: style::MEDIUM,
+            font_weight: 700,
+            interactive: false,
+            fill: (if action { tokens["bg_control"] } else { tokens["primary_fill"] }).as_str(),
+            stroke: (if action { tokens["primary_text"].as_str() } else { "" }),
+            text_color: (if action { tokens["primary_text"] } else { tokens["text_on_primary"] }).as_str(),
+        });
     }
-    pool::strip(state, "Editor/InputView/Chips", out);
+    ui::fill_strip("Editor/InputView/Chips", out);
 }

@@ -9,10 +9,15 @@
 //! ```
 
 pub use balaur_animation::AnimationPlugin;
+pub use balaur_asset::*;
 pub use balaur_core::*;
+pub use balaur_debug::*;
+pub use balaur_geometry::*;
 pub use balaur_input::InputPlugin;
+pub use balaur_net::*;
 pub use balaur_physics::PhysicsPlugin;
 pub use balaur_platform::PlatformPlugin;
+pub use balaur_project::*;
 pub use balaur_render::RenderPlugin;
 pub use balaur_ui::UiPlugin;
 
@@ -95,22 +100,6 @@ fn manifest_of(config: &AppConfig) -> Option<balaur_core::project::ProjectManife
     balaur_core::project::ProjectManifest::parse(&text).ok()
 }
 
-/// The script backend a project asks for in its `project.toml`: `bs`, the
-/// one language this build runs; the field stays so a project states it.
-fn backend_for(config: &AppConfig) -> Result<Option<balaur_core::ScriptHostFactory>> {
-    let language = manifest_of(config).map_or_else(|| BS.to_string(), |m| m.language);
-    if language != BS {
-        bail!("project.toml asks for script_language \"{language}\"; this build runs {BS}");
-    }
-    #[cfg(feature = "bs-backend")]
-    return Ok(Some(balaur_script_bs::factory()));
-    #[cfg(not(feature = "bs-backend"))]
-    Ok(None)
-}
-
-/// The `script_language` of a project written in Balaur Script.
-const BS: &str = "bs";
-
 /// Build an export pack with the script backend `standard_app` installs.
 ///
 /// A script compiles against the engine's modules, so an export boots the app
@@ -120,7 +109,7 @@ pub fn build_pack(project_root: &std::path::Path) -> Result<Pack> {
 }
 
 /// [`build_pack`], keeping script sources in the pack when `keep_sources`
-/// — see [`Pack::build_with`] for when a runtime needs that.
+/// — see [`balaur_project::packing::build_with`] for when a runtime needs that.
 pub fn build_pack_with(project_root: &std::path::Path, keep_sources: bool) -> Result<Pack> {
     build_pack_using(project_root, keep_sources, &mut [])
 }
@@ -132,13 +121,60 @@ pub fn build_pack_using(
     extra: ExtraPlugins<'_>,
 ) -> Result<Pack> {
     with_host(project_root, extra, |engine, host| {
-        let pack = Pack::build_with(project_root, host, keep_sources)?;
+        let pack = balaur_project::packing::build_with(project_root, host, keep_sources)?;
         #[cfg(feature = "compile")]
         let pack = with_shaders(engine, pack)?;
         #[cfg(not(feature = "compile"))]
         let _ = engine;
         Ok(pack)
     })
+}
+
+/// Every built-in an engine registers before its plugins, the kernel's and
+/// the crates' around it, in the order an app has always made them: the order
+/// is the components' places in the registry, and with it the digest.
+#[must_use]
+pub fn builtins() -> Builtins {
+    use balaur_core::engine_api::{ApiPart, KERNEL_MODULES, KERNEL_OPS};
+    Builtins {
+        steps: vec![
+            balaur_asset::glb::register_model_reader,
+            balaur_geometry::mesh::register_mesh_asset,
+            balaur_asset::texture_asset::register_texture_asset,
+            balaur_geometry::path::register_path_assets,
+            balaur_geometry::heightfield::register_heightfield_asset,
+            balaur_geometry::voxels::register_voxels_asset,
+            balaur_core::transform::register_transform_component,
+            balaur_geometry::skeleton::register_bone2d_component,
+            balaur_geometry::skeleton::register_bone3d_component,
+            balaur_core::app::register_scene_content,
+            balaur_core::snapshot::build_core_sources,
+            balaur_net::netsession::build_session_source,
+            balaur_core::app::register_facts,
+            balaur_core::app::register_core_settings,
+        ],
+        api: vec![
+            ApiPart::Ops(KERNEL_OPS[0]),
+            ApiPart::Ops(balaur_project::desktop_api::OPS),
+            ApiPart::Ops(KERNEL_OPS[1]),
+            ApiPart::Ops(balaur_debug::profile_api::OPS),
+            ApiPart::Ops(KERNEL_OPS[2]),
+            ApiPart::Ops(balaur_geometry::skeleton::OPS),
+            ApiPart::Ops(KERNEL_OPS[3]),
+            KERNEL_MODULES[0],
+            KERNEL_MODULES[1],
+            ApiPart::Module("debugger", balaur_debug::debugger_api::install_debugger_api),
+            KERNEL_MODULES[2],
+            KERNEL_MODULES[3],
+            ApiPart::Module("rollback", balaur_net::rollback_api::install_rollback_api),
+            KERNEL_MODULES[4],
+            KERNEL_MODULES[5],
+            ApiPart::Module(
+                "geometry2d",
+                balaur_geometry::geometry2d::install_geometry2d_api,
+            ),
+        ],
+    }
 }
 
 /// A game's `.bs` scripts as one C file, for an export to a platform that
@@ -307,7 +343,7 @@ pub fn check_project_using(
 
 /// Each file the script at `rel` links in that `[application] ignore` leaves
 /// out of an export: it compiles here, beside the module on disk, and the
-/// export refuses it ([`Pack::build_with`]).
+/// export refuses it ([`balaur_project::packing::build_with`]).
 fn ignored_uses(
     host: &dyn balaur_script::ScriptCompiler,
     ignored: &[String],
@@ -341,7 +377,7 @@ fn check_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec
         );
         return vec![Finding::error(rel, 0, 0, message)];
     }
-    host.check(rel, source)
+    host.check_attached(rel, source)
         .into_iter()
         .map(|e| Finding::error(rel, e.pos.line as usize, e.pos.col as usize, e.msg))
         .collect()
@@ -367,7 +403,10 @@ pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
 
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
-        config.script_backend = backend_for(&config)?;
+        #[cfg(feature = "bs-backend")]
+        {
+            config.script_backend = Some(balaur_script_bs::factory());
+        }
     }
     let asked = manifest_of(&config).map(|m| m.plugins).unwrap_or_default();
     #[cfg(feature = "extensions")]
@@ -384,7 +423,10 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
     {
         balaur_render::prelinked::install(table)?;
     }
-    let mut app = App::new(config)?;
+    let mut app = App::new(AppConfig {
+        builtins: builtins(),
+        ..config
+    })?;
     balaur_core::settings::define_group(
         &app.engine,
         "log",
@@ -446,15 +488,15 @@ fn configs_from(asked: &Selection) -> balaur_core::PluginConfigs {
 /// `platform` and be believed.
 fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plugin>>> {
     let always: Vec<Box<dyn balaur_plugin::Plugin>> = vec![
-        Box::new(AnimationPlugin::default()),
-        Box::new(InputPlugin::default()),
-        Box::new(PhysicsPlugin::default()),
-        Box::new(RenderPlugin::default()),
-        Box::new(UiPlugin::default()),
-        Box::new(PlatformPlugin::default()),
+        Box::new(AnimationPlugin),
+        Box::new(InputPlugin),
+        Box::new(PhysicsPlugin),
+        Box::new(RenderPlugin),
+        Box::new(UiPlugin),
+        Box::new(PlatformPlugin),
     ];
     for plugin in &always {
-        let name = &plugin.manifest().name;
+        let name = plugin.name();
         if asked.get(name).is_some_and(|choice| !choice.wanted()) {
             bail!("project.toml turns off `{name}`, which every build has");
         }
@@ -462,7 +504,7 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
     let mut all = always;
     all.extend(optional_modules().into_iter().filter(|module| {
         asked
-            .get(&module.manifest().name)
+            .get(module.name())
             .is_none_or(balaur_core::PluginChoice::wanted)
     }));
     Ok(all)
@@ -496,30 +538,33 @@ fn refuse_absent(app: &App, asked: &Selection) -> Result<()> {
 /// Here rather than in either plugin: `balaur_ui` reads its input from egui,
 /// which has keys but no pads, and `balaur_input` knows nothing about
 /// widgets. This crate is the one that knows about both, which is what
-/// assembling them means. A project that declares none of these three
-/// actions gets no menu system and no keyboard focus either — the keys stay
-/// the game's, which is what a game that moves with the arrows needs.
+/// assembling them means.
+///
+/// The keyboard drives focus too, until the game shows those keys are its own:
+/// an action binding one, or a script reading one. Declaring one of these
+/// three actions says a menu is wanted, which keeps the keyboard's focus on.
 fn drive_ui_focus(app: &mut App) {
     use balaur_ui::{Move, UiFocus};
-    // Turned on once, the first frame the actions are there: a project's
-    // table is loaded lazily, and the editor declares a played game's later
-    // still. Only ever on, so `ui.set_keyboard_focus(false)` is not undone.
-    let mut armed = false;
     app.add_system(
         balaur_core::Stage::First,
         move |eng: &balaur_core::Engine, _| {
             let Some(actions) = eng.try_resource::<balaur_input::InputActions>() else {
                 return;
             };
-            if !armed
-                && ["ui_accept", "ui_next", "ui_previous"]
+            let keyboard = {
+                let actions = actions.borrow();
+                ["ui_accept", "ui_next", "ui_previous"]
                     .iter()
-                    .any(|name| actions.borrow().is_declared(name))
-            {
-                armed = true;
-                eng.resource::<balaur_ui::WidgetLayerConfig>()
-                    .borrow_mut()
-                    .keyboard = true;
+                    .any(|name| actions.is_declared(name))
+                    || !(actions.binds_any_key(&balaur_input::FOCUS_KEYS)
+                        || eng
+                            .resource::<balaur_input::InputSnapshot>()
+                            .borrow()
+                            .focus_key_read())
+            };
+            let layer = eng.resource::<balaur_ui::WidgetLayerConfig>();
+            if layer.borrow().keyboard != keyboard {
+                layer.borrow_mut().keyboard = keyboard;
             }
             let asked = {
                 let actions = actions.borrow();
@@ -555,7 +600,7 @@ fn load_extensions(app: &mut App, asked: &Selection, dir: &std::path::Path) -> R
     // check inside refuses a build that cannot share this process.
     let mut loaded = unsafe { balaur_plugin::load_extensions_in(dir, &modules) }?;
     for extension in &mut loaded {
-        let name = extension.manifest().name.clone();
+        let name = extension.name().to_owned();
         if asked.get(&name).is_some_and(|choice| !choice.wanted()) {
             tracing::info!(extension = %name, "off in project.toml");
             continue;
@@ -647,7 +692,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> Resu
     {
         Err(anyhow::anyhow!(
             "this build has no renderer, so it cannot render offscreen; \
-             build with --features window"
+             build balaur_cli with its default features"
         ))
     }
 }

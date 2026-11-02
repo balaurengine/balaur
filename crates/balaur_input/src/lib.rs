@@ -13,7 +13,7 @@ use anyhow::Result;
 use balaur_core::Engine;
 use balaur_core::Stage;
 use balaur_core::collections::DetHashSet;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 pub mod actions;
 pub mod gamepad;
@@ -39,7 +39,7 @@ pub use gamepad::{
     Power, PowerState,
 };
 pub use gestures::Gestures;
-pub use keys::{EITHER_SIDE, KEYS};
+pub use keys::{EITHER_SIDE, FOCUS_KEYS, KEYS};
 pub use settings::{InputConfig, PadSettings};
 pub use touch_controls::{TouchButton, TouchStick};
 
@@ -146,6 +146,10 @@ pub struct InputSnapshot {
     /// dispatch a press run at the top of one.
     #[serde(skip)]
     fed: Vec<Fed>,
+    /// A script has read one of [`FOCUS_KEYS`], which makes those keys the
+    /// game's rather than the widgets'.
+    #[serde(skip)]
+    focus_key_read: bool,
     /// Whether a backend began this frame, so the tick does not begin it
     /// again and clear the events the backend fed.
     #[serde(skip)]
@@ -373,6 +377,16 @@ impl InputSnapshot {
         self.keyboard_taken
     }
 
+    /// Whether a script has read one of [`FOCUS_KEYS`] at any point in this run.
+    pub const fn focus_key_read(&self) -> bool {
+        self.focus_key_read
+    }
+
+    /// A script heard one of [`FOCUS_KEYS`] through a hook.
+    pub const fn note_focus_key_read(&mut self) {
+        self.focus_key_read = true;
+    }
+
     /// Say which key `cmd` is, where the build's platform cannot know it.
     pub fn set_command_is_meta(&mut self, meta: bool) {
         self.command_is_meta = Some(meta);
@@ -508,21 +522,12 @@ fn announce_pads_system(eng: &Engine, _: f32) {
     }
 }
 
-pub struct InputPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for InputPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("input", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct InputPlugin;
 
 impl balaur_plugin::Plugin for InputPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "input"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -627,6 +632,15 @@ fn check_key(key: &str) {
 ///
 /// The index is the one `InputSnapshot` stores, so a constant and a raw number
 /// cannot disagree.
+/// The snapshot, noting a read of a key widget focus also moves on.
+fn keys_for_script(eng: &Engine, key: &str) -> std::rc::Rc<std::cell::RefCell<InputSnapshot>> {
+    let state = eng.resource::<InputSnapshot>();
+    if FOCUS_KEYS.contains(&key) {
+        state.borrow_mut().note_focus_key_read();
+    }
+    state
+}
+
 pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] = &[
     ("MOUSE_BUTTON_LEFT", 0),
     ("MOUSE_BUTTON_RIGHT", 1),
@@ -636,7 +650,7 @@ pub const MOUSE_BUTTON_CONSTANTS: &[(&str, i64)] = &[
 ];
 
 /// `input.*`. Declared against the neutral seam.
-fn install_input_api(m: &mut dyn Bindings<Engine>) {
+fn install_input_api(m: &mut Module<Engine>) {
     m.module_doc(
         "One frame of input: keyboard, mouse, touch screen and gamepads, plus what went down or came up this frame. A headless run answers every query neutrally.",
     );
@@ -644,7 +658,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
         ("key_down", &[], "", "Whether the `KEY_*` key is held down right now, however many frames it has been down. `KEY_SHIFT`, `KEY_CONTROL`, `KEY_ALT` and `KEY_META` answer for either side."),
         ("key_just_pressed", &[], "", "Whether the `KEY_*` key went down this frame; true for that one frame only."),
         ("key_just_released", &[], "", "Whether the `KEY_*` key came up this frame; true for that one frame only."),
-        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `#{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `#{ scale, x, y, pan_x, pan_y }`."),
+        ("mouse_position", &[], "", "The cursor's position in window pixels, with (0, 0) at the top-left corner. A script hears it move with `events::listen(this.node, \"pointer_moved\")`, as `on_pointer_moved([x, y])`, and a button go down or up anywhere, the UI included, as `pointer_pressed` and `pointer_released` with `{ button, x, y }`; the wheel turn as `pointer_scrolled` with `[x, y]`, and two fingers as `pointer_gestured` with `{ scale, x, y, pan_x, pan_y }`."),
         ("mouse_delta", &[], "", "How far the cursor moved this frame, in pixels; movement, not a position."),
         ("scroll_delta", &[], "", "How far the wheel turned this frame, as an (x, y) pair; zero when it did not turn."),
         ("mouse_down", &[], "", "Whether the `MOUSE_BUTTON_*` button is held down right now, however many frames it has been down."),
@@ -654,7 +668,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     for (name, index) in MOUSE_BUTTON_CONSTANTS {
         m.constant(name, balaur_script::Value::Int(*index));
     }
-    // `input.KEY_SPACE` instead of "Space". In Rune a misspelled constant is a
+    // `input::KEY_SPACE` instead of "Space". A misspelled constant is a
     // compile error rather than a key that quietly never fires.
     for (name, code) in keys::KEYS {
         m.constant(name, balaur_script::Value::Str((*code).to_string()));
@@ -664,20 +678,17 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
     }
     m.function("key_down", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().key_down(&key);
+        let v = keys_for_script(eng, &key).borrow().key_down(&key);
         Ok(v)
     });
     m.function("key_just_pressed", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().key_just_pressed(&key);
+        let v = keys_for_script(eng, &key).borrow().key_just_pressed(&key);
         Ok(v)
     });
     m.function("key_just_released", |eng: &Engine, key: String| {
         check_key(&key);
-        let state = eng.resource::<InputSnapshot>();
-        let v = state.borrow().key_just_released(&key);
+        let v = keys_for_script(eng, &key).borrow().key_just_released(&key);
         Ok(v)
     });
     m.function("mouse_position", |eng: &Engine, ()| {
@@ -722,7 +733,7 @@ fn install_input_api(m: &mut dyn Bindings<Engine>) {
 /// `input.pinch`, `pan`, `swipe` and `long_press`: what the fingers are
 /// doing, past where they are. Each reads neutral with nothing happening, so
 /// a desktop and a headless run answer the same as a still screen.
-fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
+fn install_gesture_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("pinch", &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
         ("pan", &[], "-> Pan", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
@@ -783,7 +794,7 @@ fn install_gesture_api(m: &mut dyn Bindings<Engine>) {
 /// for a person: a showcase, a test, an automation client. A fed event is
 /// the next frame's, delivered when it begins, so the systems that dispatch
 /// a press at the top of a tick see it exactly like an OS event.
-fn install_feed_api(m: &mut dyn Bindings<Engine>) {
+fn install_feed_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("feed_key", &[], "(key: string, down: bool)", "Press or release a `KEY_*` key as if the window had reported it: next frame's edge, and the state until the opposite feed."),
         ("feed_mouse", &[], "(x: float, y: float)", "Move the cursor to a window-pixel position as if the window had reported it, from next frame; the delta accumulates for that frame."),
@@ -841,7 +852,7 @@ fn install_feed_api(m: &mut dyn Bindings<Engine>) {
 
 /// `input.touches*` and `input.dropped_files`: the per-frame lists the
 /// window backend feeds.
-fn install_touch_api(m: &mut dyn Bindings<Engine>) {
+fn install_touch_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
         ("touches_just_started", &[], "", "The ids of the fingers that touched down this frame."),

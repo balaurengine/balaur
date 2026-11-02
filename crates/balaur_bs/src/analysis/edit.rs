@@ -95,8 +95,7 @@ impl Analysis {
     }
 
     /// Every use of `name` in the file, its declarations included: by name,
-    /// as Rune's own references go, so a local and a field spelled alike are
-    /// both found.
+    /// so a local and a field spelled alike are both found.
     pub fn references(&self, name: &str) -> Vec<Pos> {
         scan::occurrences(&self.src, name)
             .into_iter()

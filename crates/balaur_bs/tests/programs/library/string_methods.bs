@@ -1,0 +1,46 @@
+// The everyday string methods. Offsets are bytes; one inside a character
+// moves back onto it.
+
+pub fn words(s: str) -> [str] { s.split(" ") }
+pub fn shout(s: str) -> str { s.trim().to_upper() }
+pub fn whisper(s: str) -> str { s.to_lower() }
+pub fn tagged(s: str) -> bool { s.starts_with("#") && s.ends_with("!") && s.contains("go") }
+pub fn where_is(s: str, t: str) -> int { s.find(t) }
+pub fn cut(s: str, a: int, b: int) -> str { s.slice(a, b) }
+pub fn swap(s: str) -> str { s.replace("cat", "dog") }
+pub fn numbers(s: str) -> float {
+    let total = 0.0;
+    for part in s.split(",") {
+        total += part.parse_float();
+    }
+    total + "7".parse_int()
+}
+pub fn path(s: str) -> str {
+    let parts = s.split_once("#");
+    if parts.len() == 2 { "{parts[0]}|{parts[1]}" } else { "none" }
+}
+pub fn letters(s: str) -> int { s.chars().len() }
+pub fn show(x: int) -> str { "<{x}>" }
+
+// expect: words("a bb c") == ["a", "bb", "c"]
+// expect: shout("  hi  ") == "HI"
+// expect: whisper("ŞTEFAN") == "ştefan"
+// expect: tagged("#let's go!") == true
+// expect: tagged("let's go!") == false
+// expect: where_is("hello", "ll") == 2
+// expect: where_is("hello", "x") == -1
+// expect: cut("hello", 1, 3) == "el"
+// expect: cut("hello", 3, 99) == "lo"
+// expect: cut("ăb", 1, 2) == "ă"
+// expect: swap("cat and cat") == "dog and dog"
+// expect: numbers("1.5, 2,x") == 10.5
+// expect: path("a.png#tile#2") == "a.png|tile#2"
+// expect: path("a.png") == "none"
+// expect: letters("ăbc") == 3
+// expect: show(0) == "<0>"
+// expect: show(7) == "<7>"
+// expect: show(-7) == "<-7>"
+// expect: show(1234567890) == "<1234567890>"
+// expect: show(9223372036854775807) == "<9223372036854775807>"
+// expect: show(-9223372036854775808) == "<-9223372036854775808>"
+// live: 0

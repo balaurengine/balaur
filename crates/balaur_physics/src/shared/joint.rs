@@ -9,59 +9,23 @@
 use crate::scalar::Real;
 
 mod reaction;
-mod schema;
 
 pub(crate) use reaction::{Metric, Row, applied};
-pub(crate) use schema::{DEFAULT_LINK_DAMPING, OwnRows, schema, softness};
 
-/// One `axes` record, read with the schema's defaults.
-pub(crate) struct AxisRecord<'a> {
-    pub(crate) axis: &'a str,
+/// One `axes` record, its words as the schema spells them.
+pub(crate) struct AxisRecord {
+    pub(crate) axis: &'static str,
     pub(crate) limits: [f32; 2],
-    pub(crate) motor: &'a str,
+    pub(crate) motor: &'static str,
     pub(crate) target: f32,
     pub(crate) target_velocity: f32,
     pub(crate) max_force: f32,
-    pub(crate) model: &'a str,
+    pub(crate) model: &'static str,
     pub(crate) stiffness: f32,
     pub(crate) damping: f32,
-    /// On an articulation; below zero is rapier's own for the axis.
-    pub(crate) link_damping: f32,
-    pub(crate) armature: f32,
-    pub(crate) friction: f32,
 }
 
-impl<'a> AxisRecord<'a> {
-    pub(crate) fn of(record: &'a toml::Value) -> Self {
-        use crate::vocabulary::{self as v, keys as k, words as w};
-        Self {
-            axis: v::text(record, k::AXIS, ""),
-            limits: v::vec2(record, k::LIMITS, [0.0; 2]),
-            motor: v::text(record, k::MOTOR, w::OFF),
-            target: v::f(record, k::MOTOR_TARGET, 0.0),
-            target_velocity: v::f(record, k::MOTOR_TARGET_VELOCITY, 0.0),
-            max_force: v::f(record, k::MOTOR_MAX_FORCE, 0.0),
-            model: v::text(record, k::MOTOR_MODEL, w::AUTO),
-            stiffness: v::f(record, k::STIFFNESS, 0.0),
-            damping: v::f(record, k::DAMPING, DEFAULT_DAMPING),
-            link_damping: v::f(record, k::LINK_DAMPING, -1.0),
-            armature: v::f(record, k::ARMATURE, 0.0).max(0.0),
-            friction: v::f(record, k::FRICTION, 0.0).max(0.0),
-        }
-    }
-
-    /// The damping an articulation's chain takes on this axis: the record's,
-    /// or rapier's own, which damps a turn and leaves a slide free.
-    pub(crate) fn chain_damping(&self, angular: bool) -> f32 {
-        if self.link_damping >= 0.0 {
-            self.link_damping
-        } else if angular {
-            DEFAULT_LINK_DAMPING
-        } else {
-            0.0
-        }
-    }
-
+impl AxisRecord {
     /// `limits = [0, 0]` is how a record says *no limit*: a range whose ends
     /// meet is a locked axis, and locking is what the `lock_*` flags are for.
     pub(crate) fn limited(&self) -> bool {
@@ -73,8 +37,49 @@ impl<'a> AxisRecord<'a> {
     }
 }
 
+/// How an articulated link moves on one free axis, as an `articulation`'s
+/// `link_axes` record says, rapier's own where none names the axis.
+pub(crate) struct LinkRecord {
+    /// Below zero is rapier's own for the axis.
+    pub(crate) link_damping: f32,
+    pub(crate) armature: f32,
+    pub(crate) friction: f32,
+}
+
+impl LinkRecord {
+    /// rapier's own, for an axis no record names.
+    pub(crate) const NONE: Self = Self {
+        link_damping: -1.0,
+        armature: 0.0,
+        friction: 0.0,
+    };
+
+    /// The damping the chain takes on this axis: the record's, or rapier's
+    /// own, which damps a turn and leaves a slide free.
+    pub(crate) fn chain_damping(&self, angular: bool) -> f32 {
+        if self.link_damping >= 0.0 {
+            self.link_damping
+        } else if angular {
+            DEFAULT_LINK_DAMPING
+        } else {
+            0.0
+        }
+    }
+}
+
 /// A motor's and a spring's damping when a record names none.
 pub(crate) const DEFAULT_DAMPING: f32 = 1.0;
+
+/// rapier's own joint softness (`SpringCoefficients::joint_defaults`).
+pub(crate) const DEFAULT_SOFTNESS_HZ: f32 = 1.0e6;
+/// The damping rapier gives a new link's turning axes (`default_damping`);
+/// its linear axes take none.
+pub(crate) const DEFAULT_LINK_DAMPING: f32 = 0.1;
+
+/// `softness_hz` and `softness_damping_ratio`, as the solver takes them.
+pub(crate) fn softness(hz: f32, ratio: f32) -> (Real, Real) {
+    (hz.max(0.0), ratio.max(0.0))
+}
 
 /// A record for `axis` with every other field at its default, for a script
 /// call that names an axis no record holds yet.
@@ -94,18 +99,42 @@ pub(crate) fn default_record(axis: &str) -> toml::map::Map<String, toml::Value> 
         k::DAMPING.into(),
         toml::Value::Float(f64::from(DEFAULT_DAMPING)),
     );
-    out.insert(k::LINK_DAMPING.into(), toml::Value::Float(-1.0));
-    out.insert(k::ARMATURE.into(), zero());
-    out.insert(k::FRICTION.into(), zero());
     out
 }
 
-/// The `axes` records a joint's params hold.
-pub(crate) fn records(params: &toml::Value) -> &[toml::Value] {
-    params
-        .get(crate::vocabulary::keys::AXES)
-        .and_then(toml::Value::as_array)
-        .map_or(&[], Vec::as_slice)
+/// What a joint is built from, as each dimension's typed ask holds it: what
+/// the functions both dimensions share read of it.
+pub(crate) trait JointAsk: Clone {
+    /// The kind, as the schema spells it: `hinge`, `rope`.
+    fn kind_word(&self) -> &'static str;
+    fn enabled(&self) -> bool;
+    /// Whether an articulation stands beside the joint.
+    fn articulated(&self) -> bool;
+    fn kinematic_link(&self) -> bool;
+    fn connected_body(&self) -> &str;
+    fn gear_with(&self) -> &str;
+    /// `gear_ratio` and `gear_offset`.
+    fn gear(&self) -> (f32, f32);
+    fn self_collision(&self) -> bool;
+    /// `passive_stiffness` and `passive_rest`.
+    fn passive(&self) -> (f32, f32);
+    /// The articulation's record for the axis `word` names.
+    fn link_record(&self, word: &str) -> LinkRecord;
+    /// `break_force` and `break_torque`.
+    fn breaks(&self) -> (f32, f32);
+    /// A spring's `rest_length`.
+    fn rest_length(&self) -> f32;
+    /// Every `axes` record, in order.
+    fn axis_records(&self) -> Vec<AxisRecord>;
+}
+
+/// The node an ask's path names, from the node holding the joint.
+pub(crate) fn node_named(
+    eng: &balaur_core::Engine,
+    from: balaur_core::hecs::Entity,
+    path: &str,
+) -> Option<balaur_core::hecs::Entity> {
+    balaur_core::components::as_node(eng, from, Some(&toml::Value::String(path.to_owned())))
 }
 
 /// What a rope's or a spring's distance axis has another key for, refused so
@@ -113,7 +142,7 @@ pub(crate) fn records(params: &toml::Value) -> &[toml::Value] {
 pub(crate) fn check_distance_axis(
     kind: &str,
     distance: bool,
-    record: &AxisRecord<'_>,
+    record: &AxisRecord,
 ) -> anyhow::Result<()> {
     use crate::vocabulary::words as w;
     if !distance {
@@ -144,38 +173,20 @@ pub(crate) fn resolved_model(word: &str, spring: bool) -> &str {
     }
 }
 
-/// The `axes` records with every `auto` model spelled as the model it runs.
-pub(crate) fn resolved_axes(params: &toml::Value, spring: impl Fn(&str) -> bool) -> toml::Value {
-    use crate::vocabulary::{keys as k, words as w};
-    let rows = records(params)
-        .iter()
-        .map(|record| {
-            let mut row = record.clone();
-            let axis = crate::vocabulary::text(record, k::AXIS, "").to_string();
-            if let Some(table) = row.as_table_mut() {
-                let word = crate::vocabulary::text(record, k::MOTOR_MODEL, w::AUTO);
-                let model = resolved_model(word, spring(&axis)).to_string();
-                table.insert(k::MOTOR_MODEL.into(), model.into());
-            }
-            row
-        })
-        .collect();
-    toml::Value::Array(rows)
-}
-
 /// `break_force` and `break_torque`, refused on an articulation: rapier
 /// writes back no reaction for a multibody joint, so neither could fire.
-pub(crate) fn thresholds(params: &toml::Value, reduced: bool) -> anyhow::Result<(Real, Real)> {
-    use crate::vocabulary::{self as v, keys as k};
-    let force = v::f(params, k::BREAK_FORCE, 0.0).max(0.0);
-    let torque = v::f(params, k::BREAK_TORQUE, 0.0).max(0.0);
+pub(crate) fn thresholds(
+    (force, torque): (f32, f32),
+    reduced: bool,
+) -> anyhow::Result<(Real, Real)> {
+    let (force, torque) = (force.max(0.0), torque.max(0.0));
     if reduced && (force > 0.0 || torque > 0.0) {
         return Err(anyhow::anyhow!(
             "`break_force` and `break_torque` do not apply to an articulation: its constraint \
              leaves no reaction to measure"
         ));
     }
-    Ok((crate::scalar::real(force), crate::scalar::real(torque)))
+    Ok((force, torque))
 }
 
 fn number(value: f32) -> toml::Value {
@@ -221,7 +232,7 @@ pub(crate) fn limits(record: &mut toml::map::Map<String, toml::Value>, min: f32,
 }
 
 macro_rules! functions {
-    (state = $State:ty, world = $World:ty, reference = $Ref:ty, handle = $Handle:ident, component = $component:expr, body = $body:expr, impulse_parts = $parts:ident) => {
+    (joint = $Joint:ty, ask = $Ask:ty, state = $State:ty, world = $World:ty, reference = $Ref:ty, handle = $Handle:ident, component = $component:expr, body = $body:expr, impulse_parts = $parts:ident) => {
         pub(crate) fn remove_joint(eng: &Engine, entity: Entity) {
             let chain = {
                 let state = eng.resource::<$State>();
@@ -240,30 +251,24 @@ macro_rules! functions {
 
         /// Switch a made impulse joint on or off where it stands, when that is
         /// all a write changes; `false` when it has to be made again.
-        fn toggled_in_place(eng: &Engine, entity: Entity, params: &toml::Value) -> bool {
+        fn toggled_in_place(eng: &Engine, entity: Entity, ask: &$Ask) -> bool {
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             let state = &mut *state;
             let Some(built) = state.joint_params.get(&entity) else {
                 return false;
             };
-            // Compared as made, not as written: a patch arrives with the read-back's
-            // numbers and words, which spell the same joint another way.
-            let (Ok(mut was), Ok(mut asked)) = (joint_of(built), joint_of(params)) else {
+            // Compared as made: two asks that make the same joint are the same.
+            let (Ok(mut was), Ok(mut made)) = (joint_of(built), joint_of(ask)) else {
                 return false;
             };
             was.set_enabled(true);
-            asked.set_enabled(true);
-            let same_text = |key: &str| v::text(built, key, "") == v::text(params, key, "");
-            let same_number =
-                |key: &str| v::f(built, key, 0.0).to_bits() == v::f(params, key, 0.0).to_bits();
-            let same_switch =
-                |key: &str| v::boolean(built, key, false) == v::boolean(params, key, false);
-            if was != asked
-                || !same_text(k::CONNECTED_BODY)
-                || !same_number(k::BREAK_FORCE)
-                || !same_number(k::BREAK_TORQUE)
-                || !same_switch(k::ARTICULATION)
+            made.set_enabled(true);
+            let bits = |(force, torque): (f32, f32)| (force.to_bits(), torque.to_bits());
+            if was != made
+                || built.connected_body() != ask.connected_body()
+                || bits(built.breaks()) != bits(ask.breaks())
+                || built.articulated() != ask.articulated()
             {
                 return false;
             }
@@ -273,8 +278,8 @@ macro_rules! functions {
             let Some(joint) = state.world.impulse_joints.get_mut(handle, true) else {
                 return false;
             };
-            joint.data.set_enabled(v::boolean(params, k::ENABLED, true));
-            state.joint_params.insert(entity, params.clone());
+            joint.data.set_enabled(ask.enabled());
+            state.joint_params.insert(entity, ask.clone());
             true
         }
 
@@ -290,12 +295,9 @@ macro_rules! functions {
                     .iter()
                     .filter(|(_, r)| matches!(r.handle, $Handle::Multibody(_)))
                     .filter_map(|(entity, _)| {
-                        let params = state.joint_params.get(entity)?;
-                        let other = balaur_core::components::as_node(
-                            eng,
-                            *entity,
-                            params.get(k::GEAR_WITH),
-                        )?;
+                        let ask = state.joint_params.get(entity)?;
+                        let other =
+                            crate::shared::joint::node_named(eng, *entity, ask.gear_with())?;
                         Some((*entity, other))
                     })
                     .collect()
@@ -324,14 +326,13 @@ macro_rules! functions {
                 }
             }
             for (entity, handle) in &chains {
-                let Some(params) = state.joint_params.get(entity) else {
+                let Some(ask) = state.joint_params.get(entity) else {
                     continue;
                 };
-                let real = |key: &str, default: f32| scalar::real(v::f(params, key, default));
                 let Some((multibody, id)) = state.world.multibody_joints.get_mut(*handle) else {
                     continue;
                 };
-                if !v::boolean(params, k::SELF_COLLISION, true) {
+                if !ask.self_collision() {
                     multibody.set_self_contacts_enabled(false);
                 }
                 let Some(link) = multibody.link(id) else {
@@ -341,25 +342,20 @@ macro_rules! functions {
                 let locked = link.joint().data.locked_axes.bits();
                 // rapier numbers a link's degrees of freedom by its free axes, in order.
                 let free = (0..AXIS_WORDS.len()).filter(|i| locked & (1 << i) == 0);
-                let unwritten = toml::Value::Table(toml::map::Map::new());
                 for (dof, i) in free.enumerate() {
                     let (word, axis) = AXIS_WORDS[i];
-                    let row = crate::shared::joint::records(params)
-                        .iter()
-                        .find(|row| v::text(row, k::AXIS, "") == word);
-                    let record = crate::shared::joint::AxisRecord::of(row.unwrap_or(&unwritten));
+                    let record = ask.link_record(word);
                     let angular = JointAxesMask::ANG_AXES.contains(axis.into());
-                    multibody.damping_mut()[start + dof] =
-                        scalar::real(record.chain_damping(angular));
-                    multibody.armature_mut()[start + dof] = scalar::real(record.armature);
-                    multibody.frictions_mut()[start + dof] = scalar::real(record.friction);
+                    multibody.damping_mut()[start + dof] = record.chain_damping(angular);
+                    multibody.armature_mut()[start + dof] = record.armature;
+                    multibody.frictions_mut()[start + dof] = record.friction;
                 }
                 let Some(link) = multibody.link_mut(id) else {
                     continue;
                 };
-                let stiffness = real(k::PASSIVE_STIFFNESS, 0.0);
+                let (stiffness, rest) = ask.passive();
                 // The chain holds the joint flipped, so its coordinates run the other way.
-                let rest = -real(k::PASSIVE_REST, 0.0);
+                let rest = -rest;
                 let locked = link.joint.data.locked_axes.bits();
                 for axis in (0..AXIS_WORDS.len()).filter(|i| locked & (1 << i) == 0) {
                     link.joint.set_spring(axis, stiffness, rest);
@@ -374,7 +370,7 @@ macro_rules! functions {
                     Some($Handle::Multibody(handle)) => Some(handle),
                     _ => None,
                 };
-                let (Some(mine), Some(theirs), Some(params)) = (
+                let (Some(mine), Some(theirs), Some(ask)) = (
                     handle(&entity),
                     handle(&other),
                     state.joint_params.get(&entity),
@@ -408,57 +404,14 @@ macro_rules! functions {
                     link2,
                     dof2: 0,
                     axis2,
-                    coeff: scalar::real(v::f(params, k::GEAR_RATIO, 1.0)),
+                    coeff: ask.gear().0,
                     // Both joints run flipped, which turns the offset's sign.
-                    offset: -scalar::real(v::f(params, k::GEAR_OFFSET, 0.0)),
+                    offset: -ask.gear().1,
                 };
                 if let Some((chain, _)) = set.get_mut(mine) {
                     chain.add_dof_coupling(coupling);
                 }
             }
-        }
-
-        /// What an articulation's chain holds for this joint, over the authored
-        /// values: each `axes` record's damping, armature and friction, its
-        /// first free axis's spring, whether it is kinematic, and the chain's
-        /// self-collision.
-        fn read_chain(
-            map: &mut toml::map::Map<String, toml::Value>,
-            multibody: &Multibody,
-            id: usize,
-        ) {
-            let Some(link) = multibody.link(id) else {
-                return;
-            };
-            let f = |value: Real| toml::Value::Float(f64::from(scalar::f32_of(value)));
-            map.insert(k::KINEMATIC_LINK.into(), link.joint.kinematic.into());
-            map.insert(
-                k::SELF_COLLISION.into(),
-                multibody.self_contacts_enabled().into(),
-            );
-            let locked = link.joint.data.locked_axes.bits();
-            let free: Vec<usize> = (0..AXIS_WORDS.len())
-                .filter(|i| locked & (1 << i) == 0)
-                .collect();
-            let start = link.assembly_id();
-            if let Some(rows) = map.get_mut(k::AXES).and_then(toml::Value::as_array_mut) {
-                for row in rows.iter_mut() {
-                    let word = v::text(row, k::AXIS, "").to_string();
-                    let dof = free.iter().position(|i| AXIS_WORDS[*i].0 == word);
-                    let (Some(dof), Some(table)) = (dof, row.as_table_mut()) else {
-                        continue;
-                    };
-                    table.insert(k::LINK_DAMPING.into(), f(multibody.damping()[start + dof]));
-                    table.insert(k::ARMATURE.into(), f(multibody.armature()[start + dof]));
-                    table.insert(k::FRICTION.into(), f(multibody.frictions()[start + dof]));
-                }
-            }
-            let Some(&axis) = free.first() else {
-                return;
-            };
-            let (stiffness, rest) = link.joint.spring(axis);
-            map.insert(k::PASSIVE_STIFFNESS.into(), f(stiffness));
-            map.insert(k::PASSIVE_REST.into(), f(-rest));
         }
 
         /// A made joint as `joint_state` reads it: its data with this node's end
@@ -513,10 +466,10 @@ macro_rules! functions {
                 .joint_params
                 .get(&entity)
                 .ok_or_else(|| anyhow!("node has no {}", $component))?;
-            let kind = v::text(params, k::KIND, w::FIXED);
-            let number = |x: Real| Value::Num(f64::from(scalar::f32_of(x)));
+            let kind = params.kind_word();
+            let number = |x: Real| Value::Num(f64::from(x));
             let Some(reference) = state.joints.get(&entity) else {
-                let status = if v::boolean(params, k::ENABLED, true) {
+                let status = if params.enabled() {
                     w::WAITING
                 } else {
                     w::DISABLED
@@ -631,10 +584,8 @@ macro_rules! functions {
                 // An articulation switched off has params and no handle for ever;
                 // retrying it every step would re-apply the whole component sixty
                 // times a second.
-                .filter(|(entity, params)| {
-                    !state.joints.contains_key(*entity)
-                        && (v::boolean(params, k::ENABLED, true)
-                            || !v::boolean(params, k::ARTICULATION, false))
+                .filter(|(entity, ask)| {
+                    !state.joints.contains_key(*entity) && (ask.enabled() || !ask.articulated())
                 })
                 .map(|(entity, _)| *entity)
                 .collect();
@@ -643,7 +594,7 @@ macro_rules! functions {
 
         /// The degree of freedom an `axes` word names, checked against the
         /// axes the joint's kind leaves free.
-        fn free_axis(kind: &str, params: &toml::Value, word: &str) -> Result<JointAxis> {
+        fn free_axis(kind: &str, params: &$Ask, word: &str) -> Result<JointAxis> {
             let words: Vec<&str> = AXIS_WORDS.iter().map(|(name, _)| *name).collect();
             let axis = AXIS_WORDS
                 .iter()
@@ -683,31 +634,29 @@ macro_rules! functions {
             kind: &str,
             rest_length: Real,
             axis: JointAxis,
-            record: &crate::shared::joint::AxisRecord<'_>,
+            record: &crate::shared::joint::AxisRecord,
         ) {
             let bit: JointAxesMask = axis.into();
-            let real = scalar::real;
             let distance = is_distance(kind, axis);
             // A rope's limit is its `max_length`, already on the axis.
             if !(distance && kind == w::ROPE) {
                 if record.limited() {
-                    joint.set_limits(axis, [real(record.limits[0]), real(record.limits[1])]);
+                    joint.set_limits(axis, [record.limits[0], record.limits[1]]);
                 } else {
                     joint.limit_axes.remove(bit);
                 }
             }
             let spring = distance && kind == w::SPRING;
-            let (stiffness, damping) = (real(record.stiffness), real(record.damping));
+            let (stiffness, damping) = (record.stiffness, record.damping);
             if spring {
                 joint.set_motor(axis, rest_length, 0.0, stiffness, damping);
             } else {
                 match record.motor {
                     w::VELOCITY => {
-                        joint.set_motor(axis, 0.0, real(record.target), 0.0, damping);
+                        joint.set_motor(axis, 0.0, record.target, 0.0, damping);
                     }
                     w::POSITION => {
-                        let (target, velocity) =
-                            (real(record.target), real(record.target_velocity));
+                        let (target, velocity) = (record.target, record.target_velocity);
                         joint.set_motor(axis, target, velocity, stiffness, damping);
                     }
                     _ => joint.motor_axes.remove(bit),
@@ -719,7 +668,7 @@ macro_rules! functions {
             };
             joint.set_motor_model(axis, model);
             let max_force = if record.max_force > 0.0 {
-                real(record.max_force)
+                record.max_force
             } else {
                 Real::MAX
             };
@@ -727,12 +676,11 @@ macro_rules! functions {
         }
 
         /// Every `axes` record onto a freshly built joint.
-        fn write_axes(joint: &mut GenericJoint, params: &toml::Value, kind: &str) -> Result<()> {
-            let rest_length = scalar::real(v::f(params, k::REST_LENGTH, 0.0).max(0.0));
+        fn write_axes(joint: &mut GenericJoint, ask: &$Ask, kind: &str) -> Result<()> {
+            let rest_length = ask.rest_length().max(0.0);
             let mut seen = JointAxesMask::empty();
-            for entry in crate::shared::joint::records(params) {
-                let record = crate::shared::joint::AxisRecord::of(entry);
-                let axis = free_axis(kind, params, record.axis)?;
+            for record in ask.axis_records() {
+                let axis = free_axis(kind, ask, record.axis)?;
                 if seen.contains(axis.into()) {
                     return Err(anyhow!("two `axes` records name `{}`", record.axis));
                 }
@@ -758,14 +706,21 @@ macro_rules! functions {
             let state = eng.resource::<$State>();
             let mut state = state.borrow_mut();
             let state = &mut *state;
-            let mut params = state
+            let mut ask = state
                 .joint_params
                 .get(&entity)
                 .cloned()
                 .ok_or_else(|| anyhow!("node has no {}", $component))?;
-            let kind = v::text(&params, k::KIND, w::FIXED).to_string();
-            let axis = free_axis(&kind, &params, word)?;
-            let mut rows: Vec<toml::Value> = crate::shared::joint::records(&params).to_vec();
+            let kind = ask.kind_word();
+            let axis = free_axis(kind, &ask, word)?;
+            // The record is edited as the table a script's call writes into,
+            // then read back into the joint's own list.
+            let mut params = balaur_core::components::derived::to_table(&ask.joint);
+            let mut rows: Vec<toml::Value> = params
+                .get(k::AXES)
+                .and_then(toml::Value::as_array)
+                .cloned()
+                .unwrap_or_default();
             let at = rows
                 .iter()
                 .position(|row| v::text(row, k::AXIS, "") == word)
@@ -778,21 +733,29 @@ macro_rules! functions {
             if let Some(table) = rows[at].as_table_mut() {
                 change(table);
             }
-            let row = rows[at].clone();
-            let record = crate::shared::joint::AxisRecord::of(&row);
-            crate::shared::joint::check_distance_axis(&kind, is_distance(&kind, axis), &record)?;
             if let Some(table) = params.as_table_mut() {
                 table.insert(k::AXES.into(), toml::Value::Array(rows));
             }
-            let rest_length = scalar::real(v::f(&params, k::REST_LENGTH, 0.0).max(0.0));
-            state.joint_params.insert(entity, params);
+            ask.joint = balaur_core::components::derived::from_table(&params)?;
+            let record = ask
+                .axis_records()
+                .into_iter()
+                .find(|record| record.axis == word)
+                .ok_or_else(|| anyhow!("no `axes` record names `{word}`"))?;
+            crate::shared::joint::check_distance_axis(kind, is_distance(kind, axis), &record)?;
+            let rest_length = ask.rest_length().max(0.0);
+            // The component holds what was asked of it, and this call asks.
+            if let Ok(mut held) = eng.world().get::<&mut $Joint>(entity) {
+                *held = ask.joint.clone();
+            }
+            state.joint_params.insert(entity, ask);
             let Some(reference) = state.joints.get(&entity).copied() else {
                 return Ok(());
             };
             match reference.handle {
                 $Handle::Impulse(handle) => {
                     if let Some(joint) = state.world.impulse_joints.get_mut(handle, true) {
-                        write_axis(&mut joint.data, &kind, rest_length, axis, &record);
+                        write_axis(&mut joint.data, kind, rest_length, axis, &record);
                     }
                 }
                 $Handle::Multibody(handle) => {
@@ -805,7 +768,7 @@ macro_rules! functions {
                     };
                     // An articulation holds its frames flipped (see `apply_joint`).
                     link.joint.data.flip();
-                    write_axis(&mut link.joint.data, &kind, rest_length, axis, &record);
+                    write_axis(&mut link.joint.data, kind, rest_length, axis, &record);
                     link.joint.data.flip();
                     let body = link.rigid_body_handle();
                     if let Some(body) = state.world.bodies.get_mut(body) {
@@ -860,8 +823,8 @@ macro_rules! functions {
                 None => (0.0, 0.0),
             };
             Ok(crate::vocabulary::map([
-                (k::FORCE, Value::Num(f64::from(scalar::f32_of(force)))),
-                (k::TORQUE, Value::Num(f64::from(scalar::f32_of(torque)))),
+                (k::FORCE, Value::Num(f64::from(force))),
+                (k::TORQUE, Value::Num(f64::from(torque))),
             ]))
         }
 
@@ -894,7 +857,7 @@ macro_rules! functions {
                     out.push((k::B.into(), b));
                 }
                 let (force, torque) = reaction(&state.world, handle).unwrap_or((0.0, 0.0));
-                let number = |value: Real| Value::Num(f64::from(scalar::f32_of(value)));
+                let number = |value: Real| Value::Num(f64::from(value));
                 out.push((k::FORCE.into(), number(force)));
                 out.push((k::TORQUE.into(), number(torque)));
             }
@@ -980,10 +943,9 @@ macro_rules! functions {
                 None => JointAxesMask::LIN_AXES,
             };
             let iterations = opts.f32(k::ITERATIONS, defaults.max_iters as f32).max(0.0);
-            let tolerance = opts.f32(k::TOLERANCE, scalar::f32_of(defaults.epsilon_linear));
-            let tolerance = scalar::real(tolerance);
+            let tolerance = opts.f32(k::TOLERANCE, defaults.epsilon_linear);
             Ok(InverseKinematicsOption {
-                damping: scalar::real(opts.f32(k::DAMPING, scalar::f32_of(defaults.damping))),
+                damping: opts.f32(k::DAMPING, defaults.damping),
                 max_iters: iterations as usize,
                 constrained_axes,
                 epsilon_linear: tolerance,

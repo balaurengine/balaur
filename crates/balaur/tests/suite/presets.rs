@@ -24,15 +24,14 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
     let registry = registry.borrow();
     let d = registry.def(name).unwrap_or_else(|| panic!("no `{name}`"));
     components::ComponentDef {
-        events: &[],
-        warnings: None,
-        doc: "",
-        schema: d.schema.clone(),
         tags: d.tags,
         expects: d.expects,
-        apply: Box::new(|_, _, _| Ok(())),
-        remove: Box::new(|_, _| Ok(())),
-        get: Box::new(|_, _| None),
+        ..components::ComponentDef::by_hand(
+            d.schema.clone(),
+            Box::new(|_, _, _| Ok(())),
+            Box::new(|_, _| Ok(())),
+            Box::new(|_, _| None),
+        )
     }
 }
 
@@ -41,7 +40,7 @@ fn def(app: &App, name: &str) -> components::ComponentDef {
 #[test]
 fn a_component_can_carry_several_tags() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let tags = def(&app, "collider2d").tags;
     assert!(tags.contains(&"2d"), "tags were {tags:?}");
     assert!(tags.contains(&"physics"), "tags were {tags:?}");
@@ -52,7 +51,7 @@ fn a_component_can_carry_several_tags() {
 #[test]
 fn dimension_tags_separate_the_two_worlds() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     assert!(def(&app, "body3d").tags.contains(&"3d"));
     assert!(def(&app, "body2d").tags.contains(&"2d"));
     assert!(!def(&app, "body3d").tags.contains(&"2d"));
@@ -63,7 +62,7 @@ fn dimension_tags_separate_the_two_worlds() {
 #[test]
 fn every_registered_component_is_tagged() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<components::ComponentRegistry>();
     let registry = registry.borrow();
     for (name, def) in &*registry {
@@ -74,7 +73,7 @@ fn every_registered_component_is_tagged() {
 #[test]
 fn a_preset_applies_every_component_it_names() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let entity = node(&app);
     presets::apply(&app.engine, entity, "rigid_body2d").unwrap();
     let present = components::present_on(&app.engine, entity);
@@ -87,7 +86,7 @@ fn a_preset_applies_every_component_it_names() {
 #[test]
 fn presets_carry_the_parameters_that_distinguish_them() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let dynamic = node(&app);
     let stationary = node(&app);
     presets::apply(&app.engine, dynamic, "rigid_body2d").unwrap();
@@ -107,7 +106,7 @@ fn presets_carry_the_parameters_that_distinguish_them() {
 #[test]
 fn a_node_does_not_remember_its_preset() {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::physics::PhysicsPlugin).unwrap();
     let entity = node(&app);
     presets::apply(&app.engine, entity, "rigid_body2d").unwrap();
     components::remove(&app.engine, entity, "collider2d").unwrap();
@@ -156,7 +155,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 let tags = scene::component_tags("collider2d").unwrap();
                 self.check(has(tags, "2d"), "collider2d should be tagged 2d");
                 self.check(has(tags, "physics"), "collider2d should be tagged physics");
-                self.check(scene::component_tags("nope").is_none(), "unknown component has no tags");
+                self.check(scene::component_tags("nope") == nil, "unknown component has no tags");
 
                 let names = scene::presets();
                 self.check(has(names, "rigid_body2d"), "rigid_body2d missing");
@@ -168,15 +167,15 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 self.check(has(names, "sprite2d"), "sprite2d missing");
 
                 let found = scene::preset_info("rigid_body2d");
-                self.check(found.is_some(), "no info for rigid_body2d");
-                if found.is_some() {
+                self.check(found != nil, "no info for rigid_body2d");
+                if found != nil {
                     let info = found.unwrap();
                     self.check(info.components.len() == 2, "rigid_body2d adds two components");
                     self.check(info.description != "", "a preset needs a description");
                     // Each part's own properties, which is what makes the preset mean
                     // something: a rigid body is a dynamic one.
-                    self.check(info.parts.get("body2d").get("kind").as_str() == "dynamic", "the body part carries its kind");
-                    self.check(info.parts.get("collider2d").len() == 0, "a part with no properties is an empty table");
+                    self.check(info.parts["body2d"]["kind"].as_str() == "dynamic", "the body part carries its kind");
+                    self.check(info.parts["collider2d"].len() == 0, "a part with no properties is an empty table");
                 }
 
                 // Applying one puts the components on the node, and nothing records
@@ -186,7 +185,7 @@ fn the_script_api_exposes_tags_presets_and_warnings() {
                 let present = n.component_names();
                 self.check(has(present, "body2d"), "body2d not applied");
                 self.check(has(present, "collider2d"), "collider2d not applied");
-                self.check(n.get_component("body2d", "kind").as_str() == "dynamic", "wrong body kind");
+                self.check(n.body2d.kind == "dynamic", "wrong body kind");
 
                 self.check(scene::warnings(n).len() == 0, "nothing should warn here");
                 if !self.failed {

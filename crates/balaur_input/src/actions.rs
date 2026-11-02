@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use balaur_core::Engine;
-use balaur_script::Bindings;
+use balaur_script::Module;
 
 use crate::InputSnapshot;
 use crate::gamepad::GamepadState;
@@ -248,7 +248,9 @@ impl Binding {
             Self::Key(key) => key.clone(),
             Self::Mouse(0) => String::from("mouse:left"),
             Self::Mouse(1) => String::from("mouse:right"),
-            Self::Mouse(_) => String::from("mouse:middle"),
+            Self::Mouse(2) => String::from("mouse:middle"),
+            Self::Mouse(3) => String::from("mouse:back"),
+            Self::Mouse(_) => String::from("mouse:forward"),
             Self::Pad(button) => format!("gamepad:{button}"),
             Self::Axis { name, half } => match half {
                 Half::Both => format!("axis:{name}"),
@@ -331,6 +333,17 @@ impl InputActions {
 
     pub fn is_declared(&self, name: &str) -> bool {
         self.bound.contains_key(name)
+    }
+
+    /// Whether any action reads one of `keys` on its own, without a modifier.
+    pub fn binds_any_key(&self, keys: &[&str]) -> bool {
+        self.bound.values().flatten().any(|binding| match binding {
+            Binding::Key(key) => keys.contains(&key.as_str()),
+            Binding::KeyPair(low, high) => {
+                keys.contains(&low.as_str()) || keys.contains(&high.as_str())
+            }
+            _ => false,
+        })
     }
 
     /// Put a value into an action for this frame, as if a binding had
@@ -595,8 +608,8 @@ fn check_action(eng: &Engine, name: &str) {
 }
 
 /// `input.action_*`, `input.actions`, `input.bind`.
-pub(crate) fn install_actions(m: &mut dyn Bindings<Engine>) {
-    use balaur_script::{BindingsExt as _, Value};
+pub(crate) fn install_actions(m: &mut Module<Engine>) {
+    use balaur_script::Value;
 
     m.describe(&[
         ("actions", &[], "", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
@@ -693,8 +706,8 @@ pub fn declare_manifest(eng: &Engine, input: &toml::Value) -> anyhow::Result<()>
     crate::settings::declare(eng, input.clone())
 }
 
-fn install_rebinding(m: &mut dyn Bindings<Engine>) {
-    use balaur_script::{BindingsExt as _, Value};
+fn install_rebinding(m: &mut Module<Engine>) {
+    use balaur_script::Value;
 
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
         let bindings = match bindings {
@@ -735,6 +748,14 @@ mod tests {
     use super::{Binding, InputActions};
     use crate::InputSnapshot;
     use crate::gamepad::GamepadState;
+
+    #[test]
+    fn every_mouse_button_writes_back_the_name_it_was_read_from() {
+        for name in ["left", "right", "middle", "back", "forward"] {
+            let text = format!("mouse:{name}");
+            assert_eq!(Binding::parse(&text).unwrap().text(), text);
+        }
+    }
 
     fn table(name: &str, key: &str) -> BTreeMap<String, Vec<Binding>> {
         BTreeMap::from([(name.to_string(), vec![Binding::parse(key).unwrap()])])

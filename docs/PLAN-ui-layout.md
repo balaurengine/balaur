@@ -282,12 +282,12 @@ the engine's, and all three are gone:
 
 | was | now |
 |---|---|
-| one global widget-layer rect, pointed at the viewport for a game's HUD | `layer` on a root names a **surface**; `ui.set_widget_surface` places each one. A surface nothing configured takes the default, so a host that confines the default confines what it was not told about — which is why the editor declares `shell` rather than assuming it |
+| one global widget-layer rect, pointed at the viewport for a game's HUD | `whole_window = true` on a root places it over the whole window; every other root is confined to the viewport. The editor's shell says so in its scene |
 | nothing could read back where a widget was placed | `ui.widget_rect(node)` returns the rect it was drawn at |
 | a `draw` node had to carry its own script instance | it asks the nearest scripted ancestor, so a shell of them needs one script, not one per panel |
 
-So `Editor/Shell` in `scenes/main.toml` is now `widget` nodes on a `shell`
-surface. `layout.bs` states the five sizes that move — the two side docks, the
+So `Editor/Shell` in `scenes/main.toml` is now `widget` nodes marked
+`whole_window`. `layout.bs` states the five sizes that move — the two side docks, the
 bottom dock, the tool rail, the hooks list — and reads every rect back; the
 Rune arrange is deleted. The nodes paint nothing, an unthemed `row` being a
 pure layout box, so every panel still draws through `ui::overlay` at the rect

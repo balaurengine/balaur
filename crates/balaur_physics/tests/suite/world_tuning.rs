@@ -19,7 +19,7 @@ fn each_world_reads_its_own_table_over_the_shared_one() {
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.load_project().unwrap();
     app.tick(balaur_core::DEFAULT_FIXED_DT);
     let state = app.engine.resource::<PhysicsState3d>();
@@ -57,7 +57,7 @@ fn tuned(extra: &str) -> (App, tempfile::TempDir) {
     .unwrap();
     std::fs::write(dir.path().join("scenes/main.toml"), "").unwrap();
     let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.load_project().unwrap();
     (app, dir)
 }

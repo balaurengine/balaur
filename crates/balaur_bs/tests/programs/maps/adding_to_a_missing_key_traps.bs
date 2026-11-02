@@ -1,0 +1,9 @@
+// `+=` on a key the map lacks traps rather than inventing a zero.
+
+pub fn missing() -> int {
+    let ages: {str: int} = {};
+    ages["nobody"] += 1;
+    0
+}
+
+// expect: missing() traps

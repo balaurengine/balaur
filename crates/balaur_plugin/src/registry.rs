@@ -4,10 +4,12 @@ use balaur_core::{App, Engine, Stage};
 
 /// What a plugin may do to the engine while registering.
 ///
-/// Deliberately free of trait objects and, but for the two that name a Rust
-/// type, of generics: an out-of-process extension will one day reach these
-/// operations across a C ABI, and a `fn` pointer crosses that boundary where
-/// an `impl Trait` cannot.
+/// Mostly free of trait objects and generics: an out-of-process extension
+/// will one day reach these operations across a C ABI, and a `fn` pointer
+/// crosses that boundary where an `impl Trait` cannot. A system is the
+/// exception: generic, so it is named by its function's path, which is what
+/// other systems order themselves by; the C path will take a name beside the
+/// pointer.
 pub struct Registry<'a> {
     app: &'a mut App,
     plugin: String,
@@ -36,15 +38,37 @@ impl<'a> Registry<'a> {
         self.app.engine.insert_resource(value);
     }
 
-    pub fn add_system(&mut self, stage: Stage, frame_system: fn(&Engine, f32)) {
+    /// A system in `stage`, named by its function (the path a `fn` item
+    /// has), so another can order itself by that name.
+    pub fn add_system<F: FnMut(&Engine, f32) + 'static>(&mut self, stage: Stage, frame_system: F) {
         self.app.add_system(stage, frame_system);
+    }
+
+    /// A typed system: a function of
+    /// [`SystemParam`](balaur_core::system_param::SystemParam)s, named by its
+    /// path.
+    pub fn add_typed<M, F: balaur_core::system_param::TypedSystem<M>>(
+        &mut self,
+        stage: Stage,
+        system: F,
+    ) {
+        self.app.add_typed(stage, system);
+    }
+
+    /// A system with a name, sets, an order and conditions.
+    pub fn add_scheduled(&mut self, stage: Stage, system: balaur_core::schedule::System) {
+        self.app.add_scheduled(stage, system);
+    }
+
+    /// Give set `name` in `stage` an order and conditions.
+    pub fn configure_set(&mut self, stage: Stage, name: &str, set: balaur_core::schedule::Set) {
+        self.app.configure_set(stage, name, set);
     }
 
     /// What this plugin receives from outside the simulation, for recording
     /// and replay.
     ///
-    /// `fn` pointers rather than closures, for the same reason
-    /// [`Registry::add_system`] takes one: this API has to survive a C ABI.
+    /// `fn` pointers rather than closures: this API has to survive a C ABI.
     pub fn add_replay_source(
         &mut self,
         name: &str,
@@ -52,6 +76,11 @@ impl<'a> Registry<'a> {
         restore: fn(&Engine, &serde_json::Value),
     ) {
         self.app.add_replay_source(name, capture, restore);
+    }
+
+    /// A derived component, everything about it read from its derive.
+    pub fn add_component<C: balaur_core::components::derived::Component>(&mut self) {
+        self.app.add_component::<C>();
     }
 
     /// A named component with a schema, reachable from scene files and scripts.
@@ -72,10 +101,7 @@ impl<'a> Registry<'a> {
     ///
     /// # Errors
     /// If the script backend refuses the module name.
-    pub fn script_module(
-        &mut self,
-        name: &str,
-    ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
+    pub fn script_module(&mut self, name: &str) -> Result<balaur_script::Module<Engine>> {
         self.app.script_module(name)
     }
 

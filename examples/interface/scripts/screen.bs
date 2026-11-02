@@ -1,6 +1,6 @@
 // The one script this screen has. It writes no layout and draws no pixel:
 // the scene holds the boxes, and this puts rows in the three views that hold
-// a list. A row is `icon`, `label`, `note` and an `#rrggbb`, joined by U+001F.
+// a list. A row is a `ui::Item`: `icon`, `label`, `note` and an `#rrggbb`.
 
 pub class Screen {
     /// Where a picture of the screen goes, for the manual's shot, and where
@@ -31,8 +31,6 @@ pub struct Ring {
     age: int,
 }
 
-const SEP: str = "\u{1f}";
-
 // What a card, an outline row and a table row are made of. One table, three
 // shapes, so the same data reaches all three views. The marks are glyphs from
 // the Phosphor face the theme names as its icon family.
@@ -53,21 +51,21 @@ pub fn entries() -> [Entry] {
     ]
 }
 
-pub fn row(icon: str, label: str, note: str, tint: str) -> str {
-    icon + SEP + label + SEP + note + SEP + tint
+pub fn row(icon: str, label: str, note: str, tint: str) -> ui::Item {
+    ui::Item { icon: icon, label: label, note: note, tint: tint }
 }
 
 impl Screen {
-    fn fill(name: str, options: [str]) {
+    fn fill(name: str, items: [ui::Item]) {
         let found = self.node.get_node(name);
         if found.is_valid() {
-            found.patch_component("widget", map().with("options", options));
+            found.widget.items = items;
         }
     }
 
     // The cards, in whatever order `shuffle` last left them.
-    fn cards() -> [str] {
-        let out: [str] = [];
+    fn cards() -> [ui::Item] {
+        let out: [ui::Item] = [];
         for e in self.order {
             let held = entries()[e];
             out.push(row(held.icon, held.name, held.kind, held.tint));
@@ -78,17 +76,17 @@ impl Screen {
 
 /// The cards in the order the entries are written down, for a screen that
 /// does not shuffle them.
-pub fn cards_in_order() -> [str] {
-    let out: [str] = [];
+pub fn cards_in_order() -> [ui::Item] {
+    let out: [ui::Item] = [];
     for e in entries() {
         out.push(row(e.icon, e.name, e.kind, e.tint));
     }
     out
 }
 
-// The same entries as an outline: a kind, then its members a tab deeper.
-pub fn outline() -> [str] {
-    let out: [str] = [];
+// The same entries as an outline: a kind, then its members a level deeper.
+pub fn outline() -> [ui::Item] {
+    let out: [ui::Item] = [];
     let seen: [str] = [];
     for e in entries() {
         let first = true;
@@ -101,16 +99,16 @@ pub fn outline() -> [str] {
             seen.push(e.kind);
             out.push(row("", e.kind, "", "#98a3ae"));
         }
-        out.push("\t" + row(e.icon, e.name, e.size, e.tint));
+        out.push(ui::Item { icon: e.icon, label: e.name, note: e.size, tint: e.tint, depth: 1 });
     }
     out
 }
 
-// And as a table: one cell a column, split on the separator the header is.
-pub fn table() -> [str] {
-    let out: [str] = [];
+// And as a table: one cell a column.
+pub fn table() -> [ui::Item] {
+    let out: [ui::Item] = [];
     for e in entries() {
-        out.push(e.name + SEP + e.kind + SEP + e.size);
+        out.push(ui::Item { cells: [e.name, e.kind, e.size] });
     }
     out
 }
@@ -241,7 +239,7 @@ impl Screen {
             }
             from = self.target_at(step[1].as_str());
         }
-        if to.is_none() {
+        if to == nil {
             return;
         }
         let end = to.unwrap();
@@ -252,7 +250,8 @@ impl Screen {
         let y = here.y + here.height / 2.0 + (end.y + end.height / 2.0 - here.y - here.height / 2.0) * e;
         let cursor = self.node.get_node("Cursor");
         if cursor.is_valid() {
-            cursor.patch_component("widget", map().with("x", x).with("y", y).with("visible", true));
+            cursor.patch_component("widget", { "x": x, "y": y });
+            cursor.set_visible(true);
         }
     }
 
@@ -260,7 +259,7 @@ impl Screen {
     // cursor that never moved.
     fn ring() {
         let node = self.node.get_node("Ripple");
-        if self.ring.is_none() || !node.is_valid() {
+        if self.ring == nil || !node.is_valid() {
             return;
         }
         let held = self.ring.unwrap();
@@ -268,20 +267,21 @@ impl Screen {
         let back = 1.0 - p;
         let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
         let left = back * back;
-        node.patch_component("widget", map()
-            .with("x", held.x - d / 2.0)
-            .with("y", held.y - d / 2.0)
-            .with("width", d)
-            .with("height", d)
-            .with("radius", d / 2.0)
-            .with("fill", alpha("#6fa4d8", 0.30 * left))
-            .with("stroke", alpha("#ffffff", left))
-            .with("visible", true));
+        node.patch_component("widget", {
+            "x": held.x - d / 2.0,
+            "y": held.y - d / 2.0,
+            "width": d,
+            "height": d,
+            "radius": d / 2.0,
+            "fill": alpha("#6fa4d8", 0.30 * left),
+            "stroke": alpha("#ffffff", left),
+        });
+        node.set_visible(true);
         held.age += 1;
         self.ring = held;
         if held.age >= RIPPLE {
             self.ring = nil;
-            node.patch_component("widget", map().with("visible", false));
+            node.set_visible(false);
         }
     }
 }
@@ -314,7 +314,7 @@ impl Screen {
     // The cursor has landed: the button it is on does its own thing.
     fn arrive(name: str) {
         self.at = self.target_at(name);
-        if self.at.is_some() {
+        if self.at != nil {
             let box = self.at.unwrap();
             self.ring = Ring { x: box.x + box.width / 2.0, y: box.y + box.height / 2.0, age: 0 };
         }
@@ -324,7 +324,7 @@ impl Screen {
         }
         let pages = self.node.get_node(PAGES);
         if pages.is_valid() {
-            pages.patch_component("widget", map().with("active", name));
+            pages.patch_component("widget", { "active": name });
         }
     }
 }

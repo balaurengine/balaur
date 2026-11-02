@@ -2,9 +2,21 @@
 //! called directly. Every language reaches these through the same
 //! declarations.
 
-use balaur_core::engine_api::ENGINE_OPS;
+use balaur_core::engine_api::{ApiPart, EngineOp, kernel_api};
 use balaur_core::{App, AppConfig, Engine};
 use balaur_script::Value;
+
+/// Every call the kernel's tables declare.
+fn ops() -> Vec<&'static EngineOp> {
+    kernel_api()
+        .into_iter()
+        .filter_map(|part| match part {
+            ApiPart::Ops(ops) => Some(ops.iter()),
+            ApiPart::Module(..) => None,
+        })
+        .flatten()
+        .collect()
+}
 
 fn app_in(root: &std::path::Path) -> App {
     App::new(AppConfig {
@@ -15,8 +27,8 @@ fn app_in(root: &std::path::Path) -> App {
 }
 
 fn call(eng: &Engine, module: &str, name: &str, args: &[Value]) -> anyhow::Result<Value> {
-    let decl = ENGINE_OPS
-        .iter()
+    let decl = ops()
+        .into_iter()
         .find(|d| d.module == module && d.name == name)
         .unwrap_or_else(|| panic!("`{module}.{name}` is not declared"));
     (decl.call)(eng, args)
@@ -293,7 +305,7 @@ fn vectors_encode_as_json_number_arrays() {
 #[test]
 fn declarations_are_uniquely_named_within_a_module() {
     let mut seen = std::collections::BTreeSet::new();
-    for decl in ENGINE_OPS {
+    for decl in ops() {
         assert!(
             seen.insert((decl.module, decl.name)),
             "`{}.{}` is declared twice",

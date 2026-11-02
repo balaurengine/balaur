@@ -1,0 +1,3 @@
+fn f(xs: [int]) -> int { xs.at(0) }
+
+// error: 1:28: a list reads an element as `xs[i]`, not `xs.at(i)`

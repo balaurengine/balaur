@@ -8,8 +8,8 @@ pub class Ball {
 
 impl Ball {
     fn init() {
-        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
         self.reported = false;
     }
 

@@ -16,9 +16,9 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use balaur_core::netsession::{LinkStats, NetSession};
 use balaur_core::rollback::{Input, PlayerId};
 use balaur_core::{Engine, Stage};
+use balaur_net::netsession::{LinkStats, NetSession};
 use balaur_script::Value;
 
 mod api;
@@ -30,7 +30,7 @@ mod vocabulary;
 mod wire;
 
 pub use options::Options;
-pub use vocabulary::{EventKind, HOOK, Role, State, Status, TransportKind};
+pub use vocabulary::{EVENT, EventKind, Role, State, Status, TransportKind};
 pub use wire::{Member, PROTOCOL};
 
 /// Where this machine is, and everything it holds in that phase.
@@ -128,7 +128,7 @@ impl MultiplayerState {
         self.local
     }
 
-    /// Queue an event for every script's `on_multiplayer_event`.
+    /// Queue a `multiplayer_event` for the next live tick.
     pub(crate) fn tell(&mut self, kind: EventKind, fields: Vec<(&str, Value)>) {
         let mut map = vec![("kind".to_string(), Value::Str(kind.name().into()))];
         map.extend(
@@ -163,21 +163,12 @@ pub(crate) fn slot_value(slot: PlayerId) -> Value {
     Value::Int(i64::from(slot))
 }
 
-pub struct MultiplayerPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for MultiplayerPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("multiplayer", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct MultiplayerPlugin;
 
 impl balaur_plugin::Plugin for MultiplayerPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "multiplayer"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -192,13 +183,18 @@ impl balaur_plugin::Plugin for MultiplayerPlugin {
             &balaur_core::ComponentDef::parse_schema("settings.multiplayer.match", options::SCHEMA),
         );
         let mut m = reg.script_module("multiplayer")?;
-        api::install(&mut *m);
+        api::install(&mut m);
         Ok(())
     }
 }
 
 /// Run the lobby: accept, greet, and notice who came and went.
 fn poll_system(eng: &Engine, _dt: f32) {
+    // A link made in a replay has no worker, and the wait for a host is on the
+    // wall clock: left to run, it tells a script the host never answered.
+    if balaur_core::replay::suppressed(eng) {
+        return;
+    }
     let state = eng.resource::<MultiplayerState>();
     let mut state = state.borrow_mut();
     match state.phase {
@@ -208,16 +204,13 @@ fn poll_system(eng: &Engine, _dt: f32) {
     }
 }
 
-/// Hand queued events to every script, once, outside a re-run tick.
+/// Send queued events to whoever listens, once, outside a re-run tick.
 fn deliver_system(eng: &Engine, _dt: f32) {
     if balaur_core::rollback::is_resimulating(eng) {
         return;
     }
     let events = std::mem::take(&mut eng.resource::<MultiplayerState>().borrow_mut().events);
-    let Some(host) = eng.script_host() else {
-        return;
-    };
     for event in events {
-        host.call_all_with(HOOK, &[event]);
+        balaur_core::events::emit(eng, EVENT, event);
     }
 }

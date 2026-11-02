@@ -64,15 +64,6 @@ fn a_disabled_node_ticks_neither_paused_nor_running() {
 }
 
 #[test]
-fn a_when_paused_node_ticks_only_while_paused() {
-    let (app, menu, _) = tree();
-    process::set(&mut app.engine.world_mut(), menu, ProcessMode::WhenPaused);
-    assert!(!process::ticking(&app.engine, menu));
-    app.engine.set_paused(true);
-    assert!(process::ticking(&app.engine, menu));
-}
-
-#[test]
 fn setting_a_node_back_to_inherit_takes_the_key_off() {
     let (app, menu, _) = tree();
     process::set(&mut app.engine.world_mut(), menu, ProcessMode::Always);

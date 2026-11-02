@@ -29,7 +29,7 @@ pub(crate) const MIN_RUN: usize = 4;
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum Mesh {
     Quad,
-    Flat(balaur_core::primitive::Flat),
+    Flat(balaur_geometry::primitive::Flat),
     /// A nine-slice sprite's mesh, which bakes its size and margins; its
     /// rectangle is the whole image, and each member's rides in its instance.
     NineSlice(crate::sprite::NineKey),
@@ -180,7 +180,7 @@ mod tests {
 
     fn key(name: &str) -> BatchKey {
         BatchKey {
-            mesh: Mesh::Flat(balaur_core::primitive::Flat::Circle {
+            mesh: Mesh::Flat(balaur_geometry::primitive::Flat::Circle {
                 radius: 1.0,
                 segments: 16,
             }),
@@ -194,12 +194,13 @@ mod tests {
     /// the order the fork applies it: turn, then lean, then scale.
     #[test]
     fn an_instance_carries_the_nodes_whole_pose() {
-        let renderable = Renderable2d::fresh(Shape2d::Flat(balaur_core::primitive::Flat::Rect {
-            hx: 1.0,
-            hy: 1.0,
-            corner_radius: 0.0,
-            segments: 0,
-        }));
+        let renderable =
+            Renderable2d::fresh(Shape2d::Flat(balaur_geometry::primitive::Flat::Rect {
+                hx: 1.0,
+                hy: 1.0,
+                corner_radius: 0.0,
+                segments: 0,
+            }));
         let global = GlobalTransform {
             position: glamx::Vec3::new(2.0, 3.0, 0.0),
             rotation: glamx::Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),

@@ -215,8 +215,8 @@ impl Default for ViewportSnapshot3d {
     }
 }
 
-/// Where the camera looks from and at. Scripts drive it through
-/// `render.set_camera`; windowed backends apply it whenever it changes.
+/// Where the camera looks from and at. A `camera3d` node drives it; windowed
+/// backends apply it whenever it changes.
 pub struct CameraConfig3d {
     pub eye: glamx::Vec3,
     pub target: glamx::Vec3,

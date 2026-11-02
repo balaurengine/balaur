@@ -58,13 +58,13 @@ impl FirstPerson {
         // A 3D camera is aimed by `camera.look_at`, never by the node's
         // rotation, so looking around is moving the point it looks at.
         let flat = math::cos(pitch) * FAR;
-        let ahead = [
+        let ahead = vec3(
             eye.x - math::sin(yaw) * flat,
             eye.y + math::sin(pitch) * FAR,
             eye.z - math::cos(yaw) * flat,
-        ];
-        self.eye.patch_component("camera3d", map().with("look_at", ahead));
-        self.node.transform.rotation_euler = [0.0, yaw, 0.0];
+        );
+        self.eye.camera3d.look_at = ahead;
+        self.node.transform.rotation_euler = vec3(0.0, yaw, 0.0);
     }
 
     /// Carry the eye node at the body's height, give or take `WOBBLE`.
@@ -82,7 +82,7 @@ impl FirstPerson {
         }
         if self.apart {
             let at = self.eye.transform.position;
-            self.eye.transform.position = [at.x, self.rise + self.held - body, at.z];
+            self.eye.transform.position = vec3(at.x, self.rise + self.held - body, at.z);
         }
     }
 

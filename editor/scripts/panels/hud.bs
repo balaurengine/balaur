@@ -16,23 +16,16 @@ impl Hud {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        let name = node.name();
-        let verb = if name == "Out" {
-            "zoom_out"
-        } else if name == "In" {
-            "zoom_in"
-        } else if name == "Open" {
-            "open_bottom"
-        } else {
-            ""
-        };
-        if verb != "" {
-            self.editor.call("stage_verb", verb);
-        }
+    pub fn zoom_out() {
+        self.editor.call("stage_verb", "zoom_out");
+    }
+
+    pub fn zoom_in() {
+        self.editor.call("stage_verb", "zoom_in");
+    }
+
+    pub fn open_bottom() {
+        self.editor.call("stage_verb", "open_bottom");
     }
 
     fn refresh() {
@@ -40,28 +33,30 @@ impl Hud {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", map().with("visible", view.get("shown")).with("inset", view.get("inset")).with("height", view.get("height")));
-        if !view.get("shown").as_bool() {
+        self.node.set_visible(view["shown"].as_bool());
+        self.node.widget.height = view["height"].as_float();
+        self.node.patch_component("widget", { "inset": view["inset"] });
+        if !view["shown"].as_bool() {
             return;
         }
         let axes = self.node.get_node("Axes/Row");
-        axes.get_node("X").patch_component("widget", map().with("text_color", view.get("x_ink")));
-        axes.get_node("Y").patch_component("widget", map().with("text_color", view.get("y_ink")));
+        axes.get_node("X").patch_component("widget", { "text_color": view["x_ink"].as_str() });
+        axes.get_node("Y").patch_component("widget", { "text_color": view["y_ink"].as_str() });
         let zoom = self.node.get_node("Zoom/Row");
         for name in ["Out", "In"] {
-            zoom.get_node(name).patch_component("widget", map()
-                .with("width", view.get("step"))
-                .with("height", view.get("step"))
-                .with("text_color", view.get("quiet_ink")));
+            let patched = zoom.get_node(name);
+            patched.widget.width = view["step"].as_float();
+            patched.widget.height = view["step"].as_float();
+            patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
         }
-        zoom.get_node("In").patch_component("widget", map().with("icon", view.get("add_icon")));
-        zoom.get_node("Reading").patch_component("widget", map().with("text", view.get("zoom")));
+        zoom.get_node("In").widget.icon = view["add_icon"].as_str();
+        zoom.get_node("Reading").widget.text = view["zoom"].as_str();
         let bottom = self.node.get_node("Bottom");
-        bottom.patch_component("widget", map().with("visible", view.get("bottom")));
-        bottom.get_node("Open").patch_component("widget", map()
-            .with("icon", view.get("bottom_icon"))
-            .with("width", view.get("step").as_float() + 6.0)
-            .with("height", view.get("step").as_float() + 6.0)
-            .with("text_color", view.get("quiet_ink")));
+        bottom.set_visible(view["bottom"].as_bool());
+        let patched = bottom.get_node("Open");
+        patched.widget.icon = view["bottom_icon"].as_str();
+        patched.widget.width = view["step"].as_float() + 6.0;
+        patched.widget.height = view["step"].as_float() + 6.0;
+        patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
     }
 }

@@ -1,9 +1,10 @@
 //! The rodio/cpal backend: native audio stacks, and WebAudio on wasm.
 //!
 //! The device's mixer is fed by a mixer of Balaur's own, the root, so the
-//! whole mix can pass through the master bus's limiter and the dither before
-//! it reaches the device. A bus with a limiter gets a mixer of its own that
-//! feeds the nearest limited bus above it, or the root.
+//! whole mix can pass through the master bus's effects, its limiter and the
+//! dither before it reaches the device. A bus with an effect or a limiter
+//! gets a mixer of its own, passed through them, that feeds the nearest such
+//! bus above it, or the root.
 
 use std::collections::BTreeMap;
 use std::num::NonZero;
@@ -17,12 +18,13 @@ use rodio::{DeviceSinkBuilder, MixerDeviceSink, Player};
 mod chain;
 mod live;
 
+use chain::Boxed;
 pub(crate) use chain::{From, length_of};
 use live::Live;
 
 use crate::bus::{Limiter, MASTER, Route};
 use crate::output::OutputSettings;
-use crate::playback::{Effects, Program};
+use crate::playback::Program;
 
 pub(crate) struct Device {
     /// Held for its stream: dropping it closes the device.
@@ -33,8 +35,8 @@ pub(crate) struct Device {
 }
 
 impl Device {
-    /// Open the output `output` asks for, and build the bus mixers `routes`
-    /// describe.
+    /// Open the output `output` asks for, and build the bus mixers, effects
+    /// and limiters `routes` describe.
     pub(crate) fn open(output: &OutputSettings, routes: &[Route]) -> Result<Self> {
         #[cfg(windows)]
         keep_com_alive();
@@ -53,12 +55,12 @@ impl Device {
         };
         let (root, root_source) = fresh();
         let mut own: BTreeMap<&str, Mixer> = BTreeMap::new();
-        let mut sends: Vec<(&str, MixerSource, Limiter)> = Vec::new();
+        let mut sends: Vec<(&Route, MixerSource)> = Vec::new();
         for route in routes.iter().filter(|r| r.name != MASTER) {
-            if let Some(limit) = route.limit {
+            if route.mixed_alone() {
                 let (mixer, source) = fresh();
                 own.insert(&route.name, mixer);
-                sends.push((&route.parent, source, limit));
+                sends.push((route, source));
             }
         }
         let joins = |name: &str| -> Mixer {
@@ -74,22 +76,18 @@ impl Device {
             }
             root.clone()
         };
-        for (parent, source, limit) in sends {
-            joins(parent).add(source.limit(settings_of(limit)));
+        for (route, source) in sends {
+            joins(&route.parent).add(processed(Box::new(source), route));
         }
         let map = routes
             .iter()
             .map(|route| (route.name.clone(), joins(&route.name)))
             .collect();
-        let master = routes
-            .iter()
-            .find(|r| r.name == MASTER)
-            .and_then(|r| r.limit);
-        let limited: Box<dyn Source + Send> = match master {
-            Some(limit) => Box::new(root_source.limit(settings_of(limit))),
+        let whole: Boxed = match routes.iter().find(|r| r.name == MASTER) {
+            Some(master) => processed(Box::new(root_source), master),
             None => Box::new(root_source),
         };
-        sink.mixer().add(dithered(limited, output.dither_bits));
+        sink.mixer().add(dithered(whole, output.dither_bits));
         Ok(Self {
             _sink: sink,
             root,
@@ -97,11 +95,24 @@ impl Device {
         })
     }
 
-    /// The mixer a sound on `bus` joins: its own bus's, the nearest limited
-    /// one above it, or the root.
+    /// The mixer a sound on `bus` joins: its own bus's, the nearest one above
+    /// it mixed alone, or the root.
     fn mixer(&self, bus: &str) -> &Mixer {
         let bus = if bus.is_empty() { MASTER } else { bus };
         self.routes.get(bus).unwrap_or(&self.root)
+    }
+}
+
+/// A bus's own mix through what it applies: its effects, then its limiter,
+/// so the limiter holds what the effects made under its threshold.
+fn processed(mix: Boxed, route: &Route) -> Boxed {
+    let shaped = match &route.effects {
+        Some(effects) => chain::effects(mix, effects, &Arc::new(Live::of_bus(effects))),
+        None => mix,
+    };
+    match route.limit {
+        Some(limit) => Box::new(shaped.limit(settings_of(limit))),
+        None => shaped,
     }
 }
 
@@ -117,7 +128,7 @@ fn settings_of(limit: Limiter) -> LimitSettings {
 }
 
 #[cfg(feature = "dither")]
-fn dithered(source: Box<dyn Source + Send>, bits: u32) -> Box<dyn Source + Send> {
+fn dithered(source: Boxed, bits: u32) -> Boxed {
     match NonZero::new(bits) {
         Some(bits) => Box::new(source.dither(bits, rodio::source::DitherAlgorithm::default())),
         None => source,
@@ -125,7 +136,7 @@ fn dithered(source: Box<dyn Source + Send>, bits: u32) -> Box<dyn Source + Send>
 }
 
 #[cfg(not(feature = "dither"))]
-fn dithered(source: Box<dyn Source + Send>, _bits: u32) -> Box<dyn Source + Send> {
+fn dithered(source: Boxed, _bits: u32) -> Boxed {
     source
 }
 
@@ -220,7 +231,7 @@ impl Sound {
         from: From,
         controls: Controls<'_>,
     ) -> Result<Self> {
-        let live = Arc::new(Live::new(&program.effects, controls.gains));
+        let live = Arc::new(Live::of_sound(controls.gains));
         Self::with_live(device, program, from, controls, live)
     }
 
@@ -279,13 +290,6 @@ impl Sound {
     /// or a flat sound's balance.
     pub(crate) fn set_pan(&self, gains: [f32; 2]) {
         self.live.set_pan(gains);
-    }
-
-    /// Retune the filters, the distortion, the reverb's level and automatic
-    /// gain control. A reverb or a gain control the play started without
-    /// joins at the next play.
-    pub(crate) fn set_effects(&self, effects: &Effects) {
-        self.live.set_effects(effects);
     }
 
     pub(crate) fn finished(&self) -> bool {

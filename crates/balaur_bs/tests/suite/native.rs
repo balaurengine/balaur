@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 static BUILT: AtomicUsize = AtomicUsize::new(0);
 
 /// `modules` as one native library, loaded.
-fn build(modules: &[&Compiled]) {
+pub(super) fn build(modules: &[&Compiled]) {
     let wasm: Vec<&[u8]> = modules.iter().map(|c| c.wasm.as_slice()).collect();
     let c = balaur_bs::c::translate(&wasm).unwrap_or_else(|e| panic!("{e}"));
     let dir = std::env::temp_dir().join(format!(
@@ -67,7 +67,7 @@ pub class Mover { x: float, steps: int, name: str }
 impl Mover {
     pub fn walk(n: int) -> float {
         for i in 0..n {
-            self.x += sqrt(i * 2.0) + floor(1.5) - min(3.0, i) + max(-0.0, 0.0);
+            self.x += math::sqrt(i * 2.0) + math::floor(1.5) - math::min(3.0, i) + math::max(-0.0, 0.0);
             self.steps += 1;
         }
         self.name = "walked {self.steps}";
@@ -79,7 +79,7 @@ pub fn numbers(a: int, b: int) -> str {
     let q = a / b;
     let r = a % b;
     let f = a as float / b as float;
-    "{q} {r} {f} {fib(15)} {-7 / 2} {-7 % 2} {abs(-2.5)} {ceil(1.2)}"
+    "{q} {r} {f} {fib(15)} {-7 / 2} {-7 % 2} {math::abs(-2.5)} {math::ceil(1.2)}"
 }
 pub fn text(s: str) -> str {
     let parts = s.split(",");
@@ -99,12 +99,12 @@ pub fn arrays() -> int {
     total * 100 + i
 }
 pub fn anys() -> str {
-    let m = map().with("hp", 3);
-    m.set("name", "imp");
+    let m: any = { "hp": 3 };
+    m["name"] = "imp";
     let tags: [any] = ["a"];
     let l: any = tags;
     l.push(2.5);
-    m.set("tags", l);
+    m["tags"] = l;
     "{m.text()} {m["hp"].as_int()} {m.len()}"
 }
 pub fn walk_a_mover(n: int) -> float {
@@ -133,13 +133,13 @@ fn a_method_hands_its_fields_back_natively() {
     let c = compile(MIXED, &Options::default()).unwrap();
     build(&[&c]);
     let mut rt = on(EngineKind::Native, &c, HostFns::default());
-    let mut m = rt.object("Mover", &[]).unwrap();
-    rt.call_method(&mut m, "walk", &[Value::Int(3)]).unwrap();
-    let x = rt.call_method(&mut m, "walk", &[Value::Int(2)]).unwrap();
+    let m = rt.object("Mover", &[]).unwrap();
+    rt.call_method(&m, "walk", &[Value::Int(3)]).unwrap();
+    let x = rt.call_method(&m, "walk", &[Value::Int(2)]).unwrap();
     let mut wasmi = on(EngineKind::Wasmi, &c, HostFns::default());
-    let mut w = wasmi.object("Mover", &[]).unwrap();
-    wasmi.call_method(&mut w, "walk", &[Value::Int(3)]).unwrap();
-    assert_eq!(wasmi.call_method(&mut w, "walk", &[Value::Int(2)]), Ok(x));
+    let w = wasmi.object("Mover", &[]).unwrap();
+    wasmi.call_method(&w, "walk", &[Value::Int(3)]).unwrap();
+    assert_eq!(wasmi.call_method(&w, "walk", &[Value::Int(2)]), Ok(x));
     assert_eq!(rt.get(&m, "name"), Some(Value::Str("walked 5".into())));
 }
 
@@ -359,10 +359,10 @@ impl Counter {
             let mut s = r.borrow_mut();
             (s.0.clone(), s.1.take(), s.2)
         };
-        let (Some(way), Some(mut obj)) = (way, obj) else {
+        let (Some(way), Some(obj)) = (way, obj) else {
             return Err("nothing to reach".into());
         };
-        let out = way.call_method(&mut obj, method, args);
+        let out = way.call_method(&obj, method, args);
         r.borrow_mut().1 = Some(obj);
         out.map_err(|e| e.to_string())
     });

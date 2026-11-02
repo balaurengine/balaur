@@ -1,0 +1,11 @@
+pub fn run() -> str {
+    let xs = [3, 1, 2];
+    xs.extend([5, 4]);
+    xs.sort();
+    let names = ["b", "a"];
+    names.sort();
+    "{xs[0]} {xs.len()} {xs[4]} {names[0]}"
+}
+
+// expect: run() == "1 5 5 a"
+// live: 0

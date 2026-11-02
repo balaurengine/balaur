@@ -12,7 +12,7 @@ use balaur_render::reflection::probes;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
@@ -229,7 +229,7 @@ fn the_frame_counts_every_triangle_it_draws() {
         &app,
         entity,
         "shape3d",
-        "kind = \"box\"\nsize = [2.0, 2.0, 2.0]",
+        "shape = { kind = \"box\", size = [2.0, 2.0, 2.0] }",
     );
     settle(&mut app);
 

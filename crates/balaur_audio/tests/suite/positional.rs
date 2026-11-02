@@ -33,7 +33,7 @@ fn write_wav(dir: &Path, name: &str) {
 
 fn app_in(dir: &Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin).unwrap();
     app
 }
 
@@ -322,6 +322,26 @@ fn freeing_a_listener_node_leaves_the_ears_where_they_were() {
     assert!((state.listener().position.x - 10.0).abs() < 1e-6);
 }
 
+/// With no `listener`, the ears stand where the frame is seen from.
+#[test]
+fn with_no_listener_the_ears_stand_at_the_camera() {
+    let dir = tempfile::tempdir().unwrap();
+    write_wav(dir.path(), "chime.wav");
+    let mut app = app_in(dir.path());
+    let (_, handle) = placed_sound(&app, POSITIONAL, Vec3::new(50.0, 0.0, 0.0));
+    balaur_core::viewpoint::set(&app.engine, Vec3::new(50.0, 0.0, 0.0), Vec3::X);
+    app.tick(1.0 / 60.0);
+
+    let state = app.engine.resource::<AudioState>();
+    let state = state.borrow();
+    assert!(state.listener().placed, "a camera places the ears");
+    assert!((state.listener().position.x - 50.0).abs() < 1e-6);
+    assert!(
+        (state.placement_of(handle).unwrap().gain - 1.0).abs() < 1e-6,
+        "the sound is where the camera is"
+    );
+}
+
 /// A one-shot at a point in the world: no node, no component, just a place.
 #[test]
 fn a_cue_can_be_played_at_a_point_with_no_node_behind_it() {
@@ -469,4 +489,28 @@ fn the_listener_sets_how_fast_sound_travels_and_how_far_doppler_bends() {
     let slower = spatial::place(listener, &emitter).pitch;
     // 100 / (100 - 20) with sound at 100 units a second.
     assert!((slower - 1.25).abs() < 1e-5, "{slower}");
+}
+
+/// A listener holds what it was asked, a speed of sound below the floor
+/// included; the ears it places take the floor.
+#[test]
+fn a_listener_below_the_floor_reads_back_as_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app_in(dir.path());
+    let ears = node_at(&app, "Ears", Vec3::ZERO);
+    let params: toml::Value = toml::from_str("speed_of_sound = 0.0\nmax_doppler = 0.5").unwrap();
+    components::add(&app.engine, ears, "listener", Some(&params)).unwrap();
+    let table = components::get(&app.engine, ears, "listener").unwrap();
+    assert_eq!(
+        table.get("speed_of_sound").and_then(toml::Value::as_float),
+        Some(0.0)
+    );
+    assert_eq!(
+        table.get("max_doppler").and_then(toml::Value::as_float),
+        Some(0.5)
+    );
+    let state = app.engine.resource::<AudioState>();
+    let hearing = state.borrow().listener().hearing;
+    assert!((hearing.speed_of_sound - 0.001).abs() < 1e-9);
+    assert!((hearing.max_doppler - 1.0).abs() < 1e-9);
 }

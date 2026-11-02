@@ -29,7 +29,7 @@ fn a_pinned_region_holds_its_particles_and_restores_with_the_world() {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let fall = |pinned: bool| {
         let script = format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        self.node.softbody3d.set_softbody(map().with(\"kind\", physics3d::SOFT_ROPE).with(\"particle_count\", 8).with(\"regions\", [map().with(\"particles\", [0, 1]).with(\"pinned\", {pinned}).with(\"stiffness_scale\", 2.0)]));\n    }}\n}}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        self.node.set_component(\"soft_rope3d\", {{ \"particle_count\": 8 }}); self.node.set_component(\"softbody3d\", {{ \"kind\": physics3d::SOFT_ROPE, \"regions\": [{{ \"particles\": [0, 1], \"pinned\": {pinned}, \"stiffness_scale\": 2.0 }}] }});\n    }}\n}}\n"
         );
         let (dir, mut app) = boot(&script, 1);
         let (clusters, before, _) = clusters_and_heights(&app, 0, 7);
@@ -59,7 +59,7 @@ fn a_region_naming_a_particle_the_body_lacks_is_refused() {
     let errors = run(r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 4).with("regions", [map().with("particles", [9])]));
+        self.node.set_component("soft_rope3d", { "particle_count": 4 }); self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "regions": [{ "particles": [9] }] });
     }
 }
 "#);
@@ -71,9 +71,9 @@ fn a_collision_mesh_rides_the_body_as_one_more_collider() {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let colliders = |extra: &str| {
+    let colliders = |first: &str| {
         let script = format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        self.node.softbody3d.set_softbody(map().with(\"kind\", \"box\").with(\"cells\", [2.0, 2.0, 2.0]){extra});\n    }}\n}}\n"
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        {first}self.node.set_component(\"soft_grid3d\", {{ \"cells\": [2.0, 2.0, 2.0] }}); self.node.set_component(\"softbody3d\", {{ \"kind\": \"box\" }});\n    }}\n}}\n"
         );
         let (dir, app) = boot(&script, 2);
         let state = app.engine.resource::<balaur_physics::PhysicsState3d>();
@@ -83,7 +83,7 @@ fn a_collision_mesh_rides_the_body_as_one_more_collider() {
     };
     let plain = colliders("");
     let meshed = colliders(
-        ".with(\"collision_mesh\", \"#wedge\").with(\"collision_binding\", \"nearest\").with(\"collision_binding_distance\", 2.0)",
+        "self.node.set_component(\"soft_collision3d\", { \"collision_mesh\": \"#wedge\", \"collision_binding\": { \"kind\": \"nearest\", \"distance\": 2.0 } }); ",
     );
     assert_eq!(meshed, plain + 1, "the mesh is one deformable collider");
 }
@@ -93,7 +93,9 @@ fn a_collision_mesh_bound_to_particles_it_lacks_is_refused() {
     let errors = run(r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.softbody3d.set_softbody(map().with("kind", physics3d::SOFT_ROPE).with("particle_count", 2).with("collision_mesh", "#wedge").with("collision_binding", "particles"));
+        self.node.set_component("soft_rope3d", { "particle_count": 2 });
+        self.node.set_component("soft_collision3d", { "collision_mesh": "#wedge", "collision_binding": { "kind": "particles" } });
+        self.node.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE });
     }
 }
 "##);

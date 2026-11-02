@@ -35,9 +35,9 @@ const WRITES_KEY: str = "gamend:writes";
 /// What this client thinks of its connection.
 const NETWORK_KEY: str = "gamend:network";
 
-/// Point the plugin at a server, and name the server plugin `call` reaches;
-/// nil or empty for either takes `[gamend]`'s. Every other call errors until
-/// this one runs. Answers the server's url.
+/// Point the plugin at another server, and name the server plugin `call`
+/// reaches; nil or empty for either takes `[gamend]`'s, which is what a game
+/// that never calls this talks to. Answers the server's url.
 pub fn configure(url: str?, plugin: str) -> str {
     if plugin != "" {
         script::store(PLUGIN_KEY, plugin);
@@ -54,15 +54,15 @@ pub fn plugin() -> str {
     gamend::server().plugin
 }
 
-/// Open a session from a device id. The reply reaches `node`'s handler as
-/// `kind = "login"`, and the returned id can be awaited instead.
-pub fn login_device(node: Node, device_id: str) -> int {
-    gamend::login(node, map().with("device_id", device_id), nil())
+/// Open a session from a device id. The returned id awaits a reply of
+/// `kind = "login"`.
+pub fn login_device(device_id: str) -> int {
+    gamend::login(gamend::Credentials { device_id: device_id })
 }
 
 /// Open a session from an email and a password.
-pub fn login_email(node: Node, email: str, password: str) -> int {
-    gamend::login(node, map().with("email", email).with("password", password), nil())
+pub fn login_email(email: str, password: str) -> int {
+    gamend::login(gamend::Credentials { email: email, password: password })
 }
 
 /// Make an account from an email, with no password yet. Not a sign-in, as
@@ -71,18 +71,18 @@ pub fn login_email(node: Node, email: str, password: str) -> int {
 /// The server emails a link and a six-digit code; `auth::confirm_registration`
 /// takes the code and the password the player chooses, and opens a session.
 /// An empty `username` lets the server pick one.
-pub fn register_email(node: Node, email: str, username: str) -> any {
-    let account = map().with("email", email);
+pub fn register_email(email: str, username: str) -> any {
+    let account: any = { "email": email };
     if username != "" {
-        account = account.with("username", username);
+        account["username"] = username;
     }
-    authentication::register(node, account)
+    authentication::register(account)
 }
 
 /// Email a `register_email` account a new code; only the newest works. The
 /// reply is `ok` whether or not the address has an account waiting.
-pub fn resend_confirmation(node: Node, email: str) -> any {
-    authentication::resend_confirmation(node, map().with("email", email))
+pub fn resend_confirmation(email: str) -> any {
+    authentication::resend_confirmation({ "email": email })
 }
 
 /// Open the realtime socket. The worker joins this session's own `user:<id>`
@@ -100,7 +100,7 @@ pub fn connect(node: Node) -> int {
 /// `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
 /// took the event.
 pub fn route(node: Node, e: any) -> bool {
-    let kind = e.get("kind").text();
+    let kind = e["kind"].text();
     let socket = e.has("socket");
     if socket {
         note_socket(kind);
@@ -108,8 +108,8 @@ pub fn route(node: Node, e: any) -> bool {
     let event = e;
     let method = if socket { "on_socket_" + kind } else { "on_" + kind };
     if kind == "message" {
-        event = events::decode(e.get("topic").text(), e.get("event").text(), e.get("payload"));
-        method = "on_" + event.get("kind").text();
+        event = events::decode(e["topic"].text(), e["event"].text(), e["payload"]);
+        method = "on_" + event["kind"].text();
     }
     if !node.has_method(method) {
         return false;
@@ -119,7 +119,7 @@ pub fn route(node: Node, e: any) -> bool {
 }
 
 pub fn close(socket: int) -> bool {
-    script::store(TOPICS_KEY, map());
+    script::store(TOPICS_KEY, {});
     gamend::close(socket)
 }
 
@@ -163,21 +163,21 @@ pub fn send(socket: int, name: str, args: any) -> bool {
     if socket <= 0 {
         return false;
     }
-    gamend::push(socket, "user", "hook", map().with("plugin", plugin()).with("fn", name).with("args", args)) > 0
+    gamend::push(socket, "user", "hook", { "plugin": plugin(), "fn": name, "args": args }) > 0
 }
 
 /// A hook reply as a `HookReply`.
 pub fn unpack_hook(name: str, reply: any) -> HookReply {
-    if reply.is_nil() {
+    if reply == nil {
         return HookReply { ok: false, data: nil(), error: "gamend: {name} sent no reply" };
     }
-    let response = reply.get("response");
+    let response = reply["response"];
     if response.has("error") {
-        let message = response.get("error").text();
+        let message = response["error"].text();
         log::warn("gamend: hook {name}: {message}");
         return HookReply { ok: false, data: nil(), error: message };
     }
-    HookReply { ok: true, data: response.get("data"), error: "" }
+    HookReply { ok: true, data: response["data"], error: "" }
 }
 
 /// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
@@ -191,7 +191,7 @@ pub fn register_kv(socket: int, key: str) -> bool {
         held.push(key);
         script::store(KEYS_KEY, held);
     }
-    gamend::push(socket, "user", "kv:subscribe", map().with("key", key)) > 0
+    gamend::push(socket, "user", "kv:subscribe", { "key": key }) > 0
 }
 
 pub fn unregister_kv(socket: int, key: str) -> bool {
@@ -199,7 +199,7 @@ pub fn unregister_kv(socket: int, key: str) -> bool {
         return false;
     }
     script::store(KEYS_KEY, without(registered(), key));
-    gamend::push(socket, "user", "kv:unsubscribe", map().with("key", key)) > 0
+    gamend::push(socket, "user", "kv:unsubscribe", { "key": key }) > 0
 }
 
 /// Every key this session subscribed, in the order it asked for them.
@@ -227,23 +227,23 @@ pub fn refresh_keys(socket: int, keys: [str]) -> [str] {
 /// File a decoded `kv_updated` or `kv_deleted` into the cache. Give it what
 /// `events::decode` returned and it takes the rows it knows.
 pub fn absorb(event: any) -> bool {
-    let kind = event.get("kind").text();
+    let kind = event["kind"].text();
     if kind != user::KV_UPDATED && kind != user::KV_DELETED {
         return false;
     }
-    let payload = event.get("payload");
-    let key = payload.get("key").text();
+    let payload = event["payload"];
+    let key = payload["key"].text();
     if kind == user::KV_DELETED {
         clear_row(key);
     } else {
-        keep_row(key, payload.get("value"));
+        keep_row(key, payload["value"]);
     }
     true
 }
 
 /// The row this client last saw for a key, or nil.
 pub fn row(key: str) -> any {
-    rows().get(key)
+    rows()[key]
 }
 
 pub fn has_row(key: str) -> bool {
@@ -254,15 +254,15 @@ pub fn has_row(key: str) -> bool {
 /// server even when a row is cached. A key the server has no row for caches
 /// an empty map, so `has_row` answers without asking again; anything else
 /// that went wrong caches nothing and the next call retries.
-pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
+pub async fn fetch_row(key: str, force: bool) -> any {
     if !force && has_row(key) {
         return row(key);
     }
-    let reply = await task::wait(kv::get_kv(node, key, nil()).as_int());
+    let reply = await task::wait(kv::get_kv(key, nil()).as_int());
     if !core::ok(reply) {
-        if reply.get("status").as_int() == 404 {
-            keep_row(key, map());
-            return map();
+        if reply["status"].as_int() == 404 {
+            keep_row(key, {});
+            return {};
         }
         log::warn(core::error_of(reply));
         return nil();
@@ -273,14 +273,14 @@ pub async fn fetch_row(node: Node, key: str, force: bool) -> any {
 }
 
 /// The signed-in player's profile, fetched fresh, as `core::unpack` shapes it.
-pub async fn fetch_current_user(node: Node) -> any {
-    let reply = await task::wait(users::get_current_user(node).as_int());
+pub async fn fetch_current_user() -> any {
+    let reply = await task::wait(users::get_current_user().as_int());
     core::unpack(reply)
 }
 
 /// One lobby, fetched fresh, its members inside it as the server sends them.
-pub async fn fetch_lobby(node: Node, lobby_id: any) -> any {
-    let reply = await task::wait(lobbies::get_lobby(node, lobby_id).as_int());
+pub async fn fetch_lobby(lobby_id: any) -> any {
+    let reply = await task::wait(lobbies::get_lobby(lobby_id).as_int());
     core::unpack(reply)
 }
 
@@ -288,12 +288,14 @@ pub async fn fetch_lobby(node: Node, lobby_id: any) -> any {
 /// on its way.
 pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: any) -> Write {
     let sent = json::encode(value);
-    if writes().get(key).text() == sent {
+    if writes()[key].text() == sent {
         return Write { skipped: true, reply: HookReply { ok: true, data: nil(), error: "" } };
     }
-    script::store(WRITES_KEY, writes().with(key, sent));
+    let held = writes();
+    held[key] = sent;
+    script::store(WRITES_KEY, held);
     let reply = await call(socket, hook, args);
-    if writes().get(key).text() == sent {
+    if writes()[key].text() == sent {
         script::store(WRITES_KEY, dropped(writes(), key));
     }
     Write { skipped: false, reply: reply }
@@ -317,7 +319,9 @@ pub fn sync_lobby_channel(socket: int, lobby_id: str) -> str {
 /// File a value under a key as if the server had sent it: what a caller with
 /// its own fetch, a hook rather than `kv`, keeps its answer with.
 pub fn keep_row(key: str, value: any) {
-    script::store(ROWS_KEY, rows().with(key, value));
+    let held = rows();
+    held[key] = value;
+    script::store(ROWS_KEY, held);
 }
 
 /// Forget one row, or all of them: what a sign-out does.
@@ -326,7 +330,7 @@ pub fn clear_row(key: str) {
 }
 
 pub fn clear_rows() {
-    script::store(ROWS_KEY, map());
+    script::store(ROWS_KEY, {});
 }
 
 /// `"open"`, `"reconnecting"` or `"failed"`. The socket's own events move the
@@ -363,12 +367,12 @@ fn note_socket(kind: str) {
 
 fn rows() -> any {
     let held = script::stored(ROWS_KEY);
-    if held.kind() == "map" { held } else { map() }
+    if held.kind() == "map" { held } else { {} }
 }
 
 fn writes() -> any {
     let held = script::stored(WRITES_KEY);
-    if held.kind() == "map" { held } else { map() }
+    if held.kind() == "map" { held } else { {} }
 }
 
 /// A list of names the store holds, as names.
@@ -376,7 +380,7 @@ fn stored_list(key: str) -> [str] {
     let held = script::stored(key);
     let out: [str] = [];
     for i in 0..held.len() {
-        out.push(held.at(i).text());
+        out.push(held[i].text());
     }
     out
 }
@@ -402,10 +406,10 @@ fn without(names: [str], name: str) -> [str] {
 
 /// A map without one key.
 fn dropped(table: any, key: str) -> any {
-    let out = map();
+    let out: any = {};
     for name in table.keys() {
         if name != key {
-            out = out.with(name, table.get(name));
+            out[name] = table[name];
         }
     }
     out

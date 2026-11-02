@@ -1,0 +1,4 @@
+enum Size { Box { w: int, h: int } }
+pub fn f() -> Size { Size::Box { w: 1 } }
+
+// error: 2:22: missing field `h` of `Size::Box`

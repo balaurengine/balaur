@@ -5,7 +5,7 @@
 //! changes one at run time, or defines its own: which is the same call the
 //! engine's own plugins make, so a game's setting is not a lesser kind.
 
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::engine::Engine;
 use crate::node_api::{from_toml, to_toml};
@@ -26,7 +26,7 @@ const fn scope_name(scope: Scope) -> &'static str {
     }
 }
 
-pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_settings_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Every setting the engine, its plugins and the game declare, by path: `physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`. `define` adds your own; `[override.<platform>]` tables answer per platform.",
     );
@@ -115,7 +115,7 @@ pub fn install_settings_api(m: &mut dyn Bindings<Engine>) {
 
 /// The calls the settings screen needs for a key with more than one answer:
 /// the file's own value, the tags in play, and the overrides a key carries.
-fn install_override_api(m: &mut dyn Bindings<Engine>) {
+fn install_override_api(m: &mut Module<Engine>) {
     m.function("base", |eng: &Engine, path: String| {
         Ok(settings::base(eng, &path)
             .and_then(|v| from_toml(&v).ok())

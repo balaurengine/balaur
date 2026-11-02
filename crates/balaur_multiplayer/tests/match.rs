@@ -21,11 +21,15 @@ const LOBBY_SCRIPT: &str = r#"
 pub class Lobby { node: Node }
 impl Lobby {
     pub fn host_match(transport: str) {
-        multiplayer::host(map().with("transport", transport).with("name", "host"));
+        multiplayer::host(multiplayer::HostOptions { transport: transport, name: "host" });
+    }
+
+    pub fn start_match() {
+        multiplayer::start();
     }
 
     pub fn join_match(url: str, hash: any) {
-        multiplayer::join(url, map().with("cert_hash", hash).with("name", "guest"));
+        multiplayer::join(url, multiplayer::JoinOptions { cert_hash: hash, name: "guest" });
     }
 }
 "#;
@@ -331,4 +335,21 @@ fn a_player_leaving_is_played_as_absent() {
     run(&mut [&mut host], "the host plays on alone", |apps| {
         tick(apps[0]) > before + 30
     });
+}
+
+#[test]
+fn starting_outside_a_lobby_leaves_a_machine_where_it_is() {
+    let dir = project();
+    let mut app = boot(&dir);
+    let port = {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.local_addr().unwrap().port()
+    };
+    let url = Value::Str(format!("ws://127.0.0.1:{port}"));
+    call(&app, "join_match", &[url, Value::Nil]);
+    let joining = state(&app).borrow().state();
+    assert_eq!(joining, State::Connecting, "the control: it is dialing");
+    call(&app, "start_match", &[]);
+    assert_eq!(state(&app).borrow().state(), joining);
+    app.tick(1.0 / 60.0);
 }

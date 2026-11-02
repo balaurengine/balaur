@@ -1,0 +1,17 @@
+// A list in an `any` handed to an array parameter is the same list.
+
+fn mark(doc: [any]) {
+    for node in doc {
+        node["id"] = "x";
+    }
+}
+pub fn marked() -> str {
+    let list: any = [{ "name": "a" }];
+    mark(list);
+    let none: any = nil;
+    mark(none);
+    "{list[0]["id"].as_str()} {list.len()}"
+}
+
+// expect: marked() == "x 1"
+// live: 0

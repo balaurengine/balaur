@@ -10,9 +10,11 @@
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
+mod access;
 mod api;
 mod bridge;
 mod chord;
+mod clipboard;
 pub mod contrast;
 mod images;
 mod loading;
@@ -27,8 +29,10 @@ mod widget;
 
 use anyhow::Result;
 use balaur_core::Engine;
+use smol_str::SmolStr;
 use std::collections::HashMap;
 
+pub use access::{AccessTree, act, enable_access, take_access_update};
 pub use loading::Loading;
 pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};
@@ -37,11 +41,12 @@ pub use touch::draw_touch_controls;
 pub use widget::input::{
     ACTIVATE_EVENT, BLUR_EVENT, CARET_EVENT, CHANGE_EVENT, CLICK_EVENT, CLOSE_REQUEST_EVENT,
     CLOSED_EVENT, COMMIT_EVENT, DOUBLE_CLICK_EVENT, DROP_EVENT, FOCUS_EVENT, FOLD_EVENT,
-    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT, RESIZED_EVENT,
-    SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer, WidgetInputSnapshot, click, edit, submit,
+    GUTTER_EVENT, LINK_EVENT, MARK_EVENT, MOVE_EVENT, OPENED_EVENT, PASTED_EVENT,
+    PASTED_IMAGE_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer,
+    WidgetInputSnapshot, click, edit, submit,
 };
 pub use widget::inspector::reread;
-pub use widget::node::{Move, Surface, UiFocus, Widget, WidgetLayerConfig};
+pub use widget::node::{Move, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
 /// Where the layer last drew a widget, in design pixels, or `None` for one
@@ -49,6 +54,13 @@ pub use widget::theme::WidgetTheme;
 #[must_use]
 pub fn widget_rect(entity: balaur_core::hecs::Entity) -> Option<egui::Rect> {
     widget::arrange::drawn_at(entity)
+}
+
+/// What a widget took when the layer last drew it, in design pixels: the
+/// box it was given, unless it drew past it. `None` for one it did not draw.
+#[must_use]
+pub fn widget_drawn_size(entity: balaur_core::hecs::Entity) -> Option<egui::Vec2> {
+    widget::arrange::drawn_size(entity)
 }
 
 /// The smallest a control may be where a finger is what reaches it, in the
@@ -125,7 +137,7 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
     {
         return;
     }
-    let settings = balaur_core::project::UiSettings::from_settings(eng);
+    let settings = balaur_core::project::UiSettings::of(eng);
     {
         let mut held = held.borrow_mut();
         held.read = true;
@@ -142,18 +154,17 @@ fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
     }
 }
 
-/// What scripts ask the UI to look like: the theme tokens `ui.set_theme`
-/// writes, and the UI scale, which is egui's own zoom factor. A design pixel
-/// is a point, so nothing multiplies by the scale: the backend hands it to
+/// What scripts ask the UI to look like: the theme `ui.set_theme` put in force,
+/// and the UI scale, which is egui's own zoom factor. A design pixel is a
+/// point, so nothing multiplies by the scale: the backend hands it to
 /// [`egui::Context::set_zoom_factor`] and egui lays the whole pass out in it,
 /// its own widgets included.
-///
-/// [`run_pass`] applies a pending theme and clears `changed`; nothing else
-/// owns these values.
 pub struct UiConfig {
-    pub theme: ThemeTokens,
-    /// Set by `ui.set_theme`, cleared once the theme reaches egui.
-    pub changed: bool,
+    /// The theme `ui.set_theme` named, over the project's `[ui] theme`.
+    pub(crate) asked_theme: Option<theme::AskedTheme>,
+    /// The theme egui's own controls were last dressed in, so a pass derives
+    /// the palette only when another one comes into force.
+    pub(crate) worn_theme: SmolStr,
     pub scale: f32,
     /// Whether a script has set the scale. `[ui] scale` seeds it on the first
     /// tick, which is after a script's `init` has run, so a seed that did not
@@ -164,8 +175,8 @@ pub struct UiConfig {
 impl Default for UiConfig {
     fn default() -> Self {
         Self {
-            theme: ThemeTokens::default(),
-            changed: false,
+            asked_theme: None,
+            worn_theme: SmolStr::default(),
             scale: 1.0,
             asked: false,
         }
@@ -173,9 +184,8 @@ impl Default for UiConfig {
 }
 
 /// The plugin's own cache, all of it derived from what it has already drawn:
-/// whether fonts are bound to the egui context yet, the persistent text-edit
-/// buffers behind `ui.text_field` and `ui.code_editor`, which of them have
-/// taken focus once, and the textures `ui.image` has uploaded.
+/// whether fonts are bound to the egui context yet, what each field holds
+/// while it is typed into, and the textures `ui.image` has uploaded.
 ///
 /// Split from [`UiConfig`] by ownership: nothing outside this crate writes
 /// any of it, whereas every field of `UiConfig` comes from a script.
@@ -187,24 +197,17 @@ pub struct UiState {
     fonts_taken_at: u64,
     /// The asset generation the widgets' text styles were last read under.
     text_styles_read_at: u64,
-    pub text_buffers: HashMap<String, String>,
-    /// The value each seeded field was last filled from, so a field re-seeds
-    /// when its source changes but not while someone is typing into it.
-    pub text_seeds: HashMap<String, String>,
-    /// Per `code` node, the galley it last laid out and the hash of the text
-    /// and colours behind it. Highlighting a file is proportional to its
-    /// length, and nothing about it changes on a frame that only moved a
-    /// pointer.
-    pub code_galleys: HashMap<String, (u64, std::sync::Arc<egui::Galley>)>,
-    /// What those galleys were laid out against. egui rebuilds the glyph atlas
-    /// at the same size when it fills or the text options change (a light
-    /// theme does), and a galley from the old atlas draws the wrong glyphs.
-    pub font_atlas: Option<FontAtlas>,
+    /// Each `text_field`, `text_area`, `code` node and number being typed:
+    /// its text, caret, undo and layout, by its egui id.
+    pub(crate) fields: HashMap<egui::Id, widget::typing::Field>,
     /// Text `ui::set_clipboard` asked for, handed to the platform by the next
     /// pass: a script runs between passes, and only a pass holds the context.
     pub clipboard: Option<String>,
     /// The text the last pass saw pasted, empty when it saw none.
     pub pasted: String,
+    /// The image the last pass saw pasted where no field took it, until a
+    /// script writes it out with `ui::save_pasted_image`.
+    pub pasted_image: Option<clipboard::Image>,
     /// Whether a widget held the keyboard when the last pass ended.
     pub wants_keyboard: bool,
     /// A finger down on a `scroll` with a deadzone, until it lifts.
@@ -213,12 +216,18 @@ pub struct UiState {
     /// per second, and where the offset has got to. Dropped once it stops.
     pub scroll_flings: HashMap<u64, (egui::Vec2, egui::Vec2)>,
     pub textures: HashMap<String, egui::TextureHandle>,
+    /// Pictures a preloaded scene names, decoding on a worker thread: each
+    /// one's answer and the sampler it is uploaded with.
+    pub(crate) decoding: HashMap<String, images::Decoding>,
+    /// Pictures a preloaded scene names, waiting for their turn to decode.
+    pub(crate) to_decode: std::collections::VecDeque<String>,
+    /// What the pictures warmed so far came to.
+    pub(crate) warmed_bytes: usize,
     /// The asset generation `textures` was filled at: an image reloaded on
     /// disk is a new picture under the same path, so the cache goes with it.
     pub texture_generation: u64,
-    /// Set by [`forget_scene`], consumed by the next [`run_pass`]: egui's own
-    /// memory is keyed by entity, and dropping it needs the context.
-    pub forget_egui: bool,
+    /// The tree's shape when what freed nodes left was last let go.
+    swept_at: u64,
 }
 
 /// A finger dragging a `scroll`: where it started, what the offset was then,
@@ -242,44 +251,17 @@ pub struct ScrollDrag {
 /// declares it is not in this build.
 pub fn toast(eng: &Engine, text: &str) -> anyhow::Result<()> {
     let root = eng.root();
-    let entity = balaur_core::scene::spawn_node(&mut eng.world_mut(), "Toast", root);
+    let entity = eng.spawn_node("Toast", root);
     let params = toml::toml! { kind = "toast" text = text anchor = "top_right" x = 16.0 y = 16.0 };
     balaur_core::components::add(eng, entity, "widget", Some(&params.into()))
 }
 
-/// Drop everything the plugin cached against a scene that is being rebuilt.
-///
-/// The textures and the text buffers are keyed by strings a scene chose, and
-/// egui's per-widget memory — scroll offsets, area sizes — is keyed by entity,
-/// which a respawned node reuses. Nothing inside the engine calls this yet; a
-/// host that reloads a scene should.
-pub fn forget_scene(eng: &Engine) {
-    let Some(state) = eng.try_resource::<UiState>() else {
-        return;
-    };
-    let mut state = state.borrow_mut();
-    state.textures.clear();
-    state.text_buffers.clear();
-    state.text_seeds.clear();
-    state.code_galleys.clear();
-    state.forget_egui = true;
-}
-
-pub struct UiPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for UiPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("ui", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct UiPlugin;
 
 impl balaur_plugin::Plugin for UiPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "ui"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -292,9 +274,11 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(widget::pool::PoolState::default());
         reg.insert_resource(widget::inspector::InspectorState::default());
         reg.insert_resource(UiFocus::default());
+        reg.insert_resource(AccessTree::default());
         reg.insert_resource(routing::UiHits::default());
         reg.insert_resource(routing::PointerRoute::default());
         balaur_text::glyph::install(reg);
+        balaur_text::fonts::read_system_fonts_ahead(reg);
         balaur_text::font::register_font_asset(reg);
         balaur_text::text_style::register_text_style_asset(reg);
         reg.register_asset_type(
@@ -305,10 +289,21 @@ impl balaur_plugin::Plugin for UiPlugin {
                 Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        api::install_ui_api(reg)?;
+        api::install_ui_api(&mut reg.script_module("ui")?);
         widget::input::register(reg);
+        // Before `widget`, so a scene gives a node these first and builds
+        // its widget once, with their rows.
+        widget::beside::register_all(reg);
         widget::schema::register_widget_component(reg);
-        widget::schema::register_widget_presets(reg)?;
+        widget::presets::register_widget_presets(reg)?;
+        balaur_core::preload::on_component(
+            reg.engine(),
+            <widget::properties::WidgetProperties as balaur_core::components::derived::Component>::NAME,
+            balaur_core::preload::Warming {
+                preload: images::preload_widget,
+                unload: images::unload_widget,
+            },
+        );
         Ok(())
     }
 }
@@ -352,10 +347,30 @@ pub fn pass_without_window(app: &mut balaur_core::App, width: f32, height: f32) 
     });
 }
 
+/// Let go of what the widget layer keeps by node, once its node is freed. A
+/// parked scene's nodes are alive, so a return finds its caret and its folds.
+fn sweep_freed(eng: &Engine, state: &std::rc::Rc<std::cell::RefCell<UiState>>) {
+    let revision = balaur_core::scene::shape_revision();
+    let mut state = state.borrow_mut();
+    if state.swept_at == revision {
+        return;
+    }
+    state.swept_at = revision;
+    let world = eng.world();
+    state
+        .fields
+        .retain(|_, field| field.owner.is_none_or(|node| world.contains(node)));
+    widget::window::forget_freed(&world);
+    widget::code::forget_freed(&world);
+}
+
 fn pass(eng: &Engine, ctx: &egui::Context) {
     let Some(state) = eng.try_resource::<UiState>() else {
         return;
     };
+    sweep_freed(eng, &state);
+    // Pictures a preload decoded since the last pass, up before anything draws.
+    images::settle(eng, ctx);
     {
         let mut state = state.borrow_mut();
         // Once a pass: egui takes the families given last pass, the shaper
@@ -387,32 +402,11 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
             splash::draw(eng, ctx);
             return;
         }
-        if std::mem::take(&mut state.forget_egui) {
-            // Scroll offsets and area sizes are keyed by entity, and a
-            // respawned node inherits the index the freed one had.
-            ctx.memory_mut(|memory| memory.data.clear());
-        }
-        let now = FontAtlas::of(ctx);
-        if state
-            .font_atlas
-            .as_ref()
-            .is_some_and(|was| was.rebuilt_by(&now))
-        {
-            state.code_galleys.clear();
-        }
     }
-    // A second lookup and borrow, deliberately: the pending theme is the
-    // script's to set and this crate's cache is not, so they are two entries.
-    let Some(config) = eng.try_resource::<UiConfig>() else {
+    if eng.try_resource::<UiConfig>().is_none() {
         return;
-    };
-    {
-        let mut config = config.borrow_mut();
-        if config.changed {
-            theme::apply(&config.theme, ctx);
-            config.changed = false;
-        }
     }
+    theme::wear(eng, ctx);
     // Before the classes are read by anything: the theme answers by them, and
     // so does the floor egui's own controls take.
     widget::theme::set_pass_classes(&widget::arena::begin_classes(eng));
@@ -422,6 +416,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     // An inspector's rows are nodes it fills, so they are filled before the
     // layer reads the tree.
     widget::inspector::refresh(eng);
+    clipboard::read_paste(ctx);
     widget::layer::draw(eng, ctx);
     // Over everything, for as long as it lasts.
     splash::draw(eng, ctx);
@@ -430,6 +425,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         if let Some(text) = state.clipboard.take() {
             ctx.copy_text(text);
         }
+        clipboard::write_copies(ctx);
         state.pasted = ctx.input(|i| {
             i.events
                 .iter()
@@ -442,35 +438,7 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
         });
         state.wants_keyboard = ctx.egui_wants_keyboard_input();
     }
+    widget::input::hear_pasted_image(eng, ctx);
     routing::pass_drew(eng, ctx);
     bridge::leave_pass();
-    state.borrow_mut().font_atlas = Some(FontAtlas::of(ctx));
-}
-
-/// The glyph atlas as a cached galley depends on it.
-pub struct FontAtlas {
-    pixels_per_point: f32,
-    fill: f32,
-    options: egui::epaint::text::TextOptions,
-}
-
-impl FontAtlas {
-    fn of(ctx: &egui::Context) -> Self {
-        // Read apart: a context call inside `fonts` locks it twice.
-        let pixels_per_point = ctx.pixels_per_point();
-        let (fill, options) = ctx.fonts(|fonts| (fonts.font_atlas_fill_ratio(), *fonts.options()));
-        Self {
-            pixels_per_point,
-            fill,
-            options,
-        }
-    }
-
-    /// Whether `now` is a different atlas: the fill only falls when egui
-    /// starts over, and new options always start over.
-    fn rebuilt_by(&self, now: &Self) -> bool {
-        self.options != now.options
-            || now.fill < self.fill
-            || (self.pixels_per_point - now.pixels_per_point).abs() > f32::EPSILON
-    }
 }

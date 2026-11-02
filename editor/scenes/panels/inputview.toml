@@ -6,13 +6,13 @@
 id = "view"
 name = "InputView"
 script = { source = "scripts/panels/inputview.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 anchor = "fill"
 inset = [0.0, 0.0, 0.0, 0.0]
 interactive = false
-layer = "shell"
-visible = false
+whole_window = true
 
 # What is held, and what went up a moment ago: a chip each.
 [[nodes]]
@@ -30,118 +30,110 @@ interactive = false
 id = "wash0"
 name = "Wash0"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "ring0"
 name = "Ring0"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "wash1"
 name = "Wash1"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "ring1"
 name = "Ring1"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "wash2"
 name = "Wash2"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "ring2"
 name = "Ring2"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "wash3"
 name = "Wash3"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "primary_bg"
 corner_radius = 9
 interactive = false
-visible = false
 
 [[nodes]]
 id = "ring3"
 name = "Ring3"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "input_ripple"
 corner_radius = 9
 interactive = false
-visible = false
 
 # The left button held, under the pointer.
 [[nodes]]
 id = "press"
 name = "Press"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 width = 22
 height = 22
@@ -149,12 +141,12 @@ corner_radius = 11
 fill = "primary_bg"
 stroke = "primary_text"
 interactive = false
-visible = false
 
 [[nodes]]
 id = "pointer"
 name = "Pointer"
 parent = "view"
+visible = false
 [nodes.widget]
 kind = "image"
 image = "assets/cursor.png"
@@ -162,4 +154,3 @@ absolute = true
 width = 36
 height = 36
 interactive = false
-visible = false

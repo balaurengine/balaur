@@ -32,7 +32,7 @@ Built, and load-bearing for a 2D game:
 | Have | Where |
 | --- | --- |
 | Scene tree, prefabs with `overrides`, stable ids, TOML scenes | `balaur_core::scene`, `ARCHITECTURE.md` "Prefabs" |
-| `sprite` with sheets, flip and tint; `polygon` GPU-skinned from a `mesh` with a `skin`; `bone2d`; the `skeleton` module | `crates/balaur_render/src/{sprite,polygon}.rs`, `crates/balaur_core/src/skeleton.rs` |
+| `sprite` with sheets, flip and tint; `polygon` GPU-skinned from a `mesh` with a `skin`; `bone2d`; the `skeleton` module | `crates/balaur_render/src/{sprite,polygon}.rs`, `crates/balaur_geometry/src/skeleton.rs` |
 | Animation clips with property and method tracks, `play`/`queue`/`seek`, negative `speed` for backwards, 12 easing curves × 4 modes, `animation.tween` and `tween_to` | `crates/balaur_animation`, `player.rs:249` |
 | Rapier 2D: every body kind, sensors with `overlaps`, joints, `character2d`, the query pipeline, 32 layers, one-way platforms | `crates/balaur_physics/src/dim2`, `docs/PLAN-rapier.md` |
 | `tilemap` over a `tileset` atlas; `particles`; `shape2d` polyline with `width`, `closed` and `material`; `light2d` and `occluder2d` | `crates/balaur_render/src/{tilemap,particles,shape,light}.rs` |
@@ -73,9 +73,8 @@ the §2 rows say where:
   toggled from `wants_keyboard` (`kiss3d_backend.rs:165`) but its height
   is not queryable, so nothing can move out from under it; `input.typed`
   is raw characters, so composed input never arrives.
-- **Render components cannot hide.** `visible` exists on `widget` only
-  (`docs/generated/components.md`). Hiding a sprite means removing the
-  component.
+- **A component cannot hide alone.** `visible` is the node's. Hiding one
+  sprite on a node that carries more means removing the component.
 - **Draw order is global z.** Scene-tree order stably sorted by the global
   z position (`kiss3d_backend.rs:945-982`); no layer index a subtree
   carries, no clipping to a node's bounds, no atlas region on a sprite
@@ -101,7 +100,7 @@ the §2 rows say where:
 - **Tweens run to a value and stop.** No delay, no chaining, no
   completion handler, no tween over a value a script owns.
 - **No 2D polygon booleans.** Ear clipping only
-  (`crates/balaur_core/src/triangulate.rs`); no union, intersection or
+  (`crates/balaur_geometry/src/triangulate.rs`); no union, intersection or
   difference, no point-in-polygon.
 - **The device is mute.** No safe-area insets, no dark-mode query, no
   keep-awake, no vibration on a phone, no OS locale (`Cargo.lock`: no
@@ -216,7 +215,7 @@ in the game; "not planned" is a deliberate no.
 | Hinting, subpixel positioning, OpenType features | Step 2 for hinting and subpixel; `liga` and `kern` come with the shaper; anything further is a game that has asked |
 | Inline marks in a localized string | Step 2: `markup = true` on `label`, the span parser in §1 |
 | A text input in the scene tree | Step 2: a `field` widget kind, single-line, with `placeholder`, `max_length`, `secret`, `numeric`, `on_change`, `on_submit`; multi-line is `ui.code_editor` today and a `text` kind when asked |
-| Room above the on-screen keyboard | Have: `input.keyboard_height()`, recorded on `DeviceFacts`, read from the page, UIKit and the Android activity; `avoid_keyboard` on a root widget lifts it clear. `docs/PLAN-touch.md` |
+| Room above the on-screen keyboard | Have: `input.keyboard_height()`, recorded on `DeviceFacts`, read from the page, UIKit and the Android activity; every root but a backdrop keeps above it. `docs/PLAN-touch.md` |
 | Composed input for CJK | Have: winit's `Ime` events through the fork's `Window::ime_events`; committed text lands in `input.typed`, the preedit in `input.composing()`, and egui's fields compose the same way. A page composes nothing: a browser only composes into an editable element, and a proxy input is **not planned** until a web text field asks |
 | Word wrap that knows CJK and Thai | Step 2: `wrap = "word"` gains the shaper's line breaker; nothing else changes |
 | Text to speech, speech recognition | Not planned; nothing has asked |
@@ -239,7 +238,7 @@ in the game; "not planned" is a deliberate no.
 | Instanced 2D meshes, a triangle list drawn by hand | Fallback: a `polygon` with a `mesh` asset. Instancing is the roadmap's "Culling and level of detail" |
 | Render to a texture | Fallback: bake with `render.screenshot` in a tool run and ship the image. The roadmap's "More than one view" |
 | A 2D camera with limits, smoothing and drag margins | Have zoom; the rest is a script's `update`. **Not planned** as properties |
-| Canvas layers | Have: `widget.layer` for UI; `z_index` for the world |
+| Canvas layers | Have: `widget.whole_window` for UI; `z_index` for the world |
 | A design resolution scaled to the screen | Have: `ui.set_scale` goes down to 0.25; the scale itself is one line in `update` from `ui.screen_size` |
 | Compressed textures on mobile | `docs/PLAN-scenes-and-assets.md`'s import phase, when memory says so |
 
@@ -297,9 +296,9 @@ in the game; "not planned" is a deliberate no.
 | Need | Decision |
 | --- | --- |
 | Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume_linear`, which makes a bus it does not know; `define_bus` **not planned** |
-| Effects on a bus: a limiter, reverb | Roadmap 0.9, "Sound that fills a room": buses are gain today (`bus.rs:1-18`), and that milestone makes them a graph. Until then, normalise the files offline |
+| Effects on a bus: a limiter, reverb | Have: `[audio.buses]` takes a limiter and the filters, distortion, reverb and automatic gain control, built when the device opens; `audio.bus_limit` and `audio.bus_effects` read them back. EQ, a compressor and ducking stay Roadmap 0.9's, "Sound that fills a room" |
 | Duck music under speech | Have: `animation.tween_value` driving `audio.set_bus_volume_linear` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
-| Content downloaded at run time: a manifest, a content pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, `on_progress` per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second export pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
+| Content downloaded at run time: a manifest, a content pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, the `http_progress` event per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second export pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
 | Streaming a long file | Roadmap's asset streaming; every play decodes from memory today |
 | Positional audio, pitch | Have |
 | A gate for a browser that refuses audio | Step 1: `audio.ready()` |
@@ -323,7 +322,7 @@ in the game; "not planned" is a deliberate no.
 | Classify nodes and query by class | Have: `tags = ["door", "obstacle"]` on a node, `node.tags`, `has_tag`, `add_tag`, `remove_tag`, `scene.tagged(name)`; in the digest and the snapshot |
 | Wait a frame, wait a second | Have: `task::frames(n).await` and `task::seconds(t).await`, counted on the fixed step so they replay and survive a snapshot |
 | Defer a call to the next frame | Have: `events.emit` to self; `node.queue_free` already defers |
-| Polygon booleans, triangulation, point-in-polygon, segment intersection | Have: `geometry2d` — `triangulate` over `balaur_core::triangulate`; `union`, `intersection`, `difference` from `i_overlay`, which works in fixed point and so lands on the same vertices everywhere; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
+| Polygon booleans, triangulation, point-in-polygon, segment intersection | Have: `geometry2d` — `triangulate` over `balaur_geometry::triangulate`; `union`, `intersection`, `difference` from `i_overlay`, which works in fixed point and so lands on the same vertices everywhere; `contains`, `segments_intersect`, `area`, `is_clockwise`, `convex_hull` |
 | Base64, a random id | Have: `encoding.base64`/`from_base64`; `random.uuid()` from the engine's own stream, so it replays |
 | A test runner for a game's own headless tests | Have: `balaur test` runs every `tests/**/*.rn` on its own node in a headless copy of the project; Rune's own `assert!` is the assertion, a logged script error fails the test, and the exit code says so |
 | Threads | Have: none, by design; I/O lands on a tick |

@@ -1,0 +1,3 @@
+fn f(a: any, b: any) -> bool { a.equals(b) }
+
+// error: 1:33: an `any` compares as `a == b`, not `a.equals(b)`

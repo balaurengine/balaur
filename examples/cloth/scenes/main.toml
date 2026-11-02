@@ -32,16 +32,13 @@ parent = "n_world"
 position = [0.0, -0.95, 0.0]
 
 [nodes.shape3d]
-kind = "plane"
-size = [16.0, 0.0, 16.0]
-segments = 8
+shape = { kind = "plane", size = [16.0, 0.0, 16.0], segments = 8 }
 color = [0.20, 0.22, 0.26, 1.0]
 
 # Real ground, not just something drawn: the ball that tears through lands on
 # it rather than falling out of the scene.
 [nodes.collider3d]
-kind = "box"
-size = [16.0, 0.2, 16.0]
+shape = { kind = "box", size = [16.0, 0.2, 16.0] }
 offset = [0.0, -0.1, 0.0]
 
 [[nodes]]
@@ -54,13 +51,11 @@ parent = "n_world"
 position = [-1.5, -0.55, 0.0]
 
 [nodes.shape3d]
-kind = "box"
-size = [1.0, 0.8, 1.0]
+shape = { kind = "box", size = [1.0, 0.8, 1.0] }
 color = [0.34, 0.36, 0.40, 1.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 0.8, 1.0]
+shape = { kind = "box", size = [1.0, 0.8, 1.0] }
 physics_material = { friction = 0.9 }
 
 [[nodes]]
@@ -71,11 +66,13 @@ parent = "n_world"
 [nodes.transform]
 position = [-1.5, 0.55, 0.0]
 
-[nodes.softbody3d]
-kind = "cloth"
+[nodes.soft_grid3d]
 size = [2.4, 0.0, 2.4]
 # 24 particles a side: the folds over the block are only as fine as the mesh.
 cells = [23.0, 23.0, 1.0]
+
+[nodes.softbody3d]
+kind = "cloth"
 mass = 1.0
 solver_substeps = 4
 self_collision = true
@@ -92,10 +89,12 @@ parent = "n_world"
 [nodes.transform]
 position = [1.5, 1.2, 0.0]
 
-[nodes.softbody3d]
-kind = "cloth"
+[nodes.soft_grid3d]
 size = [2.0, 0.0, 2.0]
 cells = [15.0, 15.0, 1.0]
+
+[nodes.softbody3d]
+kind = "cloth"
 pinned_particles = [
   0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
   12, 13, 14, 15, 16, 31, 32, 47, 48, 63, 64, 79,
@@ -121,11 +120,9 @@ position = [1.5, 2.4, 0.0]
 kind = "dynamic"
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.3
+shape = { kind = "sphere", radius = 0.3 }
 color = [0.88, 0.45, 0.30, 1.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.3
+shape = { kind = "sphere", radius = 0.3 }
 density = 4.0

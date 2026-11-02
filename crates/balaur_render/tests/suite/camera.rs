@@ -7,7 +7,7 @@ use balaur_render::{CameraConfig2d, CameraConfig3d, PostConfig, RenderPlugin};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
@@ -364,10 +364,6 @@ fn patching_one_camera_property_leaves_the_rest_alone() {
 /// this -- it keeps what was asked for -- but a reader still does.
 #[test]
 fn every_component_reports_every_property_it_holds() {
-    // These report what is in effect rather than every property: a ball has no
-    // `tube_radius`, and a size or a tile a sheet derived is not the
-    // component's to state. Their omissions are the design.
-    const DERIVED: &[&str] = &["shape3d", "shape2d", "sprite", "tilemap"];
     let app = app();
     let root = app.engine.root();
     let mut offenders = Vec::new();
@@ -389,7 +385,7 @@ fn every_component_reports_every_property_it_holds() {
             .filter(|key| !got.contains_key(*key))
             .map(String::as_str)
             .collect();
-        if !missing.is_empty() && !DERIVED.contains(&name.as_str()) {
+        if !missing.is_empty() {
             offenders.push(format!("{name} does not report {missing:?}"));
         }
     }
@@ -398,27 +394,6 @@ fn every_component_reports_every_property_it_holds() {
         "patching any other property resets these: {offenders:?}"
     );
     assert!(checked > 5, "only {checked} components were reachable");
-}
-
-#[test]
-fn a_patch_keeps_what_was_asked_for_even_where_get_is_silent() {
-    let app = app();
-    let node = node_at(&app, app.engine.root(), Vec3::ZERO);
-    // A sphere has no size, so `shape3d` does not report the one asked
-    // for here: they are only in the table the scene handed over.
-    let asked: toml::Value =
-        toml::from_str("kind = \"sphere\"\nradius = 0.7\nsize = [4.0, 2.0, 4.0]").unwrap();
-    components::add(&app.engine, node, "shape3d", Some(&asked)).unwrap();
-    let becomes: toml::Value = toml::from_str("kind = \"box\"").unwrap();
-    components::patch(&app.engine, node, "shape3d", &becomes).unwrap();
-    let read = components::get(&app.engine, node, "shape3d").unwrap();
-    let size = read["size"].as_array().unwrap();
-    let sizes: Vec<f64> = size.iter().map(|v| v.as_float().unwrap()).collect();
-    assert_eq!(
-        sizes,
-        vec![4.0, 2.0, 4.0],
-        "the patch fell back to the schema default instead of what was asked for"
-    );
 }
 
 /// Every `current_changed` a camera heard over `frames` ticks, in order.

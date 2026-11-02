@@ -29,7 +29,7 @@ pub mod prelude {
     pub use crate::{Manifest, Plugin, Registry};
     pub use anyhow::Result;
     pub use balaur_core::{Engine, Stage};
-    pub use balaur_script::{BindingsExt as _, Value};
+    pub use balaur_script::Value;
 }
 
 use anyhow::{Result, anyhow, bail};
@@ -37,30 +37,41 @@ use balaur_core::App;
 use balaur_core::plugins::PluginInfo;
 
 pub trait Plugin {
-    fn manifest(&self) -> &Manifest;
+    /// The name a script and another plugin's [`Plugin::requires`] know it by.
+    fn name(&self) -> &str;
+
+    /// What `engine.plugin_version` answers: the engine's own, unless the
+    /// plugin ships apart from it.
+    fn version(&self) -> &str {
+        ENGINE_VERSION
+    }
+
+    /// The plugins that must register first, by name.
+    fn requires(&self) -> Vec<String> {
+        Vec::new()
+    }
 
     /// # Errors
     /// If the plugin cannot register what it needs.
     fn declare(&mut self, reg: &mut Registry<'_>) -> Result<()>;
 }
 
-/// Load `plugin` into `app`, refusing a build that cannot share this process.
+/// What [`load_order`] needs of a plugin.
+fn manifest_of(plugin: &dyn Plugin) -> Manifest {
+    Manifest {
+        name: plugin.name().to_string(),
+        version: plugin.version().to_string(),
+        requires: plugin.requires(),
+    }
+}
+
+/// Load `plugin` into `app`.
 ///
 /// # Errors
-/// If the fingerprints disagree, something it requires is not loaded, or
-/// the plugin's own registration fails.
+/// If something it requires is not loaded, or the plugin's own registration
+/// fails.
 pub fn load(app: &mut App, plugin: &mut dyn Plugin) -> Result<()> {
-    let manifest = plugin.manifest().clone();
-    let host = Fingerprint::current();
-    let differences = host.differences(&manifest.fingerprint);
-    if !differences.is_empty() {
-        bail!(
-            "cannot load plugin `{}` {}: {}",
-            manifest.name,
-            manifest.version,
-            differences.join("; ")
-        );
-    }
+    let manifest = manifest_of(plugin);
     for required in &manifest.requires {
         if !balaur_core::plugins::is_loaded(&app.engine, required) {
             bail!(
@@ -85,12 +96,12 @@ pub fn load(app: &mut App, plugin: &mut dyn Plugin) -> Result<()> {
 /// # Errors
 /// If the set cannot be ordered, or any plugin refuses to load.
 pub fn load_all(app: &mut App, plugins: &mut [Box<dyn Plugin>]) -> Result<()> {
-    let manifests: Vec<Manifest> = plugins.iter().map(|p| p.manifest().clone()).collect();
+    let manifests: Vec<Manifest> = plugins.iter().map(|p| manifest_of(p.as_ref())).collect();
     let already = balaur_core::plugins::names(&app.engine);
     for name in load_order(&manifests, &already)? {
         let at = plugins
             .iter()
-            .position(|p| p.manifest().name == name)
+            .position(|p| p.name() == name)
             .ok_or_else(|| anyhow!("`{name}` was ordered but is not in the set"))?;
         load(app, plugins[at].as_mut())?;
     }

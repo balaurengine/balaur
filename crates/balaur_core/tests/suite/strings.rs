@@ -183,3 +183,27 @@ fn a_region_does_not_change_the_language_that_counts() {
     assert_eq!(strings::tr(&app.engine, "menu.items", &n(1)), "1 item");
     assert_eq!(strings::tr(&app.engine, "menu.items", &n(2)), "2 items");
 }
+
+#[test]
+fn a_system_locale_lands_on_the_nearest_one_shipped() {
+    let shipped: Vec<String> = ["en", "no", "pt", "pt_BR", "zh_CN", "zh_TW"]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    for (reported, want) in [
+        ("en-US", Some("en")),
+        ("pt-BR", Some("pt_BR")),
+        ("pt-PT", Some("pt")),
+        ("zh-Hant-HK", Some("zh_TW")),
+        ("zh-TW", Some("zh_TW")),
+        ("zh-Hans-CN", Some("zh_CN")),
+        ("nb-NO", Some("no")),
+        ("ro-RO", None),
+    ] {
+        assert_eq!(
+            strings::closest(reported, &shipped).as_deref(),
+            want,
+            "{reported}"
+        );
+    }
+}

@@ -200,6 +200,8 @@ struct Shape {
     /// What a container keeps clear above its children for what it draws
     /// there itself: a panel's caption, a window's title bar.
     band: f32,
+    /// How wide what it draws there is, edges included: the least it is.
+    heading: f32,
     shown: bool,
     is_root: bool,
     /// A window folded to its bar, which drops its stated height.
@@ -220,6 +222,7 @@ fn style_key(
         pad,
         gap,
         band,
+        heading,
         shown,
         is_root,
         folded,
@@ -242,7 +245,9 @@ fn style_key(
     widget.reverse.hash(&mut hasher);
     widget.inset.map(f32::to_bits).hash(&mut hasher);
     widget.layout.hash(&mut hasher);
-    for side in [pad.left, pad.top, pad.right, pad.bottom, gap.x, gap.y, band] {
+    for side in [
+        pad.left, pad.top, pad.right, pad.bottom, gap.x, gap.y, band, heading,
+    ] {
         side.to_bits().hash(&mut hasher);
     }
     is_root.hash(&mut hasher);
@@ -269,12 +274,6 @@ fn styled(
     }
     if let Some(height) = fills[1] {
         want.size.height = length(height);
-    }
-    // A scroll is a root in its own solve and a child in its parent's, on one
-    // node: filled one way it keeps its `grow`, which is what the parent's
-    // solve still needs the other way.
-    if fills[0].is_some() && fills[1].is_some() {
-        want.flex_grow = 0.0;
     }
     want
 }
@@ -322,7 +321,7 @@ fn style_of(widget: &Widget, style: &crate::widget::theme::Style, shape: Shape) 
             height: percent_or(layout.height_percent.get(), asked.y),
         },
         min_size: Size {
-            width: floor_or_none(widget.min_width),
+            width: floor_or_none(widget.min_width.max(shape.heading)),
             height: floor_or_none(widget.min_height),
         },
         max_size: Size {
@@ -646,20 +645,7 @@ pub(crate) fn solve_subtree(
 ) -> Rects {
     // No touched slots: the pass's first solve pushed them, and the tree they
     // went into is the same one this subtree is solved in.
-    let rects = solve(eng, arena, root, ui, theme, space, fresh, &[]);
-    // Solving a node as a root leaves taffy holding a location of zero for
-    // it, which a later solve that changes nothing would hand the draw.
-    let key = (
-        arena[root].entity.to_bits().get(),
-        !arena[root].widget.visible,
-    );
-    TREE.with(|held| {
-        let Held { tree, nodes } = &mut *held.borrow_mut();
-        if let Some(kept) = nodes.get(&key) {
-            let _ = tree.mark_dirty(kept.id);
-        }
-    });
-    rects
+    solve(eng, arena, root, ui, theme, space, fresh, &[])
 }
 
 /// What one leaf needs, asked of the fonts rather than of last frame's draw.
@@ -722,13 +708,20 @@ fn sync(
         } else {
             measure.band(index, &theme)
         },
+        heading: if leaf {
+            0.0
+        } else {
+            measure.heading(index, &theme)
+        },
         // A solve's root is laid out whatever its `visible` says, on a node
-        // of its own: a hidden menu still opens its rows from a `context`.
+        // of its own: a menu with no button still opens its rows from a `context`.
         shown: widget.visible || is_root,
         is_root,
         folded,
     };
-    let key = (placed.entity.to_bits().get(), is_root && !widget.visible);
+    // A subtree's root is a node apart from the leaf its parent measures: one
+    // node holding the subtree's children sized the leaf by them alone.
+    let key = (placed.entity.to_bits().get(), is_root);
     let stamp = style_key(widget, &look.style, shape, fills);
     let node = {
         // One lookup for the node, its stamp and what it measured.

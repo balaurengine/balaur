@@ -42,7 +42,7 @@ fn a_check_flips_on_click_and_reads_back() {
 #[test]
 fn a_slider_click_writes_where_it_landed() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "slider" x = 0.0 y = 0.0 width = 200.0 min = 0.0 max = 10.0 };
+    let params = toml::toml! { kind = "slider" x = 0.0 y = 0.0 width = 200.0 widget_range = { min = 0.0, max = 10.0 }   };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -50,7 +50,9 @@ fn a_slider_click_writes_where_it_landed() {
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
-    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    let value =
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value"))
+            .unwrap();
     assert!(
         value > 5.0 && value <= 10.0,
         "a click past the middle lands high: {value}"
@@ -60,8 +62,7 @@ fn a_slider_click_writes_where_it_landed() {
 #[test]
 fn a_drag_value_shows_its_number_and_takes_a_drag() {
     let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = 2.0 step = 1.0 };
+    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 widget_range = { value = 2.0, step = 1.0 }   };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -79,14 +80,16 @@ fn a_drag_value_shows_its_number_and_takes_a_drag() {
     );
     pass(&app, &ctx, press(pos2(at.x + 40.0, at.y), false));
     consume_input(&mut app);
-    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    let value =
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value"))
+            .unwrap();
     assert!(value > 2.0, "dragging right raises it: {value}");
 }
 
 #[test]
 fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 value = -24.0 min = 0.0 max = 100.0 step = 1.0 };
+    let params = toml::toml! { kind = "number_field" x = 0.0 y = 0.0 width = 90.0 widget_range = { value = -24.0, min = 0.0, max = 100.0, step = 1.0 }     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -95,7 +98,7 @@ fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
         consume_input(&mut app);
     }
     assert_eq!(
-        balaur_core::components::as_f64(&property(&app, entity, "value")),
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value")),
         Some(-24.0),
         "nobody touched it, so nothing clamped it"
     );
@@ -108,7 +111,9 @@ fn a_number_outside_its_range_stays_until_the_reader_moves_it() {
     );
     pass(&app, &ctx, press(pos2(at.x + 40.0, at.y), false));
     consume_input(&mut app);
-    let value = balaur_core::components::as_f64(&property(&app, entity, "value")).unwrap();
+    let value =
+        balaur_core::components::as_f64(&beside_property(&app, entity, "widget_range", "value"))
+            .unwrap();
     assert!(
         (0.0..=100.0).contains(&value),
         "a drag lands inside the range: {value}"
@@ -129,24 +134,26 @@ fn a_text_area_keeps_the_newlines_a_field_would_drop() {
         toml::Value::String("one\ntwo".into()),
         "the second line survives the pass"
     );
-    let shown = texts(&pass(&app, &ctx, vec![]));
-    assert!(
-        shown.iter().any(|(t, _)| t.contains("two")),
-        "both lines are drawn: {shown:?}"
-    );
+    let mut downs: Vec<f32> = glyphs(&pass(&app, &ctx, vec![]))
+        .iter()
+        .map(|(at, _)| at.center().y)
+        .collect();
+    downs.sort_by(f32::total_cmp);
+    let rows = 1 + downs.windows(2).filter(|w| w[1] - w[0] > 6.0).count();
+    assert_eq!(downs.len(), 6, "every letter of both lines is drawn");
+    assert_eq!(rows, 2, "one line under the other: {downs:?}");
 }
 
 #[test]
 fn a_color_swatch_keeps_what_the_scene_gave_it() {
     let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [1.0, 0.0, 0.0, 1.0] };
+    let params = toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 widget_color_picker = { picked_color = [1.0, 0.0, 0.0, 1.0] } };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, vec![]);
     consume_input(&mut app);
-    let held = property(&app, entity, "picked_color");
+    let held = beside_property(&app, entity, "widget_color_picker", "picked_color");
     let red = held
         .as_array()
         .and_then(|a| a.first())
@@ -161,8 +168,7 @@ fn a_color_swatch_keeps_what_the_scene_gave_it() {
 #[test]
 fn a_color_swatch_paints_its_floats_as_srgb() {
     let (_dir, app) = app();
-    let params =
-        toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 picked_color = [0.5, 0.5, 0.5, 1.0] };
+    let params = toml::toml! { kind = "color_picker" x = 0.0 y = 0.0 widget_color_picker = { picked_color = [0.5, 0.5, 0.5, 1.0] } };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -505,7 +511,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" scroll_deadzone = 30.0 x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] }
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] widget_scroll = { scroll_deadzone = 30.0 } }
             .into(),
     );
     let first = add_child_widget(
@@ -785,7 +791,7 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         &app,
         &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
     );
-    let params = toml::toml! { kind = "image" image = "wide.png" fit = "contain" width = 40.0 };
+    let params = toml::toml! { kind = "image" image = "wide.png"  width = 40.0 widget_image = { fit = "contain" } };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
     let own = toml::toml! { kind = "image" image = "wide.png" };
     let native = add_child_widget(&app, row, "Native", &own.into());
@@ -928,13 +934,15 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
 fn toasts_stack_at_their_anchor_and_leave_when_their_time_is_up() {
     let (_dir, mut app) = app();
     let one = toml::toml! {
-        kind = "toast" text = "Saved" anchor = "top_right" duration = 0.2
+        kind = "toast" text = "Saved" anchor = "top_right"
         width = 120.0 height = 30.0
+        widget_toast = { duration = 0.2 }
     };
     let first = add_widget(&app, &one.into());
     let two = toml::toml! {
-        kind = "toast" text = "Copied" anchor = "top_right" duration = 0.2
+        kind = "toast" text = "Copied" anchor = "top_right"
         width = 120.0 height = 30.0
+        widget_toast = { duration = 0.2 }
     };
     let second = add_widget(&app, &two.into());
     let ctx = egui::Context::default();
@@ -972,8 +980,9 @@ fn a_toast_takes_no_click_from_what_is_under_it() {
     add_widget(
         &app,
         &toml::toml! {
-            kind = "toast" text = "Saved" anchor = "top_left" duration = 0.0
+            kind = "toast" text = "Saved" anchor = "top_left"
             width = 200.0 height = 60.0
+            widget_toast = { duration = 0.0 }
         }
         .into(),
     );

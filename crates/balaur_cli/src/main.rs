@@ -37,8 +37,6 @@ mod import_web;
 mod jobs;
 mod lsp;
 mod new_project;
-#[cfg(not(target_family = "wasm"))]
-mod port_cmd;
 // The editor's start screen. A tab compiles it too: the editor's scripts name
 // `project::*` whatever they run on, and what a tab cannot do it answers for.
 #[cfg(feature = "editor")]
@@ -259,24 +257,10 @@ enum Command {
     Check {
         #[arg(default_value = ".")]
         path: PathBuf,
-        /// Report warnings too, and fail on them. `[check] strict = true` in
-        /// `project.toml` says the same thing for every run.
+        /// Fail on a warning too. `[check] strict = true` in `project.toml`
+        /// says the same thing for every run.
         #[arg(long)]
         strict: bool,
-    },
-    /// Translate a project's Rune scripts into Balaur Script drafts: a `.bs`
-    /// beside each `.rn`, typed against this engine, with what could not be
-    /// mapped marked for a person to finish.
-    Port {
-        #[arg(default_value = ".")]
-        path: PathBuf,
-        /// Write the drafts, a report of each and a summary under this
-        /// directory instead.
-        #[arg(long)]
-        out: Option<PathBuf>,
-        /// Replace a `.bs` already beside its `.rn`.
-        #[arg(long)]
-        force: bool,
     },
     /// Format every script in a project, or the files given: indents, spaces
     /// and blank lines, the author's line breaks and comments kept.
@@ -374,12 +358,16 @@ enum Command {
     },
 }
 
+mod traces;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window", feature = "editor"))]
 mod web_editor;
 #[cfg(all(target_arch = "wasm32", feature = "window", feature = "editor"))]
 mod web_export;
+#[cfg(not(target_arch = "wasm32"))]
+use traces::replay_session;
+use traces::{log_timings, print_timings, record_to, trace_digest_to};
 
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the
@@ -576,7 +564,6 @@ fn dispatch(command: Command) -> Result<()> {
             dry_run,
         }),
         Command::Check { path, strict } => check::project(&path, strict),
-        Command::Port { path, out, force } => port_cmd::run(&path, out.as_deref(), force),
         Command::Test {
             path,
             frames,
@@ -740,118 +727,6 @@ struct EditOpts {
     timings: bool,
 }
 
-/// What `--timings` prints: the boot on the way to the first frame, then what
-/// each frame cost.
-fn print_timings(log: &std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>>) {
-    print!(
-        "{}{}",
-        balaur::timings::boot_report(),
-        log.borrow().report()
-    );
-}
-
-/// Fold every frame's timings into one log, kept by the caller so it survives
-/// the loop that consumes the app.
-fn log_timings(app: &mut App) -> std::rc::Rc<std::cell::RefCell<balaur::timings::TimingLog>> {
-    let log = std::rc::Rc::new(std::cell::RefCell::new(
-        balaur::timings::TimingLog::default(),
-    ));
-    let sink = log.clone();
-    app.add_system(balaur::Stage::Last, move |eng, _| {
-        let timings = eng.resource::<balaur::timings::Timings>();
-        let timings = timings.borrow();
-        sink.borrow_mut().observe(&timings);
-    });
-    log
-}
-
-/// Append `<tick> <digest>` per frame, at the end of the frame.
-///
-/// `Stage::Last` is after deferred destruction, so the line describes the
-/// world the next tick starts from — the state a peer would be compared on.
-fn trace_digest_to(app: &mut App, path: &Path) -> Result<()> {
-    let mut out =
-        std::fs::File::create(path).with_context(|| format!("creating {}", path.display()))?;
-    app.add_system(balaur::Stage::Last, move |eng, _| {
-        if let Err(e) = writeln!(out, "{} {}", eng.tick(), balaur::digest::digest(eng)) {
-            tracing::error!(error = %e, "writing digest trace");
-        }
-    });
-    Ok(())
-}
-
-/// Record every tick's external input and the digest it produced.
-///
-/// The engine writes the frames itself, at the end of every tick; this only
-/// opens the file. Per-tick digests are on here and off in the editor: a run
-/// recorded from the command line is a run someone means to `--verify`.
-fn record_to(app: &App, path: &Path, project: &Path) -> Result<()> {
-    balaur::replay::start_recording(
-        &app.engine,
-        path,
-        project.to_string_lossy().as_ref(),
-        "",
-        true,
-    )
-}
-
-fn replay_session(file: &Path, verify: bool, entries_at: Option<u64>) -> Result<()> {
-    let session = balaur::replay::Session::read(file)?;
-    let frames = session.frames.len();
-    let checked = session.frames.iter().filter(|f| f.digest.is_some()).count();
-    let mut app = balaur::standard_app(AppConfig::dev(&session.header.project))?;
-    // Before load_project: a script's `init` can open a socket, and that must
-    // not reach the network either. It can also take an await token, and the
-    // recorded replies are keyed by the ids it took.
-    balaur::replay::begin(&app.engine, session);
-    app.load_project()?;
-    balaur::replay::play(&app.engine);
-
-    while balaur::replay::is_running(&app.engine) {
-        app.advance(balaur::fixed_dt());
-        if let Some(at) = entries_at
-            && app.engine.tick() >= at
-        {
-            for entry in balaur::digest::entries(&app.engine) {
-                println!("{} {}", entry.label, entry.digest);
-            }
-            return Ok(());
-        }
-        if verify
-            && let Some(d) = app
-                .engine
-                .resource::<balaur::replay::ReplayPlayer>()
-                .borrow()
-                .diverged
-        {
-            anyhow::bail!(
-                "tick {}: recorded {} but replayed {}\n\
-                     run `balaur replay <file> --entries-at {}` on both machines and diff",
-                d.tick,
-                balaur::digest::Digest(d.recorded),
-                balaur::digest::Digest(d.replayed),
-                d.tick
-            );
-        }
-    }
-
-    if entries_at.is_some() {
-        anyhow::bail!("the recording stops before that tick");
-    }
-    if verify {
-        // A session recorded without per-tick digests has nothing to compare,
-        // and saying every digest matched would be saying nothing matched.
-        if checked == 0 {
-            println!(
-                "{frames} ticks replayed; the recording carries no digests, so nothing was checked"
-            );
-        } else {
-            println!("{checked} ticks replayed, every digest matched");
-        }
-    }
-    Ok(())
-}
-
 fn run_project(opts: &RunOpts) -> Result<()> {
     let RunOpts {
         path,
@@ -929,6 +804,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
             None => app.run(),
         }
+        balaur_core::replay::stop_recording(&engine, "quit");
         balaur::logbuf::flush_file();
         if let Some(log) = &timings {
             print_timings(log);
@@ -949,6 +825,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     } else {
         balaur::run(app, &title)
     };
+    balaur_core::replay::stop_recording(&engine, "quit");
     if let Some(log) = &timings {
         print_timings(log);
     }

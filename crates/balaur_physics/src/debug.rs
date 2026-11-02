@@ -12,7 +12,7 @@ use crate::rapier3d::pipeline::{
 use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::vocabulary::{Opts, keys as k, words as w};
 use crate::{PhysicsState2d, PhysicsState3d};
@@ -288,7 +288,7 @@ fn read_style(eng: &Engine) -> DebugRenderStyle {
                     .as_ref()
                     .and_then(balaur_core::components::as_f64)
                 {
-                    *get(&mut style) = crate::scalar::real(n as f32);
+                    *get(&mut style) = n as f32;
                 }
             }
             StyleField::Color(key, get, _) => {
@@ -586,9 +586,9 @@ fn two_dimensional(s: &DebugRenderStyle) -> crate::rapier2d::pipeline::DebugRend
 
 /// `physics.set_debug_draw` / `physics.debug_draw`: world-spanning, so they
 /// live in `physics` rather than in either dimension (D5).
-pub(crate) fn install_debug_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_debug_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_debug_draw", &[], "", "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`#{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths."),
+        ("set_debug_draw", &[], "", "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths."),
         ("debug_draw", &[], "", "What the debug renderer is drawing now, as a table of `enabled`, one flag per mode and `nodes`."),
     ]);
     // Takes `true`/`false` for "the usual thing", or a table naming the modes

@@ -29,7 +29,7 @@ fn heights(scale: f32) -> (f32, f32) {
         &app,
         row,
         "n",
-        &toml::toml! { kind = "number_field" value = 1.0 }.into(),
+        &toml::toml! { kind = "number_field" widget_range = { value = 1.0 }  }.into(),
     );
     let ctx = egui::Context::default();
     set_scale(&app, &ctx, scale);
@@ -119,26 +119,34 @@ mod classes {
     /// drawing when there is no room for it.
     #[test]
     fn a_narrow_screen_takes_the_narrow_table() {
-        let shown = |width: f32| {
+        let drawn_width = |width: f32| {
             let (_dir, app) = app();
-            add_widget(
+            let panel = add_widget(
                 &app,
                 &toml::toml! {
                     kind = "panel" x = 0.0 y = 0.0 width = 200.0 height = 30.0
                     [narrow]
-                    visible = false
+                    width = 50.0
                 }
                 .into(),
             );
             screen(&app, width, 900.0);
             let ctx = egui::Context::default();
-            // A new Area is sized invisibly on its first frame, so the shapes
-            // of a widget that does draw arrive on a later one.
             settle(&app, &ctx);
-            !pass(&app, &ctx, vec![]).shapes.is_empty()
+            balaur_ui::widget_rect(panel)
+                .expect("the panel drew")
+                .width()
         };
-        assert!(shown(1200.0), "a wide screen hid a widget it should draw");
-        assert!(!shown(390.0), "the narrow table did not hide the widget");
+        let wide = drawn_width(1200.0);
+        assert!(
+            (wide - 200.0).abs() < 0.5,
+            "a wide screen took the narrow table: {wide}"
+        );
+        let narrow = drawn_width(390.0);
+        assert!(
+            (narrow - 50.0).abs() < 0.5,
+            "the narrow table was not taken: {narrow}"
+        );
     }
 
     /// The tables are read broad to narrow, so the narrowest word named wins
@@ -428,21 +436,21 @@ mod classes {
     /// A notch covers the top of the screen whatever the layout wants, so a
     /// root that asks is moved clear of it.
     #[test]
-    fn a_root_that_asks_is_kept_clear_of_the_notch() {
-        let top_of = |ask: &[&str]| {
+    fn a_root_is_kept_clear_of_the_notch_on_the_edges_it_names() {
+        let top_of = |ask: Option<&[&str]>| {
             let (_dir, app) = app();
-            let asked: Vec<toml::Value> = ask
-                .iter()
-                .map(|e| toml::Value::String((*e).into()))
-                .collect();
-            let widget = add_widget(
-                &app,
-                &toml::toml! {
-                    kind = "panel" anchor = "top_left" x = 0.0 y = 0.0
-                    width = 100.0 height = 40.0 safe_area = asked
-                }
-                .into(),
-            );
+            let mut params = toml::toml! {
+                kind = "panel" anchor = "top_left" x = 0.0 y = 0.0
+                width = 100.0 height = 40.0
+            };
+            if let Some(ask) = ask {
+                let asked: Vec<toml::Value> = ask
+                    .iter()
+                    .map(|e| toml::Value::String((*e).into()))
+                    .collect();
+                params.insert("safe_area".into(), toml::Value::Array(asked));
+            }
+            let widget = add_widget(&app, &params.into());
             balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
                 facts.screen_size = [390.0, 844.0];
                 facts.ui_scale = 1.0;
@@ -453,21 +461,59 @@ mod classes {
             balaur_ui::widget_rect(widget).expect("it drew").min.y
         };
         assert!(
-            top_of(&[]) < 10.0,
+            top_of(Some(&[])) < 10.0,
             "the control drew under the notch as asked"
         );
         assert!(
-            top_of(&["left", "top", "right", "bottom"]) >= 47.0,
+            top_of(None) >= 47.0,
             "the root was not moved clear of the notch: {}",
-            top_of(&["left", "top", "right", "bottom"])
+            top_of(None)
         );
         // The edge it did not name is not kept clear: content above the notch
         // with its background running under the gesture bar is one root.
         assert!(
-            top_of(&["bottom"]) < 10.0,
+            top_of(Some(&["bottom"])) < 10.0,
             "an edge nobody asked for was kept clear: {}",
-            top_of(&["bottom"])
+            top_of(Some(&["bottom"]))
         );
+    }
+
+    /// A screen's colour reaches the edge of the display, with its children
+    /// clear of the notch, and a `fill` root with no children is not inset.
+    #[test]
+    fn a_fill_root_paints_under_the_notch_and_a_backdrop_reaches_it_whole() {
+        let (_dir, app) = app();
+        let screen = add_widget(
+            &app,
+            &toml::toml! { kind = "column" anchor = "fill" fill = "#ff0000" }.into(),
+        );
+        let child = crate::support::add_child_widget(
+            &app,
+            screen,
+            "Child",
+            &toml::toml! { kind = "label" text = "hi" }.into(),
+        );
+        let backdrop = add_widget(&app, &toml::toml! { kind = "panel" anchor = "fill" }.into());
+        balaur_core::facts::update_device(&app.engine, |facts: &mut DeviceFacts| {
+            facts.screen_size = [640.0, 480.0];
+            facts.ui_scale = 1.0;
+            facts.safe_area = [0.0, 47.0, 0.0, 34.0];
+        });
+        let ctx = egui::Context::default();
+        settle(&app, &ctx);
+        let out = pass(&app, &ctx, vec![]);
+        assert!(
+            balaur_ui::widget_rect(child).unwrap().min.y >= 47.0,
+            "the child is under the notch"
+        );
+        assert!(balaur_ui::widget_rect(backdrop).unwrap().min.y < 1.0);
+        let painted_above = out.shapes.iter().any(|clipped| {
+            matches!(&clipped.shape, egui::Shape::Rect(rect)
+                if rect.rect.min.y < 1.0
+                    && rect.rect.max.y <= 47.5
+                    && rect.fill == egui::Color32::from_rgb(255, 0, 0))
+        });
+        assert!(painted_above, "the screen's colour stops at the notch");
     }
 
     /// Saving a scene must not quietly drop what it was authored with.

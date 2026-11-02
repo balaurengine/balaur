@@ -23,9 +23,7 @@ impl Events {
         self.editor.call("events_fill");
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" || event == "change" || event == "submit" || event == "commit" {
-            self.editor.call("events_fill");
-        }
+    pub fn refill() {
+        self.editor.call("events_fill");
     }
 }

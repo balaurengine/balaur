@@ -2,9 +2,7 @@
 //!
 //! Everything a Rust system or a binding closure is handed every frame.
 
-use balaur_core::engine::Command;
 use balaur_core::{App, AppConfig, Engine};
-use balaur_script::BindingsExt as _;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -43,16 +41,13 @@ fn inserting_a_resource_twice_replaces_it() {
 }
 
 #[test]
-fn commands_queue_and_drain_once() {
+fn frees_queue_and_drain_once() {
     let engine = Engine::new();
     let root = engine.root();
-    engine.push_command(Command::Free(root));
-    engine.push_command(Command::Free(root));
-    assert_eq!(engine.take_commands().len(), 2);
-    assert!(
-        engine.take_commands().is_empty(),
-        "commands were taken twice"
-    );
+    engine.defer_free(root);
+    engine.defer_free(root);
+    assert_eq!(engine.take_frees().len(), 2);
+    assert!(engine.take_frees().is_empty(), "frees were taken twice");
 }
 
 #[test]
@@ -89,7 +84,7 @@ fn freeing_a_node_frees_its_children() {
     let parent = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "P", root);
     let child = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "C", parent);
 
-    app.engine.push_command(Command::Free(parent));
+    app.engine.defer_free(parent);
     app.tick(0.0);
 
     assert!(!app.engine.world().contains(parent));
@@ -134,34 +129,29 @@ fn app_with_mark() -> App {
     app.engine.insert_resource(Removed::default());
     app.register_component(
         "mark",
-        balaur_core::components::ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: balaur_core::components::ComponentDef::parse_schema(
+        balaur_core::components::ComponentDef::by_hand(
+            balaur_core::components::ComponentDef::parse_schema(
                 "mark",
                 r#"on = { type = "bool", default = true }"#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, _| {
+            Box::new(|eng: &Engine, entity, _| {
                 eng.world_mut()
                     .insert_one(entity, Mark)
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.resource::<Removed>().borrow_mut().0.push(entity);
                 let _ = eng.world_mut().remove_one::<Mark>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world()
                     .get::<&Mark>(entity)
                     .ok()
                     .map(|_| toml::Value::Table(toml::map::Map::new()))
             }),
-        },
+        ),
     );
     app
 }
@@ -176,7 +166,7 @@ fn freeing_a_node_runs_the_remove_hook_on_it_and_on_its_children() {
         balaur_core::components::add(&app.engine, entity, "mark", None).unwrap();
     }
 
-    app.engine.push_command(Command::Free(parent));
+    app.engine.defer_free(parent);
     app.tick(0.0);
 
     let removed = app.engine.resource::<Removed>().borrow().0.clone();

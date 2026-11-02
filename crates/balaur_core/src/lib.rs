@@ -8,6 +8,10 @@
 // clippy misreads `thread_local!`'s `const` form on Android's emulated TLS.
 #![cfg_attr(target_os = "android", allow(clippy::missing_const_for_thread_local))]
 
+// A derive's code names `::balaur_core`, which this crate's own components
+// reach through this.
+extern crate self as balaur_core;
+
 pub mod app;
 pub mod asset_index;
 pub mod assets;
@@ -16,19 +20,10 @@ mod batteries_api;
 pub mod bindings;
 pub mod changes;
 pub mod collections;
+mod commands;
 pub mod components;
-pub mod csg;
-#[cfg(not(target_family = "wasm"))]
-pub mod dap;
 pub mod debug_lines;
-pub mod debugger_api;
 pub mod dependencies;
-mod profile_api;
-mod regex_api;
-// Opening a URL is a shell's job and a tab is one; revealing a folder is a
-// desktop's alone, so only that half is gated, inside.
-pub mod desktop;
-pub mod desktop_api;
 pub mod digest;
 pub mod document_paths;
 pub mod engine;
@@ -38,11 +33,7 @@ pub mod events;
 pub mod facts;
 pub mod file_api;
 pub mod files;
-pub mod geometry2d;
-pub mod glb;
-mod glb_material;
 pub mod handler;
-pub mod heightfield;
 pub mod hooks;
 pub mod ids;
 pub mod ignore;
@@ -51,66 +42,60 @@ pub mod interpolate;
 pub mod layers;
 pub mod logbuf;
 pub mod math_api;
-pub mod mesh;
-pub mod netsession;
+pub mod messages;
 pub mod node_api;
 pub mod node_meta;
 pub mod pack;
-pub mod path;
-pub mod pixels;
+pub mod parked;
 pub mod plugins;
+pub mod preload;
 pub mod presets;
-pub mod primitive;
 pub mod process;
 pub mod project;
 mod project_files;
+mod regex_api;
+pub mod relationships;
 pub mod replay;
 pub mod replay_api;
 pub mod resources;
 pub mod rng;
 pub mod rollback;
-pub mod rollback_api;
 pub mod save;
 pub mod scene;
 pub mod scene_api;
 pub mod scene_switch;
 pub mod scene_toml;
+pub mod schedule;
 pub mod settings;
 pub mod settings_api;
-pub mod skeleton;
 pub mod snapshot;
 pub mod standalone;
 pub mod states;
 pub mod strings;
-pub mod stroke;
+pub mod system_param;
 pub mod tags;
 pub mod task;
-pub mod texture_asset;
-pub mod tiles;
 pub mod time;
 pub mod timer;
 pub mod timers;
 pub mod timings;
 pub mod transform;
-pub mod transport;
-pub mod triangulate;
 pub mod variables;
-pub mod voxels;
+pub mod viewpoint;
 pub mod wake;
 pub mod warnings;
 
 pub use app::{
-    App, AppConfig, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs, ScriptHostFactory,
-    ScriptSetup, Stage, fixed_dt, max_substeps, set_tick_hz, tick_hz,
+    App, AppConfig, Builtins, DEFAULT_FIXED_DT, DEFAULT_TICK_HZ, MAX_SUBSTEPS, ScriptArgs,
+    ScriptHostFactory, ScriptSetup, Stage, fixed_dt, max_substeps, set_tick_hz, tick_hz,
 };
 pub use assets::{AssetRef, AssetState, AssetTypeRegistry};
 pub use collections::{DetHashMap, DetHashSet};
 pub use components::{ComponentDef, ComponentRegistry, StableId};
 pub use digest::{Digest, DigestRegistry};
-pub use engine::{Command, Engine};
+pub use engine::Engine;
 pub use handler::Handler;
 pub use ids::IdAllocator;
-pub use netsession::{Desync, NetSession};
 pub use pack::Pack;
 pub use plugins::{PluginInfo, PluginRegistry};
 pub use project::{PluginChoice, PluginConfigs};
@@ -121,7 +106,6 @@ pub use scene::{
     Appearance, Children, GlobalAppearance, GlobalTransform, Name, NodeScript, Parent, Transform,
 };
 pub use snapshot::{Checkpoint, CheckpointRing, SnapshotRegistry};
-pub use transport::{Delivery, Faults, Faulty, LinkState, Received, Transport};
 
 /// Inserted by a windowed backend on the first key, button or touch: the
 /// moment a browser lets a page start audio, and the only fact about the

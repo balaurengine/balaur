@@ -29,10 +29,10 @@ script = { source = "scripts/scenario.bs" }
 
 [nodes.tilemap]
 tileset = "#dungeon"
-cells = [
+cells = { kind = "inline", rows = [
   [ 1,  1],
   [ 1, -1],
-]
+] }
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
@@ -172,7 +172,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#slopes"
-cells = [[1, 1]]
+cells = { kind = "inline", rows = [[1, 1]] }
 flags = [[0, 1]]
 pixels_per_unit = 16.0
 
@@ -241,7 +241,7 @@ id = "n_ball"
 name = "Ball"
 parent = "n_map"
 body2d = { kind = "dynamic", gravity_scale = 0.0 }
-collider2d = { kind = "circle", radius = 0.25 }
+collider2d = { shape = { kind = "circle", radius = 0.25 } }
 
 [nodes.transform]
 position = [0.5, -4.0, 0.0]
@@ -379,7 +379,9 @@ fn a_restored_map_rebuilds_from_its_own_colliders() {
     };
     let dig = |app: &App, column: usize| {
         let world = app.engine.world();
-        let mut grid = world.get::<&mut balaur_core::tiles::TileGrid>(map).unwrap();
+        let mut grid = world
+            .get::<&mut balaur_geometry::tiles::TileGrid>(map)
+            .unwrap();
         grid.rows[0][column] = None;
         grid.version += 1;
     };

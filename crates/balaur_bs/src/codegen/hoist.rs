@@ -14,9 +14,7 @@ pub(crate) struct Fast {
     pub scaled: Vec<(i32, u32)>,
 }
 
-const PURE: [&str; 11] = [
-    "sqrt", "abs", "floor", "ceil", "min", "max", "vec2", "vec3", "color", "nil", "map",
-];
+const PURE: [&str; 4] = ["vec2", "vec3", "color", "nil"];
 
 /// What a body does that decides whether its arrays can be hoisted.
 struct Scan<'f, 'g> {
@@ -94,8 +92,7 @@ impl Scan<'_, '_> {
         match &e.kind {
             // A call could resize an array through another reference to it.
             ExprKind::Call(name, args) => {
-                if !PURE.contains(&name.as_str()) && !self.fg.g.imp.math.contains_key(name.as_str())
-                {
+                if !PURE.contains(&name.as_str()) && !name.starts_with("math::") {
                     self.ok = false;
                 }
                 for a in args {
@@ -151,6 +148,8 @@ impl Scan<'_, '_> {
                     self.block(b);
                 }
             }
+            ExprKind::Block(b) => self.block(b),
+            ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
             ExprKind::Int(_)
             | ExprKind::Float(_)
             | ExprKind::Bool(_)

@@ -66,10 +66,10 @@ fn host(said: Rc<RefCell<Vec<String>>>) -> HostFns {
 fn drive(
     rt: &mut Runtime,
     task: &mut Task,
-    mut obj: Option<&mut balaur_bs::runtime::Object>,
+    obj: Option<&balaur_bs::runtime::Object>,
 ) -> (Value, f64, usize) {
     for polls in 0..1000 {
-        if let Some(v) = rt.poll(task, obj.as_deref_mut()).unwrap() {
+        if let Some(v) = rt.poll(task, obj).unwrap() {
             return (v, rt.now(), polls + 1);
         }
         rt.advance(1.0 / 60.0);
@@ -82,14 +82,14 @@ fn a_method_awaits_the_host_and_another_script_fn() {
     let said = Rc::new(RefCell::new(vec![]));
     let mut rt = run_with(SCRIPT, host(said.clone()), &Options::default());
     let base = rt.live();
-    let mut guard = rt
+    let guard = rt
         .object(
             "Guard",
             &[("name", Value::Str("Ana".into())), ("hp", Value::Int(50))],
         )
         .unwrap();
     let mut task = rt.start("Guard.patrol", &[Value::Int(2)]).unwrap();
-    let (v, t, _) = drive(&mut rt, &mut task, Some(&mut guard));
+    let (v, t, _) = drive(&mut rt, &mut task, Some(&guard));
     assert_eq!(v, Value::Void);
     assert!((t - 2.5).abs() < 0.05, "finished at {t}");
     assert_eq!(
@@ -307,4 +307,30 @@ fn an_await_in_a_block_s_tail_runs() {
     let mut task = rt.start("branches", &[Value::Int(2)]).unwrap();
     drive(&mut rt, &mut task, None);
     assert_eq!(*said.borrow(), ["two", "nested", "in a loop", "last"]);
+}
+
+#[test]
+fn an_arm_of_a_match_statement_awaits() {
+    let src = r#"
+        extern async fn wait(seconds: float);
+        enum Step { Wait(float), Say(str), Done }
+        pub async fn run() -> str {
+            let steps = [Step::Wait(1.0), Step::Say("a"), Step::Wait(0.5), Step::Say("b"), Step::Done];
+            let out = "";
+            for s in steps {
+                match s {
+                    Step::Wait(t) => { await wait(t); }
+                    Step::Say(word) => { out = out + word; }
+                    Step::Done => { break; }
+                }
+            }
+            out
+        }
+    "#;
+    let mut rt = run_with(src, host(Rc::default()), &Options::default());
+    let mut task = rt.start("run", &[]).unwrap();
+    let (v, t, _) = drive(&mut rt, &mut task, None);
+    assert_eq!(v, Value::Str("ab".into()));
+    assert!((t - 1.5).abs() < 0.05, "both waits ran: {t}");
+    assert_eq!(rt.live(), 0);
 }

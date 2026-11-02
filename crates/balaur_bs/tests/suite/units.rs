@@ -78,10 +78,35 @@ fn whole(path: &str, files: &[(&str, &str)]) -> Compiled {
 }
 
 fn engines() -> Vec<EngineKind> {
-    vec![EngineKind::Wasmi, EngineKind::Auto]
+    vec![
+        EngineKind::Wasmi,
+        EngineKind::Auto,
+        #[cfg(all(feature = "c", feature = "native"))]
+        EngineKind::Native,
+    ]
+}
+
+/// On the native engine, `units` built into a library and loaded first, as
+/// an export builds a project's; on any other, nothing.
+fn native<'a>(engine: EngineKind, units: impl IntoIterator<Item = &'a Compiled>) {
+    #[cfg(all(feature = "c", feature = "native"))]
+    if engine == EngineKind::Native {
+        let units: Vec<&Compiled> = units.into_iter().collect();
+        super::native::build(&units);
+        return;
+    }
+    let _ = (engine, units.into_iter());
+}
+
+/// A linked script and every unit it uses.
+fn with_uses(c: &Compiled) -> Vec<&Compiled> {
+    std::iter::once(c)
+        .chain(c.linked.iter().map(|(_, u)| u.as_ref()))
+        .collect()
 }
 
 fn runtime(c: &Compiled, engine: EngineKind) -> Runtime {
+    native(engine, with_uses(c));
     let limits = Limits {
         engine,
         ..Limits::default()
@@ -91,7 +116,7 @@ fn runtime(c: &Compiled, engine: EngineKind) -> Runtime {
 
 const UTIL: &str = r##"
 use defs;
-pub struct Rect { w: float, h: float }
+pub class Rect { w: float, h: float }
 impl Rect {
     pub fn area() -> float { self.w * self.h }
 }
@@ -107,7 +132,7 @@ pub fn label(n: int) -> str { "#{n} {defs::NAME}" }
 pub fn pick(f: fn(int) -> int, x: int) -> int { f(x) }
 pub fn first(xs: [str]) -> str? { if xs.len() > 0 { xs[0] } else { nil } }
 pub fn bump(n: &mut int) { n += 1; }
-pub fn table() -> any { map().with("a", 1).with("b", [1, 2, 3]) }
+pub fn table() -> any { { "a": 1, "b": [1, 2, 3] } }
 pub fn halve() -> fn(int) -> int { half }
 fn half(n: int) -> int { n / 2 }
 "##;
@@ -134,7 +159,7 @@ pub fn bag() -> int {
     b.total + b.items.len()
 }
 pub fn bumped() -> int { let n = 1; util::bump(n); util::bump(n); n }
-pub fn table() -> int { let t = util::table(); t.get("a").as_int() + t.get("b").len() }
+pub fn table() -> int { let t = util::table(); t["a"].as_int() + t["b"].len() }
 pub fn halved() -> int { let f = util::halve(); f(10) }
 "#;
 
@@ -215,7 +240,7 @@ pub async fn slow(n: int) -> int {
     await wait(0.5);
     n * 2
 }
-pub struct Counter { n: int }
+pub class Counter { n: int }
 impl Counter {
     pub async fn count(to: int) -> int {
         while self.n < to {
@@ -249,6 +274,7 @@ fn an_async_function_of_another_unit_is_awaited() {
     let files = [("scripts/run.bs", WAITER), ("scripts/waits.bs", WAITS)];
     let units = linked("scripts/run.bs", &files);
     for engine in engines() {
+        native(engine, with_uses(&units));
         let host = HostFns::default().on_async("wait", |args| {
             let Value::Float(s) = args[0] else { panic!() };
             (s, Value::Void)
@@ -318,7 +344,7 @@ fn a_unit_reads_a_deeper_module_only_for_the_types_it_meets() {
         ("scripts/main.bs", main),
         (
             "scripts/shapes.bs",
-            "use geo;\nuse unused;\npub struct Square { size: geo::Size }\n\
+            "use geo;\nuse unused;\npub class Square { size: geo::Size }\n\
              impl Square { pub fn area() -> float { geo::area(self.size) } }\n\
              pub fn square(w: float) -> Square { Square { size: geo::Size { w: w, h: w } } }\n\
              pub fn noise() -> int { unused::n() }",
@@ -381,14 +407,14 @@ pub class Panel { node: Node, editor_node: Node }
 impl Panel {
     pub fn poke() -> int {
         let found: editor::Editor? = self.editor_node.script;
-        if found.is_none() {
+        if found == nil {
             return -1;
         }
         found.unwrap().edit(\"panel\")
     }
     pub fn mistaken() -> bool {
         let wrong: editor::Editor? = self.node.script;
-        wrong.is_none()
+        wrong == nil
     }
 }
 ";
@@ -425,6 +451,7 @@ fn units_of(files: &[(&str, &str)]) -> HashMap<String, Arc<Compiled>> {
 fn a_script_calls_another_script_of_its_instance_as_its_class() {
     let units = units_of(&PROJECT);
     for engine in engines() {
+        native(engine, units.values().map(AsRef::as_ref));
         let found: Rc<std::cell::RefCell<Vec<(i64, i32)>>> = Rc::default();
         let scripts = found.clone();
         let host = HostFns::default().scripts(move |node, file, class| {
@@ -461,7 +488,7 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
             })
             .unwrap();
         found.borrow_mut().push((1, Runtime::pointer(&editor)));
-        let mut panel = rt
+        let panel = rt
             .in_unit(panel_unit, |rt| {
                 rt.object(
                     "Panel",
@@ -469,8 +496,8 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
                 )
             })
             .unwrap();
-        assert_eq!(rt.call_method(&mut panel, "poke", &[]), Ok(Value::Int(1)));
-        assert_eq!(rt.call_method(&mut panel, "poke", &[]), Ok(Value::Int(2)));
+        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
+        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(2)));
         assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(2)), "{engine:?}");
         assert_eq!(
             rt.get(&editor, "names"),
@@ -480,7 +507,7 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
             ]))
         );
         assert_eq!(
-            rt.call_method(&mut panel, "mistaken", &[]),
+            rt.call_method(&panel, "mistaken", &[]),
             Ok(Value::Bool(true))
         );
         rt.drop_object(panel);

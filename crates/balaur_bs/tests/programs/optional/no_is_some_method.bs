@@ -1,0 +1,3 @@
+fn f(x: int?) -> bool { x.is_some() }
+
+// error: 1:26: write `x != nil`, not `x.is_some()`

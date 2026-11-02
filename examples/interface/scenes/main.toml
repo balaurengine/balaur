@@ -19,7 +19,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 # Centred and hugging: the sheet is as tall as what is in it, which is what
 # a gallery wants and what a root with no `fill` anchor does.
 anchor = "center"
@@ -189,8 +188,9 @@ parent = "left"
 [nodes.widget]
 kind = "text_field"
 text = "a line the reader types into"
-placeholder = "field"
 height = 26
+[nodes.widget_field]
+placeholder = "field"
 
 [[nodes]]
 id = "f_area"
@@ -290,10 +290,11 @@ name = "CDrag"
 parent = "c_row"
 [nodes.widget]
 kind = "number_field"
-value = 1.5
-drag_speed = 0.05
 prefix = "x"
 grow = 1
+[nodes.widget_range]
+value = 1.5
+drag_speed = 0.05
 
 [[nodes]]
 id = "c_color"
@@ -301,8 +302,9 @@ name = "CColor"
 parent = "c_row"
 [nodes.widget]
 kind = "color_picker"
-picked_color = [0.44, 0.64, 0.85, 1.0]
 width = 38
+[nodes.widget_color_picker]
+picked_color = [0.44, 0.64, 0.85, 1.0]
 
 [[nodes]]
 id = "s_row"
@@ -320,10 +322,11 @@ name = "SSlider"
 parent = "s_row"
 [nodes.widget]
 kind = "slider"
+grow = 1
+[nodes.widget_range]
 value = 0.6
 min = 0.0
 max = 1.0
-grow = 1
 
 [[nodes]]
 id = "s_progress"
@@ -331,9 +334,10 @@ name = "SProgress"
 parent = "s_row"
 [nodes.widget]
 kind = "progress_bar"
-value = 0.42
 text = "42%"
 grow = 1
+[nodes.widget_range]
+value = 0.42
 
 [[nodes]]
 id = "h_data"
@@ -386,9 +390,10 @@ text = "Table"
 kind = "table"
 height = 196
 font = "fonts/JetBrainsMono-Regular.ttf"
-# The column names, and with them how many columns the table has.
+[nodes.widget_table]
 titles = ["name", "kind", "size"]
 
+# The column names, and with them how many columns the table has.
 [[nodes]]
 id = "h_boxes"
 name = "HBoxes"
@@ -568,9 +573,9 @@ text = "a flow wraps when the row runs out; every box here is a scene node"
 id = "ripple"
 name = "Ripple"
 parent = "n_screen"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 anchor = "top_left"
 x = 0
 y = 0
@@ -578,7 +583,6 @@ width = 12
 height = 12
 corner_radius = 6
 fill = "#00000000"
-visible = false
 
 # The drawn cursor the manual's clip follows. Its own root, after the sheet so
 # it draws over it, and hidden until a clip asks for it.
@@ -586,6 +590,7 @@ visible = false
 id = "cursor"
 name = "Cursor"
 parent = "n_screen"
+visible = false
 [nodes.widget]
 kind = "image"
 image = "assets/cursor.png"
@@ -594,4 +599,3 @@ x = 0
 y = 0
 width = 20
 height = 20
-visible = false

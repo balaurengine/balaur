@@ -5,12 +5,12 @@
 id = "panel"
 name = "Library"
 script = { source = "scripts/panels/library.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 # A chip a kind, named for the kind it filters by.
 [[nodes]]
@@ -28,6 +28,7 @@ id = "material"
 name = "material"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Materials"
@@ -37,6 +38,7 @@ id = "sky"
 name = "sky"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Skies"
@@ -46,6 +48,7 @@ id = "model"
 name = "model"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Models"
@@ -55,6 +58,7 @@ id = "scene"
 name = "scene"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Lighting"
@@ -64,6 +68,7 @@ id = "rig"
 name = "rig"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Rigs"
@@ -73,6 +78,7 @@ id = "addon"
 name = "addon"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Addons"
@@ -82,6 +88,7 @@ id = "template"
 name = "template"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Templates"
@@ -92,6 +99,7 @@ id = "deps"
 name = "deps"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "Dependencies"
@@ -102,6 +110,7 @@ id = "forge"
 name = "forge"
 parent = "kinds"
 [nodes.widget]
+on_click = "kind"
 kind = "button"
 role = "chip"
 text = "On Forge"
@@ -111,20 +120,19 @@ text = "On Forge"
 id = "note"
 name = "Note"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
-visible = false
 
 [[nodes]]
 id = "cards"
 name = "Cards"
 parent = "panel"
 [nodes.widget]
+on_click = "card_clicked"
 kind = "list"
 grow = 1
-text = ""
 grid_columns = "repeat(5, 1fr)"
 
 [nodes.widget.touch]
@@ -135,14 +143,15 @@ row_height = 33
 id = "table"
 name = "Table"
 parent = "panel"
+visible = false
 [nodes.widget]
+on_click = "card_clicked"
 kind = "table"
 grow = 1
-text = ""
-visible = false
-sortable = true
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_table]
+sortable = true
 titles = ["template", "what it makes", "the command it is made with"]
 widths = ["1", "1.6", "2"]
 

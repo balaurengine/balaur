@@ -1,9 +1,9 @@
 //! What the step tells a script: collisions, contact forces, and the three
 //! questions rapier asks mid-step.
 //!
-//! Everything here is opt-in per collider or soft body (`events` and `hooks`
-//! on `collider3d`, `events` on `softbody3d`), because rapier reports nothing
-//! by default and a game that wants nothing should pay nothing.
+//! A collider or soft body reports what something hears: a script's hook, a row
+//! or a listener, on its node or the body it hangs from. Rapier raises nothing
+//! else, so a game that hears nothing pays nothing.
 //!
 //! **When.** Events are drained inside the fixed step, immediately after
 //! `world.step()` and before the next `fixed_update` — so an impulse a handler

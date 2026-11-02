@@ -137,7 +137,7 @@ fn a_row_closes_its_menu_unless_it_keeps_it_open() {
 #[test]
 fn a_showing_menu_is_open_without_a_click() {
     let (_dir, app) = app();
-    let params = toml::toml! { kind = "menu" text = "Menu" showing = true x = 10.0 y = 10.0 };
+    let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 widget_menu = { showing = true } };
     let host = add_widget(&app, &params.into());
     let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
     add_child_widget(&app, host, "R0", &row.into());
@@ -216,7 +216,7 @@ fn context_scene(app: &balaur_core::App, kind: &str) -> Entity {
         kind = kind text = "Target" x = 10.0 y = 10.0 width = 120.0 height = 40.0 context = "cm"
     };
     let target = add_widget(app, &target.into());
-    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
+    let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
     let menu = add_child_widget(app, app.engine.root(), "cm", &menu.into());
     let row = toml::toml! { kind = "button" text = "Cut" width = 173.0 height = 22.0 };
     add_child_widget(app, menu, "R0", &row.into());
@@ -309,7 +309,7 @@ fn the_innermost_context_takes_the_press() {
     let child = add_child_widget(&app, panel, "child", &child.into());
     let root = app.engine.root();
     for (name, width) in [("outer", 150.0), ("inner", 173.0)] {
-        let menu = toml::toml! { kind = "menu" text = name visible = false x = 300.0 y = 300.0 };
+        let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
         let menu = add_child_widget(&app, root, name, &menu.into());
         let row = toml::toml! { kind = "button" text = "Row" width = width height = 22.0 };
         add_child_widget(&app, menu, "R0", &row.into());
@@ -347,7 +347,8 @@ fn a_menu_opens_where_its_placement_says() {
     for placement in ["below", "above", "pointer", "center"] {
         let (_dir, app) = app();
         let params = toml::toml! {
-            kind = "menu" text = "Menu" placement = placement x = 10.0 y = 200.0
+            kind = "menu" text = "Menu" x = 10.0 y = 200.0
+            widget_menu = { placement = placement }
         };
         let host = add_widget(&app, &params.into());
         let row = toml::toml! { kind = "button" text = "row" width = 173.0 height = 22.0 };
@@ -456,7 +457,7 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     assert!(clicked(&app, row), "the chord did not click the shut row");
     // What the row shows beside its caption: the chord, written the way this
     // platform writes it.
-    let showing = toml::toml! { kind = "menu" text = "File" showing = true x = 10.0 y = 200.0 };
+    let showing = toml::toml! { kind = "menu" text = "File" x = 10.0 y = 200.0 widget_menu = { showing = true } };
     let open = add_widget(&app, &showing.into());
     let labelled = toml::toml! {
         kind = "button" text = "Save" width = 173.0 height = 22.0 shortcut = "cmd+s"
@@ -481,10 +482,10 @@ fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
     let (_dir, app) = app();
     let tree = toml::toml! {
         kind = "tree" x = 10.0 y = 10.0 width = 200.0 height = 200.0
-        row_height = 18.0 options = ["One", "\tTwo", "Three"] context = "cm"
+        row_height = 18.0 items = [{ label = "One" }, { label = "Two", depth = 1 }, { label = "Three" }] context = "cm"
     };
     add_widget(&app, &tree.into());
-    let menu = toml::toml! { kind = "menu" text = "Hidden" visible = false x = 300.0 y = 300.0 };
+    let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };
     let menu = add_child_widget(&app, app.engine.root(), "cm", &menu.into());
     let row = toml::toml! { kind = "button" text = "Delete" width = 173.0 height = 22.0 };
     add_child_widget(&app, menu, "R0", &row.into());

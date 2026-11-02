@@ -1,8 +1,8 @@
-// What one operation costs a script, held to a ceiling (PLAN-balaur-script
-// §9 step 8). Counted, not timed, so CI can gate on it: the fuel wasmi
-// charges is the same on every machine, and every call out of the module is
-// counted where it leaves. None of these touches the engine, so none may
-// leave.
+//! What one operation costs a script, held to a ceiling (PLAN-balaur-script
+//! §9 step 8). Counted, not timed, so CI can gate on it: the fuel wasmi
+//! charges is the same on every machine, and every call out of the module is
+//! counted where it leaves. None of these touches the engine, so none may
+//! leave.
 
 use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value};
 use balaur_bs::{Options, compile};
@@ -16,7 +16,7 @@ const SETUP: &str = r#"
     let greeting = "hello world";
     let padded = "  padded  ";
     let wide = "Ünïcödé Straße";
-    let scores = map().with("a", 1).with("b", 2).with("c", 3).with("d", 4).with("e", 5).with("f", 6).with("g", 7).with("h", 8);
+    let scores: any = { "a": 1, "b": 2, "c": 3, "d": 4, "e": 5, "f": 6, "g": 7, "h": 8 };
     let tags: [any] = ["a", "b", "c"];
     let letters: any = tags;
     let item = Item { weight: 1.5, name: "item", tags: ["a", "b"] };
@@ -41,18 +41,14 @@ const CASES: &[(&str, u64)] = &[
     (r#"total += greeting.split(" ").len();"#, 5900),
     ("total += wide.chars().len();", 10800),
     (r#"total += "-12345".parse_int();"#, 2400),
-    (r#"total += scores.get("e").as_int();"#, 1550),
-    (r#"scores.set("e", step);"#, 1600),
+    (r#"total += scores["e"].as_int();"#, 1550),
+    (r#"scores["e"] = step;"#, 1600),
     (r#"if scores.has("h") { total += scores.len(); }"#, 1950),
     ("total += scores.keys().len();", 2200),
-    (
-        r#"let wider = scores.with("e", step); total += wider.len();"#,
-        8200,
-    ),
     (r#"total += typed["e"].or(0);"#, 700),
     (r#"typed["e"] = step;"#, 760),
     (r#"if typed.has("h") { total += typed.len(); }"#, 680),
-    ("total += letters.at(1).as_str().len();", 560),
+    ("total += letters[1].as_str().len();", 560),
     ("if letters == letters { total += 1; }", 3800),
     ("total += scores.text().len();", 28600),
     ("let cell: any = item; total += cell.len();", 3200),

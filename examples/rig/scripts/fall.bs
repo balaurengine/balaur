@@ -13,13 +13,6 @@ pub struct Ax {
     limits: [float],
 }
 
-pub struct Step {
-    property: str,
-    to: float,
-    duration: float,
-    ease: any,
-}
-
 const LIMP: float = 2.2;
 
 const UPRIGHT: float = 3.4;
@@ -30,11 +23,12 @@ impl Fall {
         self.limp = false;
         // An influence of zero: the bodies simulate from the first frame, so the pose
         // is one they fell into. The hinge limits keep a collapse a body, not a bag.
-        physics2d::ragdoll(self.node, map()
-            .with("influence", 0.0)
-            .with("thickness", 0.22)
-            .with("friction", 0.9)
-            .with("axes", [Ax { axis: physics2d::AXIS_ROTATION, limits: [-0.7, 0.7] }]));
+        physics2d::ragdoll(self.node, physics2d::RagdollOptions {
+            influence: 0.0,
+            thickness: 0.22,
+            friction: 0.9,
+            axes: [Ax { axis: physics2d::AXIS_ROTATION, limits: [-0.7, 0.7] }],
+        });
     }
 
     pub fn update(dt: float) {
@@ -48,15 +42,16 @@ impl Fall {
             self.limp = limp;
             // Not a step: a tween is what makes the transfer readable, and the
             // way back up is slower than the way down.
-            animation::tween(self.node, map()
-                .with("steps", [
-                    Step {
+            animation::tween(self.node, animation::Tween {
+                steps: [
+                    animation::Step {
                         property: "ragdoll/influence",
                         to: if limp { 1.0 } else { 0.0 },
                         duration: if limp { 0.25 } else { 0.9 },
                         ease: animation::EASE_IN_OUT_SINE,
                     },
-                ]));
+                ],
+            });
         }
     }
 }

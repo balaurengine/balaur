@@ -2,15 +2,15 @@
 //! from one atlas texture. The component and parser are backend-free; the
 //! feature-gated kiss3d mirror is in `tilemap_mesh`.
 
-use crate::vocabulary::{keys as k, words};
+use crate::vocabulary::words;
 use anyhow::{Context, Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Record, Variant, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
-pub use balaur_core::tiles::{TILESET_ASSET_TYPE, TileSet};
+pub use balaur_geometry::tiles::{TILESET_ASSET_TYPE, TileSet};
 
 #[cfg(feature = "window")]
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
@@ -44,19 +44,86 @@ first_tile = 16
 /// The `tileset` asset type: files live in `tilesets/`.
 pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
     reg.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
-        Ok(std::rc::Rc::new(balaur_core::tiles::parse_tileset(value)?)
-            as std::rc::Rc<dyn std::any::Any>)
+        Ok(
+            std::rc::Rc::new(balaur_geometry::tiles::parse_tileset(value)?)
+                as std::rc::Rc<dyn std::any::Any>,
+        )
     });
 }
 
-/// What the `tilemap` component wrote on the node. The node's transform
-/// places the map (its center, like every other 2D renderable).
+/// A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.
+// The node draws the [`TileLayout`] each write lays out beside it; a script's
+// painting writes what it painted back here, so a save keeps it.
+#[derive(Clone, Component)]
+#[component(
+    name = "tilemap",
+    on_remove = tilemap_removed,
+    tags = [words::ORTHOGRAPHIC, "render"],
+    after_write = tilemap_written,
+)]
 pub struct Tilemap {
+    /// The tileset naming the texture and tile grid
+    #[property(asset = "tileset")]
+    pub tileset: String,
+    /// Tint over every tile, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// The material the whole map draws with; empty draws with the built-in one
+    #[property(asset = "material")]
+    pub material: String,
+    /// The tile ids: rows of them in the scene, or a `.cells` file holding them, for a level too big to read in a scene
+    #[property(group = "cells")]
+    pub cells: Cells,
+    /// What was painted, as rows of terrain values, -1 where nothing was, when the map autotiles: the cells are resolved from this through the tileset's rules
+    #[property(group = "cells")]
+    pub terrain: Vec<Vec<i64>>,
+    /// How each cell is turned, as rows of numbers beside the cells: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal
+    #[property(group = "cells")]
+    pub flags: Vec<Vec<u8>>,
+    /// Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time
+    #[property(min = 0, group = "cells")]
+    pub seed: i64,
+    /// The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node
+    #[property(group = "placement")]
+    pub origin: [f32; 2],
+    /// Tile-texture pixels per world unit
+    #[property(default = 100.0, min = 0.01, group = "placement")]
+    pub pixels_per_unit: f32,
+}
+
+/// Where a `tilemap`'s tile ids are kept.
+#[derive(Clone, Debug, PartialEq, Variant)]
+pub enum Cells {
+    /// In the scene, as rows
+    #[option(default)]
+    Inline(InlineCells),
+    /// In a `.cells` file of their own
+    File(CellsFile),
+}
+
+/// A map's tile ids, held in the scene.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct InlineCells {
+    /// Rows of tile ids, the top row first; -1 is an empty cell
+    pub rows: Vec<Vec<i64>>,
+}
+
+/// A map's tile ids, kept in a file of their own.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub struct CellsFile {
+    /// The `.cells` file: one row a line, ids apart by spaces, -1 for an empty cell
+    pub path: String,
+}
+
+/// A [`Tilemap`] laid out: the cells resolved from what was painted, as the
+/// backend draws them and a script paints them. The node's transform places
+/// the map (its center, like every other 2D renderable).
+pub struct TileLayout {
     /// Reference to the `tileset` asset.
     pub tileset: String,
-    /// The authored rows, kept verbatim so `get` returns what was written:
-    /// a string of characters or a list of rows of ids.
-    pub cells: toml::Value,
+    /// The cells as the component holds them, written back so `get` returns
+    /// them: a file's name until a paint or a terrain writes them as rows.
+    pub cells: Cells,
     /// The `material` asset the map draws with; empty is the built-in one.
     pub material: String,
     /// Tile indices, row 0 at the top so the text reads like the scene;
@@ -80,20 +147,19 @@ pub struct Tilemap {
     pub version: u64,
 }
 
-/// The cells themselves, or the file they are kept in.
-///
-/// A level too big to read in a scene keeps its rows in a `.cells` file of
-/// its own — one row per line, ids separated by spaces, `-1` for an empty
-/// cell — and the scene names the file.
-fn cells_of(eng: &Engine, cells: &toml::Value) -> Result<toml::Value> {
-    let named = |path: &&str| {
-        std::path::Path::new(path)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("cells"))
-    };
-    let Some(path) = cells.as_str().filter(named) else {
-        return Ok(cells.clone());
-    };
+/// The grid `cells` holds, read out of its file where it keeps one.
+fn cells_of(eng: &Engine, cells: &Cells) -> Result<Vec<Vec<Option<u32>>>> {
+    match cells {
+        Cells::Inline(inline) => Ok(grid_of_ids(&inline.rows)),
+        // A file not chosen yet: no cells to read.
+        Cells::File(file) if file.path.is_empty() => Ok(Vec::new()),
+        Cells::File(file) => Ok(grid_of_ids(&read_cells_file(eng, &file.path)?)),
+    }
+}
+
+/// A `.cells` file's rows: one row per line, ids separated by spaces, `-1`
+/// for an empty cell.
+fn read_cells_file(eng: &Engine, path: &str) -> Result<Vec<Vec<i64>>> {
     let text = eng
         .resource::<balaur_core::project::ProjectFiles>()
         .borrow()
@@ -101,87 +167,40 @@ fn cells_of(eng: &Engine, cells: &toml::Value) -> Result<toml::Value> {
         .map(String::from_utf8)
         .with_context(|| format!("a tilemap's cells file '{path}'"))?
         .with_context(|| format!("a tilemap's cells file '{path}' is not text"))?;
-    let rows: Vec<toml::Value> = text
-        .lines()
+    text.lines()
         .filter(|line| !line.trim().is_empty())
-        .map(|line| {
-            toml::Value::Array(
-                line.split_whitespace()
-                    .map(|cell| toml::Value::Integer(cell.parse().unwrap_or(-1)))
-                    .collect(),
-            )
-        })
-        .collect();
-    Ok(toml::Value::Array(rows))
-}
-
-/// `flags` as rows of numbers, or nothing when no cell is turned.
-fn parse_flags(value: Option<&toml::Value>) -> Result<Vec<Vec<u8>>> {
-    let Some(toml::Value::Array(rows)) = value else {
-        return Ok(Vec::new());
-    };
-    rows.iter()
         .enumerate()
         .map(|(row, line)| {
-            let line = line
-                .as_array()
-                .ok_or_else(|| anyhow!("flags row {row} should be a list of numbers"))?;
-            line.iter()
-                .map(|value| {
-                    let bits = value
-                        .as_integer()
-                        .ok_or_else(|| anyhow!("flags row {row}: a cell's turn is a number"))?;
-                    u8::try_from(bits).map_err(|_| anyhow!("flags row {row}: {bits} is not a turn"))
+            line.split_whitespace()
+                .map(|cell| {
+                    cell.parse().map_err(|_| {
+                        anyhow!(
+                            "a tilemap's cells file '{path}', row {row}: '{cell}' is not a tile id"
+                        )
+                    })
                 })
                 .collect()
         })
         .collect()
 }
 
-/// `cells` as a grid: rows of tile ids, where anything below zero is empty.
-fn parse_cells_value(cells: &toml::Value) -> Result<Vec<Vec<Option<u32>>>> {
-    match cells {
-        toml::Value::Array(rows) => rows
-            .iter()
-            .enumerate()
-            .map(|(row, line)| {
-                let ids = line
-                    .as_array()
-                    .ok_or_else(|| anyhow!("cells row {row} should be a list of tile ids"))?;
-                ids.iter()
-                    .enumerate()
-                    .map(|(column, id)| {
-                        let id = id.as_integer().ok_or_else(|| {
-                            anyhow!("cells row {row}, column {column}: a tile id is a whole number")
-                        })?;
-                        Ok(u32::try_from(id).ok())
-                    })
-                    .collect()
-            })
-            .collect(),
-        // The schema default: a map with no cells yet.
-        toml::Value::String(path) if path.is_empty() => Ok(Vec::new()),
-        toml::Value::String(path) => Err(anyhow!(
-            "cells is a list of rows of tile ids, or the name of a `.cells` file \
-             holding those rows; got the string {path:?}"
-        )),
-        other => Err(anyhow!("cells should be a list of rows, got {other}")),
-    }
+/// Rows of ids as a grid, where anything below zero is empty.
+fn grid_of_ids(rows: &[Vec<i64>]) -> Vec<Vec<Option<u32>>> {
+    rows.iter()
+        .map(|row| row.iter().map(|id| u32::try_from(*id).ok()).collect())
+        .collect()
 }
 
-/// The grid back as rows of ids, the form `set_cell` writes.
-fn cells_value(grid: &[Vec<Option<u32>>]) -> toml::Value {
-    toml::Value::Array(
-        grid.iter()
-            .map(|row| {
-                toml::Value::Array(
-                    row.iter()
-                        .map(|cell| toml::Value::Integer(cell.map_or(-1, i64::from)))
-                        .collect(),
-                )
-            })
-            .collect(),
-    )
+/// A grid back as rows of ids, -1 for an empty cell.
+fn ids_of(grid: &[Vec<Option<u32>>]) -> Vec<Vec<i64>> {
+    grid.iter()
+        .map(|row| row.iter().map(|cell| cell.map_or(-1, i64::from)).collect())
+        .collect()
+}
+
+/// The grid back as the cells a scene holds, the form `set_cell` writes.
+fn cells_value(grid: &[Vec<Option<u32>>]) -> Cells {
+    Cells::Inline(InlineCells { rows: ids_of(grid) })
 }
 
 /// Resolve every painted cell through the tileset's rules.
@@ -214,7 +233,7 @@ impl Painted<'_> {
     }
 }
 
-fn resolve_all(eng: &Engine, map: &mut Tilemap) {
+fn resolve_all(eng: &Engine, map: &mut TileLayout) {
     if map.terrain.is_empty() {
         return;
     }
@@ -236,7 +255,7 @@ fn resolve_all(eng: &Engine, map: &mut Tilemap) {
         for column in 0..span(terrain.first().map_or(0, Vec::len)) {
             let (x, y) = (origin[0] + column, origin[1] + row);
             let (tile, flags) =
-                balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed)
+                balaur_geometry::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed)
                     .map_or((None, 0), |(tile, flags)| (Some(tile), flags));
             write_cell(map, x, y, tile);
             write_flags(map, x, y, flags);
@@ -247,7 +266,7 @@ fn resolve_all(eng: &Engine, map: &mut Tilemap) {
 
 /// Resolve one cell and the ring around it, which is every cell the write
 /// could have changed the neighbourhood of.
-fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
+fn resolve_around(eng: &Engine, map: &mut TileLayout, column: i32, row: i32) {
     let Ok(set) = balaur_core::assets::load_typed::<TileSet>(eng, &map.tileset) else {
         return;
     };
@@ -275,7 +294,9 @@ fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
         for dy in -radius..=radius {
             for dx in -radius..=radius {
                 let (x, y) = (column + dx, row + dy);
-                match balaur_core::tiles::resolve(&set.rules, &value_at, &inside, x, y, map.seed) {
+                match balaur_geometry::tiles::resolve(
+                    &set.rules, &value_at, &inside, x, y, map.seed,
+                ) {
                     Some((tile, flags)) => resolved.push((x, y, Some(tile), flags)),
                     None if value_at(x, y).is_none() => resolved.push((x, y, None, 0)),
                     None => {}
@@ -290,7 +311,7 @@ fn resolve_around(eng: &Engine, map: &mut Tilemap, column: i32, row: i32) {
 }
 
 /// Paint a terrain value, growing the painted grid the way the cells grow.
-fn write_terrain(map: &mut Tilemap, column: i32, row: i32, value: Option<u32>) -> bool {
+fn write_terrain(map: &mut TileLayout, column: i32, row: i32, value: Option<u32>) -> bool {
     grow_to(map, column, row);
     let width = map.grid.iter().map(Vec::len).max().unwrap_or(0);
     map.terrain.resize(map.grid.len(), Vec::new());
@@ -308,7 +329,7 @@ fn write_terrain(map: &mut Tilemap, column: i32, row: i32, value: Option<u32>) -
 }
 
 /// Put a turn on a cell, growing the flags grid to match the cells.
-fn write_flags(map: &mut Tilemap, column: i32, row: i32, flags: u8) {
+fn write_flags(map: &mut TileLayout, column: i32, row: i32, flags: u8) {
     if flags == 0 && map.flags.is_empty() {
         return;
     }
@@ -322,25 +343,10 @@ fn write_flags(map: &mut Tilemap, column: i32, row: i32, flags: u8) {
     }
 }
 
-/// What a script painted, as rows of values, for the document to keep.
-fn terrain_value(rows: &[Vec<Option<u32>>]) -> toml::Value {
-    toml::Value::Array(
-        rows.iter()
-            .map(|row| {
-                toml::Value::Array(
-                    row.iter()
-                        .map(|cell| toml::Value::Integer(cell.map_or(-1, i64::from)))
-                        .collect(),
-                )
-            })
-            .collect(),
-    )
-}
-
 /// The core grid a map describes: what physics collides with, and what the
 /// mesh is built from, so the two cannot disagree about a cell.
-pub(crate) fn grid_of(map: &Tilemap, set: &TileSet) -> balaur_core::tiles::TileGrid {
-    balaur_core::tiles::TileGrid {
+pub(crate) fn grid_of(map: &TileLayout, set: &TileSet) -> balaur_geometry::tiles::TileGrid {
+    balaur_geometry::tiles::TileGrid {
         tileset: map.tileset.clone(),
         rows: map.grid.clone(),
         origin: map.origin,
@@ -356,7 +362,7 @@ pub(crate) fn grid_of(map: &Tilemap, set: &TileSet) -> balaur_core::tiles::TileG
 
 /// Put a tile at a coordinate, growing the grid in whatever direction it has
 /// to. Answers whether anything changed.
-fn write_cell(map: &mut Tilemap, column: i32, row: i32, tile: Option<u32>) -> bool {
+fn write_cell(map: &mut TileLayout, column: i32, row: i32, tile: Option<u32>) -> bool {
     grow_to(map, column, row);
     let Some((x, y)) = grid_index(map, column, row) else {
         return false;
@@ -370,7 +376,7 @@ fn write_cell(map: &mut Tilemap, column: i32, row: i32, tile: Option<u32>) -> bo
 
 /// Grow the stored rows until they hold a coordinate, moving the origin
 /// rather than the node.
-fn grow_to(map: &mut Tilemap, column: i32, row: i32) {
+fn grow_to(map: &mut TileLayout, column: i32, row: i32) {
     if grid_index(map, column, row).is_some() {
         return;
     }
@@ -425,7 +431,7 @@ fn span(count: usize) -> i32 {
 }
 
 /// Where a coordinate sits in the stored rows.
-fn grid_index(map: &Tilemap, column: i32, row: i32) -> Option<(usize, usize)> {
+fn grid_index(map: &TileLayout, column: i32, row: i32) -> Option<(usize, usize)> {
     let x = usize::try_from(column - map.origin[0]).ok()?;
     let y = usize::try_from(row - map.origin[1]).ok()?;
     (y < map.grid.len() && x < map.grid[y].len()).then_some((x, y))
@@ -439,7 +445,7 @@ fn grid_index(map: &Tilemap, column: i32, row: i32) -> Option<(usize, usize)> {
 fn sync_grid(eng: &Engine, entity: Entity) {
     let (tileset, rows, origin, flags, ppu, version) = {
         let world = eng.world();
-        let Ok(map) = world.get::<&Tilemap>(entity) else {
+        let Ok(map) = world.get::<&TileLayout>(entity) else {
             return;
         };
         (
@@ -452,15 +458,14 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         )
     };
     let set = balaur_core::assets::load_typed::<TileSet>(eng, &tileset).ok();
-    let mut world = eng.world_mut();
     let Some(set) = set else {
-        let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
+        let _ = eng.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
         return;
     };
     let grid = grid_of(
-        &Tilemap {
+        &TileLayout {
             tileset,
-            cells: toml::Value::Boolean(false),
+            cells: Cells::default(),
             material: String::new(),
             grid: rows,
             origin,
@@ -473,19 +478,22 @@ fn sync_grid(eng: &Engine, entity: Entity) {
         },
         &set,
     );
-    if let Ok(mut current) = world.get::<&mut balaur_core::tiles::TileGrid>(entity) {
+    if let Ok(mut current) = eng
+        .world()
+        .get::<&mut balaur_geometry::tiles::TileGrid>(entity)
+    {
         *current = grid;
         return;
     }
-    let _ = world.insert_one(entity, grid);
+    let _ = eng.insert_one(entity, grid);
 }
 
-fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
+fn set_tilemap(eng: &Engine, entity: Entity, next: TileLayout) -> Result<()> {
     // The world's borrow ends before the grid is mirrored: `sync_grid` takes
     // it again, and it loads an asset in between.
     let fresh = {
-        let world = eng.world_mut();
-        if let Ok(mut map) = world.get::<&mut Tilemap>(entity) {
+        let world = eng.world();
+        if let Ok(mut map) = world.get::<&mut TileLayout>(entity) {
             // Everything the mesh or the collider is built from: an origin
             // moves every cell, and a flag turns one.
             let changed = map.tileset != next.tileset
@@ -505,161 +513,100 @@ fn set_tilemap(eng: &Engine, entity: Entity, next: Tilemap) -> Result<()> {
         }
     };
     if let Some(next) = fresh {
-        eng.world_mut()
-            .insert_one(entity, next)
+        eng.insert_one(entity, next)
             .map_err(|_| anyhow!("node is dead"))?;
     }
     sync_grid(eng, entity);
     Ok(())
 }
 
-/// What the `tilemap` key writes on a node, and what it resolves first.
-fn apply_tilemap(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let text = |key: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string()
-    };
-    let tileset = text("tileset");
-    let cells = params
-        .get(k::CELLS)
-        .cloned()
-        .unwrap_or_else(|| toml::Value::String(String::new()));
-    let grid = parse_cells_value(&cells_of(eng, &cells)?)?;
-    let material = text("material");
-    let ppu = params
-        .get(k::PIXELS_PER_UNIT)
-        .and_then(balaur_core::components::as_f64)
-        .unwrap_or(f64::from(crate::DEFAULT_PIXELS_PER_UNIT)) as f32;
-    // Checked here so a bad definition is reported where it was
-    // written, but only warned: one bad asset must not kill the scene.
-    if !tileset.is_empty()
-        && let Err(why) = balaur_core::assets::load_typed::<TileSet>(eng, &tileset)
-    {
-        tracing::warn!("tilemap tileset '{tileset}': {why:#}");
-    }
-    let origin = params.get(k::ORIGIN).map_or([0, 0], |value| {
-        let at = |i: usize| {
-            value
-                .as_array()
-                .and_then(|pair| pair.get(i))
-                .and_then(balaur_core::components::as_f64)
-                .unwrap_or(0.0) as i32
+impl TileLayout {
+    /// `asked` laid out, its cells resolved from what it painted.
+    fn of(eng: &Engine, asked: Tilemap) -> Result<Self> {
+        let grid = cells_of(eng, &asked.cells)?;
+        // Checked here so a bad definition is reported where it was
+        // written, but only warned: one bad asset must not kill the scene.
+        if !asked.tileset.is_empty()
+            && let Err(why) = balaur_core::assets::load_typed::<TileSet>(eng, &asked.tileset)
+        {
+            tracing::warn!("tilemap tileset '{}': {why:#}", asked.tileset);
+        }
+        let mut next = Self {
+            tileset: asked.tileset,
+            cells: asked.cells,
+            material: asked.material,
+            grid,
+            origin: asked.origin.map(|at| at as i32),
+            flags: asked.flags,
+            terrain: grid_of_ids(&asked.terrain),
+            seed: asked.seed.cast_unsigned(),
+            pixels_per_unit: asked.pixels_per_unit.max(0.01),
+            color: asked.color,
+            version: 0,
         };
-        [at(0), at(1)]
-    });
-    let flags = parse_flags(params.get(k::FLAGS))?;
-    let terrain = match params.get(k::TERRAIN) {
-        Some(value) => parse_cells_value(value)?,
-        None => Vec::new(),
-    };
-    let seed = balaur_core::components::prop_i64(params, k::SEED) as u64;
-    let mut next = Tilemap {
-        tileset,
-        cells,
-        material,
-        grid,
-        origin,
-        flags,
-        terrain,
-        seed,
-        pixels_per_unit: ppu.max(0.01),
-        color: crate::color_from_key(params, k::COLOR, [1.0; 4]),
-        version: 0,
-    };
-    resolve_all(eng, &mut next);
-    set_tilemap(eng, entity, next)
+        resolve_all(eng, &mut next);
+        Ok(next)
+    }
 }
 
-/// The `tilemap` component. Writes a [`Tilemap`] on the node; the kiss3d
+/// What a laid-out map holds that its component did not say: the cells its
+/// terrain resolved to, and what a script painted. Written back so `get`
+/// reports it and a save keeps it.
+fn write_back(eng: &Engine, entity: Entity) {
+    let world = eng.world();
+    let (Ok(map), Ok(mut asked)) = (
+        world.get::<&TileLayout>(entity),
+        world.get::<&mut Tilemap>(entity),
+    ) else {
+        return;
+    };
+    asked.cells = map.cells.clone();
+    asked.origin = map.origin.map(|at| at as f32);
+    if !map.terrain.is_empty() {
+        asked.terrain = ids_of(&map.terrain);
+    }
+    if !map.flags.is_empty() {
+        asked.flags.clone_from(&map.flags);
+    }
+}
+
+/// What a write of `tilemap` leaves to be worked out again.
+fn tilemap_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    tilemap_laid_out(eng, entity)
+}
+
+/// The map laid out again from what was written, and what that resolved
+/// written back.
+fn tilemap_laid_out(eng: &Engine, entity: Entity) -> Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&Tilemap>(entity)
+        .ok()
+        .map(|asked| Tilemap::clone(&asked))
+    else {
+        return Ok(());
+    };
+    set_tilemap(eng, entity, TileLayout::of(eng, asked)?)?;
+    write_back(eng, entity);
+    Ok(())
+}
+
+/// What a removed `Tilemap` leaves behind, taken with it.
+fn tilemap_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TileLayout>(entity);
+    let _ = eng.remove_one::<balaur_geometry::tiles::TileGrid>(entity);
+}
+
+/// The `tilemap` component. Writes a [`TileLayout`] on the node; the kiss3d
 /// backend mirrors it as one atlas-textured mesh, rebuilt only when
-/// [`Tilemap::version`] moves — a tilemap is static between edits.
+/// [`TileLayout::version`] moves — a tilemap is static between edits.
 pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "tilemap",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids; `pixels_per_unit` is tile pixels per world unit.",
-            schema: ComponentDef::parse_schema(
-                "tilemap",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::TILESET, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The tileset naming the texture and tile grid" }}"#, crate::tilemap::TILESET_ASSET_TYPE)),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint over every tile, as channel floats or #rrggbb / #rrggbbaa" }"#),
-                    (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material the whole map draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
-                    (k::CELLS, r#"{ type = "string", default = "", description = "Rows of tile ids, -1 for an empty cell, as a list of rows; or the name of a `.cells` file holding those rows, for a level too big to read in a scene", group = "cells" }"#),
-                    (k::TERRAIN, r#"{ type = "string", default = "", description = "What was painted, as rows of terrain values, when the map autotiles: the cells are resolved from this through the tileset's rules", group = "cells" }"#),
-                    (k::FLAGS, r#"{ type = "string", default = "", description = "How each cell is turned, as rows of numbers beside `cells`: 1 mirrors it left to right, 2 top to bottom, 4 across its diagonal", group = "cells" }"#),
-                    (k::SEED, r#"{ type = "int", default = 0, min = 0, description = "Which way the variation falls where a rule offers alternates; the same seed lays a map out the same way every time", group = "cells" }"#),
-                    (k::ORIGIN, r#"{ type = "vec2", default = [0.0, 0.0], description = "The column and row of the first cell: a map grows in any direction by moving this, and cell 0,0 always has its top-left corner on the node", group = "placement" }"#),
-                    (k::PIXELS_PER_UNIT, r#"{ type = "float", default = 100.0, min = 0.01, description = "Tile-texture pixels per world unit", group = "placement" }"#),
-                ]),
-            ),
-            tags: &[words::ORTHOGRAPHIC, "render"],
-            expects: &[],
-            apply: Box::new(apply_tilemap),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Tilemap>(entity);
-                let _ = world.remove_one::<balaur_core::tiles::TileGrid>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let map = world.get::<&Tilemap>(entity).ok()?;
-                let mut out = toml::map::Map::new();
-                out.insert("tileset".into(), toml::Value::String(map.tileset.clone()));
-                out.insert(k::CELLS.into(), map.cells.clone());
-                out.insert("material".into(), toml::Value::String(map.material.clone()));
-                out.insert(k::COLOR.into(), crate::color_to_toml(map.color));
-                out.insert(
-                    k::PIXELS_PER_UNIT.into(),
-                    toml::Value::Float(f64::from(map.pixels_per_unit)),
-                );
-                out.insert(
-                    k::ORIGIN.into(),
-                    toml::Value::Array(
-                        map.origin
-                            .iter()
-                            .map(|at| toml::Value::Integer(i64::from(*at)))
-                            .collect(),
-                    ),
-                );
-                if !map.terrain.is_empty() {
-                    out.insert(k::TERRAIN.into(), terrain_value(&map.terrain));
-                    out.insert(
-                        k::SEED.into(),
-                        toml::Value::Integer(i64::try_from(map.seed).unwrap_or(i64::MAX)),
-                    );
-                }
-                if !map.flags.is_empty() {
-                    out.insert(
-                        k::FLAGS.into(),
-                        toml::Value::Array(
-                            map.flags
-                                .iter()
-                                .map(|line| {
-                                    toml::Value::Array(
-                                        line.iter()
-                                            .map(|bits| toml::Value::Integer(i64::from(*bits)))
-                                            .collect(),
-                                    )
-                                })
-                                .collect(),
-                        ),
-                    );
-                }
-                Some(toml::Value::Table(out))
-            }),
-        },
-    );
+    reg.add_component::<Tilemap>();
 }
 
 /// What a map painted by terrain answers: the values, the rules' output, and
 /// what a tile carries. Split from `install_tilemap_api` under `MAX_FN_LINES`.
-pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_terrain", &["tilemap"], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
         ("terrain", &["tilemap"], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
@@ -671,14 +618,14 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();
             let map = world
-                .get::<&Tilemap>(entity)
+                .get::<&TileLayout>(entity)
                 .map_err(|_| anyhow!("the node carries no tilemap"))?;
             let (Ok(x), Ok(y)) = (i32::try_from(x), i32::try_from(y)) else {
                 return Ok(balaur_script::Value::Nil);
             };
             // Read out of the map's own rows: a `TileGrid` to ask one cell
             // would copy every row of the map for every call.
-            let cell = balaur_core::tiles::cell_in(&map.grid, map.origin, x, y);
+            let cell = balaur_geometry::tiles::cell_in(&map.grid, map.origin, x, y);
             let tileset = map.tileset.clone();
             drop(map);
             drop(world);
@@ -700,7 +647,7 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();
             let map = world
-                .get::<&Tilemap>(entity)
+                .get::<&TileLayout>(entity)
                 .map_err(|_| anyhow!("the node carries no tilemap"))?;
             let found = i32::try_from(x)
                 .ok()
@@ -717,7 +664,7 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut dyn Bindings<Engine>) {
 
 /// `render.set_cell` and `render.cell`: one tile at a time, for a map a
 /// script edits as it plays. A write past the grid's edge grows it.
-pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_tilemap_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_cell", &["tilemap"], "(x: int, y: int, tile: int)", "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame."),
         ("cell", &["tilemap"], "(x: int, y: int) -> int", "The tile at a column and row, or -1 for an empty cell or one past the edge."),
@@ -733,7 +680,7 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
             let changed = {
                 let world = eng.world();
                 let mut map = world
-                    .get::<&mut Tilemap>(entity)
+                    .get::<&mut TileLayout>(entity)
                     .map_err(|_| anyhow!("the node carries no tilemap"))?;
                 let next = u32::try_from(tile).ok();
                 let changed = write_cell(&mut map, x, y, next);
@@ -745,6 +692,7 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
             };
             if changed {
                 sync_grid(eng, entity);
+                write_back(eng, entity);
             }
             Ok(())
         },
@@ -760,7 +708,7 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
             let changed = {
                 let world = eng.world();
                 let mut map = world
-                    .get::<&mut Tilemap>(entity)
+                    .get::<&mut TileLayout>(entity)
                     .map_err(|_| anyhow!("the node carries no tilemap"))?;
                 let next = u32::try_from(terrain).ok();
                 let changed = write_terrain(&mut map, x, y, next);
@@ -773,6 +721,7 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
             };
             if changed {
                 sync_grid(eng, entity);
+                write_back(eng, entity);
             }
             Ok(())
         },
@@ -783,7 +732,7 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();
             let map = world
-                .get::<&Tilemap>(entity)
+                .get::<&TileLayout>(entity)
                 .map_err(|_| anyhow!("the node carries no tilemap"))?;
             let found = i32::try_from(x)
                 .ok()
@@ -797,12 +746,12 @@ pub(crate) fn install_tilemap_api(m: &mut dyn Bindings<Engine>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Tilemap, grid_index, write_flags, write_terrain};
+    use super::{Cells, TileLayout, grid_index, write_flags, write_terrain};
 
-    fn map() -> Tilemap {
-        Tilemap {
+    fn map() -> TileLayout {
+        TileLayout {
             tileset: "set".into(),
-            cells: toml::Value::String(String::new()),
+            cells: Cells::default(),
             material: String::new(),
             grid: vec![vec![Some(0)]],
             origin: [0, 0],
@@ -825,7 +774,7 @@ mod tests {
         write_terrain(&mut map, -2, -1, Some(9));
         assert_eq!(map.origin, [-2, -1], "the map grew left and up");
 
-        let at = |map: &Tilemap, column, row| {
+        let at = |map: &TileLayout, column, row| {
             grid_index(map, column, row).map(|(x, y)| (map.terrain[y][x], map.flags[y][x]))
         };
         assert_eq!(at(&map, 0, 0), Some((Some(7), 3)), "the first cell painted");

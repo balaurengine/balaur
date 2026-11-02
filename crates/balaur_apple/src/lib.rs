@@ -4,15 +4,15 @@
 //! Everything here is asynchronous and answers on a queue the engine does not
 //! own, so nothing here invents a mechanism: a call returns an id, the
 //! completion crosses a channel, and [`ExternalIo`] lands it at
-//! [`Stage::First`] of a later tick: recorded, replayable, dispatched to a
-//! handler method and to whoever awaits the id. It is `balaur_http` with
+//! [`Stage::First`] of a later tick: recorded, replayable, waking whoever
+//! awaits the id. It is `balaur_http` with
 //! GameKit where the socket is.
 //!
-//! ```rune
-//! pub async fn init(this) {
-//!     let me = task::wait(platform::sign_in()).await;
-//!     let proof = task::wait(apple::identity()).await;
-//!     gamend::call_hook(this.socket, "auth", "game_center", proof);
+//! ```bs
+//! pub async fn init() {
+//!     let me = await task::wait(platform::sign_in().as_int());
+//!     let proof = await task::wait(apple::identity().as_int());
+//!     gamend::call_hook(self.socket, "auth", "game_center", proof);
 //! }
 //! ```
 //!
@@ -23,11 +23,11 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use balaur_core::engine_api::from_json;
-use balaur_core::handler::{Handler, handler_of, id_value, opt};
+use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
-use balaur_core::{DetHashMap, Engine, Stage};
+use balaur_core::{Engine, Stage};
 use balaur_platform::{Call, PlatformBackend, PlatformEvent};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 #[cfg(test)]
 mod arrival_tests;
@@ -352,24 +352,21 @@ impl PlatformBackend for AppleBackend {
     }
 }
 
+/// What nobody asked for, carrying request 0: a notification tapped, a URL
+/// opened, a push token, a transaction that landed on another device. Heard
+/// with `events::listen` as `on_apple_event`.
+pub const ARRIVAL_EVENT: &str = "apple_event";
+
 /// The `apple.*` calls in flight, and the channel the frameworks report into.
 #[derive(Default)]
 pub struct AppleState {
     io: ExternalIo<AppleEvent>,
-    handlers: DetHashMap<u64, Handler>,
-    /// Handlers that stay subscribed. What nobody asked for: a notification
-    /// tapped, a URL opened, a push token, a transaction that landed on
-    /// another device: carries request 0 and reaches every one of them.
-    watchers: Vec<Handler>,
 }
 
 impl AppleState {
     /// Start a call under `id`: an [`Engine::next_token`] value, so awaiting
     /// it cannot collide with another subsystem's ids.
-    pub fn start(&mut self, eng: &Engine, id: u64, call: &AppleCall, handler: Option<Handler>) {
-        if let Some(handler) = handler {
-            self.handlers.insert(id, handler);
-        }
+    pub fn start(&mut self, eng: &Engine, id: u64, call: &AppleCall) {
         balaur_core::replay::event(
             eng,
             "apple.call",
@@ -379,28 +376,17 @@ impl AppleState {
         self.io
             .start(eng, |report| backend::apple_call(id, call, report));
     }
-
-    /// Subscribe `handler` to everything that arrives unasked. The same node
-    /// and method twice is one watcher.
-    pub fn watch(&mut self, handler: Handler) {
-        if !self
-            .watchers
-            .iter()
-            .any(|w| w.node == handler.node && w.method == handler.method)
-        {
-            self.watchers.push(handler);
-        }
-    }
 }
 
-/// This tick's `apple.*` arrivals, as the handlers received them.
+/// This tick's `apple.*` arrivals, as their waiters received them.
 #[derive(Default)]
 pub struct AppleSnapshot {
     pub events: Vec<Value>,
 }
 
 fn pump_apple_system(eng: &Engine, _: f32) {
-    let mut dispatches: Vec<(Vec<Handler>, u64, Value)> = Vec::new();
+    let mut finished: Vec<(u64, Value)> = Vec::new();
+    let mut arrivals = Vec::new();
     {
         let state = eng.resource::<AppleState>();
         let snapshot = eng.resource::<AppleSnapshot>();
@@ -414,17 +400,19 @@ fn pump_apple_system(eng: &Engine, _: f32) {
         snapshot.events.clear();
         for event in state.io.drain() {
             let request = event.request();
-            let mut targets: Vec<Handler> =
-                state.handlers.shift_remove(&request).into_iter().collect();
-            if request == 0 {
-                targets.extend(state.watchers.iter().cloned());
-            }
             let value = event_value(event);
             snapshot.events.push(value.clone());
-            dispatches.push((targets, request, value));
+            if request == 0 {
+                arrivals.push(value);
+            } else {
+                finished.push((request, value));
+            }
         }
     }
-    balaur_core::handler::dispatch(eng, dispatches);
+    balaur_core::handler::wake_all(eng, finished);
+    for arrival in arrivals {
+        balaur_core::events::emit(eng, ARRIVAL_EVENT, arrival);
+    }
 }
 
 /// The `kind` each event map carries, and the `EVENT_*` constants of it.
@@ -579,8 +567,8 @@ fn event_value(event: AppleEvent) -> Value {
 ///
 /// The window layer holds it, because the application delegate is handed it
 /// before this crate exists. A game reads it as an ordinary URL arrival:
-/// being opened with a link and being handed one mid-run are the same event
-/// to whoever is listening.
+/// being opened with a link and being handed one mid-run are one
+/// [`ARRIVAL_EVENT`].
 ///
 /// Does nothing off Apple, so a caller needs no target of its own.
 #[cfg(target_vendor = "apple")]
@@ -592,22 +580,16 @@ pub fn deliver_launch_url(url: String) {
 #[cfg(not(target_vendor = "apple"))]
 pub fn deliver_launch_url(_url: String) {}
 
-pub struct ApplePlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for ApplePlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("apple", env!("CARGO_PKG_VERSION"))
-                .requiring(&["platform"]),
-        }
-    }
-}
+#[derive(Default)]
+pub struct ApplePlugin;
 
 impl balaur_plugin::Plugin for ApplePlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "apple"
+    }
+
+    fn requires(&self) -> Vec<String> {
+        vec!["platform".to_string()]
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -617,7 +599,7 @@ impl balaur_plugin::Plugin for ApplePlugin {
         reg.add_replay_source("apple", capture, restore);
         balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
         let mut m = reg.script_module("apple")?;
-        install_apple_api(&mut *m);
+        install_apple_api(&mut m);
         Ok(())
     }
 }
@@ -632,9 +614,9 @@ fn restore(eng: &Engine, value: &serde_json::Value) {
 
 /// `apple.*`: what the portable module cannot carry because no other store
 /// has it.
-fn install_apple_api(m: &mut dyn Bindings<Engine>) {
+fn install_apple_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer on a later tick as a map whose `kind` is an `EVENT_*` constant, to the node's `on_apple_event` or the awaited id.",
+        "Apple services beyond `platform.*`: Game Center `identity`, purchases, notifications. Calls answer `task::wait` on a later tick as a map whose `kind` is an `EVENT_*` constant. What arrives unasked is the `apple_event` event, `events::listen(node, \"apple_event\")`: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -673,47 +655,30 @@ fn install_apple_api(m: &mut dyn Bindings<Engine>) {
     m.function("authenticated", |_: &Engine, ()| {
         Ok(Value::Bool(backend::authenticated()))
     });
-    m.function(
-        "identity",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts.as_ref(), AppleCall::Identity)
-        },
-    );
-    m.function(
-        "sign_in",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts.as_ref(), AppleCall::SignIn)
-        },
-    );
-    m.function(
-        "credential_state",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, user, opts) = node_and_one(first, second, third)?;
-            let Value::Str(user) = user else {
-                return Err(anyhow!("the user id should be a string, got {user:?}"));
-            };
-            start_call(
-                eng,
-                node,
-                opts.as_ref(),
-                AppleCall::CredentialState { user: user.clone() },
-            )
-        },
-    );
+    m.function("identity", |eng: &Engine, ()| {
+        Ok(start_call(eng, AppleCall::Identity))
+    });
+    m.function("sign_in", |eng: &Engine, ()| {
+        Ok(start_call(eng, AppleCall::SignIn))
+    });
+    m.function("credential_state", |eng: &Engine, user: Value| {
+        let Value::Str(user) = user else {
+            return Err(anyhow!("the user id should be a string, got {user:?}"));
+        };
+        Ok(start_call(eng, AppleCall::CredentialState { user }))
+    });
     install_screens_api(m);
     install_store_api(m);
     install_arrivals_api(m);
 }
 
 /// Game Center's own screens.
-fn install_screens_api(m: &mut dyn Bindings<Engine>) {
+fn install_screens_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "show_dashboard",
             &[],
-            "(node: node?, opts: table?) -> int",
+            "(opts: table?) -> int",
             "Open Game Center's dashboard over the game; `state` picks the page \
 : default, leaderboards, achievements, challenges, profile, dashboard or friends.",
         ),
@@ -725,18 +690,14 @@ fn install_screens_api(m: &mut dyn Bindings<Engine>) {
              `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
         ),
     ]);
-    m.function(
-        "show_dashboard",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            let state = match opt(opts.as_ref(), "state") {
-                Some(Value::Str(name)) => screen(name)?,
-                Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
-                None => DEFAULT_SCREEN,
-            };
-            start_call(eng, node, opts.as_ref(), AppleCall::Dashboard { state })
-        },
-    );
+    m.function("show_dashboard", |eng: &Engine, opts: Option<Value>| {
+        let state = match opt(opts.as_ref(), "state") {
+            Some(Value::Str(name)) => screen(name)?,
+            Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
+            None => DEFAULT_SCREEN,
+        };
+        Ok(start_call(eng, AppleCall::Dashboard { state }))
+    });
     m.function(
         "access_point",
         |_: &Engine, (first, second): (Value, Option<Value>)| {
@@ -798,14 +759,8 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
 
 /// Notifications, push and URLs: everything that arrives rather than
 /// answers.
-fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
+fn install_arrivals_api(m: &mut Module<Engine>) {
     m.describe(&[
-        (
-            "listen",
-            &[],
-            "",
-            "Subscribe a node's method to everything that arrives unasked: a notification tapped or shown in front, a push and its payload, a URL opened, an invite, an iCloud change, a transaction that landed elsewhere.",
-        ),
         (
             "request_notifications",
             &[],
@@ -828,33 +783,15 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
             "register_for_push",
             &[],
             "",
-            "Ask the OS for a push token. It arrives at everything listening, not at the caller, because the OS hands it over whenever it likes.",
+            "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
         ),
     ]);
-    m.function(
-        "listen",
-        |eng: &Engine, (node, opts): (Value, Option<Value>)| {
-            let Some(handler) = handler_of(&node, opts.as_ref(), "on_event", "on_apple_event")?
-            else {
-                return Err(anyhow!(
-                    "listening takes a node whose method hears about it"
-                ));
-            };
-            eng.resource::<AppleState>().borrow_mut().watch(handler);
-            Ok(Value::Bool(true))
-        },
-    );
-    m.function(
-        "request_notifications",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(eng, node, opts.as_ref(), AppleCall::RequestNotifications)
-        },
-    );
+    m.function("request_notifications", |eng: &Engine, ()| {
+        Ok(start_call(eng, AppleCall::RequestNotifications))
+    });
     m.function(
         "notify",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, body, opts) = node_and_one(first, second, third)?;
+        |eng: &Engine, (body, opts): (Value, Option<Value>)| {
             let Value::Str(body) = body else {
                 return Err(anyhow!(
                     "the notification text should be a string, got {body:?}"
@@ -880,17 +817,15 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
                 Some(other) => return Err(anyhow!("`id` should be a string, got {other:?}")),
                 None => String::new(),
             };
-            start_call(
+            Ok(start_call(
                 eng,
-                node,
-                opts.as_ref(),
                 AppleCall::Notify {
-                    id: id.clone(),
-                    title: title.clone(),
-                    body: body.clone(),
+                    id,
+                    title,
+                    body,
                     after,
                 },
-            )
+            ))
         },
     );
     install_device_arrivals_api(m);
@@ -898,7 +833,7 @@ fn install_arrivals_api(m: &mut dyn Bindings<Engine>) {
 
 /// The three that ask the device to start telling us something, rather than
 /// answering a question the script asked.
-fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
+fn install_device_arrivals_api(m: &mut Module<Engine>) {
     m.function("cancel_notification", |_: &Engine, (id,): (Value,)| {
         let Value::Str(id) = id else {
             return Err(anyhow!("a notification id should be a string, got {id:?}"));
@@ -913,7 +848,7 @@ fn install_device_arrivals_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The arrivals a game has to ask to hear, each installing what hears it.
-fn install_listen_for_api(m: &mut dyn Bindings<Engine>) {
+fn install_listen_for_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "listen_for_urls",
@@ -946,7 +881,7 @@ fn install_listen_for_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The store's own calls, all of them one payload or none.
-fn install_store_api(m: &mut dyn Bindings<Engine>) {
+fn install_store_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "products",
@@ -979,122 +914,56 @@ fn install_store_api(m: &mut dyn Bindings<Engine>) {
             "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
         ),
     ]);
-    m.function(
-        "products",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, ids, opts) = node_and_one(first, second, third)?;
-            let Value::List(ids) = ids else {
-                return Err(anyhow!("the product ids should be a list, got {ids:?}"));
-            };
-            let ids = ids
-                .into_iter()
-                .map(|id| match id {
-                    Value::Str(id) => Ok(id.clone()),
-                    other => Err(anyhow!("a product id should be a string, got {other:?}")),
-                })
-                .collect::<Result<Vec<String>>>()?;
-            start_call(
-                eng,
-                node,
-                opts.as_ref(),
-                AppleCall::Store(StoreCall::Products { ids }),
-            )
-        },
-    );
-    m.function(
-        "purchase",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, product, opts) = node_and_one(first, second, third)?;
-            let Value::Str(product) = product else {
-                return Err(anyhow!(
-                    "the product id should be a string, got {product:?}"
-                ));
-            };
-            start_call(
-                eng,
-                node,
-                opts.as_ref(),
-                AppleCall::Store(StoreCall::Purchase {
-                    product: product.clone(),
-                }),
-            )
-        },
-    );
-    m.function(
-        "entitlements",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(
-                eng,
-                node,
-                opts.as_ref(),
-                AppleCall::Store(StoreCall::Entitlements),
-            )
-        },
-    );
+    m.function("products", |eng: &Engine, ids: Value| {
+        let Value::List(ids) = ids else {
+            return Err(anyhow!("the product ids should be a list, got {ids:?}"));
+        };
+        let ids = ids
+            .into_iter()
+            .map(|id| match id {
+                Value::Str(id) => Ok(id.clone()),
+                other => Err(anyhow!("a product id should be a string, got {other:?}")),
+            })
+            .collect::<Result<Vec<String>>>()?;
+        Ok(start_call(
+            eng,
+            AppleCall::Store(StoreCall::Products { ids }),
+        ))
+    });
+    m.function("purchase", |eng: &Engine, product: Value| {
+        let Value::Str(product) = product else {
+            return Err(anyhow!(
+                "the product id should be a string, got {product:?}"
+            ));
+        };
+        Ok(start_call(
+            eng,
+            AppleCall::Store(StoreCall::Purchase { product }),
+        ))
+    });
+    m.function("entitlements", |eng: &Engine, ()| {
+        Ok(start_call(eng, AppleCall::Store(StoreCall::Entitlements)))
+    });
     install_store_ledger_api(m);
 }
 
 /// What a game asks about purchases already made, rather than about making
 /// one: restoring on a new device, and closing a transaction out.
-fn install_store_ledger_api(m: &mut dyn Bindings<Engine>) {
-    m.function(
-        "restore_purchases",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = node_and_options(first, second);
-            start_call(
-                eng,
-                node,
-                opts.as_ref(),
-                AppleCall::Store(StoreCall::Restore),
-            )
-        },
-    );
-    m.function(
-        "finish_purchase",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, transaction, opts) = node_and_one(first, second, third)?;
-            let Value::Str(transaction) = transaction else {
-                return Err(anyhow!(
-                    "the transaction id should be a string, got {transaction:?}"
-                ));
-            };
-            start_call(
-                eng,
-                node,
-                opts.as_ref(),
-                AppleCall::Store(StoreCall::Finish {
-                    transaction: transaction.clone(),
-                }),
-            )
-        },
-    );
-}
-
-/// A call with one value of its own: `f(node, a, opts)` names a handler,
-/// `f(a, opts)` is awaited instead.
-fn node_and_one(
-    first: Value,
-    second: Option<Value>,
-    third: Option<Value>,
-) -> Result<(Option<Value>, Value, Option<Value>)> {
-    match first {
-        node @ Value::Node(_) => match second {
-            Some(payload) => Ok((Some(node), payload, third)),
-            None => Err(anyhow!("this call needs a value after the node")),
-        },
-        payload => Ok((None, payload, second)),
-    }
-}
-
-/// A call whose only arguments are the node and the options: `f(node, opts)`
-/// names a handler, `f(opts)` or `f()` is awaited instead.
-fn node_and_options(first: Option<Value>, second: Option<Value>) -> (Option<Value>, Option<Value>) {
-    match first {
-        Some(node @ Value::Node(_)) => (Some(node), second),
-        Some(opts) => (None, Some(opts)),
-        None => (None, None),
-    }
+fn install_store_ledger_api(m: &mut Module<Engine>) {
+    m.function("restore_purchases", |eng: &Engine, ()| {
+        Ok(start_call(eng, AppleCall::Store(StoreCall::Restore)))
+    });
+    m.function("finish_purchase", |eng: &Engine, transaction: Value| {
+        let Value::Str(transaction) = transaction else {
+            return Err(anyhow!(
+                "the transaction id should be a string, got {transaction:?}"
+            ));
+        };
+        Ok(start_call(
+            eng,
+            AppleCall::Store(StoreCall::Finish { transaction }),
+        ))
+    });
 }
 
 /// Where the dashboard opens when a call names no screen, and where the
@@ -1128,16 +997,8 @@ fn corner_of(name: &str) -> Result<isize> {
     }
 }
 
-/// The node-or-options first argument both calls take: with a node the answer
-/// reaches its `on_apple_event` method, without one the returned id is awaited.
-fn start_call(
-    eng: &Engine,
-    node: Option<Value>,
-    opts: Option<&Value>,
-    call: AppleCall,
-) -> Result<Value> {
-    let node = node.unwrap_or(Value::Nil);
-    let handler = handler_of(&node, opts, "on_event", "on_apple_event")?;
+/// Start a call, and answer the id `task::wait` hears it on.
+fn start_call(eng: &Engine, call: AppleCall) -> Value {
     let id = eng.next_token();
     // A notification the script did not name is named after the call, so two
     // runs of the same session schedule the same identifier.
@@ -1156,8 +1017,8 @@ fn start_call(
         call => call,
     };
     let state = eng.resource::<AppleState>();
-    state.borrow_mut().start(eng, id, &call, handler);
-    Ok(id_value(id))
+    state.borrow_mut().start(eng, id, &call);
+    id_value(id)
 }
 
 #[cfg(test)]

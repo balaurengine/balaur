@@ -9,6 +9,7 @@ mod args;
 mod debugger;
 mod engine;
 mod host;
+mod marshal;
 #[cfg(native)]
 mod native_engine;
 mod profile;
@@ -58,14 +59,6 @@ pub fn load_native(path: &std::path::Path) -> Result<usize, String> {
     native_engine::load(path)
 }
 
-/// Whether any native build is loaded: its modules are whole files, so a
-/// host builds its scripts whole to run them from it.
-#[cfg(native)]
-#[must_use]
-pub fn native_loaded() -> bool {
-    native_engine::any()
-}
-
 /// Whether a loaded native build has `wasm`.
 #[cfg(native)]
 #[must_use]
@@ -104,6 +97,10 @@ pub struct Limits {
     pub fuel: Option<u64>,
     pub memory_bytes: Option<usize>,
     pub engine: EngineKind,
+    /// Run on the engine this would have had without a native build, though
+    /// a loaded one has the module: what a project needs once a file of it
+    /// changed since the build was made.
+    pub skip_native: bool,
 }
 
 /// A class object held by the host: its pointer, counted once for the host,
@@ -144,6 +141,9 @@ impl Reader for Live<'_> {
     fn bytes(&self, at: usize, len: usize) -> Vec<u8> {
         self.0.read(at, len)
     }
+    fn fill(&self, at: usize, out: &mut [u8]) {
+        self.0.read_into(at, out);
+    }
 }
 
 pub struct Runtime {
@@ -179,6 +179,7 @@ impl Runtime {
             memory_bytes: limits.memory_bytes,
             key: &compiled.key,
             linked: &compiled.linked,
+            native: !limits.skip_native,
         };
         let wasm = engine::instantiate(limits.engine, setup)
             .map_err(|msg| RunError { msg, line: None })?;
@@ -207,6 +208,11 @@ impl Runtime {
 
     pub fn meta(&self) -> &Meta {
         &self.meta
+    }
+
+    /// Whether a loaded native build runs it, rather than an engine.
+    pub fn runs_natively(&self) -> bool {
+        self.wasm.native()
     }
 
     /// `unit` and the units of the modules it uses, `uses`, as units of this
@@ -379,7 +385,7 @@ impl Runtime {
         }
         let fields = init
             .iter()
-            .map(|(name, value)| ((*name).to_string(), value.clone()))
+            .map(|(name, value)| (smol_str::SmolStr::new(*name), value.clone()))
             .collect();
         let raw = self.encode(&Ty::Struct(ty.into()), &Value::Struct(ty.into(), fields))?;
         Ok(Object {
@@ -415,7 +421,7 @@ impl Runtime {
     }
 
     /// Every field of `obj`, by name.
-    pub fn fields(&mut self, obj: &Object) -> Vec<(String, Value)> {
+    pub fn fields(&mut self, obj: &Object) -> Vec<(smol_str::SmolStr, Value)> {
         self.in_unit(obj.unit, |rt| {
             let ty = Ty::Struct(obj.ty.clone());
             match decode(&rt.meta, &Live(&*rt.wasm), &ty, &obj.raw) {
@@ -570,7 +576,7 @@ impl Runtime {
     /// Calls `Struct.method` on `obj`, which comes back with whatever the method changed.
     pub fn call_method(
         &mut self,
-        obj: &mut Object,
+        obj: &Object,
         method: &str,
         args: &[Value],
     ) -> Result<Value, RunError> {
@@ -591,7 +597,7 @@ impl Runtime {
     /// already, in this module's [`Meta`].
     pub fn call_info(
         &mut self,
-        obj: &mut Object,
+        obj: &Object,
         info: &FnInfo,
         args: &[Value],
     ) -> Result<Value, RunError> {
@@ -600,11 +606,9 @@ impl Runtime {
             for (t, v) in info.params.iter().zip(args) {
                 a.extend(rt.encode(t, v)?);
             }
-            let nself = obj.raw.len();
             let ret = width(&rt.meta, &info.ret);
-            let out = rt.invoke(&info.key, &a, nself + ret)?;
-            obj.raw.copy_from_slice(&out[..nself]);
-            Ok(rt.take(&info.ret, &out[nself..]))
+            let out = rt.invoke(&info.key, &a, ret)?;
+            Ok(rt.take(&info.ret, &out))
         })
     }
 
@@ -637,14 +641,14 @@ impl Runtime {
     pub fn poll(
         &mut self,
         task: &mut Task,
-        obj: Option<&mut Object>,
+        obj: Option<&Object>,
     ) -> Result<Option<Value>, RunError> {
         self.in_unit(task.unit, |rt| {
-            let Some(call) = rt.poll_call(task, obj.as_deref())? else {
+            let Some(call) = rt.poll_call(task, obj)? else {
                 return Ok(None);
             };
             let out = rt.invoke(&call.name, &call.args, call.results)?;
-            rt.polled(task, obj, &call.ret, &out)
+            rt.polled(task, &call.ret, &out)
         })
     }
 
@@ -668,29 +672,24 @@ impl Runtime {
             line: None,
         })?;
         let mut args = vec![Raw::I32(task.frame as i32)];
-        let nself = obj.map_or(0, |o| o.raw.len());
         if let Some(o) = obj {
             args.extend(o.raw.iter().copied());
         }
         Ok(Some(stepping::Call {
             name: format!("{}{}", task.key, words::POLL),
             args,
-            results: 1 + nself,
+            results: 1,
             ret: info.ret.clone(),
         }))
     }
 
-    // A poll's results: the status, then `self` handed back.
+    // A poll's result: the status.
     fn polled(
         &mut self,
         task: &mut Task,
-        obj: Option<&mut Object>,
         ret: &Ty,
         out: &[Raw],
     ) -> Result<Option<Value>, RunError> {
-        if let Some(o) = obj {
-            o.raw = out[1..].to_vec();
-        }
         if let Some(h) = task.waiting.take() {
             self.host.borrow_mut().resolved.remove(&h);
         }
@@ -761,7 +760,7 @@ impl Runtime {
             let new_fields = into
                 .in_unit(*unit, |rt| rt.meta.fields(&obj.ty).map(<[_]>::to_vec))
                 .unwrap_or_default();
-            let carried: Vec<(String, Value)> = self
+            let carried: Vec<(smol_str::SmolStr, Value)> = self
                 .fields(obj)
                 .into_iter()
                 .filter(|(name, _)| {
@@ -775,12 +774,17 @@ impl Runtime {
             for (name, value) in &carried {
                 let held = self.in_unit(obj.unit, |rt| rt.held_object(obj, name));
                 match held.and_then(|pointer| carried_at.get(&pointer)) {
-                    Some(target) => links.push((index, name.clone(), *target)),
+                    Some(target) => links.push((index, name.to_string(), *target)),
                     None => init.push((name.as_str(), value.clone())),
                 }
             }
             replacements.push(into.in_unit(*unit, |rt| rt.object(&obj.ty, &init))?);
-            kept_all.push(carried.into_iter().map(|(name, _)| name).collect());
+            kept_all.push(
+                carried
+                    .into_iter()
+                    .map(|(name, _)| name.to_string())
+                    .collect(),
+            );
         }
         for (holder, field, target) in &links {
             let pointer = Runtime::pointer(&replacements[*target]);
@@ -956,234 +960,6 @@ impl Runtime {
     /// with each frame's variables as of its last stop or call. Taken once.
     pub fn error_stop(&mut self) -> Option<Paused> {
         self.error_stop.take()
-    }
-
-    // The module's own copy of `v`: strings and arrays are allocated in it.
-    fn encode(&mut self, ty: &Ty, v: &Value) -> Result<Vec<Raw>, RunError> {
-        Ok(match (ty, v) {
-            (Ty::Str, Value::Str(s)) => {
-                let p = self.alloc(8 + s.len() as u32)?;
-                let mut b = 1i32.to_le_bytes().to_vec();
-                b.extend((s.len() as u32).to_le_bytes());
-                b.extend(s.as_bytes());
-                self.wasm.write(p as usize, &b);
-                vec![Raw::I32(p as i32)]
-            }
-            (Ty::Array(et), Value::Array(items)) => {
-                let esz = 8 * width(&self.meta, et);
-                let data = if items.is_empty() {
-                    0
-                } else {
-                    self.alloc((items.len() * esz) as u32)?
-                };
-                for (i, it) in items.iter().enumerate() {
-                    let b: Vec<u8> = self
-                        .encode(et, it)?
-                        .into_iter()
-                        .flat_map(Raw::bytes)
-                        .collect();
-                    self.wasm.write(data as usize + i * esz, &b);
-                }
-                let h = self.alloc(16)?;
-                let mut b = 1i32.to_le_bytes().to_vec();
-                for x in [items.len() as u32, items.len() as u32, data] {
-                    b.extend(x.to_le_bytes());
-                }
-                self.wasm.write(h as usize, &b);
-                vec![Raw::I32(h as i32)]
-            }
-            (Ty::Any, v) => {
-                let cell = values::any_cell(v, |t, v| {
-                    Ok::<u32, RunError>(self.encode(t, v)?[0].i32() as u32)
-                })?;
-                let Some((tag, payload)) = cell else {
-                    return Ok(vec![Raw::I32(0)]);
-                };
-                let p = self.alloc(crate::anys::CELL as u32)?;
-                self.wasm
-                    .write(p as usize, &values::cell_bytes(tag, payload));
-                vec![Raw::I32(p as i32)]
-            }
-            (Ty::Optional(_), Value::Void) => values::zero(&self.meta, ty),
-            (Ty::Optional(t), v) => {
-                let mut raw = self.encode(t, v)?;
-                raw.push(Raw::I32(1));
-                raw
-            }
-            (Ty::Struct(s), Value::Struct(_, fields)) => {
-                let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();
-                let mut raw = vec![];
-                let defaults = self.meta.defaults(s).to_vec();
-                for (n, t) in &decl {
-                    let declared = defaults
-                        .iter()
-                        .find(|(k, _, _)| k == n)
-                        .map(|(_, _, l)| literal(l));
-                    match fields
-                        .iter()
-                        .find(|(k, _)| k == n)
-                        .map(|(_, v)| v.clone())
-                        .or(declared)
-                    {
-                        Some(fv) => raw.extend(self.encode(t, &fv)?),
-                        None => raw.extend(self.default_of(t)?),
-                    }
-                }
-                if self.meta.is_class(s) {
-                    return Ok(vec![self.object_of(s, &raw)?]);
-                }
-                raw
-            }
-            _ => values::encode_plain(&self.meta, ty, v).map_err(|_| RunError {
-                msg: format!("{v:?} is not a {}", show(ty)),
-                line: None,
-            })?,
-        })
-    }
-
-    // A class object holding `raw`, counted once for its holder.
-    fn object_of(&mut self, s: &str, raw: &[Raw]) -> Result<Raw, RunError> {
-        let p = self.alloc(values::object_size(&self.meta, s) as u32)?;
-        let mut b = 1i32.to_le_bytes().to_vec();
-        b.extend([0; 4]);
-        b.extend(raw.iter().flat_map(|r| r.bytes()));
-        self.wasm.write(p as usize, &b);
-        Ok(Raw::I32(p as i32))
-    }
-
-    fn default_of(&mut self, ty: &Ty) -> Result<Vec<Raw>, RunError> {
-        match ty {
-            Ty::Str => self.encode(ty, &Value::Str(String::new())),
-            Ty::Array(_) => self.encode(ty, &Value::Array(vec![])),
-            // A class is never null: a field of one starts as its defaults.
-            Ty::Struct(s) if self.meta.is_class(s) => {
-                self.encode(ty, &Value::Struct(s.clone(), vec![]))
-            }
-            Ty::Struct(s) if has_heap(&self.meta, ty) => {
-                let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();
-                let mut raw = vec![];
-                for (_, t) in &decl {
-                    raw.extend(self.default_of(t)?);
-                }
-                Ok(raw)
-            }
-            _ => Ok(zero(&self.meta, ty)),
-        }
-    }
-
-    // Reads a returned value and gives its references back.
-    fn take(&mut self, ty: &Ty, raw: &[Raw]) -> Value {
-        let v = decode(&self.meta, &Live(&*self.wasm), ty, raw);
-        if has_heap(&self.meta, ty) {
-            self.release(ty, raw);
-        }
-        v
-    }
-
-    fn release(&mut self, ty: &Ty, raw: &[Raw]) {
-        for part in self.release_plan(ty).iter() {
-            let r = raw[part.slot];
-            match &part.dec {
-                Some(name) => {
-                    let _ = self.invoke(name, &[r], 0);
-                }
-                // No release export for the type: nothing in the module keeps one, so
-                // the host made it; strings and plain arrays have no children to release.
-                None => self.release_flat(&part.ty, r.i32()),
-            }
-        }
-    }
-
-    // What letting go of a `ty` releases, slot by slot: worked out once per
-    // struct, since the host lets go of a script's copy after every call.
-    fn release_plan(&mut self, ty: &Ty) -> Rc<[host::Release]> {
-        let key = match ty {
-            Ty::Struct(name) => Some(name),
-            _ => None,
-        };
-        let unit = self.unit;
-        if let Some(plan) = key.and_then(|k| {
-            self.host
-                .borrow()
-                .releases
-                .get(unit)
-                .and_then(|releases| releases.get(k).cloned())
-        }) {
-            return plan;
-        }
-        let plan: Rc<[host::Release]> = slots(&self.meta, ty)
-            .into_iter()
-            .enumerate()
-            .filter_map(|(slot, (_, heap))| {
-                let ty = heap?;
-                let name = format!("{}{}", words::DEC, show(&ty));
-                let dec = self.wasm.has_func_in(unit, &name).then_some(name);
-                Some(host::Release { slot, ty, dec })
-            })
-            .collect();
-        if let Some(k) = key {
-            let mut host = self.host.borrow_mut();
-            if host.releases.len() <= unit {
-                host.releases.resize_with(unit + 1, Default::default);
-            }
-            host.releases[unit].insert(k.clone(), plan.clone());
-        }
-        plan
-    }
-
-    fn release_flat(&mut self, ty: &Ty, p: i32) {
-        if p == 0 {
-            return;
-        }
-        if let Ty::Struct(s) = ty {
-            let live = Live(&*self.wasm);
-            if rd32(&live, p as usize) != 1 {
-                // Someone else holds it too: one count less.
-                let n = rd32(&live, p as usize) as i32;
-                if n > 1 {
-                    self.wasm.write(p as usize, &(n - 1).to_le_bytes());
-                }
-                return;
-            }
-            let decl = self.meta.fields(s).unwrap_or(&[]).to_vec();
-            let mut at = p as usize + values::OBJ_HEADER;
-            let mut fields = vec![];
-            for (_, t) in &decl {
-                let raw: Vec<Raw> = slots(&self.meta, t)
-                    .iter()
-                    .enumerate()
-                    .map(|(j, (sl, _))| slot_at(&live, *sl, at + 8 * j))
-                    .collect();
-                at += 8 * raw.len();
-                fields.push((t.clone(), raw));
-            }
-            for (t, raw) in fields {
-                self.release(&t, &raw);
-            }
-            let _ = self.invoke(words::FREE, &[Raw::I32(p)], 0);
-            return;
-        }
-        if let Ty::Array(et) = ty {
-            let live = Live(&*self.wasm);
-            let (len, data) = (rd32(&live, p as usize + 4), rd32(&live, p as usize + 12));
-            let esz = 8 * width(&self.meta, et) as u32;
-            let elements: Vec<Vec<Raw>> = (0..len)
-                .map(|i| {
-                    slots(&self.meta, et)
-                        .iter()
-                        .enumerate()
-                        .map(|(j, (s, _))| slot_at(&live, *s, (data + i * esz) as usize + 8 * j))
-                        .collect()
-                })
-                .collect();
-            for raw in elements {
-                self.release(et, &raw);
-            }
-            if data != 0 {
-                let _ = self.invoke(words::FREE, &[Raw::I32(data as i32)], 0);
-            }
-        }
-        let _ = self.invoke(words::FREE, &[Raw::I32(p)], 0);
     }
 }
 

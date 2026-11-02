@@ -1,0 +1,71 @@
+// A script reads what the host hands over, boxes values into an `any` where
+// one is wanted, builds a map to hand back, and changes a map or a list in
+// place for every holder.
+
+pub fn damage(hit: any) -> int {
+    hit["damage"].as_int() + hit["bonus"].as_int()
+}
+
+pub fn first_tag(hit: any) -> str {
+    hit["tags"][0].as_str()
+}
+
+pub fn describe(hit: any) -> str {
+    let tagged = hit.has("tags");
+    let missing = hit["missing"] == nil;
+    let past = hit["tags"][5].kind();
+    "{hit.kind()} {hit.len()} {tagged} {missing} {past}"
+}
+
+pub fn boxed() -> str {
+    let a: any = 3;
+    let b: any = "x";
+    let l: [any] = [a, b, 2.5, true, nil()];
+    let all: any = l;
+    all.text()
+}
+
+pub fn keys(hit: any) -> [str] {
+    hit.keys()
+}
+
+pub fn echo(v: any) -> any {
+    v
+}
+
+pub fn built() -> any {
+    let tags: [any] = ["a", "b"];
+    { "hp": 12, "tags": tags }
+}
+
+pub fn shared() -> str {
+    let a: any = {};
+    let b = a;
+    a["hp"] = 10;
+    b["hp"] = 12;
+    b["name"] = "imp";
+    let l: [any] = [];
+    let list: any = l;
+    for i in 0..9 {
+        list.push(i);
+    }
+    a["list"] = list;
+    let changed = a.push(1);
+    "{a.text()} {list.len()} {changed}"
+}
+
+pub fn numbers(v: any) -> float {
+    v.as_float() + v.as_int()
+}
+
+// expect: damage({ "damage": 3, "bonus": 2, "tags": ["fire", "ice"] }) == 5
+// expect: first_tag({ "damage": 3, "bonus": 2, "tags": ["fire", "ice"] }) == "fire"
+// expect: describe({ "damage": 3, "bonus": 2, "tags": ["fire", "ice"] }) == "map 3 true true nil"
+// expect: keys({ "damage": 3, "bonus": 2, "tags": ["fire", "ice"] }) == ["damage", "bonus", "tags"]
+// expect: echo({ "damage": 3, "bonus": 2, "tags": ["fire", "ice"] }) == { "damage": 3, "bonus": 2, "tags": ["fire", "ice"] }
+// expect: echo(()) == ()
+// expect: numbers(2.5) == 4.5
+// expect: boxed() == "[3, \"x\", 2.5, true, nil]"
+// expect: built() == { "hp": 12, "tags": ["a", "b"] }
+// expect: shared() == "{\"hp\": 12, \"name\": \"imp\", \"list\": [0, 1, 2, 3, 4, 5, 6, 7, 8]} 9 false"
+// live: 0

@@ -7,6 +7,17 @@ id = "n_scene"
 name = "Scene"
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_scene"
+
+[nodes.transform]
+position = [0.0, 0.4, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 147.0
+
+[[nodes]]
 id = "n_hud"
 name = "Hud"
 parent = "n_scene"
@@ -32,13 +43,11 @@ parent = "n_scene"
 position = [0.0, -2.6, 0.0]
 
 [nodes.collider2d]
-size = [12.0, 0.6]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [12.0, 0.6] }
 
 [nodes.shape2d]
 color = "#3c4753"
-size = [12.0, 0.6]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [12.0, 0.6] }
 
 [[nodes]]
 body2d = { kind = "static" }
@@ -50,13 +59,11 @@ parent = "n_scene"
 position = [-4.2, -0.3, 0.0]
 
 [nodes.collider2d]
-size = [0.6, 5.2]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [0.6, 5.2] }
 
 [nodes.shape2d]
 color = "#3c4753"
-size = [0.6, 5.2]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [0.6, 5.2] }
 
 [[nodes]]
 body2d = { kind = "static" }
@@ -68,10 +75,8 @@ parent = "n_scene"
 position = [4.2, -0.3, 0.0]
 
 [nodes.collider2d]
-size = [0.6, 5.2]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [0.6, 5.2] }
 
 [nodes.shape2d]
 color = "#3c4753"
-size = [0.6, 5.2]
-kind = "rectangle"
+shape = { kind = "rectangle", size = [0.6, 5.2] }

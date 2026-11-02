@@ -15,7 +15,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 anchor = "center"
 x = 0
 y = 0
@@ -61,10 +60,11 @@ parent = "bar"
 kind = "menu"
 text = "File"
 trailing = "▾"
-# Held open by the scene rather than by a click, which is how a screenshot
-# and an offscreen run can show what a menu looks like open.
+[nodes.widget_menu]
 showing = true
 
+# Held open by the scene rather than by a click, which is how a screenshot
+# and an offscreen run can show what a menu looks like open.
 [[nodes]]
 id = "file_new"
 name = "New"
@@ -169,6 +169,7 @@ parent = "bar"
 kind = "menu"
 text = "View"
 trailing = "▾"
+[nodes.widget_menu]
 placement = "above"
 
 [[nodes]]
@@ -189,8 +190,6 @@ name = "canvas_menu"
 parent = "sheet"
 [nodes.widget]
 kind = "menu"
-text = ""
-visible = false
 
 [[nodes]]
 id = "canvas_cut"
@@ -220,7 +219,6 @@ name = "Canvas"
 parent = "sheet"
 [nodes.widget]
 kind = "panel"
-text = ""
 grow = 1
 padding = 16
 gap = [6, 6]
@@ -255,7 +253,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "toast"
-text = ""
 anchor = "top_right"
 x = 18
 y = 18
@@ -263,6 +260,7 @@ y = 18
 align_items = "start"
 padding = 12
 gap = [2, 2]
+[nodes.widget_toast]
 duration = 0
 
 [[nodes]]

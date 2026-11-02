@@ -1,0 +1,3 @@
+fn f(n: float) -> int { n.as_int() }
+
+// error: 1:26: a float becomes an int as `x as int`, not `x.as_int()`

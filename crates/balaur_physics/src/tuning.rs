@@ -10,7 +10,7 @@ use crate::rapier3d::dynamics::IntegrationParameters;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::vocabulary::{Opts, keys as k, map, words as w};
 use crate::{PhysicsState2d, PhysicsState3d};
@@ -27,9 +27,8 @@ macro_rules! write_parameters {
         let p = $p;
         // Every knob is rapier's own scalar; the caller hands `f32` because
         // scenes and scripts do.
-        let f = |key: &str, default: crate::scalar::Real| -> crate::scalar::Real {
-            crate::scalar::real(($f)(key, crate::scalar::f32_of(default)))
-        };
+        let f =
+            |key: &str, default: crate::scalar::Real| -> crate::scalar::Real { ($f)(key, default) };
         let boolean = $boolean;
         p.num_solver_iterations =
             f(k::SOLVER_ITERATIONS, p.num_solver_iterations as _).max(1.0) as usize;
@@ -201,7 +200,7 @@ macro_rules! quarantined_nodes {
     }};
 }
 
-/// One world's quarantine as `#{ bodies, colliders, soft_bodies }`, each a
+/// One world's quarantine as `{ bodies, colliders, soft_bodies }`, each a
 /// list of nodes in stable-id order.
 fn quarantine_value(
     eng: &Engine,
@@ -482,8 +481,7 @@ fn setting(eng: &Engine, key: &str) -> Option<toml::Value> {
     balaur_core::settings::stated(eng, &format!("physics/{key}"))
 }
 
-/// `[physics] threads`, which a script's own `set_threads` outranks: the
-/// manifest is what a project usually wants and the call is what this run does.
+/// `[physics] threads`, held until the pool is built.
 fn read_manifest_threads(eng: &Engine) {
     let Some(count) = setting(eng, k::THREADS)
         .as_ref()
@@ -491,10 +489,11 @@ fn read_manifest_threads(eng: &Engine) {
     else {
         return;
     };
-    if eng.resource::<SolverThreads>().borrow().asked {
-        return;
+    let held = eng.resource::<SolverThreads>();
+    let mut held = held.borrow_mut();
+    if !held.built {
+        held.wanted = count.max(1) as usize;
     }
-    want_threads(eng, count.max(1) as usize, false);
 }
 
 /// The `[physics]` settings, onto both worlds, each reading its own
@@ -506,7 +505,7 @@ fn write_tuning_from_settings(eng: &Engine) {
                 .as_array()?
                 .iter()
                 .map(balaur_core::components::as_f64);
-            list.map(|n| n.map(|n| crate::scalar::real(n as f32)))
+            list.map(|n| n.map(|n| n as f32))
                 .collect::<Option<Vec<_>>>()
         })
     };
@@ -741,13 +740,12 @@ fn tuning(eng: &Engine) -> Value {
     map([(k::WORLD_3D, table(dim3)), (k::WORLD_2D, table(dim2))])
 }
 
-pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_tuning", &[], "(opts: table)", "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` table, the keys `[physics]` takes. A key at the top reaches both worlds; a `3d` or `2d` table holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml."),
-        ("tuning", &[], "() -> map", "The solver settings each world is running with, as `#{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."),
-        ("quarantined", &[], "() -> map", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number, as `#{ physics3d, physics2d }`, each `#{ bodies, colliders, soft_bodies }` lists of nodes. Empty lists are the normal answer."),
-        ("counters", &[], "() -> map", "What each world's last step spent its time on, as `#{ physics3d, physics2d }`, each with every timer rapier keeps, in milliseconds (`step_ms`; the stages `update_ms`, `user_changes_ms`, `collision_detection_ms`, `island_construction_ms`, `island_constraints_ms`, `solver_ms`, `ccd_ms`; collision detection's `broad_phase_ms`, `final_broad_phase_ms`, `narrow_phase_ms`; the solver's `velocity_resolution_ms`, `velocity_assembly_ms`, `velocity_assembly_bodies_ms`, `velocity_assembly_constraints_ms`, `velocity_update_ms`, `velocity_writeback_ms`; continuous collision's `ccd_time_of_impact_ms`, `ccd_solver_ms`, `ccd_broad_phase_ms`, `ccd_narrow_phase_ms`) and every count (`contact_pair_count`, `constraint_count`, `contact_count`, `ccd_substep_count`). The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
-        ("set_threads", &[], "(count: int)", "How many threads the solver may use, from a script's `init`: rayon's pool is built once, before the first step, and a call after that says so and changes nothing. `[physics] threads` in `project.toml` does the same and outranks nothing -- an `init` that asks wins. The default is one less than the machine reports, capped at eight."),
+        ("tuning", &[], "() -> map", "The solver settings each world is running with, as `{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."),
+        ("quarantined", &[], "() -> map", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number, as `{ physics3d, physics2d }`, each `{ bodies, colliders, soft_bodies }` lists of nodes. Empty lists are the normal answer."),
+        ("counters", &[], "() -> map", "What each world's last step spent its time on, as `{ physics3d, physics2d }`, each with every timer rapier keeps, in milliseconds (`step_ms`; the stages `update_ms`, `user_changes_ms`, `collision_detection_ms`, `island_construction_ms`, `island_constraints_ms`, `solver_ms`, `ccd_ms`; collision detection's `broad_phase_ms`, `final_broad_phase_ms`, `narrow_phase_ms`; the solver's `velocity_resolution_ms`, `velocity_assembly_ms`, `velocity_assembly_bodies_ms`, `velocity_assembly_constraints_ms`, `velocity_update_ms`, `velocity_writeback_ms`; continuous collision's `ccd_time_of_impact_ms`, `ccd_solver_ms`, `ccd_broad_phase_ms`, `ccd_narrow_phase_ms`) and every count (`contact_pair_count`, `constraint_count`, `contact_count`, `ccd_substep_count`). The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
         ("threads", &[], "() -> int", "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`."),
     ]);
     m.function("set_tuning", |eng: &Engine, opts: Value| {
@@ -769,10 +767,6 @@ pub(crate) fn install_tuning_api(m: &mut dyn Bindings<Engine>) {
             (k::PHYSICS_3D, quarantine_value(eng, dim3)?),
             (k::PHYSICS_2D, quarantine_value(eng, dim2)?),
         ]))
-    });
-    m.function("set_threads", |eng: &Engine, count: i64| {
-        ask_for_threads(eng, count);
-        Ok(Value::Nil)
     });
     m.function("threads", |_eng: &Engine, ()| {
         Ok(i64::try_from(threads()).unwrap_or(i64::MAX))
@@ -832,11 +826,9 @@ fn warn_about(eng: &Engine, [bodies, colliders, soft_bodies]: [Vec<Entity>; 3]) 
 ///
 /// Rayon's pool is global and sized once per process, so the count has to be
 /// settled before anything steps. It is held here rather than applied at
-/// registration so `[physics] threads` and a script's `init` can still say.
+/// registration so `[physics] threads` can still say.
 pub(crate) struct SolverThreads {
     wanted: usize,
-    /// A script asked, so the manifest does not overrule it.
-    asked: bool,
     built: bool,
 }
 
@@ -844,45 +836,9 @@ impl Default for SolverThreads {
     fn default() -> Self {
         Self {
             wanted: default_threads(),
-            asked: false,
             built: false,
         }
     }
-}
-
-/// A script asking for `count` threads, and the reason it did not get them.
-#[cfg(not(target_family = "wasm"))]
-fn ask_for_threads(eng: &Engine, count: i64) {
-    if !want_threads(eng, count.max(1) as usize, true) {
-        tracing::warn!(
-            "physics.set_threads({count}) came after the solver's pool was built; it keeps the \
-             {} it has. Call it from a script's `init`, or set `[physics] threads`.",
-            threads()
-        );
-    }
-}
-
-/// The page owns the pool in a browser, and it is sized before the engine runs.
-#[cfg(target_family = "wasm")]
-fn ask_for_threads(_eng: &Engine, count: i64) {
-    tracing::warn!(
-        "physics.set_threads({count}) is the page's to make: hand the count to `initThreadPool` \
-         before starting the engine, on the threaded template."
-    );
-}
-
-/// Ask for `count` threads, if the pool has not been built yet.
-///
-/// Answers whether the ask landed, so the caller can say why it did not.
-fn want_threads(eng: &Engine, count: usize, asked: bool) -> bool {
-    let held = eng.resource::<SolverThreads>();
-    let mut held = held.borrow_mut();
-    if held.built {
-        return false;
-    }
-    held.wanted = count.max(1);
-    held.asked = held.asked || asked;
-    true
 }
 
 /// Build rayon's pool from what was asked for, once, before the first step.
@@ -921,18 +877,19 @@ fn threads() -> usize {
     1
 }
 
-/// What the solver takes when a game says nothing.
-///
-/// One less than the machine reports, so the frame's own thread is not
-/// competing with the solver, and capped because a step stops scaling long
-/// before a large machine runs out of cores. `available_parallelism` answers 1
-/// on wasm and follows a container's CPU limit, so both come out right.
+/// What the solver takes when a game says nothing: the fast cores where the
+/// machine has more than one kind, every core where it has one. A step waits
+/// on its slowest thread, so threads on slow cores burn more cores for no
+/// sooner a finish. The frame's own thread waits out the step, so it takes no
+/// core of its own. `available_parallelism` answers 1 on wasm and follows a
+/// container's CPU limit, so both come out right.
 ///
 /// Safe to vary per machine: rapier's solver is coloured, so the digest is the
 /// same at one thread and at eight.
 fn default_threads() -> usize {
-    std::thread::available_parallelism()
-        .map_or(1, std::num::NonZeroUsize::get)
-        .saturating_sub(1)
-        .clamp(1, 8)
+    balaur_core::task::performance_cores()
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get)
+        })
+        .max(1)
 }

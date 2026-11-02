@@ -217,9 +217,9 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
      the Editor's own call into the plugin runs: a call into a busy instance
      runs on a second holder of it (`Runtime::share`), which is allowed when
      every string, list or `any` it holds sits in a class, as `State` does.
-   - `node.try_set_component` answers `false` where `set_component` fails:
-     an engine error ends the script's call, and the inspector expects
-     refusals.
+   - `node.patch_component` answers `false` where the component refuses a
+     value: an engine error ends the script's call, and the inspector expects
+     refusals. A name nothing has is a typo, and still ends it.
 7. **Examples, templates, the GDScript translator, docs.** In progress.
    Every example's scripts are `.bs`. The benchmark builds every
    physics case as Rune did, to the same fingerprint.
@@ -314,8 +314,8 @@ and 494 in Rune, a binding taking a string 495 and 715 (load 80 to 140).
 8. **Rune removed** (2026-10-23). The engine-crate tests run Balaur Script,
    the CLI's tooling (language server, formatter, `balaur api`, checks) reads
    `.bs` only, the Rune editor and `crates/balaur_script_rune` are deleted,
-   and balaurengine.org teaches Balaur Script. `balaur port` keeps Rune's
-   parser to translate a `.rn` file. Left: the Gamend SDK addon under
+   and balaurengine.org teaches Balaur Script. `balaur port`, which translated
+   a `.rn` file, went on 2026-11-01. Left: the Gamend SDK addon under
    `editor/library/addons/gamend` is still Rune, and its player-flow tests
    wait on its port.
 9. **Godot importer removed** (2026-10-23). `balaur import` reads models,

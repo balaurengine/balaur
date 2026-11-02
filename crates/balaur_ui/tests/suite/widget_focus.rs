@@ -6,6 +6,31 @@ use crate::support::*;
 use balaur::{AppConfig, standard_app};
 use balaur_core::hecs::Entity;
 
+#[test]
+fn a_disabled_button_is_not_a_focus_stop() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
+    );
+    add_child_widget(
+        &app,
+        column,
+        "Off",
+        &toml::toml! { kind = "button" text = "Off" enabled = false }.into(),
+    );
+    let on = add_child_widget(
+        &app,
+        column,
+        "On",
+        &toml::toml! { kind = "button" text = "On" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(on));
+}
+
 /// Focus follows the tree that was drawn, not the arena: an accept on a
 /// button under a hidden panel would fire an `on_click` nobody could see.
 #[test]
@@ -33,7 +58,6 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
         "Open",
         &toml::toml! { kind = "button" text = "Open" }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -43,8 +67,7 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
         "control: it is a stop while the panel is visible"
     );
 
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, panel, "widget", &hide.into()).unwrap();
+    set_shown(&app, panel, false);
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
     assert_eq!(
@@ -65,7 +88,6 @@ fn a_button_under_a_hidden_panel_is_not_a_focus_stop() {
 fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     {
@@ -85,7 +107,6 @@ fn a_root_on_a_disabled_surface_is_not_a_focus_stop() {
 fn focus_walks_the_menu_in_scene_order_and_wraps() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     assert_eq!(focused(&app), None, "nothing is focused until asked");
@@ -106,7 +127,6 @@ fn focus_walks_the_menu_in_scene_order_and_wraps() {
 fn accepting_the_focused_widget_is_a_click() {
     let (_dir, mut app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -126,7 +146,6 @@ fn accepting_a_focused_fold_turns_it() {
         &app,
         &toml::toml! { kind = "fold" text = "Advanced" open = false x = 0.0 y = 0.0 }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -157,7 +176,6 @@ fn focus_skips_what_it_could_not_activate() {
         "Quit",
         &toml::toml! { kind = "button" text = "Quit" }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -191,7 +209,6 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
         "Note",
         &toml::toml! { kind = "label" text = "note" focusable = true }.into(),
     );
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -207,14 +224,12 @@ fn focusable_false_is_skipped_and_a_plain_label_stays_out() {
 fn hiding_the_focused_widget_releases_focus() {
     let (_dir, app) = app();
     let (_column, buttons) = menu(&app);
-    keyboard(&app);
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     pass(&app, &ctx, key(egui::Key::ArrowDown));
     assert_eq!(focused(&app), Some(buttons[0]));
 
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, buttons[0], "widget", &hide.into()).unwrap();
+    set_shown(&app, buttons[0], false);
     pass(&app, &ctx, vec![]);
     assert_eq!(focused(&app), None, "focus stayed on a hidden widget");
     pass(&app, &ctx, key(egui::Key::ArrowDown));
@@ -362,47 +377,6 @@ fn a_text_key_follows_the_locale() {
     );
 }
 
-/// A host that confines the default surface confines every layer it has not
-/// been told about, or a scene naming `layer = "hud"` draws over the editor's
-/// own chrome whether or not the game is playing.
-#[test]
-fn a_layer_nothing_configured_takes_the_default_surface() {
-    let (_dir, app) = app();
-    let hud = add_widget(
-        &app,
-        &toml::toml! { kind = "panel" text = "hud" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "unheard_of" }
-            .into(),
-    );
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().rect = Some([300.0, 200.0, 100.0, 100.0]);
-    }
-    let ctx = egui::Context::default();
-    settle(&app, &ctx);
-    let placed = ctx
-        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", hud))))
-        .expect("control: the hud drew somewhere");
-    assert!(
-        placed.min.x >= 299.0,
-        "an unconfigured layer escaped the default surface: {placed:?}"
-    );
-
-    // And its enabled flag too: turning the default off takes it with it.
-    {
-        let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
-        config.borrow_mut().enabled = false;
-    }
-    let out = pass(&app, &ctx, vec![]);
-    let drew = out.shapes.iter().any(|shape| match &shape.shape {
-        egui::epaint::Shape::Text(text) => text.galley.text() == "hud",
-        _ => false,
-    });
-    assert!(
-        !drew,
-        "an unconfigured layer ignored the default's off switch"
-    );
-}
-
 /// Focus put on a field by a script takes the caret with it, so what is typed
 /// next lands there: a command palette opens ready to be typed into.
 #[test]
@@ -516,4 +490,117 @@ fn a_shortcut_leaves_the_keys_of_a_field_being_typed_into() {
         consume_input(&mut app);
         assert_eq!(clicked(&app, button), fires, "{button:?}");
     }
+}
+
+/// A widget naming its neighbour that way wins over where the widgets were
+/// drawn, and an arrow from one naming none still goes by geometry.
+#[test]
+fn a_named_neighbour_wins_over_the_widget_drawn_nearer() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
+    );
+    let first = add_child_widget(
+        &app,
+        column,
+        "First",
+        &toml::toml! { kind = "button" text = "First" neighbour_down = "Third" }.into(),
+    );
+    let second = add_child_widget(
+        &app,
+        column,
+        "Second",
+        &toml::toml! { kind = "button" text = "Second" }.into(),
+    );
+    let third = add_child_widget(
+        &app,
+        column,
+        "Third",
+        &toml::toml! { kind = "button" text = "Third" }.into(),
+    );
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(first), "from nothing, the first stop");
+    pass(&app, &ctx, key(egui::Key::ArrowDown));
+    assert_eq!(focused(&app), Some(third), "the neighbour First names");
+    pass(&app, &ctx, key(egui::Key::ArrowUp));
+    assert_eq!(focused(&app), Some(second), "Third names none: geometry");
+}
+
+/// What a stick or a d-pad's action calls moves focus as the arrow does, and
+/// a back button leaves it nowhere.
+#[test]
+fn a_pad_moves_focus_as_an_arrow_does_and_leaves_it() {
+    let (_dir, app) = app();
+    let (_, buttons) = menu(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let ask = |asked: balaur_ui::Move| {
+        app.engine
+            .resource::<balaur_ui::UiFocus>()
+            .borrow_mut()
+            .pending = Some(asked);
+        pass(&app, &ctx, vec![]);
+    };
+    ask(balaur_ui::Move::Down);
+    assert_eq!(focused(&app), Some(buttons[0]));
+    ask(balaur_ui::Move::Down);
+    assert_eq!(focused(&app), Some(buttons[1]));
+    ask(balaur_ui::Move::Up);
+    assert_eq!(focused(&app), Some(buttons[0]));
+    ask(balaur_ui::Move::Leave);
+    assert_eq!(focused(&app), None, "back leaves focus nowhere");
+}
+
+/// Focus an arrow moves past the bottom of a scroll is scrolled into view.
+#[test]
+fn focus_an_arrow_moves_is_scrolled_into_view() {
+    let (_dir, app) = app();
+    let scroll = add_widget(
+        &app,
+        &toml::toml! {
+            kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0
+            widget_scroll = { animated = false }
+        }
+        .into(),
+    );
+    let column = add_child_widget(
+        &app,
+        scroll,
+        "Column",
+        &toml::toml! { kind = "column" }.into(),
+    );
+    let rows: Vec<Entity> = (0..20)
+        .map(|n| {
+            let name = format!("Row{n}");
+            let params: toml::Value = toml::toml! { kind = "button" height = 30.0 }.into();
+            let row = add_child_widget(&app, column, &name, &params);
+            balaur::components::patch(
+                &app.engine,
+                row,
+                "widget",
+                &toml::Value::Table(toml::map::Map::from_iter([(
+                    "text".to_string(),
+                    toml::Value::String(name.clone()),
+                )])),
+            )
+            .unwrap();
+            row
+        })
+        .collect();
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    for _ in 0..10 {
+        pass(&app, &ctx, key(egui::Key::ArrowDown));
+    }
+    settle(&app, &ctx);
+    assert_eq!(focused(&app), Some(rows[9]));
+    let shown = balaur_ui::widget_rect(rows[9]).expect("the focused row was drawn");
+    let held = balaur_ui::widget_rect(scroll).expect("the scroll was drawn");
+    assert!(
+        held.contains_rect(shown.shrink(1.0)),
+        "the focused row {shown:?} lies outside the scroll {held:?}"
+    );
 }

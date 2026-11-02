@@ -5,12 +5,12 @@
 id = "panel"
 name = "Cost"
 script = { source = "scripts/panels/meter.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "tools"
@@ -29,7 +29,6 @@ parent = "tools"
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
 grow = 1
 
 [[nodes]]
@@ -41,6 +40,7 @@ kind = "table"
 grow = 1
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_table]
 sortable = true
 
 [nodes.widget.touch]
@@ -50,8 +50,7 @@ row_height = 33
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
-visible = false

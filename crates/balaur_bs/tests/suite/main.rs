@@ -1,6 +1,5 @@
 //! Every integration test this crate has, in one binary.
 
-mod anys;
 mod awaits;
 mod budgets;
 mod classes;
@@ -13,15 +12,16 @@ mod format;
 #[cfg(all(feature = "c", feature = "native"))]
 mod freestanding;
 mod library;
-mod loops;
 mod maps;
 mod memory;
 mod modules;
+mod mutants;
 mod nans;
 #[cfg(all(feature = "c", feature = "native"))]
 mod native;
-mod optional;
 mod profile;
+mod programs;
+mod random;
 mod reentry;
 mod refs;
 mod reload;

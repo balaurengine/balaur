@@ -118,6 +118,12 @@ fn packed_files(
     from_pack.then_some(project)
 }
 
+/// A document a pack holds apart from its assets, a scene or a `strings/` file.
+fn packed_document(eng: &Engine, path: &str) -> Option<String> {
+    packed_files(eng, path)?;
+    eng.script_host()?.scene_source(path)
+}
+
 /// The path a script named, as its own project spells it.
 fn named<'a>(eng: &Engine, args: &'a [Value], at: usize) -> Result<std::borrow::Cow<'a, str>> {
     Ok(crate::dependencies::scoped(eng, text(args, at)?))
@@ -138,6 +144,10 @@ pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
             && let Ok(bytes) = project.read(named)
         {
             return Ok(String::from_utf8(bytes).map_or(Value::Nil, Value::text));
+        }
+        drop(project);
+        if let Some(text) = packed_document(eng, named) {
+            return Ok(Value::text(text));
         }
     }
     let path = resolve(eng, named)?;
@@ -160,7 +170,9 @@ pub(crate) fn fs_write(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn fs_exists(eng: &Engine, args: &[Value]) -> Result<Value> {
     let named = &*named(eng, args, 0)?;
-    if packed_files(eng, named).is_some_and(|project| project.borrow().packs(named)) {
+    if packed_files(eng, named).is_some_and(|project| project.borrow().packs(named))
+        || packed_document(eng, named).is_some()
+    {
         return Ok(Value::Bool(true));
     }
     let path = resolve(eng, named)?;
@@ -399,8 +411,8 @@ pub fn to_json(v: &Value) -> Result<serde_json::Value> {
             .map(serde_json::Value::Number)
             .ok_or_else(|| anyhow!("{n} has no JSON representation"))?,
         Value::Str(s) => serde_json::Value::String(s.clone()),
-        Value::Node(_) | Value::Callback(_) => {
-            return Err(anyhow!("a node or callback is not JSON data"));
+        Value::Node(_) => {
+            return Err(anyhow!("a node is not JSON data"));
         }
         // JSON has no byte string, and guessing an encoding here would make
         // the round trip lossy in a way the caller never asked for.

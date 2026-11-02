@@ -427,16 +427,19 @@ impl Gen<'_, '_> {
                 self.line(&format!("l{local_index} = {v};"));
             }
             O::GlobalGet { global_index } => {
-                let t = self.m.globals[*global_index as usize].0;
+                let (t, place) = self.m.globals[*global_index as usize];
                 let r = self.push(t);
-                let v = from_bits(t, &format!("I->g[{global_index}]"));
+                let v = from_bits(t, &place.lvalue());
                 self.line(&format!("{r} = {v};"));
             }
             O::GlobalSet { global_index } => {
-                let t = self.m.globals[*global_index as usize].0;
+                let (t, place) = self.m.globals[*global_index as usize];
+                if matches!(place, super::unit::Place::Base(_)) {
+                    return Err("a write to a unit's base".into());
+                }
                 let (v, _) = self.pop()?;
                 let bits = to_bits(t, &v);
-                self.line(&format!("I->g[{global_index}] = {bits};"));
+                self.line(&format!("{} = {bits};", place.lvalue()));
             }
             O::I32Const { value } => {
                 let r = self.push(ValType::I32);

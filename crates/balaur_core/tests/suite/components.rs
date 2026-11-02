@@ -8,31 +8,26 @@ fn app_with_marker() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     app.register_component(
         "marker",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
                 "marker",
                 r#"label = { type = "string", default = "none" }
 size = { type = "float", default = 1.0 }"#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, params| {
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Marker>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
             }),
-        },
+        ),
     );
     app
 }
@@ -424,27 +419,34 @@ fn a_bare_value_on_a_component_is_an_error() {
     assert!(err.to_string().contains(r#"{ kind = "static" }"#), "{err}");
 }
 
-/// A component declares its fast paths before it registers, which is the
-/// order every built-in writes them in. The hook has to survive that.
+/// A derived component answers one property by its index, and the answer is
+/// the whole table's.
 #[test]
-fn a_property_reader_declared_before_its_component_still_answers() {
+fn a_derived_component_answers_one_property_alone() {
     let app = app_with_marker();
     let e = spawn(&app);
     components::add(&app.engine, e, "transform", None).unwrap();
-    let readers = app
-        .engine
-        .try_resource::<components::PropertyReaders>()
-        .expect("the transform registers a reader");
     let index = components::index_of(&app.engine, "transform").unwrap();
     assert!(
-        readers.borrow().reads(index),
-        "the reader transform declared before registering was dropped"
+        components::answers_alone(&app.engine, e, index, "position"),
+        "the transform built its whole table to answer one property"
     );
     assert_eq!(
         components::property(&app.engine, e, "transform", "position"),
         components::get(&app.engine, e, "transform").and_then(|t| t.get("position").cloned()),
-        "the fast path and the whole table answer the same"
+        "the read by index and the whole table answer the same"
     );
+    components::set_property(
+        &app.engine,
+        e,
+        "transform",
+        "rotation_euler",
+        &toml::Value::Array(vec![0.0.into(), 0.0.into(), 1.0.into()]),
+    )
+    .unwrap();
+    let euler = components::property(&app.engine, e, "transform", "rotation_euler").unwrap();
+    let yaw = euler.as_array().unwrap()[2].as_float().unwrap();
+    assert!((yaw - 1.0).abs() < 1e-5, "{euler}");
 }
 
 /// A nested spec may leave its `default` out, and registration writes the
@@ -504,7 +506,6 @@ fn app_with_picky() -> App {
     app.register_component(
         "picky",
         ComponentDef {
-            events: &[],
             warnings: Some(Box::new(|eng: &Engine, entity| {
                 let size = eng
                     .world()
@@ -521,35 +522,34 @@ fn app_with_picky() -> App {
                     Vec::new()
                 }
             })),
-            doc: "",
-            schema: ComponentDef::parse_schema(
-                "picky",
-                r#"label = { type = "string", default = "none" }
+            ..ComponentDef::by_hand(
+                ComponentDef::parse_schema(
+                    "picky",
+                    r#"label = { type = "string", default = "none" }
 size = { type = "float", default = 1.0 }"#,
-            ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, params| {
-                if params
-                    .get("size")
-                    .and_then(toml::Value::as_float)
-                    .unwrap_or(0.0)
-                    < 0.0
-                {
-                    anyhow::bail!("a size below zero has nothing to draw");
-                }
-                eng.world_mut()
-                    .insert_one(entity, Marker(params.clone()))
-                    .map_err(|_| anyhow::anyhow!("dead node"))?;
-                Ok(())
-            }),
-            remove: Box::new(|eng: &Engine, entity| {
-                let _ = eng.world_mut().remove_one::<Marker>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng: &Engine, entity| {
-                eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
-            }),
+                ),
+                Box::new(|eng: &Engine, entity, params| {
+                    if params
+                        .get("size")
+                        .and_then(toml::Value::as_float)
+                        .unwrap_or(0.0)
+                        < 0.0
+                    {
+                        anyhow::bail!("a size below zero has nothing to draw");
+                    }
+                    eng.world_mut()
+                        .insert_one(entity, Marker(params.clone()))
+                        .map_err(|_| anyhow::anyhow!("dead node"))?;
+                    Ok(())
+                }),
+                Box::new(|eng: &Engine, entity| {
+                    let _ = eng.world_mut().remove_one::<Marker>(entity);
+                    Ok(())
+                }),
+                Box::new(|eng: &Engine, entity| {
+                    eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
+                }),
+            )
         },
     );
     app

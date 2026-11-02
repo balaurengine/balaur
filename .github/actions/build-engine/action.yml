@@ -161,13 +161,14 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        rustup toolchain install nightly --profile minimal
+        . scripts/features.sh
+        rustup toolchain install "$WEB_THREADS_TOOLCHAIN" --profile minimal
         # A separate `component add`. Asking for rust-src during `toolchain
         # install` can report success and leave the component missing, and the
         # build then fails deep in `-Z build-std` with a missing Cargo.lock.
-        rustup component add rust-src --toolchain nightly
-        rustup target add wasm32-unknown-unknown --toolchain nightly
-        test -f "$(rustc +nightly --print sysroot)/lib/rustlib/src/rust/library/Cargo.lock"
+        rustup component add rust-src --toolchain "$WEB_THREADS_TOOLCHAIN"
+        rustup target add wasm32-unknown-unknown --toolchain "$WEB_THREADS_TOOLCHAIN"
+        test -f "$(rustc "+$WEB_THREADS_TOOLCHAIN" --print sysroot)/lib/rustlib/src/rust/library/Cargo.lock"
 
     - shell: bash
       env:

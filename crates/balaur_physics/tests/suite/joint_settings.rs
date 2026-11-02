@@ -13,7 +13,7 @@ use crate::LOG;
 
 fn app() -> App {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -41,6 +41,23 @@ fn add(app: &App, e: Entity, component: &str, text: &str) -> anyhow::Result<()> 
     )
 }
 
+/// Add a `joint3d` from `text`, a scene node's rows: a table in it is a
+/// component beside the joint, added first as a scene adds it.
+fn add_joint(app: &App, e: Entity, text: &str) -> anyhow::Result<()> {
+    let mut rows: toml::Value = toml::from_str(text).unwrap();
+    let table = rows.as_table_mut().unwrap();
+    let beside: Vec<String> = table
+        .iter()
+        .filter(|(_, value)| value.is_table())
+        .map(|(name, _)| name.clone())
+        .collect();
+    for name in beside {
+        let held = table.remove(&name).unwrap();
+        components::add(&app.engine, e, &name, Some(&held))?;
+    }
+    components::add(&app.engine, e, "joint3d", Some(&rows))
+}
+
 fn tick(app: &mut App, steps: u32) {
     for _ in 0..steps {
         app.tick(1.0 / 60.0);
@@ -52,15 +69,27 @@ fn tick(app: &mut App, steps: u32) {
 fn hanging(app: &App, at: [f32; 3], joint: &str) -> Entity {
     let anchor = node(app, "Anchor", [0.0; 3]);
     add(app, anchor, "body3d", "kind = \"static\"").unwrap();
-    add(app, anchor, "collider3d", "kind = \"sphere\"\nradius = 0.1").unwrap();
+    add(
+        app,
+        anchor,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
+    )
+    .unwrap();
     let ball = node(app, "Ball", at);
     add(app, ball, "body3d", "kind = \"dynamic\"\nmass = 2.0").unwrap();
-    add(app, ball, "collider3d", "kind = \"sphere\"\nradius = 0.1").unwrap();
+    add(
+        app,
+        ball,
+        "collider3d",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
+    )
+    .unwrap();
     let table = format!(
         "connected_body = \"/Anchor\"\nanchor = [{}, {}, {}]\n{joint}",
         -at[0], -at[1], -at[2]
     );
-    add(app, ball, "joint3d", &table).unwrap();
+    add_joint(app, ball, &table).unwrap();
     ball
 }
 
@@ -119,12 +148,10 @@ fn a_soft_joint_gives_where_a_stiff_one_holds() {
 
 #[test]
 fn coupled_axes_limit_one_distance() {
-    let free = "kind = \"generic\"\nlock_rotation = [\"x\", \"y\", \"z\"]";
-    let rope = format!(
-        "{free}\ncoupled_translation = [\"x\", \"y\", \"z\"]\naxes = [{{ axis = \"x\", limits = [0.0, 1.0] }}]"
-    );
+    let free = "kind = \"generic\"\n[generic_joint3d]\nlock_rotation = [\"x\", \"y\", \"z\"]";
+    let rope = "kind = \"generic\"\naxes = [{ axis = \"x\", limits = [0.0, 1.0] }]\n[generic_joint3d]\nlock_rotation = [\"x\", \"y\", \"z\"]\ncoupled_translation = [\"x\", \"y\", \"z\"]";
     let mut app = app();
-    let ball = hanging(&app, [0.5, 0.0, 0.0], &rope);
+    let ball = hanging(&app, [0.5, 0.0, 0.0], rope);
     tick(&mut app, 120);
     // The ball's anchor is half a unit to its left, where the anchor body is.
     let anchor = pose(&app, ball).position - glamx::Vec3::new(0.5, 0.0, 0.0);
@@ -169,14 +196,15 @@ fn switching_a_joint_off_keeps_it_and_switching_it_back_on_holds_again() {
     );
 }
 
-/// A ball hung level on an articulated hinge about z, given `extra`, after
-/// half a second: as long as a free swing takes to reach the bottom.
-fn articulated(extra: &str) -> (App, Entity) {
+/// A ball hung level on an articulated hinge about z, given `joint` rows
+/// and `articulation` ones, after half a second: as long as a free swing takes
+/// to reach the bottom.
+fn articulated(joint: &str, articulation: &str) -> (App, Entity) {
     let mut app = app();
     let ball = hanging(
         &app,
         [1.0, 0.0, 0.0],
-        &format!("kind = \"hinge\"\narticulation = true\n{extra}"),
+        &format!("kind = \"hinge\"\n{joint}\n[articulation3d]\n{articulation}"),
     );
     tick(&mut app, 30);
     (app, ball)
@@ -184,10 +212,10 @@ fn articulated(extra: &str) -> (App, Entity) {
 
 #[test]
 fn a_kinematic_link_holds_its_pose_against_gravity() {
-    let (app, ball) = articulated("kinematic_link = true");
+    let (app, ball) = articulated("", "kinematic_link = true");
     let y = pose(&app, ball).position.y;
     assert!(y.abs() < 0.01, "the kinematic link fell to {y}");
-    let (app, ball) = articulated("");
+    let (app, ball) = articulated("", "");
     assert!(
         pose(&app, ball).position.y < -0.5,
         "the ordinary link never swung"
@@ -196,10 +224,13 @@ fn a_kinematic_link_holds_its_pose_against_gravity() {
 
 #[test]
 fn joint_friction_and_a_passive_spring_hold_a_link_up() {
-    let (app, ball) = articulated("axes = [{ axis = \"rotation_x\", friction = 1000.0 }]");
+    let (app, ball) = articulated(
+        "axes = [{ axis = \"rotation_x\" }]",
+        "link_axes = [{ axis = \"rotation_x\", friction = 1000.0 }]",
+    );
     let y = pose(&app, ball).position.y;
     assert!(y > -0.05, "dry friction let the link fall to {y}");
-    let (app, ball) = articulated("passive_stiffness = 5000.0");
+    let (app, ball) = articulated("", "passive_stiffness = 5000.0");
     let y = pose(&app, ball).position.y;
     assert!(y > -0.1, "the passive spring let the link fall to {y}");
 }
@@ -207,11 +238,12 @@ fn joint_friction_and_a_passive_spring_hold_a_link_up() {
 #[test]
 fn an_articulation_reads_back_what_its_chain_holds() {
     let (app, ball) = articulated(
-        "axes = [{ axis = \"rotation_x\", link_damping = 0.5, armature = 0.25 }]\npassive_stiffness = 2.0\npassive_rest = 0.3",
+        "axes = [{ axis = \"rotation_x\" }]",
+        "passive_stiffness = 2.0\npassive_rest = 0.3\nlink_axes = [{ axis = \"rotation_x\", link_damping = 0.5, armature = 0.25 }]",
     );
-    let table = components::get(&app.engine, ball, "joint3d").unwrap();
-    let number = |key: &str| table.get(key).and_then(toml::Value::as_float).unwrap();
-    let record = &table["axes"][0];
+    let chain = components::get(&app.engine, ball, "articulation3d").unwrap();
+    let number = |key: &str| chain.get(key).and_then(toml::Value::as_float).unwrap();
+    let record = &chain["link_axes"][0];
     let field = |key: &str| record.get(key).and_then(toml::Value::as_float).unwrap();
     assert!((field("link_damping") - 0.5).abs() < 1e-6);
     assert!((field("armature") - 0.25).abs() < 1e-6);
@@ -219,31 +251,40 @@ fn an_articulation_reads_back_what_its_chain_holds() {
     assert!((number("passive_rest") - 0.3).abs() < 1e-6);
 }
 
-/// The damping each axis of an articulated link takes when its record names
-/// none: rapier's own, which damps a turn and leaves a slide free.
-fn link_damping_left_to_rapier(joint: &str) -> f64 {
+/// The damping an articulated link's first free axis runs with when its
+/// record names none: rapier's own, which damps a turn and leaves a slide
+/// free.
+fn link_damping_left_to_rapier(joint: &str, links: &str) -> f64 {
     let mut app = app();
     let ball = hanging(
         &app,
         [1.0, 0.0, 0.0],
-        &format!("articulation = true\n{joint}"),
+        &format!("{joint}\n[articulation3d]\n{links}"),
     );
     tick(&mut app, 1);
-    let table = components::get(&app.engine, ball, "joint3d").unwrap();
-    table["axes"][0]["link_damping"].as_float().unwrap()
+    let state = app.engine.resource::<PhysicsState3d>();
+    let state = state.borrow();
+    let balaur_physics::joint::JointHandle3d::Multibody(handle) = state.joints[&ball].handle else {
+        panic!("the joint is not an articulation");
+    };
+    let (chain, link) = state.world.multibody_joints.get(handle).unwrap();
+    let first = chain.link(link).unwrap().assembly_id();
+    f64::from(chain.damping()[first])
 }
 
 #[test]
 fn an_articulated_slide_is_undamped_and_a_turn_is_damped_unless_a_record_says() {
-    let slide = link_damping_left_to_rapier("kind = \"slider\"\naxes = [{ axis = \"x\" }]");
+    let slide = link_damping_left_to_rapier("kind = \"slider\"\naxes = [{ axis = \"x\" }]", "");
     assert!(slide.abs() < 1e-6, "a linear axis took damping {slide}");
-    let turn = link_damping_left_to_rapier("kind = \"hinge\"\naxes = [{ axis = \"rotation_x\" }]");
+    let turn =
+        link_damping_left_to_rapier("kind = \"hinge\"\naxes = [{ axis = \"rotation_x\" }]", "");
     assert!(
         (turn - 0.1).abs() < 1e-6,
         "a rotation axis took damping {turn}"
     );
     let named = link_damping_left_to_rapier(
-        "kind = \"slider\"\naxes = [{ axis = \"x\", link_damping = 0.4 }]",
+        "kind = \"slider\"\naxes = [{ axis = \"x\" }]",
+        "link_axes = [{ axis = \"x\", link_damping = 0.4 }]",
     );
     assert!(
         (named - 0.4).abs() < 1e-6,
@@ -305,14 +346,14 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
 connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0, 0.0]
-articulation = true
+
+[nodes.articulation3d]
 
 [[nodes]]
 id = "n_impulse"
@@ -324,8 +365,7 @@ body3d = { kind = "dynamic", mass = 1.0 }
 position = [0.0, 0.0, 3.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
@@ -345,17 +385,17 @@ impl Scenario {
         self.ticks += 1;
         if self.ticks == 20 {
             let swing = self.node.joint3d.joint_state();
-            let status = swing.get("status").as_str();
+            let status = swing["status"].as_str();
             if status != physics3d::JOINT_ENABLED { log::error("status {status}"); }
-            let angle = swing.get("angle").as_float();
-            let coordinate = swing.get("coordinates").get("rotation_x").as_float();
+            let angle = swing["angle"].as_float();
+            let coordinate = swing["coordinates"]["rotation_x"].as_float();
             if math::abs(angle) <= 0.1 { log::error("the pendulum never swung: {angle}"); }
             if math::abs(angle - coordinate) >= 0.02 { log::error("angle {angle} against coordinate {coordinate}"); }
-            if math::abs(swing.get("velocities").get("rotation_x").as_float()) <= 0.1 { log::error("no joint velocity"); }
+            if math::abs(swing["velocities"]["rotation_x"].as_float()) <= 0.1 { log::error("no joint velocity"); }
             let held = scene::get_node("World/Impulse").joint3d.joint_state();
-            let held_angle = held.get("angle").as_float();
+            let held_angle = held["angle"].as_float();
             if math::abs(held_angle) >= 0.35 { log::error("the limit did not hold: {held_angle}"); }
-            if math::abs(held.get("limit_impulses").get("rotation_x").as_float()) <= 0.0 { log::error("the limit carried no impulse"); }
+            if math::abs(held["limit_impulses"]["rotation_x"].as_float()) <= 0.0 { log::error("the limit carried no impulse"); }
             log::error("checked: joint state");
         }
     }
@@ -387,14 +427,14 @@ script = { source = "scripts/scenario.bs" }
 position = [1.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
 connected_body = "/World/Anchor"
 anchor = [-1.0, 0.0, 0.0]
-articulation = true
+
+[nodes.articulation3d]
 
 [[nodes]]
 id = "n_lower"
@@ -406,14 +446,14 @@ body3d = { kind = "dynamic", mass = 1.0 }
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [nodes.joint3d]
 kind = "hinge"
 connected_body = "/World/Upper"
 anchor = [-1.0, 0.0, 0.0]
-articulation = true
+
+[nodes.articulation3d]
 gear_with = "/World/Upper"
 gear_ratio = -1.0
 gear_offset = 0.2
@@ -428,8 +468,8 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
-            let upper = self.node.joint3d.joint_state().get("coordinates").get("rotation_x").as_float();
-            let lower = scene::get_node("World/Lower").joint3d.joint_state().get("coordinates").get("rotation_x").as_float();
+            let upper = self.node.joint3d.joint_state()["coordinates"]["rotation_x"].as_float();
+            let lower = scene::get_node("World/Lower").joint3d.joint_state()["coordinates"]["rotation_x"].as_float();
             if math::abs(upper) <= 0.1 { log::error("the chain never swung: {upper}"); }
             if math::abs(lower - (0.2 - upper)) >= 0.05 { log::error("upper {upper} lower {lower}"); }
             log::error("checked: geared");
@@ -449,7 +489,13 @@ fn a_2d_joint_reads_its_softness_back_and_turns_its_frame() {
     add(&app, anchor, "body2d", "kind = \"static\"").unwrap();
     let ball = node(&app, "Ball", [1.0, 0.0, 0.0]);
     add(&app, ball, "body2d", "kind = \"dynamic\"").unwrap();
-    add(&app, ball, "collider2d", "kind = \"circle\"\nradius = 0.1").unwrap();
+    add(
+        &app,
+        ball,
+        "collider2d",
+        "shape = { kind = \"circle\", radius = 0.1 }",
+    )
+    .unwrap();
     add(
         &app,
         ball,

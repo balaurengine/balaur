@@ -8,10 +8,10 @@ use balaur_core::{App, AppConfig};
 use balaur_physics::{
     AXES, AXES_2D, BODY_KINDS, CELL_MODELS, COLLISION_PAIRS, COMBINE_RULES, CONSTANTS_2D,
     CONSTANTS_3D, DECOMPOSITION_METHODS, DECOMPOSITION_METHODS_2D, EDGE_MODES, EDGE_MODES_2D,
-    EVENTS, FILL_MODES, FIT_MODES, FIT_MODES_2D, IGNORES, JOINT_KINDS, JOINT_KINDS_2D,
-    LENGTH_MODES, MOTOR_MODELS, MOTOR_MODES, ORIENTATIONS, PLASTIC_FLOWS, PhysicsPlugin,
-    ROTATION_AXES, ROTATION_AXES_2D, SHAPE_KINDS, SHAPE_KINDS_2D, SHAPE_MATCHING_MODES, SOFT_KINDS,
-    SOFT_KINDS_2D, SOFT_SOLVERS, TENSION_MODES, TEST_MODES, TILE_FIT_MODES_2D,
+    FILL_MODES, FIT_MODES, FIT_MODES_2D, IGNORES, JOINT_KINDS, JOINT_KINDS_2D, LENGTH_MODES,
+    MOTOR_MODELS, MOTOR_MODES, ORIENTATIONS, PLASTIC_FLOWS, PhysicsPlugin, ROTATION_AXES,
+    ROTATION_AXES_2D, SHAPE_KINDS, SHAPE_KINDS_2D, SHAPE_MATCHING_MODES, SOFT_KINDS, SOFT_KINDS_2D,
+    SOFT_SOLVERS, TENSION_MODES, TEST_MODES, TILE_FIT_MODES_2D,
 };
 
 /// The enum or flags options a registered component, or a record asset,
@@ -19,7 +19,7 @@ use balaur_physics::{
 /// `axes.motor`.
 fn registered_options(component: &str, field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let schema = registry
         .borrow()
@@ -29,11 +29,25 @@ fn registered_options(component: &str, field: &str) -> Vec<String> {
         .unwrap_or_else(|| panic!("`{component}` is registered"));
     let mut path = field.split('.');
     let first = schema.get(path.next().unwrap_or_default());
+    // Into a list's or a record's fields, or a variant's records.
     let spec = path.fold(first, |spec, name| {
-        spec.and_then(|s| s.get("of"))
-            .and_then(|of| of.get("fields"))
-            .and_then(|fields| fields.get(name))
+        let spec = spec?;
+        spec.get("variants")
+            .and_then(|variants| variants.get(name))
+            .or_else(|| spec.get("fields").and_then(|fields| fields.get(name)))
+            .or_else(|| {
+                spec.get("of")
+                    .and_then(|of| of.get("fields"))
+                    .and_then(|fields| fields.get(name))
+            })
     });
+    // A variant's options are its kinds.
+    if let Some(variants) = spec
+        .and_then(|f| f.get("variants"))
+        .and_then(toml::Value::as_table)
+    {
+        return variants.keys().cloned().collect();
+    }
     spec.and_then(|f| f.get("options"))
         .and_then(toml::Value::as_array)
         .unwrap_or_else(|| panic!("`{component}.{field}` declares options"))
@@ -51,96 +65,113 @@ type TableCase = (
     &'static str,
 );
 
+/// Every constant table, beside the property whose options it lists.
+const TABLES: &[TableCase] = &[
+    ("BODY_KINDS", BODY_KINDS, "body3d", "kind"),
+    ("BODY_KINDS", BODY_KINDS, "body2d", "kind"),
+    ("SHAPE_KINDS", SHAPE_KINDS, "collider3d", "shape"),
+    ("SHAPE_KINDS_2D", SHAPE_KINDS_2D, "collider2d", "shape"),
+    ("JOINT_KINDS", JOINT_KINDS, "joint3d", "kind"),
+    ("JOINT_KINDS_2D", JOINT_KINDS_2D, "joint2d", "kind"),
+    (
+        "COMBINE_RULES",
+        COMBINE_RULES,
+        "physics_material",
+        "friction_combine",
+    ),
+    (
+        "COMBINE_RULES",
+        COMBINE_RULES,
+        "physics_material",
+        "restitution_combine",
+    ),
+    ("MOTOR_MODES", MOTOR_MODES, "joint3d", "axes.motor"),
+    ("MOTOR_MODES", MOTOR_MODES, "joint2d", "axes.motor"),
+    ("MOTOR_MODELS", MOTOR_MODELS, "joint3d", "axes.motor_model"),
+    ("ORIENTATIONS", ORIENTATIONS, "softbody3d", "orientation"),
+    ("ORIENTATIONS", ORIENTATIONS, "softbody2d", "orientation"),
+    (
+        "SHAPE_MATCHING_MODES",
+        SHAPE_MATCHING_MODES,
+        "soft_material",
+        "shape_matching",
+    ),
+    ("TENSION_MODES", TENSION_MODES, "softbody3d", "tension_only"),
+    ("TENSION_MODES", TENSION_MODES, "softbody2d", "tension_only"),
+    ("IGNORES", IGNORES, "character3d", "ignore"),
+    ("IGNORES", IGNORES, "character2d", "ignore"),
+    ("IGNORES", IGNORES, "vehicle3d", "ignore"),
+    ("LENGTH_MODES", LENGTH_MODES, "character3d", "lengths"),
+    ("LENGTH_MODES", LENGTH_MODES, "character2d", "lengths"),
+    ("FILL_MODES", FILL_MODES, "mesh_collider3d", "fill"),
+    ("FILL_MODES", FILL_MODES, "mesh_collider2d", "fill"),
+    ("FIT_MODES", FIT_MODES, "collider3d", "shape.fit.fit"),
+    ("FIT_MODES", FIT_MODES, "tile_shapes", "fit"),
+    ("FIT_MODES_2D", FIT_MODES_2D, "collider2d", "shape.fit.fit"),
+    (
+        "DECOMPOSITION_METHODS",
+        DECOMPOSITION_METHODS,
+        "convex_decomposition3d",
+        "method",
+    ),
+    (
+        "DECOMPOSITION_METHODS_2D",
+        DECOMPOSITION_METHODS_2D,
+        "convex_decomposition2d",
+        "method",
+    ),
+    ("TEST_MODES", TEST_MODES, "collider3d", "collision_test"),
+    ("TEST_MODES", TEST_MODES, "collider2d", "solver_test"),
+    (
+        "EDGE_MODES",
+        EDGE_MODES,
+        "collider3d",
+        "shape.polyline.edges",
+    ),
+    (
+        "EDGE_MODES_2D",
+        EDGE_MODES_2D,
+        "collider2d",
+        "shape.polyline.edges",
+    ),
+    ("AXES", AXES, "collider3d", "shape.capsule.up_axis"),
+    ("AXES_2D", AXES_2D, "collider2d", "shape.capsule.up_axis"),
+    (
+        "COLLISION_PAIRS",
+        COLLISION_PAIRS,
+        "collider2d",
+        "contact_pairs",
+    ),
+    ("AXES", AXES, "generic_joint3d", "lock_rotation"),
+    ("AXES_2D", AXES_2D, "generic_joint2d", "lock_translation"),
+    ("SOFT_KINDS", SOFT_KINDS, "softbody3d", "kind"),
+    ("SOFT_KINDS_2D", SOFT_KINDS_2D, "softbody2d", "kind"),
+    ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody3d", "solver"),
+    ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody2d", "solver"),
+    ("CELL_MODELS", CELL_MODELS, "soft_material", "cell_model"),
+    (
+        "PLASTIC_FLOWS",
+        PLASTIC_FLOWS,
+        "soft_material",
+        "edge_plastic_flow",
+    ),
+];
+
 /// Read from the live registry, not from a copy of the schema literal: the
 /// point is to catch the two drifting apart.
 #[test]
 fn every_constant_table_matches_the_registered_schema() {
-    let tables: &[TableCase] = &[
-        ("BODY_KINDS", BODY_KINDS, "body3d", "kind"),
-        ("BODY_KINDS", BODY_KINDS, "body2d", "kind"),
-        ("SHAPE_KINDS", SHAPE_KINDS, "collider3d", "kind"),
-        ("SHAPE_KINDS_2D", SHAPE_KINDS_2D, "collider2d", "kind"),
-        ("JOINT_KINDS", JOINT_KINDS, "joint3d", "kind"),
-        ("JOINT_KINDS_2D", JOINT_KINDS_2D, "joint2d", "kind"),
-        (
-            "COMBINE_RULES",
-            COMBINE_RULES,
-            "physics_material",
-            "friction_combine",
-        ),
-        (
-            "COMBINE_RULES",
-            COMBINE_RULES,
-            "physics_material",
-            "restitution_combine",
-        ),
-        ("MOTOR_MODES", MOTOR_MODES, "joint3d", "axes.motor"),
-        ("MOTOR_MODES", MOTOR_MODES, "joint2d", "axes.motor"),
-        ("MOTOR_MODELS", MOTOR_MODELS, "joint3d", "axes.motor_model"),
-        ("ORIENTATIONS", ORIENTATIONS, "softbody3d", "orientation"),
-        ("ORIENTATIONS", ORIENTATIONS, "softbody2d", "orientation"),
-        (
-            "SHAPE_MATCHING_MODES",
-            SHAPE_MATCHING_MODES,
-            "soft_material",
-            "shape_matching",
-        ),
-        ("TENSION_MODES", TENSION_MODES, "softbody3d", "tension_only"),
-        ("TENSION_MODES", TENSION_MODES, "softbody2d", "tension_only"),
-        ("IGNORES", IGNORES, "character3d", "ignore"),
-        ("IGNORES", IGNORES, "character2d", "ignore"),
-        ("IGNORES", IGNORES, "vehicle3d", "ignore"),
-        ("LENGTH_MODES", LENGTH_MODES, "character3d", "lengths"),
-        ("LENGTH_MODES", LENGTH_MODES, "character2d", "lengths"),
-        ("FILL_MODES", FILL_MODES, "collider3d", "fill"),
-        ("FILL_MODES", FILL_MODES, "collider2d", "fill"),
-        ("FIT_MODES", FIT_MODES, "collider3d", "fit"),
-        ("FIT_MODES", FIT_MODES, "tile_collision", "fit"),
-        ("FIT_MODES_2D", FIT_MODES_2D, "collider2d", "fit"),
-        (
-            "DECOMPOSITION_METHODS",
-            DECOMPOSITION_METHODS,
-            "collider3d",
-            "method",
-        ),
-        (
-            "DECOMPOSITION_METHODS_2D",
-            DECOMPOSITION_METHODS_2D,
-            "collider2d",
-            "method",
-        ),
-        ("TEST_MODES", TEST_MODES, "collider3d", "collision_test"),
-        ("TEST_MODES", TEST_MODES, "collider2d", "solver_test"),
-        ("EDGE_MODES", EDGE_MODES, "collider3d", "edges"),
-        ("EDGE_MODES_2D", EDGE_MODES_2D, "collider2d", "edges"),
-        ("AXES", AXES, "collider3d", "up_axis"),
-        ("AXES_2D", AXES_2D, "collider2d", "up_axis"),
-        ("EVENTS", EVENTS, "collider3d", "events"),
-        (
-            "COLLISION_PAIRS",
-            COLLISION_PAIRS,
-            "collider2d",
-            "contact_pairs",
-        ),
-        ("AXES", AXES, "joint3d", "lock_rotation"),
-        ("AXES_2D", AXES_2D, "joint2d", "lock_translation"),
-        ("SOFT_KINDS", SOFT_KINDS, "softbody3d", "kind"),
-        ("SOFT_KINDS_2D", SOFT_KINDS_2D, "softbody2d", "kind"),
-        ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody3d", "solver"),
-        ("SOFT_SOLVERS", SOFT_SOLVERS, "softbody2d", "solver"),
-        ("CELL_MODELS", CELL_MODELS, "soft_material", "cell_model"),
-        (
-            "PLASTIC_FLOWS",
-            PLASTIC_FLOWS,
-            "soft_material",
-            "edge_plastic_flow",
-        ),
-    ];
+    let tables = TABLES;
     for (table_name, table, component, field) in tables {
-        let declared: Vec<&str> = table.iter().map(|(_, v)| *v).collect();
+        let mut declared: Vec<&str> = table.iter().map(|(_, v)| *v).collect();
+        let mut registered = registered_options(component, field);
+        // A variant's kinds are a table, which keeps no order of its own.
+        if field.starts_with("shape") && !field.contains('.') {
+            declared.sort_unstable();
+            registered.sort_unstable();
+        }
         assert_eq!(
-            declared,
-            registered_options(component, field),
+            declared, registered,
             "{table_name} and the `{component}.{field}` options disagree"
         );
     }
@@ -168,7 +199,7 @@ fn the_2d_fit_constants_spell_every_tile_fit() {
         .chain(TILE_FIT_MODES_2D)
         .map(|(_, v)| *v)
         .collect();
-    assert_eq!(declared, registered_options("tile_collision", "fit"));
+    assert_eq!(declared, registered_options("tile_shapes", "fit"));
 }
 
 #[test]
@@ -236,7 +267,7 @@ fn offered_words(dimension: &str) -> Vec<(String, std::collections::BTreeSet<Str
         }
     }
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     let mut out = Vec::new();

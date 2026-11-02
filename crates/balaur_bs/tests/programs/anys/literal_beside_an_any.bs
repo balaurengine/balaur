@@ -1,0 +1,15 @@
+// A map literal with no type of its own takes the type of what stands beside
+// it: the other branch of an `if`, the other elements of a list.
+
+fn found(on: bool) -> any { if on { { "found": true } } else { nil } }
+
+pub fn beside() -> str {
+    let held: any = { "tiles": 3 };
+    let tiles = if held["tiles"] == nil { {} } else { held };
+    let counts: {str: int} = { "a": 1 };
+    let either = if tiles.len() > 0 { counts } else { { "b": 2 } };
+    let rows = [found(true), { "kind": "label" }, found(false)];
+    "{tiles} {either.len()} {rows}"
+}
+
+// expect: beside() == "{\"tiles\": 3} 1 [{\"found\": true}, {\"kind\": \"label\"}, nil]"

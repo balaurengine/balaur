@@ -10,10 +10,10 @@ use std::cmp::Ordering;
 
 use anyhow::Result;
 use balaur::{Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
-use crate::jobs::{Reported, Reporting, install_listen, pump};
+use crate::jobs::{Reported, Reporting, pump};
 use crate::update::{Release, Step};
 
 /// A download reports again once this many more bytes have arrived: often
@@ -99,6 +99,8 @@ fn bytes(n: u64) -> Value {
 }
 
 impl Reported for ReleaseEvent {
+    const EVENT: &'static str = "release_event";
+
     fn value(&self) -> Value {
         let (kind, mut pairs): (&str, Vec<(String, Value)>) = match self {
             Self::Listed { rows } => (
@@ -151,19 +153,26 @@ pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(ReleaseState(Reporting::new(std::path::PathBuf::new())));
     reg.add_system(Stage::First, pump::<ReleaseState, ReleaseEvent>);
     let mut m = reg.script_module("release")?;
-    install_release_api(&mut *m);
+    install_release_api(&mut m);
     Ok(())
 }
 
-fn install_release_api(m: &mut dyn Bindings<Engine>) {
+fn install_release_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Which build of the engine this is, what the channels are publishing, and replacing this install with another. The editor's Engine tab and About sheet; `balaur update` is the same code.",
     );
-    m.records(&[(
-        "Build",
-        "{ version: string, id: string, channel: string, tag: string, source: bool, held: string }",
-        "The build of the engine that is running.",
-    )]);
+    m.records(&[
+        (
+            "Build",
+            "{ version: string, id: string, channel: string, tag: string, source: bool, held: string }",
+            "The build of the engine that is running.",
+        ),
+        (
+            "InstallOptions",
+            "{ allow_downgrade: bool? }",
+            "Whether `install` may put an older build over a newer one.",
+        ),
+    ]);
     m.describe(&[
         (
             "installed",
@@ -181,19 +190,13 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
             "check",
             &[],
             "",
-            "Read the release feed on a thread. `listen` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the zipped app a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
+            "Read the release feed on a thread. `release_event` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the zipped app a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
         ),
         (
             "install",
             &[],
-            "(channel: string, tag: string, options: map?) -> bool",
-            "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `listen` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
-        ),
-        (
-            "listen",
-            &[],
-            "(node: node, opts: map?)",
-            "Call a method on `node` with every report a check or an install makes: `on_release_event` unless `opts.on_event` names another.",
+            "(channel: string, tag: string, options: InstallOptions?) -> bool",
+            "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `release_event` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
         ),
     ]);
     m.function("installed", |_: &Engine, ()| {
@@ -242,7 +245,6 @@ fn install_release_api(m: &mut dyn Bindings<Engine>) {
             Ok(install(eng, tag, channel, allow_downgrade))
         },
     );
-    install_listen::<ReleaseState, ReleaseEvent>(m, "on_release_event");
 }
 
 /// Read the feed on a thread, unless a recording is playing.

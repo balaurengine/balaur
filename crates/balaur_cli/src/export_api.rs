@@ -16,10 +16,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 use balaur::{Engine, Stage};
 use balaur_core::handler::opt;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
-use crate::export_shared::{ExportCore, ExportEvent, LISTEN_DOC, PREVIEW_DOC};
-use crate::jobs::{install_listen, pump};
+use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
+use crate::jobs::pump;
 
 /// The project being edited plus what only a desktop install has: the
 /// per-user runtime cache the roots are read from.
@@ -40,23 +40,19 @@ impl ExportState {
 /// The editor's export verb, registered by the CLI after the editor's app is
 /// built: the library is the CLI's dependency, not the engine's.
 pub(crate) struct ExportPlugin {
-    manifest: balaur_plugin::Manifest,
     project: PathBuf,
 }
 
 impl ExportPlugin {
     #[must_use]
     pub(crate) fn new(project: PathBuf) -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("export", env!("CARGO_PKG_VERSION")),
-            project,
-        }
+        Self { project }
     }
 }
 
 impl balaur_plugin::Plugin for ExportPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "export"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -66,14 +62,14 @@ impl balaur_plugin::Plugin for ExportPlugin {
         reg.insert_resource(ExportState(ExportCore::new(self.project.clone())));
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
         let mut m = reg.script_module("export")?;
-        install_export_api(&mut *m);
+        install_export_api(&mut m);
         Ok(())
     }
 }
 
-fn install_export_api(m: &mut dyn Bindings<Engine>) {
+fn install_export_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports to `on_export_event`.",
+        "Exports the project being edited. `targets` lists what this install can build; `start` runs one off the frame and reports as the `export_event` event: `events::listen(node, \"export_event\")`, heard as `on_export_event`, as each export starts, finishes or fails.",
     );
     m.records(&[
         (
@@ -86,11 +82,15 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
             "{ source: string, before: int, after: int, width: int, height: int, drawn_width: int, drawn_height: int, gpu_bytes: int }",
             "What one file becomes in a target's pack.",
         ),
+        (
+            "StartOptions",
+            "{ download: bool?, sign: string?, output: string? }",
+            "How `start` exports: `download` fetches a missing template, `sign` names an identity, `output` overrides where it lands.",
+        ),
     ]);
     m.describe(&[
         ("targets", &[], "() -> [Target]", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
-        ("listen", &[], "(node: node, options: map)", LISTEN_DOC),
-        ("start", &[], "(target: string, options: map) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
+        ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
         ("output", &[], "(target: string) -> string", "Where an export for this target will be written, as the project's `[export] output` decides."),
         ("running_count", &[], "() -> int", "How many exports are in flight."),
         ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
@@ -99,7 +99,6 @@ fn install_export_api(m: &mut dyn Bindings<Engine>) {
         let project = eng.resource::<ExportState>().borrow().0.project.clone();
         Ok(targets(&project))
     });
-    install_listen::<ExportState, ExportEvent>(m, "on_export_event");
     m.function(
         "start",
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
@@ -137,11 +136,12 @@ static RUNNING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize:
 /// What the sheet draws one row from.
 fn targets(project: &std::path::Path) -> Value {
     let roots = ExportState::roots();
+    let smallest = balaur_export::SmallestRuntime::default();
     let rows = balaur_export::TARGETS
         .iter()
         .map(|name| {
-            let runtime =
-                balaur_export::runtime_of(project, name).unwrap_or_else(|_| (*name).to_string());
+            let runtime = balaur_export::runtime_on_hand(project, name, &smallest, &roots)
+                .unwrap_or_else(|_| (*name).to_string());
             let installed = balaur_export::runtime_installed(&runtime, &roots);
             Value::Map(vec![
                 ("name".into(), Value::Str((*name).into())),

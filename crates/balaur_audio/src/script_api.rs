@@ -4,13 +4,15 @@
 use anyhow::{Result, anyhow};
 use balaur_core::glamx::Vec3;
 use balaur_core::{Engine, entity_of};
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
-use crate::bus::{self, Buses};
+use crate::bus::{self, Buses, Effects, Limiter};
 use crate::cue;
 use crate::spatial::Emitter;
 use crate::vocabulary::keys as k;
-use crate::{AudioState, Playback, play_on, read_sound, seek_on, skip_on, stop_on};
+use crate::{
+    AudioState, Playback, play_on, publish_playback_times, read_sound, seek_on, skip_on, stop_on,
+};
 
 /// One key out of a script options table, or `None` if the table, the key or
 /// its type is missing. A typo in an options table should not stop the frame.
@@ -65,7 +67,7 @@ const fn handle_of(raw: i64) -> u64 {
 }
 
 /// `audio.*`. Declared against the neutral seam, so it works on any backend.
-pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
     );
@@ -90,6 +92,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
         eng.resource::<AudioState>()
             .borrow_mut()
             .release(handle_of(handle));
+        publish_playback_times(eng);
         Ok(())
     });
     m.function(
@@ -129,6 +132,7 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("stop_all", |eng: &Engine, ()| {
         eng.resource::<AudioState>().borrow_mut().stop_all();
+        publish_playback_times(eng);
         Ok(())
     });
     m.function("play", |eng: &Engine, node: NodeId| {
@@ -160,14 +164,15 @@ pub(crate) fn install_audio_api(m: &mut dyn Bindings<Engine>) {
 ///
 /// Its own group because the rest of `audio` is about one playback at a time
 /// and this is about all of them at once.
-fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
+fn install_mixing_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("buses", &[], "() -> [string]", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
         ("bus_volume_linear", &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
         ("set_bus_volume_linear", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
         ("bus_limit", &[], "", "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none."),
+        ("bus_effects", &[], "", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes: `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q`, `distortion_gain`, `distortion_threshold`, `reverb_time`, `reverb_level`, `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max` and `auto_gain_floor`. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
         ("cues", &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
-        ("play_cue", &[], "(name: string, options: map) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
+        ("play_cue", &[], "(name: string, options: CueOptions?) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
     m.function("cues", |eng: &Engine, ()| {
         cue::ensure_loaded(eng);
@@ -176,6 +181,11 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     });
     // The script says *what happened*; the cues file says what that sounds
     // like. Tuning one never touches the other.
+    m.records(&[(
+        "CueOptions",
+        "{ position: any }",
+        "Where `play_cue` places a sound, a `Vec3` or a `Vec2`, heard from the `listener`; unplaced when left out.",
+    )]);
     m.function(
         "play_cue",
         |eng: &Engine, (name, opts): (String, Option<Value>)| {
@@ -226,23 +236,13 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     });
     m.function("bus_limit", |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
-        let Some(limit) = eng.resource::<bus::Buses>().borrow().limit(&name) else {
-            return Ok(Value::Nil);
-        };
-        let number = |value: f32| Value::Num(f64::from(value));
-        Ok(Value::Map(vec![
-            (k::LIMIT.to_string(), Value::Bool(true)),
-            (
-                k::LIMIT_THRESHOLD_DB.to_string(),
-                number(limit.threshold_db),
-            ),
-            (k::LIMIT_KNEE_DB.to_string(), number(limit.knee_db)),
-            (k::LIMIT_ATTACK_TIME.to_string(), number(limit.attack_time)),
-            (
-                k::LIMIT_RELEASE_TIME.to_string(),
-                number(limit.release_time),
-            ),
-        ]))
+        let limit = eng.resource::<bus::Buses>().borrow().limit(&name);
+        Ok(limit.map_or(Value::Nil, limit_table))
+    });
+    m.function("bus_effects", |eng: &Engine, name: String| {
+        bus::ensure_loaded(eng);
+        let effects = eng.resource::<bus::Buses>().borrow().effects(&name);
+        Ok(effects.map_or(Value::Nil, |effects| effects_table(&effects)))
     });
     m.function("bus_volume_linear", |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
@@ -252,7 +252,8 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     m.function(
         "set_bus_volume_linear",
         |eng: &Engine, (name, volume): (String, f32)| {
-            bus::ensure_loaded(eng);
+            // A mix being set is audio to come: the device starts opening.
+            crate::ensure_loaded(eng);
             let buses = eng.resource::<bus::Buses>();
             buses.borrow_mut().set_volume(&name, volume);
             // Everything already sounding through that bus moves too, which
@@ -265,15 +266,61 @@ fn install_mixing_api(m: &mut dyn Bindings<Engine>) {
     );
 }
 
+/// A table under the keys `[audio.buses]` spells, so a script reads a bus
+/// back in the words the project wrote it in.
+fn table(entries: Vec<(&str, Value)>) -> Value {
+    Value::Map(
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect(),
+    )
+}
+
+fn float(value: f32) -> Value {
+    Value::Num(f64::from(value))
+}
+
+/// What `audio.bus_limit` hands back.
+fn limit_table(limit: Limiter) -> Value {
+    table(vec![
+        (k::LIMIT, Value::Bool(true)),
+        (k::LIMIT_THRESHOLD_DB, float(limit.threshold_db)),
+        (k::LIMIT_KNEE_DB, float(limit.knee_db)),
+        (k::LIMIT_ATTACK_TIME, float(limit.attack_time)),
+        (k::LIMIT_RELEASE_TIME, float(limit.release_time)),
+    ])
+}
+
+/// What `audio.bus_effects` hands back.
+fn effects_table(effects: &Effects) -> Value {
+    let auto_gain = &effects.auto_gain;
+    table(vec![
+        (k::LOW_PASS_HZ, float(effects.low_pass_hz)),
+        (k::LOW_PASS_Q, float(effects.low_pass_q)),
+        (k::HIGH_PASS_HZ, float(effects.high_pass_hz)),
+        (k::HIGH_PASS_Q, float(effects.high_pass_q)),
+        (k::DISTORTION_GAIN, float(effects.distortion_gain)),
+        (k::DISTORTION_THRESHOLD, float(effects.distortion_threshold)),
+        (k::REVERB_TIME, float(effects.reverb_time)),
+        (k::REVERB_LEVEL, float(effects.reverb_level)),
+        (k::AUTO_GAIN, Value::Bool(auto_gain.on)),
+        (k::AUTO_GAIN_TARGET, float(auto_gain.target)),
+        (k::AUTO_GAIN_ATTACK_TIME, float(auto_gain.attack_time)),
+        (k::AUTO_GAIN_RELEASE_TIME, float(auto_gain.release_time)),
+        (k::AUTO_GAIN_MAX, float(auto_gain.max)),
+        (k::AUTO_GAIN_FLOOR, float(auto_gain.floor)),
+    ])
+}
+
 /// `audio.*`: where a sound is and where it is heard from.
 ///
 /// Its own group because the rest of `audio` is about what plays, and this
 /// is about where: the `listener` node's own half of the pair, and the
 /// emitter behind a handle that was played with a `position`.
-fn install_positional_api(m: &mut dyn Bindings<Engine>) {
+fn install_positional_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, or what `set_listener_position` last put there."),
-        ("set_listener_position", &[], "(x: float, y: float, z: float)", "Put the ears at a point by hand, for a game whose view is not a node; a `listener` node in the scene takes it back on the next frame."),
+        ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, else the current camera's."),
         ("emitter_position", &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
         ("set_emitter_position", &[], "(handle: int, x: float, y: float, z: float)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
         ("distance_gain", &[], "(handle: int) -> float?", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
@@ -284,16 +331,6 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
         let position = state.borrow().listener().position;
         Ok(Value::Vec3([position.x, position.y, position.z]))
     });
-    m.function(
-        "set_listener_position",
-        |eng: &Engine, (x, y, z): (Value, Option<Value>, Option<Value>)| {
-            let position = xyz(&x, y.as_ref(), z.as_ref())?;
-            eng.resource::<AudioState>()
-                .borrow_mut()
-                .set_listener(position);
-            Ok(())
-        },
-    );
     m.function("emitter_position", |eng: &Engine, handle: i64| {
         let state = eng.resource::<AudioState>();
         let position = state.borrow().emitter_position(handle_of(handle));
@@ -326,24 +363,19 @@ fn install_positional_api(m: &mut dyn Bindings<Engine>) {
 
 #[cfg(test)]
 mod tests {
-    use balaur_core::Engine;
-    use balaur_script::{Bindings, BoundFn, FnDoc, Value};
+    use balaur_core::{App, AppConfig, Engine};
+    use std::cell::RefCell;
+    use std::rc::Rc;
 
-    #[derive(Default)]
-    struct Recorded {
-        functions: Vec<String>,
-        doc: String,
-    }
+    use balaur_script::{Call, Declared, Module, Value, Values};
 
-    impl Bindings<Engine> for Recorded {
-        fn function_raw(&mut self, name: &str, _: BoundFn<Engine>) {
-            self.functions.push(name.to_string());
-        }
-        fn constant(&mut self, _: &str, _: Value) {}
-        fn module_doc(&mut self, doc: &'static str) {
-            self.doc = doc.to_string();
-        }
-        fn describe(&mut self, _: &[FnDoc]) {}
+    use crate::vocabulary::keys as k;
+
+    /// What the module declares, as a backend would read it.
+    fn declared() -> Rc<RefCell<Declared<Engine>>> {
+        let declared: Rc<RefCell<Declared<Engine>>> = Rc::default();
+        super::install_audio_api(&mut Module::new("audio", declared.clone()));
+        declared
     }
 
     /// Every function name a source spells after the module's name and a dot.
@@ -360,10 +392,53 @@ mod tests {
             .collect()
     }
 
+    /// `audio.bus_effects` hands back the keys `[audio.buses]` spells, so a
+    /// script reads a bus's effects by the names the project wrote them in.
+    #[test]
+    fn bus_effects_reads_back_a_buses_keys_and_nil_without_any() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("project.toml"),
+            "[application]\nname = \"a\"\nmain_scene = \"main.toml\"\n\n[audio.buses]\ncave = { low_pass_hz = 800.0, reverb_time = 0.25, auto_gain = true }\nsfx = { volume_linear = 0.5 }\n",
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("main.toml"), "").unwrap();
+        let mut app = App::new(AppConfig::bare(dir.path().to_path_buf())).unwrap();
+        balaur_plugin::load(&mut app, &mut crate::AudioPlugin).unwrap();
+        app.load_project().unwrap();
+        let declared = declared();
+        let bus = |name: &str| {
+            let args = [Value::text(name)];
+            let held = declared.borrow();
+            match held.modules["audio"]["bus_effects"].call.as_ref().unwrap() {
+                Call::Raw(func) => func(&app.engine, &args),
+                Call::Typed(func) => func(&app.engine, &Values(&args)),
+            }
+            .expect("the call succeeds")
+        };
+
+        let Value::Map(entries) = bus("cave") else {
+            panic!("a bus with effects reads back a map");
+        };
+        let entry = |key: &str| {
+            entries
+                .iter()
+                .find(|(named, _)| named == key)
+                .map(|(_, value)| value.clone())
+        };
+        assert_eq!(entry(k::LOW_PASS_HZ), Some(Value::Num(800.0)));
+        assert_eq!(entry(k::REVERB_TIME), Some(Value::Num(0.25)));
+        assert_eq!(entry(k::AUTO_GAIN), Some(Value::Bool(true)));
+        assert_eq!(entry(k::HIGH_PASS_HZ), Some(Value::Num(0.0)));
+        assert_eq!(entries.len(), 14, "every effect key, set or not");
+        assert_eq!(bus("sfx"), Value::Nil, "a bus with none switched on");
+        assert_eq!(bus("nobody"), Value::Nil, "a name nobody declared");
+    }
+
     #[test]
     fn every_audio_call_the_crate_docs_name_is_registered() {
-        let mut recorded = Recorded::default();
-        super::install_audio_api(&mut recorded);
+        let declared = declared();
+        let declared = declared.borrow();
         let sources = [
             include_str!("lib.rs"),
             include_str!("script_api.rs"),
@@ -375,7 +450,7 @@ mod tests {
         for source in sources {
             for name in audio_calls(source) {
                 assert!(
-                    recorded.functions.contains(&name),
+                    declared.modules["audio"].contains_key(&name),
                     "the docs name `audio.{name}`, which the module does not register"
                 );
             }
@@ -391,7 +466,7 @@ mod tests {
             "devices",
         ] {
             assert!(
-                recorded.doc.contains(&format!("`{named}`")),
+                declared.module_docs["audio"].contains(&format!("`{named}`")),
                 "the module doc never names `{named}`"
             );
         }

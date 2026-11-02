@@ -138,3 +138,36 @@ fn a_played_project_draws_in_its_own_faces_and_reads_them_again() {
     balaur_core::project::set_content_root(&app.engine, "");
     assert!((width(&app, FontProject::Content, "", "iiii") - own).abs() < 0.01);
 }
+
+/// How many of the system's faces `app`'s shaper has taken up.
+fn system_faces(app: &App) -> usize {
+    let shaper = balaur_text::shaper(&app.engine);
+    let state = shaper.borrow();
+    state
+        .projects()
+        .map(|(_, fonts)| fonts.faces().iter().filter(|face| face.system).count())
+        .sum()
+}
+
+/// egui never says what it could not draw, so a caption it lays out itself
+/// asks; a machine with no face for the script has nothing to take up.
+#[test]
+fn a_caption_egui_lays_out_takes_up_the_face_the_system_picks() {
+    let (_held, control) = crate::support::app();
+    let hebrew = "שלום";
+    balaur_text::shaper(&control.engine)
+        .borrow_mut()
+        .cover(hebrew);
+    if system_faces(&control) == 0 {
+        eprintln!("skipped: no Hebrew face on this machine");
+        return;
+    }
+    let (_dir, app) = crate::support::app();
+    let params = toml::toml! { kind = "button" text = "שלום" };
+    crate::support::add_widget(&app, &params.into());
+    assert_eq!(system_faces(&app), 0, "nothing has drawn yet");
+    let ctx = egui::Context::default();
+    crate::support::settle(&app, &ctx);
+    crate::support::settle(&app, &ctx);
+    assert_eq!(system_faces(&app), 1);
+}

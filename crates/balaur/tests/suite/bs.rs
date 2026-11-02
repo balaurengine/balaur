@@ -132,7 +132,8 @@ fn an_exported_spinner_runs_as_native_code() {
         .status()
         .expect("a C compiler");
     assert!(built.success());
-    assert_eq!(balaur::script_bs::load_native(&lib).unwrap(), 5);
+    // Each script's unit, and the one the project's instance starts from.
+    assert_eq!(balaur::script_bs::load_native(&lib).unwrap(), 6);
 
     let mut app = booted(dir.path());
     let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();
@@ -361,7 +362,7 @@ impl Counter {
 
 /// One node named `name`, running `scripts/<name>.bs`: a script's class is
 /// named after its file, so `Counter` runs from `scripts/counter.bs`.
-fn one_script(name: &str, source: &str) -> tempfile::TempDir {
+pub(super) fn one_script(name: &str, source: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
@@ -551,8 +552,8 @@ impl Mover {
     }
 
     fn update(dt: float) {
-        self.node.transform.translate(dt, 0.0, 0.0);
-        self.arm.transform.translate(0.0, dt, 0.0);
+        let at = self.node.transform.position; self.node.transform.position = vec3(at.x + dt, at.y + 0.0, at.z + 0.0);
+        let arm = self.arm.transform.position; self.arm.transform.position = vec3(arm.x + 0.0, arm.y + dt, arm.z + 0.0);
     }
 }
 ";
@@ -639,7 +640,7 @@ impl Hitter {
     fn update(dt: float) {
         if !self.done {
             self.done = true;
-            let hit = map().with(\"damage\", 3).with(\"tags\", [\"fire\", \"ice\"]);
+            let hit: any = { \"damage\": 3, \"tags\": [\"fire\", \"ice\"] };
             self.node.get_node(\"Target\").call(\"take\", hit);
         }
     }
@@ -663,7 +664,7 @@ impl Target {
     pub fn take(hit: any) {
         self.damage = hit[\"damage\"].as_int();
         self.first = hit[\"tags\"][0].as_str();
-        let msg = map().with(\"got\", self.damage).with(\"who\", \"target\");
+        let msg: any = { \"got\": self.damage, \"who\": \"target\" };
         self.reply = self.node.get_node(\"../Listener\").call(\"hear\", msg).as_int();
     }
 }
@@ -714,10 +715,11 @@ fn payloads_cross_between_scripts_as_any() {
 
 #[test]
 fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
-    let source = "pub class Fetcher { request: any }
+    let source = "pub class Fetcher { kept: any }
 impl Fetcher {
     fn init() {
-        self.request = http::request(\"https://example.com\", nil(), nil());
+        script::store(\"key\", nil());
+        self.kept = script::stored(\"key\");
     }
 }
 ";
@@ -802,7 +804,7 @@ impl Reach {
         events::listen(self.node, \"ping\");
         render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0);
         self.missing = !scene::get_node(\"Nowhere\").is_valid();
-        self.position = self.node.get_component(\"transform\", \"position\")[0].as_float();
+        self.position = self.node.transform.position.x;
         self.pointer = input::mouse_position().x;
     }
 }
@@ -869,7 +871,7 @@ const ORC_BS: &str = "pub class Orc { node: Node }
 
 impl Orc {
     pub fn info() -> any {
-        map().with(\"hp\", 7).with(\"name\", \"orc\")
+        { \"hp\": 7, \"name\": \"orc\" }
     }
 }
 ";
@@ -1095,11 +1097,10 @@ impl Check {
     fn init() {
         let color = util::hex_to_rgb(\"#ff8000\");
         let back = util::rotate_euler([0.1, 0.2, 0.3], 2, 0.0);
-        let cells = util::cells([\"a\", \"b\"]);
-        let table = map().with(\"b\", 1).with(\"a\", 2);
+        let table: any = { \"b\": 1, \"a\": 2 };
         let copy = util::deep(table);
-        copy.set(\"c\", 3);
-        self.said = \"{util::prop_label(\\\"edge_radius\\\")}|{util::prop_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{cells.len()}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::dist([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on(map(), \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
+        copy[\"c\"] = 3;
+        self.said = \"{util::property_label(\\\"edge_radius\\\")}|{util::property_label(\\\"uv_scale\\\")}|{util::match_case(\\\"Arm_L\\\", \\\"arm_r\\\")}|{util::to_hex([1.0, 0.5, 0.0])}|{color.red} {color.blue}|{util::index_of(\\\"a/b\\\", \\\"/\\\").or(-1)}|{util::join(util::keys_sorted(table), \\\",\\\")}|{table.has(\\\"c\\\")}|{util::distance([0.0, 0.0, 0.0], [3.0, 4.0, 0.0])}|{util::engine_path(\\\"/g\\\", \\\"a.toml\\\")}|{back.len()}|{defs::workspace_name(\\\"ui\\\")}|{defs::chip_on({}, \\\"scene\\\", \\\"proj\\\")}|{icons::component(\\\"widget\\\").token}\";
     }
 }
 ";
@@ -1121,7 +1122,7 @@ fn the_editor_libraries_answer_a_script_that_uses_them() {
     assert_eq!(
         field(&app, "Check", "said"),
         Some(Str(
-            "Edge radius|UV scale|Arm_r|#ff8000|1.0 0.0|1|3|a,b|false|5.0|/g/a.toml|3|UI|true|node_ui"
+            "Edge radius|UV scale|Arm_r|#ff8000|1.0 0.0|1|a,b|false|5.0|/g/a.toml|3|UI|true|node_ui"
                 .into()
         ))
     );
@@ -1132,8 +1133,8 @@ impl Panel {
     pub fn update(dt: float) {
         self.frame += 1;
         let controls: [any] = [
-            map().with("kind", "text_field").with("text", "").with("on", "typed").with("data", "query"),
-            map().with("kind", "button").with("text", "Go").with("on", "pressed").with("data", 7),
+            { "kind": "text_field", "text": "", "on_change": "typed", "data": "query" },
+            { "kind": "button", "text": "Go", "on_click": "pressed", "data": 7 },
         ];
         ui::fill_strip("Panel/Strip", controls);
         if self.frame == 2 {
@@ -1174,7 +1175,7 @@ const EXPORTER_BS: &str =
 impl Tuned {
     fn init() {
         let rows = script::exports(\"scripts/tuned.bs\");
-        self.seen = \"{rows.len()} {rows[0].name}={rows[0].default} {rows[1].name}:{rows[1].type}\";
+        self.seen = \"{rows.len()} {rows[0][\"name\"]}={rows[0][\"default\"]} {rows[1][\"name\"]}:{rows[1][\"type\"]}\";
     }
 }
 ";

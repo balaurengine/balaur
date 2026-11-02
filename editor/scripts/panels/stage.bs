@@ -19,10 +19,7 @@ impl Stage {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" || node.name() != "Open" {
-            return;
-        }
+    pub fn open(_value: any, node: Node) {
         let side = node.parent().name();
         self.editor.call("stage_verb", if side == "Left" { "open_left" } else { "open_right" });
     }
@@ -32,20 +29,21 @@ impl Stage {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Safe").patch_component("widget", map().with("visible", view.get("safe")));
-        self.node.get_node("Resolution").patch_component("widget", map()
-            .with("visible", view.get("resolution"))
-            .with("inset", view.get("res_inset")));
+        self.node.get_node("Safe").set_visible(view["safe"].as_bool());
+        let patched = self.node.get_node("Resolution");
+        patched.set_visible(view["resolution"].as_bool());
+        patched.patch_component("widget", { "inset": view["res_inset"] });
         for side in ["Left", "Right"] {
-            let handle = if side == "Left" { view.get("left") } else { view.get("right") };
+            let handle = if side == "Left" { view["left"] } else { view["right"] };
             let sheet = self.node.get_node(side);
-            sheet.patch_component("widget", map().with("visible", handle.get("shown")).with("padding", view.get("pad")));
-            sheet.get_node("Open").patch_component("widget", map()
-                .with("icon", handle.get("icon"))
-                .with("tooltip", handle.get("tooltip"))
-                .with("width", view.get("diameter"))
-                .with("height", view.get("diameter"))
-                .with("corner_radius", view.get("diameter").as_float() / 2.0));
+            sheet.set_visible(handle["shown"].as_bool());
+            sheet.patch_component("widget", { "padding": view["pad"] });
+            let patched = sheet.get_node("Open");
+            patched.widget.icon = handle["icon"].as_str();
+            patched.widget.tooltip = handle["tooltip"].as_str();
+            patched.widget.width = view["diameter"].as_float();
+            patched.widget.height = view["diameter"].as_float();
+            patched.widget.corner_radius = view["diameter"].as_float() / 2.0;
         }
     }
 }

@@ -282,7 +282,7 @@ fn build_pipeline(
             &crate::pipeline::Raster {
                 cull,
                 depth,
-                blend: crate::pipeline::Blend::Straight,
+                blend: kiss3d::scene::Blend2d::Alpha,
             },
             sample_count,
         )
@@ -327,13 +327,9 @@ struct Prepass {
 }
 
 impl ShaderMaterial3d {
-    pub(crate) fn new(compiled: &Compiled, probe: Option<&Probe>) -> Self {
-        Self::with_textures(compiled, probe, Vec::new())
-    }
-
     /// `slots` is one entry per [`crate::material::TEXTURE_SLOTS`] name, in
     /// order, `None` for a slot the material left out.
-    pub(crate) fn with_textures(
+    pub(crate) fn new(
         compiled: &Compiled,
         probe: Option<&Probe>,
         slots: Vec<Option<Arc<Texture>>>,
@@ -771,7 +767,7 @@ pub(crate) fn slot_fallbacks() -> Vec<Arc<Texture>> {
 }
 
 fn channel_material(compiled: &crate::material::Compiled) -> ShaderMaterial3d {
-    ShaderMaterial3d::new(compiled, None)
+    ShaderMaterial3d::new(compiled, None, Vec::new())
 }
 
 /// A material and, when its shader carries one, the probe it writes into;
@@ -794,7 +790,7 @@ fn build(
         return Ok(None);
     }
     let morph = Context::get().supports_deform();
-    let mut compiled = crate::material::compile_on(&asset, &source, &modules, morph)?;
+    let mut compiled = crate::material::compile(&asset, &source, &modules, morph)?;
     compiled.transparent_wgsl =
         crate::material::transparent_variant(&asset, &source, &modules, morph);
     let probe = compiled.probes.then(|| std::rc::Rc::new(Probe::new()));
@@ -805,11 +801,11 @@ fn build(
             path.and_then(|path| {
                 let path = crate::material::project_path(&app.engine, reference, path)
                     .unwrap_or_else(|| path.to_string());
-                crate::texture::upload(&app.engine, &path, crate::texture::PREMULTIPLY_DROPPED)
+                crate::texture::upload_for_surface(&app.engine, &path)
             })
         })
         .collect();
-    let material = ShaderMaterial3d::with_textures(&compiled, probe.as_deref(), slots);
+    let material = ShaderMaterial3d::new(&compiled, probe.as_deref(), slots);
     Ok(Some((material, probe)))
 }
 

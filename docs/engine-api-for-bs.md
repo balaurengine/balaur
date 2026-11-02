@@ -51,7 +51,7 @@ Consequences seen in the compiler, all probed:
 
 - `any` flows into nothing typed: ``expected bool, got any``. A typed value flows into `any`.
 - An optional argument must still be passed. `HostSignature` has no arity range: ``takes 4 argument(s), 3 given``. A Rust `Option<f32>` is a required `float`; a documented `float?` is a required `any` (`nil()`). A Rust `Option<NodeId>` is a required `Node`, and `nil()` is an `any` (``expected Node, got any``), so `events::listen(node, name)` without its third argument has no spelling.
-- `node.animation.play(..)` is not a form: ``Node has no field `animation` ``. Only the node ops that `acts_on` a component (`transform`, `states`) are called on it; every other component function is `animation::play(node, ..)`.
+- A function that `acts_on` a component is called on it: `node.animation.play(..)`, and `animation::play(node, ..)` does not compile. The handle is the one form.
 - `get_component` takes exactly one argument in `.bs` (``takes 1 argument(s), 2 given``), `call` exactly two, `set_component` exactly two.
 - The checker stops at the first error in a file, so one probe file per function was used (§11).
 
@@ -230,7 +230,7 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 ### `gamend`
 <a id="gamend"></a>
 
-19 of 19 functions used, 299 references. The Gamend backend: session, REST API and realtime socket. Each call returns an id to await; the result also reaches the node's `on_gamend_event` (or `on_event`) as a map whose `kind` is an `EVENT_*` constant.
+19 of 19 functions used, 299 references. The Gamend backend: session, REST API and realtime socket. Each call returns an id to await, answering a map whose `kind` is an `EVENT_*` constant; what a socket says also reaches the node `connect` names, on its `on_gamend_event` (or `on_event`).
 
 | fn | refs | result used | source | .bs signature | not typed / not callable |
 | --- | ---: | ---: | --- | --- | --- |
@@ -334,8 +334,6 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `draw_line_3d` | 15 | 0 | seam | `(float, float, float, float, float, float, float, float, float, float, bool, bool)` | 15 pass 10 of 12: every arg must be passed |
 | `camera_2d` | 9 | 9 | seam | absent | result `(f32, f32, f32)` has no `.bs` type |
 | `set_debug_view` | 6 | 5 | seam | `(str)` |  |
-| `set_camera` | 5 | 0 | seam | `(float, float, float, float, float, float)` |  |
-| `set_camera_2d` | 5 | 0 | seam | `(float, float, float)` |  |
 | `bounds` | 4 | 4 | seam | `(Node) -> any` | any in result `Value` |
 | `draw_lines` | 4 | 0 | seam | `(any)` | any in arg 1 `Value` |
 | `pick_ray` | 4 | 4 | seam | `(float, float, float, float, float, float) -> Node` |  |
@@ -433,10 +431,8 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 | `complete_theme` | 1 | 1 | seam | `(any) -> any` | any in arg 1 `Value`, result `Value` |
 | `contrast` | 1 | 1 | seam | `(str, str) -> any` | any in result `Value` |
 | `finish_loading` | 1 | 0 | seam | `()` |  |
-| `set_lazy` | 1 | 0 | seam | `(bool)` |  |
 | `set_scale` | 1 | 0 | seam | `(float)` |  |
 | `set_theme` | 1 | 0 | seam | `(any)` | any in arg 1 `Value` |
-| `set_widget_surface` | 1 | 0 | seam | `(str, bool, float, float, float, float)` |  |
 | `takes_pointer_at` | 1 | 1 | seam | `(float, float) -> bool` |  |
 
 ### `events`
@@ -684,7 +680,7 @@ Columns: `refs` = occurrences; `result used` = occurrences where the result is n
 ### `http`
 <a id="http"></a>
 
-1 of 2 functions used, 2 references. HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
+1 of 2 functions used, 2 references. HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.
 
 | fn | refs | result used | source | .bs signature | not typed / not callable |
 | --- | ---: | ---: | --- | --- | --- |

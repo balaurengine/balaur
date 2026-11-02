@@ -16,6 +16,8 @@
 > §10, what one edit costs, measured 2026-10-27: it overturns §6g, replaces
 > §6j and the `inspector` kind, and orders the work that follows, each piece
 > in the doc that owns it.
+>
+> §11, what a frame allocates, measured and fixed 2026-11-01.
 
 # Plan: what the editor's frame costs
 
@@ -109,7 +111,7 @@ shut, 12.84 ms of wall is `render cpu` and `scripts/update` drawing and
 stepping 2000 nodes, and that belongs to the renderer and the tick.
 
 Two things the table does not say. An offscreen run takes a pass every frame,
-while a windowed editor sets `ui.set_lazy` and skips passes when nothing
+while a windowed editor sets `[window] low_processor` and skips passes when nothing
 moves, so these are the numbers for dragging or typing rather than sitting
 still. And shutting a dock hides its contents as well as its frame, so the
 flat 1 ms is a floor for the chrome rather than a measurement of it.
@@ -248,7 +250,7 @@ frame moves the total and leaves the difference between two runs alone.
 
 ## 6. The tessellation a skipped pass still pays
 
-`ui.set_lazy` skips the pass, not the drawing. kiss3d's `EguiRenderer::render`
+A lazy UI skips the pass, not the drawing. kiss3d's `EguiRenderer::render`
 clones every shape and tessellates all of them on every frame, whether or not a
 pass replaced them. An idle editor therefore pays the tessellator in full, which
 is most of what the web editor costs while nobody touches it. Caching the
@@ -276,7 +278,8 @@ into script values.
 
 `node.get_component(component, key)` now answers one property, and the `widget`
 component answers the common keys straight off the struct through
-`components::answers_property`. `pool.bs` asks for the one property it wants,
+`components::answers_property` (since 2026-10-30 every property, through the
+derive's read by index). `pool.bs` asks for the one property it wants,
 and asks for nothing at all where a control carries nothing.
 
 Measured on `examples/hello`, offscreen, 600 frames, three pairs run back to
@@ -372,7 +375,8 @@ the interned name, resolved when the field was installed. `components` grew
 addressed by that index. A property's set of owning components is a `u128`
 mask rather than a `HashSet<String>`, and the defaults a read falls back on
 are a table indexed the same way. `PropertyReaders` is a `Vec` indexed by
-component rather than a map keyed by name.
+component rather than a map keyed by name (gone 2026-10-30: a definition's
+own `read` and `write`).
 
 What that removes from one `node.transform.position`: two `String`
 allocations, three hashes of the component name, and the trip through the
@@ -600,9 +604,10 @@ text frame to frame and warns when it changed while `doc_rev` did not, and a
 warning fails e2e. A rename planted without a bump trips it; the 80 states run
 clean.
 
-- The outliner keeps its row strings and selection until the rows, the
+- The outliner keeps its rows and selection until the rows, the
   document, the warnings, the selection or the theme move, and writes nothing
-  to its node on a frame where none did.
+  to its node on a frame where none did. A move of the selection alone writes
+  `selection` and leaves the rows: at 2,000 nodes they are most of a click.
 - Output remakes its lines only when `log::since` returns a new one, or the
   filter or the theme changes, and every writer of the log node skips a list
   equal to the last one it wrote.
@@ -899,6 +904,37 @@ No browser was timed. A native build with the `web` profile, fat LTO and
 on the template. 3 runs the same cycles for twice the bytes. Wasm's own
 overhead sits on top of these, so only the ratio carries over to a browser.
 
+**Toolchain, 2026-10-31.** Four setups on `a6b9e254`, incremental, sccache
+under the dependencies, one append to `lib.rs` per edit. CPU is user plus
+system seconds; the load ran from 25 to 170 on 8 cores, so wall time is not
+compared. The editor figures are instructions retired on `examples/text`.
+
+| | stable, LLVM (kept) | `balaur_core` at 0 | nightly `-Zthreads=8` | cranelift for the workspace |
+| --- | ---: | ---: | ---: | ---: |
+| core edit, editor rebuilt | 43 | 38 | 72 | 72 |
+| core edit, tests rebuilt | 244 | 286 | 387 | 408 |
+| ui edit, editor rebuilt | 61 | 47 | 98 | 70 |
+| ui edit, `-p balaur_ui` tests first built | 498 | 400 | 777 | 214 |
+| editor startup | 3.7 G | 5.0 G | 3.7 G | 9.4 G |
+| editor frame | 36.9 M | 48.8 M | 37.2 M | 64.1 M |
+| one edit, text / color / position | 5.2 / 5.6 / 4.0 M | 8.3 / 8.7 / 6.9 M | 4.8 / 6.6 / 3.7 M | 12.3 / 12.8 / 12.1 M |
+| tests | pass | pass | pass | 5 fail |
+
+- Core at 0 saves a tenth of a rebuild and costs a third more a frame and
+  two thirds more an edit.
+- The parallel front end spends 60% more CPU for nothing on a machine
+  whose cores are already busy.
+- Cranelift ties LLVM where a rebuild is front-end bound, as a core edit
+  is, and is 2.3 times cheaper where codegen dominates. Its editor runs a
+  frame in 1.7 times the instructions and an edit in 2.3 to 3. Five tests
+  that catch a panic fail under it.
+- Nightly's `-Zfeature-unification` did not unify a `-p` build with the
+  workspace's, so the shared feature set is the aliases in
+  `.cargo/config.toml` (docs/QUALITY.md).
+- After a core edit the test build spends 53% in the 38 integration test
+  binaries (about 4.4 s each, 1.7 s of it the link), 25% in unit tests that
+  live in `src`, and 18% rebuilding libraries the editor build now shares.
+
 ## 10. One edit
 
 Measured 2026-10-27 on the editor build of `a8f03337`: `balaur edit
@@ -940,8 +976,8 @@ order, each in the doc that owns it:
 5. A stricter language and one instance per project (§9 steps 4 and 5,
    PLAN-bs-linking). Built 2026-10-28: the one instance, typed maps and
    struct literals with defaults. The engine's records and `map()`'s
-   retirement follow step 7, since the editor code they change is the code
-   steps 6 and 7 rewrite.
+   retirement built 2026-10-31 (PLAN-balaur-script §9 step 5); the pool's
+   specs are still any literals.
 6. The live scene as the document (PLAN-editor-as-scene §10). Built
    2026-10-28: the engine writes the scene back and keeps what each write
    replaced; `S.doc`, its revision and the mirror rebuild are gone, undo is
@@ -982,10 +1018,131 @@ the properties the log names.
 
 Of the 23 M, the Inspector's rows are about 4 M; the rest is the UI pass
 laying the whole shell out again once one widget changed (`taffy`), which
-an incremental layout takes next. The order above moved for that
+an incremental layout takes next.
+
+Measured again 2026-10-30 on `editor-redesign` (steps 1 to 11) with
+`scripts/edit_cost.sh`: the `bench:` start state the editor now carries
+makes one edit a frame for 400 frames, less a warm run that edits nothing.
+
+| one edit a frame | instructions an edit |
+| --- | ---: |
+| the Inspector writes `text2d.text` | 5.5 M |
+| the Inspector writes `text2d.color` | 6.4 M |
+| the Inspector writes `transform.position` | 3.7 M |
+| the engine writes `text2d.text`, the Inspector's rows following | 5.0 M |
+
+An edit re-reads two of the shell's 608 widgets and re-solves only those
+(`arena::begin` patches, it does not rebuild), and the editor's scripts are
+about 5 % of the frame, some 0.3 M: the budget holds for the editor's own
+work. The rest is the frame any visible change costs, the editor's or the
+game's: the egui pass over every widget, about 2 M, and the render, about
+2.4 M, of which a sixth is Metal buffers made afresh each frame in the
+kiss3d fork's egui renderer. Neither is incremental layout's: taffy is
+under 0.6 M of it. The order above moved for that
 measurement: of the 650 M, the panels and the Inspector were 580 M and
 the document's own copy 60 M, so the change log's panels (PLAN-editor-as-
 scene §9.2) and the Inspector's rows came before the document's removal.
+
+Measured again 2026-10-30 on `editor-followups`, once `widget` was derived
+and a one-property write set the one `Widget` field it feeds, the same way,
+the two runs alternated:
+
+| one edit a frame | before | after |
+| --- | ---: | ---: |
+| the Inspector writes `text2d.text` | 5.8 M | 4.6 M |
+| the Inspector writes `text2d.color` | 7.1 M | 4.4 M |
+| the Inspector writes `transform.position` | 4.5 M | 2.8 M |
+| the engine writes `text2d.text`, the Inspector's rows following | 5.6 M | 3.8 M |
+
+Measured again 2026-10-31, after the layout pushed a pass's written slots
+into taffy once rather than once per root it solved, and walked a
+self-placing subtree only when its own root was written. Three runs each;
+position moves the most between runs:
+
+| one edit a frame | before | after |
+| --- | ---: | ---: |
+| the Inspector writes `text2d.text` | 5.2 M | 3.4 to 3.5 M |
+| the Inspector writes `text2d.color` | 5.4 M | 3.5 to 3.6 M |
+| the Inspector writes `transform.position` | 3.9 M | 1.8 to 2.4 M |
+| the engine writes `text2d.text`, the Inspector's rows following | 4.6 M | 2.8 to 3.0 M |
+
+**In a browser, 2026-10-31.** The editor's web module (`package_runtime.sh
+web`, `VARIANT=editor`) in headless Chrome on an M1, `?state=` driving the
+same bench, `Performance.getMetrics`' main-thread task time over 600 frames:
+
+| one edit a frame | main thread a frame | of it, wasm and script |
+| --- | ---: | ---: |
+| nothing, the editor idle | 0.43 ms | 0.18 ms |
+| the Inspector writes `text2d.text` | 5.00 ms | 4.71 ms |
+| the Inspector writes `text2d.color` | 5.02 ms | 4.75 ms |
+| the Inspector writes `transform.position` | 4.76 ms | 4.50 ms |
+| the engine writes `text2d.text` | 4.74 ms | 4.48 ms |
+
+The engine's own write costs what the Inspector's does, so it is the frame
+any visible change costs, not the edit: natively the egui pass and the render
+are 28 % each and the editor's scripts 24 %. A quarter of the browser's time
+is calls out of the module into JavaScript: WebGPU's `writeBuffer` and
+`createBuffer` each frame, and the calls into each `.bs` module, which is a
+wasm instance of its own reached through JS. An edit makes about 47 calls
+from a script into the engine, so the crossings are the calls' marshalling,
+not their count. The module ships without a name section, so the profile
+names no function; a build with `debug = "line-tables-only"` would.
+
+A tab reloaded twice failed the third boot with "Cannot allocate Wasm memory
+for new instance": every `.bs` module reserves its own memory, and a tab's
+earlier reservations are not yet freed. One memory imported by every module
+would reserve once.
+
+## 11. What a frame allocates
+
+Measured 2026-11-01 on an Apple M1, release builds of `43afabfc` and the commit
+that keeps these things. Allocations are the main thread's, counted by an
+interposed `malloc`; instructions are the whole process, the lowest of four
+runs at 300 and at 900 frames, over the 600 frames between them. The game is
+Polyglot Pirates on its first screen; a screen change is the same game
+switching every 6 frames.
+
+| run | allocations a frame | bytes a frame | instructions a frame |
+| --- | ---: | ---: | ---: |
+| game, nothing moving | 1,629 -> 650 | 546 KB -> 499 KB | 3.75 M -> 2.90 M |
+| editor, nothing moving | 8,780 -> 3,629 | 2.93 MB -> 2.61 MB | 17.56 M -> 12.61 M |
+| editor, one edit a frame | 10,014 -> 4,741 | 3.02 MB -> 2.68 MB | 18.74 M -> 13.60 M |
+| game, a screen change | 18,000 -> 4,000 | | 25.80 M -> 12.00 M |
+
+What went:
+
+- A setting is read once: the answer stays until a setting or the run's tags
+  move, and `UiSettings::of` and the render budgets are kept the same way.
+- A widget's look is kept across passes, per state, until its widget, theme,
+  classes or fonts move. A family's name allocates nothing on a hit.
+- A widget and its children are lent from the arena, never cloned for a pass.
+- `patch_component` on a derived component writes the keys it names, by place.
+- A scene instance fills its defaults once.
+
+What one engine call allocates now:
+
+| call | allocations |
+| --- | ---: |
+| `node.is_valid()` | 0 |
+| a binding with one string | 1 |
+| read `node.transform.position.x` | 0 |
+| write `node.transform.position` | 0 |
+| `patch_component` with a literal | 13 |
+| `get_component` of one key | 28 |
+
+A vector crosses the seam as numbers, in place; a string borrows a spare
+buffer. The last two rows are the forms a script no longer needs for a name it
+knows: `node.c.p` is the first row's cost.
+
+What is left in a frame is egui's and wgpu's: render 60%, UI 36%, scripts 2 to
+5% in the editor. `encode_render_pass` is 19% of the main thread,
+`Queue::write_buffer` 9%, and wgpu's error labels 13% of the allocations. Those
+are upstream of this repository.
+
+`mimalloc` as the global allocator was tried and left out: 4% fewer
+instructions in the editor, none in the game, and 32.17 s of CPU against 32.44 s
+over four runs of 600 frames. Under 1% does not pay for a C dependency on every
+desktop build.
 
 ## Phases
 

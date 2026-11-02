@@ -78,6 +78,22 @@ pub(crate) fn scene_switch(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// `scene.parked()` — every scene kept built by `switch`, oldest first.
+pub(crate) fn scene_parked(eng: &Engine, _args: &[Value]) -> Result<Value> {
+    Ok(Value::List(
+        crate::parked::scenes(eng)
+            .into_iter()
+            .map(Value::Str)
+            .collect(),
+    ))
+}
+
+/// `scene.unload(path)` — what a pack warmed and `switch` kept, let go.
+pub(crate) fn scene_unload(eng: &Engine, args: &[Value]) -> Result<Value> {
+    crate::preload::unload(eng, text(args, 0)?);
+    Ok(Value::Nil)
+}
+
 /// `scene.variable(name)` — a declared value, or `()` for a name nothing
 /// declared. Reading a typo answers nothing rather than failing: a condition
 /// asking about a variable a level does not have is false, not an error.
@@ -116,10 +132,6 @@ pub(crate) fn scene_variables(eng: &Engine, _args: &[Value]) -> Result<Value> {
                         Value::Str(spec.map_or("float", |s| s.kind.word()).to_string()),
                     ),
                     ("value".into(), spec.map_or(Value::Nil, |s| s.value.clone())),
-                    (
-                        "persist".into(),
-                        Value::Bool(spec.is_some_and(|s| s.persist)),
-                    ),
                 ])
             })
             .collect(),

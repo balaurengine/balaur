@@ -518,7 +518,7 @@ mod tests {
             for emissive in [false, true] {
                 for unlit in [false, true] {
                     let linked = link(
-                        &[("package::imported", balaur_core::glb::MATERIAL_SHADER)],
+                        &[("package::imported", balaur_asset::glb::MATERIAL_SHADER)],
                         "package::imported",
                         &[
                             ("metallic_roughness_map", metallic_roughness),
@@ -631,7 +631,7 @@ mod tests {
             surface: crate::material::Surface::default(),
             builtin: None,
         };
-        let compiled = crate::material::compile(&material, TEXT_MASK)
+        let compiled = crate::material::compile(&material, TEXT_MASK, &[], false)
             .expect("the engine's own shader must link");
         assert!(compiled.wgsl.contains("discard"), "{}", compiled.wgsl);
         assert_eq!(

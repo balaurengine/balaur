@@ -10,7 +10,7 @@
 
 use anyhow::{anyhow, bail};
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::vocabulary::keys as k;
 
@@ -192,14 +192,26 @@ type ArcArgs = (
 /// `draw_texture_2d`'s arguments: the path, centre, size, tint and options.
 type TextureArgs = (String, f32, f32, f32, f32, Option<Value>, Option<Value>);
 
-pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: table)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
-        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: table)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
-        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: table)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_polygon_2d", &[], "(points: list, color: color, opts: table)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
-        ("draw_polyline_2d", &[], "(points: list, width: float, color: color, opts: table)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color, opts: table)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
+        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
+        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_polygon_2d", &[], "(points: list, color: color, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
+        ("draw_polyline_2d", &[], "(points: list, width: float, color: color, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+    ]);
+    m.records(&[
+        (
+            "DrawOptions",
+            "{ z_index: int? }",
+            "Where a 2D shape drawn for a frame goes: `z_index` among the nodes of that index, else over everything the scene drew.",
+        ),
+        (
+            "TextureOptions",
+            "{ z_index: int?, region_origin: vec2?, region_size: vec2? }",
+            "A drawn image's `z_index`, and the part of it drawn: `region_origin` and `region_size` in the image's pixels.",
+        ),
     ]);
     m.function(
         "draw_circle_2d",
@@ -260,7 +272,7 @@ pub(crate) fn install_draw_2d_api(m: &mut dyn Bindings<Engine>) {
 /// The outline half of the 2D immediate API, split from
 /// [`install_draw_2d_api`] under `MAX_FN_LINES`: a filled polygon and a
 /// stroked chain of points.
-fn install_outline_api(m: &mut dyn Bindings<Engine>) {
+fn install_outline_api(m: &mut Module<Engine>) {
     m.function(
         "draw_polygon_2d",
         |eng: &Engine, (points, color, opts): (Value, Option<Value>, Option<Value>)| {
@@ -487,11 +499,11 @@ fn stroke(
         return None;
     };
     let chain: Vec<Vec2> = points.iter().map(|p| Vec2::new(p[0], p[1])).collect();
-    let style = balaur_core::stroke::Stroke {
+    let style = balaur_geometry::stroke::Stroke {
         width: width * per_pixel,
-        ..balaur_core::stroke::Stroke::default()
+        ..balaur_geometry::stroke::Stroke::default()
     };
-    let pieces = balaur_core::stroke::stroke(&chain, &style, 1);
+    let pieces = balaur_geometry::stroke::stroke(&chain, &style, 1);
     if pieces.is_empty() {
         return None;
     }

@@ -16,8 +16,9 @@ type = "mesh"
 positions = [[0.0, 0.0], [0.3, 0.0], [0.3, 1.0], [1.7, 1.0], [1.7, 0.0], [2.0, 0.0], [2.0, 1.2], [0.0, 1.2]]
 "#;
 
-/// The table on one node, with whatever extra collider keys a test wants.
-fn table_app(extra: &str) -> App {
+/// The table on one node, with whatever extra `collider2d` rows and
+/// `convex_decomposition2d` rows a test wants.
+fn table_app(collider: &str, decomposition: &str) -> App {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -27,10 +28,17 @@ fn table_app(extra: &str) -> App {
         "[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n",
     )
     .unwrap();
+    // A row of the shape's own comes in its `shape`, which the default
+    // otherwise names.
+    let shape = if collider.starts_with("shape") {
+        String::new()
+    } else {
+        r##"shape = { kind = "convex_decomposition", mesh = "#table" }"##.to_owned()
+    };
     std::fs::write(
         dir.path().join("main.toml"),
         format!(
-            r##"{TABLE}
+            r#"{TABLE}
 [[nodes]]
 id = "n_table"
 name = "Table"
@@ -39,10 +47,12 @@ name = "Table"
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
-{extra}
-"##
+{shape}
+{collider}
+
+[nodes."convex_decomposition2d"]
+{decomposition}
+"#
         ),
     )
     .unwrap();
@@ -99,7 +109,7 @@ fn mass(app: &App) -> f32 {
 
 #[test]
 fn a_concave_polygon_becomes_convex_pieces() {
-    let plain = table_app("overlap = 0.0");
+    let plain = table_app("", "method = { kind = \"exact\", overlap = 0.0 }");
     let pieces = pieces(&plain);
     assert_eq!(pieces.len(), 3, "the table did not cut into three pieces");
     let covered = total_area(&pieces);
@@ -110,8 +120,14 @@ fn a_concave_polygon_becomes_convex_pieces() {
 /// the shapes the solver actually sees.
 #[test]
 fn the_pieces_grow_into_each_other() {
-    let plain = total_area(&pieces(&table_app("overlap = 0.0")));
-    let grown = total_area(&pieces(&table_app("overlap = 0.9")));
+    let plain = total_area(&pieces(&table_app(
+        "",
+        "method = { kind = \"exact\", overlap = 0.0 }",
+    )));
+    let grown = total_area(&pieces(&table_app(
+        "",
+        "method = { kind = \"exact\", overlap = 0.9 }",
+    )));
     assert!(grown > plain + 0.05, "{grown} is no larger than {plain}");
 }
 
@@ -120,7 +136,10 @@ fn the_pieces_grow_into_each_other() {
 #[test]
 fn the_pieces_weigh_what_the_polygon_weighs() {
     for overlap in ["0.0", "0.9", "1.0"] {
-        let weighed = mass(&table_app(&format!("overlap = {overlap}")));
+        let weighed = mass(&table_app(
+            "",
+            &format!("method = {{ kind = \"exact\", overlap = {overlap} }}"),
+        ));
         assert!(
             (weighed - 1.0).abs() < 1.0e-2,
             "at overlap {overlap} the table weighs {weighed}, not 1.0"
@@ -131,12 +150,12 @@ fn the_pieces_weigh_what_the_polygon_weighs() {
 /// Density scales it, and an explicit mass still wins.
 #[test]
 fn density_and_mass_still_say_what_it_weighs() {
-    let dense = mass(&table_app("density = 3.0"));
+    let dense = mass(&table_app("density = 3.0", ""));
     assert!(
         (dense - 3.0).abs() < 1.0e-2,
         "a denser table weighs {dense}"
     );
-    let pinned = mass(&table_app("mass = 7.0"));
+    let pinned = mass(&table_app("mass = 7.0", ""));
     assert!(
         (pinned - 7.0).abs() < 1.0e-2,
         "a pinned table weighs {pinned}"
@@ -147,17 +166,23 @@ fn density_and_mass_still_say_what_it_weighs() {
 /// one, and a border rounds whichever pieces it leaves.
 #[test]
 fn the_other_ways_to_cut_it_build() {
-    for extra in [
-        "method = \"vhacd\"",
-        "method = \"vhacd\"\nresolution = 32.0\nmax_convex_hulls = 8.0",
-        "edge_radius = 0.02",
+    for (collider, decomposition) in [
+        ("", "method = { kind = \"vhacd\" }"),
+        (
+            "",
+            "method = { kind = \"vhacd\", resolution = 32, max_convex_hulls = 8 }",
+        ),
+        (
+            r##"shape = { kind = "convex_decomposition", mesh = "#table", edge_radius = 0.02 }"##,
+            "",
+        ),
     ] {
-        let app = table_app(extra);
+        let app = table_app(collider, decomposition);
         let state = app.engine.resource::<PhysicsState2d>();
         let state = state.borrow();
         assert!(
             !state.colliders.is_empty(),
-            "no collider was built for {extra}"
+            "no collider was built for {collider}{decomposition}"
         );
     }
 }
@@ -186,11 +211,11 @@ fn a_script_can_ask_for_the_pieces() {
 impl Scenario {
     fn init() {
         let l = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.0], [1.0, 1.0], [1.0, 2.0], [0.0, 2.0]];
-        let plain = geometry2d::convex_decomposition(l, map().with("overlap", 0.0));
+        let plain = geometry2d::convex_decomposition(l, geometry2d::DecompositionOptions { overlap: 0.0 });
         if plain.len() != 2 { log::error("an L should cut into two pieces"); }
         let grown = geometry2d::convex_decomposition(l);
         if grown.len() != 2 { log::error("the overlap changed the piece count"); }
-        if geometry2d::area(grown.at(0)) <= geometry2d::area(plain.at(0)) { log::error("no piece grew"); }
+        if geometry2d::area(grown[0]) <= geometry2d::area(plain[0]) { log::error("no piece grew"); }
         let hull = geometry2d::convex_hull(l);
         if hull.len() != 5 { log::error("core's own geometry2d verbs are still there"); }
     }
@@ -239,10 +264,11 @@ id = "n_table"
 name = "Table"
 parent = "n_world"
 
+[nodes."convex_decomposition2d"]
+method = {{ kind = "exact", overlap = {overlap} }}
+
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
-overlap = {overlap}
+shape = {{ kind = "convex_decomposition", mesh = "#table" }}
 
 [[nodes]]
 id = "n_beam"
@@ -257,8 +283,7 @@ kind = "dynamic"
 gravity_scale = 0.0
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.2, 0.04]
+shape = {{ kind = "rectangle", size = [1.2, 0.04] }}
 "##
         ),
     )
@@ -292,21 +317,26 @@ fn a_beam_wedged_in_a_seam_is_pushed_out() {
 fn a_vhacd_cut_defaults_to_the_numbers_rapier2d_uses() {
     let defaults = {
         let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-        balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin::default()).unwrap();
+        balaur_plugin::load(&mut app, &mut balaur_physics::PhysicsPlugin).unwrap();
         let registry = app
             .engine
             .resource::<balaur_core::components::ComponentRegistry>();
         let registry = registry.borrow();
         let schema = &registry
-            .def("collider2d")
-            .expect("collider2d is registered")
+            .def("convex_decomposition2d")
+            .expect("convex_decomposition2d is registered")
             .schema;
+        // The tuning sits in the vhacd way of the `method` variant.
         let default = |key: &str| {
             schema
-                .get(key)
+                .get("method")
+                .and_then(|method| method.get("variants"))
+                .and_then(|ways| ways.get("vhacd"))
+                .and_then(|vhacd| vhacd.get("fields"))
+                .and_then(|fields| fields.get(key))
                 .and_then(|row| row.get("default"))
                 .and_then(balaur_core::components::as_f64)
-                .unwrap_or_else(|| panic!("collider2d.{key} declares a default"))
+                .unwrap_or_else(|| panic!("convex_decomposition2d.{key} declares a default"))
         };
         (default("resolution"), default("max_concavity"))
     };
@@ -321,9 +351,10 @@ fn a_vhacd_cut_defaults_to_the_numbers_rapier2d_uses() {
         defaults.1
     );
 
-    let left = pieces(&table_app("method = \"vhacd\""));
+    let left = pieces(&table_app("", "method = { kind = \"vhacd\" }"));
     let stated = pieces(&table_app(
-        "method = \"vhacd\"\nresolution = 256\nmax_concavity = 0.1",
+        "",
+        "method = { kind = \"vhacd\", resolution = 256, max_concavity = 0.1 }",
     ));
     assert_eq!(
         left.len(),

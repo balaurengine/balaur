@@ -10,13 +10,13 @@ parent = "n_main"
 [nodes.tilemap]
 tileset = "tilesets/blocks.toml"
 pixels_per_unit = 16.0
-cells = [
+cells = { kind = "inline", rows = [
   [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
   [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
   [-1, -1,  1, -1, -1, -1, -1, -1, -1,  1, -1],
   [ 0,  0,  0,  0, -1, -1,  0,  0,  0,  0,  0],
   [ 0,  0,  0,  0, -1, -1,  0,  0,  0,  0,  0],
-]
+] }
 
 [nodes.tile_collision]
 physics_material = { friction = 0.6 }
@@ -34,10 +34,8 @@ position = [3.5, 1.0, 0.0]
 kind = "dynamic"
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [0.8, 0.8]
+shape = { kind = "rectangle", size = [0.8, 0.8] }
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.8, 0.8]
+shape = { kind = "rectangle", size = [0.8, 0.8] }
 color = [0.9, 0.6, 0.3, 1.0]

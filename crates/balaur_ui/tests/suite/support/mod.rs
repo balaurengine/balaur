@@ -54,8 +54,32 @@ pub fn app_with_editor_fonts() -> (tempfile::TempDir, App) {
 pub fn add_widget(app: &App, params: &toml::Value) -> Entity {
     let root = app.engine.root();
     let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), "W", root);
-    balaur::components::add(&app.engine, entity, "widget", Some(params)).unwrap();
+    add_widget_to(app, entity, params);
     entity
+}
+
+/// `params` on `entity` as a scene writes a widget: its own rows to
+/// `widget`, and each `widget_*` table in them to that component beside it.
+pub fn add_widget_to(app: &App, entity: Entity, params: &toml::Value) {
+    let mut own = params.as_table().cloned().unwrap_or_default();
+    let beside: Vec<(String, toml::Value)> = own
+        .iter()
+        .filter(|(key, value)| key.starts_with("widget_") && value.is_table())
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect();
+    for (key, _) in &beside {
+        own.remove(key);
+    }
+    balaur::components::add(
+        &app.engine,
+        entity,
+        "widget",
+        Some(&toml::Value::Table(own)),
+    )
+    .unwrap();
+    for (name, rows) in beside {
+        balaur::components::add(&app.engine, entity, &name, Some(&rows)).unwrap();
+    }
 }
 
 /// One egui pass over `run_pass` with the given input. The first pass only
@@ -169,18 +193,14 @@ pub fn consume_input(app: &mut App) {
 }
 
 pub fn clicked(app: &App, entity: Entity) -> bool {
-    balaur::components::get(&app.engine, entity, "widget")
-        .expect("the widget component is still on the node")
-        .get("clicked")
-        .and_then(toml::Value::as_bool)
-        .expect("the component emits a `clicked` bool")
+    !balaur_core::events::delivered_from(&app.engine, entity, "click").is_empty()
 }
 
 /// A widget under a container, as a scene node under a scene node. The tree
 /// was always there; what changed is that the layer reads it.
 pub fn add_child_widget(app: &App, parent: Entity, name: &str, params: &toml::Value) -> Entity {
     let entity = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, parent);
-    balaur::components::add(&app.engine, entity, "widget", Some(params)).unwrap();
+    add_widget_to(app, entity, params);
     entity
 }
 
@@ -241,15 +261,6 @@ pub fn focused(app: &App) -> Option<Entity> {
     app.engine.resource::<balaur_ui::UiFocus>().borrow().focused
 }
 
-/// Let the keyboard drive focus, which a game has to ask for: the keys are
-/// the game's until it declares the `ui_*` actions or says so here.
-pub fn keyboard(app: &App) {
-    app.engine
-        .resource::<balaur_ui::WidgetLayerConfig>()
-        .borrow_mut()
-        .keyboard = true;
-}
-
 /// A menu of three buttons in a column, which is what focus is for.
 pub fn menu(app: &App) -> (Entity, Vec<Entity>) {
     let column = add_widget(app, &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into());
@@ -265,6 +276,15 @@ pub fn menu(app: &App) -> (Entity, Vec<Entity>) {
         })
         .collect();
     (column, buttons)
+}
+
+/// A row of a component beside the widget, `widget_table` or the rest.
+pub fn beside_property(app: &App, entity: Entity, component: &str, key: &str) -> toml::Value {
+    balaur::components::get(&app.engine, entity, component)
+        .unwrap_or_else(|| panic!("no `{component}` on the node"))
+        .get(key)
+        .cloned()
+        .unwrap_or_else(|| panic!("the `{component}` has no `{key}`"))
 }
 
 pub fn property(app: &App, entity: Entity, key: &str) -> toml::Value {
@@ -289,4 +309,45 @@ pub fn texts(out: &egui::FullOutput) -> Vec<(String, egui::Pos2)> {
 pub fn root_rect(ctx: &egui::Context, entity: Entity) -> egui::Rect {
     ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
         .expect("the root drew")
+}
+
+/// Every glyph the shaper painted in a pass, as its box and its place in the
+/// atlas: each quad of a mesh drawn from a texture other than egui's own.
+pub fn glyphs(out: &egui::FullOutput) -> Vec<(egui::Rect, egui::Rect)> {
+    fn walk(shape: &egui::Shape, into: &mut Vec<(egui::Rect, egui::Rect)>) {
+        match shape {
+            egui::Shape::Mesh(mesh) if mesh.texture_id != egui::TextureId::default() => {
+                for quad in mesh.vertices.chunks(4) {
+                    let at =
+                        egui::Rect::from_points(&quad.iter().map(|v| v.pos).collect::<Vec<_>>());
+                    let uv =
+                        egui::Rect::from_points(&quad.iter().map(|v| v.uv).collect::<Vec<_>>());
+                    into.push((at, uv));
+                }
+            }
+            egui::Shape::Vec(inner) => inner.iter().for_each(|one| walk(one, into)),
+            _ => {}
+        }
+    }
+    let mut found = Vec::new();
+    for clipped in &out.shapes {
+        walk(&clipped.shape, &mut found);
+    }
+    found
+}
+
+/// Show or hide a node, and let the tree hear it: what a frame does between
+/// the script that wrote it and the next UI pass.
+pub fn set_shown(app: &App, node: Entity, on: bool) {
+    assert!(balaur::scene::set_visible(&app.engine, node, on));
+    let root = app.engine.root();
+    balaur::scene::propagate_transforms(&mut app.engine.world_mut(), root);
+}
+
+/// Whether the node itself is set to draw.
+pub fn own_visible(app: &App, node: Entity) -> bool {
+    app.engine
+        .world()
+        .get::<&balaur::scene::Appearance>(node)
+        .is_ok_and(|look| look.visible)
 }

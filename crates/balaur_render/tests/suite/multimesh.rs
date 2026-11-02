@@ -14,7 +14,7 @@ use crate::LOG;
 fn app() -> (tempfile::TempDir, App) {
     let dir = tempfile::tempdir().unwrap();
     let mut app = App::new(balaur_core::AppConfig::bare(dir.path().to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     (dir, app)
 }
 
@@ -154,7 +154,7 @@ fn a_child_draws_once() {
         &app,
         child,
         "shape3d",
-        "kind = \"box\"\nsize = [1.0, 1.0, 1.0]",
+        "shape = { kind = \"box\", size = [1.0, 1.0, 1.0] }",
     );
     app.tick(1.0 / 60.0);
     balaur_render::stats::measure(&app.engine);
@@ -404,7 +404,7 @@ fn a_script_moves_an_instance_every_frame_and_reads_it_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn update(dt: float) {
-        let x = self.node.multimesh3d.instance_transform(1).at(9).as_float() + 1.0;
+        let x = self.node.multimesh3d.instance_transform(1)[9].as_float() + 1.0;
         let moved: [float] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, x, 0.0, 0.0];
         self.node.multimesh3d.set_instance_transform(1, moved);
         self.node.multimesh3d.set_instance_color(0, [1.0, 0.0, 0.0, 1.0]);
@@ -440,8 +440,8 @@ impl Scenario {
         let grown = self.node.multimesh3d.instances();
         self.node.multimesh3d.set_instance_count(1);
         self.node.multimesh3d.set_visible_instance_count(0);
-        let x = grown.at(1).get("position").at(0);
-        let scale = grown.at(3).get("scale").at(1);
+        let x = grown[1]["position"][0];
+        let scale = grown[3]["scale"][1];
         let now = self.node.multimesh3d.instance_count();
         let showing = self.node.multimesh3d.visible_instance_count();
         log::info("grown {grown.len()} {x} {scale} now {now} showing {showing}");
@@ -495,8 +495,8 @@ fn instances_read_off_one_node_set_another_whole() {
 impl Scenario {
     fn init() {
         let mine = self.node.multimesh3d.instances();
-        mine.at(0).set("position", [0.0, 5.0, 0.0]);
-        mine.at(1).set("custom", [1.0, 2.0, 3.0, 4.0]);
+        mine[0]["position"] = [0.0, 5.0, 0.0];
+        mine[1]["custom"] = [1.0, 2.0, 3.0, 4.0];
         self.node.get_node("../B").multimesh3d.set_instances(mine);
     }
 }
@@ -548,8 +548,8 @@ impl Scenario {
     fn init() {
         self.node.multimesh2d.set_instance_region(1, [8.0, 16.0], [32.0, 24.0]);
         let region = self.node.multimesh2d.instance_region(1);
-        let whole = self.node.multimesh2d.instance_region(0).is_nil();
-        log::info("region {region.at(1)} {region.at(3)} {whole}");
+        let whole = self.node.multimesh2d.instance_region(0) == nil;
+        log::info("region {region[1]} {region[3]} {whole}");
     }
 }
 "#,

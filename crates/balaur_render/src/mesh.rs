@@ -1,14 +1,14 @@
 //! The `mesh` render component: which geometry a node draws.
 //!
 //! The geometry, its parsers and the `mesh` asset type live in
-//! `balaur_core::mesh`: physics needs them too, and does not depend on this
+//! `balaur_geometry::mesh`: physics needs them too, and does not depend on this
 //! crate. What lives here is the component that points a node at one.
 
 use crate::vocabulary::{keys as k, words};
 use crate::{Bounds3d, Renderable3d, Shape3d};
 use balaur_core::Engine;
 use balaur_core::hecs::Entity;
-use balaur_core::mesh::{MESH_ASSET_TYPE, MeshData, SolvedMesh};
+use balaur_geometry::mesh::{MESH_ASSET_TYPE, MeshData, SolvedMesh};
 use balaur_plugin::Registry;
 
 /// The `mesh` component: authored geometry on a node.
@@ -41,12 +41,11 @@ pub struct MorphWeights {
 /// one model should not stop another from loading.
 fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::Value) {
     let names: Vec<String> = balaur_core::assets::load_typed::<MeshData>(eng, source)
-        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
+        .and_then(|definition| balaur_geometry::mesh::load_from(eng, &definition))
         .map(|mesh| mesh.morphs.into_iter().map(|target| target.name).collect())
         .unwrap_or_default();
-    let mut world = eng.world_mut();
     if names.is_empty() {
-        let _ = world.remove_one::<MorphWeights>(entity);
+        let _ = eng.remove_one::<MorphWeights>(entity);
         return;
     }
     let weights: Vec<f32> = names
@@ -58,7 +57,7 @@ fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::
                 .unwrap_or(0.0) as f32
         })
         .collect();
-    if let Ok(mut existing) = world.get::<&mut MorphWeights>(entity) {
+    if let Ok(mut existing) = eng.world().get::<&mut MorphWeights>(entity) {
         if existing.names != names || existing.weights != weights {
             existing.names = names;
             existing.weights = weights;
@@ -66,7 +65,7 @@ fn set_morph_weights(eng: &Engine, entity: Entity, source: &str, params: &toml::
         }
         return;
     }
-    let _ = world.insert_one(
+    let _ = eng.insert_one(
         entity,
         MorphWeights {
             names,
@@ -83,17 +82,17 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
     reg.register_component(
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
-            events: &[],
-            warnings: None,
             doc: "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
-            schema: balaur_core::components::ComponentDef::parse_schema(
+            tags: &[words::PERSPECTIVE, "render"],
+            ..balaur_core::components::ComponentDef::by_hand(
+                balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
                 &balaur_core::components::ComponentDef::schema(&crate::overlay::with_rows(
                     &[
-                        (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_core::mesh::MESH_ASSET_TYPE)),
+                        (k::SOURCE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The mesh asset this node draws" }}"#, balaur_geometry::mesh::MESH_ASSET_TYPE)),
                         (k::MATERIAL, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The material this draws with; empty draws with the built-in one" }}"#, crate::material::MATERIAL_ASSET_TYPE)),
                         (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint the texture and the material are multiplied by, as channel floats or #rrggbb / #rrggbbaa; an alpha below one draws it see-through" }"#),
-                        (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::texture_asset::TEXTURE_ASSET_TYPE)),
+                        (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::assets::TEXTURE_ASSET_TYPE)),
                         (k::SKELETON, r#"{ type = "node", default = "", description = "The rig a skinned mesh deforms with; empty means this node" }"#),
                         (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast", group = "shadows" }"#),
                         (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
@@ -102,9 +101,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                     &crate::overlay::schema_3d(),
                 )),
             ),
-            tags: &[words::PERSPECTIVE, "render"],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
+                Box::new(|eng, entity, params| {
                 let text = |key: &str| {
                     params
                         .get(key)
@@ -117,7 +114,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 // must not take the scene down, and a headless run should hear of it.
                 if !source.is_empty()
                     && let Err(why) = balaur_core::assets::load_typed::<MeshData>(eng, &source)
-                        .and_then(|definition| balaur_core::mesh::load_from(eng, &definition))
+                        .and_then(|definition| balaur_geometry::mesh::load_from(eng, &definition))
                 {
                     tracing::warn!("mesh '{source}': {why:#}");
                 }
@@ -127,12 +124,11 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 crate::lighting_from_params(eng, entity, params);
                 crate::material::set_material_3d(eng, entity, &text(k::MATERIAL))
             }),
-            remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<crate::Renderable3d>(entity);
+                Box::new(|eng, entity| {
+                let _ = eng.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng, entity| {
+                Box::new(|eng, entity| {
                 let world = eng.world();
                 // A `multimesh3d` draws its asset's mesh through the same
                 // renderable, and is not a `mesh` the author added.
@@ -178,6 +174,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                 }
                 Some(toml::Value::Table(map))
             }),
+            )
         },
     );
     // One weight per shape the mesh can blend towards, named by the asset.
@@ -241,24 +238,25 @@ pub(crate) fn resolve_solved_system(eng: &Engine, _dt: f32) {
     for (entity, mesh, topology, color) in wanted {
         install(eng, entity, mesh, topology, color);
     }
-    let mut world = eng.world_mut();
     for entity in drawn {
-        let _ = world.insert_one(entity, SolverDrawn);
+        let _ = eng.insert_one(entity, SolverDrawn);
     }
-    let gone: Vec<Entity> = world
+    let gone: Vec<Entity> = eng
+        .world()
         .query::<Entity>()
         .with::<&SolverDrawn>()
         .without::<&SolvedMesh>()
         .iter()
         .collect();
     for entity in gone {
-        let _ = world.remove_one::<SolverDrawn>(entity);
-        let ours = world
+        let _ = eng.remove_one::<SolverDrawn>(entity);
+        let ours = eng
+            .world()
             .get::<&Renderable3d>(entity)
             .is_ok_and(|r| is_ours(&r));
         if ours {
-            let _ = world.remove_one::<Renderable3d>(entity);
-        } else if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+            let _ = eng.remove_one::<Renderable3d>(entity);
+        } else if let Ok(mut renderable) = eng.world().get::<&mut Renderable3d>(entity) {
             // The backend's node still holds the last deformed vertices.
             renderable.version = renderable.version.wrapping_add(1);
         }
@@ -302,11 +300,10 @@ fn mesh_of(solved: &SolvedMesh) -> MeshData {
 fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [f32; 4]) {
     let bounds = bounds_of(&mesh.positions);
     let built = Some(std::sync::Arc::new(mesh));
-    let mut world = eng.world_mut();
     // The version is the topology, so the backend rebuilds on a tear and on
     // nothing else (see the module docs).
     let version = u64::from(topology);
-    if let Ok(mut renderable) = world.get::<&mut Renderable3d>(entity) {
+    if let Ok(mut renderable) = eng.world().get::<&mut Renderable3d>(entity) {
         renderable.shape = Shape3d::Built;
         renderable.built = built;
         renderable.bounds = bounds;
@@ -314,7 +311,7 @@ fn install(eng: &Engine, entity: Entity, mesh: MeshData, topology: u32, color: [
         renderable.color = color;
         return;
     }
-    let _ = world.insert_one(
+    let _ = eng.insert_one(
         entity,
         Renderable3d {
             shape: Shape3d::Built,

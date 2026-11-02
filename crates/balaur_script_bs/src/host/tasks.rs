@@ -5,7 +5,7 @@ use super::{BsHost, File, Instance};
 use crate::convert::{from_neutral, to_neutral};
 use anyhow::{Result, anyhow};
 use balaur_bs::runtime::{Object, RunError, Runtime, Step, Task, Value as L};
-use balaur_script::Value;
+use balaur_script::{NodeId, Value};
 
 /// A method suspended on the engine.
 pub(super) struct Pending {
@@ -17,7 +17,44 @@ pub(super) struct Pending {
     pub(super) done: Option<u64>,
 }
 
+/// An async method a script asked of its own instance from a plain method:
+/// `self.node.call("await_reply", id)`. It starts once the instance is free,
+/// which is before any wake, so the token it waits on cannot wake first.
+pub(super) struct WaitingStart {
+    pub(super) node: u64,
+    pub(super) method: String,
+    pub(super) args: Vec<Value>,
+    pub(super) done: Option<u64>,
+}
+
 impl BsHost {
+    /// Starts what was asked of an instance that was busy, and answers one
+    /// that finished at its first await or cannot start. A parked instance's
+    /// waits for its scene to come back.
+    pub(super) fn run_waiting_starts(&self) {
+        let waiting = std::mem::take(&mut *self.inner.waiting_starts.borrow_mut());
+        for start in waiting {
+            if self.parked_instance(NodeId(start.node)).is_some() {
+                self.inner.waiting_starts.borrow_mut().push(start);
+                continue;
+            }
+            let out = match self.instance(NodeId(start.node)) {
+                Some((file, inst)) if file.method(&start.method).is_some() => {
+                    self.run(&file, &inst, &start.method, &start.args, start.done)
+                }
+                _ => Ok(Some(Value::Nil)),
+            };
+            match out {
+                Ok(None) => {}
+                Ok(Some(v)) => self.answer(start.done, v),
+                Err(e) => {
+                    tracing::error!("{e:#}");
+                    self.answer(start.done, Value::Nil);
+                }
+            }
+        }
+    }
+
     /// Starts async `method` and runs it to its first await; `Some` when it
     /// finished there.
     pub(super) fn start(
@@ -54,13 +91,15 @@ impl BsHost {
 
     /// Hands `payload` to the instance awaiting `token`, then runs on what can.
     pub(super) fn deliver(&self, token: u64, payload: &Value) {
+        self.run_waiting_starts();
         let mut woke = false;
         for home in self.homes() {
             let Ok(mut rt) = home.rt.try_borrow_mut() else {
                 continue;
             };
             if let Some(ty) = rt.awaits(token) {
-                woke |= rt.wake(token, from_neutral(payload, &ty));
+                let payload = from_neutral(payload, &ty, rt.meta());
+                woke |= rt.wake(token, payload);
             }
         }
         if woke {
@@ -69,12 +108,14 @@ impl BsHost {
     }
 
     /// Polls every parked task; one that finishes answers its caller. A
-    /// stop freezes the game, and the tasks behind it wait with it.
+    /// stop freezes the game, and the tasks behind it wait with it, as a task
+    /// waits with a node anything else holds.
     pub(super) fn run_tasks(&self) {
+        let holds = self.holds();
         let parked = std::mem::take(&mut *self.inner.tasks.borrow_mut());
         let mut kept = Vec::with_capacity(parked.len());
         for p in parked {
-            if self.is_held() {
+            if !self.ticks(p.node, holds) || self.stopped_in(&p.path) {
                 kept.push(p);
                 continue;
             }
@@ -185,10 +226,15 @@ impl BsHost {
     }
 
     fn take_where(&self, pick: impl Fn(&Pending) -> bool) -> Vec<Pending> {
-        let mut tasks = self.inner.tasks.borrow_mut();
-        let (taken, kept) = std::mem::take(&mut *tasks).into_iter().partition(pick);
-        *tasks = kept;
-        taken
+        let mut all = Vec::new();
+        for list in [&self.inner.tasks, &self.inner.parked_tasks] {
+            let mut tasks = list.borrow_mut();
+            let (taken, kept): (Vec<_>, _) =
+                std::mem::take(&mut *tasks).into_iter().partition(&pick);
+            *tasks = kept;
+            all.extend(taken);
+        }
+        all
     }
 }
 

@@ -1,5 +1,5 @@
 //! `ui::fill_strip`: widget nodes made, reused and hidden from a list a
-//! script hands over every frame, and a reader's edit reaching `on`.
+//! script hands over every frame, and a reader's edit reaching its keys.
 
 use balaur::{AppConfig, standard_app};
 use balaur_core::App;
@@ -59,7 +59,7 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         let controls: [any] = [];
-        for index in 0..self.count { controls.push(map().with(\"kind\", \"label\").with(\"text\", \"L{index}\")); }
+        for index in 0..self.count { controls.push({ \"kind\": \"label\", \"text\": \"L{index}\" }); }
         ui::fill_strip(\"Root/Bar\", controls);
         self.count = 1;
     }
@@ -78,27 +78,18 @@ impl Root {
     assert_eq!(number(&app, "frames"), Some(2.0));
     let after = kids(&app);
     assert_eq!(after, made, "the nodes are reused, not made again");
-    assert_eq!(
-        prop(&app, after[0], "visible"),
-        Some(toml::Value::Boolean(true))
-    );
-    assert_eq!(
-        prop(&app, after[1], "visible"),
-        Some(toml::Value::Boolean(false))
-    );
-    assert_eq!(
-        prop(&app, after[2], "visible"),
-        Some(toml::Value::Boolean(false))
-    );
+    assert!(crate::support::own_visible(&app, after[0]));
+    assert!(!crate::support::own_visible(&app, after[1]));
+    assert!(!crate::support::own_visible(&app, after[2]));
 }
 
 #[test]
-fn a_reader_s_click_reaches_on_and_a_script_s_write_does_not() {
+fn a_reader_s_click_reaches_its_key_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
         "pub class Root { node: Node, on: bool, edits: int }
 impl Root {
     fn update(dt: float) {
-        let controls: [any] = [map().with(\"kind\", \"checkbox\").with(\"checked\", self.on).with(\"on\", \"toggled\")];
+        let controls: [any] = [{ \"kind\": \"checkbox\", \"checked\": self.on, \"on_change\": \"toggled\" }];
         ui::fill_strip(\"Root/Bar\", controls);
     }
     pub fn toggled(data: any, v: any) {
@@ -150,10 +141,10 @@ impl Root {
     fn update(dt: float) {
         self.frames += 1;
         if self.frames % 2 == 0 {
-            scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"visible\", false));
+            scene::get_node(\"Root/Bar\").set_visible(false);
         } else {
-            let label: [any] = [map().with(\"kind\", \"label\").with(\"text\", \"x\")];
-            let rows: [any] = [map().with(\"label\", \"a\").with(\"controls\", label)];
+            let label: [any] = [{ \"kind\": \"label\", \"text\": \"x\" }];
+            let rows: [any] = [{ \"label\": \"a\", \"controls\": label }];
             ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
         }
     }
@@ -164,8 +155,8 @@ impl Root {
         app.tick(1.0 / 60.0);
         let shown = frame % 2 == 1;
         assert_eq!(
-            prop(&app, bar(&app), "visible"),
-            Some(toml::Value::Boolean(shown)),
+            crate::support::own_visible(&app, bar(&app)),
+            shown,
             "frame {frame}: {}",
             if shown {
                 "filled, so shown"
@@ -185,17 +176,24 @@ fn a_control_keeps_nothing_the_last_one_in_its_slot_stated() {
         "pub class Root { node: Node, frames: int, edits: int }
 impl Root {
     fn init() {
-        scene::get_node(\"Root/Bar\").patch_component(\"widget\", map().with(\"kind\", \"column\").with(\"anchor\", \"fill\"));
+        scene::get_node(\"Root/Bar\").patch_component(\"widget\", { \"kind\": \"column\", \"anchor\": \"fill\" });
     }
     fn update(dt: float) {
         self.frames += 1;
-        let control = if self.frames < 3 {
-            map().with(\"kind\", \"number_field\").with(\"grow\", 1).with(\"value\", 0.5).with(\"min\", 0.01)
-                .with(\"max\", 2.0).with(\"prefix\", \"px\").with(\"on\", \"edited\")
+        let control: any = if self.frames < 3 {
+            {
+                \"kind\": \"number_field\",
+                \"grow\": 1,
+                \"value\": 0.5,
+                \"min\": 0.01,
+                \"max\": 2.0,
+                \"prefix\": \"px\",
+                \"on_change\": \"edited\",
+            }
         } else {
-            map().with(\"kind\", \"number_field\").with(\"grow\", 1).with(\"value\", -24.0).with(\"on\", \"edited\")
+            { \"kind\": \"number_field\", \"grow\": 1, \"value\": -24.0, \"on_change\": \"edited\" }
         };
-        let rows: [any] = [map().with(\"label\", \"x\").with(\"controls\", [control])];
+        let rows: [any] = [{ \"label\": \"x\", \"controls\": [control] }];
         ui::fill_rows(\"Root/Bar\", rows, 40.0, false);
     }
     pub fn edited(data: any, v: any) { self.edits += 1; }
@@ -215,11 +213,11 @@ impl Root {
         "the number was drawn"
     );
     assert_eq!(
-        prop(&app, field[0], "value"),
+        balaur_core::components::property(&app.engine, field[0], "widget_range", "value"),
         Some(toml::Value::Float(-24.0))
     );
     assert_eq!(
-        prop(&app, field[0], "max"),
+        balaur_core::components::property(&app.engine, field[0], "widget_range", "max"),
         Some(toml::Value::Float(1.0)),
         "the range went with the control that stated it"
     );

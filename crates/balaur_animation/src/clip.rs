@@ -239,9 +239,6 @@ pub struct Key {
     /// The method this key dispatches through `ScriptHost::call_on`, on a
     /// method track. `None` on every value key.
     pub call: Option<String>,
-    /// A script function this key calls instead, held by the host while a
-    /// tween names it. Only a tween step makes one.
-    pub function: Option<u64>,
     /// The curve shaping the segment that runs *into* this key, or `None`
     /// for the straight line. Easing belongs to the key a segment arrives at,
     /// which is the convention the format's own examples are written in — so
@@ -450,7 +447,6 @@ fn parse_key(
             time,
             value: Vec4::ZERO,
             call: Some(call),
-            function: None,
             ease,
             wide: Vec::new(),
             discrete: None,
@@ -466,7 +462,6 @@ fn parse_key(
             time,
             value: Vec4::ZERO,
             call: None,
-            function: None,
             ease,
             wide,
             discrete: None,
@@ -482,7 +477,6 @@ fn parse_key(
             time,
             value: Vec4::ZERO,
             call: None,
-            function: None,
             ease,
             wide: Vec::new(),
             discrete: Some(raw.clone()),
@@ -493,7 +487,6 @@ fn parse_key(
         time,
         value: parse_value(value, channels)?,
         call: None,
-        function: None,
         ease,
         wide: Vec::new(),
         discrete: None,

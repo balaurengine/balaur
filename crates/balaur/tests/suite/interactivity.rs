@@ -274,7 +274,7 @@ name = "Door"
 parent = "n_scene"
 
 [nodes.shape3d]
-kind = "box"
+shape = { kind = "box" }
 color = [0.45, 0.32, 0.17, 1]
 
 [nodes.states]
@@ -340,13 +340,16 @@ fn a_state_leaves_what_it_does_not_name_alone() {
     let (_dir, app) = app_from(DOOR);
     let door = node(&app, "Door");
     let before = balaur_core::components::get(&app.engine, door, "shape3d").unwrap();
-    let kind = before.get("kind").and_then(toml::Value::as_str).unwrap();
+    let kind = before["shape"]
+        .get("kind")
+        .and_then(toml::Value::as_str)
+        .unwrap();
     assert_eq!(kind, "box");
 
     balaur_core::states::go(&app.engine, door, "open").unwrap();
     let after = balaur_core::components::get(&app.engine, door, "shape3d").unwrap();
     assert_eq!(
-        after.get("kind").and_then(toml::Value::as_str),
+        after["shape"].get("kind").and_then(toml::Value::as_str),
         Some("box"),
         "the state said nothing about the shape's kind"
     );
@@ -531,10 +534,8 @@ name = "Zone"
 parent = "n_scene"
 
 [nodes.collider3d]
-kind = "box"
-size = [4.0, 4.0, 4.0]
+shape = { kind = "box", size = [4.0, 4.0, 4.0] }
 sensor = true
-events = ["collision"]
 
 [[nodes.bindings.rows]]
 event = "collision_enter"
@@ -555,8 +556,7 @@ parent = "n_scene"
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 
 [[nodes]]
 id = "n_door"

@@ -34,27 +34,27 @@ fn plugin_components_roundtrip_through_the_registry() {
                 // set_component adds with defaults when the node lacks the
                 // component, and merges when it has it; there is no add_component.
                 n.set_component("body3d");
-                n.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.7));
-                n.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.7));
-                n.set_component("widget", map().with("text", "hi"));
+                n.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.7 } });
+                n.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.7 } });
+                n.set_component("widget", { "text": "hi" });
 
                 let body = n.get_component("body3d");
-                self.check(body.get("kind").as_str() == "dynamic", "default body kind");
-                n.set_component("body3d", map().with("kind", "static"));
-                self.check(n.get_component("body3d", "kind").as_str() == "static", "edited body kind");
+                self.check(body["kind"].as_str() == "dynamic", "default body kind");
+                n.set_component("body3d", { "kind": "static" });
+                self.check(n.body3d.kind == "static", "edited body kind");
 
                 let col = n.get_component("collider3d");
-                self.check(math::abs(col.get("radius").as_float() - 0.7) < 1e-5, "collider radius roundtrip");
+                self.check(math::abs(col["shape"]["radius"].as_float() - 0.7) < 1e-5, "collider radius roundtrip");
 
                 let schema = scene::component_schema("collider3d");
-                self.check(schema.get("kind").get("type").as_str() == "enum", "kind is an enum");
-                self.check(schema.get("radius").get("default").as_float() == 0.5, "radius default");
+                self.check(schema["shape"]["type"].as_str() == "variant", "shape is a variant");
+                self.check(schema["shape"]["variants"]["sphere"]["fields"]["radius"]["default"].as_float() == 0.5, "radius default");
 
                 n.remove_component("body3d");
-                self.check(n.get_component("body3d").is_nil(), "body removed");
-                self.check(!n.get_component("collider3d").is_nil(), "collider survives body removal");
+                self.check(n.get_component("body3d") == nil, "body removed");
+                self.check(n.get_component("collider3d") != nil, "collider survives body removal");
                 n.remove_component("collider3d");
-                self.check(n.get_component("collider3d").is_nil(), "collider removed");
+                self.check(n.get_component("collider3d") == nil, "collider removed");
 
                 let present = n.component_names();
                 self.check(has(present, "shape3d") && has(present, "widget") && !has(present, "body3d"), "names left");
@@ -172,7 +172,7 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     // A renderable's `color` property, written as the hex a scene uses.
     let e = spawn(&app, "Red");
     let params = toml::Value::Table(toml::toml! {
-        kind = "sphere"
+        shape = { kind = "sphere" }
         color = "#ff0000"
     });
     balaur::components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
@@ -185,11 +185,6 @@ fn a_hex_string_is_a_colour_wherever_a_colour_is_taken() {
     balaur::components::add(&app.engine, w, "widget", Some(&params.into())).unwrap();
     let got = balaur::components::get(&app.engine, w, "widget").unwrap();
     assert_eq!(floats(&got, "text_color"), vec![0.0, 0.0, 1.0, 1.0]);
-    assert_eq!(
-        got.get("clicked").and_then(toml::Value::as_bool),
-        Some(false),
-        "clicked is emitted, and now declared"
-    );
 }
 
 #[test]
@@ -234,17 +229,8 @@ fn every_enum_option_a_schema_offers_round_trips() {
 
     for (name, def) in &*registry {
         let schema = def.schema.as_table().unwrap();
-        let exempt: &[&str] = CONDITIONAL
-            .iter()
-            .find(|(component, _)| component == name)
-            .map_or(&[], |(_, props)| *props);
         for (prop, spec) in schema {
             if spec.get("type").and_then(toml::Value::as_str) != Some("enum") {
-                continue;
-            }
-            // One variant's enum reads back only on that variant; the
-            // component's own suite round-trips it there.
-            if exempt.contains(&prop.as_str()) {
                 continue;
             }
             let options = spec.get("options").and_then(toml::Value::as_array).unwrap();
@@ -283,8 +269,8 @@ fn every_enum_option_a_schema_offers_round_trips() {
     );
 }
 
-/// A `shape2d` polyline takes a `mesh` or a `path2d`, and the schema can only
-/// name one of them, so an inline table's own `type` is what decides.
+/// A `line2d` takes a `mesh` or a `path2d`, and the schema can only name one
+/// of them, so an inline table's own `type` is what decides.
 #[test]
 fn an_inline_asset_is_the_type_its_table_declares() {
     let (dir, app) = app_with_every_component();
@@ -297,13 +283,13 @@ fn an_inline_asset_is_the_type_its_table_declares() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Curve");
-                n.set_component("shape2d", map()
-                    .with("kind", "polyline")
-                    .with("width", 0.05)
-                    .with("mesh", map().with("type", "path2d").with("points", [[0.0, 0.0], [1.0, 0.0]]).with("closed", false)));
+                n.set_component("line2d", {
+                    "width": 0.05,
+                    "mesh": { "type": "path2d", "points": [[0.0, 0.0], [1.0, 0.0]], "closed": false },
+                });
                 // It resolved to an inline reference rather than failing, and the
                 // component reads back with one.
-                let mesh = n.get_component("shape2d", "mesh").as_str();
+                let mesh = n.line2d.mesh;
                 if mesh.starts_with("#!") {
                     self.done = 1;
                 } else {
@@ -315,52 +301,6 @@ fn an_inline_asset_is_the_type_its_table_declares() {
 "##,
     );
 }
-
-/// Properties a component declares but does not always emit, because they
-/// belong to one variant of it and the schema has no way to say so.
-///
-/// Every entry is checked both ways: an exempt property must still be
-/// declared, and must still be genuinely absent. An entry that stops being
-/// true fails rather than quietly covering for a real gap.
-const CONDITIONAL: &[(&str, &[&str])] = &[
-    // A shape reports the geometry of the `kind` it is: a box has a
-    // `size`, a sphere a `radius`, and neither carries the other's.
-    (
-        "shape2d",
-        &[
-            "cap",
-            "closed",
-            "gradient",
-            "gradient_steps",
-            "height",
-            "inner_radius",
-            "join",
-            "mesh",
-            "miter_limit",
-            "points",
-            "radius",
-            "sides",
-            "taper",
-            "width",
-        ],
-    ),
-    (
-        "shape3d",
-        &[
-            "height",
-            "inner_radius",
-            "radius",
-            "rings",
-            "sides",
-            "tube_radius",
-        ],
-    ),
-    // A sprite cut from a sheet reports the sheet; one drawing a whole image
-    // has no cut to report.
-    ("sprite", &["region_origin", "region_size", "sheet", "size"]),
-    // A map reports what was painted only once something has been.
-    ("tilemap", &["flags", "seed", "terrain"]),
-];
 
 /// The other half of [`every_component_emits_only_keys_its_schema_declares`]:
 /// a property the schema promises the editor has to come back out of `get`,
@@ -386,26 +326,10 @@ fn every_component_emits_every_key_its_schema_declares() {
             .unwrap_or_else(|| panic!("`{name}` applied but reads back as absent"));
         let emitted = emitted.as_table().unwrap();
         let declared = def.schema.as_table().unwrap();
-        let exempt: &[&str] = CONDITIONAL
-            .iter()
-            .find(|(component, _)| component == name)
-            .map_or(&[], |(_, props)| *props);
-
         for key in declared.keys() {
             assert!(
-                exempt.contains(&key.as_str()) || emitted.contains_key(key),
-                "`{name}.{key}` is declared but `get` never emits it: either emit \
-                 it or record it in CONDITIONAL with the variant it belongs to"
-            );
-        }
-        for prop in exempt {
-            assert!(
-                declared.contains_key(*prop),
-                "`{name}.{prop}` is in CONDITIONAL but no schema declares it any more"
-            );
-            assert!(
-                !emitted.contains_key(*prop),
-                "`{name}.{prop}` is in CONDITIONAL but `get` now always emits it; drop the entry"
+                emitted.contains_key(key),
+                "`{name}.{key}` is declared but `get` never emits it"
             );
         }
     }
@@ -427,13 +351,13 @@ fn a_one_property_write_leaves_the_rest() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Moved");
-                n.set_component("transform", map().with("position", [1.0, 2.0, 3.0]).with("scale", [4.0, 4.0, 4.0]));
-                n.patch_component("transform", map().with("position", [9.0, 0.0, 0.0]));
+                n.set_component("transform", { "position": [1.0, 2.0, 3.0], "scale": [4.0, 4.0, 4.0] });
+                n.transform.position = vec3(9.0, 0.0, 0.0);
 
-                let at = n.get_component("transform", "position");
-                self.check(at.at(0).as_float() == 9.0, "position moved");
-                let size = n.get_component("transform", "scale");
-                self.check(size.at(0).as_float() == 4.0, "scale survived the write");
+                let at = n.transform.position;
+                self.check(at.x == 9.0, "position moved");
+                let size = n.transform.scale;
+                self.check(size.x == 4.0, "scale survived the write");
                 self.check(n.transform.position.x == 9.0, "the handle reads it back");
 
                 if !self.failed {
@@ -498,21 +422,25 @@ fn a_keyed_read_answers_one_property() {
         impl Checks {
             fn init() {
                 let n = scene::root().add_child("Keyed");
-                n.set_component("widget", map().with("text", "hi").with("kind", "button"));
-                n.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.7));
+                n.set_component("widget", { "text": "hi", "kind": "button" });
+                n.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.7 } });
 
-                self.check(n.get_component("widget", "text").as_str() == "hi", "widget text");
-                self.check(n.get_component("widget", "kind").as_str() == "button", "widget kind");
-                let clicked = n.get_component("widget", "clicked");
-                self.check(clicked.kind() == "bool" && !clicked.as_bool(), "widget clicked");
+                let text = "text";
+                let kind = "kind";
+                let checked_key = "checked";
+                self.check(n.get_component("widget", text).as_str() == "hi", "widget text");
+                self.check(n.get_component("widget", kind).as_str() == "button", "widget kind");
+                let checked = n.get_component("widget", checked_key);
+                self.check(checked.kind() == "bool" && !checked.as_bool(), "widget checked");
                 let table = n.get_component("widget");
-                self.check(n.get_component("widget", "value") == table.get("value"), "same as the table");
+                self.check(n.get_component("widget", "value") == table["value"], "same as the table");
 
                 // No fast path: the table is read and indexed.
-                self.check(n.get_component("collider3d", "kind").as_str() == "sphere", "collider kind");
+                let shape = "shape";
+                self.check(n.get_component("collider3d", shape)["kind"].as_str() == "sphere", "collider kind");
 
-                self.check(n.get_component("widget", "no_such_property").is_nil(), "unknown property");
-                self.check(n.get_component("body3d", "kind").is_nil(), "component the node lacks");
+                self.check(n.get_component("widget", "no_such_property") == nil, "unknown property");
+                self.check(n.get_component("body3d", kind) == nil, "component the node lacks");
 
                 if !self.failed {
                     self.done = 1;

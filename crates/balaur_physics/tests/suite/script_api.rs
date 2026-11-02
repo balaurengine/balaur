@@ -57,9 +57,9 @@ fn run_clean(body: &str) {
 fn colliders_can_be_added_in_every_shape_the_api_offers() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_BOX).with("size", [1.0, 1.0, 1.0]));
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_BOX, "size": [1.0, 1.0, 1.0] } });
         "#,
     );
 }
@@ -68,8 +68,8 @@ fn colliders_can_be_added_in_every_shape_the_api_offers() {
 fn linear_velocity_is_set_and_read_back() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
         self.node.body3d.set_linear_velocity(1.0, 2.0, 3.0);
         let v = self.node.body3d.linear_velocity();
         if math::abs(v.x - 1.0) >= 0.0001 { log::error("x was not kept: {v.x}"); }
@@ -83,8 +83,8 @@ fn linear_velocity_is_set_and_read_back() {
 fn an_impulse_starts_a_body_moving() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
         self.node.body3d.apply_impulse(10.0, 0.0, 0.0);
         let x = self.node.body3d.linear_velocity().x;
         if x <= 0.0 { log::error("the impulse did nothing: {x}"); }
@@ -122,8 +122,8 @@ fn gravity_and_clear_are_callable() {
 fn the_2d_world_has_the_same_shape_of_api() {
     run_clean(
         r#"
-        self.node.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
-        self.node.set_component("collider2d", map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", 0.5));
+        self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
+        self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CIRCLE, "radius": 0.5 } });
         self.node.body2d.set_linear_velocity(1.0, 2.0);
         let v = self.node.body2d.linear_velocity();
         if !(math::abs(v.x - 1.0) < 0.0001 && math::abs(v.y - 2.0) < 0.0001) { log::error("the velocity was not kept"); }
@@ -139,11 +139,11 @@ fn the_2d_world_has_the_same_shape_of_api() {
 fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
         if self.node.collider3d.overlaps().len() != 0 { log::error("3D overlaps should be empty"); }
-        self.node.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
-        self.node.set_component("collider2d", map().with("kind", physics2d::SHAPE_CIRCLE).with("radius", 0.5).with("sensor", true));
+        self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
+        self.node.set_component("collider2d", { "shape": { "kind": physics2d::SHAPE_CIRCLE, "radius": 0.5 }, "sensor": true });
         if self.node.collider2d.overlaps().len() != 0 { log::error("2D overlaps should be empty"); }
         "#,
     );
@@ -154,7 +154,7 @@ fn overlaps_returns_an_empty_list_for_a_node_touching_nothing() {
 #[test]
 fn a_wrong_argument_is_reported_not_fatal() {
     let errors = run(
-        "self.node.set_component(\"body3d\", map().with(\"kind\", physics3d::BODY_DYNAMIC));\n\
+        "self.node.set_component(\"body3d\", { \"kind\": physics3d::BODY_DYNAMIC });\n\
          self.node.body3d.apply_impulse(\"sideways\", 0.0, 0.0);",
     );
     assert!(!errors.is_empty(), "a string was accepted as an impulse");
@@ -168,14 +168,14 @@ fn a_wrong_argument_is_reported_not_fatal() {
 fn a_component_call_binds_the_node_for_the_module_driving_it() {
     run_clean(
         r#"
-        self.node.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
+        self.node.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
         self.node.body2d.apply_impulse(1.0, 0.0);
         self.node.body2d.set_linear_velocity(2.0, 0.0);
         if !self.node.has_component("body2d") {
             log::error("the node should carry the body2d it was given");
         }
         let table = self.node.get_component("body2d");
-        if table.get("kind").as_str() != "dynamic" {
+        if table["kind"].as_str() != "dynamic" {
             log::error("get_component should hand back the component table");
         }
         "#,
@@ -197,22 +197,23 @@ fn a_component_call_no_driving_module_declares_is_refused() {
 fn every_tuning_key_that_can_be_written_reads_back() {
     run_clean(
         r#"
-        physics::set_tuning(map()
-            .with("friction_in_bias_pass", true)
-            .with("allowed_linear_error", 0.004)
-            .with("max_corrective_velocity", 12.5)
-            .with("prediction_distance", 0.006)
-            .with("max_linear_velocity", 77.0)
-            .with("static_contact_frequency_hz", 41.0)
-            .with("static_contact_damping", 3.5));
-        let back = physics::tuning().get("2d");
-        if !back.get("friction_in_bias_pass").as_bool() { log::error("friction_in_bias_pass is write-only"); }
-        if back.get("allowed_linear_error").as_float() - 0.004 >= 0.0001 { log::error("allowed_linear_error"); }
-        if back.get("max_corrective_velocity").as_float() - 12.5 >= 0.0001 { log::error("max_corrective_velocity"); }
-        if back.get("prediction_distance").as_float() - 0.006 >= 0.0001 { log::error("prediction_distance"); }
-        if back.get("max_linear_velocity").as_float() - 77.0 >= 0.0001 { log::error("max_linear_velocity"); }
-        if back.get("static_contact_frequency_hz").as_float() - 41.0 >= 0.0001 { log::error("static_contact_frequency"); }
-        if back.get("static_contact_damping").as_float() - 3.5 >= 0.0001 { log::error("static_contact_damping"); }
+        physics::set_tuning({
+            "friction_in_bias_pass": true,
+            "allowed_linear_error": 0.004,
+            "max_corrective_velocity": 12.5,
+            "prediction_distance": 0.006,
+            "max_linear_velocity": 77.0,
+            "static_contact_frequency_hz": 41.0,
+            "static_contact_damping": 3.5,
+        });
+        let back = physics::tuning()["2d"];
+        if !back["friction_in_bias_pass"].as_bool() { log::error("friction_in_bias_pass is write-only"); }
+        if back["allowed_linear_error"].as_float() - 0.004 >= 0.0001 { log::error("allowed_linear_error"); }
+        if back["max_corrective_velocity"].as_float() - 12.5 >= 0.0001 { log::error("max_corrective_velocity"); }
+        if back["prediction_distance"].as_float() - 0.006 >= 0.0001 { log::error("prediction_distance"); }
+        if back["max_linear_velocity"].as_float() - 77.0 >= 0.0001 { log::error("max_linear_velocity"); }
+        if back["static_contact_frequency_hz"].as_float() - 41.0 >= 0.0001 { log::error("static_contact_frequency"); }
+        if back["static_contact_damping"].as_float() - 3.5 >= 0.0001 { log::error("static_contact_damping"); }
         "#,
     );
 }
@@ -223,12 +224,13 @@ fn every_tuning_key_that_can_be_written_reads_back() {
 #[test]
 fn voxelize_refuses_a_resolution_it_would_never_finish() {
     let errors = run(r#"
-        let mesh = map()
-            .with("points", [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-            .with("indices", [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3]);
-        let fine = geometry3d::voxelize(mesh, map().with("resolution", 8.0));
-        if fine.kind() != "map" { log::error("a sane resolution stopped working"); }
-        geometry3d::voxelize(mesh, map().with("resolution", 100000.0));
+        let mesh: any = {
+            "points": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+            "indices": [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3],
+        };
+        let fine = geometry3d::voxelize(mesh, geometry3d::VoxelizeOptions { resolution: 8 });
+        if fine.cells.len() == 0 { log::error("a sane resolution stopped working"); }
+        geometry3d::voxelize(mesh, geometry3d::VoxelizeOptions { resolution: 100000 });
         log::error("a resolution of 100000 was accepted");
     "#);
     assert_eq!(errors.len(), 1, "{errors:#?}");
@@ -244,9 +246,9 @@ fn voxelize_refuses_a_resolution_it_would_never_finish() {
 fn vehicle_speed_measures_along_the_chassis_forward_axis() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", "dynamic"));
-        self.node.set_component("collider3d", map().with("kind", "box"));
-        self.node.set_component("vehicle3d", map().with("forward_axis", physics3d::AXIS_X));
+        self.node.set_component("body3d", { "kind": "dynamic" });
+        self.node.set_component("collider3d", { "shape": { "kind": "box" } });
+        self.node.set_component("vehicle3d", { "forward_axis": physics3d::AXIS_X });
         self.node.body3d.set_linear_velocity(5.0, 0.0, 0.0);
         let along_x = self.node.vehicle3d.vehicle_speed();
         if along_x <= 4.9 { log::error("a car built on x reads {along_x} along its own forward"); }
@@ -260,8 +262,8 @@ fn vehicle_speed_measures_along_the_chassis_forward_axis() {
 fn a_collider_property_is_read_and_written_as_a_field() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", "dynamic"));
-        self.node.set_component("collider3d", map().with("kind", "box").with("density", 1.0));
+        self.node.set_component("body3d", { "kind": "dynamic" });
+        self.node.set_component("collider3d", { "shape": { "kind": "box" }, "density": 1.0 });
         self.node.collider3d.density = 15.0;
         let back = self.node.collider3d.density;
         if math::abs(back - 15.0) >= 0.0001 { log::error("density came back as {back}"); }
@@ -278,9 +280,9 @@ fn a_collider_property_is_read_and_written_as_a_field() {
 fn writing_one_property_field_leaves_the_others() {
     run_clean(
         r#"
-        self.node.set_component("collider3d", map().with("kind", "sphere").with("radius", 0.75).with("density", 2.5));
+        self.node.set_component("collider3d", { "shape": { "kind": "sphere", "radius": 0.75 }, "density": 2.5 });
         self.node.collider3d.density = 0.9;
-        let radius = self.node.collider3d.radius;
+        let radius = self.node.collider3d.shape["radius"].as_float();
         if math::abs(radius - 0.75) >= 0.0001 { log::error("radius became {radius}"); }
         let density = self.node.collider3d.density;
         if math::abs(density - 0.9) >= 0.0001 { log::error("density became {density}"); }
@@ -308,8 +310,8 @@ fn a_property_of_another_component_is_refused() {
 fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
     run_clean(
         r#"
-        self.node.set_component("body3d", map().with("kind", physics3d::BODY_DYNAMIC).with("gravity_scale", 0.0).with("mass", 1.0));
-        self.node.set_component("collider3d", map().with("kind", physics3d::SHAPE_SPHERE).with("radius", 0.5));
+        self.node.set_component("body3d", { "kind": physics3d::BODY_DYNAMIC, "gravity_scale": 0.0, "mass": 1.0 });
+        self.node.set_component("collider3d", { "shape": { "kind": physics3d::SHAPE_SPHERE, "radius": 0.5 } });
         self.node.body3d.apply_force(60.0, 0.0, 0.0);
         let vx = self.node.body3d.linear_velocity().x;
         if !(vx > 0.9 && vx < 1.1) { log::error("one step of 60 N on 1 kg is 1 m/s at 60 Hz, got {vx}"); }
@@ -322,23 +324,24 @@ fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
 #[test]
 fn each_world_takes_its_own_tuning_over_the_shared_keys() {
     let errors = run(r#"
-        physics::set_tuning(map()
-            .with("length_unit", 2.0)
-            .with("soft_resweep_strain", 0.5)
-            .with("soft_recovery", map().with("overlap_split", 5).with("overlap_patch_constraints", "keep"))
-            .with("2d", map().with("length_unit", 64.0).with("soft_recovery", map().with("overlap_split", 2))));
+        physics::set_tuning({
+            "length_unit": 2.0,
+            "soft_resweep_strain": 0.5,
+            "soft_recovery": { "overlap_split": 5, "overlap_patch_constraints": "keep" },
+            "2d": { "length_unit": 64.0, "soft_recovery": { "overlap_split": 2 } },
+        });
         let both = physics::tuning();
-        let unit3 = both.get("3d").get("length_unit").as_float();
+        let unit3 = both["3d"]["length_unit"].as_float();
         if unit3 != 2.0 { log::error("the shared key missed the 3D world: {unit3}"); }
-        let unit2 = both.get("2d").get("length_unit").as_float();
+        let unit2 = both["2d"]["length_unit"].as_float();
         if unit2 != 64.0 { log::error("the 2D table lost to the shared key: {unit2}"); }
-        if both.get("2d").get("soft_resweep_strain").as_float() != 0.5 { log::error("a shared soft row missed the 2D world"); }
-        if both.get("3d").get("soft_recovery").get("overlap_split").as_int() != 5 { log::error("the shared recovery row missed 3D"); }
-        if both.get("2d").get("soft_recovery").get("overlap_split").as_int() != 2 { log::error("the 2D recovery row lost"); }
-        if both.get("2d").get("soft_recovery").get("overlap_patch_constraints").as_str() != "keep" { log::error("a recovery word was dropped"); }
-        if both.get("3d").get("friction_model").as_str() != "simplified" { log::error("the 3D world lost its friction model"); }
+        if both["2d"]["soft_resweep_strain"].as_float() != 0.5 { log::error("a shared soft row missed the 2D world"); }
+        if both["3d"]["soft_recovery"]["overlap_split"].as_int() != 5 { log::error("the shared recovery row missed 3D"); }
+        if both["2d"]["soft_recovery"]["overlap_split"].as_int() != 2 { log::error("the 2D recovery row lost"); }
+        if both["2d"]["soft_recovery"]["overlap_patch_constraints"].as_str() != "keep" { log::error("a recovery word was dropped"); }
+        if both["3d"]["friction_model"].as_str() != "simplified" { log::error("the 3D world lost its friction model"); }
         let counted = physics::counters();
-        if !(counted.get("physics3d").has("solver_ms") && counted.get("physics2d").has("ccd_substep_count")) { log::error("a counter is missing"); }
+        if !(counted["physics3d"].has("solver_ms") && counted["physics2d"].has("ccd_substep_count")) { log::error("a counter is missing"); }
         log::error("checked: tuning");
     "#);
     assert!(

@@ -9,29 +9,30 @@
 //!
 //! Delivery is the engine's usual one: a call returns an id immediately, the
 //! backend reports on a channel, and [`ExternalIo`] lands the result at
-//! [`Stage::First`] of a later tick: recorded, replayable, and dispatched to
-//! the node's `on_platform_event` method as well as to whoever awaits the id.
+//! [`Stage::First`] of a later tick: recorded, replayable, and waking whatever
+//! awaits the id. Who is playing can change with nobody asking, so a sign-in or
+//! a sign-out is also the `platform_event` event.
 //!
-//! ```rune
-//! pub async fn init(this) {
-//!     let player = task::wait(platform::sign_in()).await;
-//!     platform::unlock(this.node, "first_blood");
-//! }
-//!
-//! pub fn on_platform_event(this, e) {
-//!     if e["kind"] == platform::EVENT_UNSUPPORTED { log::info("no store here"); }
+//! ```bs
+//! pub async fn init() {
+//!     events::listen(self.node, "platform_event");
+//!     let player = await task::wait(platform::sign_in().as_int());
+//!     let done = await task::wait(platform::unlock("first_blood").as_int());
+//!     if done["kind"].as_str() == platform::EVENT_UNSUPPORTED {
+//!         log::info("no store here");
+//!     }
 //! }
 //! ```
 //!
-//! Every event map carries a `kind`, so one handler can take them all.
+//! Every event map carries a `kind`.
 
 use std::sync::mpsc::Sender;
 
 use anyhow::{Result, anyhow};
-use balaur_core::handler::{Handler, handler_of, id_value, opt};
+use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
-use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_core::{Engine, Stage};
+use balaur_script::{Module, Value};
 
 /// How many leaderboard entries `platform.scores` reads when the call names
 /// no `count`.
@@ -245,16 +246,10 @@ pub trait PlatformBackend {
 #[derive(Default)]
 pub struct PlatformState {
     io: ExternalIo<PlatformEvent>,
-    handlers: DetHashMap<u64, Handler>,
     backend: Option<Box<dyn PlatformBackend>>,
     /// `(tick, request, call)` for writes made on a tick that could still be
     /// rolled back. See [`Call::writes`].
     pending: Vec<(u64, u64, Call)>,
-    /// Handlers a sign-in left subscribed. Signing in is the one call whose
-    /// answer can change again later: the player signs out in the OS, or
-    /// signs in as someone else, and the method that took the first answer
-    /// is the one that should hear about it.
-    watchers: Vec<Handler>,
     player: Option<Player>,
 }
 
@@ -283,13 +278,7 @@ impl PlatformState {
     /// A write made on a tick that a late input could still roll back waits
     /// in this state's own `pending` list until that tick is final; everything
     /// else goes out now.
-    pub fn start(&mut self, eng: &Engine, id: u64, call: Call, handler: Option<Handler>) {
-        if let Some(handler) = handler {
-            if matches!(call, Call::SignIn) && !self.watching(&handler) {
-                self.watchers.push(handler.clone());
-            }
-            self.handlers.insert(id, handler);
-        }
+    pub fn start(&mut self, eng: &Engine, id: u64, call: Call) {
         balaur_core::replay::event(
             eng,
             "platform.call",
@@ -302,12 +291,6 @@ impl PlatformState {
             return;
         }
         self.issue(eng, id, &call);
-    }
-
-    fn watching(&self, handler: &Handler) -> bool {
-        self.watchers
-            .iter()
-            .any(|w| w.node == handler.node && w.method == handler.method)
     }
 
     fn issue(&mut self, eng: &Engine, id: u64, call: &Call) {
@@ -353,11 +336,17 @@ pub struct PlatformSnapshot {
     pub events: Vec<Value>,
 }
 
+/// Who is playing, heard with `events::listen` as `on_platform_event`: the one
+/// answer that changes on its own, when the player signs out in the OS or signs
+/// in as someone else.
+pub const PLAYER_EVENT: &str = "platform_event";
+
 /// Drain the backend's reports, record them in the frame's snapshot, then
-/// dispatch each to its handler, in arrival order throughout.
+/// wake what awaits each, in arrival order throughout.
 fn pump_platform_system(eng: &Engine, _: f32) {
     let clock = balaur_core::rollback::clock(eng);
-    let mut dispatches: Vec<(Vec<Handler>, u64, Value)> = Vec::new();
+    let mut finished: Vec<(u64, Value)> = Vec::new();
+    let mut player_changes = Vec::new();
     {
         let state = eng.resource::<PlatformState>();
         let snapshot = eng.resource::<PlatformSnapshot>();
@@ -378,9 +367,6 @@ fn pump_platform_system(eng: &Engine, _: f32) {
         snapshot.events.clear();
         for event in state.io.drain() {
             let request = event.request();
-            // Who is playing is the one answer that changes on its own, so
-            // these two also go to everything watching, not just to whoever
-            // asked.
             let announcement = match &event {
                 PlatformEvent::SignedIn { player, .. } => {
                     state.player = Some(player.clone());
@@ -392,26 +378,18 @@ fn pump_platform_system(eng: &Engine, _: f32) {
                 }
                 _ => false,
             };
-            // shift_remove: the remaining entries keep their insertion order,
-            // so iteration stays deterministic.
-            let mut targets: Vec<Handler> =
-                state.handlers.shift_remove(&request).into_iter().collect();
-            if announcement {
-                for watcher in &state.watchers {
-                    if !targets
-                        .iter()
-                        .any(|h| h.node == watcher.node && h.method == watcher.method)
-                    {
-                        targets.push(watcher.clone());
-                    }
-                }
-            }
             let value = event_value(event);
             snapshot.events.push(value.clone());
-            dispatches.push((targets, request, value));
+            if announcement {
+                player_changes.push(value.clone());
+            }
+            finished.push((request, value));
         }
     }
-    balaur_core::handler::dispatch(eng, dispatches);
+    for change in player_changes {
+        balaur_core::events::emit(eng, PLAYER_EVENT, change);
+    }
+    balaur_core::handler::wake_all(eng, finished);
 }
 
 fn player_value(player: &Player) -> Value {
@@ -494,21 +472,12 @@ fn event_value(event: PlatformEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct PlatformPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for PlatformPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("platform", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct PlatformPlugin;
 
 impl balaur_plugin::Plugin for PlatformPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "platform"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -517,7 +486,7 @@ impl balaur_plugin::Plugin for PlatformPlugin {
         reg.add_system(Stage::First, pump_platform_system);
         reg.add_replay_source("platform", capture, restore);
         let mut m = reg.script_module("platform")?;
-        install_platform_api(&mut *m);
+        install_platform_api(&mut m);
         Ok(())
     }
 }
@@ -546,33 +515,6 @@ pub fn set_backend(eng: &Engine, backend: Box<dyn PlatformBackend>) -> Result<()
     Ok(())
 }
 
-/// The node-and-payload first argument every call takes: `f(node, a, ..)`
-/// names a handler, `f(a, ..)` is awaited instead.
-fn split(
-    first: Value,
-    second: Option<Value>,
-    third: Option<Value>,
-) -> (Value, Option<Value>, Option<Value>) {
-    match first {
-        Value::Node(_) | Value::Nil => (first, second, third),
-        payload => (Value::Nil, Some(payload), second),
-    }
-}
-
-/// The same, for a call with two values of its own: `f(node, a, b, ..)` or
-/// `f(a, b, ..)`.
-fn split2(
-    first: Value,
-    second: Option<Value>,
-    third: Option<Value>,
-    fourth: Option<Value>,
-) -> (Value, Option<Value>, Option<Value>, Option<Value>) {
-    match first {
-        Value::Node(_) | Value::Nil => (first, second, third, fourth),
-        payload => (Value::Nil, Some(payload), second, third),
-    }
-}
-
 fn text(value: Option<&Value>, what: &str) -> Result<String> {
     match value {
         Some(Value::Str(text)) => Ok(text.clone()),
@@ -598,19 +540,18 @@ fn counted(opts: Option<&Value>, key: &str, fallback: u32) -> Result<u32> {
     }
 }
 
-fn start_call(eng: &Engine, node: &Value, opts: Option<&Value>, call: Call) -> Result<Value> {
-    let handler = handler_of(node, opts, "on_event", "on_platform_event")?;
+fn start_call(eng: &Engine, call: Call) -> Value {
     let id = eng.next_token();
     let state = eng.resource::<PlatformState>();
-    state.borrow_mut().start(eng, id, call, handler);
-    Ok(id_value(id))
+    state.borrow_mut().start(eng, id, call);
+    id_value(id)
 }
 
 /// `platform.*`. Declared against the backend seam, so the same script runs
 /// with a store, without one, and inside a replay.
-fn install_platform_api(m: &mut dyn Bindings<Engine>) {
+fn install_platform_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers later on `on_platform_event` with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant.",
+        "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
@@ -675,7 +616,7 @@ fn install_platform_api(m: &mut dyn Bindings<Engine>) {
 
 /// What a script can ask without waiting: which store is loaded, and who it
 /// says is playing.
-fn install_platform_reads(m: &mut dyn Bindings<Engine>) {
+fn install_platform_reads(m: &mut Module<Engine>) {
     m.function("backend", |eng: &Engine, ()| {
         Ok(Value::Str(
             eng.resource::<PlatformState>()
@@ -697,74 +638,51 @@ fn install_platform_reads(m: &mut dyn Bindings<Engine>) {
 }
 
 /// Signing in, and saying what the player is doing.
-fn install_platform_session(m: &mut dyn Bindings<Engine>) {
-    m.function(
-        "sign_in",
-        |eng: &Engine, (first, second): (Option<Value>, Option<Value>)| {
-            let (node, opts) = match first {
-                Some(node @ Value::Node(_)) => (node, second),
-                Some(opts) => (Value::Nil, Some(opts)),
-                None => (Value::Nil, None),
-            };
-            start_call(eng, &node, opts.as_ref(), Call::SignIn)
-        },
-    );
-    m.function(
-        "set_presence",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, presence, opts) = split(first, second, third);
-            let text = text(presence.as_ref(), "what the player is doing")?;
-            start_call(eng, &node, opts.as_ref(), Call::SetPresence { text })
-        },
-    );
+fn install_platform_session(m: &mut Module<Engine>) {
+    m.function("sign_in", |eng: &Engine, ()| {
+        Ok(start_call(eng, Call::SignIn))
+    });
+    m.function("set_presence", |eng: &Engine, presence: Value| {
+        let text = text(Some(&presence), "what the player is doing")?;
+        Ok(start_call(eng, Call::SetPresence { text }))
+    });
 }
 
-fn install_platform_achievements(m: &mut dyn Bindings<Engine>) {
-    m.function(
-        "unlock",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, arg, opts) = split(first, second, third);
-            let achievement = text(arg.as_ref(), "an achievement id")?;
-            start_call(eng, &node, opts.as_ref(), Call::Unlock { achievement })
-        },
-    );
+fn install_platform_achievements(m: &mut Module<Engine>) {
+    m.function("unlock", |eng: &Engine, achievement: Value| {
+        let achievement = text(Some(&achievement), "an achievement id")?;
+        Ok(start_call(eng, Call::Unlock { achievement }))
+    });
     m.function(
         "progress",
-        |eng: &Engine,
-         (first, second, third, fourth): (Value, Option<Value>, Option<Value>, Option<Value>)| {
-            let (node, achievement, percent, opts) = split2(first, second, third, fourth);
-            let achievement = text(achievement.as_ref(), "an achievement id")?;
-            let percent = number(percent.as_ref(), "a percentage")?;
-            start_call(
+        |eng: &Engine, (achievement, percent): (Value, Value)| {
+            let achievement = text(Some(&achievement), "an achievement id")?;
+            let percent = number(Some(&percent), "a percentage")?;
+            Ok(start_call(
                 eng,
-                &node,
-                opts.as_ref(),
                 Call::Progress {
                     achievement,
                     percent,
                 },
-            )
+            ))
         },
     );
 }
 
-fn install_platform_leaderboards(m: &mut dyn Bindings<Engine>) {
+fn install_platform_leaderboards(m: &mut Module<Engine>) {
     m.function(
         "submit_score",
-        |eng: &Engine,
-         (first, second, third, fourth): (Value, Option<Value>, Option<Value>, Option<Value>)| {
-            let (node, board, score, opts) = split2(first, second, third, fourth);
-            let board = text(board.as_ref(), "a leaderboard id")?;
+        |eng: &Engine, (board, score): (Value, Value)| {
+            let board = text(Some(&board), "a leaderboard id")?;
             #[allow(clippy::cast_possible_truncation, reason = "a leaderboard score")]
-            let score = number(score.as_ref(), "a score")? as i64;
-            start_call(eng, &node, opts.as_ref(), Call::SubmitScore { board, score })
+            let score = number(Some(&score), "a score")? as i64;
+            Ok(start_call(eng, Call::SubmitScore { board, score }))
         },
     );
     m.function(
         "scores",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, board, opts) = split(first, second, third);
-            let board = text(board.as_ref(), "a leaderboard id")?;
+        |eng: &Engine, (board, opts): (Value, Option<Value>)| {
+            let board = text(Some(&board), "a leaderboard id")?;
             let opts = opts.as_ref();
             let count = counted(opts, "count", DEFAULT_SCORES)?;
             let start = counted(opts, "start", 1)?.max(1);
@@ -778,10 +696,8 @@ fn install_platform_leaderboards(m: &mut dyn Bindings<Engine>) {
                 Some(other) => return Err(anyhow!("`period` should be a string, got {other:?}")),
                 None => Period::default(),
             };
-            start_call(
+            Ok(start_call(
                 eng,
-                &node,
-                opts,
                 Call::Scores {
                     board,
                     count,
@@ -789,28 +705,22 @@ fn install_platform_leaderboards(m: &mut dyn Bindings<Engine>) {
                     period,
                     start,
                 },
-            )
+            ))
         },
     );
 }
 
-fn install_platform_cloud(m: &mut dyn Bindings<Engine>) {
-    m.function(
-        "cloud_read",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, key, opts) = split(first, second, third);
-            let key = text(key.as_ref(), "a key")?;
-            start_call(eng, &node, opts.as_ref(), Call::CloudRead { key })
-        },
-    );
+fn install_platform_cloud(m: &mut Module<Engine>) {
+    m.function("cloud_read", |eng: &Engine, key: Value| {
+        let key = text(Some(&key), "a key")?;
+        Ok(start_call(eng, Call::CloudRead { key }))
+    });
     m.function(
         "cloud_write",
-        |eng: &Engine,
-         (first, second, third, fourth): (Value, Option<Value>, Option<Value>, Option<Value>)| {
-            let (node, key, value, opts) = split2(first, second, third, fourth);
-            let key = text(key.as_ref(), "a key")?;
-            let value = text(value.as_ref(), "a value")?;
-            start_call(eng, &node, opts.as_ref(), Call::CloudWrite { key, value })
+        |eng: &Engine, (key, value): (Value, Value)| {
+            let key = text(Some(&key), "a key")?;
+            let value = text(Some(&value), "a value")?;
+            Ok(start_call(eng, Call::CloudWrite { key, value }))
         },
     );
 }

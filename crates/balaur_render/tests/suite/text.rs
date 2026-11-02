@@ -39,7 +39,7 @@ fn word(text: &toml::Value, key: &str) -> Option<String> {
 #[test]
 fn a_text_block_written_with_render_constants_reads_back_their_words() {
     let text = text_after(
-        r#"self.node.set_component("text2d", map().with("text", "hi").with("text_align", render::ALIGN_END).with("font_style", render::FONT_ITALIC));"#,
+        r#"self.node.set_component("text2d", { "text": "hi", "text_align": render::ALIGN_END, "font_style": render::FONT_ITALIC });"#,
     )
     .expect("the script wrote a text2d");
     assert_eq!(word(&text, "text_align").as_deref(), Some("end"));
@@ -48,7 +48,7 @@ fn a_text_block_written_with_render_constants_reads_back_their_words() {
 
 #[test]
 fn a_text_block_that_names_no_alignment_is_centred_and_upright() {
-    let text = text_after(r#"self.node.set_component("text2d", map().with("text", "hi"));"#)
+    let text = text_after(r#"self.node.set_component("text2d", { "text": "hi" });"#)
         .expect("the script wrote a text2d");
     assert_eq!(word(&text, "text_align").as_deref(), Some("center"));
     assert_eq!(word(&text, "font_style").as_deref(), Some("normal"));
@@ -62,7 +62,7 @@ fn text_component(kind: &str, params: &str) -> toml::Value {
 /// The same, with the app it was written in.
 fn text_component_in(kind: &str, params: &str) -> (balaur_core::App, toml::Value) {
     let mut app = balaur_core::App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sign", root);
     let params: toml::Value = toml::from_str(params).unwrap();
@@ -78,7 +78,7 @@ fn text_component_in(kind: &str, params: &str) -> (balaur_core::App, toml::Value
 fn a_text_block_takes_the_alpha_cutoff_its_material_spells() {
     for kind in ["text2d", "text3d"] {
         let mut app = balaur_core::App::new(AppConfig::bare(".")).unwrap();
-        balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default()).unwrap();
+        balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin).unwrap();
         let root = app.engine.root();
         let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sign", root);
         let params: toml::Value = toml::from_str(
@@ -140,7 +140,7 @@ fn a_text_block_takes_every_shaping_key_and_reads_it_back() {
 #[test]
 fn a_text_block_refuses_a_row_that_left_for_its_font() {
     let mut app = balaur_core::App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin).unwrap();
     let root = app.engine.root();
     let node = balaur_core::scene::spawn_node(&mut app.engine.world_mut(), "Sign", root);
     let params: toml::Value = toml::from_str("text = \"hi\"\nfont_family = \"mono\"").unwrap();

@@ -1,4 +1,4 @@
-use super::{compile_error, run};
+use super::run;
 use balaur_bs::runtime::Value;
 
 const EDITOR: &str = r#"
@@ -45,8 +45,8 @@ impl Editor {
 fn a_mut_parameter_is_the_callers_own_value() {
     let mut rt = run(EDITOR);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(
         rt.get(&e, "said"),
         Some(Value::Str("y 2 2 2 10 100 110 2 1 1".into())),
@@ -54,25 +54,6 @@ fn a_mut_parameter_is_the_callers_own_value() {
     );
     rt.drop_object(e);
     assert_eq!(rt.live(), base, "a `&mut` value leaked or was freed twice");
-}
-
-#[test]
-fn a_mut_argument_is_a_place_and_changed_once() {
-    let src = |body: &str| {
-        format!(
-            "pub struct I {{ n: int }}\nfn bump(i: &mut I) {{ i.n += 1; }}\n\
-             fn two(a: &mut I, b: &mut I) {{}}\n\
-             pub struct E {{ a: I }}\nimpl E {{\n    fn m(i: &mut I) {{}}\n    pub fn f() {{ {body} }}\n}}\n"
-        )
-    };
-    let e = compile_error(&src("bump(I { n: 1 });"));
-    assert!(e.contains("pass a variable or a field"), "{e}");
-    let e = compile_error(&src("two(self.a, self.a);"));
-    assert!(e.contains("change this twice"), "{e}");
-    let e = compile_error(&src("self.m(self.a);"));
-    assert!(e.contains("change this twice"), "{e}");
-    let e = compile_error("pub struct I { n: int }\nasync fn w(i: &mut I) {}");
-    assert!(e.contains("`async fn` takes no `&mut`"), "{e}");
 }
 
 #[test]
@@ -97,8 +78,8 @@ impl Editor {
 "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(rt.get(&e, "said"), Some(Value::Str("2 b.bs".into())));
     rt.drop_object(e);
     assert_eq!(rt.live(), base);
@@ -109,27 +90,27 @@ fn a_fn_value_rides_in_an_any_and_comes_back_typed() {
     let src = r#"
 pub class State { log: str }
 fn picked(s: &mut State, data: any, value: any) {
-    s.log = "{s.log}{data.row}={value};";
+    s.log = "{s.log}{data["row"]}={value};";
 }
 fn handle(s: &mut State, data: any, value: any) {
-    let f: fn(&mut State, any, any) = data.fn;
+    let f: fn(&mut State, any, any) = data["fn"];
     f(s, data, value);
 }
 pub class Editor { s: State, said: str }
 impl Editor {
     pub fn click() {
         self.s = State { log: "" };
-        let spec = map().with("on", "handle").with("data", map().with("fn", picked).with("row", "a"));
-        handle(self.s, spec.data, 3);
-        handle(self.s, spec.data, "b");
+        let spec: any = { "on": "handle", "data": { "fn": picked, "row": "a" } };
+        handle(self.s, spec["data"], 3);
+        handle(self.s, spec["data"], "b");
         self.said = self.s.log;
     }
 }
 "#;
     let mut rt = run(src);
     let base = rt.live();
-    let mut e = rt.object("Editor", &[]).unwrap();
-    rt.call_method(&mut e, "click", &[]).unwrap();
+    let e = rt.object("Editor", &[]).unwrap();
+    rt.call_method(&e, "click", &[]).unwrap();
     assert_eq!(rt.get(&e, "said"), Some(Value::Str("a=3;a=b;".into())));
     rt.drop_object(e);
     assert_eq!(rt.live(), base);

@@ -1,0 +1,20 @@
+[package]
+name = "balaur_debug"
+description = "Balaur debugging: the DAP server, and the debugger and profiler script modules"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+test = false
+
+[dependencies]
+balaur_core.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

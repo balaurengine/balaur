@@ -6,12 +6,16 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[build-dependencies]
+balaur_cfg.workspace = true
+
 [features]
 # egui's bundled faces behind a project's own: Ubuntu Light, Hack and two
 # emoji fonts.
 fallback-fonts = ["egui/monochrome_emoji_fonts"]
 
 [dependencies]
+balaur_asset.workspace = true
 balaur_core.workspace = true
 balaur_input.workspace = true
 balaur_plugin.workspace = true
@@ -33,9 +37,15 @@ image = { version = "0.25", default-features = false, features = ["png", "webp"]
 # The wave in marked-up text is drawn with a sine that must not vary by OS.
 libm.workspace = true
 
+# The desktop's clipboard (`balaur_cfg`'s `desktop`, which a manifest key
+# cannot name): the window layer under egui opens none, nor arboard a phone's.
+[target.'cfg(not(any(target_family = "wasm", target_os = "ios", target_os = "android")))'.dependencies]
+arboard = "3"
+
 [dev-dependencies]
+balaur_geometry.workspace = true
 # `fallback-fonts`: the editor's faces, which the glyph test checks it covers.
-balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "fallback-fonts"] }
+balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "fallback-fonts", "bs"] }
 tempfile = "3"
 egui.workspace = true
 

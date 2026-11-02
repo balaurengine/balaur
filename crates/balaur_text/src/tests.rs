@@ -3,19 +3,22 @@ use std::sync::Arc;
 use super::*;
 
 fn faces() -> Vec<crate::fonts::FontFace> {
-    let mut faces = vec![crate::fonts::FontFace {
+    vec![crate::fonts::FontFace {
         name: "SourceSans3-Regular".into(),
         path: "fonts/SourceSans3-Regular.ttf".into(),
         system: false,
         bytes: Arc::new(include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf").to_vec()),
         tweak: crate::fonts::FaceTweak::default(),
-    }];
-    faces.extend(crate::fonts::system_faces());
-    faces
+    }]
+}
+
+/// A shaper over [`faces`] that may ask the operating system, as a project's does.
+fn asking() -> TextState {
+    TextState::over(ProjectFonts::new(&faces(), "en-US").with_system_fonts())
 }
 
 fn shape(text: &str, width: Option<f32>) -> (TextState, Shaped) {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let mut request = Request::new(text, 20.0);
     request.width = width;
     request.markup = true;
@@ -43,6 +46,61 @@ fn a_system_face_does_not_reach_a_measurement() {
     let strict = TextState::new(&own, "en-US").measure(&request);
     let loose = TextState::new(&with_system, "en-US").measure(&request);
     assert_eq!(strict, loose, "a system face changed a measurement");
+}
+
+/// A script the project's faces lack draws in the face the system picks, and
+/// whoever holds faces of its own hears of it. Tofu is one box for every
+/// character, so two glyphs drawn alike say nothing was found.
+#[test]
+fn a_character_no_project_face_draws_takes_up_the_face_the_system_picks() {
+    let text = Request::new("日本", 20.0);
+    let tofu = TextState::new(&faces(), "en-US").shape(&text);
+    assert_eq!(tofu.quads[0].uv, tofu.quads[1].uv);
+    let mut state = asking();
+    let before = state.generation();
+    if !state.covers('日') {
+        eprintln!("skipped: no Han face on this machine");
+        return;
+    }
+    assert_ne!(state.generation(), before, "egui never hears of the face");
+    assert!(state.host.faces().iter().any(|face| face.system));
+    let drawn = state.shape(&text);
+    assert_ne!(drawn.quads[0].uv, drawn.quads[1].uv);
+}
+
+/// A project's text in what its faces draw never reads the system's fonts,
+/// which is what keeps them off the way to the first frame.
+#[test]
+fn text_the_project_draws_takes_up_no_system_face() {
+    let mut state = asking();
+    state.shape(&Request::new("plain, café, Привет", 20.0));
+    assert!(state.host.faces().iter().all(|face| !face.system));
+}
+
+#[test]
+fn a_project_with_system_fonts_off_asks_for_no_face() {
+    let mut state = TextState::new(&faces(), "en-US");
+    state.shape(&Request::new("日本", 20.0));
+    assert!(state.host.faces().iter().all(|face| !face.system));
+}
+
+#[test]
+fn a_system_face_draws_only_what_the_project_lacks() {
+    let mut state = asking();
+    let own = state.shape(&Request::new("a", 20.0)).quads[0].uv;
+    let beside = state.shape(&Request::new("a日", 20.0)).quads[0].uv;
+    assert_eq!(own, beside);
+}
+
+/// Measuring reads the project's faces alone, whatever drawing has taken up:
+/// a width that moved here would desync a replay on another machine.
+#[test]
+fn taking_up_a_system_face_does_not_move_a_measurement() {
+    let mut state = asking();
+    let request = Request::new("日本", 24.0);
+    let before = state.measure(&request);
+    state.shape(&request);
+    assert_eq!(before, state.measure(&request));
 }
 
 /// Two sizes a hair apart share a bucket, so the atlas holds one set of
@@ -80,7 +138,7 @@ fn a_shaped_glyph_lands_in_the_atlas_and_moves_its_revision() {
 /// already rasterised keeps its pixels and is never drawn again.
 #[test]
 fn an_atlas_that_fills_up_doubles_instead_of_starting_over() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let ask = |state: &mut TextState, text: String| state.shape(&Request::new(&text, 64.0));
     let opened = state.atlas().side();
     // Enough distinct glyphs at a size that fills a small page.
@@ -113,7 +171,7 @@ fn an_atlas_that_fills_up_doubles_instead_of_starting_over() {
 /// comes from the cache and writes nothing new.
 #[test]
 fn shaping_the_same_run_twice_writes_the_atlas_once() {
-    let mut state = TextState::new(&faces(), "en-US");
+    let mut state = asking();
     let request = Request::new("steady", 20.0);
     state.shape(&request);
     let after_first = state.atlas().revision();

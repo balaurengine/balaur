@@ -162,7 +162,7 @@ decision, not an oversight.
 | Keyboard height on iOS | Have: the kiss3d fork observes `UIKeyboardWillChangeFrameNotification` and converts the end frame into the view's coordinates, as Apple asks |
 | Keyboard height on Android | Have: NativeActivity has no insets call, so the fork reads how much `content_rect` leaves uncovered and subtracts the least it has left at this window height, which is the navigation bar. `WindowInsets.ime` would want the GameActivity glue |
 | Keyboard height on the web | Have: the page's visual viewport, as before |
-| A layout that moves for the keyboard | Have: `avoid_keyboard` on a root widget measures the surface's bottom from the keyboard's top. A new key rather than `inset`, which is design pixels a scene author types |
+| A layout that moves for the keyboard | Have: every root measures the surface's bottom from the keyboard's top, a backdrop excepted. |
 | Raising the keyboard for a `field` | Have, from before this plan: the backend shows the system keyboard while egui holds keyboard focus, through the fork's `set_keyboard_visible` |
 | Mouse as a touch on the web | Have: a page reports both, and the emulation covers the rest |
 | An example | Have: `examples/hello` carries a stick on `spin` and a button on `reverse`, with the mouse standing in for a finger |

@@ -1,0 +1,4 @@
+enum Light { Red, Green }
+pub fn f(l: Light) -> int { match l { Light::Blue => 1, _ => 2 } }
+
+// error: 2:39: `Light::Blue` is no enum variant

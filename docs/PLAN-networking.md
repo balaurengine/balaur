@@ -227,9 +227,9 @@ loopback is the bar for 9 and 10, as it was for 5 and 6.
    so fog of war cannot hide state from a modified client. Answer per game:
    lockstep for games that can live with it, replication for the rest.
 2. **Script state in rollback.** A snapshot captures every script's plain
-   fields, or what `save_state` / `load_state` return. A rollback restores
-   them 60 times a second; a script that keeps a handle to something outside
-   the simulation needs the explicit pair. Whether to require it or to warn
+   fields. A rollback restores them 60 times a second; a script that keeps a
+   handle to something outside the simulation has nothing to say so with yet.
+   Whether to require one or to warn
    is decided by the first game that hits it.
 3. **Hot reload during a session.** Replaying journaled inputs against
    changed code cannot reproduce the recorded state. A reload truncates the

@@ -7,149 +7,450 @@
 //! the node's drawn shape becomes the body it is simulated as.
 //!
 //! What the solver produces goes back on the node as a
-//! [`balaur_core::mesh::SolvedPolygon`], which is what the 2D renderer draws
+//! [`balaur_geometry::mesh::SolvedPolygon`], which is what the 2D renderer draws
 //! in place of the authored positions.
 
 use anyhow::{Result, anyhow};
 use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{self, Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId};
+use balaur_script::{Module, NodeId};
 
 use crate::dim2::PhysicsState2d;
+use crate::properties::{
+    Binding, ContactPair, EdgeSpring, EdgeTearResistance, Edges, Indices, Orientation,
+    ParticlePair, SoftKind2d, SoftRegion, SoftSolver, TensionOnly,
+};
 use crate::rapier2d::prelude::{
     SoftBodyBuilder as SoftBodyBuilder2, SoftBodyHandle as SoftBodyHandle2,
     SoftBodyParticleSettings as SoftBodyParticleSettings2, SoftBodySolver as SoftBodySolver2,
 };
 use crate::scalar::{self, Vector2};
+use crate::shared::beside::{self, Beside};
 use crate::shared::softbody::{self as cap, Family};
-use crate::vocabulary::{self as v, component as c, keys as k, words as w};
+use crate::vocabulary::{component as c, keys as k, words as w};
+use balaur_core::layers::Layer;
 
 mod draw;
+
+/// A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a property a field: each switch the component offers is one"
+)]
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "softbody2d", on_remove = softbody2d_removed, after_write = after_write)]
+pub struct Softbody2d {
+    /// How the body's particles and elements are laid out
+    #[property(default = SoftKind2d::Grid)]
+    pub kind: SoftKind2d,
+    /// Take part in the simulation; off leaves the body where it is with no contacts or constraints until it is on again, without a rebuild
+    #[property(default = true)]
+    pub enabled: bool,
+    /// What the whole body weighs, spread over its particles
+    #[property(default = 1.0, min = 0.0)]
+    pub mass: f32,
+    /// How much gravity pulls on the particles
+    #[property(default = 1.0)]
+    pub gravity_scale: f32,
+    /// What the body is drawn in when its node has nothing of its own to deform, as a cloth or a rope has not
+    #[property(color, default = cap::DEFAULT_COLOR)]
+    pub color: [f32; 4],
+    /// What the body is made of: its cells, springs, volume, yield and tearing; empty takes a soft_material at its defaults
+    #[property(asset = "soft_material")]
+    pub soft_material: String,
+    /// What the surface is made of: friction, bounce and how each combines; empty takes a physics_material at its defaults
+    #[property(asset = "physics_material")]
+    pub physics_material: String,
+    /// Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries unless its soft_skin2d says otherwise: the same asset a polygon draws
+    #[property(asset = "mesh", group = "shape")]
+    pub mesh: String,
+    /// Structural edges added between particles the layout left apart, each as long as its two particles stand at the start
+    #[property(group = "shape")]
+    pub seams: Vec<ParticlePair>,
+    /// The particles held where they are, by index: a cloth hangs from these, and `softbody_particles` says how many there are to choose from
+    #[property(group = "particles")]
+    pub pinned_particles: Indices,
+    /// Each particle's own mass, by index; empty spreads `mass` over them evenly
+    #[property(group = "particles")]
+    pub masses: Vec<f32>,
+    /// Air friction on the particles
+    #[property(group = "particles", min = 0.0)]
+    pub linear_damping: f32,
+    /// Let the body stop being simulated once it settles
+    #[property(default = true, group = "particles")]
+    pub can_sleep: bool,
+    /// Meet the world at all; off, the body passes through everything and only its pins and ties hold it
+    #[property(default = true, group = "collision")]
+    pub collides: bool,
+    /// Report contacts and push nothing: the body passes through what it touches
+    #[property(group = "collision")]
+    pub sensor: bool,
+    /// Let the body's own surface collide with itself, which stops a cloth passing through its own fold
+    #[property(group = "collision")]
+    pub self_collision: bool,
+    /// How thick the particles are; 0 takes what the layout works out
+    #[property(group = "collision", min = 0.0)]
+    pub particle_radius: f32,
+    /// How the surface meets what is inside it: solid encloses matter and pushes bodies out, shell holds bodies in, auto is solid when the surface is closed
+    #[property(default = Orientation::Auto, group = "collision")]
+    pub orientation: Orientation,
+    /// The layers this collider is on
+    #[property(flags, default = vec![Layer(1)], group = "filtering")]
+    pub collision_layer: Vec<Layer>,
+    /// The layers it collides with; empty means every layer
+    #[property(flags, group = "filtering")]
+    pub collision_mask: Vec<Layer>,
+    /// Layers for the solver alone: a pair can be detected but not resolved
+    #[property(flags, default = vec![Layer(1)], group = "filtering")]
+    pub solver_layer: Vec<Layer>,
+    /// Which solver layers this one pushes against; empty means all of them
+    #[property(flags, group = "filtering")]
+    pub solver_mask: Vec<Layer>,
+    /// Which pairs of body kinds this collider is tested against; a sensor watching kinematic platforms needs more than the default
+    #[property(flags, default = vec![ContactPair::DynamicDynamic, ContactPair::DynamicKinematic, ContactPair::DynamicStatic], group = "filtering")]
+    pub contact_pairs: Vec<ContactPair>,
+    /// How hard a contact must be before on_contact_force is called
+    #[property(group = "events", min = 0.0)]
+    pub contact_force_threshold: f32,
+    /// Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body's. Each is a `soft_frame` body joints may attach to
+    #[property(group = "overrides")]
+    pub regions: Vec<SoftRegion>,
+    /// Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows', each named by the two particles it joins
+    #[property(group = "overrides")]
+    pub edge_springs: Vec<EdgeSpring>,
+    /// Which edges resist stretching only, so the body folds freely and never pushes itself open: none, all, or the tension_only_edges listed
+    #[property(default = TensionOnly::None, group = "overrides")]
+    pub tension_only: TensionOnly,
+    /// The edges that resist stretching only when tension_only is listed, each named by the two particles it joins
+    #[property(group = "overrides")]
+    pub tension_only_edges: Vec<ParticlePair>,
+    /// Edges that tear sooner or later than the rest, each named by the two particles it joins: below 1 is a perforation, above 1 a seam
+    #[property(group = "tearing")]
+    pub tear_resistance: Vec<EdgeTearResistance>,
+    /// The most edges that may tear in one step, which paces a crack; 0 is no limit
+    #[property(group = "tearing", min = 0)]
+    pub max_tears_per_step: i64,
+    /// The smallest piece, in elements, a tear may split off; 0 lets rapier choose
+    #[property(group = "tearing", min = 0)]
+    pub min_piece: i64,
+    /// Which solver runs the elasticity: sequential constraints, or an implicit Euler step over the whole body
+    #[property(default = SoftSolver::Constraints, group = "solver")]
+    pub solver: SoftSolver,
+    /// Extra iterations inside each substep, for the same
+    #[property(default = 3, group = "solver", max = 64, min = 0)]
+    pub solver_iterations: i64,
+    /// Extra solver substeps for this body and everything it touches
+    #[property(group = "solver", max = 64, min = 0)]
+    pub solver_substeps: i64,
+    /// Which body wins a contact: a higher one is never pushed by a lower one
+    #[property(group = "solver", max = 127, min = -127)]
+    pub dominance: i64,
+}
+
+/// A mesh the node's `softbody2d` meets the world through beside its own surface, deformed with the body: its triangles in 3D, the outline of its triangles in 2D.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_collision2d")]
+pub struct SoftCollision2d {
+    /// The mesh, in the node's space
+    #[property(asset = "mesh")]
+    pub collision_mesh: String,
+    /// How the mesh follows the body: each vertex on the nearest particle, vertex i on particle i, or riding the cell that holds it, so a coarse cage of cells can carry a fine mesh
+    pub collision_binding: Binding,
+    /// Let the mesh collide with itself
+    pub collision_self_contacts: bool,
+}
+
+impl Beside for SoftCollision2d {
+    type Main = Softbody2d;
+
+    fn reads(_: &Softbody2d) -> bool {
+        true
+    }
+}
+
+/// The `mesh` a `softbody2d` with cells carries as its skin: a grid, a volumetric body or a custom one with cells, whose particles are not the mesh's own.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_skin2d")]
+pub struct SoftSkin2d {
+    /// Keep the mesh asset's outline as what the cells carry and the node draws
+    #[property(default = true)]
+    pub skin: bool,
+    /// Meet the world through the skin rather than the cells' boundary
+    pub skin_collision: bool,
+}
+
+impl Beside for SoftSkin2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        matches!(
+            main.kind,
+            SoftKind2d::Grid | SoftKind2d::Volumetric | SoftKind2d::Custom
+        )
+    }
+}
+
+/// The size and the cells of a `softbody2d` laid out as a grid: a sheet of particles.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_grid2d")]
+pub struct SoftGrid2d {
+    /// Whole size of the sheet
+    #[property(default = [1.0, 1.0])]
+    pub size: [f32; 2],
+    /// How many cells along each axis of a grid
+    #[property(default = [4.0, 4.0])]
+    pub cells: [f32; 2],
+}
+
+impl Beside for SoftGrid2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Grid
+    }
+}
+
+/// The size of a `softbody2d` laid out as a circle: a disk of particles inside a rim.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_circle2d")]
+pub struct SoftCircle2d {
+    /// Radius
+    #[property(default = 0.5, min = 0.001)]
+    pub radius: f32,
+    /// How many particles the rim of a circle is made of
+    #[property(default = cap::DEFAULT_PARTICLES as i64, min = 2)]
+    pub particle_count: i64,
+}
+
+impl Beside for SoftCircle2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Circle
+    }
+}
+
+/// Where a `softbody2d` laid out as a rope runs, and how many particles it is made of.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_rope2d")]
+pub struct SoftRope2d {
+    /// How many particles a rope is made of
+    #[property(default = cap::DEFAULT_PARTICLES as i64, min = 2)]
+    pub particle_count: i64,
+    /// Where a rope starts, relative to the node
+    #[property(name = "a")]
+    pub first: [f32; 2],
+    /// Where a rope ends, relative to the node
+    #[property(name = "b", default = [0.0, -1.0])]
+    pub second: [f32; 2],
+}
+
+impl Beside for SoftRope2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Rope
+    }
+}
+
+/// The corners of a `softbody2d` laid out as an outline: a ring of particles around an inside.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_outline2d")]
+pub struct SoftOutline2d {
+    /// The outline's corners counter-clockwise, relative to the node
+    pub points: Vec<[f32; 2]>,
+}
+
+impl Beside for SoftOutline2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Outline
+    }
+}
+
+/// Which segments of its mesh a `softbody2d` laid out as a polyline joins.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_polyline2d")]
+pub struct SoftPolyline2d {
+    /// Which segments a polyline body joins: its mesh's points in order, or the edges of its mesh's triangles
+    #[property(default = Edges::Chain)]
+    pub edges: Edges,
+}
+
+impl Beside for SoftPolyline2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Polyline
+    }
+}
+
+/// How a volumetric `softbody2d` fills its mesh's outline with triangles.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_volumetric2d")]
+pub struct SoftVolumetric2d {
+    /// How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear
+    #[property(default = 0.25, min = 0.001)]
+    pub cell_size: f32,
+    /// The smallest corner a volumetric body's triangles aim for; past 30 degrees the fill may not finish. Radians in the file
+    #[property(default = DEFAULT_MIN_ANGLE, max = 30.0, min = 0.0, unit = "degrees")]
+    pub min_angle: f32,
+}
+
+impl Beside for SoftVolumetric2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Volumetric
+    }
+}
+
+/// The particles and elements of a custom `softbody2d`, as the author lists them.
+#[derive(Clone, PartialEq, Component)]
+#[component(name = "soft_custom2d")]
+pub struct SoftCustom2d {
+    /// The particles of a custom body, relative to the node
+    pub points: Vec<[f32; 2]>,
+    /// A custom body's triangles, three particle indices each, counter-clockwise
+    pub cell_indices: Vec<Vec<i64>>,
+    /// A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges
+    pub edge_indices: Vec<Vec<i64>>,
+    /// A custom body's bending edges, each a pair of particle indices
+    pub bend_edge_indices: Vec<Vec<i64>>,
+    /// A custom body's outward boundary segments, each a pair of particle indices: what holds its area and what it collides through; empty takes the cells' boundary
+    pub surface_indices: Vec<Vec<i64>>,
+}
+
+impl Beside for SoftCustom2d {
+    type Main = Softbody2d;
+
+    fn reads(main: &Softbody2d) -> bool {
+        main.kind == SoftKind2d::Custom
+    }
+}
+
+/// The components whose rows a `softbody2d`'s build reads: its own, then
+/// those beside it.
+pub(crate) const PARAMS: &[&str] = &[
+    c::SOFTBODY_2D,
+    <SoftGrid2d as Component>::NAME,
+    <SoftCircle2d as Component>::NAME,
+    <SoftRope2d as Component>::NAME,
+    <SoftOutline2d as Component>::NAME,
+    <SoftPolyline2d as Component>::NAME,
+    <SoftVolumetric2d as Component>::NAME,
+    <SoftCustom2d as Component>::NAME,
+    <SoftCollision2d as Component>::NAME,
+    <SoftSkin2d as Component>::NAME,
+];
+
+/// What a node's soft body is built from: the component, and the
+/// components beside it as its kind reads them.
+#[derive(Clone, PartialEq)]
+pub struct SoftAsked2d {
+    pub body: Softbody2d,
+    pub grid: SoftGrid2d,
+    pub circle: SoftCircle2d,
+    pub rope: SoftRope2d,
+    pub outline: SoftOutline2d,
+    pub polyline: SoftPolyline2d,
+    pub volumetric: SoftVolumetric2d,
+    pub custom: SoftCustom2d,
+    pub collision: SoftCollision2d,
+    pub skin: SoftSkin2d,
+}
+
+impl SoftAsked2d {
+    /// What `entity` asks for, `None` without a `softbody2d`.
+    pub fn of(world: &balaur_core::hecs::World, entity: Entity) -> Option<Self> {
+        let body = (*world.get::<&Softbody2d>(entity).ok()?).clone();
+        Some(Self::with_body(world, entity, body))
+    }
+
+    /// `body` with the components beside it on `entity`.
+    pub fn with_body(world: &balaur_core::hecs::World, entity: Entity, body: Softbody2d) -> Self {
+        Self {
+            grid: beside::held(world, entity, &body),
+            circle: beside::held(world, entity, &body),
+            rope: beside::held(world, entity, &body),
+            outline: beside::held(world, entity, &body),
+            polyline: beside::held(world, entity, &body),
+            volumetric: beside::held(world, entity, &body),
+            custom: beside::held(world, entity, &body),
+            collision: beside::held(world, entity, &body),
+            skin: beside::held(world, entity, &body),
+            body,
+        }
+    }
+
+    /// All of it as one table, the way a snapshot keeps it: a row two
+    /// components share is the one the kind reads.
+    pub(crate) fn to_table(&self) -> toml::Value {
+        let body = &self.body;
+        let mut table = derived::to_table(body);
+        beside::table_in(&mut table, &self.grid, SoftGrid2d::reads(body));
+        beside::table_in(&mut table, &self.circle, SoftCircle2d::reads(body));
+        beside::table_in(&mut table, &self.rope, SoftRope2d::reads(body));
+        beside::table_in(&mut table, &self.outline, SoftOutline2d::reads(body));
+        beside::table_in(&mut table, &self.polyline, SoftPolyline2d::reads(body));
+        beside::table_in(&mut table, &self.volumetric, SoftVolumetric2d::reads(body));
+        beside::table_in(&mut table, &self.custom, SoftCustom2d::reads(body));
+        beside::table_in(&mut table, &self.collision, SoftCollision2d::reads(body));
+        beside::table_in(&mut table, &self.skin, SoftSkin2d::reads(body));
+        table
+    }
+
+    /// All of it out of one table, as [`Self::to_table`] wrote it.
+    pub(crate) fn from_table(params: &toml::Value) -> Result<Self> {
+        let body: Softbody2d = derived::from_table(params)?;
+        Ok(Self {
+            grid: beside::from_table(params, &body)?,
+            circle: beside::from_table(params, &body)?,
+            rope: beside::from_table(params, &body)?,
+            outline: beside::from_table(params, &body)?,
+            polyline: beside::from_table(params, &body)?,
+            volumetric: beside::from_table(params, &body)?,
+            custom: beside::from_table(params, &body)?,
+            collision: beside::from_table(params, &body)?,
+            skin: beside::from_table(params, &body)?,
+            body,
+        })
+    }
+}
 
 crate::shared::softbody::material!(
     rapier = rapier2d,
     material = read_material_2d,
-    cell_model = read_cell_model_2d,
-    flow = threshold_2d,
-    springs = springs_2d
+    cell_model = read_cell_model_2d
 );
-
-/// The shape rows: how a body's particles and elements are laid out, and
-/// the numbers each layout reads.
-fn shape_schema() -> String {
-    let chain = w::CHAIN;
-    let edge_modes = v::options(w::POLYLINE_EDGES);
-    v::schema(&[
-        (
-            k::SIZE,
-            r#"{ type = "vec2", default = [1.0, 1.0], description = "Whole size of the sheet, when kind is grid", group = "shape" }"#,
-        ),
-        (
-            k::CELLS,
-            r#"{ type = "vec2", default = [4.0, 4.0], description = "How many cells along each axis of a grid", group = "shape" }"#,
-        ),
-        (
-            k::RADIUS,
-            r#"{ type = "float", default = 0.5, min = 0.001, description = "Radius, when kind is circle", group = "shape" }"#,
-        ),
-        (
-            k::PARTICLE_COUNT,
-            &format!(
-                r#"{{ type = "int", default = {}, min = {}, description = "How many particles a rope or the rim of a circle is made of", group = "shape" }}"#,
-                cap::DEFAULT_PARTICLES as i64,
-                cap::MIN_CHAIN_PARTICLES as i64
-            ),
-        ),
-        (
-            k::A,
-            r#"{ type = "vec2", default = [0.0, 0.0], description = "Where a rope starts, relative to the node", group = "shape" }"#,
-        ),
-        (
-            k::B,
-            r#"{ type = "vec2", default = [0.0, -1.0], description = "Where a rope ends, relative to the node", group = "shape" }"#,
-        ),
-        (
-            k::MESH,
-            &format!(
-                r#"{{ type = "asset", asset = "{}", default = "", description = "Points and triangles for a polygon, triangle_mesh, polyline or volumetric body, and the skin a body with cells carries: the same asset a polygon draws", group = "shape" }}"#,
-                balaur_core::mesh::MESH_ASSET_TYPE
-            ),
-        ),
-        (
-            k::SKIN,
-            r#"{ type = "bool", default = true, description = "Keep the mesh asset's outline as what the cells carry and the node draws; any kind with cells and a mesh takes it except triangle_mesh, whose particles are the mesh's", group = "shape" }"#,
-        ),
-        (
-            k::CELL_SIZE,
-            r#"{ type = "float", default = 0.25, min = 0.001, description = "How big one triangle is when a volumetric body fills an outline; smaller is finer, slower and stiffer to tear", group = "shape" }"#,
-        ),
-        (
-            k::MIN_ANGLE,
-            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 30.0, unit = "degrees", description = "The smallest corner a volumetric body's triangles aim for; past 30 degrees the fill may not finish. Radians in the file", group = "shape" }"#,
-        ),
-        (
-            k::EDGES,
-            &format!(
-                r#"{{ type = "enum", default = "{chain}", options = [{edge_modes}], description = "Which segments a polyline body joins: its mesh's points in order, or the edges of its mesh's triangles", group = "shape" }}"#
-            ),
-        ),
-    ])
-}
-
-/// A custom body's lists: its particles and the elements over them.
-fn custom_schema() -> String {
-    v::schema(&[
-        (
-            k::POINTS,
-            r#"{ type = "list", of = { type = "vec2" }, default = [], description = "The particles of a custom body, or an outline's corners counter-clockwise, relative to the node", group = "shape" }"#,
-        ),
-        (
-            k::CELL_INDICES,
-            r#"{ type = "list", of = { type = "list", of = { type = "int" } }, default = [], description = "A custom body's triangles, three particle indices each, counter-clockwise", group = "shape" }"#,
-        ),
-        (
-            k::EDGE_INDICES,
-            r#"{ type = "list", of = { type = "list", of = { type = "int" } }, default = [], description = "A custom body's structural edges, each a pair of particle indices; empty takes the cells' edges", group = "shape" }"#,
-        ),
-        (
-            k::BEND_EDGE_INDICES,
-            r#"{ type = "list", of = { type = "list", of = { type = "int" } }, default = [], description = "A custom body's bending edges, each a pair of particle indices", group = "shape" }"#,
-        ),
-        (
-            k::SURFACE_INDICES,
-            r#"{ type = "list", of = { type = "list", of = { type = "int" } }, default = [], description = "A custom body's outward boundary segments, each a pair of particle indices: what holds its area and what it collides through; empty takes the cells' boundary", group = "shape" }"#,
-        ),
-    ])
-}
 
 /// The `mesh` asset's points as 2D, with the triangles over them, in world
 /// space around `pose`.
 fn source_mesh(
     eng: &Engine,
-    params: &toml::Value,
+    reference: &str,
     pose: scalar::Pose2,
 ) -> Result<(Vec<Vector2>, Vec<[u32; 3]>)> {
-    let reference = params
-        .get(k::MESH)
-        .and_then(toml::Value::as_str)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("this soft-body kind needs a `mesh` asset"))?;
+    if reference.is_empty() {
+        return Err(anyhow!("this soft-body kind needs a `mesh` asset"));
+    }
     mesh_in_world(eng, reference, pose)
 }
 
 /// The `collision_mesh`, in world space, when there is one.
 fn collision_mesh(
     eng: &Engine,
-    params: &toml::Value,
+    collision: &SoftCollision2d,
     pose: scalar::Pose2,
 ) -> Result<Option<cap::Mesh<Vector2>>> {
-    let reference = v::text(params, k::COLLISION_MESH, "");
-    if reference.is_empty() {
+    if collision.collision_mesh.is_empty() {
         return Ok(None);
     }
-    mesh_in_world(eng, reference, pose).map(Some)
+    mesh_in_world(eng, &collision.collision_mesh, pose).map(Some)
 }
 
 fn mesh_in_world(
@@ -158,8 +459,8 @@ fn mesh_in_world(
     pose: scalar::Pose2,
 ) -> Result<(Vec<Vector2>, Vec<[u32; 3]>)> {
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, reference)?;
-    let mesh = balaur_core::mesh::load_from(eng, &definition)?;
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
+    let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
     let points = mesh
         .positions
         .iter()
@@ -201,67 +502,79 @@ fn triangle_edges(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
     edges.into_iter().collect()
 }
 
+/// What to change for fewer particles, by what a kind reads.
+fn fewer(kind: SoftKind2d) -> cap::Fewer {
+    match kind {
+        SoftKind2d::Volumetric => cap::Fewer::CellSize,
+        SoftKind2d::Rope | SoftKind2d::Circle => cap::Fewer::ParticleCount,
+        SoftKind2d::TriangleMesh | SoftKind2d::Polygon | SoftKind2d::Polyline => {
+            cap::Fewer::MeshPoints
+        }
+        SoftKind2d::Custom | SoftKind2d::Outline => cap::Fewer::Points,
+        SoftKind2d::Grid => cap::Fewer::Cells,
+    }
+}
+
 /// Lay the particles out the way `kind` asks, in world space around `pose`.
 fn build_layout(
     eng: &Engine,
-    params: &toml::Value,
+    asked: &SoftAsked2d,
     materials: &cap::Materials,
     pose: scalar::Pose2,
-    kind: &str,
 ) -> Result<SoftBodyBuilder2> {
+    let kind = asked.body.kind;
+    let mesh = asked.body.mesh.as_str();
     let at = pose.translation;
-    let local = |key: &str, default: [f32; 2]| pose * scalar::v2a(v::vec2(params, key, default));
-    let cells = v::vec2(params, k::CELLS, [4.0, 4.0]);
+    let cells = asked.grid.cells;
     let axis = |i: usize| cap::particles_along(cells[i]);
+    let circle = || cap::particle_count(asked.circle.particle_count, cap::MIN_RING_PARTICLES);
+    let rope = || cap::particle_count(asked.rope.particle_count, cap::MIN_CHAIN_PARTICLES);
     cap::refuse_past_cap(
         match kind {
-            w::GRID => axis(0) * axis(1),
-            w::CIRCLE => cap::particle_count(params, cap::MIN_RING_PARTICLES),
-            w::ROPE_SOFT => cap::particle_count(params, cap::MIN_CHAIN_PARTICLES),
+            SoftKind2d::Grid => axis(0) * axis(1),
+            SoftKind2d::Circle => circle(),
+            SoftKind2d::Rope => rope(),
             _ => 0.0,
         },
-        kind,
+        fewer(kind),
     )?;
     let builder = match kind {
         // As in 3D: the schema counts cells, rapier counts the particles
         // between them.
-        w::GRID => SoftBodyBuilder2::grid(
+        SoftKind2d::Grid => SoftBodyBuilder2::grid(
             at,
-            scalar::v2a(v::vec2(params, k::SIZE, [1.0, 1.0])) / 2.0,
+            scalar::v2a(asked.grid.size) / 2.0,
             axis(0) as usize,
             axis(1) as usize,
         ),
-        w::CIRCLE => SoftBodyBuilder2::disk(
-            at,
-            scalar::real(v::f(params, k::RADIUS, 0.5)),
-            cap::particle_count(params, cap::MIN_RING_PARTICLES) as usize,
-        ),
-        w::ROPE_SOFT => SoftBodyBuilder2::rope(
-            local(k::A, [0.0, 0.0]),
-            local(k::B, [0.0, -1.0]),
-            cap::particle_count(params, cap::MIN_CHAIN_PARTICLES) as usize,
+        SoftKind2d::Circle => SoftBodyBuilder2::disk(at, asked.circle.radius, circle() as usize),
+        SoftKind2d::Rope => SoftBodyBuilder2::rope(
+            pose * scalar::v2a(asked.rope.first),
+            pose * scalar::v2a(asked.rope.second),
+            rope() as usize,
         ),
         // A hoop around an inside; the triangle edges hold too, or a vertex
         // inside the outline is a particle nothing holds, and it falls out.
-        w::SOFT_POLYGON => {
-            let (points, indices) = source_mesh(eng, params, pose)?;
+        SoftKind2d::Polygon => {
+            let (points, indices) = source_mesh(eng, mesh, pose)?;
             let border = outline(&indices);
             SoftBodyBuilder2::polyline(points, Some(border))
                 .map(|hoop| hoop.edges(triangle_edges(&indices)))
                 .ok_or_else(|| anyhow!("that mesh has no outline to make a soft polygon of"))?
         }
         // `chain` joins the points in order; `mesh` takes its triangles' edges.
-        w::POLYLINE => {
-            let (points, indices) = source_mesh(eng, params, pose)?;
-            let segments =
-                (v::text(params, k::EDGES, w::CHAIN) == w::MESH).then(|| triangle_edges(&indices));
+        SoftKind2d::Polyline => {
+            let (points, indices) = source_mesh(eng, mesh, pose)?;
+            let segments = (asked.polyline.edges == Edges::Mesh).then(|| triangle_edges(&indices));
             SoftBodyBuilder2::polyline(points, segments)
                 .ok_or_else(|| anyhow!("that mesh has no points to make a soft wire of"))?
         }
-        w::OUTLINE => {
-            let points: Vec<Vector2> = cap::points::<2>(params, k::POINTS)
-                .into_iter()
-                .map(|p| pose * scalar::v2a(p))
+        SoftKind2d::Outline => {
+            let points: Vec<Vector2> = asked
+                .outline
+                .points
+                .iter()
+                .map(|p| pose * scalar::v2a(*p))
                 .collect();
             if points.len() < 3 {
                 return Err(anyhow!(
@@ -270,47 +583,47 @@ fn build_layout(
             }
             SoftBodyBuilder2::polygon(points)
         }
-        w::CUSTOM => custom(params, pose)?,
+        SoftKind2d::Custom => custom(&asked.custom, pose)?,
         // The triangles the asset already carries, kept as the body's cells.
-        w::TRIANGLE_MESH => {
-            let (points, indices) = source_mesh(eng, params, pose)?;
+        SoftKind2d::TriangleMesh => {
+            let (points, indices) = source_mesh(eng, mesh, pose)?;
             SoftBodyBuilder2::trimesh(points, indices)
                 .ok_or_else(|| anyhow!("that mesh has no triangles to make a soft body of"))?
         }
         // The approximate triangulation: the outline is covered with cells of
         // `cell_size`, and the mesh rides them as a skin, which is what draws.
-        w::VOLUMETRIC => {
-            let (points, indices) = source_mesh(eng, params, pose)?;
+        SoftKind2d::Volumetric => {
+            let (points, indices) = source_mesh(eng, mesh, pose)?;
             let border = outline(&indices);
-            let size = scalar::real(v::f(params, k::CELL_SIZE, 0.25));
-            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), kind)?;
+            let size = asked.volumetric.cell_size;
+            cap::refuse_past_cap(cap::grid_particles(&extents(&points), size), fewer(kind))?;
             let mut fill = crate::rapier2d::parry::transformation::VolumeMeshParameters::new(size);
-            fill.min_angle = scalar::real(v::f(params, k::MIN_ANGLE, DEFAULT_MIN_ANGLE));
+            fill.min_angle = asked.volumetric.min_angle;
             SoftBodyBuilder2::volumetric_with(&points, &border, &fill).ok_or_else(|| {
                 anyhow!("that outline encloses nothing at a cell size of {size}: it has to be closed, and big enough to hold a cell")
             })?
         }
-        other => return Err(anyhow!("unknown soft-body kind '{other}'")),
     };
-    cap::refuse_past_cap(builder.positions.len() as f64, kind)?;
-    let builder = skinned(eng, params, pose, kind, builder)?;
-    with_settings(builder, params, materials)
+    cap::refuse_past_cap(builder.positions.len() as f64, fewer(kind))?;
+    let builder = skinned(eng, asked, pose, builder)?;
+    with_settings(builder, asked, materials)
 }
 
 /// parry's own smallest angle for a 2D fill, 30 degrees.
 const DEFAULT_MIN_ANGLE: f32 = std::f32::consts::FRAC_PI_6;
 
 /// A body of the particles and elements the author listed.
-fn custom(params: &toml::Value, pose: scalar::Pose2) -> Result<SoftBodyBuilder2> {
-    let points: Vec<Vector2> = cap::points::<2>(params, k::POINTS)
-        .into_iter()
-        .map(|p| pose * scalar::v2a(p))
+fn custom(listed: &SoftCustom2d, pose: scalar::Pose2) -> Result<SoftBodyBuilder2> {
+    let points: Vec<Vector2> = listed
+        .points
+        .iter()
+        .map(|p| pose * scalar::v2a(*p))
         .collect();
     let n = points.len();
-    let edges = cap::tuples::<2>(params, k::EDGE_INDICES, n)?;
-    let bend = cap::tuples::<2>(params, k::BEND_EDGE_INDICES, n)?;
-    let surface = cap::tuples::<2>(params, k::SURFACE_INDICES, n)?;
-    let cells = cap::tuples::<3>(params, k::CELL_INDICES, n)?;
+    let edges = cap::tuples::<2>(&listed.edge_indices, k::EDGE_INDICES, n)?;
+    let bend = cap::tuples::<2>(&listed.bend_edge_indices, k::BEND_EDGE_INDICES, n)?;
+    let surface = cap::tuples::<2>(&listed.surface_indices, k::SURFACE_INDICES, n)?;
+    let cells = cap::tuples::<3>(&listed.cell_indices, k::CELL_INDICES, n)?;
     if n == 0 || (edges.is_empty() && cells.is_empty() && surface.is_empty()) {
         return Err(anyhow!(
             "a custom soft body needs `points` and something to join them: cell_indices, edge_indices or surface_indices"
@@ -327,27 +640,23 @@ fn custom(params: &toml::Value, pose: scalar::Pose2) -> Result<SoftBodyBuilder2>
 }
 
 /// The `mesh` asset's outline held by the cells as the body's skin, when
-/// `skin` asks for one, the body has cells, and its particles are not the
-/// mesh's own.
+/// its kind reads a `soft_skin2d`, that asks for one, and the layout made
+/// cells.
 fn skinned(
     eng: &Engine,
-    params: &toml::Value,
+    asked: &SoftAsked2d,
     pose: scalar::Pose2,
-    kind: &str,
     builder: SoftBodyBuilder2,
 ) -> Result<SoftBodyBuilder2> {
-    let named = params
-        .get(k::MESH)
-        .and_then(toml::Value::as_str)
-        .is_some_and(|reference| !reference.is_empty());
-    if !v::boolean(params, k::SKIN, true)
-        || !named
+    let body = &asked.body;
+    if !SoftSkin2d::reads(body)
+        || !asked.skin.skin
+        || body.mesh.is_empty()
         || builder.cells.is_empty()
-        || kind == w::TRIANGLE_MESH
     {
         return Ok(builder);
     }
-    let (points, indices) = source_mesh(eng, params, pose)?;
+    let (points, indices) = source_mesh(eng, &body.mesh, pose)?;
     Ok(builder.skin(points, outline(&indices)))
 }
 
@@ -365,8 +674,11 @@ fn extents(points: &[Vector2]) -> [f32; 2] {
 }
 
 cap::regions!(rapier = rapier2d, add = add_regions_2d);
+cap::only_in_place!(only_in_place, SoftAsked2d);
 cap::collision_mesh!(
     rapier = rapier2d,
+    body = Softbody2d,
+    collision = SoftCollision2d,
     bind = bind_collision_mesh_2d,
     shape = |vertices, indices: Vec<[u32; 3]>| {
         use crate::rapier2d::geometry::{Polyline, PolylineFlags, SharedShape};
@@ -380,16 +692,16 @@ cap::collision_mesh!(
 
 cap::surface!(
     rapier = rapier2d,
-    layers = crate::dim2::collider::with_groups_2d,
-    events = crate::dim2::collider::with_events_2d
+    body = Softbody2d,
+    groups = crate::dim2::collider::groups_of,
+    pairs = crate::dim2::collider::collision_types_of
 );
 
 /// Which solver runs the elasticity.
-fn solver_of_2d(params: &toml::Value) -> SoftBodySolver2 {
-    if v::text(params, k::SOLVER, w::CONSTRAINTS) == w::FEM {
-        SoftBodySolver2::Fem
-    } else {
-        SoftBodySolver2::Constraints
+fn solver_of_2d(solver: SoftSolver) -> SoftBodySolver2 {
+    match solver {
+        SoftSolver::Fem => SoftBodySolver2::Fem,
+        SoftSolver::Constraints => SoftBodySolver2::Constraints,
     }
 }
 
@@ -397,6 +709,7 @@ cap::patch_in_place!(
     patch_body_2d,
     crate::rapier2d::pipeline::PhysicsWorld,
     SoftBodyHandle2,
+    Softbody2d,
     read_material_2d,
     solver_of_2d
 );
@@ -405,75 +718,81 @@ cap::patch_in_place!(
 /// types.
 fn with_settings(
     mut builder: SoftBodyBuilder2,
-    params: &toml::Value,
+    asked: &SoftAsked2d,
     materials: &cap::Materials,
 ) -> Result<SoftBodyBuilder2> {
-    let made = &materials.body.0;
-    let seams = cap::seams(params, builder.positions.len())?;
+    let body = &asked.body;
+    let made = &*materials.body;
+    let seams = cap::seams(&body.seams, builder.positions.len())?;
     if !seams.is_empty() {
         builder = builder.add_edges(seams);
     }
     builder = builder
-        .material(read_material_2d(params, made))
+        .material(read_material_2d(
+            made,
+            body.max_tears_per_step,
+            body.min_piece,
+        ))
         .cell_model(read_cell_model_2d(made))
-        .volume_preservation(v::boolean(made, k::VOLUME_PRESERVATION, true))
-        .volume_factor(scalar::real(v::f(made, k::VOLUME_FACTOR, 1.0)))
-        .self_contacts(v::boolean(params, k::SELF_COLLISION, false))
-        .linear_damping(scalar::real(v::f(params, k::LINEAR_DAMPING, 0.0)))
-        .gravity_scale(scalar::real(v::f(params, k::GRAVITY_SCALE, 1.0)))
-        .additional_solver_iterations(v::f(params, k::SOLVER_SUBSTEPS, 0.0).max(0.0) as usize)
-        .additional_pgs_iterations(v::f(params, k::SOLVER_ITERATIONS, 3.0).max(0.0) as usize)
-        .can_sleep(v::boolean(params, k::CAN_SLEEP, true))
-        .solver(solver_of_2d(params))
-        .skin_collision(v::boolean(params, k::SKIN_COLLISION, false))
-        .surface_collider(surface_collider(params, &materials.surface));
-    let mass = v::f(params, k::MASS, 1.0);
-    if mass > 0.0 {
-        builder = builder.mass(scalar::real(mass));
+        .volume_preservation(made.volume_preservation)
+        .volume_factor(made.volume_factor)
+        .self_contacts(body.self_collision)
+        .linear_damping(body.linear_damping)
+        .gravity_scale(body.gravity_scale)
+        .additional_solver_iterations(cap::iterations(body.solver_substeps))
+        .additional_pgs_iterations(cap::iterations(body.solver_iterations))
+        .can_sleep(body.can_sleep)
+        .solver(solver_of_2d(body.solver))
+        .skin_collision(asked.skin.skin_collision)
+        .surface_collider(surface_collider(body, &materials.surface));
+    if body.mass > 0.0 {
+        builder = builder.mass(body.mass);
     }
-    let radius = v::f(params, k::PARTICLE_RADIUS, 0.0);
-    if radius > 0.0 {
-        builder = builder.particle_radius(scalar::real(radius));
+    if body.particle_radius > 0.0 {
+        builder = builder.particle_radius(body.particle_radius);
     }
-    if let Some(oriented) = cap::oriented(params) {
+    if let Some(oriented) = cap::oriented(body.orientation) {
         builder = builder.oriented(oriented);
     }
     // After the generator, which picks its own for a mesh or a polyline.
-    if let Some(matching) = cap::shape_matching(made) {
+    if let Some(matching) = made.shape_matching {
         builder = builder.shape_matching(matching);
     }
-    if cap::tension(params) == cap::Tension::All {
+    if body.tension_only == TensionOnly::All {
         builder = builder.tension_only();
     }
-    builder = builder.pinned_particles(v::indices(params, k::PINNED_PARTICLES));
+    builder = builder.pinned_particles(body.pinned_particles.0.clone());
     let settings = SoftBodyParticleSettings2 {
-        dominance_group: v::f(params, k::DOMINANCE, 0.0).clamp(-127.0, 127.0) as i8,
+        dominance_group: body.dominance.clamp(-127, 127) as i8,
         ..builder.particle_settings
     };
     builder = builder.particle_settings(settings);
+    let ask = cap::EdgeAsk {
+        masses: &body.masses,
+        tear_resistance: &body.tear_resistance,
+        edge_springs: &body.edge_springs,
+        tension_only: body.tension_only,
+        tension_only_edges: &body.tension_only_edges,
+    };
     let rows = cap::edge_rows(
-        params,
+        &ask,
         builder.positions.len(),
         &builder.edges,
         &builder.bend_edges,
     )?;
     // After `mass`, which spreads one total over the particles evenly.
     if !rows.masses.is_empty() {
-        builder = builder.masses(rows.masses.iter().map(|m| scalar::real(*m)).collect());
+        builder = builder.masses(rows.masses.clone());
     }
     if !rows.tear.is_empty() {
-        builder =
-            builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, scalar::real(*r))));
+        builder = builder.edge_tear_resistance(rows.tear.iter().map(|(i, r)| (*i, *r)));
     }
     for (edge, hz, damping) in rows.springs {
-        let spring = crate::rapier2d::prelude::SpringCoefficients::new(
-            scalar::real(hz),
-            scalar::real(damping),
-        );
+        let spring = crate::rapier2d::prelude::SpringCoefficients::new(hz, damping);
         builder.edge_softness.push((edge, spring));
     }
     builder.tension_only_edges.extend(rows.tension_only);
-    if !v::boolean(params, k::COLLIDES, true) {
+    if !body.collides {
         builder = builder.no_surface_collider();
     }
     Ok(builder)
@@ -485,12 +804,13 @@ cap::stamp_colliders!(
     SoftBodyHandle2
 );
 
-pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let materials = cap::Materials::of(eng, params)?;
-    if patched_2d(eng, entity, params, &materials) {
+pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, asked: &SoftAsked2d) -> Result<()> {
+    let materials =
+        cap::Materials::of(eng, &asked.body.soft_material, &asked.body.physics_material)?;
+    if patched_2d(eng, entity, asked, &materials) {
         return Ok(());
     }
-    build_softbody_2d(eng, entity, params, &materials)
+    build_softbody_2d(eng, entity, asked, &materials)
 }
 
 /// Build the node's soft body from rest, replacing whatever it had: what a
@@ -498,14 +818,13 @@ pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, params: &toml::Val
 fn build_softbody_2d(
     eng: &Engine,
     entity: Entity,
-    params: &toml::Value,
+    asked: &SoftAsked2d,
     materials: &cap::Materials,
 ) -> Result<()> {
     let pose = crate::dim2::node_pose_2d(eng, entity)?;
-    let kind = v::text(params, k::KIND, w::GRID).to_string();
-    let builder = build_layout(eng, params, materials, pose, &kind)?
-        .user_data(u128::from(entity.to_bits().get()));
-    let collision = collision_mesh(eng, params, pose)?;
+    let builder =
+        build_layout(eng, asked, materials, pose)?.user_data(u128::from(entity.to_bits().get()));
+    let collision = collision_mesh(eng, &asked.collision, pose)?;
     remove_softbody_2d(eng, entity);
     let added = {
         let state = eng.resource::<PhysicsState2d>();
@@ -517,9 +836,16 @@ fn build_softbody_2d(
             &mut state.world.colliders,
         );
         state.soft_bodies.insert(entity, handle);
-        state.soft_params.insert(entity, params.clone());
-        let added = add_regions_2d(&mut state.world, handle, params).and_then(|()| {
-            bind_collision_mesh_2d(&mut state.world, handle, params, collision, materials)
+        state.soft_params.insert(entity, asked.clone());
+        let added = add_regions_2d(&mut state.world, handle, &asked.body.regions).and_then(|()| {
+            bind_collision_mesh_2d(
+                &mut state.world,
+                handle,
+                &asked.body,
+                &asked.collision,
+                collision,
+                materials,
+            )
         });
         stamp_colliders_2d(&mut state.world, handle, entity);
         added
@@ -536,7 +862,7 @@ fn build_softbody_2d(
 fn patched_2d(
     eng: &Engine,
     entity: Entity,
-    params: &toml::Value,
+    asked: &SoftAsked2d,
     materials: &cap::Materials,
 ) -> bool {
     let state = eng.resource::<PhysicsState2d>();
@@ -548,11 +874,14 @@ fn patched_2d(
     ) else {
         return false;
     };
-    if !cap::only_in_place(built, params) || state.world.soft_bodies.get(handle).is_none() {
+    if !only_in_place(built, asked)
+        || materials.changes_shape_matching(eng, &built.body.soft_material)
+        || state.world.soft_bodies.get(handle).is_none()
+    {
         return false;
     }
-    patch_body_2d(&mut state.world, handle, params, materials);
-    state.soft_params.insert(entity, params.clone());
+    patch_body_2d(&mut state.world, handle, &asked.body, materials);
+    state.soft_params.insert(entity, asked.clone());
     true
 }
 
@@ -577,26 +906,6 @@ pub(crate) fn remove_softbody_2d(eng: &Engine, entity: Entity) {
     }
 }
 
-pub(crate) fn get_softbody_params_2d(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.resource::<PhysicsState2d>();
-    let state = state.borrow();
-    let authored = state.soft_params.get(&entity)?.clone();
-    let handle = *state.soft_bodies.get(&entity)?;
-    let body = state.world.soft_bodies.get(handle)?;
-    let toml::Value::Table(mut table) = authored else {
-        return None;
-    };
-    // Not the mass, whose sum over the particles rounds off what was asked
-    // for, nor the radius, whose 0 means "worked out from the layout".
-    let solver = match body.solver() {
-        SoftBodySolver2::Fem => w::FEM,
-        SoftBodySolver2::Constraints => w::CONSTRAINTS,
-    };
-    table.insert(k::SOLVER.into(), toml::Value::String(solver.into()));
-    table.insert(k::ENABLED.into(), toml::Value::Boolean(body.is_enabled()));
-    Some(toml::Value::Table(table))
-}
-
 /// Hand this step's geometry to whatever draws the node, in the node's own
 /// space (see [`crate::softbody::write_solved_mesh`]).
 pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
@@ -618,14 +927,16 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
         let Some(body) = state.world.soft_bodies.get(handle) else {
             return;
         };
-        let params = state.soft_params.get(&entity);
+        let asked = state.soft_params.get(&entity);
         let skinned = body
             .meshes()
             .any(crate::rapier2d::dynamics::SoftCollisionMesh::is_skinned);
         let mut drawn = draw::drawn(body, pose.inverse(), || {
             held.unwrap_or_else(|| {
-                let loaded = params
-                    .and_then(|params| source_mesh(eng, params, scalar::Pose2::IDENTITY).ok())
+                let loaded = asked
+                    .and_then(|asked| {
+                        source_mesh(eng, &asked.body.mesh, scalar::Pose2::IDENTITY).ok()
+                    })
                     .map(|(_, triangles)| triangles)
                     .unwrap_or_default();
                 fresh = Some(loaded.clone());
@@ -647,21 +958,24 @@ pub(crate) fn write_solved_polygon(eng: &Engine, entity: Entity) {
                     .extend(triangles.iter().map(|t| t.map(|i| i + offset)));
             }
         }
-        (drawn, crate::softbody::drawn_color(params))
+        let color = asked.map_or(cap::DEFAULT_COLOR, |asked| asked.body.color);
+        (drawn, color)
     };
-    let mut world = eng.world_mut();
     if let Some(triangles) = fresh {
-        let _ = world.insert_one(entity, draw::SkinTriangles(triangles));
+        let _ = eng.insert_one(entity, draw::SkinTriangles(triangles));
     }
-    if let Ok(mut solved) = world.get::<&mut balaur_core::mesh::SolvedPolygon>(entity) {
+    if let Ok(mut solved) = eng
+        .world()
+        .get::<&mut balaur_geometry::mesh::SolvedPolygon>(entity)
+    {
         solved.update(positions, indices);
         solved.color = color;
         return;
     }
-    let mut solved = balaur_core::mesh::SolvedPolygon::default();
+    let mut solved = balaur_geometry::mesh::SolvedPolygon::default();
     solved.update(positions, indices);
     solved.color = color;
-    let _ = world.insert_one(entity, solved);
+    let _ = eng.insert_one(entity, solved);
 }
 
 pub(crate) fn write_every_solved_polygon(eng: &Engine) {
@@ -696,7 +1010,7 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
     if let Some(drawn) = polygon_points(eng, entity) {
         let handed = eng
             .world()
-            .get::<&balaur_core::mesh::SolvedPolygon>(entity)
+            .get::<&balaur_geometry::mesh::SolvedPolygon>(entity)
             .map_or(drawn, |solved| solved.positions.len());
         if handed != drawn {
             out.push(Warning::on(
@@ -712,7 +1026,7 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
     let authored = state
         .soft_params
         .get(&entity)
-        .map_or(0.0, |params| v::f(params, k::PARTICLE_RADIUS, 0.0));
+        .map_or(0.0, |asked| asked.body.particle_radius);
     let body = state
         .soft_bodies
         .get(&entity)
@@ -720,10 +1034,7 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
     if let Some(body) = body.filter(|_| authored <= 0.0) {
         let points: Vec<Vector2> = body.particle_positions().collect();
         let widest = extents(&points).into_iter().fold(0.0, f32::max);
-        out.extend(cap::hovering(
-            scalar::f32_of(body.particle_radius()),
-            widest,
-        ));
+        out.extend(cap::hovering(body.particle_radius(), widest));
     }
     out
 }
@@ -732,47 +1043,55 @@ fn softbody_warnings_2d(eng: &Engine, entity: Entity) -> Vec<balaur_core::warnin
 fn polygon_points(eng: &Engine, entity: Entity) -> Option<usize> {
     let polygon = balaur_core::components::get(eng, entity, c::POLYGON)?;
     let reference = polygon.get(k::MESH).and_then(toml::Value::as_str)?;
-    let mesh = balaur_core::mesh::resolved(eng, reference).ok()?;
+    let mesh = balaur_geometry::mesh::resolved(eng, reference).ok()?;
     Some(mesh.positions.len())
 }
+/// The soft body the component asks for, patched in place or built again.
+fn after_write(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let asked = SoftAsked2d::of(&eng.world(), entity);
+    let Some(asked) = asked else {
+        return Ok(());
+    };
+    apply_softbody_2d(eng, entity, &asked)
+}
+
+/// What a removed `Softbody2d` leaves behind, taken with it.
+fn softbody2d_removed(eng: &Engine, entity: Entity) {
+    remove_softbody_2d(eng, entity);
+    let _ = eng.remove_one::<balaur_geometry::mesh::SolvedPolygon>(entity);
+    let _ = eng.remove_one::<draw::SkinTriangles>(entity);
+}
+
+/// `softbody2d`: what was asked, held on the node; the body and the table it
+/// was built from are in [`crate::PhysicsState2d`].
 pub(crate) fn register_softbody_component_2d(reg: &mut Registry<'_>) {
-    let schema = [
-        cap::primary_schema(w::SOFT_KINDS_2D, w::GRID),
-        shape_schema(),
-        cap::seams_schema(),
-        custom_schema(),
-        cap::particles_schema(),
-        cap::collision_schema(),
-        cap::filtering_schema(),
-        crate::collider::events_schema(),
-        cap::overrides_schema(),
-        cap::tearing_schema(),
-        cap::solver_schema(),
-    ]
-    .join("\n");
+    let tags: &'static [&'static str] = &[
+        balaur_core::components::tag::DIM_2D,
+        balaur_core::components::tag::PHYSICS,
+    ];
+    let main: &'static [&'static str] = &[c::SOFTBODY_2D];
+    beside::register::<SoftGrid2d>(reg, main, tags, after_write);
+    beside::register::<SoftCircle2d>(reg, main, tags, after_write);
+    beside::register::<SoftRope2d>(reg, main, tags, after_write);
+    beside::register::<SoftOutline2d>(reg, main, tags, after_write);
+    beside::register::<SoftPolyline2d>(reg, main, tags, after_write);
+    beside::register::<SoftVolumetric2d>(reg, main, tags, after_write);
+    beside::register::<SoftCustom2d>(reg, main, tags, after_write);
+    beside::register::<SoftCollision2d>(reg, main, tags, after_write);
+    beside::register::<SoftSkin2d>(reg, main, tags, after_write);
+    // After the components beside it, so a scene gives the node those first.
     reg.register_component(
-        c::SOFTBODY_2D,
+        Softbody2d::NAME,
         ComponentDef {
             events: crate::vocabulary::hook::SOFT_BODY,
             warnings: Some(Box::new(softbody_warnings_2d)),
-            doc: "A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.",
-            schema: ComponentDef::parse_schema(c::SOFTBODY_2D, &schema),
             // It draws the node, so the tree's Rendering filter finds it too.
             tags: &[
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::PHYSICS,
                 balaur_core::components::tag::RENDER,
             ],
-            expects: &[],
-            apply: Box::new(apply_softbody_2d),
-            remove: Box::new(|eng, entity| {
-                remove_softbody_2d(eng, entity);
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<balaur_core::mesh::SolvedPolygon>(entity);
-                let _ = world.remove_one::<draw::SkinTriangles>(entity);
-                Ok(())
-            }),
-            get: Box::new(get_softbody_params_2d),
+            ..ComponentDef::of::<Softbody2d>()
         },
     );
 }
@@ -792,29 +1111,20 @@ crate::softbody::runtime::runtime_api!(
     array = scalar::a2
 );
 
-pub(crate) fn install_softbody_api_2d(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_softbody", &[c::SOFTBODY_2D], "", "Build the node's soft body from a `softbody2d` table: `kind`, the shape rows, and the material rows."),
         ("softbody_area", &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
         ("softbody_rest_area", &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
         ("softbody_center", &[c::SOFTBODY_2D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
     ]);
-    m.function(
-        "set_softbody",
-        |eng: &Engine, (node, params): (NodeId, balaur_script::Value)| {
-            let params = balaur_core::node_api::to_toml(&params)?;
-            let materials = cap::Materials::of(eng, &params)?;
-            build_softbody_2d(eng, entity_of(node)?, &params, &materials)
-        },
-    );
     m.function("softbody_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
-            Ok(scalar::f32_of(bodies.iter().map(|b| b.volume()).sum()))
+            Ok(bodies.iter().map(|b| b.volume()).sum::<f32>())
         })
     });
     m.function("softbody_rest_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
-            Ok(scalar::f32_of(bodies.iter().map(|b| b.rest_volume()).sum()))
+            Ok(bodies.iter().map(|b| b.rest_volume()).sum::<f32>())
         })
     });
     m.function("softbody_center", |eng: &Engine, node: NodeId| {

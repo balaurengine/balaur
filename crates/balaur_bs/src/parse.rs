@@ -1,7 +1,7 @@
 use crate::Error;
 use crate::ast::{
-    BinOp, Block, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part, Pos, Program, Stmt,
-    StmtKind, Ty, UnOp,
+    Arm, BinOp, Block, EnumDecl, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part, Pattern,
+    Pos, Program, Stmt, StmtKind, Ty, UnOp, Variant,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -14,9 +14,10 @@ pub(crate) enum Tok {
     Eof,
 }
 
-pub(crate) const PUNCT: [&str; 35] = [
-    "..", "->", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "::", "(", ")",
-    "{", "}", "[", "]", ",", ";", ":", ".", "&", "+", "-", "*", "/", "%", "=", "<", ">", "!", "?",
+pub(crate) const PUNCT: [&str; 36] = [
+    "..", "->", "=>", "==", "!=", "<=", ">=", "&&", "||", "+=", "-=", "*=", "/=", "%=", "::", "(",
+    ")", "{", "}", "[", "]", ",", ";", ":", ".", "&", "+", "-", "*", "/", "%", "=", "<", ">", "!",
+    "?",
 ];
 
 fn err<T>(pos: Pos, msg: impl Into<String>) -> Result<T, Error> {
@@ -326,6 +327,9 @@ impl Parser {
             return Ok(());
         }
         let public = self.eat_kw("pub");
+        if self.eat_kw("enum") {
+            return self.enum_decl(prog);
+        }
         let class = self.is_kw("class");
         if self.eat_kw("struct") || self.eat_kw("class") {
             let at = self.pos();
@@ -401,6 +405,131 @@ impl Parser {
             prog.fns.push(f);
         }
         Ok(())
+    }
+
+    // `enum Shape { Circle(float), Rect { w: float, h: float }, Empty }`,
+    // past `enum`: the declaration, and the struct that holds a value of it.
+    fn enum_decl(&mut self, prog: &mut Program) -> Result<(), Error> {
+        let pos = self.pos();
+        let name = self.ident()?;
+        prog.decls.push((name.clone(), pos));
+        self.want("{")?;
+        let mut variants = Vec::new();
+        while !self.eat("}") {
+            let at = self.pos();
+            let variant = self.ident()?;
+            let (fields, tuple) = if self.eat("(") {
+                let mut fields = Vec::new();
+                while !self.eat(")") {
+                    fields.push((fields.len().to_string(), self.ty()?));
+                    if !self.eat(",") {
+                        self.want(")")?;
+                        break;
+                    }
+                }
+                (fields, true)
+            } else if self.eat("{") {
+                let mut fields = Vec::new();
+                while !self.eat("}") {
+                    let field = self.ident()?;
+                    self.want(":")?;
+                    fields.push((field, self.ty()?));
+                    if !self.eat(",") {
+                        self.want("}")?;
+                        break;
+                    }
+                }
+                (fields, false)
+            } else {
+                (Vec::new(), false)
+            };
+            variants.push(Variant {
+                name: variant,
+                fields,
+                tuple,
+                pos: at,
+            });
+            if !self.eat(",") {
+                self.want("}")?;
+                break;
+            }
+        }
+        let decl = EnumDecl {
+            name,
+            variants,
+            pos,
+        };
+        prog.structs
+            .push((decl.name.clone(), crate::enums::holder(&decl)));
+        prog.enums.push(decl);
+        Ok(())
+    }
+
+    // `_`, or a variant's path with what its fields are bound to.
+    fn pattern(&mut self) -> Result<Pattern, Error> {
+        if self.eat_kw("_") {
+            return Ok(Pattern::Any);
+        }
+        let mut path = self.ident()?;
+        while self.eat("::") {
+            path = format!("{path}::{}", self.ident()?);
+        }
+        if !path.contains("::") && !self.is("(") && !self.is("{") {
+            return Ok(Pattern::Bind(path));
+        }
+        let mut binds = Vec::new();
+        if self.eat("(") {
+            while !self.eat(")") {
+                binds.push((binds.len().to_string(), self.ident()?));
+                if !self.eat(",") {
+                    self.want(")")?;
+                    break;
+                }
+            }
+        } else if self.eat("{") {
+            while !self.eat("}") {
+                let field = self.ident()?;
+                let bound = if self.eat(":") {
+                    self.ident()?
+                } else {
+                    field.clone()
+                };
+                binds.push((field, bound));
+                if !self.eat(",") {
+                    self.want("}")?;
+                    break;
+                }
+            }
+        }
+        Ok(Pattern::Variant { path, binds })
+    }
+
+    // `match subject { pattern => value, .. }`, past `match`.
+    fn match_expr(&mut self) -> Result<ExprKind, Error> {
+        let subject = self.expr(true)?;
+        self.want("{")?;
+        let mut arms = Vec::new();
+        while !self.eat("}") {
+            let pos = self.pos();
+            let pattern = self.pattern()?;
+            self.want("=>")?;
+            let body = if self.is("{") {
+                let at = self.pos();
+                Expr {
+                    kind: ExprKind::Block(self.block()?),
+                    pos: at,
+                }
+            } else {
+                self.expr(false)?
+            };
+            let ends = matches!(body.kind, ExprKind::Block(_));
+            arms.push(Arm { pattern, body, pos });
+            if !self.eat(",") && !ends {
+                self.want("}")?;
+                break;
+            }
+        }
+        Ok(ExprKind::Match(Box::new(subject), arms))
     }
 
     fn func(&mut self, public: bool, owner: Option<String>) -> Result<FnDecl, Error> {
@@ -801,6 +930,10 @@ impl Parser {
             Tok::Ident(s) if s == "nil" && !matches!(self.peek_at(1), Tok::P("(")) => {
                 self.i += 1;
                 ExprKind::Nil
+            }
+            Tok::Ident(s) if s == "match" => {
+                self.i += 1;
+                self.match_expr()?
             }
             Tok::Ident(s) if s == "if" => {
                 self.i += 1;

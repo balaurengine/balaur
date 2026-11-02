@@ -9,6 +9,6 @@ impl Turntable {
     fn update(dt: float) {
         let radians = self.turns_per_minute / 60.0 * 6.2831853 * dt;
         let r = self.node.transform.rotation_euler;
-        self.node.transform.rotation_euler = [r.x, r.y + radians, r.z];
+        self.node.transform.rotation_euler = vec3(r.x, r.y + radians, r.z);
     }
 }

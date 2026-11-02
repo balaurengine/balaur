@@ -14,6 +14,9 @@ use crate::widget::theme::rich;
 /// How much of a `number_field`'s box its two arrows take, gap included.
 const ARROWS: f32 = 18.0;
 
+/// How long a slider's rail is with nothing sizing it.
+const RAIL: f32 = 160.0;
+
 /// A number dragged between `min` and `max`. egui draws it; the value it
 /// reports lands on the widget next tick, which is also when `on_change`
 /// hears it.
@@ -29,22 +32,43 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     } else {
         widget.value.clamp(low, high)
     };
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let upright = widget.axis == w::VERTICAL;
     let along = if upright { want.y } else { want.x };
+    let natural = slider_size(ui.ctx(), widget);
     let length = if along > 0.0 {
         along
     } else if upright {
-        ui.available_height().min(160.0)
+        natural.y
     } else {
-        ui.available_width().min(160.0)
+        natural.x
     };
-    // The shown number sits after the track inside the same box.
-    let shown = value_room(&Brush::of(ui), widget);
-    ui.spacing_mut().slider_width = (length - shown).max(16.0);
+    // The shown number sits after the rail inside the same box, as wide as
+    // its wider end whatever it shows now, so the rail does not move.
+    let face = end_face(ui.ctx(), ui.style(), widget);
+    let spacing = ui.spacing_mut();
+    let shown = if face == egui::Vec2::ZERO {
+        0.0
+    } else if upright {
+        face.y + spacing.item_spacing.y
+    } else {
+        face.x + spacing.item_spacing.x
+    };
+    spacing.slider_width = (length - shown).max(16.0);
+    spacing.interact_size.x = spacing.interact_size.x.max(face.x);
     let decimals = usize::try_from(o.decimals).ok();
     let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
     let mut number = f64::from(value);
+    let look = at.look(index);
+    let ctx = ui.ctx().clone();
+    let face = crate::widget::field::Face {
+        eng: at.eng,
+        ctx: &ctx,
+        widget,
+        project: placed.project,
+        font: &look.font,
+        style: &look.style,
+    };
     let response = Slide {
         value: &mut number,
         range: f64::from(low)..=f64::from(high),
@@ -86,6 +110,8 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
             }
         },
         update_while_editing: o.update_while_editing,
+        eng: at.eng,
+        setter: crate::widget::typing::Typesetter::Plain(face.request(None)),
     }
     .show(ui);
     value = number as f32;
@@ -98,39 +124,88 @@ pub(crate) fn slider(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     }
 }
 
-/// What a `slider`'s shown number takes along it, the space before it
-/// included: its widest end with `prefix` and `suffix` across, a control's
-/// height down. Nothing where it shows none.
-pub(crate) fn value_room(painter: &Brush, widget: &crate::widget::node::Widget) -> f32 {
+/// The face a `slider`'s number rests in, as the number field's face draws
+/// it: the wider of its two ends, at the decimals it shows at rest. Zero
+/// where it shows none.
+pub(crate) fn end_face(
+    ctx: &egui::Context,
+    style: &egui::Style,
+    widget: &crate::widget::node::Widget,
+) -> egui::Vec2 {
     let o = &widget.egui;
     if !o.show_value {
-        return 0.0;
+        return egui::Vec2::ZERO;
     }
-    let style = painter.ctx().global_style();
-    let spacing = &style.spacing;
-    if widget.axis == w::VERTICAL {
-        return spacing.interact_size.y + spacing.item_spacing.y;
-    }
-    let digits = |n: f32| match usize::try_from(o.decimals) {
-        Ok(decimals) => format!("{n:.decimals$}"),
-        Err(_) => format!("{n}"),
+    let decimals = usize::try_from(o.decimals).ok();
+    let span = f64::from((widget.max - widget.min).abs()).max(f64::EPSILON);
+    // The rail's own rate at its length with nothing sizing it.
+    let speed = if o.drag_speed > 0.0 {
+        f64::from(o.drag_speed)
+    } else {
+        span / f64::from(RAIL)
     };
-    let pieces = [o.prefix.is_empty(), widget.suffix.is_empty()]
-        .iter()
-        .filter(|empty| !**empty)
-        .count() as f32;
-    // The prefix and suffix are pieces of their own, with egui's gap before
-    // or after the number.
-    let widest = [widget.min, widget.max]
-        .map(|end| format!("{} {} {}", o.prefix, digits(end), widget.suffix))
-        .into_iter()
-        .map(|text| {
-            let font = egui::TextStyle::Body.resolve(&style);
-            painter.line_of(text, font, Color32::WHITE).size().x
+    let aim = f64::from(ctx.input(egui::InputState::aim_radius));
+    let (auto, most) =
+        crate::widget::drag::decimals(aim, speed, false, (decimals.unwrap_or(0), decimals));
+    let spelling = Spelling::of(&o.number_format);
+    let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
+    [widget.min, widget.max]
+        .map(|end| {
+            let shown = spelling.format(style, f64::from(end), auto..=most);
+            let pieces = crate::widget::drag::faces(ctx, style, (&prefix, &shown, &suffix));
+            crate::widget::drag::face_size(&style.spacing, &pieces)
         })
-        .fold(0.0, f32::max)
-        + pieces * spacing.icon_spacing;
-    (widest + spacing.button_padding.x * 2.0).max(spacing.interact_size.x) + spacing.item_spacing.x
+        .into_iter()
+        .fold(egui::Vec2::ZERO, egui::Vec2::max)
+}
+
+/// The box a `slider` asks for: a rail as long as nothing sizing it gives,
+/// as thick as a line of body text or a control, and its number at the end.
+pub(crate) fn slider_size(ctx: &egui::Context, widget: &crate::widget::node::Widget) -> egui::Vec2 {
+    let style = ctx.global_style();
+    let spacing = &style.spacing;
+    let thick = ctx
+        .fonts_mut(|f| f.row_height(&egui::TextStyle::Body.resolve(&style)))
+        .max(spacing.interact_size.y);
+    let face = end_face(ctx, &style, widget);
+    let shown = face != egui::Vec2::ZERO;
+    if widget.axis == w::VERTICAL {
+        let gap = if shown { spacing.item_spacing.y } else { 0.0 };
+        vec2(thick.max(face.x), RAIL + gap + face.y)
+    } else {
+        let gap = if shown { spacing.item_spacing.x } else { 0.0 };
+        vec2(RAIL + gap + face.x, thick.max(face.y))
+    }
+}
+
+/// The box a `number_field` asks for: its number at rest, the way the draw
+/// lays it out, and room for its arrows.
+pub(crate) fn number_size(
+    ctx: &egui::Context,
+    widget: &crate::widget::node::Widget,
+    font: &egui::FontId,
+) -> egui::Vec2 {
+    let o = &widget.egui;
+    let mut style = (*ctx.global_style()).clone();
+    style.override_font_id = Some(font.clone());
+    let decimals = usize::try_from(o.decimals).ok();
+    let speed = if o.drag_speed > 0.0 {
+        f64::from(o.drag_speed)
+    } else {
+        1.0
+    };
+    let aim = f64::from(ctx.input(egui::InputState::aim_radius));
+    let (auto, most) =
+        crate::widget::drag::decimals(aim, speed, false, (decimals.unwrap_or(0), decimals));
+    let shown = Spelling::of(&o.number_format).format(&style, f64::from(widget.value), auto..=most);
+    let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
+    let pieces = crate::widget::drag::faces(ctx, &style, (&prefix, &shown, &suffix));
+    let face = crate::widget::drag::face_size(&style.spacing, &pieces);
+    if widget.arrows {
+        vec2(face.x + ARROWS, face.y)
+    } else {
+        face
+    }
 }
 
 /// A number dragged sideways, or typed into after a click. `SpinBox` in a
@@ -157,6 +232,16 @@ pub(crate) fn drag_value(
     let decimals = usize::try_from(o.decimals).ok();
     let (prefix, suffix) = affixes(&o.prefix, &widget.suffix);
     let mut number = f64::from(value);
+    let look = at.look(index);
+    let ctx = ui.ctx().clone();
+    let face = crate::widget::field::Face {
+        eng: at.eng,
+        ctx: &ctx,
+        widget,
+        project: placed.project,
+        font,
+        style: &look.style,
+    };
     let drag = DragNumber {
         value: &mut number,
         speed: if o.drag_speed > 0.0 {
@@ -176,8 +261,10 @@ pub(crate) fn drag_value(
         max_decimals: decimals,
         spelling: Spelling::of(&o.number_format),
         update_while_editing: o.update_while_editing,
+        eng: at.eng,
+        setter: crate::widget::typing::Typesetter::Plain(face.request(None)),
     };
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     if want.x > 0.0 {
         // With arrows, the number is told what is left of the stated box, so
         // the pair sits inside it rather than in the next widget's.
@@ -188,7 +275,6 @@ pub(crate) fn drag_value(
         };
     }
     let mut stepped = None;
-    let look = at.look(index);
     let response = ui.scope(|ui| {
         ui.style_mut().override_font_id = Some(font.clone());
         crate::widget::theme::dress(ui, &look.style, color);
@@ -303,7 +389,7 @@ fn paint_bar(
 }
 
 /// The words before and after the number, a space between each and it.
-fn affixes(prefix: &str, suffix: &str) -> (String, String) {
+pub(crate) fn affixes(prefix: &str, suffix: &str) -> (String, String) {
     let before = if prefix.is_empty() {
         String::new()
     } else {
@@ -320,18 +406,16 @@ fn affixes(prefix: &str, suffix: &str) -> (String, String) {
 /// One of a `number_field`'s two steps: a glyph in `rect` that lights up
 /// under the pointer, true on the pass it was clicked.
 fn arrow(ui: &mut egui::Ui, rect: egui::Rect, glyph: &str, size: f32) -> bool {
-    // Exactly its half: where two widgets overlap egui hands the click to the
-    // later one, so a control-tall pair gave the up arrow's lower half to down.
-    let response = ui.put(rect, |ui: &mut egui::Ui| {
-        ui.spacing_mut().interact_size.y = rect.height();
-        crate::widget::button::sensor(
-            ui,
-            rect.size(),
-            egui::Sense::click(),
-            egui::Role::Button,
-            glyph,
-        )
-    });
+    // Exactly its rect: egui hands an overlap's click to the later widget, and
+    // a button's least width put the pair past the field's box.
+    let response = ui.interact(rect, ui.make_persistent_id(glyph), egui::Sense::click());
+    if let Some(cursor) = ui.visuals().interact_cursor
+        && response.hovered()
+    {
+        ui.ctx().set_cursor_icon(cursor);
+    }
+    let enabled = ui.is_enabled();
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, glyph));
     if ui.is_rect_visible(response.rect) {
         let look = ui.style().interact(&response);
         let painter = Brush::of(ui);
@@ -372,7 +456,7 @@ pub(crate) fn progress(
     let widget = &at.arena[index].widget;
     let span = (widget.max - widget.min).abs().max(f32::EPSILON);
     let fraction = ((widget.value - widget.min) / span).clamp(0.0, 1.0);
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     // A line of the caption's face with a button's air, as it measured; egui's
     // own height ignores the face and cut the caption off.
     let height = if want.y > 0.0 {
@@ -405,7 +489,7 @@ pub(crate) fn progress(
     if !ui.is_rect_visible(outer) {
         return;
     }
-    let style = at.style_of(widget);
+    let style = at.style(index);
     paint_bar(ui, outer, fraction, &style, widget.egui.animate);
     let Some(text) = shown else {
         return;

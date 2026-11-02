@@ -1,0 +1,59 @@
+// A value that may be nil says so in its type, and nil crosses to the host
+// as nothing.
+
+pub struct Bag { best: str?, count: int? }
+fn find(xs: [str], name: str) -> int? {
+    let i = 0;
+    while i < xs.len() {
+        if xs[i] == name { return i; }
+        i += 1;
+    }
+    nil
+}
+pub fn found(name: str) -> int {
+    let xs = ["a", "b", "c"];
+    find(xs, name).or(-1)
+}
+pub fn checks(name: str) -> str {
+    let xs = ["a", "b"];
+    let r = find(xs, name);
+    let a = r != nil;
+    let b = r == nil;
+    let c = r == nil;
+    let d = nil != r;
+    "{a} {b} {c} {d}"
+}
+pub fn names(k: int) -> str {
+    let s: str? = if k > 0 { "pos {k}" } else { nil };
+    s.or("none")
+}
+pub fn unwrapped(k: int) -> int {
+    let x: int? = if k > 0 { k } else { nil };
+    x.unwrap()
+}
+pub fn bag() -> str {
+    let b = Bag { best: nil, count: 3 };
+    let before = b.best == nil;
+    b.best = "x";
+    "{before} {b.best.or("-")} {b.count.or(0)}"
+}
+pub fn echo(x: str?) -> str? { x }
+pub fn arrays() -> int {
+    let xs: [int?] = [1, nil, 3];
+    let t = 0;
+    for x in xs { t += x.or(100); }
+    t
+}
+
+// expect: found("b") == 1
+// expect: found("z") == -1
+// expect: checks("a") == "true false false true"
+// expect: checks("q") == "false true true false"
+// expect: names(2) == "pos 2"
+// expect: names(0) == "none"
+// expect: unwrapped(5) == 5
+// expect: bag() == "true x 3"
+// expect: arrays() == 104
+// expect: echo(()) == ()
+// expect: echo("q") == "q"
+// live: 0

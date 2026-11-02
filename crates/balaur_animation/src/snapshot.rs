@@ -144,7 +144,6 @@ struct KeyFrame {
     value: [f32; 4],
     call: Option<String>,
     #[serde(default)]
-    function: Option<u64>,
     ease: Option<String>,
 }
 
@@ -209,7 +208,7 @@ fn capture(eng: &Engine) -> Value {
     };
     let state = state.borrow();
     let world = eng.world();
-    let id_of = |entity: Entity| ids::of(&world, entity).unwrap_or_default();
+    let id_of = |entity: Entity| ids::key_of(&world, entity).unwrap_or_default();
     let frame = AnimationFrame {
         accumulator: state.accumulator,
         next_tween: state.next_tween,
@@ -424,6 +423,29 @@ fn restore(eng: &Engine, value: &Value) {
     for (handle, tween) in tweens {
         state.tweens.insert(handle, tween);
     }
+    hold_restored(eng, &state);
+}
+
+/// What a restored playhead and machine run were asked, back on their
+/// nodes' components: those read it back, and the rollback put it back.
+fn hold_restored(eng: &Engine, state: &AnimationState) {
+    let world = eng.world();
+    for (&entity, playback) in &state.players {
+        if let Ok(mut held) = world.get::<&mut crate::Animation>(entity) {
+            held.library.clone_from(&playback.library);
+            held.autoplay.clone_from(&playback.autoplay);
+            held.speed_scale = playback.speed_scale;
+            held.root_node.clone_from(&playback.root_node);
+        }
+    }
+    for (&entity, run) in &state.machines {
+        if let Ok(mut held) = world.get::<&mut crate::StateMachine>(entity) {
+            held.machine.clone_from(&run.reference);
+            held.player.clone_from(&run.player);
+            held.enabled = run.enabled;
+            held.check_node.clone_from(&run.check_node);
+        }
+    }
 }
 
 /// Each captured machine back on its node; the asset and clips reload from
@@ -463,7 +485,7 @@ fn entity_of(
     entity: u64,
 ) -> Option<Entity> {
     if !id.is_empty() {
-        return ids::find(world, root, id);
+        return ids::find_key(world, root, id);
     }
     let entity = Entity::from_bits(entity)?;
     world.contains(entity).then_some(entity)
@@ -589,7 +611,6 @@ fn clip_frame(clip: &Clip) -> ClipFrame {
                         time: key.time,
                         value: key.value.to_array(),
                         call: key.call.clone(),
-                        function: key.function,
                         ease: key.ease.map(|ease| ease.name().to_string()),
                     })
                     .collect(),
@@ -623,7 +644,6 @@ fn clip_of(frame: &ClipFrame) -> Clip {
                         time: key.time,
                         value: Vec4::from(key.value),
                         call: key.call.clone(),
-                        function: key.function,
                         ease: key
                             .ease
                             .as_deref()

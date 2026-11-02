@@ -7,7 +7,7 @@ use balaur_render::Particles;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).expect("App::new builds headless");
-    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin::default())
+    balaur_plugin::load(&mut app, &mut balaur_render::RenderPlugin)
         .expect("the render plugin builds headless");
     app
 }
@@ -73,11 +73,20 @@ fn a_particles_component_round_trips_and_stays_out_of_the_simulation() {
         );
     }
     let direction = table["direction"].as_array().expect("direction reads back");
-    let half = std::f64::consts::FRAC_1_SQRT_2;
     assert!(
-        (direction[0].as_float().unwrap() - half).abs() < 1e-6
-            && (direction[1].as_float().unwrap() - half).abs() < 1e-6,
-        "direction reads back as the unit vector it names: {direction:?}"
+        (direction[0].as_float().unwrap() - 1.0).abs() < 1e-6
+            && (direction[1].as_float().unwrap() - 1.0).abs() < 1e-6,
+        "direction reads back as it was written: {direction:?}"
+    );
+    let angle = app
+        .engine
+        .world()
+        .get::<&Particles>(entity)
+        .expect("the emitter the backend draws")
+        .angle;
+    assert!(
+        (angle - 45.0).abs() < 1e-4,
+        "the emitter leaves along the angle it names: {angle}"
     );
     let gravity = table["gravity"]
         .as_array()
@@ -159,8 +168,8 @@ fn a_3d_emitter_round_trips_in_world_units_and_draws_one_quad() {
     };
     assert_eq!(
         floats("direction"),
-        [0.0, 0.0, 1.0],
-        "the direction is its unit vector"
+        [0.0, 0.0, 2.0],
+        "the direction reads back as it was written"
     );
     assert_eq!(floats("gravity"), [0.0, -1.0, 0.5]);
     assert!((table["size"].as_float().unwrap() - 0.25).abs() < 1e-6);

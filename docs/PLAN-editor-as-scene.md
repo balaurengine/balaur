@@ -25,7 +25,7 @@ Measured 2026-09-08, after the migration.
 | the outliner | one `tree` |
 | the workspace outline, Output, Problems, Cost, Profiler, Docs | one `list` each |
 | Assets, Library, Tiles | one `list` with `grid_columns`, in its card mode |
-| the Debugger | one `tree`: a frame is a row, its locals a tab deeper |
+| the Debugger | one `tree`: a frame is a row, its locals a level deeper |
 | the Inspector and Import | a row pool: one node a row, made and reused |
 | Timeline, Session, Weights, Bone map | a `draw` node each |
 
@@ -54,9 +54,9 @@ Four capabilities, and every view fell out of them.
 
 ## 0.2 A list is a kind, not a repeater
 
-`list` and `tree` are kinds like any other. Rows come from `options`, the
-pick lands on `text`, and `on_change` hears it. A `tree` reads a row's
-leading tabs as its depth, which is how an outline is written down anyway.
+`list` and `tree` are kinds like any other. Rows come from `items`, the
+key of the pick lands on `text`, and `on_change` hears it. A `tree` draws a
+row at its `depth`.
 
 Only the rows on screen are built, which is where the saving was, and
 `ScrollArea::show_rows` does it.
@@ -544,8 +544,8 @@ that answers every control under it and fills them. The Editor node is the one
 controller: it owns the document, the selection and the history, tells the
 panels when they moved, and is told what they picked. Three things are out:
 
-- **A script a node.** A control names no handler of its own; the panel's
-  `on_widget_event(event, node, value)` hears every widget under it.
+- **A script a node.** A control's key names a method on the panel's script,
+  handed the value and then the control's node.
 - **Drawing.** No `draw` node, no `draw_ui`, no pool restated each pass. A
   panel writes its nodes when its data changes, and a written widget is what
   asks for a pass.
@@ -563,7 +563,7 @@ Built 2026-10-18, phase 0:
 - Queuing an event wakes a loop sleeping under `low_processor`, so a signal
   emitted in a handler is delivered the next frame rather than at the next
   input.
-- `on_widget_event`, a core hook, reaches the nearest script at or above the
+- A widget's key finds its method on the nearest script at or above the
   widget.
 - An input action binds a chord, `cmd+shift+KeyS`, with `cmd` the platform's
   command key, and a key binding reads nothing while a text field holds the
@@ -691,8 +691,8 @@ Every bottom tab is a scene of its own with one script:
   word follows the engine's `debugger_stopped`, which replaced asking
   `stop_location` every frame.
 - Tiles, State machine and Recordings keep pooled rows of chips, filled by
-  the Editor on the word. A chip's own handler runs first, then the panel's
-  `on_widget_event` fills it again.
+  the Editor on the word. A chip's own handler runs first, then the Editor calls
+  the panel's `refill`.
 
 Each widget node's egui child is salted by its node now. egui names an
 unsalted child after its parent alone, so the Debugger's stack and the Scene
@@ -909,10 +909,12 @@ Designed 2026-10-28. `scene.to_toml(root, opts)` is the scene under `root`
 as a scene file's text, `root` its root: what `scene.instantiate` builds
 again.
 
-- **A node as it was asked for.** Each component is what the scene and every
-  write since asked of it (`Authored`), not its live state read back. The
+- **A node as it holds itself.** Each component is its struct read back and
+  spelled as an author writes it, less every property at its default
+  (`components::written_of`, since 2026-10-31; before, a separate `Authored`
+  record kept what each write asked). The
   node keys (`visible`, `tint`, `z_index`, `z_as_relative`, `process`,
-  `interpolate`, `tags`) are read off the node and written where they are
+  `tags`) are read off the node and written where they are
   not the default. A key nothing handles is kept from the file as it was.
 - **Its script.** `{ scripts: false }` still names each node's script, so a
   node carries its script whether or not it runs: `node.script_path` and

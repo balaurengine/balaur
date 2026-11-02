@@ -9,8 +9,8 @@
 
 use balaur_core::Engine;
 use balaur_core::hecs;
-use balaur_core::mesh::MeshData;
 use balaur_core::scene::GlobalTransform;
+use balaur_geometry::mesh::MeshData;
 use glamx::Vec3;
 
 use crate::{Renderable3d, Shape3d, Solid};
@@ -169,7 +169,7 @@ struct Candidate {
 fn loaded(eng: &Engine, reference: &str) -> Option<std::rc::Rc<MeshData>> {
     // Through the cache: the pointer is picked every frame, and following a
     // mesh's `source` reads and parses the whole file.
-    balaur_core::mesh::resolved(eng, reference).ok()
+    balaur_geometry::mesh::resolved(eng, reference).ok()
 }
 
 /// The nearest `Renderable3d` the ray meets, and how far along it that is.

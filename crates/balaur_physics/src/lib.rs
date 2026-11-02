@@ -24,7 +24,7 @@ use balaur_core::hecs::Entity;
 
 use balaur_core::{Engine, Stage, Transform};
 
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
 use crate::rapier3d::pipeline::PhysicsWorld;
 
@@ -39,6 +39,7 @@ pub use ::rapier3d;
 pub mod body;
 pub mod character;
 pub mod collider;
+pub mod collider_shape;
 pub mod debug;
 pub mod dim2;
 pub mod events;
@@ -46,6 +47,7 @@ pub mod follow;
 pub mod geometry;
 pub mod joint;
 mod material;
+pub mod properties;
 pub mod query;
 pub mod ragdoll;
 mod readers;
@@ -54,7 +56,8 @@ mod shapes;
 mod shared;
 mod snapshot;
 pub(crate) use snapshot::{
-    NodeKey, authored, filled, frame_value, key_of, keyed, resolve_key, resolved, world_bytes,
+    NodeKey, asked_rows, authored, filled, frame_value, key_of, keyed, resolve_key, resolved,
+    restore_asked, world_bytes,
 };
 mod soft_material;
 pub mod softbody;
@@ -122,15 +125,15 @@ pub struct PhysicsState3d {
     /// particles, not the layout that laid them out, so the component would
     /// lose its `kind` and its cell size on a read-back without this.
     pub soft_bodies: DetHashMap<Entity, softbody::SoftRef3d>,
-    pub soft_params: DetHashMap<Entity, toml::Value>,
+    pub soft_params: DetHashMap<Entity, softbody::SoftAsked3d>,
     /// What each collider and joint was authored from.
     ///
     /// Rapier keeps a shape, not the asset it was built from, and not the
     /// `fill` or `fit` that shaped it, so without this an editor round-trip
     /// would quietly lose them. Read back under whatever rapier does report,
     /// so a live edit still shows through.
-    pub collider_params: DetHashMap<Entity, toml::Value>,
-    pub joint_params: DetHashMap<Entity, toml::Value>,
+    pub collider_params: DetHashMap<Entity, crate::collider::Asked3d>,
+    pub joint_params: DetHashMap<Entity, crate::joint::JointAsk3d>,
     /// What the contact hook reads per collider: one-way platforms and
     /// conveyor belts.
     pub(crate) surfaces: events::Surfaces,
@@ -196,21 +199,12 @@ impl PhysicsState3d {
     }
 }
 
-pub struct PhysicsPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for PhysicsPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("physics", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct PhysicsPlugin;
 
 impl balaur_plugin::Plugin for PhysicsPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "physics"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -240,7 +234,7 @@ contact_frequency_hz = { type = "float", default = 30.0, min = 0.0, max = 1000.0
 contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of that spring." }
 static_contact_frequency_hz = { type = "float", default = 60.0, min = 0.0, max = 1000000.0, help = "The same, for a contact with a body that never moves." }
 static_contact_damping = { type = "float", default = 10.0, min = 0.0, max = 1000.0, help = "The damping ratio of a static contact." }
-threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is one less than the machine reports, capped at eight; a script's own set_threads outranks this." }
+threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", help = "How many threads the solver may take. 0 is the performance cores where the machine has two kinds of core, else every core." }
 "#.to_string()].join("\n"),
             ),
         );
@@ -248,6 +242,9 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // build with one dimension registers nothing that fills the other.
         reg.insert_resource(PhysicsState3d::new());
         reg.insert_resource(PhysicsState2d::new());
+        balaur_core::parked::on_change(reg.engine(), parked_changed);
+        balaur_core::parked::on_change(reg.engine(), dim2::parked_changed);
+        balaur_core::parked::on_change(reg.engine(), dim2::tiles::parked_changed);
         // After both steps, so the bodies have moved and the bone transform
         // the blend reads is still the one the clip wrote this frame.
         reg.add_system(Stage::PostUpdate, ragdoll::blend_system);
@@ -263,11 +260,13 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // `physics` holds what spans both worlds; each dimension has its own.
         {
             let mut m = reg.script_module(vocabulary::module::PHYSICS)?;
-            install_world_controls(&mut *m);
-            debug::install_debug_api(&mut *m);
-            tuning::install_tuning_api(&mut *m);
-            ragdoll::install_blend_api(&mut *m);
+            install_world_controls(&mut m);
+            debug::install_debug_api(&mut m);
+            tuning::install_tuning_api(&mut m);
+            ragdoll::install_blend_api(&mut m);
         }
+        balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
+        reg.add_system(Stage::FixedUpdate, follow_hearers_system);
         #[cfg(feature = "physics3d")]
         declare_3d(reg)?;
         #[cfg(feature = "physics2d")]
@@ -275,7 +274,7 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             // Alongside core's own polygon verbs: a script looking for this
             // looks where `convex_hull` and the booleans are.
             let mut m = reg.script_module(vocabulary::module::GEOMETRY_2D)?;
-            dim2::decompose::install_decompose_api(&mut *m);
+            dim2::decompose::install_decompose_api(&mut m);
         }
         #[cfg(feature = "physics2d")]
         dim2::build(reg)?;
@@ -284,6 +283,19 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
 }
 
 /// The 3D world's systems, components, verbs and presets.
+/// Each collider reports what somebody hears, and rapier raises nothing else:
+/// settled before the step, so a collider or a script made this tick counts.
+fn follow_hearers_system(eng: &Engine, _dt: f32) {
+    let (everyone, nodes) = balaur_core::events::take_changed_hearers(eng);
+    if !everyone && nodes.is_empty() {
+        return;
+    }
+    #[cfg(feature = "physics3d")]
+    follow_hearers(eng, everyone, &nodes);
+    #[cfg(feature = "physics2d")]
+    dim2::follow_hearers(eng, everyone, &nodes);
+}
+
 #[cfg(feature = "physics3d")]
 fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     // Before the step: a follow's velocity change is integrated this tick.
@@ -296,34 +308,34 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
     m.module_doc(
         "The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
-    install_constants(&mut *m, CONSTANTS_3D);
-    body::install_body_api(&mut *m);
-    body::install_force_api(&mut *m);
-    body::install_force_reader_api(&mut *m);
-    body::install_body_state_api(&mut *m);
-    body::install_body_mass_api(&mut *m);
-    body::install_body_ccd_api(&mut *m);
-    body::install_body_lock_api(&mut *m);
-    body::install_body_pose_api(&mut *m);
-    body::install_body_sleep_api(&mut *m);
-    collider::install_collider_api(&mut *m);
-    collider::install_voxel_api(&mut *m);
-    voxels::install_voxel_edit_api(&mut *m);
-    collider::install_collider_reader_api(&mut *m);
-    readers::install_collider_placement_api(&mut *m);
-    readers::install_heightfield_api(&mut *m);
-    query::install_query_api(&mut *m);
-    query::install_raycast_all_api(&mut *m);
-    query::install_shapecast_api(&mut *m);
-    query::install_volume_query_api(&mut *m);
-    query::install_pair_query_api(&mut *m);
-    query::install_world_list_api(&mut *m);
-    joint::install_joint_api(&mut *m);
-    softbody::install_softbody_api(&mut *m);
-    character::install_character_api(&mut *m);
-    vehicle::install_vehicle_api(&mut *m);
-    follow::install_follow_api(&mut *m);
-    ragdoll::install_ragdoll_api(&mut *m, true);
+    install_constants(&mut m, CONSTANTS_3D);
+    body::install_body_api(&mut m);
+    body::install_force_api(&mut m);
+    body::install_force_reader_api(&mut m);
+    body::install_body_state_api(&mut m);
+    body::install_body_mass_api(&mut m);
+    body::install_body_ccd_api(&mut m);
+    body::install_body_lock_api(&mut m);
+    body::install_body_pose_api(&mut m);
+    body::install_body_sleep_api(&mut m);
+    collider::install_collider_api(&mut m);
+    collider::install_voxel_api(&mut m);
+    voxels::install_voxel_edit_api(&mut m);
+    collider::install_collider_reader_api(&mut m);
+    readers::install_collider_placement_api(&mut m);
+    readers::install_heightfield_api(&mut m);
+    query::install_query_api(&mut m);
+    query::install_raycast_all_api(&mut m);
+    query::install_shapecast_api(&mut m);
+    query::install_volume_query_api(&mut m);
+    query::install_pair_query_api(&mut m);
+    query::install_world_list_api(&mut m);
+    joint::install_joint_api(&mut m);
+    softbody::install_softbody_api(&mut m);
+    character::install_character_api(&mut m);
+    vehicle::install_vehicle_api(&mut m);
+    follow::install_follow_api(&mut m);
+    ragdoll::install_ragdoll_api(&mut m, true);
     body::register_body_component(reg);
     collider::register_collider_component(reg);
     joint::register_joint_component(reg);
@@ -334,8 +346,8 @@ fn declare_3d(reg: &mut Registry<'_>) -> Result<()> {
 
     {
         let mut m = reg.script_module(vocabulary::module::GEOMETRY_3D)?;
-        geometry::install_geometry_api(&mut *m);
-        geometry::install_mesh_edit_api(&mut *m);
+        geometry::install_geometry_api(&mut m);
+        geometry::install_mesh_edit_api(&mut m);
     }
     Ok(())
 }
@@ -438,7 +450,11 @@ fn build_physics_digest(reg: &mut Registry<'_>) {
 crate::shared::world::functions!(
     state = PhysicsState3d,
     component = c::JOINT_3D,
-    prune = prune_freed_nodes_except_wheels
+    prune = prune_freed_nodes_except_wheels,
+    body = body::Body3d,
+    collider = collider::Collider3d,
+    soft = softbody::Softbody3d,
+    events = crate::rapier3d::prelude::ActiveEvents
 );
 
 pub(crate) fn prune_freed_nodes(eng: &Engine, state: &mut PhysicsState3d) {
@@ -484,7 +500,8 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
         )?,
     );
     // The three soft bodies worth one click. Everything else a `softbody3d`
-    // can be is the same component with another `kind`.
+    // can be is the same component with another `kind`, and that kind's
+    // shape beside it.
     reg.register_preset(
         "soft_body3d",
         balaur_core::presets::preset(
@@ -509,12 +526,17 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
             ],
             // 13 particles along each side, so 0 and 12 are the two ends of
             // the sheet's first row.
-            &[(
-                c::SOFTBODY_3D,
-                Some(
-                    "kind = \"cloth\"\nsize = [2.0, 0.0, 2.0]\ncells = [12.0, 12.0, 1.0]\nself_collision = true\npinned_particles = [0, 12]",
+            &[
+                // Beside first, so the body is built once, with its shape.
+                (
+                    <softbody::SoftGrid3d as balaur_core::components::derived::Component>::NAME,
+                    Some("size = [2.0, 0.0, 2.0]\ncells = [12.0, 12.0, 1.0]"),
                 ),
-            )],
+                (
+                    c::SOFTBODY_3D,
+                    Some("kind = \"cloth\"\nself_collision = true\npinned_particles = [0, 12]"),
+                ),
+            ],
         )?,
     );
     reg.register_preset(
@@ -525,10 +547,17 @@ fn register_physics_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::PHYSICS,
             ],
-            &[(
-                c::SOFTBODY_3D,
-                Some("kind = \"rope\"\nparticle_count = 24\npinned_particles = [0]"),
-            )],
+            &[
+                // Beside first, so the body is built once, with its shape.
+                (
+                    <softbody::SoftRope3d as balaur_core::components::derived::Component>::NAME,
+                    Some("particle_count = 24"),
+                ),
+                (
+                    c::SOFTBODY_3D,
+                    Some("kind = \"rope\"\npinned_particles = [0]"),
+                ),
+            ],
         )?,
     );
     Ok(())
@@ -584,7 +613,7 @@ fn step_system(eng: &Engine, _dt: f32) {
         // Exactly one step: Stage::FixedUpdate already repeats at the fixed
         // step, and a second accumulator here would drift out of step with
         // the scripts.
-        state.world.integration_parameters.dt = scalar::real(fixed_dt());
+        state.world.integration_parameters.dt = fixed_dt();
         // The step rebuilds the broad phase itself.
         state.queries_ready = true;
         let collector = events::Collector::after(std::mem::take(&mut state.gone));
@@ -606,7 +635,7 @@ fn step_system(eng: &Engine, _dt: f32) {
             }
             if let Ok(mut t) = world.get::<&mut Transform>(entity) {
                 t.position = scalar::position_of(body.translation());
-                t.rotation = scalar::quat_of(*body.rotation());
+                t.rotation = *body.rotation();
             }
         }
         (
@@ -639,7 +668,7 @@ fn break_joints(eng: &Engine, broken: &[balaur_core::hecs::Entity]) {
 }
 
 /// Pause, sleeping and gravity.
-fn install_world_controls(m: &mut dyn Bindings<Engine>) {
+fn install_world_controls(m: &mut Module<Engine>) {
     m.module_doc(
         "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
     );
@@ -880,7 +909,7 @@ pub const FIT_MODES_2D: &[(&str, &str)] = &[
 ];
 
 /// The fit a 2D tile's polygon takes beyond those, which with `FIT_MODES_2D`
-/// names every `tile_collision.fit`.
+/// names every `tile_shapes.fit`.
 pub const TILE_FIT_MODES_2D: &[(&str, &str)] =
     &[("FIT_CONVEX_DECOMPOSITION", w::CONVEX_DECOMPOSITION)];
 
@@ -912,12 +941,6 @@ pub const EDGE_MODES_2D: &[(&str, &str)] = &[
 pub const FRICTION_MODELS: &[(&str, &str)] = &[
     ("FRICTION_SIMPLIFIED", w::SIMPLIFIED),
     ("FRICTION_PER_CONTACT", w::PER_CONTACT),
-];
-
-/// What a collider reports to its node's script.
-pub const EVENTS: &[(&str, &str)] = &[
-    ("EVENT_COLLISION", w::COLLISION),
-    ("EVENT_CONTACT_FORCE", w::CONTACT_FORCE),
 ];
 
 /// The body-kind pairs a collider is tested against.
@@ -1063,7 +1086,6 @@ pub const CONSTANTS_3D: &[&[(&str, &str)]] = &[
     TEST_MODES,
     EDGE_MODES,
     FRICTION_MODELS,
-    EVENTS,
     COLLISION_PAIRS,
     AXES,
     NEGATIVE_AXES,
@@ -1098,7 +1120,6 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     DECOMPOSITION_METHODS_2D,
     TEST_MODES,
     EDGE_MODES_2D,
-    EVENTS,
     COLLISION_PAIRS,
     AXES_2D,
     ROTATION_AXES_2D,
@@ -1115,7 +1136,7 @@ pub const CONSTANTS_2D: &[&[(&str, &str)]] = &[
     COLLISION_BINDINGS,
 ];
 
-pub(crate) fn install_constants(m: &mut dyn Bindings<Engine>, tables: &[&[(&str, &str)]]) {
+pub(crate) fn install_constants(m: &mut Module<Engine>, tables: &[&[(&str, &str)]]) {
     for (name, value) in tables.iter().flat_map(|table| table.iter()) {
         m.constant(name, balaur_script::Value::Str((*value).to_string()));
     }

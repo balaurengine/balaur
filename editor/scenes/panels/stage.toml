@@ -17,30 +17,28 @@ interactive = false
 id = "safe"
 name = "Safe"
 parent = "chrome"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 inset = [34.0, 34.0, 34.0, 34.0]
 fill = "none"
 stroke = "primary_fill"
 dashed = true
 interactive = false
-visible = false
 
 [[nodes]]
 id = "resolution"
 name = "Resolution"
 parent = "chrome"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 absolute = true
 fill = "none"
 stroke = "border_default"
 dashed = true
 interactive = false
-visible = false
 
 # Drags sideways rather than painting its last chip over whatever sits beside
 # the scene. Its own script, which hears the pointer come for it.
@@ -49,13 +47,13 @@ id = "chips"
 name = "Chips"
 parent = "chrome"
 script = { source = "scripts/panels/chips.bs" }
+visible = false
 [nodes.widget]
 kind = "scroll"
 axis = "horizontal"
 absolute = true
 inset = [0.0, 0.0, 0.0, -1.0]
 height = 28
-visible = false
 
 [[nodes]]
 id = "chips_row"
@@ -72,42 +70,40 @@ padding = [6, 0, 6, 0]
 id = "left"
 name = "Left"
 parent = "chrome"
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 absolute = true
 inset = [0.0, 0.0, -1.0, -1.0]
-visible = false
 
 [[nodes]]
 id = "left_open"
 name = "Open"
 parent = "left"
 [nodes.widget]
+on_click = "open"
 kind = "button"
 role = "icon_action"
-text = ""
 padding = 0
 
 [[nodes]]
 id = "right"
 name = "Right"
 parent = "chrome"
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 absolute = true
 inset = [-1.0, 0.0, 0.0, -1.0]
-visible = false
 
 [[nodes]]
 id = "right_open"
 name = "Open"
 parent = "right"
 [nodes.widget]
+on_click = "open"
 kind = "button"
 role = "icon_action"
-text = ""
 padding = 0

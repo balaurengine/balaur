@@ -10,6 +10,7 @@ use balaur_core::components::{ComponentDef, Schema};
 
 use crate::options::{Feature, Hinting, Shaping, Stretch};
 use crate::vocabulary::{keys as k, words as w};
+use balaur_plugin::Registry;
 
 const DOC: &str = "The face a text draws in and how its glyphs are picked and drawn. A face file — `.ttf`, `.otf`, `.ttc`, or a `.fnt` bitmap face — is a font of itself, so a `font` row takes its path as it is; a definition shapes one differently. `font_size`, `font_weight` and `font_style` stay on the text: weight and style pick a face of the font's family among the project's `fonts/`.\n\n```toml\ntype = \"font\"\nsource = \"fonts/Inter-Regular.ttf\"\nfeatures = [\"smcp\", \"liga=0\"]\n```";
 
@@ -147,7 +148,7 @@ pub fn read(table: &toml::Value) -> Font {
 
 /// Register the `font` asset, whose definitions sit in `fonts/` beside the
 /// faces they name.
-pub fn register_font_asset(reg: &mut balaur_plugin::Registry<'_>) {
+pub fn register_font_asset(reg: &mut Registry<'_>) {
     reg.register_record_asset(FONT_ASSET_TYPE, "fonts", DOC, schema(), parse);
 }
 

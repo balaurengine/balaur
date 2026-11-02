@@ -139,6 +139,8 @@ impl Scan<'_> {
                     self.block(b);
                 }
             }
+            ExprKind::Block(b) => self.block(b),
+            ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
             ExprKind::Int(_)
             | ExprKind::Float(_)
             | ExprKind::Bool(_)
@@ -180,6 +182,11 @@ impl FnGen<'_> {
             return Ok(None);
         };
         let Some(ty) = self.g.host.property(comp, prop).cloned() else {
+            // On a node, `node.c.p` names a component's property: say which
+            // half is wrong rather than that a node has no field `c`.
+            if comp != SCRIPT_FIELD && self.type_of(node).ok() == Some(Ty::Node) {
+                return err(e.pos, self.no_property(comp, prop));
+            }
             return Ok(None);
         };
         if self.type_of(node)? != Ty::Node {
@@ -187,6 +194,86 @@ impl FnGen<'_> {
         }
         let (get, set) = property_keys(comp, prop);
         Ok(Some(((**node).clone(), get, set, ty)))
+    }
+
+    /// `get_component("c", "p")` or a patch of one key where the schema knows
+    /// both names: `node.c.p`, checked here and bound once. A map for a
+    /// property that is no `any`, an inline asset, and a colour as `#rrggbb`
+    /// stay patches: neither is a value of the property's type.
+    pub(crate) fn dropped_property_call(
+        &mut self,
+        base: &Expr,
+        name: &str,
+        args: &[Expr],
+        pos: Pos,
+    ) -> R<()> {
+        if self.prelude || !matches!(name, "get_component" | "patch_component") {
+            return Ok(());
+        }
+        let (comp, prop, value) = match args {
+            [comp, prop] if name == "get_component" => (comp, prop, None),
+            [
+                comp,
+                Expr {
+                    kind: ExprKind::MapLit(entries),
+                    ..
+                },
+            ] => match entries.as_slice() {
+                [(prop, value)] => (comp, prop, Some(value)),
+                _ => return Ok(()),
+            },
+            _ => return Ok(()),
+        };
+        let (ExprKind::Str(comp), ExprKind::Str(prop)) = (&comp.kind, &prop.kind) else {
+            return Ok(());
+        };
+        let Some(ty) = self.g.host.property(comp, prop) else {
+            return Ok(());
+        };
+        if self.type_of(base)? != Ty::Node {
+            return Ok(());
+        }
+        match value {
+            None => err(
+                pos,
+                format!(
+                    "read a property as `node.{comp}.{prop}`, not `get_component(\"{comp}\", \"{prop}\")`"
+                ),
+            ),
+            Some(Expr {
+                kind: ExprKind::MapLit(_),
+                ..
+            }) if *ty != Ty::Any => Ok(()),
+            Some(given) if *ty == Ty::Struct("Color".into()) && self.type_of(given)? == Ty::Str => {
+                Ok(())
+            }
+            Some(_) => err(
+                pos,
+                format!(
+                    "write a property as `node.{comp}.{prop} = v`, not a `patch_component` of one key"
+                ),
+            ),
+        }
+    }
+
+    /// Why `node.comp.prop` names nothing: no such component, or no such
+    /// property on it, with the names it does have.
+    fn no_property(&self, comp: &str, prop: &str) -> String {
+        if comp == "widget" && prop == "visible" {
+            return "`widget.visible` is gone: `node.set_visible(on)` and `node.visible()` are the one flag"
+                .to_string();
+        }
+        match self.g.host.components.iter().find(|(name, _)| name == comp) {
+            Some((_, props)) => format!(
+                "`{comp}` has no property `{prop}`; it has {}",
+                props
+                    .iter()
+                    .map(|(name, _)| format!("`{name}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            None => format!("no component `{comp}`"),
+        }
     }
 
     pub(crate) fn host_call(&mut self, key: &str) {

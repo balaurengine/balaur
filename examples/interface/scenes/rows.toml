@@ -14,7 +14,6 @@ parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
 kind = "panel"
-text = ""
 anchor = "center"
 x = 0
 y = 0
@@ -68,10 +67,11 @@ parent = "list_box"
 [nodes.widget]
 kind = "list"
 multi_select = true
-reorderable = true
-on_move = "on_move"
 row_height = 22
 grow = 1
+[nodes.widget_list]
+reorderable = true
+on_move = "on_move"
 
 [[nodes]]
 id = "tree_box"
@@ -97,11 +97,12 @@ name = "Outline"
 parent = "tree_box"
 [nodes.widget]
 kind = "tree"
-reorderable = true
-on_move = "on_move"
 row_height = 22
 font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
+[nodes.widget_list]
+reorderable = true
+on_move = "on_move"
 
 [[nodes]]
 id = "table_box"
@@ -121,24 +122,25 @@ kind = "label"
 text = "TABLE"
 role = "group"
 
-# The column names, split on the separator the rows are; a name ending in `>`
-# draws its column against the right edge.
+# The column names; a name ending in `>` draws its column against the right
+# edge.
 [[nodes]]
 id = "table"
 name = "Table"
 parent = "table_box"
 [nodes.widget]
 kind = "table"
-text = "Torus\u001Fmesh\u001F3.8 kB"
-titles = ["name", "kind", "size>"]
+text = "Torus"
 # A click on a header sorts by that column and the next turns it round; the
 # shares are the scene's until a drag on a seam writes its own.
-sortable = true
-sort = "size"
-widths = ["2", "1.4", "1"]
 row_height = 22
 font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
+[nodes.widget_table]
+titles = ["name", "kind", "size>"]
+sortable = true
+sort = "size"
+widths = ["2", "1.4", "1.2"]
 
 [[nodes]]
 id = "note"

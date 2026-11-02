@@ -10,6 +10,7 @@ publish = false
 # Android's NativeActivity dlopens `libmain.so` and calls `android_main` in it,
 # so the Android template is a shared library rather than an executable.
 [lib]
+test = false
 name = "main"
 crate-type = ["cdylib"]
 path = "src/lib.rs"
@@ -33,7 +34,7 @@ browser = ["balaur/browser"]
 # Each physics world; a `2d` or `3d` template keeps one.
 physics2d = ["balaur/physics2d"]
 physics3d = ["balaur/physics3d"]
-# `.bs` scripts beside the Rune ones, on wasmi.
+# `.bs` scripts, on wasmi.
 bs = ["balaur/bs"]
 # The same scripts on wasmtime, compiled to machine code.
 bs-jit = ["balaur/bs-jit"]

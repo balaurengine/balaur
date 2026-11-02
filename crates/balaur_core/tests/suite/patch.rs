@@ -16,32 +16,27 @@ fn app_with_dial() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     app.register_component(
         "dial",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
                 "dial",
                 r#"kind = { type = "enum", default = "round", options = ["round", "square"] }
 radius = { type = "float", default = 0.5 }
 size = { type = "vec3", default = [1.0, 1.0, 1.0] }
 label = { type = "string", default = "none" }"#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, params| {
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Dial(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Dial>(entity);
                 Ok(())
             }),
             // Reports only what the current `kind` has, exactly as `shape`
             // does: a round dial has no half extents to report.
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let world = eng.world();
                 let dial = world.get::<&Dial>(entity).ok()?;
                 let mut out = toml::map::Map::new();
@@ -53,7 +48,7 @@ label = { type = "string", default = "none" }"#,
                 out.insert(carried.into(), dial.0.get(carried)?.clone());
                 Some(toml::Value::Table(out))
             }),
-        },
+        ),
     );
     app
 }
@@ -172,27 +167,22 @@ fn a_hex_colour_reaches_apply_expanded_through_patch_as_well_as_add() {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     app.register_component(
         "tint",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
                 "tint",
                 r#"rgba = { type = "color", default = [0.0, 0.0, 0.0, 1.0] }"#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, params| {
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Dial(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|_, _| Ok(())),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|_, _| Ok(())),
+            Box::new(|eng: &Engine, entity| {
                 eng.world().get::<&Dial>(entity).ok().map(|d| d.0.clone())
             }),
-        },
+        ),
     );
     let entity = spawn(&app);
 

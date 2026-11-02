@@ -37,15 +37,14 @@ impl OrbitCamera {
         // with no yaw the camera sits at +z and looks along -z, which is the
         // pivot.
         let flat = math::cos(pitch) * self.range;
-        self.node.transform.position = [
+        self.node.transform.position = vec3(
             math::sin(yaw) * flat,
             -math::sin(pitch) * self.range,
-            math::cos(yaw) * flat,
-        ];
-        self.node.transform.rotation_euler = [pitch, yaw, 0.0];
+            math::cos(yaw) * flat);
+        self.node.transform.rotation_euler = vec3(pitch, yaw, 0.0);
         // A 3D camera aims by `camera.look_at`, not its rotation: name the
         // pivot in world units, or the rig looks at the origin.
         let at = self.node.parent().transform.global_position();
-        self.node.patch_component("camera3d", map().with("look_at", [at.x, at.y, at.z]));
+        self.node.camera3d.look_at = vec3(at.x, at.y, at.z);
     }
 }

@@ -1,0 +1,8 @@
+pub class N { next: N?, kids: [N] }
+pub fn leaf() -> int {
+    let n = N { next: nil, kids: [] };
+    n.kids.len()
+}
+
+// expect: leaf() == 0
+// live: 0

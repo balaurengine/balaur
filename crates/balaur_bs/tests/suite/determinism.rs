@@ -68,7 +68,7 @@ fn a_simulation_matches_rust_bit_for_bit() {
 #[test]
 fn math_goes_through_libm() {
     let mut rt = run(
-        "pub fn f(x: float) -> float { sin(x) * cos(x) + atan2(x, 2.0) + pow(x, 1.5) + sqrt(x) }",
+        "pub fn f(x: float) -> float { math::sin(x) * math::cos(x) + math::atan2(x, 2.0) + math::pow(x, 1.5) + math::sqrt(x) }",
     );
     let x = 0.7f64;
     let want = libm::sin(x) * libm::cos(x) + libm::atan2(x, 2.0) + libm::pow(x, 1.5) + x.sqrt();

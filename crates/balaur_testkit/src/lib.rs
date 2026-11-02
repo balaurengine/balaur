@@ -87,12 +87,13 @@ pub fn run_until_within(
         "[application]\nname = \"n\"\nmain_scene = \"main.toml\"\n",
     )
     .expect("could not write the project manifest");
+    let script = format!("scripts/{}.bs", file_of(source));
     std::fs::write(
         dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = { source = \"scripts/s.bs\" }\n",
+        format!("[[nodes]]\nid = \"n\"\nname = \"Node\"\nscript = {{ source = \"{script}\" }}\n"),
     )
     .expect("could not write the project's main scene");
-    std::fs::write(dir.path().join("scripts/s.bs"), source)
+    std::fs::write(dir.path().join(&script), source)
         .expect("could not write the script under test");
     for (path, contents) in files {
         let target = dir.path().join(path);
@@ -142,4 +143,26 @@ pub fn run_until_within(
         .map(|e| format!("{} {}", e.level, e.message))
         .collect();
     panic!("the script never logged all of {markers:?}; log: {told:#?}");
+}
+
+/// The file a script must be saved as: named after the `pub class` it
+/// declares, `PlayerFlows` in `player_flows.bs`, as a script's nodes are.
+fn file_of(source: &str) -> String {
+    let class = source
+        .split("pub class ")
+        .nth(1)
+        .map(|rest| {
+            rest.chars()
+                .take_while(char::is_ascii_alphanumeric)
+                .collect::<String>()
+        })
+        .expect("the script under test declares no `pub class`");
+    let mut file = String::new();
+    for (i, c) in class.chars().enumerate() {
+        if c.is_ascii_uppercase() && i > 0 {
+            file.push('_');
+        }
+        file.push(c.to_ascii_lowercase());
+    }
+    file
 }

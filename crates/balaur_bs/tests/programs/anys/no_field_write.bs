@@ -1,0 +1,3 @@
+fn f(a: any) { a.name = 1; }
+
+// error: 1:17: an `any` has no fields: write the key as `["name"] = ..`

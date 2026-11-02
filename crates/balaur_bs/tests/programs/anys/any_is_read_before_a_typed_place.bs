@@ -1,0 +1,6 @@
+fn f(a: any) -> int {
+    let n: int = a["n"];
+    n
+}
+
+// error: 2:19: an `any` is no int: read it with `.as_int()`

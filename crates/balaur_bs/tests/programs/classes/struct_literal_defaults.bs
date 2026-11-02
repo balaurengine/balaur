@@ -1,0 +1,12 @@
+// A spec is a struct: a literal names what differs from the declared
+// defaults, and an optional or `any` field it leaves out is nil.
+
+pub struct Label { kind: str = "label", size: int = 3, text: str, tip: str?, data: any }
+pub fn plain() -> str {
+    let label = Label { text: "hi" };
+    "{label.kind} {label.size} {label.text} {label.tip == nil} {label.data == nil}"
+}
+pub fn sized() -> int { Label { text: "x", size: 9 }.size }
+
+// expect: plain() == "label 3 hi true true"
+// expect: sized() == 9

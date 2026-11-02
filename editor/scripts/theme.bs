@@ -50,7 +50,7 @@ fn ROOTS() -> [str] {
 }
 
 /// Where the person's own themes live.
-pub fn user_dir() -> str {
+pub fn user_directory() -> str {
     project::editor_data_directory() + "/themes"
 }
 
@@ -67,12 +67,12 @@ fn is_among(name: str, items: [str]) -> bool {
     false
 }
 
-/// A pair's folder: bundled ones beside the editor, the rest in `user_dir()`.
+/// A pair's folder: bundled ones beside the editor, the rest in `user_directory()`.
 pub fn folder_of(name: str) -> str {
     if is_bundled(name) {
         "themes/" + name
     } else {
-        user_dir() + "/" + name
+        user_directory() + "/" + name
     }
 }
 
@@ -82,11 +82,11 @@ pub fn path_of(name: str, half: str) -> str {
 }
 
 /// Every pair there is to pick: the bundled ones, then the person's, by name.
-pub fn names() -> [any] {
+pub fn names() -> [str] {
     let out: [any] = copy_names(BUNDLED());
-    for entry in util::vec(fs::list(user_dir())) {
-        if entry.get("is_dir") && !is_bundled(entry.get("name").as_str()) {
-            out.push(entry.get("name"));
+    for entry in util::list_or_empty(fs::list(user_directory())) {
+        if entry["is_dir"].as_bool() && !is_bundled(entry["name"].as_str()) {
+            out.push(entry["name"]);
         }
     }
     out
@@ -108,7 +108,7 @@ pub fn read(name: str, half: str) -> any {
 
 fn read_at(path: str) -> any {
     let text = fs::read(path);
-    if text.is_none() {
+    if text == nil {
         return nil;
     }
     let text = text.unwrap();
@@ -120,26 +120,26 @@ fn read_at(path: str) -> any {
 /// A bundled half as the editor wears it before anyone's edits: the shared
 /// roles under its colours.
 pub fn bundled(name: str, half: str) -> any {
-    let roles = util::obj(read_at(ROLES));
-    merge(roles, util::obj(read(name, half)))
+    let roles = util::map_or_empty(read_at(ROLES));
+    merge(roles, util::map_or_empty(read(name, half)))
 }
 
 /// `over` written onto `base`, table by table: a key `over` names wins, and a
 /// table both hold is merged rather than replaced.
 pub fn merge(base: any, over: any) -> any {
-    let out = map();
+    let out: any = {};
     for key in base.keys() {
-        let value = base.get(key);
-        out.set(key, value);
+        let value = base[key];
+        out[key] = value;
     }
     for key in over.keys() {
-        let value = over.get(key);
-        let nested = value.kind() == "map" && out.has(key) && out.get(key).kind() == "map";
+        let value = over[key];
+        let nested = value.kind() == "map" && out.has(key) && out[key].kind() == "map";
         if nested {
-            let below = out.get(key);
-            out.set(key, merge(below, value));
+            let below = out[key];
+            out[key] = merge(below, value);
         } else {
-            out.set(key, value);
+            out[key] = value;
         }
     }
     out
@@ -148,18 +148,18 @@ pub fn merge(base: any, over: any) -> any {
 /// What `doc` says that `base` does not: the keys whose values differ, and
 /// the tables holding at least one.
 pub fn diff(base: any, doc: any) -> any {
-    let out = map();
+    let out: any = {};
     for key in doc.keys() {
-        let value = doc.get(key);
+        let value = doc[key];
         let had = base.has(key);
         if value.kind() == "map" {
-            let below = if had && base.get(key).kind() == "map" { base.get(key) } else { map() };
+            let below: any = if had && base[key].kind() == "map" { base[key] } else { {} };
             let inner = diff(below, value);
             if inner.len() > 0 {
-                out.set(key, inner);
+                out[key] = inner;
             }
-        } else if !had || !same(base.get(key), value) {
-            out.set(key, value);
+        } else if !had || !same(base[key], value) {
+            out[key] = value;
         }
     }
     out
@@ -173,7 +173,7 @@ pub fn same(first: any, second: any) -> bool {
 
 /// The bundled pair a document is filled in from: what it names, or balaur.
 pub fn base_of(doc: any) -> str {
-    let named = util::obj(doc).base;
+    let named = util::map_or_empty(doc)["base"];
     if named.kind() == "str" && is_bundled(named.as_str()) { named.as_str() } else { DEFAULT }
 }
 
@@ -185,7 +185,7 @@ pub fn own_half(name: str, half: str) -> any {
         return own;
     }
     let other = read(name, if half == "dark" { "light" } else { "dark" });
-    map().with("base", base_of(other))
+    { "base": base_of(other) }
 }
 
 /// One half of a pair, filled in from its base. A pair that no longer
@@ -207,20 +207,21 @@ pub fn resolve(name: str, half: str) -> Resolve {
 /// and its half beside.
 pub fn flat(name: str, half: str, doc: any) -> any {
     let done = ui::complete_theme(doc);
-    let fonts = doc.get("fonts");
-    let flattened = map()
-        .with("dark", done.get("dark"))
-        .with("roles", doc.get("roles"))
-        .with("colors", done.get("colors"))
-        .with("sizes", done.get("sizes"))
-        .with("fonts", if fonts.is_nil() { map() } else { fonts })
-        .with("name", name)
-        .with("half", half)
-        .with("doc", doc);
-    let colors = done.get("colors");
+    let fonts = doc["fonts"];
+    let flattened: any = {
+        "dark": done["dark"],
+        "roles": doc["roles"],
+        "colors": done["colors"],
+        "sizes": done["sizes"],
+        "fonts": if fonts == nil { {} } else { fonts },
+        "name": name,
+        "half": half,
+        "doc": doc,
+    };
+    let colors = done["colors"];
     for key in colors.keys() {
-        let value = colors.get(key);
-        flattened.set(key, value);
+        let value = colors[key];
+        flattened[key] = value;
     }
     flattened
 }
@@ -261,28 +262,28 @@ fn CODE_COLORS() -> [[str]] {
 // filled in from its tokens. A copy, so the Theme dialog lists what the file
 // says and nothing it does not.
 fn worn(tokens: any) -> any {
-    let doc = map();
-    let own = tokens.get("doc");
+    let doc: any = {};
+    let own = tokens["doc"];
     for key in own.keys() {
-        let value = own.get(key);
-        doc.set(key, value);
+        let value = own[key];
+        doc[key] = value;
     }
-    let colors = map();
-    let own_colors = tokens.get("doc").get("colors");
-    let own_color_table = util::obj(if own_colors.is_nil() { map() } else { own_colors });
+    let colors: any = {};
+    let own_colors = tokens["doc"]["colors"];
+    let own_color_table = util::map_or_empty(if own_colors == nil { {} } else { own_colors });
     for key in own_color_table.keys() {
-        let value = own_color_table.get(key);
-        colors.set(key, value);
+        let value = own_color_table[key];
+        colors[key] = value;
     }
     for pair in CODE_COLORS() {
         if !colors.has(pair[0]) {
-            let token = tokens.get("colors").get(pair[1]);
-            if !token.is_nil() {
-                colors.set(pair[0], token);
+            let token = tokens["colors"][pair[1]];
+            if token != nil {
+                colors[pair[0]] = token;
             }
         }
     }
-    doc.set("colors", colors);
+    doc["colors"] = colors;
     doc
 }
 
@@ -296,13 +297,15 @@ pub fn apply(state: editor::State) {
     for path in ROOTS() {
         let root = scene::get_node(path);
         if root.is_valid() {
-            root.patch_component("widget", map().with("theme", doc));
+            // A table, so no `str` the property's type could write.
+            let inline: any = { "theme": doc };
+            root.patch_component("widget", inline);
         }
     }
-    let bg = util::hex_to_rgb(tokens.bg_app.as_str());
-    render::set_background(bg.red, bg.green, bg.blue);
-    let minor = util::hex_to_rgb(tokens.grid_minor.as_str());
-    let major = util::hex_to_rgb(tokens.grid_major.as_str());
+    let background = util::hex_to_rgb(tokens["bg_app"].as_str());
+    render::set_background(background.red, background.green, background.blue);
+    let minor = util::hex_to_rgb(tokens["grid_minor"].as_str());
+    let major = util::hex_to_rgb(tokens["grid_major"].as_str());
     render::set_grid_colors(minor.red, minor.green, minor.blue, major.red, major.green, major.blue);
 }
 
@@ -314,49 +317,48 @@ pub fn use_named(state: &mut editor::State, name: str) {
 }
 
 fn wear_half(state: &mut editor::State, name: str, half: str) {
-    if state.theme.get("name").as_str() == name && state.theme.get("half").as_str() == half {
+    if state.theme["name"].as_str() == name && state.theme["half"].as_str() == half {
         return;
     }
     state.theme = load(name, half);
-    state.theme_rev += 1;
+    state.theme_revision += 1;
     signals::outline(state);
     apply(state);
 }
 
 /// The system turned dark or light: the worn pair follows under `system`.
 pub fn follow(state: &mut editor::State, system_dark: bool) {
-    wear_half(state, state.theme.get("name").as_str(), half_for(state, system_dark).as_str());
+    wear_half(state, state.theme["name"].as_str(), half_for(state, system_dark).as_str());
 }
 
 /// Read the worn half from disk again, dropping an edit nobody saved.
 pub fn reload(state: &mut editor::State) {
-    state.theme = load(state.theme.get("name").as_str(), state.theme.get("half").as_str());
-    state.theme_rev += 1;
+    state.theme = load(state.theme["name"].as_str(), state.theme["half"].as_str());
+    state.theme_revision += 1;
     signals::outline(state);
     apply(state);
 }
 
 /// Wear a document that is not on disk yet: the theme window's live edit.
 pub fn wear(state: &mut editor::State, name: str, doc: any) {
-    state.theme = flat(name, state.theme.get("half").as_str(), doc);
-    state.theme_rev += 1;
+    state.theme = flat(name, state.theme["half"].as_str(), doc);
+    state.theme_revision += 1;
     signals::outline(state);
     apply(state);
 }
 
-// `on`, not `dark`: that name would shadow `dark()` and Rune would call the
-// bool. Pins the half for the run and leaves the person's setting alone.
+// `on`, not `dark`: that name would shadow `dark()`. Pins the half for the run and leaves the person's setting alone.
 pub fn set_dark(state: &mut editor::State, on: bool) {
     state.theme_half = if on { "dark" } else { "light" };
-    wear_half(state, state.theme.get("name").as_str(), state.theme_half);
+    wear_half(state, state.theme["name"].as_str(), state.theme_half);
 }
 
 /// The person flipping to the other half: remembered as the mode, so the
 /// settings screen shows it and the next start opens in it.
 pub fn toggle(state: &mut editor::State) {
-    let half = if state.theme.get("half").as_str() == "dark" { "light" } else { "dark" };
+    let half = if state.theme["half"].as_str() == "dark" { "light" } else { "dark" };
     settings::set(MODE_SETTING, half);
-    settings::commit_prefs(state);
+    settings::commit_preferences(state);
     state.theme_half = "";
-    wear_half(state, state.theme.get("name").as_str(), half);
+    wear_half(state, state.theme["name"].as_str(), half);
 }

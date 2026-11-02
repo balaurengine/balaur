@@ -1,0 +1,13 @@
+// Each function that does not compile is an error of its own, naming its line
+// and the problem.
+
+pub fn f() -> int {
+    let x = 1;
+    x + true
+}
+fn g() { let s: str = 3; }
+fn h() { nope(); }
+
+// error: 6:7: cannot combine int and bool
+// error: 8:23: expected str, got int
+// error: 9:10: unknown function `nope`

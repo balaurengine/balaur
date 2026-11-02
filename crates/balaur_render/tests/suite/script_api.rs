@@ -27,26 +27,7 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     let _guard = LOG
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
-    std::fs::write(
-        dir.path().join("project.toml"),
-        "[application]\nname = \"r\"\nmain_scene = \"main.toml\"\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("main.toml"),
-        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("scripts/scenario.bs"),
-        format!(
-            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\nfn init() {{\n{body}\n}}\n}}\n"
-        ),
-    )
-    .unwrap();
-
+    let dir = project(body);
     balaur_core::logbuf::capture_for_test();
     balaur_core::logbuf::clear();
     let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
@@ -66,6 +47,42 @@ fn run_frames(body: &str, frames: usize) -> (App, Vec<String>, Vec<String>) {
     (app, errors, all)
 }
 
+/// Why `body` does not compile as a node's `init`.
+fn refused(body: &str) -> String {
+    let dir = project(body);
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let mut app = standard_app(config).unwrap();
+    match app.load_project() {
+        Ok(_) => panic!("`{body}` compiled"),
+        Err(error) => error.to_string(),
+    }
+}
+
+/// A project whose one node runs `body` as its `init`.
+fn project(body: &str) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        "[application]\nname = \"r\"\nmain_scene = \"main.toml\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.toml"),
+        "[[nodes]]\nid = \"scenario\"\nname = \"Scenario\"\nscript = { source = \"scripts/scenario.bs\" }\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("scripts/scenario.bs"),
+        format!(
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\nfn init() {{\n{body}\n}}\n}}\n"
+        ),
+    )
+    .unwrap();
+    dir
+}
+
 fn run_clean(body: &str) {
     let (_app, errors) = run(body);
     assert!(errors.is_empty(), "the script logged errors: {errors:#?}");
@@ -75,14 +92,14 @@ fn run_clean(body: &str) {
 fn shapes_can_be_set_from_a_script_in_both_dimensions() {
     run_clean(
         r#"
-        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
-        self.node.set_component("shape3d", map().with("kind", "box").with("size", [2.0, 4.0, 6.0]));
-        let kind = self.node.shape3d.kind;
+        self.node.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.5 } });
+        self.node.set_component("shape3d", { "shape": { "kind": "box", "size": [2.0, 4.0, 6.0] } });
+        let kind = self.node.shape3d.shape["kind"];
         if kind != "box" { log::error("the last shape set should win, got {kind}"); }
 
-        self.node.set_component("shape2d", map().with("kind", "circle").with("radius", 0.25));
-        self.node.set_component("shape2d", map().with("kind", "rectangle").with("size", [2.0, 4.0]));
-        let kind_2d = self.node.shape2d.kind;
+        self.node.set_component("shape2d", { "shape": { "kind": "circle", "radius": 0.25 } });
+        self.node.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [2.0, 4.0] } });
+        let kind_2d = self.node.shape2d.shape["kind"];
         if kind_2d != "rectangle" { log::error("the last 2D shape set should win, got {kind_2d}"); }
         "#,
     );
@@ -92,7 +109,7 @@ fn shapes_can_be_set_from_a_script_in_both_dimensions() {
 fn a_colour_set_from_a_script_reads_back() {
     run_clean(
         r#"
-        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
+        self.node.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.5 } });
         self.node.shape3d.color = color(0.25, 0.5, 0.75, 1.0);
         let c = self.node.shape3d.color;
         if math::abs(c.r - 0.25) >= 0.0001 { log::error("red was not kept: {c.r}"); }
@@ -106,22 +123,21 @@ fn a_colour_set_from_a_script_reads_back() {
 fn a_colour_may_be_set_without_alpha() {
     run_clean(
         r#"
-        self.node.set_component("shape3d", map().with("kind", "sphere").with("radius", 0.5));
-        self.node.patch_component("shape3d", map().with("color", [1.0, 0.0, 0.0]));
+        self.node.set_component("shape3d", { "shape": { "kind": "sphere", "radius": 0.5 } });
+        self.node.patch_component("shape3d", { "color": [1.0, 0.0, 0.0], "shape": { "kind": "sphere", "radius": 0.5 } });
         let r = self.node.shape3d.color.r;
         if math::abs(r - 1.0) >= 0.0001 { log::error("red was not kept: {r}"); }
         "#,
     );
 }
 
-/// `set_camera` asks; `camera_pose` reports where the camera actually is,
-/// which only a windowed backend knows. Headless the pose stays at its
-/// default, so this checks the call surface rather than a round trip.
+/// `camera_pose` reports where the camera actually is, which only a windowed
+/// backend knows. Headless the pose stays at its default, so this checks the
+/// call surface rather than a round trip.
 #[test]
-fn the_camera_can_be_aimed_and_its_pose_read() {
+fn the_cameras_pose_can_be_read() {
     run_clean(
         r#"
-        render::set_camera(1.0, 2.0, 3.0, 0.0, 0.0, 0.0);
         let pose = render::camera_pose();
         let count = pose.len();
         if count != 8 { log::error("camera_pose answered {count} numbers"); }
@@ -137,7 +153,6 @@ fn the_camera_can_be_aimed_and_its_pose_read() {
 fn the_2d_camera_reports_its_centre_and_zoom() {
     run_clean(
         r"
-        render::set_camera_2d(4.0, 5.0, 2.0);
         // Like camera_pose, this reports the viewport a backend writes each
         // frame, so headless it stays at its default rather than echoing back.
         let view: Vec3 = render::camera_2d();
@@ -149,10 +164,10 @@ fn the_2d_camera_reports_its_centre_and_zoom() {
 fn bounds_reports_the_box_a_2d_shape_draws() {
     let (_app, errors, lines) = run_logged(
         r#"
-        if render::bounds(self.node).is_some() { log::error("a node that draws nothing has no bounds"); }
-        self.node.set_component("shape2d", map().with("kind", "rectangle").with("size", [2.0, 4.0]));
+        if render::bounds(self.node) != nil { log::error("a node that draws nothing has no bounds"); }
+        self.node.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [2.0, 4.0] } });
         let found = render::bounds(self.node);
-        if found.is_none() {
+        if found == nil {
             log::error("a 2D shape has bounds");
             return;
         }
@@ -207,8 +222,9 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
 /// Any file reads here: the picture is decoded when a window hands it over.
 #[test]
 fn an_app_icon_keeps_the_plate_a_script_names() {
-    let (app, errors) =
-        run(r#"window::set_app_icon("project.toml", map().with("plate", [0.1, 0.2, 0.3]));"#);
+    let (app, errors) = run(
+        r#"window::set_app_icon("project.toml", window::AppIconOptions { plate: [0.1, 0.2, 0.3] });"#,
+    );
     assert!(errors.is_empty(), "{errors:#?}");
     let icon = app.engine.resource::<balaur_render::AppIconConfig>();
     assert_eq!(icon.borrow().plate, [26, 51, 77, 255]);
@@ -218,14 +234,10 @@ fn an_app_icon_keeps_the_plate_a_script_names() {
 }
 
 #[test]
-fn an_app_icon_option_it_does_not_know_is_refused_by_name() {
-    let (_app, errors) = run(r#"window::set_app_icon("project.toml", map().with("tint", 1));"#);
-    assert!(
-        errors
-            .iter()
-            .any(|e| e.contains("plate") && e.contains("tint")),
-        "{errors:#?}"
-    );
+fn an_app_icon_option_it_does_not_know_does_not_compile() {
+    let why =
+        refused(r#"window::set_app_icon("project.toml", window::AppIconOptions { tint: 1 });"#);
+    assert!(why.contains("plate") && why.contains("tint"), "{why}");
 }
 
 /// A node with no renderable answers with an empty kind rather than unit.
@@ -260,9 +272,9 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
 #[test]
 fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
-        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], map().with("z_index", 2));
-render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, map().with("z_index", -1));
-render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), map().with("region_origin", [8, 0]).with("region_size", [8, 8]));"#,
+        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], render::DrawOptions { z_index: 2 });
+render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, render::DrawOptions { z_index: -1 });
+render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
         0,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -284,19 +296,19 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), map().with
         ),
         "{shapes:?}"
     );
-    let (_app, errors) =
-        run(r#"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil(), map().with("z", 1));"#);
+    let why =
+        refused(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil(), render::DrawOptions { z: 1 });");
     assert!(
-        errors.iter().any(|e| e.contains("not 'z'")),
-        "a misspelt option is refused: {errors:#?}"
+        why.contains("no field `z`"),
+        "a misspelt option does not compile: {why}"
     );
 }
 
 #[test]
 fn a_tile_set_from_a_script_reads_back_and_the_map_grows_to_fit() {
     let (app, errors, lines) = run_logged(
-        r#"let cells: [any] = [[-1, -1]];
-self.node.set_component("tilemap", map().with("cells", cells));
+        r#"let rows: [any] = [[-1, -1]];
+self.node.set_component("tilemap", { "cells": { "kind": "inline", "rows": rows } });
 self.node.tilemap.set_cell(3, 1, 7);
 log::info("cell {self.node.tilemap.cell(3, 1)} {self.node.tilemap.cell(0, 0)} {self.node.tilemap.cell(9, 9)}");"#,
     );
@@ -423,8 +435,8 @@ fn count(words: [str], word: str) -> int {
 pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        let all = windings(render::trace_texture("art/shapes.png", map().with("tolerance", 0.0).with("holes", true)));
-        let largest = windings(render::trace_texture("art/shapes.png", map().with("tolerance", 0.0)));
+        let all = windings(render::trace_texture("art/shapes.png", render::TraceOptions { tolerance: 0.0, holes: true }));
+        let largest = windings(render::trace_texture("art/shapes.png", render::TraceOptions { tolerance: 0.0 }));
         log::error("checked: {all.len()} {largest.len()} {largest[0]}");
         let ccw = count(all, "ccw");
         let cw = count(all, "cw");

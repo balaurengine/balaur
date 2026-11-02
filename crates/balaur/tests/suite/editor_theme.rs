@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use balaur_ui::contrast::{AA, color_of, pairs, ratio};
+use balaur_ui::contrast::{AA, DISTINCT, apart, color_of, pairs, ratio};
 use balaur_ui::palette::complete;
 
 /// The inks a script or a role writes text in.
@@ -202,5 +202,32 @@ fn every_editor_role_is_named_component_context_emphasis() {
         }
     }
     assert!(roles.len() > 50, "the roles were read: {}", roles.len());
+    assert!(failing.is_empty(), "{}", failing.join("\n"));
+}
+
+/// Balaur's own halves say warning, danger, success and primary in colours
+/// every reader tells apart, a colour-blind one included. The imported
+/// palettes lean on hue and are their makers'; the theme window shows theirs.
+#[test]
+fn balaur_s_saying_colours_stand_apart_for_every_vision() {
+    let mut failing = Vec::new();
+    for (theme, doc) in themes()
+        .into_iter()
+        .filter(|(theme, _)| theme.starts_with("balaur/"))
+    {
+        let found = apart(&doc);
+        assert_eq!(found.len(), 6, "{theme}: four saying colours, six pairs");
+        failing.extend(
+            found
+                .iter()
+                .filter(|pair| pair.distance < DISTINCT)
+                .map(|pair| {
+                    format!(
+                        "{theme} {} and {} stand {:.1} apart under {}",
+                        pair.first, pair.second, pair.distance, pair.vision
+                    )
+                }),
+        );
+    }
     assert!(failing.is_empty(), "{}", failing.join("\n"));
 }

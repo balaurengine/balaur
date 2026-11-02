@@ -3,10 +3,8 @@
 //! clipboard, pacing and the pooled rows. Nothing here draws: a UI is
 //! `widget` nodes in a scene, and [`crate::widget`] draws them.
 
-use anyhow::Result;
 use balaur_core::Engine;
-use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::bridge::with_ctx;
 use crate::theme;
@@ -131,10 +129,7 @@ fn names_of(list: Option<balaur_script::Value>) -> Option<Vec<String>> {
     }
 }
 
-pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
-    let mut m = reg.script_module("ui")?;
-    let m: &mut dyn Bindings<Engine> = &mut *m;
-
+pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
     m.module_doc(
         "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
     );
@@ -159,18 +154,16 @@ pub(crate) fn install_ui_api(reg: &mut Registry<'_>) -> Result<()> {
     crate::pacing::install(m);
     crate::loading::install(m);
     install_queries(m);
-
-    Ok(())
 }
 
 /// `ui.*` bindings: theme.
-fn install_theme(m: &mut dyn Bindings<Engine>) {
+fn install_theme(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "set_theme",
             &[],
-            "(theme: table)",
-            "Set the theme the UI falls back on where a node's `widget_theme` says nothing, from a theme document: source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources.",
+            "(theme: str | table | nil)",
+            "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         ),
         (
             "complete_theme",
@@ -180,12 +173,28 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
         ),
     ]);
     // No reader by design (N8): the caller holds the document it passed.
-    m.function("set_theme", |eng: &Engine, doc: Value| {
-        let doc = balaur_core::node_api::to_toml(&doc)?;
-        let config = eng.resource::<UiConfig>();
-        let mut config = config.borrow_mut();
-        config.theme = theme::ThemeTokens::from_doc(&doc);
-        config.changed = true;
+    m.function("set_theme", |eng: &Engine, asked: Value| {
+        let asked = match asked {
+            Value::Nil => None,
+            // Read now, so a path that names nothing is the caller's error.
+            Value::Str(reference) => {
+                balaur_core::assets::definition(eng, &reference)?;
+                Some(reference)
+            }
+            // A table is keyed by its content, so the same one again is the
+            // theme already in force.
+            table => {
+                let doc = balaur_core::node_api::to_toml(&table)?;
+                let inline =
+                    balaur_core::assets::define_inline(eng, crate::widget::theme::ASSET_TYPE, doc)?;
+                Some(inline.to_string())
+            }
+        };
+        eng.resource::<UiConfig>().borrow_mut().asked_theme =
+            asked.map(|reference| theme::AskedTheme {
+                reference: reference.into(),
+                under: balaur_core::project::content_root(eng),
+            });
         Ok(())
     });
     m.function("complete_theme", |_: &Engine, doc: Value| {
@@ -195,32 +204,12 @@ fn install_theme(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: widget layer.
-fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
+fn install_widget_layer(m: &mut Module<Engine>) {
     m.describe(&[(
         "set_widget_layer",
         &[],
         "", "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
-    ),
-    (
-        "set_widget_surface",
-        &[],
-        "",
-        "The same for one named surface: roots whose `layer` is this name draw here instead. A name nothing has set takes the default surface.",
-    ),
-    (
-        "set_keyboard_navigation",
-        &[],
-        "",
-        "Let the arrows, Tab, Enter and Space move and activate the focused widget. Off unless asked for, so a game that moves with the arrows does not click its own HUD; `standard_app` turns it on for a project declaring the `ui_*` actions.",
     )]);
-    {
-        m.function("set_keyboard_navigation", |eng: &Engine, on: bool| {
-            eng.resource::<crate::WidgetLayerConfig>()
-                .borrow_mut()
-                .keyboard = on;
-            Ok(())
-        });
-    }
     {
         // No reader by design (N8): the `WidgetLayerConfig` entry already
         // holds the flag and the rect; add `ui.widget_layer` when a caller
@@ -241,28 +230,6 @@ fn install_widget_layer(m: &mut dyn Bindings<Engine>) {
                     Ok(())
                 },
             );
-        m.function(
-            "set_widget_surface",
-            |eng: &Engine,
-             (name, enabled, x, y, w, h): (
-                String,
-                bool,
-                Option<f32>,
-                Option<f32>,
-                Option<f32>,
-                Option<f32>,
-            )| {
-                let layer = eng.resource::<crate::WidgetLayerConfig>();
-                layer.borrow_mut().layers.insert(
-                    name,
-                    crate::widget::node::Surface {
-                        enabled,
-                        rect: rect_of(x, y, w, h),
-                    },
-                );
-                Ok(())
-            },
-        );
     }
     install_rects(m);
     install_focus(m);
@@ -280,9 +247,9 @@ fn rect_of(x: Option<f32>, y: Option<f32>, w: Option<f32>, h: Option<f32>) -> Op
 /// `ui.*` bindings: which widget the keyboard and the pad are pointing at.
 ///
 /// The keyboard drives focus on its own, through egui. These exist for the
-/// pad: a game maps its `ui_next` / `ui_previous` / `ui_accept` actions onto
-/// them, and `standard_app` does it for a project that declares those names.
-fn install_focus(m: &mut dyn Bindings<Engine>) {
+/// pad: `standard_app` maps a project's `ui_next`, `ui_previous` and `ui_accept`
+/// actions onto them.
+fn install_focus(m: &mut Module<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[
         (
@@ -315,6 +282,36 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
             "()",
             "Activate the focused widget, exactly as a click on it would.",
         ),
+        (
+            "focus_up",
+            &[],
+            "()",
+            "Move focus to the nearest widget above, as the up arrow does: the one the focused widget names in `neighbour_up`, else by where the widgets were drawn, round to the bottom past the top. What a stick or a d-pad's action calls.",
+        ),
+        (
+            "focus_down",
+            &[],
+            "()",
+            "The same downwards, by `neighbour_down`.",
+        ),
+        (
+            "focus_left",
+            &[],
+            "()",
+            "The same to the left, by `neighbour_left`.",
+        ),
+        (
+            "focus_right",
+            &[],
+            "()",
+            "The same to the right, by `neighbour_right`.",
+        ),
+        (
+            "clear_focus",
+            &[],
+            "()",
+            "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
+        ),
     ]);
     m.function("focused_widget", |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
@@ -337,6 +334,11 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
         ("focus_next", Move::Next),
         ("focus_previous", Move::Previous),
         ("activate_focused", Move::Accept),
+        ("focus_up", Move::Up),
+        ("focus_down", Move::Down),
+        ("focus_left", Move::Left),
+        ("focus_right", Move::Right),
+        ("clear_focus", Move::Leave),
     ] {
         m.function(name, move |eng: &Engine, ()| {
             eng.resource::<crate::UiFocus>().borrow_mut().pending = Some(asked);
@@ -347,18 +349,18 @@ fn install_focus(m: &mut dyn Bindings<Engine>) {
 
 /// `ui.*` bindings: a widget driven from a script as a reader would drive
 /// it, and an inspector told to read its node again.
-fn install_driving(m: &mut dyn Bindings<Engine>) {
+fn install_driving(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "click",
             &[],
-            "(node: node, opts: map?) -> bool",
-            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `#{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
+            "(node: node, opts: ClickOptions?) -> bool",
+            "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
             "reread",
             &[],
-            "(node: node, component: string?, properties: list?) -> bool",
+            "(node: node, component: string?, properties: [string]?) -> bool",
             "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         ),
         (
@@ -368,6 +370,11 @@ fn install_driving(m: &mut dyn Bindings<Engine>) {
             "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
         ),
     ]);
+    m.records(&[(
+        "ClickOptions",
+        "{ hidden: bool? }",
+        "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
+    )]);
     m.function(
         "reread",
         |eng: &Engine,
@@ -405,7 +412,7 @@ fn install_driving(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: the screen classes.
-fn install_classes(m: &mut dyn Bindings<Engine>) {
+fn install_classes(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "width_class",
@@ -437,7 +444,7 @@ fn install_classes(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: scale.
-fn install_scale(m: &mut dyn Bindings<Engine>) {
+fn install_scale(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "scale",
@@ -467,11 +474,12 @@ fn install_scale(m: &mut dyn Bindings<Engine>) {
 }
 
 /// `ui.*` bindings: queries.
-fn install_queries(m: &mut dyn Bindings<Engine>) {
+fn install_queries(m: &mut Module<Engine>) {
     m.describe(&[
         ("window_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
         ("set_clipboard", &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
         ("pasted_text", &[], "", "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives."),
+        ("save_pasted_image", &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
         ("wants_keyboard", &[], "", "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone."),
         ("wants_pointer", &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window."),
         ("takes_pointer_at", &[], "(x: number, y: number) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
@@ -500,7 +508,7 @@ fn install_queries(m: &mut dyn Bindings<Engine>) {
 
 /// The clipboard pair and who holds the pointer and the keyboard: queries
 /// that answer about the frame.
-fn install_clipboard(m: &mut dyn Bindings<Engine>) {
+fn install_clipboard(m: &mut Module<Engine>) {
     m.function("set_clipboard", |eng: &Engine, text: String| {
         eng.resource::<UiState>().borrow_mut().clipboard = Some(text);
         crate::pacing::ask(eng);
@@ -508,6 +516,14 @@ fn install_clipboard(m: &mut dyn Bindings<Engine>) {
     });
     m.function("pasted_text", |eng: &Engine, ()| {
         Ok(eng.resource::<UiState>().borrow().pasted.clone())
+    });
+    m.function("save_pasted_image", |eng: &Engine, path: String| {
+        let Some(image) = eng.resource::<UiState>().borrow_mut().pasted_image.take() else {
+            return Ok(false);
+        };
+        let to = balaur_core::file_api::resolve(eng, &path)?;
+        balaur_core::files::backend(eng).write(&to, &crate::clipboard::png_of(&image)?)?;
+        Ok(true)
     });
     m.function("wants_keyboard", |eng: &Engine, ()| {
         Ok(eng.resource::<UiState>().borrow().wants_keyboard)
@@ -528,19 +544,19 @@ fn rect_value(rect: Option<egui::Rect>) -> Value {
     rect.map_or(Value::Nil, crate::widget::arrange::rect_value)
 }
 
-fn install_rects(m: &mut dyn Bindings<Engine>) {
+fn install_rects(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "widget_rect",
             &[],
             "-> Rect?",
-            "Where a `widget` node was last drawn, as `#{ x, y, width, height }` in design pixels; empty until it has drawn once.",
+            "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         ),
         (
             "tab_rect",
             &[],
             "-> Rect?",
-            "Where a `tabs` page's own button in the strip was last drawn, as `#{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
+            "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
         ),
     ]);
     m.records(&[(

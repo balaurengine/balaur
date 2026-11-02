@@ -32,7 +32,7 @@ fn numbers() -> Vec<(String, toml::Value)> {
         }
     }
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     let mut out = Vec::new();

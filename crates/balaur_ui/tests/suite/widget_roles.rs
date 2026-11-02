@@ -154,28 +154,20 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
     // screen are: the second is what the start screen found empty.
     let _under = add_widget(
         &app,
-        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" layer = "shell" }
+        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" whole_window = true }
             .into(),
     );
     let root = add_widget(
         &app,
-        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" layer = "shell" role = "ground" safe_area = ["left", "top", "right", "bottom"] }
+        &toml::toml! { kind = "column" anchor = "fill" theme = "themes/rooms.toml" whole_window = true role = "ground" safe_area = ["left", "top", "right", "bottom"] }
             .into(),
     );
-    // The default surface off and the shell's on, the way the start screen
-    // points them while it is up.
+    // The default surface off, the way the start screen points it while it is up.
     {
         let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
         let mut config = config.borrow_mut();
         config.enabled = false;
         config.rect = Some([0.0, 0.0, 0.0, 0.0]);
-        config.layers.insert(
-            "shell".into(),
-            balaur_ui::Surface {
-                enabled: true,
-                rect: None,
-            },
-        );
     }
     let kid = |name: &str, params: toml::Value| {
         let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, root);
@@ -205,7 +197,7 @@ fn a_grow_child_of_a_fill_root_takes_what_is_left() {
         &app.engine,
         root,
         "widget",
-        &toml::toml! { visible = true }.into(),
+        &toml::toml! { enabled = true }.into(),
     )
     .unwrap();
     settle(&app, &ctx);
@@ -268,27 +260,20 @@ fn a_field_reports_its_submit_for_one_frame() {
     let ctx = egui::Context::default();
     settle(&app, &ctx);
     let mut app = app;
+    let said =
+        |app: &balaur::App| balaur_core::events::delivered_from(&app.engine, field, "submit").len();
     app.tick(1.0 / 60.0);
-    assert!(
-        !property(&app, field, "submitted").as_bool().unwrap(),
-        "it reported a submit nobody made"
-    );
+    assert_eq!(said(&app), 0, "it reported a submit nobody made");
     balaur_ui::submit(&app.engine, field, "two");
     app.tick(1.0 / 60.0);
-    assert!(
-        property(&app, field, "submitted").as_bool().unwrap(),
-        "the submit was not reported"
-    );
+    assert_eq!(said(&app), 1, "the submit was not reported");
     assert_eq!(
         property(&app, field, "text").as_str(),
         Some("two"),
         "the text did not land"
     );
     app.tick(1.0 / 60.0);
-    assert!(
-        !property(&app, field, "submitted").as_bool().unwrap(),
-        "the submit was still true a frame later"
-    );
+    assert_eq!(said(&app), 0, "the submit was still said a frame later");
 }
 
 /// A `switch` holds `checked`, flips on a click, and takes its track from the

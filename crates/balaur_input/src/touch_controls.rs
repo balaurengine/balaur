@@ -16,59 +16,30 @@
 //!
 //! Drawing is the half that needs a window, and it is `balaur_render`'s.
 
+use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::{ComponentDef, prop_bool, prop_str};
+use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
 use crate::InputActions;
 use crate::InputSnapshot;
-use crate::vocabulary::{keys as k, words as w};
 
 /// Where on the screen a control sits, before its offset.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Enum)]
 pub enum Anchor {
-    #[default]
-    BottomLeft,
-    BottomRight,
-    BottomCenter,
     TopLeft,
+    CenterTop,
     TopRight,
-    TopCenter,
     CenterLeft,
-    CenterRight,
     Center,
+    CenterRight,
+    BottomLeft,
+    CenterBottom,
+    BottomRight,
 }
 
 impl Anchor {
-    fn parse(word: &str) -> Self {
-        match word {
-            w::TOP_LEFT => Self::TopLeft,
-            w::TOP_RIGHT => Self::TopRight,
-            w::CENTER_TOP => Self::TopCenter,
-            w::CENTER_LEFT => Self::CenterLeft,
-            w::CENTER_RIGHT => Self::CenterRight,
-            w::CENTER => Self::Center,
-            w::BOTTOM_RIGHT => Self::BottomRight,
-            w::CENTER_BOTTOM => Self::BottomCenter,
-            _ => Self::BottomLeft,
-        }
-    }
-
-    const fn word(self) -> &'static str {
-        match self {
-            Self::TopLeft => w::TOP_LEFT,
-            Self::TopRight => w::TOP_RIGHT,
-            Self::TopCenter => w::CENTER_TOP,
-            Self::CenterLeft => w::CENTER_LEFT,
-            Self::CenterRight => w::CENTER_RIGHT,
-            Self::Center => w::CENTER,
-            Self::BottomRight => w::BOTTOM_RIGHT,
-            Self::BottomCenter => w::CENTER_BOTTOM,
-            Self::BottomLeft => w::BOTTOM_LEFT,
-        }
-    }
-
     /// The point this anchor names inside `area`, as `(left, top, right,
     /// bottom)` in physical pixels.
     fn point(self, area: [f32; 4]) -> (f32, f32) {
@@ -76,30 +47,28 @@ impl Anchor {
         let (mid_x, mid_y) = (f32::midpoint(left, right), f32::midpoint(top, bottom));
         match self {
             Self::TopLeft => (left, top),
-            Self::TopCenter => (mid_x, top),
+            Self::CenterTop => (mid_x, top),
             Self::TopRight => (right, top),
             Self::CenterLeft => (left, mid_y),
             Self::Center => (mid_x, mid_y),
             Self::CenterRight => (right, mid_y),
             Self::BottomLeft => (left, bottom),
-            Self::BottomCenter => (mid_x, bottom),
+            Self::CenterBottom => (mid_x, bottom),
             Self::BottomRight => (right, bottom),
         }
     }
 }
 
 /// A button's touch area.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Enum)]
 pub enum Shape {
-    #[default]
-    Rect,
+    Rectangle,
     Circle,
 }
 
 /// When a control is on screen and taking fingers.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Enum)]
 pub enum Visibility {
-    #[default]
     Always,
     /// Only where the platform has a touch screen, so a HUD does not sit over
     /// a desktop build of the same game. `emulate_touch_from_mouse` is how a
@@ -108,21 +77,6 @@ pub enum Visibility {
 }
 
 impl Visibility {
-    fn parse(word: &str) -> Self {
-        if word == w::TOUCHSCREEN {
-            Self::Touchscreen
-        } else {
-            Self::Always
-        }
-    }
-
-    const fn word(self) -> &'static str {
-        match self {
-            Self::Touchscreen => w::TOUCHSCREEN,
-            Self::Always => w::ALWAYS,
-        }
-    }
-
     /// Whether a control with this setting is live on this platform.
     fn live(self, touchscreen: bool) -> bool {
         match self {
@@ -132,7 +86,93 @@ impl Visibility {
     }
 }
 
-/// A button a finger presses, which presses an action.
+/// An on-screen button that presses an `action` while a finger is on it. `anchor`, `x` and `y` place it inside the screen's safe area, as they place a widget.
+#[derive(Component)]
+#[component(
+    name = "touch_button",
+    on_remove = touch_button_properties_removed,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::UI],
+    after_write = button_written,
+)]
+pub struct TouchButtonProperties {
+    /// The action a finger on this button presses, as `[input.actions]` names it; the action needs no touch binding
+    pub action: String,
+    /// The touch area's outline; a circle uses the larger half of the box
+    #[property(name = "kind", default = Shape::Circle)]
+    pub shape: Shape,
+    /// `touchscreen` hides it and stops it taking fingers where the platform has no touch screen
+    #[property(default = Visibility::Touchscreen)]
+    pub visibility: Visibility,
+    /// Screen corner, edge or middle the button sits against, inside the safe area
+    #[property(default = Anchor::BottomRight, group = "placement")]
+    pub anchor: Anchor,
+    /// Inward from the anchored side to the button's own, in design pixels; from the middle when the anchor centres it
+    #[property(default = 50.0, group = "placement")]
+    pub x: f32,
+    /// Inward from the anchored top or bottom to the button's own, in design pixels; from the middle when the anchor centres it
+    #[property(default = 50.0, group = "placement")]
+    pub y: f32,
+    /// Touch area width in design pixels
+    #[property(default = 120.0, min = 0.0, group = "placement")]
+    pub width: f32,
+    /// Touch area height in design pixels
+    #[property(default = 120.0, min = 0.0, group = "placement")]
+    pub height: f32,
+    /// Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 0.25], group = "paint")]
+    pub color: [f32; 4],
+    /// Fill while a finger is on it
+    #[property(color, default = [1.0, 1.0, 1.0, 0.5], group = "paint")]
+    pub pressed_color: [f32; 4],
+}
+
+/// An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor`, `x` and `y` place it, as they place a widget.
+#[derive(Component)]
+#[component(
+    name = "touch_stick",
+    on_remove = touch_stick_properties_removed,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::UI],
+    after_write = stick_written,
+)]
+pub struct TouchStickProperties {
+    /// The action the stick's left and right feed, -1 at the left of its throw
+    pub action_x: String,
+    /// The action the stick's up and down feed, 1 pushed away from the player
+    pub action_y: String,
+    /// `touchscreen` hides it and stops it taking fingers where the platform has no touch screen
+    #[property(default = Visibility::Touchscreen)]
+    pub visibility: Visibility,
+    /// Fraction of the throw that reads zero, so a resting thumb does not drift; the rest is rescaled so the first live reading is near zero
+    #[property(default = 0.15, min = 0.0, max = 0.95)]
+    pub deadzone: f32,
+    /// Move the stick's centre to the thumb that grabbed it, so an off-centre grab does not jerk
+    pub recenter: bool,
+    /// Screen corner, edge or middle the stick sits against, inside the safe area
+    #[property(default = Anchor::BottomLeft, group = "placement")]
+    pub anchor: Anchor,
+    /// Inward from the anchored side to the stick's throw, in design pixels; from the middle when the anchor centres it
+    #[property(default = 40.0, group = "placement")]
+    pub x: f32,
+    /// Inward from the anchored top or bottom to the stick's throw, in design pixels; from the middle when the anchor centres it
+    #[property(default = 40.0, group = "placement")]
+    pub y: f32,
+    /// The throw in design pixels: how far the knob travels for a full 1, and the circle a thumb may grab it in
+    #[property(default = 90.0, min = 1.0, group = "placement")]
+    pub radius: f32,
+    /// The base circle's fill, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 0.18], group = "paint")]
+    pub color: [f32; 4],
+    /// The knob's fill
+    #[property(color, default = [1.0, 1.0, 1.0, 0.45], group = "paint")]
+    pub knob_color: [f32; 4],
+    /// The knob's own radius in design pixels; drawing only
+    #[property(default = 38.0, min = 1.0, group = "paint")]
+    pub knob_radius: f32,
+}
+
+/// A button a finger presses, which presses an action: its
+/// [`TouchButtonProperties`] as the hit-test and the drawing read them, and
+/// the finger on it.
 pub struct TouchButton {
     pub action: String,
     pub anchor: Anchor,
@@ -154,7 +194,9 @@ pub struct TouchButton {
     pub finger: Option<u64>,
 }
 
-/// A stick a thumb pushes, which pushes two actions.
+/// A stick a thumb pushes, which pushes two actions: its
+/// [`TouchStickProperties`] as the hit-test and the drawing read them, and
+/// where the thumb has it.
 pub struct TouchStick {
     /// The action the stick's x feeds, -1 at the left of its throw. Empty
     /// feeds nothing, for a stick that only wants one axis.
@@ -277,7 +319,7 @@ fn center_of(
 fn hits(shape: Shape, center: (f32, f32), half: (f32, f32), at: (f32, f32)) -> bool {
     let (dx, dy) = (at.0 - center.0, at.1 - center.1);
     match shape {
-        Shape::Rect => dx.abs() <= half.0 && dy.abs() <= half.1,
+        Shape::Rectangle => dx.abs() <= half.0 && dy.abs() <= half.1,
         // The larger half, so a circle authored as a square box is the circle
         // that fills it rather than one that hides inside it.
         Shape::Circle => libm::hypotf(dx, dy) <= half.0.max(half.1),
@@ -306,7 +348,10 @@ pub(crate) fn tick(eng: &Engine) {
     let mut actions = actions.borrow_mut();
     let world = eng.world();
 
-    for (_, button) in &mut world.query::<(Entity, &mut TouchButton)>() {
+    for (entity, button) in &mut world.query::<(Entity, &mut TouchButton)>() {
+        if balaur_core::parked::is_parked(eng, entity) {
+            continue;
+        }
         press(
             button,
             &touches,
@@ -317,7 +362,10 @@ pub(crate) fn tick(eng: &Engine) {
             &mut actions,
         );
     }
-    for (_, stick) in &mut world.query::<(Entity, &mut TouchStick)>() {
+    for (entity, stick) in &mut world.query::<(Entity, &mut TouchStick)>() {
+        if balaur_core::parked::is_parked(eng, entity) {
+            continue;
+        }
         push(
             stick,
             &touches,
@@ -465,231 +513,78 @@ fn has_touchscreen(eng: &Engine) -> bool {
             .is_some_and(|config| config.borrow().emulate_touch_from_mouse)
 }
 
-/// The four channels a `color` property holds, or `fallback` where a scene
-/// wrote nothing.
-fn color_of(params: &toml::Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
-    let channel = |i: usize| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_array)
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(fallback[i], |v| v as f32)
+/// A button written anew: its sizes held to what a box can be, and no finger
+/// on it until the next hit-test finds one.
+fn button_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let button = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&TouchButtonProperties>(entity) else {
+            return Ok(());
+        };
+        TouchButton {
+            action: asked.action.clone(),
+            anchor: asked.anchor,
+            inward: [asked.x, asked.y],
+            width: asked.width.max(0.0),
+            height: asked.height.max(0.0),
+            shape: asked.shape,
+            visibility: asked.visibility,
+            color: asked.color,
+            pressed_color: asked.pressed_color,
+            pressed: false,
+            finger: None,
+        }
     };
-    [channel(0), channel(1), channel(2), channel(3)]
+    eng.insert_one(entity, button)
+        .map_err(|_| anyhow!("node is dead"))
 }
 
-fn color_toml(color: [f32; 4]) -> toml::Value {
-    toml::Value::Array(
-        color
-            .iter()
-            .map(|c| toml::Value::Float(f64::from(*c)))
-            .collect(),
-    )
+/// A stick written anew, its throw and deadzone held to what a stick can
+/// be, and at rest until the next hit-test.
+fn stick_written(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let stick = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&TouchStickProperties>(entity) else {
+            return Ok(());
+        };
+        TouchStick {
+            action_x: asked.action_x.clone(),
+            action_y: asked.action_y.clone(),
+            anchor: asked.anchor,
+            inward: [asked.x, asked.y],
+            radius: asked.radius.max(1.0),
+            knob_radius: asked.knob_radius.max(1.0),
+            deadzone: asked.deadzone.clamp(0.0, 0.95),
+            recenter: asked.recenter,
+            visibility: asked.visibility,
+            color: asked.color,
+            knob_color: asked.knob_color,
+            center: [0.0; 2],
+            knob: [0.0; 2],
+            value: [0.0; 2],
+            finger: None,
+        }
+    };
+    eng.insert_one(entity, stick)
+        .map_err(|_| anyhow!("node is dead"))
 }
 
-/// A number a scene may have left out, where zero is a real setting rather
-/// than "unset". `prop_f64` cannot tell those apart.
-fn number(params: &toml::Value, key: &str, fallback: f32) -> f32 {
-    params
-        .get(key)
-        .and_then(balaur_core::components::as_f64)
-        .map_or(fallback, |v| v as f32)
+/// What a removed `TouchButtonProperties` leaves behind, taken with it.
+fn touch_button_properties_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TouchButton>(entity);
 }
-
-const BUTTON_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.25];
-const BUTTON_PRESSED: [f32; 4] = [1.0, 1.0, 1.0, 0.5];
-const STICK_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.18];
-const KNOB_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.45];
 
 /// The `touch_button` component.
 pub(crate) fn register_touch_button(reg: &mut Registry<'_>) {
-    reg.register_component(
-        w::TOUCH_BUTTON,
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "An on-screen button that presses an `action` while a finger is on it. `anchor`, `x` and `y` place it inside the screen's safe area, as they place a widget.",
-            schema: ComponentDef::parse_schema(
-                w::TOUCH_BUTTON,
-                &ComponentDef::schema(&[
-                    (k::ACTION, r#"{ type = "string", default = "", description = "The action a finger on this button presses, as `[input.actions]` names it; the action needs no touch binding" }"#),
-                    (k::KIND, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "The touch area's outline; a circle uses the larger half of the box" }}"#, w::CIRCLE, ComponentDef::options(w::SHAPES))),
-                    (k::VISIBILITY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen" }}"#, w::TOUCHSCREEN, ComponentDef::options(w::VISIBILITIES))),
-                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner, edge or middle the button sits against, inside the safe area", group = "placement" }}"#, w::BOTTOM_RIGHT, ComponentDef::options(w::ANCHORS))),
-                    (k::X, r#"{ type = "float", default = 50.0, description = "Inward from the anchored side to the button's own, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
-                    (k::Y, r#"{ type = "float", default = 50.0, description = "Inward from the anchored top or bottom to the button's own, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
-                    (k::WIDTH, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area width in design pixels", group = "placement" }"#),
-                    (k::HEIGHT, r#"{ type = "float", default = 120.0, min = 0.0, description = "Touch area height in design pixels", group = "placement" }"#),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.25], description = "Fill while nothing is on it, as channel floats or #rrggbb / #rrggbbaa", group = "paint" }"#),
-                    (k::PRESSED_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.5], description = "Fill while a finger is on it", group = "paint" }"#),
-                ]),
-            ),
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::UI,
-            ],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let button = TouchButton {
-                    action: prop_str(params, k::ACTION).to_string(),
-                    anchor: Anchor::parse(prop_str(params, k::ANCHOR)),
-                    inward: [number(params, k::X, 50.0), number(params, k::Y, 50.0)],
-                    width: number(params, k::WIDTH, 120.0).max(0.0),
-                    height: number(params, k::HEIGHT, 120.0).max(0.0),
-                    shape: if prop_str(params, k::KIND) == w::RECTANGLE {
-                        Shape::Rect
-                    } else {
-                        Shape::Circle
-                    },
-                    visibility: Visibility::parse(prop_str(params, k::VISIBILITY)),
-                    color: color_of(params, k::COLOR, BUTTON_COLOR),
-                    pressed_color: color_of(params, k::PRESSED_COLOR, BUTTON_PRESSED),
-                    pressed: false,
-                    finger: None,
-                };
-                eng.world_mut().insert_one(entity, button)?;
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<TouchButton>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let button = world.get::<&TouchButton>(entity).ok()?;
-                let mut out = toml::map::Map::new();
-                out.insert(k::ACTION.into(), toml::Value::String(button.action.clone()));
-                out.insert(
-                    k::ANCHOR.into(),
-                    toml::Value::String(button.anchor.word().into()),
-                );
-                out.insert(k::X.into(), toml::Value::Float(f64::from(button.inward[0])));
-                out.insert(k::Y.into(), toml::Value::Float(f64::from(button.inward[1])));
-                out.insert(
-                    k::WIDTH.into(),
-                    toml::Value::Float(f64::from(button.width)),
-                );
-                out.insert(
-                    k::HEIGHT.into(),
-                    toml::Value::Float(f64::from(button.height)),
-                );
-                out.insert(
-                    k::KIND.into(),
-                    toml::Value::String(
-                        match button.shape {
-                            Shape::Rect => w::RECTANGLE,
-                            Shape::Circle => w::CIRCLE,
-                        }
-                        .into(),
-                    ),
-                );
-                out.insert(
-                    k::VISIBILITY.into(),
-                    toml::Value::String(button.visibility.word().into()),
-                );
-                out.insert(k::COLOR.into(), color_toml(button.color));
-                out.insert(k::PRESSED_COLOR.into(), color_toml(button.pressed_color));
-                Some(toml::Value::Table(out))
-            }),
-        },
-    );
+    reg.add_component::<TouchButtonProperties>();
+}
+
+/// What a removed `TouchStickProperties` leaves behind, taken with it.
+fn touch_stick_properties_removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<TouchStick>(entity);
 }
 
 /// The `touch_stick` component.
 pub(crate) fn register_touch_stick(reg: &mut Registry<'_>) {
-    reg.register_component(
-        w::TOUCH_STICK,
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "An on-screen stick that drives `action_x` and `action_y` from -1..1 while a thumb drags it, y positive away from the player. `anchor`, `x` and `y` place it, as they place a widget.",
-            schema: ComponentDef::parse_schema(
-                w::TOUCH_STICK,
-                &ComponentDef::schema(&[
-                    (k::ACTION_X, r#"{ type = "string", default = "", description = "The action the stick's left and right feed, -1 at the left of its throw" }"#),
-                    (k::ACTION_Y, r#"{ type = "string", default = "", description = "The action the stick's up and down feed, 1 pushed away from the player" }"#),
-                    (k::VISIBILITY, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "`touchscreen` hides it and stops it taking fingers where the platform has no touch screen" }}"#, w::TOUCHSCREEN, ComponentDef::options(w::VISIBILITIES))),
-                    (k::DEADZONE, r#"{ type = "float", default = 0.15, min = 0.0, max = 0.95, description = "Fraction of the throw that reads zero, so a resting thumb does not drift; the rest is rescaled so the first live reading is near zero" }"#),
-                    (k::RECENTER, r#"{ type = "bool", default = false, description = "Move the stick's centre to the thumb that grabbed it, so an off-centre grab does not jerk" }"#),
-                    (k::ANCHOR, &format!(r#"{{ type = "enum", default = "{}", options = [{}], description = "Screen corner, edge or middle the stick sits against, inside the safe area", group = "placement" }}"#, w::BOTTOM_LEFT, ComponentDef::options(w::ANCHORS))),
-                    (k::X, r#"{ type = "float", default = 40.0, description = "Inward from the anchored side to the stick's throw, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
-                    (k::Y, r#"{ type = "float", default = 40.0, description = "Inward from the anchored top or bottom to the stick's throw, in design pixels; from the middle when the anchor centres it", group = "placement" }"#),
-                    (k::RADIUS, r#"{ type = "float", default = 90.0, min = 1.0, description = "The throw in design pixels: how far the knob travels for a full 1, and the circle a thumb may grab it in", group = "placement" }"#),
-                    (k::COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.18], description = "The base circle's fill, as channel floats or #rrggbb / #rrggbbaa", group = "paint" }"#),
-                    (k::KNOB_COLOR, r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.45], description = "The knob's fill", group = "paint" }"#),
-                    (k::KNOB_RADIUS, r#"{ type = "float", default = 38.0, min = 1.0, description = "The knob's own radius in design pixels; drawing only", group = "paint" }"#),
-                ]),
-            ),
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::UI,
-            ],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let stick = TouchStick {
-                    action_x: prop_str(params, k::ACTION_X).to_string(),
-                    action_y: prop_str(params, k::ACTION_Y).to_string(),
-                    anchor: Anchor::parse(prop_str(params, k::ANCHOR)),
-                    inward: [number(params, k::X, 40.0), number(params, k::Y, 40.0)],
-                    radius: number(params, k::RADIUS, 90.0).max(1.0),
-                    knob_radius: number(params, k::KNOB_RADIUS, 38.0).max(1.0),
-                    deadzone: number(params, k::DEADZONE, 0.15).clamp(0.0, 0.95),
-                    recenter: prop_bool(params, k::RECENTER),
-                    visibility: Visibility::parse(prop_str(params, k::VISIBILITY)),
-                    color: color_of(params, k::COLOR, STICK_COLOR),
-                    knob_color: color_of(params, k::KNOB_COLOR, KNOB_COLOR),
-                    center: [0.0; 2],
-                    knob: [0.0; 2],
-                    value: [0.0; 2],
-                    finger: None,
-                };
-                eng.world_mut().insert_one(entity, stick)?;
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<TouchStick>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let stick = world.get::<&TouchStick>(entity).ok()?;
-                let mut out = toml::map::Map::new();
-                out.insert(
-                    k::ACTION_X.into(),
-                    toml::Value::String(stick.action_x.clone()),
-                );
-                out.insert(
-                    k::ACTION_Y.into(),
-                    toml::Value::String(stick.action_y.clone()),
-                );
-                out.insert(
-                    k::ANCHOR.into(),
-                    toml::Value::String(stick.anchor.word().into()),
-                );
-                out.insert(k::X.into(), toml::Value::Float(f64::from(stick.inward[0])));
-                out.insert(k::Y.into(), toml::Value::Float(f64::from(stick.inward[1])));
-                out.insert(
-                    k::RADIUS.into(),
-                    toml::Value::Float(f64::from(stick.radius)),
-                );
-                out.insert(
-                    k::KNOB_RADIUS.into(),
-                    toml::Value::Float(f64::from(stick.knob_radius)),
-                );
-                out.insert(
-                    k::DEADZONE.into(),
-                    toml::Value::Float(f64::from(stick.deadzone)),
-                );
-                out.insert(k::RECENTER.into(), toml::Value::Boolean(stick.recenter));
-                out.insert(
-                    k::VISIBILITY.into(),
-                    toml::Value::String(stick.visibility.word().into()),
-                );
-                out.insert(k::COLOR.into(), color_toml(stick.color));
-                out.insert(k::KNOB_COLOR.into(), color_toml(stick.knob_color));
-                Some(toml::Value::Table(out))
-            }),
-        },
-    );
+    reg.add_component::<TouchStickProperties>();
 }

@@ -442,11 +442,15 @@ pub fn resume(eng: &Engine, entity: Entity) {
 }
 
 /// Scale playback: 2.0 is twice as fast, a negative speed runs the clip
-/// backwards. Also what the component's `speed_scale` property writes.
+/// backwards. The component's `speed_scale` moves with it, so the node reads
+/// back the rate it plays at.
 pub fn set_speed_scale(eng: &Engine, entity: Entity, speed_scale: f32) {
     with_playback(eng, entity, |playback| {
         playback.speed_scale = speed_scale;
     });
+    if let Ok(mut held) = eng.world().get::<&mut crate::Animation>(entity) {
+        held.speed_scale = speed_scale;
+    }
 }
 
 /// Move the playhead to `time` seconds of playback, and pose the node there.
@@ -486,16 +490,6 @@ pub fn time(eng: &Engine, entity: Entity) -> f32 {
 #[must_use]
 pub fn is_playing(eng: &Engine, entity: Entity) -> bool {
     read(eng, entity, |playback| playback.playing).unwrap_or(false)
-}
-
-/// The clip that ended on `entity` during the last step, for that one frame.
-///
-/// The other half of `on_animation_finished`: a script that would rather poll
-/// than define a method reads this, and it answers for exactly as long as the
-/// method call would have been in flight.
-#[must_use]
-pub fn just_finished(eng: &Engine, entity: Entity) -> Option<String> {
-    read(eng, entity, |playback| playback.finished.clone()).filter(|name| !name.is_empty())
 }
 
 /// Give `entity` a clip of its own under `clip_name`, from a definition

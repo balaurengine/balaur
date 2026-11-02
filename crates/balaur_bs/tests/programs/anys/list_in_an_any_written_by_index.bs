@@ -1,0 +1,17 @@
+pub fn edited() -> str {
+    let doc: any = { "xs": [1, 2, 3] };
+    let l = doc["xs"];
+    let held = l;
+    l[1] = "two";
+    l[0] = 10;
+    l[3] = 4;
+    let mid = l.insert(1, 1.5);
+    let end = l.insert(4, "end");
+    let beyond = l.insert(9, 0);
+    let cell: any = { "n": 0 };
+    let first = cell["n"].insert(0, 1);
+    "{held} {mid} {end} {beyond} {first}"
+}
+
+// expect: edited() == "[10, 1.5, \"two\", 3, \"end\"] true true false false"
+// live: 0

@@ -10,7 +10,7 @@ use balaur_render::{
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
@@ -55,7 +55,8 @@ fn the_plugin_inserts_the_resources_a_frame_reads() {
 fn a_shape_component_puts_a_renderable_on_the_node() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 2.0").unwrap();
+    let params: toml::Value =
+        toml::from_str("shape = { kind = \"sphere\", radius = 2.0 }").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
 
     let world = app.engine.world();
@@ -72,7 +73,8 @@ fn a_shape_component_puts_a_renderable_on_the_node() {
 fn a_2d_shape_component_puts_a_2d_renderable_on_the_node() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"circle\"\nradius = 1.0").unwrap();
+    let params: toml::Value =
+        toml::from_str("shape = { kind = \"circle\", radius = 1.0 }").unwrap();
     components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
     assert!(app.engine.world().get::<&Renderable2d>(e).is_ok());
 }
@@ -86,7 +88,8 @@ fn every_shape_kind_the_schema_offers_is_accepted() {
     ] {
         for kind in kinds {
             let e = node(&app);
-            let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
+            let params: toml::Value =
+                toml::from_str(&format!("shape = {{ kind = \"{kind}\" }}")).unwrap();
             components::add(&app.engine, e, component, Some(&params))
                 .unwrap_or_else(|err| panic!("{component} kind `{kind}` rejected: {err:#}"));
         }
@@ -99,7 +102,7 @@ fn a_colour_reads_back_as_it_was_set() {
     let e = node(&app);
     // Colour is a property of the renderable, not a component of its own.
     let params: toml::Value =
-        toml::from_str("kind = \"sphere\"\ncolor = [0.25, 0.5, 0.75, 1.0]").unwrap();
+        toml::from_str("shape = { kind = \"sphere\" }\ncolor = [0.25, 0.5, 0.75, 1.0]").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
 
     let got = components::get(&app.engine, e, "shape3d").expect("colour reads back");
@@ -114,7 +117,7 @@ fn a_colour_reads_back_as_it_was_set() {
 fn removing_a_shape_takes_the_renderable_with_it() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"sphere\"").unwrap();
+    let params: toml::Value = toml::from_str("shape = { kind = \"sphere\" }").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     components::remove(&app.engine, e, "shape3d").unwrap();
     assert!(app.engine.world().get::<&Renderable3d>(e).is_err());
@@ -198,7 +201,7 @@ fn a_windowed_backend_keeps_the_fallback_off_its_buffers() {
 fn ticking_a_headless_app_with_render_does_not_panic() {
     let mut app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"sphere\"").unwrap();
+    let params: toml::Value = toml::from_str("shape = { kind = \"sphere\" }").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     for _ in 0..10 {
         app.tick(1.0 / 60.0);
@@ -211,15 +214,21 @@ fn ticking_a_headless_app_with_render_does_not_panic() {
 #[test]
 fn every_3d_shape_kind_round_trips() {
     for (source, expected) in [
-        ("kind = \"sphere\"\nradius = 2.0", "sphere"),
-        ("kind = \"box\"", "box"),
-        ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
+        ("shape = { kind = \"sphere\", radius = 2.0 }", "sphere"),
+        ("shape = { kind = \"box\" }", "box"),
         (
-            "kind = \"cylinder\"\nradius = 0.5\nheight = 2.0",
+            "shape = { kind = \"capsule\", radius = 0.5, height = 2.0 }",
+            "capsule",
+        ),
+        (
+            "shape = { kind = \"cylinder\", radius = 0.5, height = 2.0 }",
             "cylinder",
         ),
-        ("kind = \"cone\"\nradius = 0.5\nheight = 2.0", "cone"),
-        ("kind = \"plane\"", "plane"),
+        (
+            "shape = { kind = \"cone\", radius = 0.5, height = 2.0 }",
+            "cone",
+        ),
+        ("shape = { kind = \"plane\" }", "plane"),
     ] {
         let app = app();
         let e = node(&app);
@@ -229,7 +238,7 @@ fn every_3d_shape_kind_round_trips() {
         let back = components::get(&app.engine, e, "shape3d")
             .unwrap_or_else(|| panic!("{expected} produced nothing to read back"));
         assert_eq!(
-            back.get("kind").and_then(toml::Value::as_str),
+            back["shape"].get("kind").and_then(toml::Value::as_str),
             Some(expected),
             "{expected} read back as something else"
         );
@@ -243,10 +252,12 @@ fn a_capsule_keeps_the_height_it_was_given() {
     let app = app();
     let e = node(&app);
     let params: toml::Value =
-        toml::from_str("kind = \"capsule\"\nradius = 0.25\nheight = 3.0").unwrap();
+        toml::from_str("shape = { kind = \"capsule\", radius = 0.25, height = 3.0 }").unwrap();
     components::add(&app.engine, e, "shape3d", Some(&params)).unwrap();
     let back = components::get(&app.engine, e, "shape3d").unwrap();
-    let height = back.get("height").and_then(balaur_core::components::as_f64);
+    let height = back["shape"]
+        .get("height")
+        .and_then(balaur_core::components::as_f64);
     assert!(
         height.is_some_and(|h| (h - 3.0).abs() < 1e-6),
         "expected the height back unchanged, got {height:?}"
@@ -256,9 +267,12 @@ fn a_capsule_keeps_the_height_it_was_given() {
 #[test]
 fn every_2d_shape_kind_round_trips() {
     for (source, expected) in [
-        ("kind = \"circle\"\nradius = 1.0", "circle"),
-        ("kind = \"rectangle\"", "rectangle"),
-        ("kind = \"capsule\"\nradius = 0.5\nheight = 2.0", "capsule"),
+        ("shape = { kind = \"circle\", radius = 1.0 }", "circle"),
+        ("shape = { kind = \"rectangle\" }", "rectangle"),
+        (
+            "shape = { kind = \"capsule\", radius = 0.5, height = 2.0 }",
+            "capsule",
+        ),
     ] {
         let app = app();
         let e = node(&app);
@@ -268,22 +282,22 @@ fn every_2d_shape_kind_round_trips() {
         let back = components::get(&app.engine, e, "shape2d")
             .unwrap_or_else(|| panic!("{expected} produced nothing to read back"));
         assert_eq!(
-            back.get("kind").and_then(toml::Value::as_str),
+            back["shape"].get("kind").and_then(toml::Value::as_str),
             Some(expected)
         );
     }
 }
 
-/// A polyline is a `Shape2d` like any other, with its points in the sibling
-/// field — the arrangement `sprite` uses, and the reason the enum stays `Copy`.
+/// A `line2d` draws a `Shape2d` like any other, with its points in the
+/// sibling field — the arrangement `sprite` uses, and the reason the enum
+/// stays `Copy`.
 #[test]
-fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
+fn a_line_is_a_shape2d_that_keeps_its_reference() {
     let app = app();
     let e = node(&app);
     let params: toml::Value =
-        toml::from_str("kind = \"polyline\"\nmesh = \"outline\"\nwidth = 0.5\nclosed = true")
-            .unwrap();
-    components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
+        toml::from_str("mesh = \"outline\"\nwidth = 0.5\nclosed = true").unwrap();
+    components::add(&app.engine, e, "line2d", Some(&params)).unwrap();
 
     {
         let world = app.engine.world();
@@ -295,7 +309,7 @@ fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
         assert_eq!(r.polyline.as_deref(), Some("outline"));
     }
 
-    let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
+    let back = components::get(&app.engine, e, "line2d").expect("nothing read back");
     assert_eq!(
         back.get("mesh").and_then(toml::Value::as_str),
         Some("outline"),
@@ -306,8 +320,8 @@ fn a_polyline_is_a_shape2d_that_keeps_its_reference() {
 /// Every join and cap, and the miter limit and taper, come back out as they
 /// went in, so a save keeps the look.
 #[test]
-fn a_polyline_s_stroke_survives_the_round_trip() {
-    use balaur_core::stroke::{CAPS, JOINS};
+fn a_line_s_stroke_survives_the_round_trip() {
+    use balaur_geometry::stroke::{CAPS, JOINS};
     let app = app();
     let pairs = JOINS
         .iter()
@@ -315,11 +329,11 @@ fn a_polyline_s_stroke_survives_the_round_trip() {
     for (join, cap) in pairs {
         let e = node(&app);
         let params: toml::Value = toml::from_str(&format!(
-            "kind = \"polyline\"\nmesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]\nsegments = 12\ngradient = [1.0, 0.0, 0.0, 1.0]\ngradient_steps = 7"
+            "mesh = \"outline\"\njoin = \"{join}\"\ncap = \"{cap}\"\nmiter_limit = 2.5\ntaper = [1.0, 0.25]\nsegments = 12\ngradient = [1.0, 0.0, 0.0, 1.0]\ngradient_steps = 7"
         ))
         .unwrap();
-        components::add(&app.engine, e, "shape2d", Some(&params)).unwrap();
-        let back = components::get(&app.engine, e, "shape2d").expect("nothing read back");
+        components::add(&app.engine, e, "line2d", Some(&params)).unwrap();
+        let back = components::get(&app.engine, e, "line2d").expect("nothing read back");
         let text = |key: &str| {
             back.get(key)
                 .and_then(toml::Value::as_str)
@@ -349,7 +363,7 @@ fn a_polyline_s_stroke_survives_the_round_trip() {
 fn an_unknown_shape_kind_is_refused_by_name() {
     let app = app();
     let e = node(&app);
-    let params: toml::Value = toml::from_str("kind = \"dodecahedron\"").unwrap();
+    let params: toml::Value = toml::from_str("shape = { kind = \"dodecahedron\" }").unwrap();
     // The component layer wraps the cause, so the name is in the chain --
     // which is the form the log prints.
     let err = format!(

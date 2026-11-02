@@ -30,17 +30,18 @@ impl Output {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        let name = node.name();
-        if name == "Clear" && event == "click" {
-            self.editor.call("output_clear");
-        } else if is_level(name, LEVELS()) && event == "click" {
-            self.level = name;
-        } else if name == "Search" && event == "change" {
-            self.query = value.as_str();
-        } else {
-            return;
-        }
+    pub fn clear() {
+        self.editor.call("output_clear");
+        self.refresh();
+    }
+
+    pub fn level_picked(_value: any, node: Node) {
+        self.level = node.name();
+        self.refresh();
+    }
+
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
         self.refresh();
     }
 
@@ -48,32 +49,23 @@ impl Output {
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
         // A hidden log costs nothing: it is filled again when it shows.
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("output_view", self.level, self.query);
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Log").patch_component("widget", map().with("options", view.get("items")));
-        self.node.get_node("Nothing").patch_component("widget", map()
-            .with("visible", view.get("says").as_str() != "")
-            .with("text", view.get("says")));
+        self.node.get_node("Log").widget.items = view["items"];
+        let patched = self.node.get_node("Nothing");
+        patched.set_visible(view["says"].as_str() != "");
+        patched.widget.text = view["says"].as_str();
         let tools = self.node.get_node("Tools");
         for level in LEVELS() {
             let on = level == self.level;
             // A chip's own lit state: the theme dresses it, nothing here names a
             // colour.
-            tools.get_node(level).patch_component("widget", map().with("checked", on));
+            tools.get_node(level).widget.checked = on;
         }
     }
-}
-
-fn is_level(name: str, items: [str]) -> bool {
-    for level in items {
-        if level == name {
-            return true;
-        }
-    }
-    false
 }

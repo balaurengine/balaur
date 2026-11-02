@@ -1,0 +1,6 @@
+// A `match` over a variant of an enum nobody declared is an error, not a
+// crash (found by the mutation test).
+
+pub fn f(x: int) -> int { match x { Light::Red => 1, _ => 2 } }
+
+// error: 4:37: `Light::Red` is no enum variant

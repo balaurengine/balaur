@@ -1,7 +1,7 @@
 //! What the draw saw, applied inside the next tick.
 //!
 //! egui pumps its events during the render pass, which runs after the tick and
-//! not at all headless. Writing `clicked` there moved the digest of a tick no
+//! not at all headless. Acting on a click there moved the digest of a tick no
 //! recording could reproduce, and `on_click` never ran on a replay or under
 //! `--headless`. The draw now only reports what it saw; this takes that report
 //! at the top of the next tick, from a resource a recording carries.
@@ -15,6 +15,8 @@ use crate::vocabulary::keys as k;
 use crate::vocabulary::words as w;
 use crate::widget::layer::Edit;
 use crate::widget::node::Widget;
+use crate::widget::properties::{Numeral, WidgetProperties};
+use crate::widget::schema::follow;
 
 /// How a frame names a widget: its stable id, and its entity bits for a tree
 /// built by hand. Bits alone would not survive the respawn a rollback does.
@@ -129,8 +131,8 @@ pub fn click(eng: &Engine, entity: Entity, hidden: bool) -> bool {
 }
 
 /// Submit a `text_field` as Enter would, settled at the next tick: the text lands
-/// on the widget and `submitted` is true for one frame. What a headless
-/// harness types with, and what proves a pooled row hears it.
+/// on the widget and it says `submit`. What a headless harness types with, and
+/// what proves a pooled row hears it.
 pub fn submit(eng: &Engine, entity: Entity, text: &str) -> bool {
     let writable = eng
         .world()
@@ -201,7 +203,7 @@ pub const LINK_EVENT: &str = "link";
 
 /// What a `code` widget emits when its gutter is clicked, with the line.
 pub const GUTTER_EVENT: &str = "gutter";
-/// What a `code` widget emits when its caret moved, with `#{ x, y, index }`:
+/// What a `code` widget emits when its caret moved, with `{ x, y, index }`:
 /// where a completion list opens, and what it completes.
 pub const CARET_EVENT: &str = "caret";
 
@@ -242,6 +244,9 @@ pub const RESIZED_EVENT: &str = "resized";
 /// What the UI says from no node when text was pasted and no field took it,
 /// with the text: the platform clipboard is not readable on demand.
 pub const PASTED_EVENT: &str = "pasted";
+/// What the UI says from no node when an image was pasted and no field took
+/// it, with its `{ width, height }`: `ui::save_pasted_image` writes it out.
+pub const PASTED_IMAGE_EVENT: &str = "pasted_image";
 
 /// Which widgets the pointer was over at the end of the last pass.
 #[derive(Default)]
@@ -254,6 +259,40 @@ pub(crate) struct Shown(Vec<Entity>);
 
 /// What the pass saw over its whole length: the pointer's edits, and each
 /// popup, dialog and window that came up or went away.
+/// Say `pasted_image` for an image pasted where no field took it, and keep
+/// the image for `ui::save_pasted_image`. Every pass, as the pasted text is
+/// read: a pass that draws nothing still saw the paste.
+pub(crate) fn hear_pasted_image(eng: &Engine, ctx: &egui::Context) {
+    if ctx.egui_wants_keyboard_input() || !balaur_core::events::heard(eng, PASTED_IMAGE_EVENT) {
+        return;
+    }
+    let image = ctx.input(|i| {
+        i.events.iter().rev().find_map(|event| match event {
+            egui::Event::PasteImage(image) => Some(image.clone()),
+            _ => None,
+        })
+    });
+    let Some(image) = image else {
+        return;
+    };
+    let [width, height] = image.size;
+    eng.resource::<crate::UiState>().borrow_mut().pasted_image = Some(image);
+    balaur_core::events::emit(
+        eng,
+        PASTED_IMAGE_EVENT,
+        Value::Map(vec![
+            (
+                "width".into(),
+                Value::Int(i64::try_from(width).unwrap_or(i64::MAX)),
+            ),
+            (
+                "height".into(),
+                Value::Int(i64::try_from(height).unwrap_or(i64::MAX)),
+            ),
+        ]),
+    );
+}
+
 pub(crate) fn pass_edits(
     eng: &Engine,
     ctx: &egui::Context,
@@ -328,10 +367,10 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
     (SUBMIT_EVENT, "the text"),
     (LINK_EVENT, "the link's target"),
     (GUTTER_EVENT, "the line"),
-    (CARET_EVENT, "`#{ x, y, index }`"),
+    (CARET_EVENT, "`{ x, y, index }`"),
     (MOVE_EVENT, "`[moved, target, side]`"),
     (DROP_EVENT, "the card"),
-    (MARK_EVENT, "`#{ row, mark }`"),
+    (MARK_EVENT, "`{ row, mark }`"),
     (DOUBLE_CLICK_EVENT, "nil"),
     (FOCUS_EVENT, "nil"),
     (BLUR_EVENT, "nil"),
@@ -340,14 +379,14 @@ pub(crate) const EVENTS: &[(&str, &str)] = &[
         "the value, once the drag or the typing is over",
     ),
     (ACTIVATE_EVENT, "the row double-clicked"),
-    (FOLD_EVENT, "`#{ row, open }`"),
+    (FOLD_EVENT, "`{ row, open }`"),
     (OPENED_EVENT, "nil"),
     (CLOSED_EVENT, "nil"),
     (SCROLLED_EVENT, "the offset, `[x, y]`"),
     (CLOSE_REQUEST_EVENT, "nil"),
     (
         RESIZED_EVENT,
-        "`#{ x, y, width, height }`, while someone listens on the node",
+        "`{ x, y, width, height }`, while someone listens on the node",
     ),
 ];
 
@@ -384,8 +423,8 @@ fn apply_system(eng: &Engine, _dt: f32) {
         )
     };
     let mut emitted = Vec::new();
-    let (mut typed, submitted) = settle_edits(eng, &edits, &mut emitted);
-    let signals = settle_clicks(eng, &clicked, &submitted, &mut typed, &mut emitted);
+    let mut typed = settle_edits(eng, &edits, &mut emitted);
+    let signals = settle_clicks(eng, &clicked, &mut typed, &mut emitted);
     // The pool's controls hear their edits and clicks here, before any named
     // handler, so a strip nobody refilled still answers.
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
@@ -402,15 +441,7 @@ fn apply_system(eng: &Engine, _dt: f32) {
         }
         emitted.push((entity, CHANGE_EVENT, value));
     }
-    crate::widget::pool::dispatch(eng, &emitted, &hit);
-    // What a panel's `on_widget_event` hears: a widget's own events, not the
-    // pointer hooks every node already gets.
-    let mut told: Vec<(Entity, &'static str, Value)> = emitted
-        .iter()
-        .filter(|(_, event, _)| !hooks::BINDABLE.contains(event))
-        .cloned()
-        .collect();
-    told.extend(hit.iter().map(|&entity| (entity, CLICK_EVENT, Value::Nil)));
+    crate::widget::pool::heard(eng, &emitted);
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
     for (entity, event, value) in emitted {
@@ -431,128 +462,67 @@ fn apply_system(eng: &Engine, _dt: f32) {
     if let Some(host) = eng.script_host() {
         // Every recipient found before any handler runs, which may reshape
         // the tree the search walks.
+        let told = |entity: Entity| Value::Node(balaur_core::node_id_of(entity).0);
         let signals: Vec<_> = signals
             .into_iter()
             .map(|(entity, method)| {
-                let args = passed(eng, entity, Vec::new());
-                (recipient(eng, host.as_ref(), entity, &method), method, args)
+                (
+                    recipient(eng, host.as_ref(), entity, &method),
+                    method,
+                    crate::widget::pool::handler_args(eng, entity, Value::Nil, told(entity)),
+                )
             })
             .collect();
         let typed: Vec<_> = typed
             .into_iter()
             .map(|(entity, method, value)| {
-                let args = passed(eng, entity, vec![value]);
-                (recipient(eng, host.as_ref(), entity, &method), method, args)
-            })
-            .collect();
-        let panels: Vec<_> = told
-            .into_iter()
-            .filter_map(|(entity, event, value)| {
-                let panel = panel_of(eng, host.as_ref(), entity)?;
-                let node = Value::Node(balaur_core::node_id_of(entity).0);
-                Some((panel, [Value::Str(event.to_string()), node, value]))
+                (
+                    recipient(eng, host.as_ref(), entity, &method),
+                    method,
+                    crate::widget::pool::handler_args(eng, entity, value, told(entity)),
+                )
             })
             .collect();
         for (entity, method, args) in signals.into_iter().chain(typed) {
             host.call_on(balaur_core::node_id_of(entity), &method, &args);
         }
-        for (panel, args) in panels {
-            host.call_on(
-                balaur_core::node_id_of(panel),
-                hooks::ON_WIDGET_EVENT,
-                &args,
-            );
-        }
     }
     announce_focus(eng, focused.as_ref());
 }
 
-/// A handler's arguments, with the widget's own node last where it asks to
-/// pass it.
-fn passed(eng: &Engine, entity: Entity, mut args: Vec<Value>) -> Vec<Value> {
-    let pass = eng
-        .world()
-        .get::<&Widget>(entity)
-        .is_ok_and(|widget| widget.pass_node);
-    if pass {
-        args.push(Value::Node(balaur_core::node_id_of(entity).0));
-    }
-    args
-}
-
-/// One edit written onto the widget it names, and what that says.
+/// One edit written onto the properties of the widget it names, the widget's
+/// fields brought after them, and what the edit says.
 ///
 /// The match answers with the event, the value and the handler rather than
 /// reporting them, so the three lines that emit and call are written once
 /// for every kind of edit. `None` is an edit that reports nothing.
 fn settle_one(
     entity: Entity,
+    asked: &mut WidgetProperties,
     widget: &mut Widget,
     edit: &Edit,
     emitted: &mut Vec<(Entity, &'static str, Value)>,
     signals: &mut Vec<(Entity, String, Value)>,
 ) {
+    let keys = written(asked, edit);
+    follow(widget, asked, keys);
     let said = match edit {
-        Edit::Width(w) => {
-            widget.width = *w;
+        Edit::Width(_) | Edit::Height(_) | Edit::Moved(_) | Edit::Widths(_) | Edit::Sorted(..) => {
             None
         }
-        Edit::Height(h) => {
-            widget.height = *h;
-            None
-        }
-        Edit::Active(name) => {
-            widget.active = name.as_str().into();
-            Some((CHANGE_EVENT, Value::Str(name.clone()), &widget.on_change))
-        }
-        Edit::Moved([dx, dy]) => {
-            let (sx, sy) = crate::widget::window::drag_signs(&widget.anchor);
-            widget.x += dx * sx;
-            widget.y += dy * sy;
-            None
-        }
-        Edit::Text(text) => {
-            widget.text = text.as_str().into();
-            Some((CHANGE_EVENT, Value::Str(text.clone()), &widget.on_change))
-        }
-        Edit::Submit(text) => {
-            widget.text = text.as_str().into();
-            Some((SUBMIT_EVENT, Value::Str(text.clone()), &widget.on_submit))
-        }
+        Edit::Active(name) => Some((CHANGE_EVENT, Value::Str(name.clone()), &widget.on_change)),
+        Edit::Text(text) => Some((CHANGE_EVENT, Value::Str(text.clone()), &widget.on_change)),
+        Edit::Submit(text) => Some((SUBMIT_EVENT, Value::Str(text.clone()), &widget.on_submit)),
         Edit::Value(value) => {
-            widget.value = *value;
             let said = Value::Num(f64::from(*value));
             Some((CHANGE_EVENT, said, &widget.on_change))
         }
-        Edit::Open(open) => {
-            widget.open = *open;
-            Some((CHANGE_EVENT, Value::Bool(*open), &widget.on_change))
-        }
-        Edit::Color(rgba) => {
-            widget.color = *rgba;
-            Some((CHANGE_EVENT, Value::Color(*rgba), &widget.on_change))
-        }
-        // A dropdown shows what was picked; a menu keeps its caption.
-        Edit::Choice(choice) => {
-            if widget.kind != w::MENU {
-                widget.text = choice.as_str().into();
-            }
-            Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change))
-        }
+        Edit::Open(open) => Some((CHANGE_EVENT, Value::Bool(*open), &widget.on_change)),
+        Edit::Color(rgba) => Some((CHANGE_EVENT, Value::Color(*rgba), &widget.on_change)),
+        Edit::Choice(choice) => Some((CHANGE_EVENT, Value::Str(choice.clone()), &widget.on_change)),
         Edit::Picked(row, rows) => {
-            let said = picked(widget, row, rows);
+            let said = picked(widget.multi, row, rows);
             Some((CHANGE_EVENT, said, &widget.on_change))
-        }
-        // The chrome a reader dragged: written down so the scene keeps it,
-        // and reported to nobody, as a seam between two containers is.
-        Edit::Widths(shares) => {
-            widget.widths.clone_from(shares);
-            None
-        }
-        Edit::Sorted(column, reverse) => {
-            widget.sort = column.as_str().into();
-            widget.reverse = *reverse;
-            None
         }
         Edit::Dropped(moved, target, side) => {
             let said = [moved, target, side]
@@ -566,11 +536,11 @@ fn settle_one(
         // Written nowhere: a link and a gutter mark are the script's to act on.
         Edit::Link(target) => Some((LINK_EVENT, Value::Str(target.clone()), &widget.on_link)),
         Edit::Gutter(line) => Some((GUTTER_EVENT, Value::Int(*line), &widget.on_gutter)),
-        Edit::Entered
-        | Edit::Left
-        | Edit::Pressed(_)
-        | Edit::Released(_)
-        | Edit::DoubleClicked
+        Edit::Entered | Edit::Left | Edit::Pressed(_) | Edit::Released(_) => {
+            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
+            None
+        }
+        Edit::DoubleClicked
         | Edit::Blurred
         | Edit::Committed(_)
         | Edit::ColorCommitted(_)
@@ -579,17 +549,22 @@ fn settle_one(
         | Edit::Opened
         | Edit::Closed
         | Edit::Caret(..)
-        | Edit::CloseRequested => {
-            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
-            None
-        }
-        // Written down as well as heard, so `scroll_offset` reads back where
-        // the reader left it.
-        Edit::Scrolled(offset) => {
-            std::sync::Arc::make_mut(&mut widget.egui).scroll_offset = *offset;
-            emitted.extend(heard(edit).map(|(event, value)| (entity, event, value)));
-            None
-        }
+        | Edit::CloseRequested
+        | Edit::Scrolled(_) => heard(edit).map(|(event, value)| {
+            let handler = match event {
+                DOUBLE_CLICK_EVENT => &widget.on_double_click,
+                BLUR_EVENT => &widget.on_blur,
+                COMMIT_EVENT => &widget.on_commit,
+                ACTIVATE_EVENT => &widget.on_activate,
+                FOLD_EVENT => &widget.on_fold,
+                OPENED_EVENT => &widget.on_opened,
+                CLOSED_EVENT => &widget.on_closed,
+                CARET_EVENT => &widget.on_caret,
+                SCROLLED_EVENT => &widget.on_scrolled,
+                _ => &widget.on_close_request,
+            };
+            (event, value, handler)
+        }),
     };
     // The node emits its event whatever the widget carries, and the handler
     // is called only where one is named.
@@ -602,8 +577,58 @@ fn settle_one(
     }
 }
 
-/// What the pointer, focus or a finished gesture did: an event with no
-/// handler key, emitted as it is.
+/// What an edit writes onto the properties, and the keys it wrote: where
+/// the reader left a drag, a pick or a keystroke, for `get` to report and
+/// the widget to follow.
+fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str] {
+    match edit {
+        Edit::Width(width) => {
+            asked.width = *width;
+            &[k::WIDTH]
+        }
+        Edit::Height(height) => {
+            asked.height = *height;
+            &[k::HEIGHT]
+        }
+        Edit::Active(name) => {
+            asked.current_page = name.as_str().into();
+            &[k::CURRENT_PAGE]
+        }
+        Edit::Moved([dx, dy]) => {
+            let (sx, sy) = crate::widget::window::drag_signs(&asked.anchor.0);
+            asked.x += dx * sx;
+            asked.y += dy * sy;
+            &[k::X, k::Y]
+        }
+        Edit::Text(text) | Edit::Submit(text) => {
+            asked.text = text.as_str().into();
+            &[k::TEXT]
+        }
+        Edit::Open(open) => {
+            asked.open = *open;
+            &[k::OPEN]
+        }
+        // A dropdown shows what was picked; a menu keeps its caption.
+        Edit::Choice(choice) if asked.kind.0 != w::MENU => {
+            asked.text = choice.as_str().into();
+            &[k::TEXT]
+        }
+        Edit::Picked(row, rows) => {
+            asked.text = row.as_str().into();
+            asked.selection = rows.iter().map(|row| row.as_str().into()).collect();
+            &[k::TEXT, k::SELECTION]
+        }
+        // The column a table's rows are ordered by is the table's
+        // (`widget_table`, in `besides_written`); which way is the widget's.
+        Edit::Sorted(_, reverse) => {
+            asked.reverse = *reverse;
+            &[k::REVERSE]
+        }
+        _ => &[],
+    }
+}
+
+/// What the pointer, focus or a finished gesture did, as the event it is.
 fn heard(edit: &Edit) -> Option<(&'static str, Value)> {
     let said = match edit {
         Edit::Entered => (hooks::POINTER_ENTER, Value::Nil),
@@ -650,12 +675,10 @@ fn marked(row: &str, mark: &str) -> Value {
     ])
 }
 
-/// A row pick written onto the widget, and what it says: the whole set where
-/// it holds many, and the row hit where it holds one.
-fn picked(widget: &mut Widget, row: &str, rows: &[String]) -> Value {
-    widget.text = row.into();
-    widget.selection = rows.iter().map(|row| row.as_str().into()).collect();
-    if widget.multi {
+/// What a row pick says: the whole set where the widget holds many, and the
+/// row hit where it holds one.
+fn picked(multi: bool, row: &str, rows: &[String]) -> Value {
+    if multi {
         return Value::List(rows.iter().map(|row| Value::Str(row.clone())).collect());
     }
     Value::Str(row.to_owned())
@@ -667,60 +690,79 @@ fn settle_edits(
     eng: &Engine,
     edits: &[(WidgetKey, Edit)],
     emitted: &mut Vec<(Entity, &'static str, Value)>,
-) -> (Vec<(Entity, String, Value)>, Vec<Entity>) {
+) -> Vec<(Entity, String, Value)> {
     let mut signals = Vec::new();
-    let mut submitted = Vec::new();
     for (key, edit) in edits {
         let Some(entity) = resolve(eng, key) else {
             continue;
         };
-        if matches!(edit, Edit::Submit(_)) {
-            submitted.push(entity);
+        {
+            let world = eng.world();
+            let (Ok(mut asked), Ok(mut widget)) = (
+                world.get::<&mut WidgetProperties>(entity),
+                world.get::<&mut Widget>(entity),
+            ) else {
+                continue;
+            };
+            // Written straight onto the component, so the arena's copy of
+            // this one is stale until the next pass re-reads it.
+            crate::widget::arena::widget_changed(entity);
+            settle_one(entity, &mut asked, &mut widget, edit, emitted, &mut signals);
         }
-        let world = eng.world();
-        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
-            continue;
-        };
-        // Written straight onto the component, so the arena's copy of this one
-        // is stale until the next pass re-reads it.
-        crate::widget::arena::widget_changed(entity);
-        settle_one(entity, &mut widget, edit, emitted, &mut signals);
+        besides_written(eng, entity, edit);
     }
-    (signals, submitted)
+    signals
 }
 
-/// Write this frame's `clicked` and `submitted` onto every widget, and collect
-/// the handlers.
-///
-/// Every widget, not only the ones hit: both are true for one frame, and a
-/// button nobody pressed this tick has to say so.
+/// What an edit writes onto a component beside the widget, where the rows
+/// it changes are a kind's own: a picked colour, a table's column shares
+/// and the column it sorts by. Written down so the scene keeps them.
+fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
+    use crate::widget::beside::{self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable};
+    match edit {
+        Edit::Value(value) => beside::edit::<WidgetRange>(eng, entity, |held| held.value = *value),
+        // Written down as well as heard, so `scroll_offset` reads back where
+        // the reader left it.
+        Edit::Scrolled(offset) => {
+            beside::edit::<WidgetScroll>(eng, entity, |held| held.scroll_offset = *offset);
+        }
+        Edit::Color(rgba) => {
+            beside::edit::<WidgetColorPicker>(eng, entity, |held| held.picked_color = *rgba);
+        }
+        // The chrome a reader dragged, reported to nobody, as a seam between
+        // two containers is.
+        Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, |held| {
+            held.widths = shares.iter().copied().map(Numeral::of).collect();
+        }),
+        Edit::Sorted(column, _) => {
+            beside::edit::<WidgetTable>(eng, entity, |held| held.sort = column.as_str().into());
+        }
+        _ => {}
+    }
+}
+
+/// A widget as the click pass writes it: the properties, and the widget the
+/// layer reads, which follows them.
+type Settled<'a> = (Entity, &'a mut WidgetProperties, &'a mut Widget);
+
+/// Tick what this frame's clicks tick, and collect the handlers.
 fn settle_clicks(
     eng: &Engine,
     clicked: &[WidgetKey],
-    submitted: &[Entity],
     changes: &mut Vec<(Entity, String, Value)>,
     emitted: &mut Vec<(Entity, &'static str, Value)>,
 ) -> Vec<(Entity, String)> {
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
     let mut signals = Vec::new();
+    if hit.is_empty() {
+        return signals;
+    }
     // The grouped checks this tick ticked, unticked in a second pass: the loop
     // below holds one widget at a time and a group's siblings are others.
     let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
     let world = eng.world();
-    for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
-        let struck = hit.contains(&entity);
-        // Only on the change: this runs over every widget every frame, and a
-        // write that put the same `false` back would rebuild the whole arena.
-        if widget.clicked != struck {
-            widget.clicked = struck;
-            crate::widget::arena::widget_changed(entity);
-        }
-        let said = submitted.contains(&entity);
-        if widget.submitted != said {
-            widget.submitted = said;
-            crate::widget::arena::widget_changed(entity);
-        }
-        if !struck {
+    for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
+        if !hit.contains(&entity) {
             continue;
         }
         // A click on a check or toggle is the tick itself, by mouse or by
@@ -728,11 +770,12 @@ fn settle_clicks(
         // the pass below unticks the rest of its group.
         if flips(widget) {
             let grouped = !widget.radio_group.is_empty();
-            let was = widget.checked;
+            let was = asked.checked;
             // Grouped, a click picks: it ticks and a second click leaves it
             // ticked, because something in the group has to be. On its own, a
             // click flips.
-            widget.checked = if grouped { true } else { !was };
+            asked.checked = if grouped { true } else { !was };
+            follow(widget, asked, &[k::CHECKED]);
             if widget.checked != was {
                 crate::widget::arena::widget_changed(entity);
                 emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
@@ -753,14 +796,15 @@ fn settle_clicks(
         }
     }
     for (struck, group) in &ticked {
-        for (entity, widget) in &mut world.query::<(Entity, &mut Widget)>() {
+        for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
             if entity == *struck || !flips(widget) || widget.radio_group != *group {
                 continue;
             }
-            if !widget.checked {
+            if !asked.checked {
                 continue;
             }
-            widget.checked = false;
+            asked.checked = false;
+            follow(widget, asked, &[k::CHECKED]);
             crate::widget::arena::widget_changed(entity);
             emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
             if !widget.on_change.is_empty() {
@@ -798,31 +842,11 @@ fn announce_focus(eng: &Engine, focused: Option<&WidgetKey>) {
     }
 }
 
-/// The node a widget's handler runs on: the widget's own when its script
-/// declares the method, else the nearest ancestor whose script does. So a
-/// button deep in a panel names a method on the panel's script, the way a
-/// Godot signal is connected to the node that owns the scene. With none
-/// declaring it, the widget's own node, where the call is the no-op it was.
-/// The nearest node at or above `entity` whose script has `on_widget_event`:
-/// the panel that answers for the widget. `None` where no script up the tree
-/// has one.
-fn panel_of(
-    eng: &Engine,
-    host: &dyn balaur_script::ScriptHost<Engine>,
-    entity: Entity,
-) -> Option<Entity> {
-    let world = eng.world();
-    let mut current = entity;
-    loop {
-        if host.has_method(balaur_core::node_id_of(current), hooks::ON_WIDGET_EVENT) {
-            return Some(current);
-        }
-        current = world.get::<&balaur_core::scene::Parent>(current).ok()?.0;
-    }
-}
-
 /// Where a widget's handler `method` goes: the nearest node at or above
-/// `entity` whose script has it, or `entity` when none does.
+/// `entity` whose script has it, or `entity` when none does. So a button deep
+/// in a panel names a method on the panel's script, the way a Godot signal is
+/// connected to the node that owns the scene. The method is handed the event's
+/// value, then the widget's node, as many of the two as it declares.
 pub(crate) fn recipient(
     eng: &Engine,
     host: &dyn balaur_script::ScriptHost<Engine>,

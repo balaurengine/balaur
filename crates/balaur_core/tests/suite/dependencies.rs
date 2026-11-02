@@ -1,82 +1,40 @@
 //! Dependencies: another project imported whole under `deps/<alias>/`, its
-//! paths read from its own root, in a run from the sources and in an export.
+//! paths read from its own root in a run from the sources. What an export
+//! ships of one is `balaur_project`'s.
 
 use balaur_core::components::ComponentDef;
 use balaur_core::scene::find_node;
-use balaur_core::{App, AppConfig, Engine, Pack};
-use balaur_script::ScriptCompiler;
+use balaur_core::{App, AppConfig, Engine};
+
+#[path = "../support/kit.rs"]
+mod kit;
+use kit::{GAME_MANIFEST, kit, workspace};
 
 struct Marker(toml::Value);
-
-/// A game at `<tmp>/game` and the folder its `path` dependency names at
-/// `<tmp>/kit`, each from `(path, text)` pairs.
-fn workspace(game: &[(&str, &str)], kit: &[(&str, &str)]) -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
-    for (root, files) in [("game", game), ("kit", kit)] {
-        for (name, body) in files {
-            let path = dir.path().join(root).join(name);
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(path, body).unwrap();
-        }
-    }
-    dir
-}
-
-const GAME_MANIFEST: &str = r#"[application]
-name = "game"
-main_scene = "scenes/main.toml"
-
-[dependencies]
-kit = { path = "../kit" }
-"#;
-
-const KIT_MANIFEST: &str = r#"[application]
-name = "kit"
-main_scene = "scenes/panel.toml"
-license = "CC0-1.0"
-ignore = ["wip/**"]
-
-[import.texture]
-filter = "nearest"
-"#;
-
-const PANEL: &str = r#"
-[[nodes]]
-id = "n_panel"
-name = "Panel"
-
-[nodes.marker]
-label = "art/button.png"
-"#;
 
 fn app_in(game: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(game.to_path_buf())).unwrap();
     app.register_component(
         "marker",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
                 "marker",
                 r#"label = { type = "string", default = "none" }"#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, params| {
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Marker>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
             }),
-        },
+        ),
     );
     app
 }
@@ -86,16 +44,6 @@ fn label(app: &App, path: &str) -> Option<String> {
     let entity = find_node(&world, app.engine.root(), path)?;
     let marker = world.get::<&Marker>(entity).ok()?;
     Some(marker.0.get("label")?.as_str()?.to_string())
-}
-
-fn kit() -> Vec<(&'static str, &'static str)> {
-    vec![
-        ("project.toml", KIT_MANIFEST),
-        ("scenes/panel.toml", PANEL),
-        ("art/button.png", "kit's button"),
-        ("art/unused.png", "nobody names this"),
-        ("wip/sketch.png", "ignored"),
-    ]
 }
 
 /// The dependency's scene names `art/button.png` from its own root, while
@@ -291,73 +239,4 @@ fn move_into_a_path_dependency_repoints_the_game() {
     );
     let scene = std::fs::read_to_string(game.join("scenes/main.toml")).unwrap();
     assert!(scene.contains("\"deps/kit/art/old.png\""), "{scene}");
-}
-
-/// Claims `.txt` and keeps the text, so string literals stay readable.
-struct Keeping;
-
-impl ScriptCompiler for Keeping {
-    fn extensions(&self) -> &[&str] {
-        &["txt"]
-    }
-
-    fn compile(&self, _rel: &str, source: &str) -> anyhow::Result<Vec<u8>> {
-        Ok(source.as_bytes().to_vec())
-    }
-}
-
-/// An export carries what the game and the dependency's scripts name, in the
-/// game's spelling, and drops the rest of the dependency.
-#[test]
-fn an_export_carries_only_what_the_game_names() {
-    let mut kit = kit();
-    kit.push(("scripts/hit.txt", "load(\"art/hit.png\")"));
-    kit.push(("art/hit.png", "hit"));
-    kit.push(("catalog.toml", "[[entry]]\nfile = \"art/unused.png\"\n"));
-    // A showroom scene the game never reaches keeps nothing it names.
-    kit.push((
-        "scenes/showroom.toml",
-        "[[nodes]]\nname = \"Show\"\ntexture = \"art/showroom.png\"\n",
-    ));
-    kit.push(("art/showroom.png", "big"));
-    let dir = workspace(
-        &[
-            ("project.toml", GAME_MANIFEST),
-            (
-                "scenes/main.toml",
-                "[[nodes]]\nname = \"Ui\"\ninstance = \"deps/kit/scenes/panel.toml\"\n",
-            ),
-        ],
-        &kit,
-    );
-    let pack = Pack::build(&dir.path().join("game"), &Keeping).unwrap();
-    let panel = &pack.scenes["deps/kit/scenes/panel.toml"];
-    assert!(panel.contains("deps/kit/art/button.png"), "{panel}");
-    assert!(pack.assets.contains_key("deps/kit/art/button.png"));
-    assert!(pack.assets.contains_key("deps/kit/art/hit.png"));
-    assert!(!pack.assets.contains_key("deps/kit/art/unused.png"));
-    assert!(!pack.assets.contains_key("deps/kit/art/showroom.png"));
-    assert!(!pack.assets.contains_key("deps/kit/wip/sketch.png"));
-    assert!(!pack.scenes.contains_key("deps/kit/project.toml"));
-    assert!(!pack.scenes.contains_key("deps/kit/catalog.toml"));
-    assert!(pack.scripts.contains_key("deps/kit/scripts/hit.txt"));
-    let sidecar = &pack.scenes["deps/kit/art/button.png.import.toml"];
-    assert!(sidecar.contains("nearest"), "{sidecar}");
-    let credits: serde_json::Value =
-        serde_json::from_slice(&pack.assets["deps/credits.json"]).unwrap();
-    assert_eq!(credits[0]["alias"], "kit");
-    assert_eq!(credits[0]["license"], "CC0-1.0");
-}
-
-#[test]
-fn an_export_names_a_dependency_that_is_not_fetched() {
-    let dir = workspace(
-        &[(
-            "project.toml",
-            "[application]\nname = \"g\"\nmain_scene = \"m.toml\"\n\n[dependencies]\nui = { project = \"ana/ui\" }\n",
-        )],
-        &[],
-    );
-    let err = Pack::build(&dir.path().join("game"), &Keeping).unwrap_err();
-    assert!(format!("{err:#}").contains("balaur fetch"), "{err:#}");
 }

@@ -11,9 +11,7 @@ parent = "Table"
 position = [0, 0.74, 0]
 
 [nodes.shape3d]
-kind = "box"
-size = [1.4, 0.06, 0.9]
-corner_radius = 0.02
+shape = { kind = "box", size = [1.4, 0.06, 0.9], corner_radius = 0.02 }
 color = "#8a6a48"
 
 [[nodes]]
@@ -24,9 +22,7 @@ parent = "Table"
 position = [-0.62, 0.355, -0.37]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 0.035
-height = 0.71
+shape = { kind = "cylinder", radius = 0.035, height = 0.71 }
 color = "#6d5236"
 
 [[nodes]]
@@ -37,9 +33,7 @@ parent = "Table"
 position = [0.62, 0.355, -0.37]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 0.035
-height = 0.71
+shape = { kind = "cylinder", radius = 0.035, height = 0.71 }
 color = "#6d5236"
 
 [[nodes]]
@@ -50,9 +44,7 @@ parent = "Table"
 position = [-0.62, 0.355, 0.37]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 0.035
-height = 0.71
+shape = { kind = "cylinder", radius = 0.035, height = 0.71 }
 color = "#6d5236"
 
 [[nodes]]
@@ -63,7 +55,5 @@ parent = "Table"
 position = [0.62, 0.355, 0.37]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 0.035
-height = 0.71
+shape = { kind = "cylinder", radius = 0.035, height = 0.71 }
 color = "#6d5236"

@@ -7,6 +7,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+balaur_geometry.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 # A snapshot carries the rapier world as bincode: JSON cannot hold a voxel
@@ -44,8 +45,7 @@ physics3d = []
 parallel = ["dep:rayon", "rapier2d/parallel", "rapier3d/parallel"]
 
 [dev-dependencies]
-# `bs`: the tests' scenes attach Balaur Script, which is a feature now that
-# Rune, always built in, is gone.
+# `bs`: the tests' scenes attach Balaur Script, which is a feature.
 balaur = { workspace = true, features = ["compile", "physics2d", "physics3d", "bs"] }
 tempfile = "3"
 

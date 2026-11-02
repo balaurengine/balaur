@@ -1,10 +1,10 @@
 //! The words `multiplayer.*` answers in. Each is a script constant, so a
 //! script compares against `multiplayer::ROLE_HOST` rather than a string.
 
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 
 /// The method every script is called with a match's events.
-pub const HOOK: &str = "on_multiplayer_event";
+pub const EVENT: &str = "multiplayer_event";
 
 /// Which end of the match this machine is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,7 +52,7 @@ impl State {
     }
 }
 
-/// What an `on_multiplayer_event` map's `kind` says happened.
+/// What a `multiplayer_event` map's `kind` says happened.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EventKind {
     /// This machine is in a lobby, with a slot.
@@ -143,7 +143,7 @@ impl TransportKind {
 }
 
 /// Every word above as a `PREFIX_NAME` constant, and the digest's local tag.
-pub(crate) fn install_constants(m: &mut dyn Bindings<balaur_core::Engine>) {
+pub(crate) fn install_constants(m: &mut Module<balaur_core::Engine>) {
     let mut word = |prefix: &str, name: &str| {
         m.constant(
             &format!("{prefix}_{}", name.to_uppercase()),

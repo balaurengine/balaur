@@ -106,9 +106,10 @@ Each is a wrong result today, not a missing feature.
    `api.json` reading it.
 3. Every engine event through `announce`: collisions, contact force, joint
    break, tear, tween, animation, state machine, timer, visibility. Contact
-   force, joint break and tear carry one map. Widgets keep their handler keys
-   (`on_click = "method"`) and emit `click`, `change` and the rest, since the
-   key names the method and a second call to it would run it twice.
+   force, joint break and tear carry one map. A widget's key
+   (`on_click = "method"`) is how a script hears it, one key for each of its
+   events; it also emits `click`, `change` and the rest, for a scene's row and
+   for `events::next`, and the key's method is not called a second time.
 4. The network modules: an `EVENT_*` constant per `kind` in every crate, a
    `kind` on every http event, and `error` as the one failure kind. A web
    message stays the payload the parent frame posted.
@@ -174,8 +175,7 @@ In order of how often a game needs them.
    writing and tells the handler `cancelled`. A websocket `closed` carries
    its close `code`, and `websocket.state` says where a connection is. A
    request body over 256 KB reports going out as `kind` `upload`, natively. A
-   tab shown or hidden is `on_suspended_changed`, and `browser.stop_listening`
-   undoes `browser.listen`. The Gamend addon names every event the server
+   tab shown or hidden is `on_suspended_changed`. The Gamend addon names every event the server
    pushes: `gamend::events::user::MATCH_FOUND`, the tournament and webrtc
    events, and a `signaling` module, from gamend's `clients/events.json`.
 10. **The Godot import:** built. `ENGINE_EVENTS` in the translator names the

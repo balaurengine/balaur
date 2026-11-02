@@ -21,8 +21,7 @@ name = "Wall"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider2d]
-kind = "voxels"
-voxels = "#wall"
+shape = { kind = "voxels", voxels = "#wall" }
 "##;
 
 /// The script's last write is the control: a cell nothing else fills, which

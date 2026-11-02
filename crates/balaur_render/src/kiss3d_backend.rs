@@ -14,9 +14,11 @@ use std::collections::{HashMap, HashSet};
 
 use balaur_core::hecs::Entity;
 use balaur_core::{App, GlobalAppearance, GlobalTransform};
+use balaur_geometry::skeleton;
 use glamx::Pose3;
 use kiss3d::prelude::*;
 
+use crate::boot_cost;
 use crate::kiss3d_camera::{apply_camera, apply_camera_2d, publish_camera, publish_camera_2d};
 use crate::{ClearColorConfig, Renderable2d, Renderable3d, Shape2d, WindowConfig, WindowedBackend};
 
@@ -130,7 +132,7 @@ struct Frontend {
     probes: crate::reflection::ProbeSlots,
     /// The environment last pushed to the window, so an unchanged one costs
     /// no sky decode and no shadow-map resize.
-    environment: Option<crate::light3d::Environment>,
+    environment: Option<crate::light3d::LitEnvironment>,
     /// The asset generation the nodes below were built at. A saved texture,
     /// model or tileset moves it, and every node built from a file is built
     /// again — the material caches watch the same counter for their shaders.
@@ -269,6 +271,7 @@ impl Frontend {
         // What the window last spent, filed before this frame's own spans so
         // a dock reads the frame in the order it ran.
         report_render_cost(app, window);
+        boot_cost::report_shader_builds(app, self.frame);
         // Read once for the whole frame: three syncs ask, and each would
         // otherwise see the reload and hide it from the next.
         let reloaded = self.assets_reloaded(app);
@@ -432,10 +435,10 @@ pub async fn run_windowed_async(
         samples: present::samples_of(&window_settings),
         ..CanvasSetup::default()
     };
-    let phase = balaur_core::timings::Phase::start();
+    let phase = boot_cost::window_opening();
     let mut window =
         Window::new_with_setup(title, window_settings.width, window_settings.height, setup).await;
-    phase.note("renderer");
+    boot_cost::note_window_opened(&phase);
     // A lazy UI builds no widgets on an idle frame, so the last pass's shapes
     // have to be drawn again. kiss3d stopped doing that by default.
     window.set_ui_retained(true);
@@ -508,6 +511,7 @@ pub async fn run_windowed_async(
             announced = true;
             crate::hidden_tab::announce_ready();
         }
+        boot_cost::note_drawn(f.frame);
         f.shoot(&app, &mut window);
         if app.engine.quit_requested() {
             break;
@@ -594,7 +598,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
     pollster::block_on(async move {
         // Not `new_hidden_*`: a hidden window still needs a display server.
         // Surface-less rendering runs on a CI box with no display at all.
-        let phase = balaur_core::timings::Phase::start();
+        let phase = boot_cost::window_opening();
         // A headless window draws at the sample count its setup asks, so a
         // shot is antialiased as `[window] msaa` says.
         let window_settings = balaur_core::project::WindowSettings::from_settings(&app.engine);
@@ -603,18 +607,20 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             ..CanvasSetup::default()
         };
         let mut window = Window::new_headless_with_setup(width, height, setup).await;
-        phase.note("renderer");
+        boot_cost::note_window_opened(&phase);
         window.set_ui_retained(true);
         let mut f = Frontend::new(&window_settings);
         f.on_screen = false;
-        // Nothing can close a target that was never shown, and there is no
-        // vsync to block on, so the loop runs until the app asks to stop --
-        // which `--frames` arranges by inserting a quit-after-N system.
+        let mut in_flight = crate::pacing::InFlight::default();
+        // Nothing can close a target that was never shown, so the loop runs
+        // until the app asks to stop -- which `--frames` arranges by
+        // inserting a quit-after-N system.
         loop {
             let step = balaur_core::fixed_dt();
             if !f.step(&mut app, &mut window, step) {
                 break;
             }
+            in_flight.wait();
             // After the step, as the windowed loop draws: a capture of frame
             // N is then step N's shell rather than step N-1's.
             let draws_2d = !f.scene_2d.data().children().is_empty();
@@ -632,7 +638,9 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> anyh
             if !open {
                 break;
             }
+            boot_cost::note_drawn(f.frame);
             f.shoot(&app, &mut window);
+            in_flight.submitted();
             if app.engine.quit_requested() {
                 break;
             }
@@ -989,32 +997,22 @@ fn pose_mesh(
             bone
         })
         .collect();
-    let palette = balaur_core::skeleton::joint_matrices_3d(
-        world,
-        entity,
-        rig,
-        &bones,
-        skin.inverse_bind.as_deref(),
-    );
+    let palette =
+        skeleton::joint_matrices_3d(world, entity, rig, &bones, skin.inverse_bind.as_deref());
     // The vertex shader blends the same matrices, so the CPU work below is
     // exactly what the GPU path saves.
     if let Some(handle) = handle {
         handle.set(palette);
         return;
     }
-    let positions = balaur_core::skeleton::skin_positions_3d(
-        &skin.positions,
-        &skin.joints,
-        &skin.weights,
-        &palette,
-    );
+    let positions =
+        skeleton::skin_positions_3d(&skin.positions, &skin.joints, &skin.weights, &palette);
     node.modify_vertices(&mut |coords: &mut Vec<Vec3>| {
         coords.clone_from(&positions);
     });
     match &skin.normals {
         Some(rest) => {
-            let normals =
-                balaur_core::skeleton::skin_normals_3d(rest, &skin.joints, &skin.weights, &palette);
+            let normals = skeleton::skin_normals_3d(rest, &skin.joints, &skin.weights, &palette);
             node.modify_normals(&mut |ns: &mut Vec<Vec3>| {
                 ns.clone_from(&normals);
             });
@@ -1062,7 +1060,7 @@ pub(crate) fn build_polyline_node(
     app: &App,
     scene: &mut SceneNode2d,
     renderable: &Renderable2d,
-    stroke: &balaur_core::stroke::Stroke,
+    stroke: &balaur_geometry::stroke::Stroke,
 ) -> Option<(SceneNode2d, Vec<(SceneNode2d, f32)>)> {
     let points = polyline_points(app, renderable.polyline.as_deref(), false);
     if points.len() < 2 {
@@ -1074,7 +1072,7 @@ pub(crate) fn build_polyline_node(
     let bands = gradient.map_or(1, |s| s.gradient_steps);
     let mut group = scene.add_group();
     let mut pieces = Vec::new();
-    for piece in balaur_core::stroke::stroke(&points, stroke, bands) {
+    for piece in balaur_geometry::stroke::stroke(&points, stroke, bands) {
         let mesh =
             kiss3d::resource::GpuMesh2d::new(piece.coords, piece.faces, Some(piece.uvs), false);
         let mut node = group.add_mesh(std::rc::Rc::new(std::cell::RefCell::new(mesh)), Vec2::ONE);
@@ -1123,15 +1121,16 @@ pub(crate) fn polygon_palette(
             bone
         })
         .collect();
-    balaur_core::skeleton::joint_matrices_2d(world, entity, rig, &bones)
+    skeleton::joint_matrices_2d(world, entity, rig, &bones)
 }
 
 /// A `path2d` asset sampled into points, or `None` when the reference names
 /// no path -- which is a mesh reference and not a mistake.
 fn sampled_path(app: &App, reference: &str) -> Option<Vec<Vec2>> {
-    let path = balaur_core::assets::load_typed::<balaur_core::path::Path2d>(&app.engine, reference)
-        .ok()?;
-    match path.sample(balaur_core::path::TOLERANCE) {
+    let path =
+        balaur_core::assets::load_typed::<balaur_geometry::path::Path2d>(&app.engine, reference)
+            .ok()?;
+    match path.sample(balaur_geometry::path::TOLERANCE) {
         Ok(points) => Some(points.into_iter().map(|p| Vec2::new(p.x, p.y)).collect()),
         Err(err) => {
             tracing::error!("path '{reference}': {err:#}");
@@ -1144,8 +1143,8 @@ fn sampled_path(app: &App, reference: &str) -> Option<Vec<Vec2>> {
 /// which is logged rather than fatal.
 fn mesh_points(app: &App, reference: &str) -> Option<Vec<Vec2>> {
     let loaded =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(&app.engine, reference)
-            .and_then(|definition| balaur_core::mesh::load_from(&app.engine, &definition));
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(&app.engine, reference)
+            .and_then(|definition| balaur_geometry::mesh::load_from(&app.engine, &definition));
     match loaded {
         Ok(data) => Some(
             data.positions

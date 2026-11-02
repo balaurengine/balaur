@@ -30,12 +30,12 @@
   `round_convex_polyline` and `compound`.
   rapier2d also has `ColliderBuilder::convex_decomposition_with_params` and
   `round_convex_decomposition`, VHACD in 2D over a polyline.
-- `balaur_core::triangulate` already cuts every 2D `mesh` asset into
+- `balaur_geometry::triangulate` already cuts every 2D `mesh` asset into
   counter-clockwise triangles, holes and interior points included through
   `polygons`; the `polygon` node draws those same triangles.
 - `geometry2d` has `triangulate`, `convex_hull`, `union`, `intersection`,
   `difference`, `contains`, `area` and `is_clockwise`
-  (`crates/balaur_core/src/geometry2d.rs:378`).
+  (`crates/balaur_geometry/src/geometry2d.rs:378`).
 - The Godot importer maps a `CollisionPolygon2D` in solids mode to
   `convex_hull` (`crates/balaur_import/src/godot/nodes.rs:736`); Godot itself
   decomposes it, so an imported table loses its legs. `ConcavePolygonShape2D`

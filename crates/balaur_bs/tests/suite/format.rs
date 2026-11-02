@@ -24,8 +24,8 @@ fn calls_indexes_ranges_and_lists_keep_tight() {
 
 #[test]
 fn lines_are_indented_by_the_brackets_above() {
-    let messy = "impl A {\nfn f() {\nlet m = map()\n.with(\"a\", [\n1,\n2,\n])\n.with(\"b\", 2);\nif a\n&& b {\nc();\n}\n}\n}\n";
-    let want = "impl A {\n    fn f() {\n        let m = map()\n            .with(\"a\", [\n                1,\n                2,\n            ])\n            .with(\"b\", 2);\n        if a\n            && b {\n            c();\n        }\n    }\n}\n";
+    let messy = "impl A {\nfn f() {\nlet m = start()\n.and(\"a\", [\n1,\n2,\n])\n.and(\"b\", 2);\nif a\n&& b {\nc();\n}\n}\n}\n";
+    let want = "impl A {\n    fn f() {\n        let m = start()\n            .and(\"a\", [\n                1,\n                2,\n            ])\n            .and(\"b\", 2);\n        if a\n            && b {\n            c();\n        }\n    }\n}\n";
     assert_eq!(laid(messy), want);
 }
 
@@ -38,7 +38,7 @@ fn comments_stay_and_blank_lines_shrink() {
 
 #[test]
 fn strings_are_left_as_written() {
-    let src = "fn f() -> str {\n    \"{a.get(\"x\")}  spaced  \\u{1f}\"\n}\n";
+    let src = "fn f() -> str {\n    \"{a[\"x\"]}  spaced  \\u{1f}\"\n}\n";
     assert_eq!(laid(src), src);
 }
 
@@ -79,8 +79,13 @@ fn every_bs_file_in_the_repository_is_laid_out() {
 }
 
 fn collect(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-        let path = entry.path();
+    // An error is said rather than skipped: a folder that could not be read
+    // under load used to read as one with fewer files.
+    let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .path();
         if path.is_dir() {
             collect(&path, out);
         } else if path.extension().is_some_and(|e| e == "bs") {

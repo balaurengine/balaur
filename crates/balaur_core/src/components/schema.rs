@@ -10,13 +10,37 @@ use super::as_f64;
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
-pub const PROPERTY_TYPES: [&str; 15] = [
+pub const PROPERTY_TYPES: [&str; 16] = [
     "float", "int", "bool", "string", "enum", "vec2", "vec3", "vec4", "color", "asset", "flags",
-    "node", "list", "map", "record",
+    "node", "list", "map", "record", "variant",
 ];
 
-/// The specs a composite holds: what a `list` or a `map` holds, or every
-/// field of a `record`. Empty for everything else, which is most properties.
+/// The key a `variant` value names its variant by: `{ kind = "box", size =
+/// [1.0, 1.0, 1.0] }`.
+pub const KIND: &str = "kind";
+
+/// The record spec of the variant `value` names, or of the default's where
+/// the value names none. `None` for any other type, and for a name no
+/// variant answers to.
+#[must_use]
+pub fn active_variant<'a>(
+    spec: &'a toml::Value,
+    value: &toml::Value,
+) -> Option<(String, &'a toml::Value)> {
+    let variants = spec.get("variants")?.as_table()?;
+    let kind = value
+        .get(KIND)
+        .or_else(|| spec.get("default")?.get(KIND))
+        .and_then(toml::Value::as_str)
+        .or_else(|| variants.keys().next().map(String::as_str))?
+        .to_owned();
+    let record = variants.get(&kind)?;
+    Some((kind, record))
+}
+
+/// The specs a composite holds: what a `list` or a `map` holds, every field
+/// of a `record`, or every variant of a `variant`, each a record. Empty for
+/// everything else, which is most properties.
 #[must_use]
 pub fn inner_specs(spec: &toml::Value) -> Vec<&toml::Value> {
     match spec.get("type").and_then(toml::Value::as_str) {
@@ -25,6 +49,11 @@ pub fn inner_specs(spec: &toml::Value) -> Vec<&toml::Value> {
             .get("fields")
             .and_then(toml::Value::as_table)
             .map(|fields| fields.values().collect())
+            .unwrap_or_default(),
+        Some("variant") => spec
+            .get("variants")
+            .and_then(toml::Value::as_table)
+            .map(|variants| variants.values().collect())
             .unwrap_or_default(),
         _ => Vec::new(),
     }
@@ -190,6 +219,20 @@ fn check_composite(
         }
         _ => {}
     }
+    match (declared == "variant", spec.get("variants")) {
+        (true, None) => {
+            return Err(
+                "`type = \"variant\"` needs a `variants` table, one record spec a variant".into(),
+            );
+        }
+        (true, Some(variants)) => check_variants(variants)?,
+        (false, Some(_)) => {
+            return Err(format!(
+                "`variants` belongs to `type = \"variant\"`, not `type = \"{declared}\"`"
+            ));
+        }
+        _ => {}
+    }
     match (declared == "record", spec.get("fields")) {
         (true, None) => {
             return Err("`type = \"record\"` needs a `fields` table, one spec a field".into());
@@ -226,6 +269,40 @@ fn check_composite(
             ));
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// A `variant`'s `variants`: a table of record specs, one per variant, and
+/// at least one. A variant's name is what a value's `kind` says.
+fn check_variants(variants: &toml::Value) -> Result<(), String> {
+    let table = variants.as_table().ok_or_else(|| {
+        format!(
+            "`variants` is {}, not a table of record specs",
+            variants.type_str()
+        )
+    })?;
+    if table.is_empty() {
+        return Err("`variants` is empty, so the value can be nothing".into());
+    }
+    for (name, record) in table {
+        if record.get("type").and_then(toml::Value::as_str) != Some("record") {
+            return Err(format!(
+                "variant '{name}' is not a `type = \"record\"` spec"
+            ));
+        }
+        let fields = record.get("fields").and_then(toml::Value::as_table);
+        if fields.is_some_and(|fields| fields.contains_key(KIND)) {
+            return Err(format!(
+                "variant '{name}' has a field named `{KIND}`, which names the variant"
+            ));
+        }
+        // A kind with nothing more to say holds no fields, which a record
+        // on its own may not.
+        if fields.is_some_and(toml::map::Map::is_empty) {
+            continue;
+        }
+        check_spec(record, false).map_err(|why| format!("variant '{name}': {why}"))?;
     }
     Ok(())
 }
@@ -270,6 +347,7 @@ fn check_default(
         "list" => return check_list_default(default, spec),
         "map" => return check_map_default(default, spec),
         "record" => return check_record_default(default, spec),
+        "variant" => return check_variant_default(default, spec),
         _ => (true, ""),
     };
     if ok {
@@ -306,6 +384,20 @@ pub fn zero_of(spec: &toml::Value) -> toml::Value {
         "color" => toml::Value::Array(vec![toml::Value::Float(1.0); 4]),
         "flags" | "list" => toml::Value::Array(Vec::new()),
         "map" => toml::Value::Table(toml::map::Map::new()),
+        "variant" => spec
+            .get("variants")
+            .and_then(toml::Value::as_table)
+            .and_then(|variants| variants.iter().next())
+            .map_or_else(
+                || toml::Value::Table(toml::map::Map::new()),
+                |(name, record)| {
+                    let mut zero = zero_of(record);
+                    if let Some(table) = zero.as_table_mut() {
+                        table.insert(KIND.into(), toml::Value::String(name.clone()));
+                    }
+                    zero
+                },
+            ),
         "record" => toml::Value::Table(
             spec.get("fields")
                 .and_then(toml::Value::as_table)
@@ -334,6 +426,13 @@ pub fn complete_property(spec: &mut toml::Value) {
             if let Some(fields) = spec.get_mut("fields").and_then(toml::Value::as_table_mut) {
                 for (_, field) in fields.iter_mut() {
                     complete_inner(field);
+                }
+            }
+        }
+        Some("variant") => {
+            if let Some(variants) = spec.get_mut("variants").and_then(toml::Value::as_table_mut) {
+                for (_, record) in variants.iter_mut() {
+                    complete_property(record);
                 }
             }
         }
@@ -432,6 +531,37 @@ fn check_record_default(
         validate_value(field, value).map_err(|why| format!("field '{name}': {why}"))?;
     }
     Ok(())
+}
+
+/// A `variant` default: a table whose `kind` names a variant, the rest the
+/// fields of that variant's record.
+fn check_variant_default(
+    default: &toml::Value,
+    spec: &toml::map::Map<String, toml::Value>,
+) -> Result<(), String> {
+    let table = default.as_table().ok_or_else(|| {
+        format!(
+            "`default` is {}, but `type = \"variant\"` wants a table",
+            default.type_str()
+        )
+    })?;
+    let variants = spec
+        .get("variants")
+        .and_then(toml::Value::as_table)
+        .ok_or_else(|| "no `variants`".to_string())?;
+    let kind = table
+        .get(KIND)
+        .and_then(toml::Value::as_str)
+        .ok_or_else(|| format!("`default` names no `{KIND}`"))?;
+    let record = variants.get(kind).ok_or_else(|| {
+        format!(
+            "`{KIND} = \"{kind}\"` is none of {}",
+            variants.keys().cloned().collect::<Vec<_>>().join(", ")
+        )
+    })?;
+    let mut fields = table.clone();
+    fields.remove(KIND);
+    validate_value(record, &toml::Value::Table(fields)).map_err(|why| format!("{kind}: {why}"))
 }
 
 /// An enum's `default` must be a string, and one the `options` list offers —

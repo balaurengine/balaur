@@ -21,14 +21,23 @@ const FLAGS: [&str; 6] = [
 ];
 
 /// Where LLVM installs itself beyond `PATH`: Homebrew keeps lld apart from
-/// clang, and Windows has one directory.
-const KNOWN_DIRS: [&str; 5] = [
-    "/opt/homebrew/opt/llvm/bin",
-    "/opt/homebrew/opt/lld/bin",
-    "/usr/local/opt/llvm/bin",
-    "/usr/local/opt/lld/bin",
-    r"C:\Program Files\LLVM\bin",
-];
+/// clang, and Windows has one directory, under whichever Program Files the
+/// machine has.
+fn known_dirs() -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = [
+        "/opt/homebrew/opt/llvm/bin",
+        "/opt/homebrew/opt/lld/bin",
+        "/usr/local/opt/llvm/bin",
+        "/usr/local/opt/lld/bin",
+    ]
+    .iter()
+    .map(PathBuf::from)
+    .collect();
+    if let Some(programs) = std::env::var_os("ProgramFiles") {
+        dirs.push(PathBuf::from(programs).join("LLVM").join("bin"));
+    }
+    dirs
+}
 
 /// The API floor every 64-bit Android ABI shares; the C calls nothing that
 /// a later one adds.
@@ -124,7 +133,7 @@ fn search_dirs() -> Vec<PathBuf> {
     if let Some(path) = std::env::var_os("PATH") {
         dirs.extend(std::env::split_paths(&path));
     }
-    dirs.extend(KNOWN_DIRS.iter().map(PathBuf::from));
+    dirs.extend(known_dirs());
     let mut versioned: Vec<(u32, PathBuf)> = std::fs::read_dir("/usr/lib")
         .map(|entries| {
             entries
@@ -677,18 +686,25 @@ mod tests {
         };
         let out = tempfile::tempdir().unwrap();
         let magic = |path: &Path| std::fs::read(path).unwrap()[..4].to_vec();
-        for (target, start) in [
-            ("linux-x64", b"\x7fELF".to_vec()),
-            ("linux-arm64-server", b"\x7fELF".to_vec()),
-            ("windows-x64", b"MZ".to_vec()),
-            ("windows-arm64", b"MZ".to_vec()),
-            ("macos-universal", vec![0xca, 0xfe, 0xba, 0xbe]),
-        ] {
-            let exe = out.path().join(target).join("game");
-            std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
-            let lib = build_desktop(&exe, target, &request).unwrap().unwrap();
-            assert_eq!(magic(&lib)[..start.len()], start, "{target}");
-        }
+        // Side by side: each is a clang and a link of its own, and one after
+        // another they were the longest test in the workspace.
+        std::thread::scope(|scope| {
+            for (target, start) in [
+                ("linux-x64", b"\x7fELF".to_vec()),
+                ("linux-arm64-server", b"\x7fELF".to_vec()),
+                ("windows-x64", b"MZ".to_vec()),
+                ("windows-arm64", b"MZ".to_vec()),
+                ("macos-universal", vec![0xca, 0xfe, 0xba, 0xbe]),
+            ] {
+                let (out, request, magic) = (&out, &request, &magic);
+                scope.spawn(move || {
+                    let exe = out.path().join(target).join("game");
+                    std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+                    let lib = build_desktop(&exe, target, request).unwrap().unwrap();
+                    assert_eq!(magic(&lib)[..start.len()], start, "{target}");
+                });
+            }
+        });
         assert_eq!(
             build_desktop(&out.path().join("game"), "web", &request).unwrap(),
             None
@@ -753,9 +769,10 @@ mod tests {
         if let Some(target) = host {
             let lib =
                 native_scripts_beside(&out.path().join(target).join("game"), std::env::consts::OS);
+            // Each script's unit, and the one the project's instance starts from.
             assert_eq!(
                 balaur::script_bs::load_native(&lib).unwrap(),
-                request.scripts.modules
+                request.scripts.modules + 1
             );
         }
     }

@@ -10,7 +10,7 @@
 #![allow(clippy::unnecessary_wraps)]
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings, Value};
+use balaur_script::{Module, Value};
 
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number, text};
@@ -106,7 +106,7 @@ pub const REPLAY_OPS: &[EngineOp] = &[
 
 /// Declare the module's functions and the `STATE_*` constants `state` answers
 /// with.
-pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
+pub fn install_replay_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Records what a running game is fed and plays it back. A recording holds each tick's input, network arrivals and events; `balaur run --record` writes one.",
     );
@@ -136,12 +136,17 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
             "{ tick: int, recorded: string, replayed: string }",
             "The first tick whose replayed digest differs from the recorded one, both digests as hex.",
         ),
+        (
+            "RecordOptions",
+            "{ project: string?, scripts: string?, digest: bool? }",
+            "What a recording is stamped with: the `project` name and the `scripts` fingerprint, and `digest` for a digest every tick.",
+        ),
     ]);
     m.describe(&[
-        ("record", &[], "(path: string, options: any?) -> string", "Start recording into a file; call it before the code it records runs."),
+        ("record", &[], "(path: string, options: RecordOptions?) -> string?", "Start recording into a file; call it before the code it records runs. Answers the path, or nil when the file cannot be written, which is logged."),
         ("stop", &[], "(reason: string?) -> string?", "Close the recording, naming why it ended, and return the file it wrote."),
         ("recording", &[], "() -> string?", "The file being recorded into, or nil."),
-        ("load", &[], "(path: string) -> Header", "Read a recording and put it in front of the engine, paused before its first tick."),
+        ("load", &[], "(path: string) -> Header?", "Read a recording and put it in front of the engine, paused before its first tick. Nil when it cannot be read, which is logged."),
         ("unload", &[], "()", "Drop the loaded recording and let the game run live again."),
         ("play", &[], "()", "Run the loaded recording, one recorded tick per frame."),
         ("pause", &[], "()", "Stop between ticks, holding the simulation still while the frame loop keeps drawing."),
@@ -150,7 +155,7 @@ pub fn install_replay_api(m: &mut dyn Bindings<Engine>) {
         ("position", &[], "() -> int", "The tick playback has reached."),
         ("length", &[], "() -> Length?", "The loaded recording's frame count and the ticks it spans, or nil."),
         ("header", &[], "() -> Header?", "The loaded recording's project, start time, script fingerprint and how it ended."),
-        ("info", &[], "(path: string) -> Header", "The same summary for a recording on disk, without loading it."),
+        ("info", &[], "(path: string) -> Header?", "The same summary for a recording on disk, without loading it. Nil when it cannot be read."),
         ("events", &[], "(from: int, to: int) -> [Event]", "The events recorded between two ticks, each with its tick, kind, label and data."),
         ("marks", &[], "(source: string, key: string?) -> [Mark]", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
         ("divergence_tick", &[], "() -> Divergence?", "The first tick whose replay did not reproduce the recorded digest, or nil."),
@@ -207,7 +212,13 @@ fn record(eng: &Engine, args: &[Value]) -> Result<Value> {
         name => name,
     };
     let per_tick = matches!(option(args, "digest"), Some(Value::Bool(true)));
-    replay::start_recording(eng, &path, &project, &str_option(args, "scripts"), per_tick)?;
+    // A disk that refuses is a run with no recording, not a failed run.
+    if let Err(why) =
+        replay::start_recording(eng, &path, &project, &str_option(args, "scripts"), per_tick)
+    {
+        tracing::warn!("not recording to {}: {why:#}", path.display());
+        return Ok(Value::Nil);
+    }
     Ok(Value::Str(path.to_string_lossy().into_owned()))
 }
 
@@ -237,7 +248,14 @@ fn recording(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// first frame. The caller rebuilds the world first — the recording holds
 /// what the game was fed, not what it started from.
 fn load(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let session = Session::read(&path_of(eng, args, 0)?)?;
+    let path = path_of(eng, args, 0)?;
+    let session = match Session::read(&path) {
+        Ok(session) => session,
+        Err(why) => {
+            tracing::warn!("not loading {}: {why:#}", path.display());
+            return Ok(Value::Nil);
+        }
+    };
     let summary = header_value(&session);
     replay::begin(eng, session);
     Ok(summary)
@@ -311,7 +329,8 @@ fn header(eng: &Engine, _: &[Value]) -> Result<Value> {
 /// `replay.info(path)`: the same summary for a session on disk, without
 /// loading it — what a list of sessions is drawn from.
 fn info(eng: &Engine, args: &[Value]) -> Result<Value> {
-    Ok(header_value(&Session::read(&path_of(eng, args, 0)?)?))
+    // A file half written by a run that crashed still lists.
+    Ok(Session::read(&path_of(eng, args, 0)?).map_or(Value::Nil, |session| header_value(&session)))
 }
 
 /// `replay.events(from, to)`: the recorded events in a tick range, each

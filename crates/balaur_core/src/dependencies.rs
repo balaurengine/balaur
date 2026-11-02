@@ -426,7 +426,7 @@ fn mount(eng: &Engine, backend: Rc<dyn FileBackend>, table: Vec<(PathBuf, PathBu
 }
 
 /// `[<table>] <key>` as a list of strings.
-pub(crate) fn strings_at(document: &toml::Table, table: &str, key: &str) -> Vec<String> {
+pub fn strings_at(document: &toml::Table, table: &str, key: &str) -> Vec<String> {
     document
         .get(table)
         .and_then(|t| t.get(key))
@@ -912,19 +912,19 @@ stash = { path = "../stash" }
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) mod api {
     use anyhow::{Result, anyhow, bail};
-    use balaur_script::{Bindings, Value};
+    use balaur_script::{Module, Value};
 
     use super::{Source, folder, install, installed, owning, spelling, valid_alias};
     use crate::engine::Engine;
     use crate::engine_api::text;
 
     /// The `dependency` module and its reference text.
-    pub(crate) fn install_dependencies_api(m: &mut dyn Bindings<Engine>) {
+    pub(crate) fn install_dependencies_api(m: &mut Module<Engine>) {
         m.module_doc(
             "The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.",
         );
         m.describe(&[
-            ("list", &[], "() -> [map]", "Every installed dependency: `#{ alias, folder, game, kind, project, branch, tag, path, rev, license }`. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a key that does not apply is empty."),
+            ("list", &[], "() -> [map]", "Every installed dependency: `{ alias, folder, game, kind, project, branch, tag, path, rev, license }`. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a key that does not apply is empty."),
             ("of", &[], "(path: string) -> string?", "The alias of the dependency a path lies in, or nil for one of the game's own."),
             ("make_local", &[], "(from: string, to: string) -> [string]", "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files."),
             ("move_into", &[], "(paths: [string], alias: string) -> [string]", "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/…`; answers the files rewritten."),

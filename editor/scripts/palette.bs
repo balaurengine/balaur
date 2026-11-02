@@ -67,18 +67,18 @@ fn command_with(label: str, icon: str, run: fn(&mut editor::State, any), data: a
 // every preset and every component type carries a tag list, and walking them
 // all is a list rebuild on every keystroke.
 fn catalogue(state: &mut editor::State) -> Found {
-    if state.palette_cache.is_some() {
+    if state.palette_cache != nil {
         return state.palette_cache.unwrap();
     }
     let presets: [Entry] = [];
     for preset in scene::presets() {
         let info = scene::preset_info(preset);
-        presets.push(Entry { name: preset, tags: if info.is_some() { util::join(info.unwrap().tags, " ") } else { "" } });
+        presets.push(Entry { name: preset, tags: if info != nil { util::join(info.unwrap().tags, " ") } else { "" } });
     }
     let components: [Entry] = [];
     for name in scene::component_types() {
         let tags = scene::component_tags(name);
-        components.push(Entry { name: name, tags: if tags.is_some() { util::join(tags.unwrap(), " ") } else { "" } });
+        components.push(Entry { name: name, tags: if tags != nil { util::join(tags.unwrap(), " ") } else { "" } });
     }
     let found = Found { presets: presets, components: components, channels: render::debug_views() };
     state.palette_cache = found;
@@ -99,8 +99,8 @@ fn commands(state: &mut editor::State) -> [Command] {
         list.push(entry);
     }
     for item in [
-        command(if undo.is_some() { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", "undo"),
-        command(if redo.is_some() { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", "redo"),
+        command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", "undo"),
+        command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", "redo"),
         command("Add child node…", icons::ui("add"), "⇧A", "add_child"),
         command("Change type of selection…", icons::ui("reset"), "", "change_type"),
         command("Make selection a soft body", icons::ui("reset"), "", "soft_body"),
@@ -176,7 +176,7 @@ fn commands(state: &mut editor::State) -> [Command] {
         }
     }
     list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", "open_prefab"));
-    if model::has_selection(state) && populate::component(model::selected_node(state)).is_some() {
+    if model::has_selection(state) && populate::component(model::selected_node(state)) != nil {
         list.push(command("Populate…", icons::workspace("scene"), "", "populate"));
     }
     let known = catalogue(state);
@@ -186,12 +186,12 @@ fn commands(state: &mut editor::State) -> [Command] {
         list.push(command_with("View: " + channel, "◐", run_view, channel));
     }
     for entry in state.registry.commands {
-        let plugin_command = command_with(entry.title.as_str(), entry.icon.as_str(), run_plugin, entry);
-        plugin_command.key = entry.shortcut.as_str();
+        let plugin_command = command_with(entry["title"].as_str(), entry["icon"].as_str(), run_plugin, entry);
+        plugin_command.key = entry["shortcut"].as_str();
         list.push(plugin_command);
     }
     for entry in state.registry.dialogs {
-        list.push(command_with("Open {entry.title}", "▭", run_dialog, entry.id));
+        list.push(command_with("Open {entry["title"]}", "▭", run_dialog, entry["id"]));
     }
     // Presets first: they are the shortcut most edits actually want, and
     // each is just the components it names.
@@ -205,14 +205,14 @@ fn commands(state: &mut editor::State) -> [Command] {
     let found = model::selected_node(state);
     if found.is_valid() {
         let present = found.component_names();
-        for known_comp in known.components {
-            let name = known_comp.name;
+        for known_component in known.components {
+            let name = known_component.name;
             if util::contains(present, name) {
                 list.push(command_with("Remove {name} component", icons::ui("close"), run_remove_component, name));
             } else {
                 let entry = command_with("Add {name} component", icons::ui("add"), run_add_component, name);
                 // Facets, so typing "physics" or "2d" narrows the list.
-                entry.tags = known_comp.tags;
+                entry.tags = known_component.tags;
                 list.push(entry);
             }
         }
@@ -230,11 +230,11 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
         return list;
     }
     // Attaching one is a verb of its own, offered whatever is selected.
-    if !model::script_rel(found).is_nil() {
+    if model::script_rel(found) != nil {
         list.push(command("Open the selection's script", "‹›", "", "open_script"));
         list.push(command("Detach the selection's script", icons::ui("close"), "", "detach_script"));
     }
-    if rig::bone_count(state, state.sel) > 0 {
+    if rig::bone_count(state, state.selected) > 0 {
         list.push(command("Add a bone under the selection", icons::tool("bone"), "", "add_bone"));
         list.push(command("Reset the rig to its rest pose", icons::tool("bone"), "", "apply_rest"));
         list.push(command("Make the rig's pose its rest pose", icons::tool("bone"), "", "overwrite_rest"));
@@ -242,7 +242,7 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
         list.push(command("Mirror the rig over y", icons::tool("bone"), "", "mirror_rig:y"));
         list.push(command("Create a physical skeleton", icons::workspace(defs::WORKSPACE_PHYSICS), "", "ragdoll"));
     }
-    if !polygon::target(found).is_none() {
+    if polygon::target(found) != nil {
         list.push(command("Trace the polygon from its texture's alpha", icons::tool("polygon"), "", "trace_polygon"));
         list.push(command("Sync the rig's bones to the polygon", icons::tool("polygon"), "", "sync_bones"));
         list.push(command("Mirror the picked vertices over x", icons::tool("polygon"), "", "mirror_vertices:x"));
@@ -255,14 +255,14 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     if two_d && found.has_component("sprite") {
         list.push(command("Trace the sprite into a polygon", icons::tool("polygon"), "", "sprite_to_polygon"));
     }
-    if !physics::drawn_mesh(found, two_d).is_nil() {
+    if physics::drawn_mesh(found, two_d) != nil {
         for shape in physics::collider_shapes(two_d) {
-            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, map().with("two_d", two_d).with("props", shape.props));
+            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
             entry.tags = shape.tip;
             list.push(entry);
         }
         for shape in physics::soft_shapes(two_d) {
-            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, map().with("two_d", two_d).with("props", shape.props));
+            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
             entry.tags = shape.tip;
             list.push(entry);
         }
@@ -271,11 +271,11 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
 }
 
 fn run_collide(state: &mut editor::State, data: any) {
-    physics::make_collider(state, data.two_d.as_bool(), data.props);
+    physics::make_collider(state, data["two_d"].as_bool(), data["props"], data["beside"]);
 }
 
 fn run_deform(state: &mut editor::State, data: any) {
-    physics::make_soft_body(state, data.two_d.as_bool(), data.props);
+    physics::make_soft_body(state, data["two_d"].as_bool(), data["props"], data["beside"]);
 }
 
 // The built-in verbs, by the name each command carries.
@@ -296,7 +296,7 @@ fn run_verb(state: &mut editor::State, data: any) {
         newnode::open_change(state);
     } else if verb == "soft_body" {
         if model::has_selection(state) {
-            recipes::soft_body(state, state.sel);
+            recipes::soft_body(state, state.selected);
         }
     } else if verb == "attach_script" {
         shell::attach_script(state);
@@ -306,7 +306,7 @@ fn run_verb(state: &mut editor::State, data: any) {
         shell::detach_script(state);
     } else if verb == "add_bone" {
         let at = model::selected_node(state).transform.global_position();
-        rig::add_bone(state, state.sel, at.x, at.y + 1.0);
+        rig::add_bone(state, state.selected, at.x, at.y + 1.0);
     } else if verb == "apply_rest" {
         rig::apply_rest(state);
     } else if verb == "overwrite_rest" {
@@ -328,7 +328,7 @@ fn run_verb(state: &mut editor::State, data: any) {
     } else if verb == "clear_deform" {
         polygon::clear_deform(state);
     } else if verb == "sprite_to_polygon" {
-        recipes::sprite_to_polygon(state, state.sel);
+        recipes::sprite_to_polygon(state, state.selected);
     } else if verb == "play" {
         shell::toggle_play(state);
     } else if verb == "save" {
@@ -429,7 +429,7 @@ fn run_plugin(state: &mut editor::State, data: any) {
 }
 
 fn run_dialog(state: &mut editor::State, data: any) {
-    state.registry.open.set(data.as_str(), true);
+    state.registry.open[data.as_str()] = true;
     plugins::changed(state);
 }
 
@@ -448,15 +448,19 @@ fn run_add_component(state: &mut editor::State, data: any) {
 /// Fill the picker: what its script asks for while the palette is up.
 pub fn fill(state: &mut editor::State) {
     let matched = matches(state);
-    let row_h = util::max(style::row_h(state), 30.0);
-    let field = map()
-        .with("width", 560.0)
-        .with("mark", icons::ui("search"))
-        .with("placeholder", "Nodes, commands, workspaces…")
-        .with("query", state.palette_query)
-        .with("rows_h", (matched.len() as float) * (row_h + 2.0) + 4.0);
-    let host = window::picker(state, pool::on_submit(pool::on(field, typed, map()), submitted, map()));
-    pool::sync(state, host, row_specs(state, matched, row_h), 0.0, false);
+    let row_height = util::max(style::row_height(state), 30.0);
+    let field: any = {
+        "width": 560.0,
+        "mark": icons::ui("search"),
+        "placeholder": "Nodes, commands, workspaces…",
+        "query": state.palette_query,
+        "rows_h": (matched.len() as float) * (row_height + 2.0) + 4.0,
+        "on_change": "handle",
+        "on_submit": "handle_submit",
+        "data": { "fn": typed, "submit": submitted },
+    };
+    let host = window::picker(state, field);
+    ui::fill_rows(host, row_specs(state, matched, row_height));
 }
 
 fn typed(state: &mut editor::State, data: any, text: any) {
@@ -474,19 +478,19 @@ fn submitted(state: &mut editor::State, data: any, text: any) {
 fn matches(state: &mut editor::State) -> [Command] {
     let query = state.palette_query.to_lower();
     let out: [Command] = [];
-    for cmd in commands(state) {
-        if query == "" || (cmd.label + " " + cmd.tags).to_lower().contains(query) {
-            out.push(cmd);
+    for command_entry in commands(state) {
+        if query == "" || (command_entry.label + " " + command_entry.tags).to_lower().contains(query) {
+            out.push(command_entry);
         }
     }
     out
 }
 
-fn row_specs(state: &mut editor::State, matched: [Command], row_h: float) -> [any] {
-    let out: [any] = [];
+fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [ui::Row] {
+    let out: [ui::Row] = [];
     if matched.len() == 0 {
-        let none = map().with("kind", "label").with("role", "text_caption").with("grow", 1).with("wrap", true).with("text", "no matches");
-        out.push(map().with("full", true).with("controls", [none]));
+        let none: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, wrap: true, text: "no matches" };
+        out.push(ui::Row { controls: [none] });
         state.palette_submit = false;
         return out;
     }
@@ -500,29 +504,30 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_h: float) -> [an
         return out;
     }
     for at in 0..matched.len() {
-        let cmd = matched[at];
-        let button = map()
-            .with("kind", "button")
-            .with("grow", 1)
-            .with("text", cmd.label)
-            .with("icon", cmd.icon)
-            .with("role", "item_picker")
-            .with("checked", at == 0)
-            .with("tooltip", cmd.key);
-        out.push(map()
-            .with("full", true)
-            .with("height", row_h)
-            .with("slot_role", "layout_actions")
-            .with("controls", [
-                pool::on(button, picked, map().with("run", cmd.run).with("arg", cmd.data)),
-                map().with("kind", "label").with("role", "text_caption").with("text", cmd.key),
-            ]));
+        let command_entry = matched[at];
+        let button: ui::Control = ui::Control {
+            kind: "button",
+            grow: 1,
+            text: command_entry.label,
+            icon: command_entry.icon,
+            role: "item_picker",
+            checked: at == 0,
+            tooltip: command_entry.key,
+        };
+        out.push(ui::Row {
+            height: row_height,
+            slot_role: "layout_actions",
+            controls: [
+                pool::on(button, picked, { "run": command_entry.run, "arg": command_entry.data }),
+                ui::Control { kind: "label", role: "text_caption", text: command_entry.key },
+            ],
+        });
     }
     out
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
-    let run: fn(&mut editor::State, any) = data.run;
-    run(state, data.arg);
+    let run: fn(&mut editor::State, any) = data["run"];
+    run(state, data["arg"]);
     shell::close_palette(state);
 }

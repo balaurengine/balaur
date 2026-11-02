@@ -4,12 +4,12 @@
 
 use anyhow::Result;
 use balaur_core::Engine;
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 use crate::GamendState;
 use crate::client::Session;
 
-pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install(m: &mut Module<Engine>) {
     m.records(&[
         (
             "Entry",
@@ -41,10 +41,10 @@ pub(crate) fn install(m: &mut dyn Bindings<Engine>) {
         ("activity", &[], "() -> [Entry]", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
         ("connection", &[], "() -> Connection", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
         ("session", &[], "() -> Session?", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
-        ("restore", &[], "(session: map?) -> bool", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
+        ("restore", &[], "(session: Session?) -> bool", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
         ("reply", &[], "(request: int) -> map?", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
         ("clear_activity", &[], "()", "Forget the calls and messages `activity` holds."),
-        ("server", &[], "() -> Server", "The server a `configure()` with no URL uses: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
+        ("server", &[], "() -> Server", "The server this run talks to until a script names another: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
         ("run_id", &[], "() -> string", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
     ]);
     m.function("activity", |eng: &Engine, (): ()| {

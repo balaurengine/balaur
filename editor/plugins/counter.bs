@@ -30,12 +30,13 @@ impl Counter {
     /// What this plugin adds, each entry naming the method that answers it.
     /// Every list is optional.
     pub fn register() -> any {
-        map()
-            .with("panels", [map().with("id", "counter").with("title", "Counter").with("draw", "panel")])
-            .with("dialogs", [map().with("id", "counter-window").with("title", "Counter").with("rows", "dialog")])
-            .with("commands", [map().with("title", "Count scripted nodes").with("icon", "Σ").with("shortcut", "").with("run", "count")])
-            .with("inspector_sections", ["section"])
-            .with("startup_states", map().with("test:plugin_docks", "selftest"))
+        {
+            "panels": [{ "id": "counter", "title": "Counter", "draw": "panel" }],
+            "dialogs": [{ "id": "counter-window", "title": "Counter", "rows": "dialog" }],
+            "commands": [{ "title": "Count scripted nodes", "icon": "Σ", "shortcut": "", "run": "count" }],
+            "inspector_sections": ["section"],
+            "startup_states": { "test:plugin_docks": "selftest" },
+        }
     }
 
     pub fn count(payload: any) {
@@ -47,21 +48,21 @@ impl Counter {
     /// The dock: `payload.host` is the node the editor made for it, and the
     /// kit's rows are what fill it.
     pub fn panel(payload: any) {
-        let ed = editor();
-        let specs = [ed.call("kit_heading", "Scripted nodes")];
+        let editor_node = editor();
+        let specs = [editor_node.call("kit_heading", "Scripted nodes")];
         if self.shown < 0 {
-            specs.push(ed.call("kit_empty", ASK));
+            specs.push(editor_node.call("kit_empty", ASK));
         } else {
-            specs.push(ed.call("kit_field", "nodes", "{self.shown}", map().with("copy", true)));
+            specs.push(editor_node.call("kit_field", "nodes", "{self.shown}", { "copy": true }));
         }
-        ed.call("kit_rows", payload.host, "body", specs);
+        editor_node.call("kit_rows", payload["host"], "body", specs);
     }
 
     /// The floating window's rows: the editor makes the window, its title and
     /// its close, and fills it with these when the plugin says it moved.
     pub fn dialog(payload: any) -> any {
         let said = if self.shown < 0 { ASK } else { "{self.shown} scripted nodes" };
-        [map().with("full", true).with("controls", [map().with("kind", "label").with("role", "text_caption").with("wrap", true).with("text", said)])]
+        [{ "controls": [{ "kind": "label", "role": "text_caption", "wrap": true, "text": said }] }]
     }
 
     /// An inspector section: the rows it adds after the built-in ones.
@@ -69,7 +70,7 @@ impl Counter {
         if self.shown < 0 {
             return [];
         }
-        return [map().with("full", true).with("controls", [map().with("kind", "label").with("role", "text_note").with("text", "counter: {self.shown}")])];
+        return [{ "controls": [{ "kind": "label", "role": "text_note", "text": "counter: {self.shown}" }] }];
     }
 
     /// `--state test:plugin_docks`: the plugin seam, asserted the way the

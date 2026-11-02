@@ -7,15 +7,16 @@
 /// The two hooks the engine calls by name, and the [`BINDABLE`] events whose
 /// rows run beside them.
 pub const ON_VARIABLE_CHANGED: &str = "on_variable_changed";
-/// Called on the nearest script at or above a widget that had an event, so
-/// one panel script answers every control under it.
-pub const ON_WIDGET_EVENT: &str = "on_widget_event";
 pub const ON_STATE_CHANGED: &str = "on_state_changed";
 pub const VARIABLE_CHANGED: &str = "variable_changed";
 pub const STATE_CHANGED: &str = "state_changed";
 /// Called on every script when the game pauses or resumes, the nodes the
 /// pause just stopped included.
 pub const ON_PAUSED_CHANGED: &str = "on_paused_changed";
+/// Called on a script when `scene.switch` parks its scene, and when it comes
+/// back: `init` does not run again, so this is where a script catches up on
+/// what moved while nothing reached it.
+pub const ON_PARKED_CHANGED: &str = "on_parked_changed";
 /// Called on every script, a paused one too, when the window comes to the
 /// front or leaves it, with whether it is in front now.
 pub const ON_FOCUSED_CHANGED: &str = "on_focused_changed";
@@ -52,9 +53,6 @@ pub const UPDATE: &str = "update";
 pub const FIXED_UPDATE: &str = "fixed_update";
 pub const ON_FREE: &str = "on_free";
 pub const ON_HOT_RELOAD: &str = "on_hot_reload";
-pub const DEFAULTS: &str = "defaults";
-pub const SAVE_STATE: &str = "save_state";
-pub const LOAD_STATE: &str = "load_state";
 
 /// The pointer, key and window events a node hears, each as `on_<name>`.
 pub const POINTER_ENTER: &str = "pointer_enter";
@@ -127,13 +125,10 @@ pub fn hook_of(event: &str) -> smol_str::SmolStr {
 #[rustfmt::skip]
 pub const REFERENCE: &[(&str, &str, &str)] = &[
     (INIT, "()", "Once, when the script is attached and its scene has loaded."),
-    (UPDATE, "(dt)", "Every frame, with the seconds since the last; not while paused."),
-    (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while paused."),
+    (UPDATE, "(dt)", "Every frame, with the seconds since the last; not while a pause or the node's `process` mode holds it."),
+    (FIXED_UPDATE, "(dt)", "Every fixed step, with the step's length; not while a pause or the node's `process` mode holds it."),
     (ON_FREE, "()", "Once, as the node is freed or its script detached."),
     (ON_HOT_RELOAD, "()", "After the script's file changed and it was rebuilt, with its state kept."),
-    (DEFAULTS, "()", "When the instance is made, before the scene's properties land."),
-    (SAVE_STATE, "()", "When a rollback or a save snapshots the world; answers the state to keep."),
-    (LOAD_STATE, "(state)", "When a rollback or a load puts that state back."),
     ("on_pointer_enter", "()", "The pointer came over the node."),
     ("on_pointer_exit", "()", "The pointer left the node."),
     ("on_pointer_down", "(button)", "A button went down over the node, then over every other node unless one answers `true`."),
@@ -147,10 +142,10 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     ("on_action_released", "(name)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
     ("on_scroll", "(dx, dy)", "The wheel turned, over the node or, over nothing, to every node."),
     ("on_resize", "(width, height)", "The window changed size, told to every node."),
-    (ON_WIDGET_EVENT, "(event, node, value)", "A widget at or under the node had an event (`click`, `change`, `submit` and the rest a widget emits), told to the nearest script up the tree that has this hook: one panel script answers every control under it."),
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
     (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),
+    (ON_PARKED_CHANGED, "(parked)", "A `scene.switch` parked the script's scene, or brought it back; nothing else reaches it between the two, and `init` does not run again, so coming back is where it catches up."),
     (ON_FOCUSED_CHANGED, "(focused)", "The window came to the front or left it, told to every script."),
     (ON_DARK_MODE_CHANGED, "(dark)", "The system switched dark mode, told to every script."),
     (ON_QUIT_REQUESTED, "()", "The window was asked to close; every script hears it, then the app goes."),
@@ -161,6 +156,6 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     (ON_GAMEPAD_CONNECTED, "(pad)", "A gamepad was plugged in, with the id `input` names it by; told to every script."),
     (ON_GAMEPAD_DISCONNECTED, "(pad)", "A gamepad went away, with its id; told to every script."),
     (ON_GAMEPAD_RUMBLE_FINISHED, "(pad)", "A pad's rumble ran its course, with the pad's id, the frame after; not sent for one stopped or replaced. Told to every script."),
-    (ON_SETTING_CHANGED, "(change)", "A script set a setting, `#{ path, value }`; every script hears it the next frame."),
+    (ON_SETTING_CHANGED, "(change)", "A script set a setting, `{ path, value }`; every script hears it the next frame."),
     (ON_LOCALE_CHANGED, "(locale)", "The language changed; every script hears it the next frame."),
 ];

@@ -1,9 +1,9 @@
-// `{ str: V }` and `{ int: V }`: built in, typed, a hash table in the module.
-// Each pair a program names is the prelude's `map.bs` made for it: a class
-// named `{ K: V }::Table` with its methods, and `{ K: V }::of`, compiled into the
-// program as its own. A map type is made its class before code is made, so
-// codegen, the runtime and the host see a class; `map[key]` is its `get`,
-// `map[key] = value` its `set`, and a literal its `of`.
+//! `{ str: V }` and `{ int: V }`: built in, typed, a hash table in the module.
+//! Each pair a program names is the prelude's `map.bs` made for it: a class
+//! named `{ K: V }::Table` with its methods, and `{ K: V }::of`, compiled into the
+//! program as its own. A map type is made its class before code is made, so
+//! codegen, the runtime and the host see a class; `map[key]` is its `get`,
+//! `map[key] = value` its `set`, and a literal its `of`.
 
 use crate::Error;
 use crate::ast::{Block, Expr, ExprKind, Part, Program, StmtKind, Ty};
@@ -234,6 +234,8 @@ fn expr(e: &mut Expr, f: &mut dyn FnMut(&mut Ty)) {
                 expr(value, f);
             }
         }
+        ExprKind::Block(b) => block(b, f),
+        ExprKind::Match(..) => unreachable!("`enums::lower` makes a `match` a block"),
         ExprKind::If(cond, then, otherwise) => {
             expr(cond, f);
             block(then, f);

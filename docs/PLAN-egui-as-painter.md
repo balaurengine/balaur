@@ -212,11 +212,11 @@ The `ui` module keeps what a script asks or tells the UI, and loses what it
 draws.
 
 - **Kept**, every name the editor still calls and the ones a game needs:
-  `widget_rect`, `tab_rect`, `request_repaint`, `set_lazy`, `window_size`,
+  `widget_rect`, `tab_rect`, `request_repaint`, `window_size`,
   `width_class`, `height_class`, `scale`, `set_scale`, `set_theme`,
   `complete_theme`, `contrast`, `contrast_pairs`, `set_focus`,
   `focus_next`, `focus_previous`, `activate_focused`, `focused_widget`,
-  `set_keyboard_navigation`, `edit`, `set_clipboard`, `pasted_text`,
+  `edit`, `set_clipboard`, `pasted_text`,
   `reread`, `fill_rows`, `fill_strip`,
   `set_widget_layer`, `set_widget_surface`, `wants_pointer`,
   `wants_keyboard`, `takes_pointer_at`, `set_load_progress`,

@@ -8,7 +8,7 @@ use balaur_physics::PhysicsPlugin;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -19,7 +19,8 @@ fn body(app: &App, kind: &str) -> Entity {
     let e = scene::spawn_node(&mut app.engine.world_mut(), "B", root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
+    let collider: toml::Value =
+        toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -157,7 +158,7 @@ fn a_3d_collider_takes_its_material_and_density() {
     let mut app = app();
     let root = app.engine.root();
     let ground = scene::spawn_node(&mut app.engine.world_mut(), "Ground", root);
-    let flat: toml::Value = toml::from_str("kind = \"box\"\nsize = [20.0, 1.0, 20.0]")
+    let flat: toml::Value = toml::from_str("shape = { kind = \"box\", size = [20.0, 1.0, 20.0] }")
         .expect("literal collider params parse");
     components::add(&app.engine, ground, "collider3d", Some(&flat)).unwrap();
 
@@ -172,7 +173,7 @@ fn a_3d_collider_takes_its_material_and_density() {
         toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
     components::add(&app.engine, ball, "body3d", Some(&body)).unwrap();
     let bouncy: toml::Value = toml::from_str(
-        "kind = \"sphere\"\nradius = 0.5\nphysics_material = { restitution = 0.9, friction = 0.2 }\ndensity = 3.0",
+        "shape = { kind = \"sphere\", radius = 0.5 }\nphysics_material = { restitution = 0.9, friction = 0.2 }\ndensity = 3.0",
     )
     .expect("literal collider params parse");
     components::add(&app.engine, ball, "collider3d", Some(&bouncy)).unwrap();
@@ -223,7 +224,7 @@ fn a_sensor_reports_overlap_without_collision_response() {
     let root = app.engine.root();
     let sensor = scene::spawn_node(&mut app.engine.world_mut(), "Sensor", root);
     let gate: toml::Value =
-        toml::from_str("kind = \"rectangle\"\nsize = [4.0, 1.0]\nsensor = true")
+        toml::from_str("shape = { kind = \"rectangle\", size = [4.0, 1.0] }\nsensor = true")
             .expect("literal collider params parse");
     components::add(&app.engine, sensor, "collider2d", Some(&gate)).unwrap();
 
@@ -237,8 +238,8 @@ fn a_sensor_reports_overlap_without_collision_response() {
     let body: toml::Value =
         toml::from_str("kind = \"dynamic\"").expect("literal body params parse");
     components::add(&app.engine, ball, "body2d", Some(&body)).unwrap();
-    let shape: toml::Value =
-        toml::from_str("kind = \"circle\"\nradius = 0.5").expect("literal collider params parse");
+    let shape: toml::Value = toml::from_str("shape = { kind = \"circle\", radius = 0.5 }")
+        .expect("literal collider params parse");
     components::add(&app.engine, ball, "collider2d", Some(&shape)).unwrap();
 
     let mut seen_from_ball = false;
@@ -293,12 +294,12 @@ fn node_at(app: &App) -> Entity {
 #[test]
 fn every_parametric_collider_kind_applies() {
     for source in [
-        "kind = \"sphere\"\nradius = 0.5",
-        "kind = \"box\"",
-        "kind = \"capsule\"\nradius = 0.4\nheight = 2.0",
-        "kind = \"cylinder\"\nradius = 0.4\nheight = 2.0",
-        "kind = \"cone\"\nradius = 0.4\nheight = 2.0",
-        "kind = \"triangle\"",
+        "shape = { kind = \"sphere\", radius = 0.5 }",
+        "shape = { kind = \"box\" }",
+        "shape = { kind = \"capsule\", radius = 0.4, height = 2.0 }",
+        "shape = { kind = \"cylinder\", radius = 0.4, height = 2.0 }",
+        "shape = { kind = \"cone\", radius = 0.4, height = 2.0 }",
+        "shape = { kind = \"triangle\" }",
     ] {
         let app = app();
         let e = node_at(&app);
@@ -313,7 +314,7 @@ fn a_2d_capsule_collider_applies() {
     let app = app();
     let e = node_at(&app);
     let params: toml::Value =
-        toml::from_str("kind = \"capsule\"\nradius = 0.4\nheight = 2.0").unwrap();
+        toml::from_str("shape = { kind = \"capsule\", radius = 0.4, height = 2.0 }").unwrap();
     components::add(&app.engine, e, "collider2d", Some(&params)).unwrap();
 }
 
@@ -324,7 +325,8 @@ fn a_mesh_collider_without_its_asset_says_so() {
     for kind in ["triangle_mesh", "convex_hull", "polyline"] {
         let app = app();
         let e = node_at(&app);
-        let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
+        let params: toml::Value =
+            toml::from_str(&format!("shape = {{ kind = \"{kind}\" }}")).unwrap();
         let err = format!(
             "{:#}",
             components::add(&app.engine, e, "collider3d", Some(&params))
@@ -341,7 +343,7 @@ fn a_mesh_collider_without_its_asset_says_so() {
 fn a_heightfield_collider_without_its_asset_says_so() {
     let app = app();
     let e = node_at(&app);
-    let params: toml::Value = toml::from_str("kind = \"heightfield\"").unwrap();
+    let params: toml::Value = toml::from_str("shape = { kind = \"heightfield\" }").unwrap();
     let err = format!(
         "{:#}",
         components::add(&app.engine, e, "collider3d", Some(&params))
@@ -354,7 +356,7 @@ fn a_heightfield_collider_without_its_asset_says_so() {
 fn an_unknown_collider_kind_is_refused_by_name() {
     let app = app();
     let e = node_at(&app);
-    let params: toml::Value = toml::from_str("kind = \"blancmange\"").unwrap();
+    let params: toml::Value = toml::from_str("shape = { kind = \"blancmange\" }").unwrap();
     let err = format!(
         "{:#}",
         components::add(&app.engine, e, "collider3d", Some(&params))
@@ -369,7 +371,8 @@ fn named_body(app: &App, name: &str, kind: &str) -> Entity {
     let e = scene::spawn_node(&mut app.engine.world_mut(), name, root);
     let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
     components::add(&app.engine, e, "body3d", Some(&params)).unwrap();
-    let collider: toml::Value = toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap();
+    let collider: toml::Value =
+        toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&collider)).unwrap();
     e
 }
@@ -421,14 +424,14 @@ fn a_switched_off_joint_is_kept_off_and_never_retried() {
     let _anchor = named_body(&app, "Anchor", "static");
     let hanging = named_body(&app, "Hanging", "dynamic");
     let chained = named_body(&app, "Chained", "dynamic");
-    for (node, extra) in [(hanging, ""), (chained, "\narticulation = true")] {
-        let table =
-            format!("kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false{extra}");
+    components::add(&app.engine, chained, "articulation3d", None).unwrap();
+    for node in [hanging, chained] {
+        let table = "kind = \"hinge\"\nconnected_body = \"/Anchor\"\nenabled = false";
         components::add(
             &app.engine,
             node,
             "joint3d",
-            Some(&toml::from_str(&table).unwrap()),
+            Some(&toml::from_str(table).unwrap()),
         )
         .unwrap();
     }

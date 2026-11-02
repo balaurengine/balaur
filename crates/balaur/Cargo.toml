@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[lib]
+test = false
+
 [features]
 default = ["audio", "flac", "mp3", "mp4", "vorbis", "wav", "http", "websocket", "webtransport", "gamend", "multiplayer", "browser", "parallel", "compile", "physics2d", "physics3d", "bs", "bs-jit"]
 # rapier's solver on rayon. Native builds want it; a browser can only take it
@@ -48,7 +51,7 @@ browser = ["dep:balaur_browser"]
 apple = ["dep:balaur_apple"]
 # SVG textures read in place. An export pack holds their rasters, so a game
 # template leaves it off.
-svg = ["balaur_core/svg"]
+svg = ["balaur_asset/svg"]
 # The 2D physics world: `physics2d.*`, its components and presets.
 physics2d = ["balaur_physics/physics2d"]
 # The 3D physics world: `physics3d.*`, its components and presets.
@@ -74,7 +77,12 @@ bs-backend = ["dep:balaur_script_bs"]
 fallback-fonts = ["balaur_ui/fallback-fonts"]
 
 [dependencies]
+balaur_net.workspace = true
+balaur_project.workspace = true
+balaur_debug.workspace = true
 balaur_core.workspace = true
+balaur_geometry.workspace = true
+balaur_asset.workspace = true
 balaur_plugin.workspace = true
 balaur_script.workspace = true
 balaur_script_bs = { workspace = true, optional = true }

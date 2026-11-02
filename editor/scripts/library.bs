@@ -26,22 +26,21 @@ pub struct Catalogue {
     templates: any,
 }
 
-/// The rows the panel shows, and what each places.
+/// What each row the panel shows places, by the row's key.
 pub struct Shown {
-    items: [str],
-    held: [any],
+    held: any,
 }
 
 /// What the Library panel shows.
 pub struct View {
     kind: str,
     templates: bool,
-    items: [str],
+    items: [ui::Item],
     says: str,
 }
 
 pub fn state() -> LibraryState {
-    LibraryState { kind: "material", catalogue: nil, shown: Shown { items: [], held: [] }, forge: [], forge_says: "" }
+    LibraryState { kind: "material", catalogue: nil, shown: Shown { held: {} }, forge: [], forge_says: "" }
 }
 
 /// The kinds the dock filters by, in the order the chips offer them.
@@ -66,17 +65,17 @@ const ROOT: str = "library";
 /// The manifest, read once per session. A library that fails to parse is
 /// reported once and treated as empty.
 fn catalogue(state: &mut editor::State) -> Catalogue {
-    if state.library.catalogue.is_some() {
+    if state.library.catalogue != nil {
         return state.library.catalogue.unwrap();
     }
     let text = fs::read(ROOT + "/catalog.toml");
-    let table = if text.is_some() { util::obj(toml::parse(text.unwrap())) } else { map() };
-    if text.is_none() {
+    let table: any = if text != nil { util::map_or_empty(toml::parse(text.unwrap())) } else { {} };
+    if text == nil {
         log::warn("no library manifest at " + ROOT);
     } else if table.len() == 0 {
         log::warn("the library manifest does not parse");
     }
-    let known = Catalogue { entries: util::vec(table.entries), templates: util::vec(table.templates) };
+    let known = Catalogue { entries: util::list_or_empty(table["entries"]), templates: util::list_or_empty(table["templates"]) };
     state.library.catalogue = known;
     known
 }
@@ -92,9 +91,9 @@ fn install(state: &mut editor::State, rel: str) -> str? {
         return nil;
     }
     // The directory is everything up to the last separator.
-    let dir = rel.slice(0, rel.len() - util::leaf(rel).len());
-    if dir != "" {
-        fs::create_directory(state.game_root + "/" + dir);
+    let directory = rel.slice(0, rel.len() - util::leaf(rel).len());
+    if directory != "" {
+        fs::create_directory(state.game_root + "/" + directory);
     }
     let target = free_name(state, rel);
     fs::copy(from, state.game_root + "/" + target);
@@ -123,9 +122,9 @@ fn install_tree(state: &mut editor::State, rel: str) {
 /// Every file under `from`, into `to`, directories included.
 fn copy_tree(from: str, to: str) {
     fs::create_directory(to);
-    for entry in util::vec(fs::list(from)) {
-        let name = entry.name.as_str();
-        if entry.is_dir.as_bool() {
+    for entry in util::list_or_empty(fs::list(from)) {
+        let name = entry["name"].as_str();
+        if entry["is_dir"].as_bool() {
             copy_tree(from + "/" + name, to + "/" + name);
         } else {
             fs::copy(from + "/" + name, to + "/" + name);
@@ -140,7 +139,7 @@ fn free_name(state: editor::State, rel: str) -> str {
         return rel;
     }
     let cut = util::index_of(rel, ".");
-    let stem = if cut.is_some() { rel.slice(0, cut.unwrap()) } else { rel };
+    let stem = if cut != nil { rel.slice(0, cut.unwrap()) } else { rel };
     let extension = if rel.len() > stem.len() { rel.slice(stem.len(), rel.len()) } else { "" };
     let suffix = 2;
     while fs::exists(state.game_root + "/" + "{stem}_{suffix}{extension}") {
@@ -153,16 +152,16 @@ fn free_name(state: editor::State, rel: str) -> str {
 pub fn place(state: &mut editor::State, entry: any) {
     // An addon is a directory a game requires by path, so it lands at that
     // path or not at all: a numbered copy would answer no `require`.
-    let kind = entry.kind.as_str();
+    let kind = entry["kind"].as_str();
     if kind == "addon" {
-        install_tree(state, entry.file.as_str());
+        install_tree(state, entry["file"].as_str());
         return;
     }
-    for needed in util::vec(entry.needs) {
+    for needed in util::list_or_empty(entry["needs"]) {
         install(state, needed.as_str());
     }
-    let rel_or = install(state, entry.file.as_str());
-    if rel_or.is_none() {
+    let rel_or = install(state, entry["file"].as_str());
+    if rel_or == nil {
         return;
     }
     let rel = rel_or.unwrap();
@@ -186,11 +185,11 @@ pub fn apply_material(state: &mut editor::State, entry: any) {
     if !model::has_selection(state) {
         return;
     }
-    for needed in util::vec(entry.needs) {
+    for needed in util::list_or_empty(entry["needs"]) {
         install(state, needed.as_str());
     }
-    let rel_or = install(state, entry.file.as_str());
-    if rel_or.is_none() {
+    let rel_or = install(state, entry["file"].as_str());
+    if rel_or == nil {
         return;
     }
     let rel = rel_or.unwrap();
@@ -200,11 +199,11 @@ pub fn apply_material(state: &mut editor::State, entry: any) {
     } else if found.is_valid() && found.has_component("shape3d") {
         "shape3d"
     } else {
-        log::info("select a node with a 3D shape to give it " + entry.name.as_str());
+        log::info("select a node with a 3D shape to give it " + entry["name"].as_str());
         return;
     };
-    model::set_component_prop(state, key, "material", rel);
-    log::info("{found.name()} is now {entry.name.as_str()}");
+    model::set_component_property(state, key, "material", rel);
+    log::info("{found.name()} is now {entry["name"].as_str()}");
 }
 
 /// A mark per kind, so a card says what it places before its name is read.
@@ -230,17 +229,17 @@ fn kind_icon(kind: str) -> str {
 pub fn view(state: &mut editor::State) -> View {
     let tokens = state.theme;
     let known = catalogue(state);
-    let items: [str] = [];
-    let held: [any] = [];
+    let items: [ui::Item] = [];
+    let held: any = {};
     if state.library.kind == "template" {
         // Listed rather than placed, because a template makes a project and
         // the editor is already in one.
         for entry in known.templates {
-            let command = "balaur new my-game --template {entry.id.as_str()}";
-            items.push(util::cells([entry.name.as_str(), entry.note.as_str(), command]));
-            held.push(command);
+            let command = "balaur new my-game --template {entry["id"].as_str()}";
+            items.push(ui::Item { cells: [entry["name"].as_str(), entry["note"].as_str(), command], key: command });
+            held[command] = command;
         }
-        state.library.shown = Shown { items: items, held: held };
+        state.library.shown = Shown { held: held };
         let says = if items.len() == 0 {
             "no templates in the library"
         } else {
@@ -255,13 +254,14 @@ pub fn view(state: &mut editor::State) -> View {
         return forge_view(state);
     }
     for entry in known.entries {
-        if entry.kind.as_str() == state.library.kind {
+        if entry["kind"].as_str() == state.library.kind {
             // The kind's mark, the entry's name, and its note as the hover.
-            items.push(util::row(kind_icon(state.library.kind), entry.name.as_str(), entry.note.as_str(), tokens.text_default.as_str()));
-            held.push(entry);
+            let key = entry["id"].as_str();
+            items.push(ui::Item { icon: kind_icon(state.library.kind), label: entry["name"].as_str(), note: entry["note"].as_str(), tint: tokens["text_default"].as_str(), key: key });
+            held[key] = entry;
         }
     }
-    state.library.shown = Shown { items: items, held: held };
+    state.library.shown = Shown { held: held };
     let says = if items.len() == 0 { "nothing of that kind in the library" } else { "" };
     View { kind: state.library.kind, templates: false, items: items, says: says }
 }
@@ -273,27 +273,28 @@ const DEPENDENCY_ROWS: int = 400;
 /// its own `catalog.toml` gives where it has one.
 fn dependency_view(state: &mut editor::State) -> View {
     let tokens = state.theme;
-    let items: [str] = [];
-    let held: [any] = [];
-    for dep in dependency::list() {
-        if dep.get("game").as_str() != state.game_root {
+    let items: [ui::Item] = [];
+    let held: any = {};
+    for dependency_entry in dependency::list() {
+        if dependency_entry["game"].as_str() != state.game_root {
             continue;
         }
-        let alias = dep.get("alias").as_str();
+        let alias = dependency_entry["alias"].as_str();
         let folder = "deps/" + alias;
         let named = catalogue_of(state.game_root + "/" + folder);
         for rel in files_under(state.game_root + "/" + folder, "") {
             if items.len() >= DEPENDENCY_ROWS {
                 break;
             }
-            let entry = named.get(rel);
-            let title = if entry.is_nil() { rel } else { entry.get("name").as_str() };
-            let note = if entry.is_nil() { folder + "/" + rel } else { entry.get("note").as_str() };
-            items.push(util::row(file_icon(rel), alias + " · " + title, note, tokens.text_default.as_str()));
-            held.push(map().with("kind", "dependency").with("file", folder + "/" + rel));
+            let entry = named[rel];
+            let title = if entry == nil { rel } else { entry["name"].as_str() };
+            let note = if entry == nil { folder + "/" + rel } else { entry["note"].as_str() };
+            let file = folder + "/" + rel;
+            items.push(ui::Item { icon: file_icon(rel), label: alias + " · " + title, note: note, tint: tokens["text_default"].as_str(), key: file });
+            held[file] = { "kind": "dependency", "file": file };
         }
     }
-    state.library.shown = Shown { items: items, held: held };
+    state.library.shown = Shown { held: held };
     let says = if items.len() == 0 {
         "no dependencies: `balaur add owner/name`, or pick one On Forge"
     } else {
@@ -304,33 +305,33 @@ fn dependency_view(state: &mut editor::State) -> View {
 
 /// A dependency's `catalog.toml` entries by file, or an empty map.
 fn catalogue_of(root: str) -> any {
-    let out = map();
+    let out: any = {};
     let text = fs::read(root + "/catalog.toml");
-    if text.is_none() {
+    if text == nil {
         return out;
     }
-    let table = util::obj(toml::parse(text.unwrap()));
-    for entry in util::vec(table.entries) {
-        out.set(entry.file.as_str(), entry);
+    let table = util::map_or_empty(toml::parse(text.unwrap()));
+    for entry in util::list_or_empty(table["entries"]) {
+        out[entry["file"].as_str()] = entry;
     }
     out
 }
 
-/// Every file under `root`/`dir`, relative to `root`, less the ones that
+/// Every file under `root`/`directory`, relative to `root`, less the ones that
 /// describe the project rather than ship with it.
-fn files_under(root: str, dir: str) -> [str] {
+fn files_under(root: str, directory: str) -> [str] {
     let out: [str] = [];
-    let at = if dir == "" { root } else { root + "/" + dir };
-    for entry in util::vec(fs::list(at)) {
-        let name = entry.name.as_str();
-        let rel = if dir == "" { name } else { dir + "/" + name };
-        if entry.is_dir.as_bool() {
-            if !(dir == "" && name == "deps") {
+    let at = if directory == "" { root } else { root + "/" + directory };
+    for entry in util::list_or_empty(fs::list(at)) {
+        let name = entry["name"].as_str();
+        let rel = if directory == "" { name } else { directory + "/" + name };
+        if entry["is_dir"].as_bool() {
+            if !(directory == "" && name == "deps") {
                 for inner in files_under(root, rel) {
                     out.push(inner);
                 }
             }
-        } else if !(dir == "" && (name == "project.toml" || name == "project.lock" || name == "catalog.toml")) {
+        } else if !(directory == "" && (name == "project.toml" || name == "project.lock" || name == "catalog.toml")) {
             out.push(rel);
         }
     }
@@ -356,18 +357,19 @@ fn forge_view(state: &mut editor::State) -> View {
             state.library.forge_says = "asking " + forge::url();
         }
     }
-    let items: [str] = [];
-    let held: [any] = [];
+    let items: [ui::Item] = [];
+    let held: any = {};
     for row in state.library.forge {
         let tags = "";
-        for tag in util::vec(row.get("tags")) {
+        for tag in util::list_or_empty(row["tags"]) {
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
-        let note = if tags == "" { row.get("description").as_str() } else { row.get("description").as_str() + " · " + tags };
-        items.push(util::row(icons::panel("assets"), row.get("project").as_str(), note, tokens.text_default.as_str()));
-        held.push(map().with("kind", "forge").with("file", row.get("project").as_str()));
+        let note = if tags == "" { row["description"].as_str() } else { row["description"].as_str() + " · " + tags };
+        let project = row["project"].as_str();
+        items.push(ui::Item { icon: icons::panel("assets"), label: project, note: note, tint: tokens["text_default"].as_str() });
+        held[project] = { "kind": "forge", "file": project };
     }
-    state.library.shown = Shown { items: items, held: held };
+    state.library.shown = Shown { held: held };
     let says = if state.library.forge_says != "" {
         state.library.forge_says
     } else if items.len() == 0 {
@@ -381,12 +383,12 @@ fn forge_view(state: &mut editor::State) -> View {
 /// What a Forge job reported: the projects a search found, a dependency
 /// added, or why either failed.
 pub fn heard(state: &mut editor::State, event: any) {
-    let kind = event.get("kind").as_str();
+    let kind = event["kind"].as_str();
     if kind == "listed" {
-        state.library.forge = util::vec(event.get("rows"));
+        state.library.forge = util::list_or_empty(event["rows"]);
         state.library.forge_says = "";
     } else if kind == "fetched" {
-        let alias = event.get("alias").as_str();
+        let alias = event["alias"].as_str();
         // Its files are on disk; installing makes the new one a root.
         dependency::install(state.game_root);
         model::forget(state, nil);
@@ -396,9 +398,9 @@ pub fn heard(state: &mut editor::State, event: any) {
         } else {
             log::info("added deps/{alias}");
         }
-    } else if kind == "failed" && event.get("job").as_str() != "copy" {
-        state.library.forge_says = event.get("message").as_str();
-        log::warn("Forge: " + event.get("message").as_str());
+    } else if kind == "failed" && event["job"].as_str() != "copy" {
+        state.library.forge_says = event["message"].as_str();
+        log::warn("Forge: " + event["message"].as_str());
     } else {
         return;
     }
@@ -415,29 +417,24 @@ pub fn choose(state: &mut editor::State, kind: str) {
 /// A card or a template row picked: a material goes on the selection, any
 /// other entry into the project, and a template's command to the clipboard.
 pub fn pick(state: &mut editor::State, row: str) {
-    let shown = state.library.shown;
-    for index in 0..shown.items.len() {
-        let item = shown.items[index];
-        if item != row {
-            continue;
-        }
-        let held = shown.held[index];
-        if held.kind() == "str" {
-            ui::set_clipboard(held.as_str());
-            log::info("copied: " + held.as_str());
-        } else if held.get("kind").as_str() == "dependency" {
-            // Linked: placed by the path the game names it with.
-            dropin::place_file(state, held.get("file").as_str());
-        } else if held.get("kind").as_str() == "forge" {
-            if forge::add(state.game_root, held.get("file").as_str()) {
-                state.library.forge_says = "adding " + held.get("file").as_str();
-                signals::changed(state, "library");
-            }
-        } else if held.kind.as_str() == "material" {
-            apply_material(state, held);
-        } else {
-            place(state, held);
-        }
+    let held = state.library.shown.held[row];
+    if held == nil {
         return;
+    }
+    if held.kind() == "str" {
+        ui::set_clipboard(held.as_str());
+        log::info("copied: " + held.as_str());
+    } else if held["kind"].as_str() == "dependency" {
+        // Linked: placed by the path the game names it with.
+        dropin::place_file(state, held["file"].as_str());
+    } else if held["kind"].as_str() == "forge" {
+        if forge::add(state.game_root, held["file"].as_str()) {
+            state.library.forge_says = "adding " + held["file"].as_str();
+            signals::changed(state, "library");
+        }
+    } else if held["kind"].as_str() == "material" {
+        apply_material(state, held);
+    } else {
+        place(state, held);
     }
 }

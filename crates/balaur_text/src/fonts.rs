@@ -3,7 +3,7 @@
 //! text names, each a face of those and how it is shaped.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -13,43 +13,13 @@ use cosmic_text::{FontSystem, fontdb};
 
 use crate::font::{Font, FontSettings};
 use crate::shape::Tweaks;
+use crate::system_fonts;
+pub use crate::system_fonts::{InstalledFace, installed_faces};
 
-/// Faces the operating system already ships, behind every project's own so a
-/// script balaur does not vendor draws instead of tofu. Never bundled: a
-/// single CJK weight is larger than the whole editor.
-#[cfg(target_os = "macos")]
-const SYSTEM_FACES: &[&str] = &[
-    "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-    "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "/System/Library/Fonts/AppleSDGothicNeo.ttc",
-    "/System/Library/Fonts/GeezaPro.ttc",
-    "/System/Library/Fonts/ArialHB.ttc",
-    "/System/Library/Fonts/Kohinoor.ttc",
-    "/System/Library/Fonts/ThonburiUI.ttc",
-    "/System/Library/Fonts/Apple Symbols.ttf",
-    "/System/Library/Fonts/Apple Color Emoji.ttc",
-];
-
-#[cfg(target_os = "windows")]
-const SYSTEM_FACES: &[&str] = &[
-    "C:\\Windows\\Fonts\\segoeui.ttf",
-    "C:\\Windows\\Fonts\\YuGothM.ttc",
-    "C:\\Windows\\Fonts\\malgun.ttf",
-    "C:\\Windows\\Fonts\\msyh.ttc",
-    "C:\\Windows\\Fonts\\seguisym.ttf",
-    "C:\\Windows\\Fonts\\seguiemj.ttf",
-];
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-const SYSTEM_FACES: &[&str] = &[
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-    "/usr/share/fonts/noto/NotoColorEmoji.ttf",
-];
+/// A face file's bytes, shared by every holder: the shaper's database and
+/// egui take the same allocation, so neither copies a file and egui compares
+/// a face it already holds by pointer. An operating system's face is mapped.
+pub type FaceBytes = Arc<dyn AsRef<[u8]> + Send + Sync>;
 
 /// One face file a project draws in.
 #[derive(Clone)]
@@ -61,7 +31,7 @@ pub struct FontFace {
     pub path: String,
     /// One of the operating system's: drawn as a fallback, never measured.
     pub system: bool,
-    pub bytes: Arc<Vec<u8>>,
+    pub bytes: FaceBytes,
     /// What the face's import settings adjust wherever it draws: egui's own
     /// text and everything this crate shapes.
     pub tweak: FaceTweak,
@@ -108,53 +78,15 @@ impl FaceTweak {
     }
 }
 
-/// The faces the operating system ships, whichever of them are present,
-/// read once for the life of the process.
-///
-/// These are the largest files on the machine — one CJK collection runs to
-/// tens of megabytes — and a project's faces are read again whenever a file
-/// under its `fonts/` moves, so reading these per read meant a fresh copy of
-/// all of it each time. Cloning a face clones an `Arc`.
-fn system_cache() -> &'static [FontFace] {
-    static LOADED: std::sync::OnceLock<Vec<FontFace>> = std::sync::OnceLock::new();
-    LOADED.get_or_init(|| {
-        SYSTEM_FACES
-            .iter()
-            .filter_map(|path| {
-                let bytes = std::fs::read(path).ok()?; // os files: the system's own faces
-                Some(FontFace {
-                    name: format!("system:{path}"),
-                    path: String::new(),
-                    system: true,
-                    bytes: Arc::new(bytes),
-                    tweak: FaceTweak::default(),
-                })
-            })
-            .collect()
-    })
-}
-
-/// The faces the operating system ships, whichever of them are present.
-pub fn system_faces() -> Vec<FontFace> {
-    system_cache().to_vec()
-}
-
-/// The cached bytes for an OS face. Borrowed for the life of the process, so
-/// egui holds them without a copy of its own.
-pub fn system_static_bytes(name: &str) -> Option<&'static [u8]> {
-    system_cache()
-        .iter()
-        .find(|face| face.name == name)
-        .map(|face| face.bytes.as_slice())
-}
-
 /// The face every build carries: the default font where a project's theme
-/// names none, and what the shaper falls back to when nothing else draws.
+/// names none, and what the shaper falls back to behind the project's own.
 #[must_use]
 pub fn bundled_face() -> FontFace {
-    static LOADED: std::sync::OnceLock<Arc<Vec<u8>>> = std::sync::OnceLock::new();
+    static LOADED: std::sync::OnceLock<FaceBytes> = std::sync::OnceLock::new();
     let bytes = LOADED.get_or_init(|| {
-        Arc::new(include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf").to_vec())
+        let bundled: &'static [u8] =
+            include_bytes!("../../../editor/fonts/SourceSans3-Regular.ttf");
+        Arc::new(bundled)
     });
     FontFace {
         name: "SourceSans3-Regular".into(),
@@ -162,70 +94,6 @@ pub fn bundled_face() -> FontFace {
         system: false,
         bytes: Arc::clone(bytes),
         tweak: FaceTweak::default(),
-    }
-}
-
-/// One face the operating system has installed, as a picker lists it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InstalledFace {
-    pub family: String,
-    /// Its weight and slant in words: `Regular`, `Bold Italic`.
-    pub style: String,
-    pub path: std::path::PathBuf,
-}
-
-/// The name CSS gives a weight.
-#[cfg(not(target_family = "wasm"))]
-fn weight_name(weight: u16) -> &'static str {
-    match weight {
-        0..=149 => "Thin",
-        150..=249 => "ExtraLight",
-        250..=349 => "Light",
-        350..=449 => "Regular",
-        450..=549 => "Medium",
-        550..=649 => "SemiBold",
-        650..=749 => "Bold",
-        750..=849 => "ExtraBold",
-        _ => "Black",
-    }
-}
-
-/// Every face the operating system has installed, by family and style, one
-/// file each: what a picker on a desktop offers to copy into a project, since
-/// an exported game cannot count on a face being installed. Empty where
-/// there is nothing to read them from: the web.
-#[must_use]
-pub fn installed_faces() -> Vec<InstalledFace> {
-    #[cfg(not(target_family = "wasm"))]
-    {
-        let mut db = fontdb::Database::new();
-        db.load_system_fonts();
-        let mut faces: Vec<InstalledFace> = db
-            .faces()
-            .filter_map(|info| {
-                let fontdb::Source::File(path) = &info.source else {
-                    return None;
-                };
-                let (family, _) = info.families.first()?;
-                let slant = if info.style == fontdb::Style::Normal {
-                    ""
-                } else {
-                    " Italic"
-                };
-                Some(InstalledFace {
-                    family: family.clone(),
-                    style: format!("{}{slant}", weight_name(info.weight.0)),
-                    path: path.clone(),
-                })
-            })
-            .collect();
-        faces.sort_by(|a, b| (&a.family, &a.style, &a.path).cmp(&(&b.family, &b.style, &b.path)));
-        faces.dedup_by(|a, b| a.family == b.family && a.style == b.style);
-        faces
-    }
-    #[cfg(target_family = "wasm")]
-    {
-        Vec::new()
     }
 }
 
@@ -270,6 +138,31 @@ impl FontProject {
             Self::Content => "content",
         }
     }
+}
+
+/// Have a worker read the system's fonts once the first frame is out, so the
+/// first character needing one of their faces does not stall a frame to read
+/// them. Left out where nothing has asked for a shaper, as on a dedicated
+/// server, or the project turned them off.
+pub fn read_system_fonts_ahead(reg: &mut balaur_plugin::Registry<'_>) {
+    let mut first_frame_out = false;
+    let mut settled = false;
+    reg.add_system(balaur_core::Stage::First, move |eng, _| {
+        if settled || !std::mem::replace(&mut first_frame_out, true) {
+            return;
+        }
+        let Some(state) = crate::state(eng) else {
+            return;
+        };
+        settled = true;
+        if state
+            .borrow()
+            .projects()
+            .any(|(_, fonts)| fonts.asks_the_system())
+        {
+            system_fonts::read_ahead();
+        }
+    });
 }
 
 /// The directory a project's faces are read from, as `ProjectFiles` takes it.
@@ -338,28 +231,24 @@ fn face_at(eng: &Engine, path: &str) -> Option<FontFace> {
     })
 }
 
-/// Every face a project draws in, in fallback order: its own `fonts/`, the
-/// system's when it wants them, then the face every build carries. Read once
-/// here for both egui and the shaper.
+/// Every face a project ships, in fallback order: its own `fonts/`, then the
+/// face every build carries. Read once here for both egui and the shaper.
 pub fn faces_of(eng: &Engine, project: FontProject) -> Vec<FontFace> {
     let mut faces: Vec<FontFace> = face_paths(eng, project)
         .iter()
         .filter_map(|path| face_at(eng, path))
         .collect();
-    if wants_system_fonts(eng) {
-        faces.extend(system_faces());
-    }
     // Last, and always: the default font where no theme names one, and what
-    // draws when nothing else does — wasm reads no system face.
+    // draws where the project's own do not.
     faces.push(bundled_face());
     faces
 }
 
-/// Whether this project wants the operating system's faces appended, from
-/// `[ui] system_fonts`. A project that says nothing gets them, so text in a
-/// script balaur does not vendor keeps drawing.
+/// Whether a character no face of this project draws may ask the operating
+/// system for one, from `[ui] system_fonts`. A project that says nothing may,
+/// so text in a script balaur does not vendor keeps drawing.
 fn wants_system_fonts(eng: &Engine) -> bool {
-    balaur_core::project::UiSettings::from_settings(eng).system_fonts
+    balaur_core::project::UiSettings::of(eng).system_fonts
 }
 
 /// The `widget_theme` a project starts its UI from: its `[ui] theme`, against
@@ -370,8 +259,8 @@ fn project_theme(eng: &Engine, project: FontProject) -> Option<String> {
         FontProject::Host => None,
     };
     let Some(root) = root else {
-        let theme = balaur_core::project::UiSettings::from_settings(eng).theme;
-        return (!theme.is_empty()).then_some(theme);
+        let settings = balaur_core::project::UiSettings::of(eng);
+        return (!settings.theme.is_empty()).then(|| settings.theme.clone());
     };
     let manifest = balaur_core::files::backend(eng)
         .read(&root.join("project.toml"))
@@ -430,7 +319,7 @@ impl LoadedFont {
 /// and not read yet. Apart from the font systems, so a shaping borrows both.
 #[derive(Default)]
 pub(crate) struct FontTable {
-    loaded: HashMap<String, Rc<LoadedFont>>,
+    loaded: rustc_hash::FxHashMap<String, Rc<LoadedFont>>,
     /// Asked for and not read yet: the shaper answers with the default, and
     /// the shaper's next look at the files reads them.
     wanted: RefCell<Vec<String>>,
@@ -467,13 +356,18 @@ impl FontTable {
     }
 }
 
-/// The faces one project ships and the system's behind them, as the font
-/// systems its text is laid out by, and the fonts its texts have named. One
-/// database a project, so a game's faces never stand in for the editor's,
+/// The faces one project ships and the system's a text has asked for, as the
+/// font systems its text is laid out by, and the fonts its texts have named.
+/// One database a project, so a game's faces never stand in for the editor's,
 /// nor the editor's for the game's.
 pub struct ProjectFonts {
-    /// Every face, in fallback order: own, system, the bundled one.
+    /// Every face, in fallback order: own, the bundled one, the system's in
+    /// the order text asked for them.
     faces: Vec<FontFace>,
+    /// Whether a character no face here draws may ask the operating system.
+    system_fonts: bool,
+    /// The characters past ASCII looked at so far, drawn or not.
+    looked_at: HashSet<char>,
     /// Every face, the system's included: what drawing falls back through.
     pub(crate) drawing: FontSystem,
     /// Each face's import settings, by the id `drawing` gave it.
@@ -503,6 +397,8 @@ impl ProjectFonts {
         let (drawing, tweaks, face_of_id) = system_of(faces, locale);
         let mut fonts = Self {
             faces: faces.to_vec(),
+            system_fonts: false,
+            looked_at: HashSet::new(),
             drawing,
             tweaks,
             face_of_id,
@@ -528,6 +424,7 @@ impl ProjectFonts {
     pub fn read(eng: &Engine, project: FontProject) -> Self {
         let faces = faces_of(eng, project);
         let mut fonts = Self::new(&faces, &balaur_core::strings::locale(eng));
+        fonts.system_fonts = wants_system_fonts(eng);
         fonts.read = FacesRead::of(eng, project);
         fonts.compared_at = balaur_core::assets::generation(eng);
         // Where no theme names one, the face every build carries is the default.
@@ -577,7 +474,7 @@ impl ProjectFonts {
         false
     }
 
-    /// Every face, in fallback order: own, system, the bundled one.
+    /// Every face, in fallback order: own, the bundled one, the system's.
     #[must_use]
     pub fn faces(&self) -> &[FontFace] {
         &self.faces
@@ -706,26 +603,76 @@ impl ProjectFonts {
     fn add_face(&mut self, eng: &Engine, path: &str) -> anyhow::Result<usize> {
         let face =
             face_at(eng, path).ok_or_else(|| anyhow::anyhow!("no face can be read at '{path}'"))?;
+        if let Some((strict, tweaks)) = self.strict.as_mut() {
+            let ids = strict
+                .db_mut()
+                .load_font_source(fontdb::Source::Binary(Arc::clone(&face.bytes)));
+            tweaks.add(&ids, face.tweak);
+        }
+        self.draw_in(face)
+            .ok_or_else(|| anyhow::anyhow!("'{path}' is not a face"))
+    }
+
+    /// Put `face` into the drawing system, behind every face there. No
+    /// fallback list names it: the shaper reaches it last, walking the database.
+    fn draw_in(&mut self, face: FontFace) -> Option<usize> {
         let ids = self
             .drawing
             .db_mut()
-            .load_font_source(fontdb::Source::Binary(shared(&face.bytes)));
+            .load_font_source(fontdb::Source::Binary(Arc::clone(&face.bytes)));
         if ids.is_empty() {
-            anyhow::bail!("'{path}' is not a face");
+            return None;
         }
         let index = self.faces.len();
         self.tweaks.add(&ids, face.tweak);
         for id in ids {
             self.face_of_id.insert(id, index);
         }
-        if let Some((strict, tweaks)) = self.strict.as_mut() {
-            let ids = strict
-                .db_mut()
-                .load_font_source(fontdb::Source::Binary(shared(&face.bytes)));
-            tweaks.add(&ids, face.tweak);
-        }
         self.faces.push(face);
-        Ok(index)
+        // A run shaped before it holds the tofu it found then.
+        self.drawing.shape_run_cache = cosmic_text::ShapeRunCache::default();
+        Some(index)
+    }
+
+    /// Have the operating system's face drawn for each character of `text` no
+    /// face here has a glyph for. Whether any face was gained.
+    pub(crate) fn cover(&mut self, text: &str) -> bool {
+        if !self.system_fonts || text.is_ascii() {
+            return false;
+        }
+        let mut gained = false;
+        for c in text.chars().filter(|c| !c.is_ascii()) {
+            if !self.looked_at.insert(c)
+                || !system_fonts::wants_a_face(c)
+                || self
+                    .faces
+                    .iter()
+                    .any(|face| system_fonts::draws((*face.bytes).as_ref(), 0, c))
+            {
+                continue;
+            }
+            let language = system_fonts::language_of(text, &self.locale);
+            let Some(face) = system_fonts::face_for(c, language) else {
+                continue;
+            };
+            if self.faces.iter().all(|held| held.name != face.name) {
+                gained |= self.draw_in(face).is_some();
+            }
+        }
+        gained
+    }
+
+    /// Whether a character no face here draws may ask the operating system.
+    pub(crate) fn asks_the_system(&self) -> bool {
+        self.system_fonts
+    }
+
+    /// A character no face here draws may ask the operating system, as a
+    /// project does unless it says otherwise.
+    #[cfg(test)]
+    pub(crate) fn with_system_fonts(mut self) -> Self {
+        self.system_fonts = true;
+        self
     }
 
     /// The font face `index` draws as, shaped with `settings`.
@@ -748,14 +695,8 @@ impl ProjectFonts {
     }
 }
 
-/// A face's bytes as fontdb takes them, shared rather than copied.
-fn shared(bytes: &Arc<Vec<u8>>) -> Arc<dyn AsRef<[u8]> + Send + Sync> {
-    let shared: Arc<Vec<u8>> = Arc::clone(bytes);
-    shared
-}
-
-/// The faces, in order, as the fallback list: what the engine means by "the
-/// next font" is what cosmic-text asks this for.
+/// The project's faces, in order, as the fallback list: what the engine means
+/// by "the next font" is what cosmic-text asks this for.
 struct FaceFallback {
     families: Vec<&'static str>,
 }
@@ -783,7 +724,7 @@ fn system_of(faces: &[FontFace], locale: &str) -> (FontSystem, Tweaks, HashMap<f
     let mut face_of_id = HashMap::new();
     let mut tweaks = Tweaks::default();
     for (index, face) in faces.iter().enumerate() {
-        let ids = db.load_font_source(fontdb::Source::Binary(shared(&face.bytes)));
+        let ids = db.load_font_source(fontdb::Source::Binary(Arc::clone(&face.bytes)));
         tweaks.add(&ids, face.tweak);
         for id in ids {
             face_of_id.insert(id, index);
@@ -863,6 +804,10 @@ mod tests {
         assert!(!faces.is_empty(), "no face installed");
         assert!(faces.iter().all(|face| face.path.is_file()));
         assert!(faces.iter().any(|face| face.style == "Regular"));
+        assert!(
+            faces.iter().all(|face| !face.family.starts_with('.')),
+            "a face no application may ask for is on offer"
+        );
     }
 
     /// A measurement shapes over the project's own faces alone, and wasm reads
@@ -872,7 +817,7 @@ mod tests {
         let faces = faces_of(&Engine::new(), FontProject::Host);
         assert!(
             faces.iter().any(|face| !face.system),
-            "nothing outside the system's faces to shape with"
+            "nothing to shape with"
         );
         let size = crate::TextState::new(&faces, "en-US")
             .measure(&crate::Request::new("measure me", 24.0));

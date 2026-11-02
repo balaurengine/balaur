@@ -222,16 +222,20 @@ fn show(window: &mut kiss3d::window::Window, pixels: Ready, name: &str) {
 /// at that size rather than scaled up from its own.
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 fn picture(source: &[u8], side: u32) -> Option<image::RgbaImage> {
-    let image = if balaur_core::pixels::is_svg(source) {
-        let (width, _) = balaur_core::pixels::size(source, &toml::Table::new()).ok()?;
-        balaur_core::pixels::rasterize_svg(source, side as f32 / width.max(1) as f32).ok()?
+    let image = if balaur_asset::pixels::is_svg(source) {
+        let (width, _) = balaur_asset::pixels::size(source, &toml::Table::new()).ok()?;
+        balaur_asset::pixels::rasterize_svg(source, side as f32 / width.max(1) as f32).ok()?
     } else {
         image::load_from_memory(source).ok()?.to_rgba8()
     };
     Some(if image.width() == side && image.height() == side {
         image
     } else {
-        image::imageops::resize(&image, side, side, image::imageops::FilterType::CatmullRom)
+        // Through `DynamicImage`, which the image crate compiles at its own
+        // optimisation; the generic instantiated here would be this crate's.
+        image::DynamicImage::ImageRgba8(image)
+            .resize_exact(side, side, image::imageops::FilterType::CatmullRom)
+            .into_rgba8()
     })
 }
 

@@ -6,24 +6,24 @@
 id = "panel"
 name = "Weights"
 script = { source = "scripts/panels/weights.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 # What a polygon needs before it has weights to show.
 [[nodes]]
 id = "missing"
 name = "Missing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
 text = "select a polygon with bones — the inspector's Sync Bones to Polygon lists them"
 padding = [12, 8, 12, 0]
-visible = false
 
 [[nodes]]
 id = "body"
@@ -53,13 +53,13 @@ parent = "verbs"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 [[nodes]]
 id = "bind"
 name = "bind"
 parent = "verbs"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "bind"
@@ -70,6 +70,7 @@ id = "unbind"
 name = "unbind"
 parent = "verbs"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "unbind"
@@ -80,6 +81,7 @@ id = "normalize"
 name = "normalize"
 parent = "verbs"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "normalize"
@@ -90,6 +92,7 @@ id = "auto"
 name = "auto"
 parent = "verbs"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "auto"
@@ -100,6 +103,7 @@ id = "smooth"
 name = "smooth"
 parent = "verbs"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "smooth"
@@ -109,12 +113,13 @@ tooltip = "Average each listed vertex with the ones sharing an edge"
 id = "all"
 name = "all"
 parent = "verbs"
+visible = false
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form"
 text = "all"
 tooltip = "List every vertex again"
-visible = false
 
 # The bone columns' heads, pooled: which bones there are is the polygon's.
 [[nodes]]

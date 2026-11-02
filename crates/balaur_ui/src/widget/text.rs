@@ -1,10 +1,9 @@
-//! Text in the widget layer: labels and captions through the shaper, and
-//! the one line the player types into.
+//! Text in the widget layer: labels and captions through the shaper. The
+//! kinds a player types into are [`crate::widget::field`]'s.
 
 use egui::vec2;
 
 use crate::vocabulary::words as w;
-use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
 use crate::widget::paint::Brush;
@@ -494,9 +493,7 @@ fn spans(
     }
 }
 
-/// One line of typing. egui owns the caret and the selection; the buffer
-/// is seeded from the widget's `text` and re-seeded when a script changes
-/// it, so a script may clear a field without fighting the player.
+/// One line of typing: [`crate::widget::field`] draws it.
 pub(crate) fn field(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -504,11 +501,11 @@ pub(crate) fn field(
     font: &egui::FontId,
     color: egui::Color32,
 ) {
-    edit(ui, at, index, font, color, false);
+    crate::widget::field::edit(ui, at, index, (font, color), false);
 }
 
-/// A `text_field` that keeps its newlines: Godot's `TextEdit`. `height` sizes it,
-/// and everything a single line reads is read here too.
+/// A `text_field` that keeps its newlines: Godot's `TextEdit`. `height` sizes
+/// it, and everything a single line reads is read here too.
 pub(crate) fn text_area(
     ui: &mut egui::Ui,
     at: &mut Painting<'_>,
@@ -516,206 +513,5 @@ pub(crate) fn text_area(
     font: &egui::FontId,
     color: egui::Color32,
 ) {
-    edit(ui, at, index, font, color, true);
-}
-
-fn edit(
-    ui: &mut egui::Ui,
-    at: &mut Painting<'_>,
-    index: usize,
-    font: &egui::FontId,
-    color: egui::Color32,
-    multiline: bool,
-) {
-    let placed = &at.arena[index];
-    let widget = &placed.widget;
-    let entity = placed.entity;
-    let key = format!("widget:{}", entity.to_bits());
-    let state = at.eng.resource::<crate::UiState>();
-    let mut buffer = {
-        let mut state = state.borrow_mut();
-        if state.text_seeds.get(&key).map(String::as_str) != Some(widget.text.as_str()) {
-            state
-                .text_seeds
-                .insert(key.clone(), widget.text.to_string());
-            state
-                .text_buffers
-                .insert(key.clone(), widget.text.to_string());
-        }
-        state.text_buffers.get(&key).cloned().unwrap_or_default()
-    };
-    let look = at.look(index);
-    crate::widget::theme::dress(ui, &look.style, color);
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
-    // egui's own layout with its slant on, for a face with no italic: the
-    // default layouter has no way to ask for one.
-    let secret = widget.secret;
-    let mut slanted = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
-        let shown = if secret {
-            std::iter::repeat_n(
-                crate::widget::paint::PASSWORD_CHAR,
-                text.as_str().chars().count(),
-            )
-            .collect()
-        } else {
-            text.as_str().to_owned()
-        };
-        let mut job = if multiline {
-            egui::text::LayoutJob::simple(shown, font.clone(), color, wrap_width)
-        } else {
-            egui::text::LayoutJob::simple_singleline(shown, font.clone(), color)
-        };
-        job.keep_trailing_whitespace = true;
-        for section in &mut job.sections {
-            section.format.italics = true;
-        }
-        ui.fonts_mut(|fonts| fonts.layout_job(job))
-    };
-    let slant = crate::widget::theme::slanted(&look.style, (widget, look.project));
-    let mut edit = if multiline {
-        egui::TextEdit::multiline(&mut buffer)
-    } else {
-        egui::TextEdit::singleline(&mut buffer)
-    }
-    .id(egui::Id::unique(&key))
-    .font(font.clone())
-    .text_color(color)
-    .hint_text(widget.placeholder.to_string())
-    .password(widget.secret)
-    .desired_width(if want.x > 0.0 {
-        want.x
-    } else {
-        ui.available_width()
-    });
-    if multiline && want.y > 0.0 {
-        edit = edit.desired_rows(
-            (want.y / ui.text_style_height(&egui::TextStyle::Body)).max(1.0) as usize,
-        );
-    }
-    if widget.max_length > 0.0 {
-        edit = edit.char_limit(widget.max_length as usize);
-    }
-    if slant {
-        edit = edit.layouter(&mut slanted);
-    }
-    let submit = chord_of(&widget.egui.submit_key);
-    edit = dressed_edit(edit, widget, &look.style, multiline, submit);
-    let response = ui.add(edit);
-    // Only on the pass focus was put here: asking every frame would take the
-    // caret back from whatever the reader clicked next. Focus given rather
-    // than clicked into selects what the field holds, so typing replaces it.
-    if at.taking && at.focused == Some(entity) {
-        response.request_focus();
-        select_all(ui, response.id, &buffer);
-    }
-    // A click into the field is focus arriving, as Tab reaching it is.
-    if response.gained_focus()
-        && let Some(focus) = at.eng.try_resource::<crate::UiFocus>()
-    {
-        focus.borrow_mut().focused = Some(entity);
-    }
-    if widget.numeric {
-        buffer.retain(|c| c.is_ascii_digit() || matches!(c, '-' | '.'));
-    }
-    if response.changed() {
-        at.edits.push((entity, Edit::Text(buffer.clone())));
-    }
-    if response.lost_focus() {
-        left(ui, at, entity, &buffer, submit);
-    }
-    state.borrow_mut().text_buffers.insert(key, buffer);
-}
-
-/// A field focus left: the submit chord and a click away both submit, and
-/// only the click away is a blur. Escape is a blur that keeps nothing, as it
-/// is on a number.
-fn left(
-    ui: &egui::Ui,
-    at: &mut Painting<'_>,
-    entity: balaur_core::hecs::Entity,
-    buffer: &str,
-    submit: Option<egui::KeyboardShortcut>,
-) {
-    if !ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-        at.edits.push((entity, Edit::Submit(buffer.to_owned())));
-    }
-    let key = submit.map_or(egui::Key::Enter, |chord| chord.logical_key);
-    if ui.input(|i| i.key_pressed(key)) {
-        return;
-    }
-    at.edits.push((entity, Edit::Blurred));
-    if let Some(focus) = at.eng.try_resource::<crate::UiFocus>() {
-        let mut focus = focus.borrow_mut();
-        if focus.focused == Some(entity) {
-            focus.focused = None;
-        }
-    }
-}
-
-/// Select the whole of a field's text, so what is typed next replaces it.
-pub(super) fn select_all(ui: &egui::Ui, id: egui::Id, text: &str) {
-    let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-    state
-        .cursor
-        .set_char_range(Some(egui::text::CCursorRange::two(
-            egui::text::CCursor::default(),
-            egui::text::CCursor::new(text.chars().count()),
-        )));
-    state.store(ui.ctx(), id);
-}
-
-/// The chord a `submit_key` names, or `None` for egui's own Enter.
-fn chord_of(text: &str) -> Option<egui::KeyboardShortcut> {
-    let (modifiers, key) = crate::chord::chord(text)?;
-    Some(egui::KeyboardShortcut::new(modifiers, key))
-}
-
-/// What a field's own keys ask of egui's editor: where the text sits, what
-/// stands either side of it, whether it can be changed, its margin, and what
-/// Tab, the caret and the submit chord do.
-fn dressed_edit<'t>(
-    mut edit: egui::TextEdit<'t>,
-    widget: &Widget,
-    style: &crate::widget::theme::Style,
-    multiline: bool,
-    submit: Option<egui::KeyboardShortcut>,
-) -> egui::TextEdit<'t> {
-    let o = &widget.egui;
-    edit = edit
-        .align(egui::Align2([
-            crate::widget::layer::across(crate::widget::theme::text_align_of(style, widget)),
-            egui::Align::TOP,
-        ]))
-        .interactive(o.editable)
-        .lock_focus(o.tab_inserts)
-        .cursor_at_end(o.caret_at_end)
-        .clip_text(o.clip_text);
-    if !o.prefix.is_empty() {
-        edit = edit.prefix(o.prefix.to_string());
-    }
-    if !widget.suffix.is_empty() {
-        edit = edit.suffix(widget.suffix.to_string());
-    }
-    // egui's own text field margin, which its theme no longer supplies.
-    edit = edit.margin(margin_of(widget).unwrap_or(egui::Margin::symmetric(4, 2)));
-    if !multiline && let Some(chord) = submit {
-        edit = edit.return_key(chord);
-    }
-    edit
-}
-
-/// A field's `padding` as egui's margin, which is whole points; `None` while
-/// every side is below zero, which leaves egui's.
-pub(crate) fn margin_of(widget: &Widget) -> Option<egui::Margin> {
-    if widget.padding.iter().all(|side| *side < 0.0) {
-        return None;
-    }
-    let side = |px: f32| px.max(0.0).round().min(f32::from(i8::MAX)) as i8;
-    let [left, top, right, bottom] = widget.padding;
-    Some(egui::Margin {
-        left: side(left),
-        right: side(right),
-        top: side(top),
-        bottom: side(bottom),
-    })
+    crate::widget::field::edit(ui, at, index, (font, color), true);
 }

@@ -44,7 +44,6 @@ impl Game {
         self.root = self.node.parent();
         physics2d::set_gravity(0.0, -9.81);
         render::set_background(0.55, 0.78, 0.92);
-        render::set_camera_2d(0.0, 3.0, 52.0);
         self.score = 0;
         self.birds_left = BIRDS;
         self.aiming = false;
@@ -54,11 +53,11 @@ impl Game {
         // Capture initial state so R can rebuild the level in place. Each entry
         // remembers its top-level owner so popping a pig pops its whole subtree.
         self.level = [];
-        self.pigs = map();
+        self.pigs = {};
         self.capture(self.root, nil);
         for entry in self.level {
             if entry.owner.starts_with("Pig") && entry.name == entry.owner {
-                self.pigs.set(entry.owner, true);
+                self.pigs[entry.owner] = true;
             }
         }
         self.bird = self.root.get_node("Bird");
@@ -90,7 +89,7 @@ impl Game {
         }
         let w = node.get_component("widget");
         if w.kind() == "map" {
-            w.set("text", text);
+            w["text"] = text;
             node.set_component("widget", w);
         }
     }
@@ -122,7 +121,7 @@ impl Game {
                 node.set_component("collider2d", entry.collider2d);
             }
             if entry.name.starts_with("Pig") {
-                self.pigs.set(entry.name, true);
+                self.pigs[entry.name] = true;
             }
         }
         self.score = 0;
@@ -139,7 +138,7 @@ impl Game {
     fn pigs_alive() -> int {
         let n = 0;
         for name in self.pigs.keys() {
-            if self.pigs.get(name).as_bool() {
+            if self.pigs[name].as_bool() {
                 n += 1;
             }
         }
@@ -148,9 +147,9 @@ impl Game {
 
     // Park the bird back on the sling as a kinematic body, ready to aim.
     fn rearm_bird() {
-        self.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
-        self.bird.transform.rotation_euler = [0.0, 0.0, 0.0];
-        self.bird.set_component("body2d", map().with("kind", physics2d::BODY_KINEMATIC));
+        self.bird.transform.position = vec3(ANCHOR_X, ANCHOR_Y, 0.0);
+        self.bird.transform.rotation_euler = vec3(0.0, 0.0, 0.0);
+        self.bird.set_component("body2d", { "kind": physics2d::BODY_KINEMATIC });
         self.launched = false;
         self.rest_timer = 0.0;
     }
@@ -186,20 +185,20 @@ impl Game {
                     dx = dx / len * MAX_PULL;
                     dy = dy / len * MAX_PULL;
                 }
-                self.bird.transform.position = [ANCHOR_X + dx, ANCHOR_Y + dy, 0.0];
+                self.bird.transform.position = vec3(ANCHOR_X + dx, ANCHOR_Y + dy, 0.0);
                 if input::mouse_just_released(input::MOUSE_BUTTON_LEFT) {
                     self.aiming = false;
                     let p = self.bird.transform.position;
                     let ix = (ANCHOR_X - p.x) * POWER;
                     let iy = (ANCHOR_Y - p.y) * POWER;
                     if math::sqrt(ix * ix + iy * iy) > 1.0 {
-                        self.bird.set_component("body2d", map().with("kind", physics2d::BODY_DYNAMIC));
+                        self.bird.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
                         self.bird.body2d.apply_impulse(ix, iy);
                         self.launched = true;
                         self.birds_left -= 1;
                         self.set_widget_text("Birds", "Birds {self.birds_left}");
                     } else {
-                        self.bird.transform.position = [ANCHOR_X, ANCHOR_Y, 0.0];
+                        self.bird.transform.position = vec3(ANCHOR_X, ANCHOR_Y, 0.0);
                     }
                 }
             }
@@ -210,12 +209,12 @@ impl Game {
         }
         // Pigs pop when anything hits them hard enough.
         for name in self.pigs.keys() {
-            if !self.pigs.get(name).as_bool() {
+            if !self.pigs[name].as_bool() {
                 continue;
             }
             let pig = self.root.get_node(name);
             if !pig.is_valid() {
-                self.pigs.set(name, false);
+                self.pigs[name] = false;
                 continue;
             }
             let p = pig.transform.position;
@@ -226,7 +225,7 @@ impl Game {
                         pop(entry);
                     }
                 }
-                self.pigs.set(name, false);
+                self.pigs[name] = false;
                 self.score += 500;
                 self.set_widget_text("Score", "Score {self.score}");
                 log::info("{name} popped (impulse {tenths(impulse)})");

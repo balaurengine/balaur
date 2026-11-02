@@ -1,0 +1,41 @@
+// A function is a value, called later: from a local, a list, a field.
+
+fn double(x: int) -> int { x * 2 }
+fn square(x: int) -> int { x * x }
+fn longer(a: str, b: str) -> bool { a.len() > b.len() }
+fn apply(f: fn(int) -> int, x: int) -> int { f(x) }
+pub class Picker { pick: fn(int) -> int }
+impl Picker {
+    pub fn run(x: int) -> int {
+        let f = self.pick;
+        f(x)
+    }
+}
+pub fn twice(k: int) -> int {
+    let f = double;
+    let g: fn(int) -> int = square;
+    apply(f, k) + apply(g, k)
+}
+pub fn table(k: int) -> int {
+    let fs: [fn(int) -> int] = [double, square, double];
+    let t = 0;
+    for f in fs { t += f(k); }
+    t
+}
+pub fn longest() -> str {
+    let xs = ["a", "ccc", "bb"];
+    let best = xs[0];
+    let better = longer;
+    for x in xs { if better(x, best) { best = x; } }
+    best
+}
+pub fn picked(k: int) -> int {
+    let p = Picker { pick: square };
+    p.run(k)
+}
+
+// expect: twice(5) == 35
+// expect: table(3) == 21
+// expect: longest() == "ccc"
+// expect: picked(6) == 36
+// live: 0

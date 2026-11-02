@@ -111,6 +111,6 @@ fn fade(widget: &Widget, age: f64) -> f32 {
 /// at its end, past the pass that is still walking an arena naming them.
 pub(crate) fn clear(eng: &Engine, expired: &[Entity]) {
     for entity in expired {
-        eng.push_command(balaur_core::Command::Free(*entity));
+        eng.defer_free(*entity);
     }
 }

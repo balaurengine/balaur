@@ -6,11 +6,9 @@ pub class Tiles {
     editor: Node,
 }
 
-pub struct Params {
-    visible: bool,
-    options: any,
+pub struct Parameters {
+    items: any,
     text: any,
-    sheet: any,
 }
 
 impl Tiles {
@@ -31,31 +29,30 @@ impl Tiles {
 
     /// A chip has run its own handler by now, so what is left is to show what
     /// it changed; a card is a tile picked.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if node.name() == "Cards" && event == "click" {
-            self.editor.call("tiles_pick", node.get_component("widget", "text"));
-            return;
-        }
-        if event == "click" || event == "change" {
-            self.refresh();
-        }
+    pub fn card_clicked(_value: any, node: Node) {
+        self.editor.call("tiles_pick", node.widget.text);
+    }
+
+    pub fn refill() {
+        self.refresh();
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("tiles_fill");
         if !(view.kind() == "map") {
             return;
         }
-        let cards = view.get("items").len() > 0;
-        let params = Params { visible: cards, options: view.get("items"), text: view.get("picked"), sheet: nil };
+        let cards = view["items"].len() > 0;
+        let list = self.node.get_node("Cards");
+        list.set_visible(cards);
+        list.patch_component("widget", Parameters { items: view["items"], text: view["picked"] });
         if cards {
-            params.sheet = view.get("sheet");
+            list.widget_list.sheet = view["sheet"].as_str();
         }
-        self.node.get_node("Cards").patch_component("widget", params);
     }
 }

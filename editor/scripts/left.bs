@@ -7,7 +7,6 @@ use editor;
 use icons;
 use lint;
 use model;
-use pool;
 use search;
 use selection;
 use shell;
@@ -40,16 +39,14 @@ pub struct Item {
 }
 
 pub struct OutlineView {
-    items: [str],
+    /// The rows, or none where they are the ones `stamp` already names.
+    items: [ui::Item],
+    stamp: str,
     chosen: [str],
+    empty: bool,
     filtering: bool,
     nothing: str,
     add_icon: str,
-}
-
-pub struct Built {
-    items: [str],
-    chosen: [str],
 }
 
 /// Where the tree drew a row, in design px.
@@ -75,17 +72,17 @@ const MARK_EYE: str = "eye";
 
 const MARK_LOCK: str = "lock";
 
-// Rebuilt only when the rows were listed again (`model::reindex` drops the
-// key) or a fold changed. The rows are the tree in order already, so this is
-// one pass: a node's depth is its parent's and one, and a folded node hides
-// the rows under it.
+/// Rebuilt only when the rows were listed again (`model::reindex` drops the
+/// key) or a fold changed. The rows are the tree in order already, so this is
+/// one pass: a node's depth is its parent's and one, and a folded node hides
+/// the rows under it.
 fn open_rows(state: &mut editor::State) -> [any] {
     let key = "{state.nodes.len()}:{state.collapsed.len()}";
     if state.tree_cache.key == key {
         return state.tree_cache.rows;
     }
     let rows: [any] = [];
-    let depth_of = map();
+    let depth_of: any = {};
     let folded: Node = nil;
     for index in 0..state.nodes.len() {
         let found = state.nodes[index];
@@ -95,11 +92,11 @@ fn open_rows(state: &mut editor::State) -> [any] {
         folded = nil;
         let id = found.stable_id();
         let parent = model::parent_id(state, found);
-        let depth = if parent == "" { 0 } else { depth_of.get(parent).as_int() + 1 };
-        depth_of.set(id, depth);
+        let depth = if parent == "" { 0 } else { depth_of[parent].as_int() + 1 };
+        depth_of[id] = depth;
         let has_kids = found.children().len() > 0;
         let is_last = model::is_scene_root(state, found) || found.sibling_index() == found.parent().children().len() - 1;
-        rows.push(map().with("index", index).with("depth", depth).with("is_last", is_last).with("has_kids", has_kids));
+        rows.push({ "index": index, "depth": depth, "is_last": is_last, "has_kids": has_kids });
         if has_kids && state.collapsed.has(id) {
             folded = found;
         }
@@ -125,8 +122,8 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
     let rows: [Item] = [];
     if state.workspace == defs::WORKSPACE_SCRIPT {
         for file in model::list(state, "scripts") {
-            let name = file.name.as_str();
-            if !file.is_dir.as_bool() && name.ends_with(".bs") {
+            let name = file["name"].as_str();
+            if !file["is_dir"].as_bool() && name.ends_with(".bs") {
                 let rel = "scripts/" + name;
                 rows.push(item("‹›", name, "{model::line_count(state, rel)} L", rel, "script", -1, rel));
             }
@@ -139,14 +136,14 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
         for index in 0..state.nodes.len() {
             let found = state.nodes[index];
             let kind = model::body_kind(found);
-            if kind.is_nil() {
+            if kind == nil {
                 kind = model::body2d_kind(found);
             }
             let collider = found.has_component("collider3d") || found.has_component("collider2d");
-            if !kind.is_nil() || collider {
-                let dim = if found.has_component("body2d") || found.has_component("collider2d") { "2D" } else { "3D" };
-                let what = if kind.is_nil() { "collider3d" } else { kind.as_str() };
-                rows.push(item("▣", found.name(), "{what} · {dim}", found.stable_id(), "choose", index, ""));
+            if kind != nil || collider {
+                let dimension = if found.has_component("body2d") || found.has_component("collider2d") { "2D" } else { "3D" };
+                let what = if kind == nil { "collider3d" } else { kind.as_str() };
+                rows.push(item("▣", found.name(), "{what} · {dimension}", found.stable_id(), "choose", index, ""));
             }
         }
         if rows.len() == 0 {
@@ -161,7 +158,7 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
                 let name = anim::clip_name(state, found);
                 let library = anim::library_path(state, found);
                 let shown = if name == "" { found.name() } else { name };
-                rows.push(item("◷", shown, if library.is_none() { "inline" } else { library.unwrap() }, found.stable_id(), "choose", index, ""));
+                rows.push(item("◷", shown, if library == nil { "inline" } else { library.unwrap() }, found.stable_id(), "choose", index, ""));
             }
         }
         if rows.len() == 0 {
@@ -174,7 +171,7 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
             let found = state.nodes[index];
             if found.has_component("widget") {
                 let widget = found.authored("widget");
-                let kind = if widget.kind.is_nil() { "widget" } else { widget.kind.as_str() };
+                let kind = if widget["kind"] == nil { "widget" } else { widget["kind"].as_str() };
                 rows.push(item("▤", found.name(), kind, found.stable_id(), "choose", index, ""));
             }
         }
@@ -184,8 +181,8 @@ fn secondary_content(state: &mut editor::State) -> Secondary {
         return Secondary { title: "Widgets", rows: rows };
     }
     for file in model::list(state, "scenes") {
-        if !file.is_dir.as_bool() {
-            let name = file.name.as_str();
+        if !file["is_dir"].as_bool() {
+            let name = file["name"].as_str();
             let rel = "scenes/" + name;
             rows.push(item("◇", name, if state.scene_rel == rel { "open" } else { "" }, rel, "scene", -1, rel));
         }
@@ -219,53 +216,69 @@ pub fn outline_title(state: &mut editor::State) -> str {
 fn tagged(state: editor::State, index: int, tag: str) -> bool {
     let found = model::node(state, index);
     if tag == "script" {
-        return !model::script_rel(found).is_nil();
+        return model::script_rel(found) != nil;
     }
     if !found.is_valid() {
         return false;
     }
     for name in found.component_names() {
         let tags = scene::component_tags(name);
-        if tags.is_some() && util::contains(tags.unwrap(), tag) {
+        if tags != nil && util::contains(tags.unwrap(), tag) {
             return true;
         }
     }
     false
 }
 
-/// The Scene panel's rows for a search and a facet tag: each row's string,
-/// the selected ones, and what to say when the filter leaves none.
-pub fn outline_view(state: &mut editor::State, query: str, facet: str) -> OutlineView {
+/// The Scene panel's rows for a search and a facet tag: each row, the keys of
+/// the selected ones, and what to say when the filter leaves none. A panel that
+/// drew the rows `drawn` names is handed none: a click moves the selection, and
+/// on a long document the rows are most of what a click costs.
+pub fn outline_view(state: &mut editor::State, query: str, facet: str, drawn: str) -> OutlineView {
     let filtering = query != "" || facet != "";
     let rows = if filtering { filtered_rows(state, query, facet) } else { open_rows(state) };
-    let built = tree_items(state, state.theme, rows);
+    let stamp = "{state.outline_rows}|{query}|{facet}";
     let says = if query != "" { query } else { facet };
     OutlineView {
-        items: built.items,
-        chosen: built.chosen,
+        items: if stamp == drawn { [] } else { tree_items(state, state.theme, rows) },
+        stamp: stamp,
+        chosen: chosen_keys(state, rows),
+        empty: rows.len() == 0,
         filtering: filtering,
         nothing: search::nothing_says(says),
         add_icon: icons::ui("add"),
     }
 }
 
-/// A row the Scene panel's tree picked, by the id its string carries: that
-/// node is chosen, with the modifiers the click was made with.
+/// A row the Scene panel's tree picked, by the id that is its key: that node
+/// is chosen, with the modifiers the click was made with.
 pub fn outline_pick(state: &mut editor::State, row: str) {
-    let found = model::index_of_id(state, row_id(row));
-    if found.is_some() {
+    let found = model::index_of_id(state, row);
+    if found != nil {
         let index = found.unwrap();
-        if index != state.sel {
+        if index != state.selected {
             shell::choose_click(state, index);
         }
     }
 }
 
-// Each row's string, and the strings of the selected rows.
-fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
-    let items: [str] = [];
+// Every selected node lit, not only the active one: the document holds a set,
+// and `multi_select` is what draws one.
+fn chosen_keys(state: editor::State, rows: [any]) -> [str] {
+    let chosen: [str] = [];
     for row in rows {
-        let index = row.index.as_int();
+        let index = row["index"].as_int();
+        if selection::contains(state, index) {
+            chosen.push(state.nodes[index].stable_id());
+        }
+    }
+    chosen
+}
+
+fn tree_items(state: editor::State, tokens: any, rows: [any]) -> [ui::Item] {
+    let items: [ui::Item] = [];
+    for row in rows {
+        let index = row["index"].as_int();
         let node = state.nodes[index];
         let id = node.stable_id();
         let icon = model::node_icon(node);
@@ -273,47 +286,31 @@ fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
         // cannot say: 2D, 3D, UI and physics each read at a glance. The id is
         // the row's key: two nodes may share a name, never a row.
         let note = if lint::warned(state, id).len() > 0 { "⚠" } else { "" };
-        let tint = if tokens.get(icon.role).is_nil() { tokens.text_default.as_str() } else { tokens.get(icon.role).as_str() };
-        let line = util::repeat("\t", row.depth.as_int());
-        items.push(line + util::cells([icon.glyph, node.name(), note, tint, id, row_marks(state, index)]));
+        let tint = if tokens[icon.role] == nil { tokens["text_default"].as_str() } else { tokens[icon.role].as_str() };
+        items.push(ui::Item { icon: icon.glyph, label: node.name(), note: note, tint: tint, key: id, depth: row["depth"].as_int(), marks: row_marks(state, index) });
     }
-    // Every selected node lit, not only the active one: the document holds a
-    // set, and `multi_select` is what draws one.
-    let chosen: [str] = [];
-    for position in 0..rows.len() {
-        let row = rows[position];
-        if selection::contains(state, row.index.as_int()) {
-            chosen.push(items[position]);
-        }
-    }
-    Built { items: items, chosen: chosen }
+    items
 }
 
 /// The eye on every row, open or closed, and the lock only on a locked one,
 /// rightmost: the tree draws them and reports a click as `tree_mark`.
-pub fn row_marks(state: editor::State, index: int) -> str {
+pub fn row_marks(state: editor::State, index: int) -> [ui::Mark] {
     let eye = if arrange::is_hidden(state, index) { "eye-closed" } else { "visible" };
-    let marks = "{MARK_EYE}={icons::ui(eye)}";
+    let marks = [ui::Mark { name: MARK_EYE, glyph: icons::ui(eye) }];
     if selection::is_locked(state, index) {
-        marks += "\u{1e}{MARK_LOCK}={icons::ui("lock")}";
+        marks.push(ui::Mark { name: MARK_LOCK, glyph: icons::ui("lock") });
     }
     marks
-}
-
-// The node id a tree row's string carries, its fifth cell.
-fn row_id(row: str) -> str {
-    let parts = row.split("\u{1f}");
-    if parts.len() > 4 { parts[4] } else { "" }
 }
 
 /// A mark clicked on a tree row: the eye shows or hides that node, the lock
 /// unlocks it. The row stays as it was picked, or not.
 pub fn mark_clicked(state: &mut editor::State, row: str, mark: str) {
-    let i_or = model::index_of_id(state, row_id(row));
-    if i_or.is_none() {
+    let index_or = model::index_of_id(state, row);
+    if index_or == nil {
         return;
     }
-    let index = i_or.unwrap();
+    let index = index_or.unwrap();
     if mark == MARK_EYE {
         arrange::toggle_hidden_of(state, [index]);
     } else if mark == MARK_LOCK {
@@ -330,7 +327,7 @@ pub fn row_spot(state: &mut editor::State, index: int) -> RowSpot? {
         return nil;
     }
     let rect = ui::widget_rect(found);
-    if rect.is_none() {
+    if rect == nil {
         return nil;
     }
     let box = rect.unwrap();
@@ -339,9 +336,9 @@ pub fn row_spot(state: &mut editor::State, index: int) -> RowSpot? {
 }
 
 // Which drawn row is the selection, so the node can mark it.
-fn selected_row(rows: [any], sel: int) -> int {
+fn selected_row(rows: [any], selected_index: int) -> int {
     for position in 0..rows.len() {
-        if rows[position].index.as_int() == sel {
+        if rows[position]["index"].as_int() == selected_index {
             return position;
         }
     }
@@ -357,7 +354,7 @@ pub fn hide_tree(state: editor::State) {
 pub fn show_tree() {
     let found = scene::get_node(PANEL);
     if found.is_valid() {
-        found.patch_component("widget", map().with("visible", true));
+        found.set_visible(true);
     }
 }
 
@@ -374,25 +371,25 @@ fn filtered_rows(state: editor::State, query: str, facet: str) -> [any] {
         if facet != "" && !tagged(state, index, facet) {
             continue;
         }
-        out.push(map().with("index", index).with("depth", 0).with("is_last", true).with("has_kids", false));
+        out.push({ "index": index, "depth": 0, "is_last": true, "has_kids": false });
     }
     out
 }
 
-/// The Outline tab's rows for the workspace, one string a row.
-pub fn secondary_view(state: &mut editor::State) -> [str] {
-    let items: [str] = [];
+/// The Outline tab's rows for the workspace.
+pub fn secondary_view(state: &mut editor::State) -> [ui::Item] {
+    let items: [ui::Item] = [];
     for row in secondary_content(state).rows {
-        items.push(util::cells([row.icon, row.name, row.meta, "", row.key]));
+        items.push(ui::Item { icon: row.icon, label: row.name, note: row.meta, key: row.key });
     }
     items
 }
 
-/// The Outline tab picked the row written `picked`: that row's own action,
-/// found again by its string rather than held on the node.
+/// The Outline tab picked the row `picked` names: that row's own action,
+/// found again by its key rather than held on the node.
 pub fn secondary_pick(state: &mut editor::State, picked: str) {
     for row in secondary_content(state).rows {
-        if util::cells([row.icon, row.name, row.meta, "", row.key]) == picked {
+        if row.key == picked {
             act(state, row);
         }
     }
@@ -401,7 +398,7 @@ pub fn secondary_pick(state: &mut editor::State, picked: str) {
 pub fn show_outline() {
     let found = scene::get_node(OUTLINE);
     if found.is_valid() {
-        found.patch_component("widget", map().with("visible", true));
+        found.set_visible(true);
     }
 }
 
@@ -430,31 +427,32 @@ pub fn rename_close(state: &mut editor::State) {
 /// the rename happens over it.
 /// Fill the picker: what its script asks for while a rename is up.
 pub fn rename_fill(state: &mut editor::State) {
-    let row_h = util::max(style::row_h(state), 28.0);
-    let host = window::picker(state, map()
-        .with("width", 420.0)
-        // The node's own mark, which is what the tree row it renames wears.
-        .with("mark", node_mark(state))
-        .with("placeholder", "Name")
-        .with("query", state.rename_text)
-        .with("rows_h", row_h + 6.0)
-        .with("on", "handle")
-        .with("on_submit", "handle_submit")
-        .with("data", map().with("fn", on_rename_typed).with("submit", on_rename_submitted)));
-    pool::sync(state, host, [
-        map()
-            .with("full", true)
-            .with("height", row_h)
-            .with("controls", [
-                map()
-                    .with("kind", "button")
-                    .with("role", "action_form_primary")
-                    .with("grow", 1)
-                    .with("text", "Rename")
-                    .with("on", "handle")
-                    .with("data", map().with("fn", on_rename_clicked)),
-            ]),
-    ], 0.0, false);
+    let row_height = util::max(style::row_height(state), 28.0);
+    let host = window::picker(state, {
+        "width": 420.0,
+        "mark": node_mark(state),
+        "placeholder": "Name",
+        "query": state.rename_text,
+        "rows_h": row_height + 6.0,
+        "on_change": "handle",
+        "on_submit": "handle_submit",
+        "data": { "fn": on_rename_typed, "submit": on_rename_submitted },
+    });
+    ui::fill_rows(host, [
+        ui::Row {
+            height: row_height,
+            controls: [
+                ui::Control {
+                    kind: "button",
+                    role: "action_form_primary",
+                    grow: 1,
+                    text: "Rename",
+                    on_click: "handle",
+                    data: { "fn": on_rename_clicked },
+                },
+            ],
+        },
+    ]);
 }
 
 fn on_rename_typed(state: &mut editor::State, data: any, text: any) {

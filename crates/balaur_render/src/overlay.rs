@@ -41,14 +41,6 @@ pub(crate) fn schema_3d() -> Vec<(&'static str, String)> {
     ]
 }
 
-/// Rows as the lines of a schema written as one TOML string.
-pub(crate) fn toml_lines(rows: &[(&'static str, String)]) -> String {
-    rows.iter()
-        .map(|(key, line)| format!("{key} = {line}"))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
 /// A component's own rows with the flag rows after them, as the pairs
 /// `ComponentDef::schema` takes.
 pub(crate) fn with_rows<'a>(

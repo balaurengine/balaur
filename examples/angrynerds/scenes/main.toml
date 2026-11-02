@@ -15,6 +15,17 @@ id = "n_main"
 name = "Main"
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_main"
+
+[nodes.transform]
+position = [0.0, 3.0, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 52.0
+
+[[nodes]]
 id = "n_game"
 name = "Game"
 parent = "n_main"
@@ -72,13 +83,11 @@ body2d = { kind = "static" }
 position = [0, -0.5, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [28, 1.0]
+shape = { kind = "rectangle", size = [28, 1.0] }
 color = [0.45, 0.63, 0.35, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [28, 1.0]
+shape = { kind = "rectangle", size = [28, 1.0] }
 physics_material = { friction = 0.9 }
 
 [[nodes]]
@@ -90,8 +99,7 @@ parent = "n_main"
 position = [-8, 0.9, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.24, 1.8]
+shape = { kind = "rectangle", size = [0.24, 1.8] }
 color = [0.42, 0.28, 0.16, 1.0]
 
 [[nodes]]
@@ -104,13 +112,11 @@ body2d = { kind = "kinematic" }
 position = [-8, 2.2, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 color = [0.85, 0.2, 0.18, 1.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 density = 2.5
 physics_material = { friction = 0.7, restitution = 0.3 }
 
@@ -124,13 +130,11 @@ body2d = { kind = "dynamic" }
 position = [6, 1.0, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.32, 2.0]
+shape = { kind = "rectangle", size = [0.32, 2.0] }
 color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [0.32, 2.0]
+shape = { kind = "rectangle", size = [0.32, 2.0] }
 physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
@@ -143,13 +147,11 @@ body2d = { kind = "dynamic" }
 position = [8, 1.0, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.32, 2.0]
+shape = { kind = "rectangle", size = [0.32, 2.0] }
 color = [0.74, 0.57, 0.32, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [0.32, 2.0]
+shape = { kind = "rectangle", size = [0.32, 2.0] }
 physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
@@ -162,13 +164,11 @@ body2d = { kind = "dynamic" }
 position = [7, 2.16, 0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [2.6, 0.28]
+shape = { kind = "rectangle", size = [2.6, 0.28] }
 color = [0.68, 0.5, 0.28, 1.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [2.6, 0.28]
+shape = { kind = "rectangle", size = [2.6, 0.28] }
 physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
@@ -187,8 +187,7 @@ color = [0.72, 0.53, 0.3, 1.0]
 # One concave body where two columns and a plank used to stand: the pieces
 # overlap across their seams, so the bird cannot wedge itself under the top.
 [nodes.collider2d]
-kind = "convex_decomposition"
-mesh = "#table"
+shape = { kind = "convex_decomposition", mesh = "#table" }
 physics_material = "physics_materials/wood.toml"
 
 [[nodes]]
@@ -201,13 +200,11 @@ body2d = { kind = "dynamic" }
 position = [7, 0.45, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.45
+shape = { kind = "circle", radius = 0.45 }
 color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.45
+shape = { kind = "circle", radius = 0.45 }
 physics_material = "physics_materials/pig.toml"
 
 
@@ -220,8 +217,7 @@ parent = "n_pig1"
 position = [-0.18, 0.072, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.189
+shape = { kind = "circle", radius = 0.189 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -233,8 +229,7 @@ parent = "n_pig1"
 position = [0.18, 0.072, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.189
+shape = { kind = "circle", radius = 0.189 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -246,8 +241,7 @@ parent = "n_pig1"
 position = [0, 0.072, 0.01]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.1, 0.032]
+shape = { kind = "rectangle", size = [0.1, 0.032] }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -259,8 +253,7 @@ parent = "n_pig1"
 position = [-0.18, 0.072, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.135
+shape = { kind = "circle", radius = 0.135 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -272,8 +265,7 @@ parent = "n_pig1"
 position = [0.18, 0.072, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.135
+shape = { kind = "circle", radius = 0.135 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -285,8 +277,7 @@ parent = "n_pig1"
 position = [-0.18, 0.072, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.05
+shape = { kind = "circle", radius = 0.05 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -298,8 +289,7 @@ parent = "n_pig1"
 position = [0.18, 0.072, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.05
+shape = { kind = "circle", radius = 0.05 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -312,13 +302,11 @@ body2d = { kind = "dynamic" }
 position = [7, 2.72, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 physics_material = "physics_materials/pig.toml"
 
 
@@ -331,8 +319,7 @@ parent = "n_pig2"
 position = [-0.16, 0.064, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.168
+shape = { kind = "circle", radius = 0.168 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -344,8 +331,7 @@ parent = "n_pig2"
 position = [0.16, 0.064, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.168
+shape = { kind = "circle", radius = 0.168 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -357,8 +343,7 @@ parent = "n_pig2"
 position = [0, 0.064, 0.01]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.088, 0.028]
+shape = { kind = "rectangle", size = [0.088, 0.028] }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -370,8 +355,7 @@ parent = "n_pig2"
 position = [-0.16, 0.064, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.12
+shape = { kind = "circle", radius = 0.12 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -383,8 +367,7 @@ parent = "n_pig2"
 position = [0.16, 0.064, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.12
+shape = { kind = "circle", radius = 0.12 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -396,8 +379,7 @@ parent = "n_pig2"
 position = [-0.16, 0.064, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.044
+shape = { kind = "circle", radius = 0.044 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -409,8 +391,7 @@ parent = "n_pig2"
 position = [0.16, 0.064, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.044
+shape = { kind = "circle", radius = 0.044 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -423,13 +404,11 @@ body2d = { kind = "dynamic" }
 position = [7, 4.55, 0]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.36
+shape = { kind = "circle", radius = 0.36 }
 color = [0.36, 0.72, 0.25, 1.0]
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.36
+shape = { kind = "circle", radius = 0.36 }
 physics_material = "physics_materials/pig.toml"
 
 [[nodes]]
@@ -441,8 +420,7 @@ parent = "n_pig3"
 position = [-0.144, 0.058, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.151
+shape = { kind = "circle", radius = 0.151 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -454,8 +432,7 @@ parent = "n_pig3"
 position = [0.144, 0.058, 0.01]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.151
+shape = { kind = "circle", radius = 0.151 }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -467,8 +444,7 @@ parent = "n_pig3"
 position = [0, 0.058, 0.01]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.08, 0.026]
+shape = { kind = "rectangle", size = [0.08, 0.026] }
 color = [0.16, 0.13, 0.11, 1.0]
 
 [[nodes]]
@@ -480,8 +456,7 @@ parent = "n_pig3"
 position = [-0.144, 0.058, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.108
+shape = { kind = "circle", radius = 0.108 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -493,8 +468,7 @@ parent = "n_pig3"
 position = [0.144, 0.058, 0.02]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.108
+shape = { kind = "circle", radius = 0.108 }
 color = [0.96, 0.96, 0.93, 1.0]
 
 [[nodes]]
@@ -506,8 +480,7 @@ parent = "n_pig3"
 position = [-0.144, 0.058, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.04
+shape = { kind = "circle", radius = 0.04 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 [[nodes]]
@@ -519,8 +492,7 @@ parent = "n_pig3"
 position = [0.144, 0.058, 0.03]
 
 [nodes.shape2d]
-kind = "circle"
-radius = 0.04
+shape = { kind = "circle", radius = 0.04 }
 color = [0.1, 0.1, 0.12, 1.0]
 
 

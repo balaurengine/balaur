@@ -3,7 +3,7 @@
 //! The 3D twin of [`crate::skinned_2d`]: joints and weights ride as vertex
 //! attributes, the joint palette rides in a uniform, and the vertex shader
 //! blends them — so a rig no longer rewrites the mesh's vertex buffers from
-//! the CPU every frame. `balaur_core::skeleton::joint_matrices_3d` still
+//! the CPU every frame. `balaur_geometry::skeleton::joint_matrices_3d` still
 //! computes the palette; only its consumer changed.
 //!
 //! The CPU path stays as the reference and is still what draws when a node
@@ -235,7 +235,7 @@ fn build_pipelines(layout: wgpu::PipelineLayout, shader: wgpu::ShaderModule) -> 
                 &crate::pipeline::Raster {
                     cull: None,
                     depth,
-                    blend: crate::pipeline::Blend::Straight,
+                    blend: kiss3d::scene::Blend2d::Alpha,
                 },
                 sample_count,
             )
@@ -496,7 +496,7 @@ pub(crate) fn solver_present(
     entity: balaur_core::hecs::Entity,
 ) -> bool {
     world
-        .get::<&balaur_core::mesh::SolvedMesh>(entity)
+        .get::<&balaur_geometry::mesh::SolvedMesh>(entity)
         .is_ok_and(|s| !s.positions.is_empty())
 }
 
@@ -511,7 +511,9 @@ pub(crate) fn draw_solved(
     uploaded: Option<u32>,
     node: &mut SceneNode3d,
 ) -> Option<u32> {
-    let solved = world.get::<&balaur_core::mesh::SolvedMesh>(entity).ok()?;
+    let solved = world
+        .get::<&balaur_geometry::mesh::SolvedMesh>(entity)
+        .ok()?;
     if solved.positions.is_empty() {
         return uploaded;
     }

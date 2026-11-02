@@ -5,11 +5,11 @@
 id = "panel"
 name = "Import"
 script = { source = "scripts/panels/import.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "name"
@@ -19,7 +19,6 @@ parent = "panel"
 kind = "label"
 role = "text_title"
 font_size = 13
-text = ""
 padding = [10, 6, 10, 0]
 
 [[nodes]]
@@ -30,18 +29,16 @@ parent = "panel"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 padding = [10, 0, 10, 4]
 
 [[nodes]]
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
-visible = false
 
 [[nodes]]
 id = "scroll"

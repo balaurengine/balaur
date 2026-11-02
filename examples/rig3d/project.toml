@@ -1,7 +1,3 @@
 [application]
 name = "rig3d"
 main_scene = "scenes/main.toml"
-
-# A runtime with one physics world, smaller than the full one.
-[export]
-runtime = "3d"

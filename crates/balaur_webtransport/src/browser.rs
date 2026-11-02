@@ -20,7 +20,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
-use balaur_core::transport::{Delivery, Received};
+use balaur_net::transport::{Delivery, Received};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 

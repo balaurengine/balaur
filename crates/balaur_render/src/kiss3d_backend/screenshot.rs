@@ -6,12 +6,11 @@
 //! loop that snapped it.
 
 use crate::kiss3d_camera::Eye;
-use balaur_core::hecs::Entity;
-use balaur_core::{App, GlobalTransform};
+use balaur_core::App;
 use kiss3d::scene::SceneNode3d;
 use kiss3d::window::Window;
 
-use crate::{Aov, Renderable3d, ScreenshotRequest};
+use crate::{Aov, ScreenshotRequest};
 
 /// The snapped frame as PNG bytes, so the backend writes them wherever it
 /// keeps files.
@@ -57,15 +56,6 @@ pub(crate) fn take_if_due(
         let request = request.borrow();
         (request.path.clone(), request.aov)
     };
-    {
-        let world = app.engine.world();
-        for (entity, renderable, global) in
-            &mut world.query::<(Entity, &Renderable3d, &GlobalTransform)>()
-        {
-            let _ = renderable;
-            tracing::debug!("renderable {entity:?} at {}", global.position);
-        }
-    }
     let image = snapped(window, aov, view);
     // Encoded here and handed to the backend: a browser has no disk to save
     // to, and the path may name a directory that is not there yet.

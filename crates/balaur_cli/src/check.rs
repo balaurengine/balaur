@@ -21,9 +21,6 @@ pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
             errors += 1;
         } else {
             warnings += 1;
-            if !strict {
-                continue;
-            }
         }
         let at = if one.line > 0 {
             format!("{}:{}:{}", one.file, one.line, one.column)
@@ -33,14 +30,9 @@ pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
         println!("{at}: {}: {}", one.severity, one.message);
     }
     if errors == 0 && (!strict || warnings == 0) {
-        // Warnings are counted even when they are not printed, so a quiet
-        // run still says there is something --strict would show.
-        let quiet = if strict || warnings == 0 {
-            String::new()
-        } else {
-            format!(" ({warnings} warning(s); --strict shows them)")
-        };
-        println!("no problems{quiet}");
+        if warnings == 0 {
+            println!("no problems");
+        }
         return Ok(());
     }
     std::process::exit(1);

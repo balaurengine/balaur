@@ -4,3 +4,9 @@
 [[profile.default.overrides]]
 filter = 'package(balaur_bench)'
 threads-required = 'num-cpus'
+
+# The tests that take seconds start first, so the rest fill the cores
+# around them rather than leaving one running alone at the end.
+[[profile.default.overrides]]
+filter = 'test(every_program_answers_as_written_on_every_engine) | test(every_target_builds_hello_needing_nothing) | test(random_programs_answer_as_the_reference_interpreter_does) | test(every_engine_function_hovers) | test(units_answer_as_the_whole_file_does)'
+priority = 100

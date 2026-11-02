@@ -1,13 +1,14 @@
 //! A scene written back from its nodes (PLAN-editor-as-scene §10.1): what
 //! `scene.to_toml` answers, and what an editor saves and plays from.
 //!
-//! Each node is written as it was asked for rather than read back: a
-//! component is the table every write asked of it ([`Authored`]), a node key
-//! what the node holds where that is not the default, the script what it
-//! names. A prefab's nodes are not written: the node that instanced it
-//! carries what they changed, read against what the prefab file asks.
+//! Each node is written from what it holds: a component is its struct read
+//! back and spelled as an author writes it, less every property at its
+//! default ([`written_of`]); a node key what the node holds where that is not
+//! the default; the script what it names. A prefab's nodes are not written:
+//! the node that instanced it carries what they changed, read against what
+//! the prefab file asks.
 //!
-//! [`Authored`]: crate::components::Authored
+//! [`written_of`]: crate::components::written_of
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -16,6 +17,7 @@ use anyhow::{Context, Result, bail};
 use hecs::Entity;
 
 use crate::collections::DetHashMap;
+use crate::components::same;
 use crate::engine::Engine;
 use crate::process::ProcessMode;
 use crate::scene::{Appearance, Children, Name, NodeScript, Tags};
@@ -191,7 +193,7 @@ fn write_asked(eng: &Engine, entity: Entity, base: Option<&toml::Table>, out: &m
     {
         out.insert("script".into(), script);
     }
-    for (name, asked) in crate::components::asked_of(eng, entity) {
+    for (name, asked) in crate::components::written_of(eng, entity) {
         if base.get(&name).is_none_or(|was| !same(&asked, was)) {
             out.insert(name, asked);
         }
@@ -221,7 +223,7 @@ fn write_overrides(
             entry.insert("script".into(), toml::Value::Table(changed));
         }
     }
-    for (name, asked) in crate::components::asked_of(eng, entity) {
+    for (name, asked) in crate::components::written_of(eng, entity) {
         let defaults = defaults_of(eng, &name);
         let changed = match (asked, base.get(&name)) {
             (toml::Value::Table(asked), Some(toml::Value::Table(was))) => {
@@ -448,31 +450,6 @@ fn patch(asked: &mut toml::Table, over: &toml::Table) {
 
 /// Two asked values the same, numbers to the f32 a component holds them in:
 /// the file's 0.8 and the 0.800000011920929 a script wrote back are one.
-fn same(a: &toml::Value, b: &toml::Value) -> bool {
-    match (a, b) {
-        (toml::Value::Array(a), toml::Value::Array(b)) => {
-            a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same(a, b))
-        }
-        (toml::Value::Table(a), toml::Value::Table(b)) => {
-            a.len() == b.len()
-                && a.iter()
-                    .all(|(key, value)| b.get(key).is_some_and(|other| same(value, other)))
-        }
-        _ => match (number(a), number(b)) {
-            (Some(x), Some(y)) => (x - y).abs() <= 1e-5 * x.abs().max(1.0),
-            _ => a == b,
-        },
-    }
-}
-
-fn number(value: &toml::Value) -> Option<f64> {
-    match value {
-        toml::Value::Integer(n) => Some(*n as f64),
-        toml::Value::Float(f) => Some(*f),
-        _ => None,
-    }
-}
-
 /// The keys every node has, as one value: read off a node, or out of a table
 /// the way a build applies them, so the two compare.
 #[derive(Clone, PartialEq)]
@@ -482,7 +459,6 @@ struct NodeKeys {
     z_index: i64,
     z_as_relative: bool,
     process: ProcessMode,
-    interpolate: Option<bool>,
     tags: Vec<String>,
 }
 
@@ -494,7 +470,6 @@ impl Default for NodeKeys {
             z_index: 0,
             z_as_relative: true,
             process: ProcessMode::Inherit,
-            interpolate: None,
             tags: Vec::new(),
         }
     }
@@ -515,7 +490,6 @@ impl NodeKeys {
             keys.tags.clone_from(&tags.0);
         }
         drop(world);
-        keys.interpolate = crate::interpolate::own(eng, entity);
         keys
     }
 
@@ -540,9 +514,6 @@ impl NodeKeys {
         {
             keys.process = mode;
         }
-        keys.interpolate = table
-            .get(crate::interpolate::KEY)
-            .and_then(toml::Value::as_bool);
         if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
             let mut tags = Tags::default();
             for tag in list.iter().filter_map(toml::Value::as_str) {
@@ -584,11 +555,6 @@ impl NodeKeys {
                 toml::Value::String(self.process.name().into()),
             );
         }
-        if self.interpolate != base.interpolate
-            && let Some(on) = self.interpolate
-        {
-            out.insert(crate::interpolate::KEY.into(), toml::Value::Boolean(on));
-        }
         if self.tags != base.tags {
             out.insert(
                 "tags".into(),
@@ -618,10 +584,6 @@ pub(crate) fn node_keys_value(eng: &Engine, entity: Entity) -> balaur_script::Va
         ("z_index".into(), Value::Int(keys.z_index)),
         ("z_as_relative".into(), Value::Bool(keys.z_as_relative)),
         (crate::process::KEY.into(), Value::text(keys.process.name())),
-        (
-            crate::interpolate::KEY.into(),
-            keys.interpolate.map_or(Value::Nil, Value::Bool),
-        ),
         (
             "tags".into(),
             Value::List(keys.tags.iter().map(Value::text).collect()),

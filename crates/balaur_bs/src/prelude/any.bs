@@ -1,8 +1,10 @@
-// The methods of an `any`, compiled into a program that calls them. An `any`
-// is a counted cell holding its kind, then the value or the arrays it points
-// at (`crate::anys`); nil is no cell. `set`, `push`, `put`, `insert` and
-// `remove` change a map or a list in place, so every holder of it sees the
-// change; `with` and `sorted` make new ones.
+//! The methods of an `any`, compiled into a program that calls them. An `any`
+//! is a counted cell holding its kind, then the value or the arrays it points
+//! at (`crate::anys`); nil is no cell. `a["k"]`, `a[i]`, `a["k"] = v` and
+//! `a[i] = v` compile to `get`, `at`, `set` and `put`, private here so a script
+//! has the one spelling. Those writes, `push`, `insert` and `remove` change a map
+//! or a list in place, so every holder of it sees the change; `sorted` makes a
+//! new one.
 
 const BOOL: int = 1;
 const INT: int = 2;
@@ -31,10 +33,6 @@ pub fn kind(value: any) -> str {
     } else {
         "nil"
     }
-}
-
-pub fn is_nil(value: any) -> bool {
-    __tag(value) == 0
 }
 
 pub fn as_int(value: any) -> int {
@@ -94,7 +92,7 @@ pub fn len(value: any) -> int {
     }
 }
 
-pub fn get(map: any, key: str) -> any {
+fn get(map: any, key: str) -> any {
     if __tag(map) != MAP {
         return nil;
     }
@@ -106,7 +104,7 @@ pub fn get(map: any, key: str) -> any {
     }
 }
 
-pub fn at(list: any, index: int) -> any {
+fn at(list: any, index: int) -> any {
     if __tag(list) != LIST {
         return nil;
     }
@@ -141,31 +139,7 @@ pub fn text(value: any) -> str {
     }
 }
 
-// A new map: this one's entries copied, with `key` set. Nil counts as empty.
-pub fn with(map: any, key: str, item: any) -> any {
-    let keys: [str] = [];
-    let vals: [any] = [];
-    if __tag(map) == MAP {
-        let old_keys = __keys(map);
-        let old_vals = __vals(map);
-        let index = 0;
-        while index < old_keys.len() {
-            keys.push(old_keys[index]);
-            vals.push(copy(old_vals[index]));
-            index += 1;
-        }
-    }
-    let index = index_of(keys, key);
-    if index < 0 {
-        keys.push(key);
-        vals.push(copy(item));
-    } else {
-        vals[index] = copy(item);
-    }
-    __map(keys, vals)
-}
-
-pub fn set(map: any, key: str, item: any) -> bool {
+fn set(map: any, key: str, item: any) -> bool {
     if __tag(map) != MAP {
         return false;
     }
@@ -190,7 +164,7 @@ pub fn push(list: any, item: any) -> bool {
 }
 
 // A list's element at `index` replaced; false past its end.
-pub fn put(list: any, index: int, item: any) -> bool {
+fn put(list: any, index: int, item: any) -> bool {
     if __tag(list) != LIST {
         return false;
     }
@@ -239,9 +213,10 @@ pub fn remove(value: any, key: any) -> any {
     __vals(value).remove(index)
 }
 
-// The same value: numbers by number whatever their kind, maps by key
-// whatever their order, lists by their elements, nil only to nil.
-pub fn equals(value: any, other: any) -> bool {
+// `==` and `!=` on an `any`: the same value, numbers by number whatever their
+// kind, maps by key whatever their order, lists by their elements, nil only to
+// nil.
+fn equals(value: any, other: any) -> bool {
     same(value, other)
 }
 

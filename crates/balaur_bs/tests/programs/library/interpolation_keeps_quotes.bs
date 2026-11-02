@@ -1,0 +1,8 @@
+// A string inside an interpolation keeps its quotes.
+
+pub fn quoted(hit: any) -> str {
+    "{hit.has("tags")} {hit["tags"][1].as_str()} {"a}}b"} {{x}} {"say \"hi\""}"
+}
+
+// expect: quoted({ "tags": ["fire", "ice"] }) == "true ice a}b {x} say \"hi\""
+// live: 0

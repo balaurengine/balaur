@@ -5,12 +5,12 @@
 id = "panel"
 name = "Docs"
 script = { source = "scripts/panels/docs.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 4]
-visible = false
 
 [[nodes]]
 id = "tools"
@@ -27,9 +27,9 @@ id = "module"
 name = "Module"
 parent = "tools"
 [nodes.widget]
+on_change = "module_picked"
 kind = "dropdown"
 role = "choice"
-text = ""
 options = []
 width = 150
 
@@ -38,11 +38,12 @@ id = "search"
 name = "Search"
 parent = "tools"
 [nodes.widget]
+on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
-text = ""
-placeholder = "Search"
 width = 150
+[nodes.widget_field]
+placeholder = "Search"
 
 [[nodes]]
 id = "list"
@@ -51,7 +52,6 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 grow = 1
-text = ""
 row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
 
@@ -59,8 +59,7 @@ font = "fonts/JetBrainsMono-Regular.ttf"
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
-text = ""
-visible = false

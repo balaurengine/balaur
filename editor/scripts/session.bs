@@ -25,11 +25,6 @@ pub class SessionState {
     demo: selftest::Demo?,
 }
 
-pub struct Options {
-    scripts: str,
-    digest: bool,
-}
-
 pub struct Row {
     name: str,
     started: str,
@@ -54,7 +49,7 @@ pub struct Mark {
 // one is renamed out of the ring. Set on the settings screen.
 fn ring_size() -> int {
     let keep = settings::get("editor/recordings/keep");
-    if keep.is_nil() { 10 } else { keep.as_float() as int }
+    if keep == nil { 10 } else { keep.as_float() as int }
 }
 
 pub fn state() -> SessionState {
@@ -66,7 +61,7 @@ pub fn state() -> SessionState {
         header: nil,
         first: 0,
         last: 0,
-        // Lanes built once at load: each `#{ id, name, marks }`.
+        // Lanes built once at load: each `{ id, name, marks }`.
         lanes: [],
         // The tick the detail list describes.
         at: 0,
@@ -83,7 +78,7 @@ pub fn state() -> SessionState {
 
 // Where this game's sessions live: in the per-user folder, one per project
 // name, so nothing lands in the project or its version control.
-pub fn dir(state: editor::State) -> str {
+pub fn directory(state: editor::State) -> str {
     project::editor_data_directory() + "/recordings/" + state.game_name
 }
 
@@ -94,7 +89,7 @@ pub fn fingerprint(state: editor::State) -> str {
     let parts: [str] = [];
     for found in state.nodes {
         let rel = model::script_rel(found);
-        if !rel.is_nil() {
+        if rel != nil {
             let stamp = fs::modified_time(state.game_root + "/" + rel.as_str());
             parts.push("{rel}:{stamp}");
         }
@@ -107,18 +102,15 @@ pub fn fingerprint(state: editor::State) -> str {
 // game's scripts attach: an `init` that opens a socket has to be inside the
 // recording, and one that takes an await token has to take the recorded id.
 pub fn start(state: &mut editor::State) {
-    let path = dir(state) + "/" + replay::recording_name() + ".blr";
-    let opts = Options { scripts: fingerprint(state), digest: state.session.verify };
-    let why = replay::record(path, opts);
-    let ok = true;
-    if ok {
-        state.session.recording = path;
-        state.session.listed_at = -1.0;
-        signals::changed(state, "recordings");
-    } else {
-        log::warn("not recording this run: {why}");
+    let path = directory(state) + "/" + replay::recording_name() + ".blr";
+    let options = replay::RecordOptions { scripts: fingerprint(state), digest: state.session.verify };
+    if replay::record(path, options) == nil {
         state.session.recording = "";
+        return;
     }
+    state.session.recording = path;
+    state.session.listed_at = -1.0;
+    signals::changed(state, "recordings");
 }
 
 // End everything the session machinery has open: the recording being written
@@ -157,8 +149,8 @@ pub fn finish(state: &mut editor::State, reason: str?) {
 // Keep the newest few; a session renamed to `kept-*` is out of the ring.
 fn prune(state: editor::State) {
     let names: [str] = [];
-    for entry in util::vec(fs::list(dir(state))) {
-        let name = util::obj(entry).get("name").as_str();
+    for entry in util::list_or_empty(fs::list(directory(state))) {
+        let name = util::map_or_empty(entry)["name"].as_str();
         if name.ends_with(".blr") && !name.starts_with("kept-") {
             names.push(name);
         }
@@ -171,7 +163,7 @@ fn prune(state: editor::State) {
         return;
     }
     for index in 0..(names.len() - ring) {
-        fs::remove(dir(state) + "/" + names[index]);
+        fs::remove(directory(state) + "/" + names[index]);
     }
 }
 
@@ -185,8 +177,8 @@ pub fn listing(state: &mut editor::State) -> [Row] {
     }
     state.session.listed_at = now;
     let names: [str] = [];
-    for entry in util::vec(fs::list(dir(state))) {
-        let name = util::obj(entry).get("name").as_str();
+    for entry in util::list_or_empty(fs::list(directory(state))) {
+        let name = util::map_or_empty(entry)["name"].as_str();
         if name.ends_with(".blr") {
             names.push(name);
         }
@@ -207,28 +199,27 @@ pub fn listing(state: &mut editor::State) -> [Row] {
 // One row of the list. A file being written, or half-written by a run that
 // crashed, still lists — it just says so instead of showing counts.
 fn row(state: editor::State, name: str, mine: str) -> Row {
-    let head = replay::info(dir(state) + "/" + name);
-    let ok = true;
-    if !ok {
+    let head = replay::info(directory(state) + "/" + name);
+    if head == nil {
         return Row { name: name, started: "", ticks: 0, seconds: 0.0, reason: "unreadable", stale: false };
     }
-    let head = util::obj(head);
-    let first = head.get("first").as_int();
-    let last = head.get("last").as_int();
-    let recorded = head.get("scripts").as_str();
-    let recorded_reason = head.get("reason");
+    let head = util::map_or_empty(head);
+    let first = head["first"].as_int();
+    let last = head["last"].as_int();
+    let recorded = head["scripts"].as_str();
+    let recorded_reason = head["reason"];
     Row {
         name: name,
-        started: head.get("started").as_str(),
-        ticks: head.get("frames").as_int(),
+        started: head["started"].as_str(),
+        ticks: head["frames"].as_int(),
         // Ticks are the fixed 60 Hz step, so seconds follow from the count.
-        seconds: (last - first + 1).as_float() / 60.0,
-        reason: (if !recorded_reason.is_nil() {
+        seconds: (last - first + 1) as float / 60.0,
+        reason: (if recorded_reason != nil {
             let reason = recorded_reason;
-            if reason.kind() == "str" { reason } else { "crashed" }
+            if reason.kind() == "str" { reason.as_str() } else { "crashed" }
         } else {
             "crashed"
-        }).as_str(),
+        }),
         stale: recorded != "" && recorded != mine,
     }
 }
@@ -236,8 +227,8 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
 // Copy a session out of the editor's data directory and into the project, so
 // it can be attached to a bug report or handed to `balaur replay --verify`.
 pub fn export(state: editor::State, name: str) {
-    let text = fs::read(dir(state) + "/" + name);
-    if text.is_none() {
+    let text = fs::read(directory(state) + "/" + name);
+    if text == nil {
         log::warn("{name} could not be read");
         return;
     }
@@ -258,27 +249,24 @@ pub fn step(state: &mut editor::State) {
 // first: the recording holds what the game was fed, not the world it started
 // from, and the same inputs into a different world are a different game.
 pub fn open(state: &mut editor::State, name: str) {
-    let path = dir(state) + "/" + name;
+    let path = directory(state) + "/" + name;
     shell::stop_play(state);
     shell::begin_play(state);
-    let why = replay::load(path);
-    let ok = true;
-    if !ok {
-        log::warn("{name}: {why}");
+    if replay::load(path) == nil {
         return;
     }
     state.session.loaded = path;
     state.session.header = replay::header();
-    let span = util::obj(replay::length());
-    state.session.first = span.get("first").as_int();
-    state.session.last = span.get("last").as_int();
+    let span = util::map_or_empty(replay::length());
+    state.session.first = span["first"].as_int();
+    state.session.last = span["last"].as_int();
     state.session.at = state.session.first;
     state.session.lanes = build_lanes();
     // Loading puts the clock back to where the session started, so every
     // cache that ages against `engine::unix_time()` now thinks it is fresh until
     // the clock catches up.
-    state.sources = map();
-    state.listings = map();
+    state.sources = {};
+    state.listings = {};
     state.session.listed_at = -1.0;
     signals::changed(state, "recordings");
     state.lint.at = -1.0;
@@ -304,7 +292,7 @@ pub fn open(state: &mut editor::State, name: str) {
 // A replay whose scripts have been edited since still plays; it just cannot
 // promise to reproduce what was seen.
 fn warn_if_stale(state: editor::State, name: str) {
-    let recorded = util::obj(state.session.header).get("scripts").as_str();
+    let recorded = util::map_or_empty(state.session.header)["scripts"].as_str();
     if recorded != "" && recorded != fingerprint(state) {
         log::warn("{name}: the scripts have changed since this was recorded");
     }
@@ -329,8 +317,8 @@ fn build_lanes() -> [Lane] {
 // engine records what the frame was fed, and the key names are already in it.
 fn named_marks(source: str, key: str) -> [Mark] {
     let out: [Mark] = [];
-    for mark in util::vec(replay::marks(source, key)) {
-        out.push(Mark { tick: mark.get("tick"), label: util::join(util::vec(mark.get("values")), " ") });
+    for mark in util::list_or_empty(replay::marks(source, key)) {
+        out.push(Mark { tick: mark["tick"], label: util::join(util::list_or_empty(mark["values"]), " ") });
     }
     out
 }
@@ -339,9 +327,9 @@ fn named_marks(source: str, key: str) -> [Mark] {
 // that were true.
 fn index_marks(source: str, key: str) -> [Mark] {
     let out: [Mark] = [];
-    for mark in util::vec(replay::marks(source, key)) {
+    for mark in util::list_or_empty(replay::marks(source, key)) {
         let names: [str] = [];
-        let values = util::vec(mark.get("values"));
+        let values = util::list_or_empty(mark["values"]);
         for button in 0..values.len() {
             let down = values[button];
             if down.as_bool() == true {
@@ -349,7 +337,7 @@ fn index_marks(source: str, key: str) -> [Mark] {
             }
         }
         if names.len() > 0 {
-            out.push(Mark { tick: mark.get("tick"), label: util::join(names, " ") });
+            out.push(Mark { tick: mark["tick"], label: util::join(names, " ") });
         }
     }
     out
@@ -359,14 +347,14 @@ fn index_marks(source: str, key: str) -> [Mark] {
 // error, so this is also how a script error reaches a lane.
 fn log_marks(levels: [str]) -> [Mark] {
     let out: [Mark] = [];
-    for event in util::vec(replay::events(0, 1000000000)) {
-        if event.get("kind").as_str() != "log" {
+    for event in util::list_or_empty(replay::events(0, 1000000000)) {
+        if event["kind"].as_str() != "log" {
             continue;
         }
         let level = level_of(event);
         for want in levels {
             if want == level {
-                out.push(Mark { tick: event.get("tick"), label: event.get("label").as_str() });
+                out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
             }
         }
     }
@@ -374,17 +362,17 @@ fn log_marks(levels: [str]) -> [Mark] {
 }
 
 fn level_of(event: any) -> str {
-    let level = util::obj(event.get("data")).get("level");
-    if level.is_nil() { "info" } else { level.as_str() }
+    let level = util::map_or_empty(event["data"])["level"];
+    if level == nil { "info" } else { level.as_str() }
 }
 
 // What went wrong and where a script stopped, on one row: the two things you
 // scan a session for after seeing a bug.
 fn error_marks() -> [Mark] {
     let out: [Mark] = [];
-    for event in util::vec(replay::events(0, 1000000000)) {
-        if event.get("kind").as_str() == "debug.pause" || (event.get("kind").as_str() == "log" && level_of(event) == "error") {
-            out.push(Mark { tick: event.get("tick"), label: event.get("label").as_str() });
+    for event in util::list_or_empty(replay::events(0, 1000000000)) {
+        if event["kind"].as_str() == "debug.pause" || (event["kind"].as_str() == "log" && level_of(event) == "error") {
+            out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
         }
     }
     out
@@ -392,10 +380,10 @@ fn error_marks() -> [Mark] {
 
 fn event_marks(kinds: [str]) -> [Mark] {
     let out: [Mark] = [];
-    for event in util::vec(replay::events(0, 1000000000)) {
+    for event in util::list_or_empty(replay::events(0, 1000000000)) {
         for kind in kinds {
-            if kind == event.get("kind").as_str() {
-                out.push(Mark { tick: event.get("tick"), label: event.get("label").as_str() });
+            if kind == event["kind"].as_str() {
+                out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
             }
         }
     }
@@ -410,14 +398,14 @@ pub fn close(state: &mut editor::State) {
 
 // Rename a session out of the ring that prunes the oldest.
 pub fn keep(state: &mut editor::State, name: str) {
-    fs::rename(dir(state) + "/" + name, dir(state) + "/kept-" + name);
+    fs::rename(directory(state) + "/" + name, directory(state) + "/kept-" + name);
     state.session.listed_at = -1.0;
     signals::changed(state, "recordings");
     log::info("keeping " + name);
 }
 
 pub fn remove(state: &mut editor::State, name: str) {
-    fs::remove(dir(state) + "/" + name);
+    fs::remove(directory(state) + "/" + name);
     state.session.listed_at = -1.0;
     signals::changed(state, "recordings");
     log::info("deleted " + name);
@@ -431,11 +419,11 @@ pub fn loaded(state: editor::State) -> bool {
 // read. True while playing or seeking; a paused session hands the pointer
 // back, because nothing is fed and the engine is held.
 pub fn scrubbing(state: editor::State) -> bool {
-    loaded(state) && replay::state() != replay::STATE_PAUSED.as_str()
+    loaded(state) && replay::state() != replay::STATE_PAUSED
 }
 
 pub fn toggle_pause(state: editor::State) {
-    if replay::state() == replay::STATE_PAUSED.as_str() {
+    if replay::state() == replay::STATE_PAUSED {
         replay::play();
     } else {
         replay::pause();
@@ -466,7 +454,7 @@ pub fn update(state: &mut editor::State) {
     if state.session.loaded == "" {
         return;
     }
-    if replay::state() != replay::STATE_PAUSED.as_str() {
+    if replay::state() != replay::STATE_PAUSED {
         state.session.at = replay::position();
     }
 }

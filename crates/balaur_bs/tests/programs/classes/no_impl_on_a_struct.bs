@@ -1,0 +1,4 @@
+pub struct S { x: int }
+impl S { fn m() -> int { 1 } }
+
+// error: 2:10: `impl S`: a struct has no methods; make it a `class`, or write a function that takes it

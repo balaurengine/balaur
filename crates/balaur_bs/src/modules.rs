@@ -3,7 +3,7 @@
 // can write, so only what it makes `pub` is reached from outside.
 
 use crate::Error;
-use crate::ast::{Block, Expr, ExprKind, Part, Pos, Program, StmtKind, Ty};
+use crate::ast::{Block, Expr, ExprKind, Part, Pattern, Pos, Program, StmtKind, Ty};
 use crate::parse;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -205,6 +205,7 @@ pub(crate) fn link(
     let mut out = linked.out;
     root.linked.append(&mut out.linked);
     root.structs.append(&mut out.structs);
+    root.enums.append(&mut out.enums);
     root.classes.append(&mut out.classes);
     root.fns.append(&mut out.fns);
     root.consts.append(&mut out.consts);
@@ -383,6 +384,7 @@ impl Linker<'_> {
             self.done.push((key, name.clone()));
             self.out.linked.push(name);
             self.out.structs.append(&mut m.structs);
+            self.out.enums.append(&mut m.enums);
             self.out.classes.append(&mut m.classes);
             self.out.fns.append(&mut m.fns);
             self.out.consts.append(&mut m.consts);
@@ -584,6 +586,13 @@ impl Rename for Unalias<'_> {
 
 fn unalias(prog: &mut Program, aliases: &[String], made: &Made) {
     let names = Unalias(aliases, made);
+    for e in &mut prog.enums {
+        for v in &mut e.variants {
+            for (_, t) in &mut v.fields {
+                names.ty(t);
+            }
+        }
+    }
     for (_, fields) in &mut prog.structs {
         for f in fields {
             names.ty(&mut f.ty);
@@ -623,6 +632,14 @@ pub(crate) fn prefix(m: &mut Program, name: &str, key: &str) {
             }
         }
         *n = format!("{name}::{n}");
+    }
+    for e in &mut m.enums {
+        for v in &mut e.variants {
+            for (_, t) in &mut v.fields {
+                names.ty(t);
+            }
+        }
+        e.name = format!("{name}::{}", e.name);
     }
     for n in &mut m.classes {
         *n = format!("{name}::{n}");
@@ -701,32 +718,59 @@ fn block(n: &dyn Rename, scope: &mut Vec<String>, b: &mut Block) {
     scope.truncate(mark);
 }
 
+// `Shape::Circle` as the module names its enum: `util::Shape::Circle`.
+fn variant_path(n: &dyn Rename, path: &mut String) {
+    if let Some((head, variant)) = path.rsplit_once("::")
+        && let Some(full) = n.strukt(head)
+    {
+        *path = format!("{full}::{variant}");
+    }
+}
+
 fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
     let local = |scope: &Vec<String>, v: &str| scope.iter().any(|s| s == v);
     match &mut e.kind {
         ExprKind::Call(name, args) => {
-            if !local(scope, name)
-                && let Some(full) = n.func(name)
-            {
-                *name = full;
+            if !local(scope, name) {
+                match n.func(name) {
+                    Some(full) => *name = full,
+                    None => variant_path(n, name),
+                }
             }
             for a in args {
                 expr(n, scope, a);
             }
         }
-        ExprKind::Var(v) if !local(scope, v) => {
-            if let Some(full) = n.value(v) {
-                *v = full;
-            }
-        }
+        ExprKind::Var(v) if !local(scope, v) => match n.value(v) {
+            Some(full) => *v = full,
+            None => variant_path(n, v),
+        },
         ExprKind::StructLit(s, fields) => {
-            if let Some(full) = n.strukt(s) {
-                *s = full;
+            match n.strukt(s) {
+                Some(full) => *s = full,
+                None => variant_path(n, s),
             }
             for (_, f) in fields {
                 expr(n, scope, f);
             }
         }
+        ExprKind::Match(subject, arms) => {
+            expr(n, scope, subject);
+            for arm in arms {
+                let mark = scope.len();
+                match &mut arm.pattern {
+                    Pattern::Variant { path, binds } => {
+                        variant_path(n, path);
+                        scope.extend(binds.iter().map(|(_, bound)| bound.clone()));
+                    }
+                    Pattern::Bind(name) => scope.push(name.clone()),
+                    Pattern::Any => {}
+                }
+                expr(n, scope, &mut arm.body);
+                scope.truncate(mark);
+            }
+        }
+        ExprKind::Block(b) => block(n, scope, b),
         ExprKind::Cast(a, t) => {
             expr(n, scope, a);
             n.ty(t);

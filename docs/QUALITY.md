@@ -12,6 +12,7 @@ Tools and processes for ensuring the code quality remains high.
 | `test.yml` | runs the tests |
 | `build.yml` | builds and exports |
 | `channel.yml` | moves a channel's tag when a version is published |
+| `fuzz.yml` | runs the Balaur Script compiler's fuzz targets each night, on a schedule of its own |
 
 ## Before you push
 
@@ -26,12 +27,12 @@ with `rustfmt` and `clippy`, so every machine runs one linter version.
 
 - `cargo fmt --all --check`.
 - `cargo clippy --workspace --all-targets -- -D warnings`
-- Once for `window`, `extensions`, `apple`
+- Once for `extensions`, `apple`
 - The game templates `scripts/package.sh` builds: `2d` and `3d`, one physics
   world each with a window, and `server` without one
 - Twice for `wasm32-unknown-unknown`: the web runtime's features, and the defaults
 - The workspace for `aarch64-linux-android` and `aarch64-apple-ios`, then the
-  iOS template's `window` and `apple`: the code no host build compiles.
+  iOS template's `apple`: the code no host build compiles.
   `scripts/precommit.sh` skips either without its target, and Android without
   the NDK, whose clang builds the C and C++ under `ring` and HarfBuzz.
 - `examples/extension_greeter`, deliberately outside the workspace: the only
@@ -58,7 +59,6 @@ mechanical; **REPORT** prints only.
 | `comment-too-long`, `comment-restates-name` | comment blocks, and comments that restate the line below |
 | `showcase-milestone` | a picture `scripts/showcase.sh` takes and files under no milestone, or a milestone naming a take that is gone |
 | `det-prefix-misuse`, `dimension-casing`, `dimension-snake`, `install-verb`, `system-verb`, `engine-param-name`, `resource-suffix`, `new-resource-type`, `fn-suffix-on-struct`, `pub-inner`, `component-registration-doc` | the mechanical half of `docs/NAMING.md` |
-| `rune-short-circuit`, `rune-rebound-let` | two Rune shapes that compile and then misbehave (`AGENTS.md`) |
 | `std-fs`, `is-absolute` | `std::fs` and `Path::is_absolute` in engine crates, which the web build has no disk for; `files::backend` and `files::rooted` are the substitutes |
 | `hover-only-control` | an editor control shown only while hovered, which a finger cannot reach |
 | `setting-unit` | a setting or option that measures time, rate or distance and names no unit (`NAMING.md` N21) |
@@ -139,11 +139,47 @@ three desktop platforms. Beyond `cargo test --workspace`:
   tested without them: nothing else exercises a subsystem switched off.
 - `cargo test -p balaur_render --features aseprite`, locally only:
   `precommit.sh` runs it and `test.yml` does not.
+- **The Balaur Script corpus** — `crates/balaur_bs/tests/programs/`, `.bs`
+  files whose `// expect:` lines are calls and their answers and whose
+  `// error:` lines are their compile errors, written out whole. Each runs on
+  every engine the build has (wasmi, wasmtime, native code through C), which
+  must agree to the bit; `cargo test --workspace` turns all three on. CI
+  also runs it on the browser's engine in Node (`--test web`, wasm32).
+  `BLESS=1` rewrites the answers from what ran.
+- **Broken programs** — `tests/suite/mutants.rs` cuts, splices and seeds
+  tokens into every corpus program with a seeded generator, then reads,
+  formats, analyses, compiles and runs each under fuel: nothing may panic,
+  and every module written validates. `BS_FUZZ_SEED` and `BS_FUZZ_MUTANTS`
+  (12 a program by default) widen a run; `crates/balaur_bs/fuzz/` holds the
+  same two checks as `cargo fuzz` targets, `compile` and `run`, for a nightly
+  run without end.
+- **Random programs** — `tests/suite/random.rs` generates well-typed programs
+  and runs each on every engine and on a small interpreter kept for the
+  test, which must agree: the engines share one compiler, so only this
+  catches it writing the wrong code. 60 a push; `BS_RANDOM_PROGRAMS`. A
+  disagreement is shrunk, printed and saved under `tests/programs/random/`,
+  so the corpus holds it until it is fixed.
+- `scripts/check_scripts.sh` — `balaur check --strict` over the editor, its
+  library and templates, and every example: CI runs it on Linux after the
+  tests.
 - `scripts/e2e_tests.sh` — suites where a full app boots over real sockets
   (`balaur_http`, `balaur_websocket`, `balaur_gamend`, `balaur_platform`), gated
   on `BALAUR_E2E` so a local `cargo test` stays fast. The Gamend ones talk
   to a local Gamend on port 4000 (`GAMEND_URL` overrides): CI starts one with
   Gamend's `setup-gamend` action, and locally `gamend daemon` serves one.
+
+What keeps a run short: the editor and the tests build on one feature set,
+`cargo editor` and `cargo suite` (`.cargo/config.toml`), so an edit compiles
+each crate once for both, where `-p balaur_cli` compiles every engine crate a
+second time; a target whose sources hold no unit tests says `test = false`
+(a house lint holds it), so no empty test binary is compiled and linked; a
+dev build carries no debug info, so no link goes through `dsymutil`
+(`--profile debugging` for a debugger); a long test does
+its work on every core (the corpus, the export of every target) and nextest
+starts it first (`.config/nextest.toml`); and a generic from a dependency
+that does heavy work is called through a concrete type the dependency
+compiles itself (`image`'s `DynamicImage`), at opt 3, not instantiated in a
+crate built at opt 0.
 
 ## End to end, over every example
 
@@ -166,7 +202,7 @@ run it; `scripts/precommit.sh --e2e` does.
 - **render**, twice — the game and the editor surface-less on a real GPU,
   which is where a texture the backend cannot bind or a shader it rejects
   warns. The step reads the `rendering ... offscreen` line back, so a binary
-  built without `--features window` fails rather than repeating the headless
+  built with no `window` feature fails rather than repeating the headless
   run.
 
 Two bars: **a clean exit and a clean log.** A logged `ERROR` or `WARN` fails,
@@ -251,7 +287,7 @@ one entry in `cases_kinds.bs` or `cases_scripts.bs`.
   `package_play.sh` boots each example on the web runtime its
   `[export] runtime` picked.
 - `build.yml` builds a `-2d`, `-3d` and `-server` template of every desktop,
-  exports an example whose `[export] runtime` names it onto each with that
+  exports an example that fits only it onto each with that
   run's editor and plays 60 frames (`VARIANT=... scripts/package.sh`); the
   mobile and web variants go through `scripts/export_check.sh`.
 - `scripts/check_web_module.sh` holds both web stagings to what `balaur.js`

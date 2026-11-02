@@ -21,7 +21,7 @@ record() {
   : >"$combined"
   # One build, then the binary: `cargo run` takes the build lock on every call,
   # which serialises this against anything else compiling in the same tree.
-  cargo build -q -p balaur_cli --bin balaur
+  cargo editor -q
   local bin=${CARGO_TARGET_DIR:-target}/debug/balaur
   for project in "${PROJECTS[@]}"; do
     local name trace

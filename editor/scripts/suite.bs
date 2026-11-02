@@ -47,7 +47,7 @@ pub fn begin(state: &mut editor::State, list: str) {
 /// One frame of the run, at the end of the editor's `update`: start the next
 /// state on a fresh editor once the one before has gone quiet.
 pub fn step(state: &mut editor::State) {
-    if state.suite.is_none() {
+    if state.suite == nil {
         return;
     }
     let run = state.suite.unwrap();
@@ -83,7 +83,7 @@ pub fn step(state: &mut editor::State) {
     let states = next;
     run.budget = 0;
     let at = util::index_of(next, "@");
-    if at.is_some() {
+    if at != nil {
         states = next.slice(0, at.unwrap());
         run.budget = next.slice(at.unwrap() + 1, next.len()).parse_int();
     }
@@ -115,7 +115,7 @@ fn waiting(state: editor::State, run: &mut Run) -> bool {
 /// last one put in place. Booted in a call of its own, so a call the boot
 /// makes back into the Editor is handed the new state, not the one before.
 pub fn reboot(state: &mut editor::State, editor: Node) {
-    if state.suite.is_none() || !state.suite.unwrap().boot_due {
+    if state.suite == nil || !state.suite.unwrap().boot_due {
         return;
     }
     let run = state.suite.unwrap();
@@ -144,5 +144,5 @@ fn reopen(state: &mut editor::State) {
 /// showcase still plays: a stepping self-test is listed in `stepping` until
 /// it is done, so a new driver needs no line here.
 fn busy(state: editor::State) -> bool {
-    state.stepping.len() > 0 || state.import_queue.len() > 0 || state.showcase.is_some()
+    state.stepping.len() > 0 || state.import_queue.len() > 0 || state.showcase != nil
 }

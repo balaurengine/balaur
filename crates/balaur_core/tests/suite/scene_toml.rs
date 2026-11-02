@@ -22,32 +22,27 @@ fn app_in(dir: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
     app.register_component(
         "marker",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema(
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
                 "marker",
                 r#"label = { type = "string", default = "none" }
 size = { type = "float", default = 1.0 }
 picture = { type = "string", default = "" }"#,
             ),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, entity, params| {
+            Box::new(|eng: &Engine, entity, params| {
                 eng.world_mut()
                     .insert_one(entity, Marker(params.clone()))
                     .map_err(|_| anyhow::anyhow!("dead node"))?;
                 Ok(())
             }),
-            remove: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 let _ = eng.world_mut().remove_one::<Marker>(entity);
                 Ok(())
             }),
-            get: Box::new(|eng: &Engine, entity| {
+            Box::new(|eng: &Engine, entity| {
                 eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
             }),
-        },
+        ),
     );
     app
 }
@@ -393,4 +388,65 @@ fn a_node_of_another_projects_content_names_files_as_it_spells_them() {
         nodes(&document)[0]["marker"]["picture"].as_str(),
         Some("pictures/ship.png")
     );
+}
+
+/// A component's struct is the record a save reads: a colour comes back as
+/// the hex it was written as, an inline asset as its table, and a property
+/// left at its default is not written.
+#[test]
+fn a_component_is_written_from_what_it_holds_spelled_as_written() {
+    let dir = project(&[]);
+    let mut app = app_in(dir.path());
+    app.register_component(
+        "paint",
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema(
+                "paint",
+                r##"tint = { type = "color", default = "#ffffff" }
+size = { type = "float", default = 1.0 }
+song = { type = "asset", asset = "note", default = "" }"##,
+            ),
+            Box::new(|eng: &Engine, entity, params| {
+                eng.world_mut()
+                    .insert_one(entity, Marker(params.clone()))
+                    .map_err(|_| anyhow::anyhow!("dead node"))?;
+                Ok(())
+            }),
+            Box::new(|eng: &Engine, entity| {
+                let _ = eng.world_mut().remove_one::<Marker>(entity);
+                Ok(())
+            }),
+            Box::new(|eng: &Engine, entity| {
+                eng.world().get::<&Marker>(entity).ok().map(|m| m.0.clone())
+            }),
+        ),
+    );
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(
+        &app.engine,
+        r##"
+[[nodes]]
+id = "n_lamp"
+name = "Lamp"
+
+[nodes.paint]
+tint = "#ff8000"
+size = 1.0
+song = { type = "note", pitch = 440.0 }
+"##,
+        root,
+        false,
+    )
+    .unwrap();
+    let paint = nodes(&written(&app))[0]["paint"]
+        .as_table()
+        .unwrap()
+        .clone();
+    assert_eq!(paint["tint"].as_str(), Some("#ff8000"), "{paint:?}");
+    assert!(
+        !paint.contains_key("size"),
+        "a default is left out: {paint:?}"
+    );
+    let song = paint["song"].as_table().unwrap();
+    assert_eq!(song["pitch"].as_float(), Some(440.0), "{paint:?}");
 }

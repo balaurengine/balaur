@@ -54,12 +54,12 @@ pub fn hear_boxes(state: editor::State, editor: Node) {
 }
 
 /// Have the Editor hear what the engine says from no node: a project file
-/// reloaded, a script stopped or let go, a paste no field took, files
-/// dropped, and what the pointer did, which is when the viewport's tools
-/// look at it.
+/// reloaded, a script stopped or let go, a paste no field took, text or an
+/// image, files dropped, and what the pointer did, which is when the
+/// viewport's tools look at it.
 pub fn hear_engine(editor: Node) {
     for word in [
-        "assets_reloaded", "debugger_stopped", "pasted",
+        "assets_reloaded", "debugger_stopped", "pasted", "pasted_image",
         "pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured",
         "files_dropped",
     ] {
@@ -69,21 +69,28 @@ pub fn hear_engine(editor: Node) {
 
 /// Clear the guard on `name`, as the Editor hears it back.
 pub fn heard(state: &mut editor::State, name: str) {
-    state.told.set(name, false);
+    state.told[name] = false;
 }
 
 fn tell(state: &mut editor::State, name: str) {
-    let held = state.told.get(name);
-    if !held.is_nil() && held.as_bool() {
+    let held = state.told[name];
+    if held != nil && held.as_bool() {
         return;
     }
-    state.told.set(name, true);
+    state.told[name] = true;
     scene::get_node("Editor").emit(name, nil);
 }
 
-/// The document, the selection, a lock or a warning moved: what a panel
-/// showing the document's outline listens for.
+/// The document, a lock or a warning moved: what a panel showing the
+/// document's outline listens for, with the rows it holds out of date.
 pub fn outline(state: &mut editor::State) {
+    state.outline_rows += 1;
+    tell(state, OUTLINE);
+    bars(state);
+}
+
+/// Only the selection moved: the same word, with the rows as they were.
+pub fn selected(state: &mut editor::State) {
     tell(state, OUTLINE);
     bars(state);
 }
@@ -131,7 +138,7 @@ pub fn docks(state: &mut editor::State) {
     // The text, not the map: a key holding `state.docks` itself is the map it is
     // compared against, and never differs from it.
     let key: any = [
-        "{state.docks}", state.layout.left.width, state.layout.right.width, state.layout.bottom.width,
+        "{state.docks}", state.layout["left"]["width"], state.layout["right"]["width"], state.layout["bottom"]["width"],
         state.workspace, state.compact, counts.errors + counts.warnings, state.registry.panels.len(),
         session::loaded(state),
     ];
@@ -158,7 +165,7 @@ pub fn overlays_moved(state: &mut editor::State, over: bool) -> bool {
     // Their text: a hover the state keeps as a map is the one the last key
     // held, and never differs from it.
     let key: any = "{[hot, marquee, rig, pen, tile, anchor, polygon]}";
-    let moving = state.gizmo.drag.is_some() || state.camera_drag >= 0;
+    let moving = state.gizmo.drag != nil || state.camera_drag >= 0;
     if !over && !moving && key == state.overlays_key {
         return false;
     }

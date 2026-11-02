@@ -43,15 +43,7 @@ pub(crate) fn tool(name: &str, install: &str) -> Result<PathBuf> {
 }
 
 fn which(name: &str) -> Option<PathBuf> {
-    let path = std::env::var_os("PATH")?;
-    let exact = Path::new(name);
-    if exact.components().count() > 1 {
-        return exact.is_file().then(|| exact.to_path_buf());
-    }
-    std::env::split_paths(&path).find_map(|dir| {
-        let candidate = dir.join(name);
-        candidate.is_file().then_some(candidate)
-    })
+    which::which(name).ok()
 }
 
 /// Sign a macOS or iOS bundle, nested code first.

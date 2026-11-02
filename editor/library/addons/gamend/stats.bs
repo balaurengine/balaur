@@ -5,15 +5,15 @@
 // Stats: one function per operation, `stats::<name>` once a
 // script says `use addons::gamend::stats;`.
 //
-// A call takes the node its result should reach, then the path's own
-// parameters, then `params` for the request body and `options` for the
-// query where the operation has them. It answers the id `gamend::rest`
-// answers, to await with `task::wait`, or nil when it refused to send.
+// A call takes the path's own parameters, then `params` for the request
+// body and `options` for the query where the operation has them. It
+// answers the id `gamend::rest` answers, to await with `task::wait`, or
+// nil when it refused to send.
 
 use core;
 
 /// All public server counters in one call
 /// `GET /api/v1/stats`
-pub fn get_stats(node: Node) -> any {
-    gamend::rest(node, "GET", "/api/v1/stats", nil())
+pub fn get_stats() -> any {
+    gamend::rest("GET", "/api/v1/stats", nil())
 }

@@ -40,10 +40,6 @@ macro_rules! functions {
         }
 
         /// A `filter` table as rapier's `QueryFilter`.
-        ///
-        /// The predicate is deliberately absent here and applied by the caller: it
-        /// needs the script host, and rapier's own predicate slot is a `&dyn Fn` with
-        /// a lifetime this function cannot hand back.
         fn filter_of<'a>(
             opts: &Opts<'_>,
             groups: &'a mut Option<InteractionGroups>,
@@ -110,35 +106,6 @@ macro_rules! functions {
                 }
             }
             out
-        }
-
-        /// Whether the caller gave a `filter.predicate`.
-        ///
-        /// A predicate is script, so it can only run with the world released,
-        /// which is why a query that has one collects candidates first.
-        fn has_predicate(opts: &Opts<'_>) -> bool {
-            matches!(
-                opts.get(k::FILTER)
-                    .and_then(|f| Opts(Some(f)).get(k::PREDICATE)),
-                Some(Value::Callback(_))
-            )
-        }
-
-        /// Whether a script predicate accepts this hit.
-        ///
-        /// Called with the world *not* borrowed, so the predicate may ask the engine
-        /// anything it likes — including another query.
-        fn allowed(eng: &Engine, opts: &Opts<'_>, entity: Entity) -> Result<bool> {
-            let Some(Value::Callback(id)) = opts
-                .get(k::FILTER)
-                .and_then(|f| Opts(Some(f)).get(k::PREDICATE))
-            else {
-                return Ok(true);
-            };
-            match eng.invoke(*id, &[Value::Node(entity.to_bits().get())])? {
-                Value::Bool(false) | Value::Nil => Ok(false),
-                _ => Ok(true),
-            }
         }
 
         /// One hit, in the shape every query here returns.

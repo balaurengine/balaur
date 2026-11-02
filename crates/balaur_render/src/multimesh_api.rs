@@ -6,7 +6,7 @@ use anyhow::{Result, anyhow, bail};
 use balaur_core::Engine;
 use balaur_core::components::as_f64;
 use balaur_core::entity_of;
-use balaur_script::{Bindings, BindingsExt as _, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 use glamx::{Affine2, Affine3A, Mat4};
 
 use crate::multimesh::{
@@ -22,7 +22,7 @@ fn with_multimesh<R>(
     f: impl FnOnce(&mut MultiMesh) -> Result<R>,
 ) -> Result<R> {
     let entity = entity_of(node)?;
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut multimesh = world
         .get::<&mut MultiMesh>(entity)
         .map_err(|_| anyhow!("the node carries no {MULTIMESH_3D} or {MULTIMESH_2D}"))?;
@@ -153,7 +153,7 @@ const BOTH: &[&str] = &[MULTIMESH_3D, MULTIMESH_2D];
 
 /// One instance at a time on `node.multimesh3d` and `node.multimesh2d`:
 /// Godot's `MultiMesh` calls, readers without their `get_`.
-pub(crate) fn install_multimesh_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_multimesh_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_instance_transform", BOTH, "", "Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is kept, as the instance's `basis`."),
         ("set_instance_region", &[MULTIMESH_2D], "", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
@@ -248,7 +248,7 @@ pub(crate) fn install_multimesh_api(m: &mut dyn Bindings<Engine>) {
 }
 
 /// The counts and every instance at once, as a list or Godot's flat buffer.
-pub(crate) fn install_multimesh_list_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_instance_count", BOTH, "", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
         ("instance_count", BOTH, "", "How many instances the node holds."),

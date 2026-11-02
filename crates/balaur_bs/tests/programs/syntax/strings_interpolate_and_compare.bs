@@ -1,0 +1,8 @@
+const NAME = "ball";
+pub fn label(hp: int, speed: float, alive: bool) -> str { "{NAME}: hp {hp}, speed {speed}, alive {alive}, {{braces}}" }
+pub fn same(a: str, b: str) -> bool { a == b + "" }
+pub fn size(s: str) -> int { s.len() }
+
+// expect: label(7, 2.0, true) == "ball: hp 7, speed 2.0, alive true, {braces}"
+// expect: same("x", "x") == true
+// expect: size("héllo") == 6

@@ -89,7 +89,6 @@ pub struct Manifest {
     /// by load order, because directory iteration is not deterministic and
     /// would leak into the simulation.
     pub requires: Vec<String>,
-    pub fingerprint: Fingerprint,
 }
 
 impl Manifest {
@@ -99,7 +98,6 @@ impl Manifest {
             name: name.to_string(),
             version: version.to_string(),
             requires: Vec::new(),
-            fingerprint: Fingerprint::current(),
         }
     }
 

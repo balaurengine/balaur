@@ -1,0 +1,5 @@
+enum Light { Red, Green }
+enum Pair { Two(int, int) }
+pub fn f(l: Light) -> int { match l { Light::Red => 1, Pair::Two(a, b) => 2, _ => 3 } }
+
+// error: 3:56: `Pair::Two` is not a `Light`

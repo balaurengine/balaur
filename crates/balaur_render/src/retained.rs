@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use balaur_core::Engine;
 use balaur_core::debug_lines::{DebugLine2d, DebugLine3d, DebugLineBuffer2d, DebugLineBuffer3d};
-use balaur_script::{Bindings, BindingsExt};
+use balaur_script::Module;
 
 use crate::draw_2d::{DrawBuffer2d, Drawn2d};
 use crate::world_text::{TextDraw, TextDrawBuffer};
@@ -156,7 +156,7 @@ pub(crate) fn camera_moved_system(eng: &Engine, _dt: f32) {
     }
 }
 
-pub(crate) fn install_retained_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_retained_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("begin_retained", &[], "(key: string)", "Keep what is drawn from here to `end_retained` under `key`, drawn every frame until the key is drawn again or cleared: an overlay redrawn when what it shows moves, not each frame."),
         ("end_retained", &[], "()", "Keep what was drawn since `begin_retained` under its key, in place of what the key held."),

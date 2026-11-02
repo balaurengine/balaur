@@ -1,0 +1,7 @@
+// A trap leaves what the call allocated behind; it only must not run on.
+
+pub fn past_the_end() { let xs = [1]; xs.insert(2, 5); }
+pub fn remove_nothing() -> int { let xs: [int] = []; xs.remove(0) }
+
+// expect: past_the_end() traps
+// expect: remove_nothing() traps

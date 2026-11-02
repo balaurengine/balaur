@@ -1,0 +1,3 @@
+pub fn t() -> str { "\u{zz}" }
+
+// error: 1:22: `\u{..}` takes a code point in hex: `\u{1f}`

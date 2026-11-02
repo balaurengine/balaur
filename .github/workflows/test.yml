@@ -50,7 +50,8 @@ jobs:
           sudo apt-get install -y \
             libasound2-dev libudev-dev \
             libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxkbcommon-dev libwayland-dev
+            libxkbcommon-dev libwayland-dev \
+            lld
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -78,13 +79,41 @@ jobs:
         env:
           BALAUR_E2E_GAMEND: ${{ runner.os == 'Windows' && '0' || '1' }}
         run: |
-          cargo nextest run --workspace --no-fail-fast
+          cargo suite --no-fail-fast
           cargo test --workspace --doc
       # A 500 from the server says only that something raised; its log says what.
       - name: The Gamend server's log, when the tests failed
         if: failure() && steps.gamend.outcome == 'success'
         working-directory: ${{ steps.gamend.outputs.project }}
         run: tail -n 300 .gamend/tmp/log/erlang.log.*
+      # Every script the editor, its library, the templates and the examples
+      # hold, compiled with warnings as errors. Scripts compile the same on
+      # every platform, so one runner is enough.
+      - name: Every script checked
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/check_scripts.sh
+      # The editor's scripts built to C as an export builds a game's, beside
+      # the binary, and the editor's own states run on them: every script as
+      # native code, every state clean. lld links it; clang is the image's.
+      - name: The editor as native code
+        if: runner.os == 'Linux'
+        shell: bash
+        run: ./scripts/editor_native.sh
+      # The same corpus on the browser's own WebAssembly engine, beside wasmi,
+      # in Node. The runner's version is the `wasm-bindgen` in Cargo.lock.
+      - uses: taiki-e/install-action@v2
+        if: runner.os == 'Linux'
+        with:
+          tool: wasm-bindgen@0.2.129
+      - name: Scripts on the browser's engine
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo test -p balaur_bs --target wasm32-unknown-unknown --features web --test web
       # Extensions are off by default, so `--workspace` above never builds the
       # dlopen path, the cdylib, or the tests that load one at run time.
       - name: Extension tests

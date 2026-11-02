@@ -173,9 +173,7 @@ parent = "n_world"
 position = [0, -0.02, -24]
 
 [nodes.shape3d]
-kind = "plane"
-size = [20, 0, 60]
-segments = 8
+shape = { kind = "plane", size = [20, 0, 60], segments = 8 }
 color = [0.22, 0.24, 0.27, 1]
 
 [[nodes]]
@@ -189,9 +187,7 @@ position = [-4, 1, 0]
 # The physically based contract: `shaders/metal.wesl` imports `package::pbr`
 # and sets two numbers; everything else the surface needs comes from there.
 [nodes.shape3d]
-kind = "torus"
-radius = 0.7
-tube_radius = 0.22
+shape = { kind = "torus", radius = 0.7, tube_radius = 0.22 }
 color = [0.85, 0.6, 0.2, 1]
 material = "materials/metal.toml"
 
@@ -204,9 +200,7 @@ parent = "n_world"
 position = [-2, 0.8, 0]
 
 [nodes.shape3d]
-kind = "pyramid"
-size = [1.4, 1.6, 1.4]
-sides = 4
+shape = { kind = "pyramid", size = [1.4, 1.6, 1.4], sides = 4 }
 color = [0.8, 0.45, 0.35, 1]
 
 [[nodes]]
@@ -218,10 +212,7 @@ parent = "n_world"
 position = [0, 0.8, 0]
 
 [nodes.shape3d]
-kind = "prism"
-radius = 0.6
-height = 1.5
-sides = 6
+shape = { kind = "prism", radius = 0.6, height = 1.5, sides = 6 }
 color = [0.45, 0.7, 0.55, 1]
 
 [[nodes]]
@@ -233,10 +224,7 @@ parent = "n_world"
 position = [2, 0.8, 0]
 
 [nodes.shape3d]
-kind = "tube"
-radius = 0.65
-inner_radius = 0.38
-height = 1.4
+shape = { kind = "tube", radius = 0.65, inner_radius = 0.38, height = 1.4 }
 color = [0.55, 0.6, 0.8, 1]
 
 [[nodes]]
@@ -248,10 +236,7 @@ parent = "n_world"
 position = [4, 0.8, 0]
 
 [nodes.shape3d]
-kind = "box"
-size = [1.4, 1.4, 1.4]
-corner_radius = 0.25
-segments = 16
+shape = { kind = "box", size = [1.4, 1.4, 1.4], corner_radius = 0.25, segments = 16 }
 color = [0.75, 0.75, 0.78, 1]
 
 [[nodes]]
@@ -304,8 +289,7 @@ name = "A"
 parent = "n_union"
 
 [nodes.shape3d]
-kind = "box"
-size = [1.4, 1.4, 1.4]
+shape = { kind = "box", size = [1.4, 1.4, 1.4] }
 
 [[nodes]]
 id = "n_union_b"
@@ -316,8 +300,7 @@ parent = "n_union"
 position = [0.55, 0.55, 0.55]
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.5
+shape = { kind = "sphere", radius = 0.5 }
 
 [[nodes]]
 id = "n_difference"
@@ -336,8 +319,7 @@ name = "A"
 parent = "n_difference"
 
 [nodes.shape3d]
-kind = "box"
-size = [1.4, 1.4, 1.4]
+shape = { kind = "box", size = [1.4, 1.4, 1.4] }
 
 [[nodes]]
 id = "n_difference_b"
@@ -348,8 +330,7 @@ parent = "n_difference"
 position = [0.6, 0.6, 0.6]
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.55
+shape = { kind = "sphere", radius = 0.55 }
 
 [[nodes]]
 id = "n_intersection"
@@ -368,8 +349,7 @@ name = "A"
 parent = "n_intersection"
 
 [nodes.shape3d]
-kind = "box"
-size = [1.4, 1.4, 1.4]
+shape = { kind = "box", size = [1.4, 1.4, 1.4] }
 
 [[nodes]]
 id = "n_intersection_b"
@@ -377,8 +357,7 @@ name = "B"
 parent = "n_intersection"
 
 [nodes.shape3d]
-kind = "sphere"
-radius = 0.9
+shape = { kind = "sphere", radius = 0.9 }
 
 [[nodes]]
 id = "n_row"

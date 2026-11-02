@@ -1,42 +1,44 @@
-//! The seam has to satisfy two things at once: a subsystem registers with
-//! inferred argument types, and the backend stays reachable through
-//! `&mut dyn Bindings<C>`. A generic method on the trait would give the first
-//! and lose the second.
+//! A subsystem registers with inferred argument types, and the backend reads
+//! what it declared.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use balaur_script::{Args, Bindings, BindingsExt, BoundFn, TypedFn, Value};
+use balaur_script::{Args, Call, Declared, Module, Value, Values};
 
 /// Stands in for the engine. The seam names no concrete context.
 struct Host {
     name: &'static str,
 }
 
-/// Stands in for a language backend: keeps the erased closures, nothing else.
-#[derive(Default)]
+/// Stands in for a language backend: reads what a module declared.
 struct FakeModule {
-    functions: Vec<(String, BoundFn<Host>)>,
-    constants: Vec<(String, Value)>,
+    declared: Rc<RefCell<Declared<Host>>>,
+    module: Module<Host>,
 }
 
-impl Bindings<Host> for FakeModule {
-    fn function_raw(&mut self, name: &str, func: BoundFn<Host>) {
-        self.functions.push((name.to_string(), func));
-    }
-    fn constant(&mut self, name: &str, value: Value) {
-        self.constants.push((name.to_string(), value));
+impl Default for FakeModule {
+    fn default() -> Self {
+        let declared: Rc<RefCell<Declared<Host>>> = Rc::default();
+        Self {
+            module: Module::new("fake", declared.clone()),
+            declared,
+        }
     }
 }
 
 impl FakeModule {
-    fn get(&self, name: &str) -> &BoundFn<Host> {
-        &self.functions.iter().find(|(n, _)| n == name).unwrap().1
+    fn call(&self, name: &str, host: &Host, args: &[Value]) -> anyhow::Result<Value> {
+        let declared = self.declared.borrow();
+        match declared.modules["fake"][name].call.as_ref().unwrap() {
+            Call::Raw(func) => func(host, args),
+            Call::Typed(func) => func(host, &Values(args)),
+        }
     }
 }
 
 /// What a subsystem writes. Note it names no language.
-fn register(m: &mut dyn Bindings<Host>, hits: Rc<RefCell<Vec<String>>>) {
+fn register(m: &mut Module<Host>, hits: Rc<RefCell<Vec<String>>>) {
     m.function("set_paused", move |host: &Host, paused: bool| {
         hits.borrow_mut().push(format!("{}: {paused}", host.name));
         Ok(())
@@ -57,29 +59,32 @@ fn typed_registration_survives_erasure() {
     let host = Host { name: "engine" };
     let hits = Rc::new(RefCell::new(Vec::new()));
     let mut m = FakeModule::default();
-    register(&mut m, hits.clone());
+    register(&mut m.module, hits.clone());
 
     assert_eq!(
-        m.get("set_paused")(&host, &[Value::Bool(true)]).unwrap(),
+        m.call("set_paused", &host, &[Value::Bool(true)]).unwrap(),
         Value::Nil
     );
     assert_eq!(hits.borrow().as_slice(), ["engine: true"]);
     assert_eq!(
-        m.get("gravity_scale")(&host, &[Value::Num(1.5)]).unwrap(),
+        m.call("gravity_scale", &host, &[Value::Num(1.5)]).unwrap(),
         Value::Num(3.0)
     );
-    assert_eq!(m.constants, [(String::from("DYNAMIC"), Value::Int(0))]);
+    assert_eq!(
+        m.declared.borrow().constants["fake::DYNAMIC"],
+        Value::Int(0)
+    );
 }
 
 #[test]
 fn tuples_map_positionally() {
     let host = Host { name: "engine" };
     let mut m = FakeModule::default();
-    register(&mut m, Rc::new(RefCell::new(Vec::new())));
+    register(&mut m.module, Rc::new(RefCell::new(Vec::new())));
 
     let args = [Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)];
     assert_eq!(
-        m.get("set_position")(&host, &args).unwrap(),
+        m.call("set_position", &host, &args).unwrap(),
         Value::Num(6.0)
     );
 }
@@ -88,16 +93,16 @@ fn tuples_map_positionally() {
 fn a_trailing_optional_may_be_omitted() {
     let host = Host { name: "engine" };
     let mut m = FakeModule::default();
-    register(&mut m, Rc::new(RefCell::new(Vec::new())));
+    register(&mut m.module, Rc::new(RefCell::new(Vec::new())));
 
     let given = [Value::Str("shot.ogg".into()), Value::Num(0.5)];
     assert_eq!(
-        m.get("play")(&host, &given).unwrap(),
+        m.call("play", &host, &given).unwrap(),
         Value::Str("shot.ogg@0.5".into())
     );
     let omitted = [Value::Str("shot.ogg".into())];
     assert_eq!(
-        m.get("play")(&host, &omitted).unwrap(),
+        m.call("play", &host, &omitted).unwrap(),
         Value::Str("shot.ogg@1".into())
     );
 }
@@ -106,9 +111,11 @@ fn a_trailing_optional_may_be_omitted() {
 fn a_wrong_argument_type_is_an_error_not_a_panic() {
     let host = Host { name: "engine" };
     let mut m = FakeModule::default();
-    register(&mut m, Rc::new(RefCell::new(Vec::new())));
+    register(&mut m.module, Rc::new(RefCell::new(Vec::new())));
 
-    let err = m.get("set_paused")(&host, &[Value::Str("nope".into())]).unwrap_err();
+    let err = m
+        .call("set_paused", &host, &[Value::Str("nope".into())])
+        .unwrap_err();
     assert!(
         err.to_string().contains("expected bool, got string"),
         "unhelpful message: {err}"
@@ -117,27 +124,6 @@ fn a_wrong_argument_type_is_an_error_not_a_panic() {
 
 /// A backend that holds its arguments otherwise than as values, and so hands
 /// them over where they lie.
-#[derive(Default)]
-struct TypedModule {
-    functions: Vec<(String, TypedFn<Host>)>,
-}
-
-impl Bindings<Host> for TypedModule {
-    fn function_raw(&mut self, name: &str, func: BoundFn<Host>) {
-        self.functions.push((
-            name.to_string(),
-            Box::new(move |host, args: &dyn Args| {
-                let values: Vec<Value> = (0..args.len()).map(|index| args.value(index)).collect();
-                func(host, &values)
-            }),
-        ));
-    }
-    fn function_typed(&mut self, name: &str, func: TypedFn<Host>) {
-        self.functions.push((name.to_string(), func));
-    }
-    fn constant(&mut self, _: &str, _: Value) {}
-}
-
 /// A string and a number where a backend keeps them: neither becomes a value.
 struct Slots<'a>(&'a str, f64);
 
@@ -162,9 +148,12 @@ impl Args for Slots<'_> {
 #[test]
 fn a_typed_binding_reads_its_arguments_where_they_lie() {
     let host = Host { name: "engine" };
-    let mut m = TypedModule::default();
-    register(&mut m, Rc::new(RefCell::new(Vec::new())));
-    let play = &m.functions.iter().find(|(n, _)| n == "play").unwrap().1;
+    let mut m = FakeModule::default();
+    register(&mut m.module, Rc::new(RefCell::new(Vec::new())));
+    let declared = m.declared.borrow();
+    let Some(Call::Typed(play)) = &declared.modules["fake"]["play"].call else {
+        panic!("a typed registration keeps its typed entry point");
+    };
     assert_eq!(
         play(&host, &Slots("shot.ogg", 0.5)).unwrap(),
         Value::Str("shot.ogg@0.5".into())
@@ -175,9 +164,9 @@ fn a_typed_binding_reads_its_arguments_where_they_lie() {
 fn a_backend_that_does_not_keeps_its_arguments() {
     let host = Host { name: "engine" };
     let mut m = FakeModule::default();
-    register(&mut m, Rc::new(RefCell::new(Vec::new())));
+    register(&mut m.module, Rc::new(RefCell::new(Vec::new())));
 
     let args = [Value::Str("shot.ogg".into())];
-    m.get("play")(&host, &args).unwrap();
+    m.call("play", &host, &args).unwrap();
     assert_eq!(args[0], Value::Str("shot.ogg".into()));
 }

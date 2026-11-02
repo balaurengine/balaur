@@ -24,7 +24,6 @@
 //! Every transcendental is `libm`'s, so the pose is the same on every
 //! platform.
 
-use crate::keys as k;
 use crate::modifier_solve::{
     MIN_BONE, aim_at_angle, aim_at_dir_3d, aim_at_point_2d, aim_at_point_3d, aim_local_2d,
     aim_local_3d, angle_of, chain_points, clamp_angle_2d, clamp_angle_3d, rotation_3d, scene_order,
@@ -33,18 +32,19 @@ use crate::modifier_solve::{
 use crate::player::{AnimationState, fixed_dt, max_substeps};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::{ComponentDef, as_f64};
+use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Parent, Transform};
 use balaur_plugin::Registry;
-use glamx::{Quat, Vec3};
+use glamx::{Quat, Vec2, Vec3};
+use std::sync::Arc;
 
 pub(crate) use crate::modifier_solve::{chain_of, origin_2d, origin_3d, pose_2d, pose_3d};
 
-use crate::words::{CCDIK, FABRIK, FOLLOW, JIGGLE, LOOK_AT, MODIFIER_KINDS, TWO_BONE_IK};
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Kind {
+/// What a modifier does to the rig: aim one bone, bend two, reach with a
+/// chain, let a chain lag, or trail a target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
+pub enum Kind {
     LookAt,
     TwoBoneIk,
     Fabrik,
@@ -54,29 +54,6 @@ enum Kind {
 }
 
 impl Kind {
-    fn parse(text: Option<&str>) -> Result<Self> {
-        match text {
-            None | Some(LOOK_AT) => Ok(Self::LookAt),
-            Some(TWO_BONE_IK) => Ok(Self::TwoBoneIk),
-            Some(FABRIK) => Ok(Self::Fabrik),
-            Some(CCDIK) => Ok(Self::Ccdik),
-            Some(JIGGLE) => Ok(Self::Jiggle),
-            Some(FOLLOW) => Ok(Self::Follow),
-            Some(other) => Err(anyhow!("unknown modifier kind '{other}'")),
-        }
-    }
-
-    const fn name(self) -> &'static str {
-        match self {
-            Self::LookAt => LOOK_AT,
-            Self::TwoBoneIk => TWO_BONE_IK,
-            Self::Fabrik => FABRIK,
-            Self::Ccdik => CCDIK,
-            Self::Jiggle => JIGGLE,
-            Self::Follow => FOLLOW,
-        }
-    }
-
     /// Whether the kind reaches for a target node. `jiggle` is the one that
     /// does not: it follows the pose it was given.
     const fn wants_target(self) -> bool {
@@ -90,8 +67,131 @@ impl Kind {
     }
 }
 
-/// What a `modifier2d` or `modifier3d` component wrote on the node. One
-/// struct for both: the keys are the same and only the solver differs.
+/// Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
+#[derive(Clone, Debug, Component)]
+#[component(
+    name = "modifier2d",
+    on_remove = modifier2d_removed,
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::ANIMATION],
+    after_write = written_2d,
+)]
+pub struct Modifier2d {
+    /// Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)
+    #[property(default = Kind::LookAt)]
+    pub kind: Kind,
+    /// Whether the modifier runs; off leaves the clip's pose alone
+    #[property(default = true)]
+    pub enabled: bool,
+    /// The driven bone; empty means this node. For a chain solver, its root
+    #[property(node)]
+    pub bone: String,
+    /// The point to aim at. Unused by jiggle
+    #[property(node)]
+    pub target: String,
+    /// How many bones the chain holds, counting the driven one; 0 walks to the deepest tip
+    #[property(group = "chain")]
+    pub chain_count: i64,
+    /// Solver passes for fabrik and ccdik
+    #[property(default = 10, group = "chain")]
+    pub iterations: i64,
+    /// How close to the target ends a fabrik or ccdik solve early
+    #[property(default = 0.01, group = "chain")]
+    pub tolerance: f64,
+    /// How far a ccdik bone may turn from its rest, in radians; 0 leaves it free
+    #[property(group = "chain")]
+    pub angle_limit: f32,
+    /// Bend a two-bone chain the other way
+    #[property(group = "chain")]
+    pub flip_bend_direction: bool,
+    /// How hard a jiggle bone is pulled back to the pose
+    #[property(default = 3.0, group = "jiggle")]
+    pub stiffness: f32,
+    /// How much of a jiggle bone's speed survives a tick, 0 to 1
+    #[property(default = 0.75, group = "jiggle")]
+    pub damping: f32,
+    /// What gravity weighs against stiffness on a jiggle bone
+    #[property(default = 0.75, group = "jiggle")]
+    pub mass: f32,
+    /// Whether a jiggle chain is pulled by `gravity`
+    #[property(group = "jiggle")]
+    pub use_gravity: bool,
+    /// Pull on a jiggle bone while `use_gravity` is on
+    #[property(default = Vec2::new(0.0, -JIGGLE_GRAVITY), group = "jiggle")]
+    pub gravity: Vec2,
+    /// Where a follow node sits relative to its target, in world units
+    #[property(group = "follow")]
+    pub offset: Vec2,
+    /// Seconds a follow node takes to close most of the gap to its target; 0 pins it there
+    #[property(group = "follow")]
+    pub lag: f32,
+}
+
+/// Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.
+#[derive(Clone, Debug, Component)]
+#[component(
+    name = "modifier3d",
+    on_remove = modifier3d_removed,
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::ANIMATION],
+    after_write = written_3d,
+)]
+pub struct Modifier3d {
+    /// Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length (fabrik or ccdik), let a chain lag behind the pose (jiggle), or trail the target at an offset (follow)
+    #[property(default = Kind::LookAt)]
+    pub kind: Kind,
+    /// Whether the modifier runs; off leaves the clip's pose alone
+    #[property(default = true)]
+    pub enabled: bool,
+    /// The driven bone; empty means this node. For a chain solver, its root
+    #[property(node)]
+    pub bone: String,
+    /// The point to aim at. Unused by jiggle
+    #[property(node)]
+    pub target: String,
+    /// How many bones the chain holds, counting the driven one; 0 walks to the deepest tip
+    #[property(group = "chain")]
+    pub chain_count: i64,
+    /// Solver passes for fabrik and ccdik
+    #[property(default = 10, group = "chain")]
+    pub iterations: i64,
+    /// How close to the target ends a fabrik or ccdik solve early
+    #[property(default = 0.01, group = "chain")]
+    pub tolerance: f64,
+    /// How far a ccdik bone may turn from its rest, in radians; 0 leaves it free
+    #[property(group = "chain")]
+    pub angle_limit: f32,
+    /// Bend a two-bone chain the other way
+    #[property(group = "chain")]
+    pub flip_bend_direction: bool,
+    /// How hard a jiggle bone is pulled back to the pose
+    #[property(default = 3.0, group = "jiggle")]
+    pub stiffness: f32,
+    /// How much of a jiggle bone's speed survives a tick, 0 to 1
+    #[property(default = 0.75, group = "jiggle")]
+    pub damping: f32,
+    /// What gravity weighs against stiffness on a jiggle bone
+    #[property(default = 0.75, group = "jiggle")]
+    pub mass: f32,
+    /// Whether a jiggle chain is pulled by `gravity`
+    #[property(group = "jiggle")]
+    pub use_gravity: bool,
+    /// Pull on a jiggle bone while `use_gravity` is on
+    #[property(default = Vec3::new(0.0, -JIGGLE_GRAVITY, 0.0), group = "jiggle")]
+    pub gravity: Vec3,
+    /// Where a follow node sits relative to its target, in world units
+    #[property(group = "follow")]
+    pub offset: Vec3,
+    /// Seconds a follow node takes to close most of the gap to its target; 0 pins it there
+    #[property(group = "follow")]
+    pub lag: f32,
+}
+
+/// A jiggle chain's pull when it names none: down, at about two thirds of
+/// earth's, so a chain hangs rather than drops.
+const JIGGLE_GRAVITY: f32 = 6.0;
+
+/// What the solver reads of a `modifier2d` or a `modifier3d`, worked out once
+/// a write lands: counts clamped, a spring that settles, a lag that closes,
+/// and the vectors in three dimensions whichever twin it came from.
 #[derive(Clone, Debug)]
 pub struct Params {
     kind: Kind,
@@ -124,17 +224,53 @@ pub struct Params {
     enabled: bool,
 }
 
-/// A 2D rig modifier, over `bone2d`.
+/// [`Params`] from either twin: they hold the same fields, a 2D one's
+/// vectors a dimension short.
+macro_rules! params_of {
+    ($asked:ident, $gravity:expr, $offset:expr) => {
+        Params {
+            kind: $asked.kind,
+            target: $asked.target.clone(),
+            bone: $asked.bone.clone(),
+            chain_count: count($asked.chain_count) as usize,
+            iterations: count($asked.iterations),
+            tolerance: $asked.tolerance as f32,
+            angle_limit: $asked.angle_limit,
+            stiffness: $asked.stiffness,
+            // A tick that kept more speed than it had would wind the spring
+            // up instead of settling it, so the read is clamped rather than
+            // trusted.
+            damping: $asked.damping.clamp(0.0, 1.0),
+            mass: $asked.mass,
+            gravity: $gravity,
+            use_gravity: $asked.use_gravity,
+            // A lag below zero would grow the gap instead of closing it.
+            lag: $asked.lag.max(0.0),
+            offset: $offset,
+            flip_bend_direction: $asked.flip_bend_direction,
+            enabled: $asked.enabled,
+        }
+    };
+}
+
+/// A count as the solver takes it: none below zero.
+fn count(asked: i64) -> u32 {
+    asked.clamp(0, i64::from(u32::MAX)) as u32
+}
+
+/// A 2D modifier's [`Params`], beside the [`Modifier2d`] it was worked out
+/// from.
 ///
 /// Shared rather than owned: the system reads every modifier's params once a
 /// frame, and the paths in them are strings nobody should be copying sixty
 /// times a second.
 #[derive(Clone, Debug)]
-pub struct Modifier2d(pub(crate) std::sync::Arc<Params>);
+pub(crate) struct Params2d(pub(crate) Arc<Params>);
 
-/// A 3D rig modifier, over `bone3d`.
+/// A 3D modifier's [`Params`], beside the [`Modifier3d`] it was worked out
+/// from.
 #[derive(Clone, Debug)]
-pub struct Modifier3d(pub(crate) std::sync::Arc<Params>);
+pub(crate) struct Params3d(pub(crate) Arc<Params>);
 
 /// A jiggle chain's dynamic points and their speeds, one per solved bone,
 /// and the two rotations that keep the spring from chasing itself.
@@ -156,161 +292,58 @@ pub struct Jiggle {
     pub(crate) written: Vec<Quat>,
 }
 
-/// The rows a modifier in `dimensions` (2 or 3) takes: `gravity` and
-/// `offset` are a `vec2` in 2D and a `vec3` in 3D.
-fn schema(dimensions: usize) -> String {
-    let kinds = ComponentDef::options(MODIFIER_KINDS);
-    // Down, at about two thirds of earth's: a chain that hangs rather than
-    // drops.
-    let (vector, gravity, zero) = if dimensions == 2 {
-        ("vec2", "[0.0, -6.0]", "[0.0, 0.0]")
-    } else {
-        ("vec3", "[0.0, -6.0, 0.0]", "[0.0, 0.0, 0.0]")
-    };
-    ComponentDef::schema(&[
-        (
-            k::KIND,
-            &format!(
-                r#"{{ type = "enum", default = "{LOOK_AT}", options = [{kinds}], description = "Aim one bone at the target, bend a two-bone chain to it, reach with a chain of any length ({FABRIK} or {CCDIK}), let a chain lag behind the pose ({JIGGLE}), or trail the target at an offset ({FOLLOW})" }}"#
-            ),
-        ),
-        (
-            k::ENABLED,
-            r#"{ type = "bool", default = true, description = "Whether the modifier runs; off leaves the clip's pose alone" }"#,
-        ),
-        (
-            k::BONE,
-            r#"{ type = "node", default = "", description = "The driven bone; empty means this node. For a chain solver, its root" }"#,
-        ),
-        (
-            k::TARGET,
-            r#"{ type = "node", default = "", description = "The point to aim at. Unused by jiggle" }"#,
-        ),
-        (
-            k::CHAIN_COUNT,
-            r#"{ type = "int", default = 0, description = "How many bones the chain holds, counting the driven one; 0 walks to the deepest tip", group = "chain" }"#,
-        ),
-        (
-            k::ITERATIONS,
-            r#"{ type = "int", default = 10, description = "Solver passes for fabrik and ccdik", group = "chain" }"#,
-        ),
-        (
-            k::TOLERANCE,
-            r#"{ type = "float", default = 0.01, description = "How close to the target ends a fabrik or ccdik solve early", group = "chain" }"#,
-        ),
-        (
-            k::ANGLE_LIMIT,
-            r#"{ type = "float", default = 0.0, description = "How far a ccdik bone may turn from its rest, in radians; 0 leaves it free", group = "chain" }"#,
-        ),
-        (
-            k::FLIP_BEND_DIRECTION,
-            r#"{ type = "bool", default = false, description = "Bend a two-bone chain the other way", group = "chain" }"#,
-        ),
-        (
-            k::STIFFNESS,
-            r#"{ type = "float", default = 3.0, description = "How hard a jiggle bone is pulled back to the pose", group = "jiggle" }"#,
-        ),
-        (
-            k::DAMPING,
-            r#"{ type = "float", default = 0.75, description = "How much of a jiggle bone's speed survives a tick, 0 to 1", group = "jiggle" }"#,
-        ),
-        (
-            k::MASS,
-            r#"{ type = "float", default = 0.75, description = "What gravity weighs against stiffness on a jiggle bone", group = "jiggle" }"#,
-        ),
-        (
-            k::USE_GRAVITY,
-            r#"{ type = "bool", default = false, description = "Whether a jiggle chain is pulled by `gravity`", group = "jiggle" }"#,
-        ),
-        (
-            k::GRAVITY,
-            &format!(
-                r#"{{ type = "{vector}", default = {gravity}, description = "Pull on a jiggle bone while `use_gravity` is on", group = "jiggle" }}"#
-            ),
-        ),
-        (
-            k::OFFSET,
-            &format!(
-                r#"{{ type = "{vector}", default = {zero}, description = "Where a follow node sits relative to its target, in world units", group = "follow" }}"#
-            ),
-        ),
-        (
-            k::LAG,
-            r#"{ type = "float", default = 0.0, description = "Seconds a follow node takes to close most of the gap to its target; 0 pins it there", group = "follow" }"#,
-        ),
-    ])
+/// What a removed `Modifier2d` leaves behind, taken with it.
+fn modifier2d_removed(eng: &Engine, entity: Entity) {
+    {
+        let _ = eng.remove_one::<Params2d>(entity);
+    }
+    forget_jiggle(eng, entity);
 }
 
-const DOC_2D: &str = "Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.";
-
-const DOC_3D: &str = "Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `two_bone_ik`, `fabrik`, `ccdik`, `jiggle` or `follow`; `follow` moves the node by `offset` and `lag`.";
-
-/// The `modifier2d` component: writes one [`Modifier2d`] on the node.
+/// The `modifier2d` component: a [`Modifier2d`] on the node, and the
+/// [`Params2d`] the solver reads beside it.
 pub(crate) fn register_modifier2d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "modifier2d",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: DOC_2D,
-            schema: ComponentDef::parse_schema("modifier2d", &schema(2)),
-            tags: &[
-                balaur_core::components::tag::DIM_2D,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let params = params_of(params)?;
-                eng.world_mut()
-                    .insert_one(entity, Modifier2d(std::sync::Arc::new(params)))
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Modifier2d>(entity);
-                forget_jiggle(eng, entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let m = world.get::<&Modifier2d>(entity).ok()?;
-                Some(table_of(&m.0, 2))
-            }),
-        },
-    );
+    reg.add_component::<Modifier2d>();
 }
 
-/// The `modifier3d` component: writes one [`Modifier3d`] on the node.
+/// What a removed `Modifier3d` leaves behind, taken with it.
+fn modifier3d_removed(eng: &Engine, entity: Entity) {
+    {
+        let _ = eng.remove_one::<Params3d>(entity);
+    }
+    forget_jiggle(eng, entity);
+}
+
+/// The `modifier3d` component: a [`Modifier3d`] on the node, and the
+/// [`Params3d`] the solver reads beside it.
 pub(crate) fn register_modifier3d_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        "modifier3d",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: DOC_3D,
-            schema: ComponentDef::parse_schema("modifier3d", &schema(3)),
-            tags: &[
-                balaur_core::components::tag::DIM_3D,
-                balaur_core::components::tag::ANIMATION,
-            ],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let params = params_of(params)?;
-                eng.world_mut()
-                    .insert_one(entity, Modifier3d(std::sync::Arc::new(params)))
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Modifier3d>(entity);
-                forget_jiggle(eng, entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let m = world.get::<&Modifier3d>(entity).ok()?;
-                Some(table_of(&m.0, 3))
-            }),
-        },
-    );
+    reg.add_component::<Modifier3d>();
+}
+
+/// The solver's [`Params2d`], worked out again from what the node now asks.
+fn written_2d(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let params = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Modifier2d>(entity) else {
+            return Ok(());
+        };
+        params_of!(asked, asked.gravity.extend(0.0), asked.offset.extend(0.0))
+    };
+    eng.insert_one(entity, Params2d(Arc::new(params)))
+        .map_err(|_| anyhow!("node is dead"))
+}
+
+/// The solver's [`Params3d`], worked out again from what the node now asks.
+fn written_3d(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let params = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Modifier3d>(entity) else {
+            return Ok(());
+        };
+        params_of!(asked, asked.gravity, asked.offset)
+    };
+    eng.insert_one(entity, Params3d(Arc::new(params)))
+        .map_err(|_| anyhow!("node is dead"))
 }
 
 /// A modifier's points go with it: a node that swapped `jiggle` for `look_at`
@@ -319,102 +352,6 @@ fn forget_jiggle(eng: &Engine, entity: Entity) {
     if let Some(state) = eng.try_resource::<AnimationState>() {
         state.borrow_mut().jiggle.shift_remove(&entity);
     }
-}
-
-fn params_of(params: &toml::Value) -> Result<Params> {
-    let text = |key: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string()
-    };
-    let flag = |key: &str, default: bool| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_bool)
-            .unwrap_or(default)
-    };
-    let number = |key: &str, default: f32| {
-        params
-            .get(key)
-            .and_then(as_f64)
-            .map_or(default, |v| v as f32)
-    };
-    let count = |key: &str, default: u32| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_integer)
-            .map_or(default, |v| v.clamp(0, i64::from(u32::MAX)) as u32)
-    };
-    Ok(Params {
-        kind: Kind::parse(params.get(k::KIND).and_then(toml::Value::as_str))?,
-        target: text(k::TARGET),
-        bone: text(k::BONE),
-        chain_count: count(k::CHAIN_COUNT, 0) as usize,
-        iterations: count(k::ITERATIONS, 10),
-        tolerance: number(k::TOLERANCE, 0.01),
-        angle_limit: number(k::ANGLE_LIMIT, 0.0),
-        stiffness: number(k::STIFFNESS, 3.0),
-        // A tick that kept more speed than it had would wind the spring up
-        // instead of settling it, so the read is clamped rather than trusted.
-        damping: number(k::DAMPING, 0.75).clamp(0.0, 1.0),
-        mass: number(k::MASS, 0.75),
-        gravity: vector(params, k::GRAVITY, Vec3::new(0.0, -6.0, 0.0)),
-        use_gravity: flag(k::USE_GRAVITY, false),
-        // A lag below zero would grow the gap instead of closing it.
-        lag: number(k::LAG, 0.0).max(0.0),
-        offset: vector(params, k::OFFSET, Vec3::ZERO),
-        flip_bend_direction: flag(k::FLIP_BEND_DIRECTION, false),
-        enabled: flag(k::ENABLED, true),
-    })
-}
-
-fn vector(params: &toml::Value, key: &str, default: Vec3) -> Vec3 {
-    let Some(list) = params.get(key).and_then(toml::Value::as_array) else {
-        return default;
-    };
-    let at = |i: usize| list.get(i).and_then(as_f64).map_or(0.0, |v| v as f32);
-    Vec3::new(at(0), at(1), at(2))
-}
-
-/// What a modifier in `dimensions` reads back, its vectors that many long.
-fn table_of(m: &Params, dimensions: usize) -> toml::Value {
-    let vector = |v: Vec3| {
-        toml::Value::Array(
-            [v.x, v.y, v.z][..dimensions]
-                .iter()
-                .map(|n| toml::Value::Float(f64::from(*n)))
-                .collect(),
-        )
-    };
-    let mut out = toml::map::Map::new();
-    let mut put = |key: &str, value: toml::Value| {
-        out.insert(key.to_string(), value);
-    };
-    put(k::KIND, toml::Value::String(m.kind.name().into()));
-    put(k::TARGET, toml::Value::String(m.target.clone()));
-    put(k::BONE, toml::Value::String(m.bone.clone()));
-    put(
-        k::CHAIN_COUNT,
-        toml::Value::Integer(i64::try_from(m.chain_count).unwrap_or(0)),
-    );
-    put(k::ITERATIONS, toml::Value::Integer(i64::from(m.iterations)));
-    put(k::TOLERANCE, toml::Value::Float(f64::from(m.tolerance)));
-    put(k::ANGLE_LIMIT, toml::Value::Float(f64::from(m.angle_limit)));
-    put(k::STIFFNESS, toml::Value::Float(f64::from(m.stiffness)));
-    put(k::DAMPING, toml::Value::Float(f64::from(m.damping)));
-    put(k::MASS, toml::Value::Float(f64::from(m.mass)));
-    put(k::GRAVITY, vector(m.gravity));
-    put(k::USE_GRAVITY, toml::Value::Boolean(m.use_gravity));
-    put(k::LAG, toml::Value::Float(f64::from(m.lag)));
-    put(k::OFFSET, vector(m.offset));
-    put(
-        k::FLIP_BEND_DIRECTION,
-        toml::Value::Boolean(m.flip_bend_direction),
-    );
-    put(k::ENABLED, toml::Value::Boolean(m.enabled));
-    toml::Value::Table(out)
 }
 
 /// FABRIK: pull the chain onto the target from the tip back, then put the
@@ -613,19 +550,21 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
     if eng.frozen_root().is_some() {
         return;
     }
-    let mut work: Vec<(Entity, std::sync::Arc<Params>, bool)> = {
+    let paused = balaur_core::process::pause(eng);
+    let mut work: Vec<(Entity, Arc<Params>, bool)> = {
         let world = eng.world();
-        let mut work: Vec<(Vec<u32>, Entity, std::sync::Arc<Params>, bool)> = world
-            .query::<(Entity, &Modifier2d)>()
+        let mut work: Vec<(Vec<u32>, Entity, Arc<Params>, bool)> = world
+            .query::<(Entity, &Params2d)>()
             .iter()
-            .map(|(e, m)| (e, std::sync::Arc::clone(&m.0), false))
+            .map(|(e, m)| (e, Arc::clone(&m.0), false))
             .chain(
                 world
-                    .query::<(Entity, &Modifier3d)>()
+                    .query::<(Entity, &Params3d)>()
                     .iter()
-                    .map(|(e, m)| (e, std::sync::Arc::clone(&m.0), true)),
+                    .map(|(e, m)| (e, Arc::clone(&m.0), true)),
             )
             .filter(|(_, m, _)| m.enabled && !(m.kind.wants_target() && m.target.is_empty()))
+            .filter(|(e, _, _)| balaur_core::process::ticks(&world, *e, paused))
             .map(|(e, m, dim3)| (scene_order(&world, e), e, m, dim3))
             .collect();
         // Two modifiers on one bone have to land the same way twice, and the
@@ -646,7 +585,7 @@ pub(crate) fn modify_system(eng: &Engine, dt: f32) {
 ///
 /// The accumulator only moves when one of them is in the scene, so a scene
 /// with none carries no residual into the frame the first one appears.
-fn fixed_steps(eng: &Engine, dt: f32, work: &[(Entity, std::sync::Arc<Params>, bool)]) -> u32 {
+fn fixed_steps(eng: &Engine, dt: f32, work: &[(Entity, Arc<Params>, bool)]) -> u32 {
     if !work.iter().any(|(_, m, _)| m.kind.has_memory()) {
         return 0;
     }

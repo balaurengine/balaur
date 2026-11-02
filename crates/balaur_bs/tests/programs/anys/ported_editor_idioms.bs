@@ -1,0 +1,19 @@
+// The idioms the editor's port relies on, compiled and run.
+
+pub struct Box2 { size: [int]? }
+fn pick(w: str) -> [str] { if w == "a" { ["x", "y"] } else { [] } }
+fn nothing(a: any) -> any { if a == nil { 1 } else { nil } }
+fn none(a: any) -> any { nil }
+pub fn run(a: any) -> str {
+    let b = Box2 { size: [] };
+    let v = vec3(1.0, 2.0, 3.0);
+    a["name"] = "elf";
+    a["hp"] = 7;
+    let o: str? = if a.has("name") { a["name"] } else { nil };
+    let log = 0;
+    if log > 1 { log = 2; } else { nil };
+    "{pick("a").len()} {pick("b").len()} {b.size.or([]).len()} {v.y} {v.z} {a["name"]} {a["hp"].as_int()} {o == "elf"} {[1, 2] == [1, 2]} {["q"]} {none(a) == nil} {nothing(a).as_int()}"
+}
+
+// expect: run({ "name": "orc" }) == "2 0 0 2.0 3.0 elf 7 true true [\"q\"] true 0"
+// live: 0

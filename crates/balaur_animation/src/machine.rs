@@ -11,6 +11,7 @@
 use anyhow::{Context, Result, anyhow, bail};
 use balaur_core::Engine;
 use balaur_core::collections::DetHashMap;
+use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::{Entity, World};
 use std::rc::Rc;
 
@@ -24,7 +25,25 @@ use crate::words as w;
 pub const MACHINE_ASSET_TYPE: &str = "state_machine";
 
 /// The component key that runs a machine on a node.
-pub const COMPONENT: &str = "state_machine";
+pub const COMPONENT: &str = <StateMachine as Component>::NAME;
+
+/// Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.
+#[derive(Clone, Debug, Component)]
+#[component(name = "state_machine", after_write = written)]
+pub struct StateMachine {
+    /// The state machine to run
+    #[property(asset = "state_machine")]
+    pub machine: String,
+    /// The `animation` player it drives; empty means this node
+    #[property(node)]
+    pub player: String,
+    /// Whether the machine is running
+    #[property(default = true)]
+    pub enabled: bool,
+    /// The node whose script answers the transitions' `check` methods; empty means this node
+    #[property(node)]
+    pub check_node: String,
+}
 
 /// Emitted from the machine's node, with the state, as it enters one.
 pub const STATE_STARTED_EVENT: &str = "state_started";
@@ -881,38 +900,30 @@ pub fn current_state(eng: &Engine, entity: Entity) -> Option<String> {
         .filter(|current| !current.is_empty())
 }
 
-pub(crate) fn apply(eng: &Engine, entity: Entity, params: &toml::Value) {
+/// The run takes what the node now asks. Naming another machine or another
+/// player starts it over; the rest lands on the run as it is.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "an after-write hook may refuse a write; this one never does"
+)]
+pub(crate) fn written(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&StateMachine>(entity)
+        .ok()
+        .map(|held| (*held).clone())
+    else {
+        return Ok(());
+    };
     let state = eng.resource::<AnimationState>();
     let mut state = state.borrow_mut();
     let run = state.machines.entry(entity).or_default();
-    let reference = text(params, k::MACHINE);
-    let player = text(params, k::PLAYER);
-    if run.reference != reference || run.player != player {
+    if run.reference != asked.machine || run.player != asked.player {
         *run = MachineRun::default();
-        run.reference = reference;
-        run.player = player;
+        run.reference = asked.machine;
+        run.player = asked.player;
     }
-    run.enabled = params
-        .get(k::ENABLED)
-        .and_then(toml::Value::as_bool)
-        .unwrap_or(true);
-    run.check_node = text(params, k::CHECK_NODE);
-}
-
-pub(crate) fn remove(eng: &Engine, entity: Entity) {
-    if let Some(state) = eng.try_resource::<AnimationState>() {
-        state.borrow_mut().machines.shift_remove(&entity);
-    }
-}
-
-pub(crate) fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.try_resource::<AnimationState>()?;
-    let state = state.borrow();
-    let run = state.machines.get(&entity)?;
-    let mut out = toml::map::Map::new();
-    out.insert(k::MACHINE.into(), run.reference.clone().into());
-    out.insert(k::PLAYER.into(), run.player.clone().into());
-    out.insert(k::ENABLED.into(), run.enabled.into());
-    out.insert(k::CHECK_NODE.into(), run.check_node.clone().into());
-    Some(toml::Value::Table(out))
+    run.enabled = asked.enabled;
+    run.check_node = asked.check_node;
+    Ok(())
 }

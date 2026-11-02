@@ -378,6 +378,9 @@ pub fn record<T: 'static>(
 /// The type a font definition declares.
 pub const FONT_ASSET_TYPE: &str = "font";
 
+/// The `texture` asset type: an image a material or a sprite draws.
+pub const TEXTURE_ASSET_TYPE: &str = "texture";
+
 /// The type a text style definition declares.
 pub const TEXT_STYLE_ASSET_TYPE: &str = "text_style";
 
@@ -408,7 +411,7 @@ pub const SOURCE: &str = "source";
 #[must_use]
 pub fn file_definition(path: &str) -> Option<(&'static str, toml::Value)> {
     let type_name = match crate::import::kind_of(path)? {
-        crate::import::kinds::TEXTURE => crate::texture_asset::TEXTURE_ASSET_TYPE,
+        crate::import::kinds::TEXTURE => TEXTURE_ASSET_TYPE,
         crate::import::kinds::FONT => FONT_ASSET_TYPE,
         _ => return None,
     };
@@ -535,6 +538,23 @@ pub fn save(eng: &Engine, reference: &str, definition: &toml::Value) -> Result<(
         .write(&full, text.as_bytes())
         .with_context(|| format!("writing {}", full.display()))?;
     reload(eng, reference)
+}
+
+/// The definition an inline reference (`#!<digest>`) names, as it was
+/// written on the property: what a save writes back in its place. `None` for
+/// any other reference, and for an entry inside an inline definition, which
+/// has no table of its own to write.
+pub fn inline_body(eng: &Engine, reference: &str) -> Option<toml::Value> {
+    let cache = state(eng).ok()?;
+    let cache = cache.borrow();
+    let key = cache.resolve(reference).ok()?;
+    if !matches!(key, AssetRef::Inline(_)) {
+        return None;
+    }
+    cache
+        .definitions
+        .get(&key)
+        .map(|definition| definition.body.clone())
 }
 
 /// Record a definition table written inline on a component property.

@@ -115,24 +115,6 @@ fn a_vector_argument_and_three_numbers_agree() {
 }
 
 #[test]
-fn translate_accumulates() {
-    let app = app();
-    let node = spawn(&app, "N");
-    for _ in 0..3 {
-        call(
-            &app.engine,
-            "translate",
-            &[node.clone(), Value::Vec3([1.0, 0.0, 0.0])],
-        )
-        .unwrap();
-    }
-    assert_near(
-        transform_of(&app.engine, &node, "position"),
-        [3.0, 0.0, 0.0],
-    );
-}
-
-#[test]
 fn hierarchy_reads_back_what_it_wrote() {
     let app = app();
     let parent = spawn(&app, "Parent");

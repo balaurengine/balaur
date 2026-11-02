@@ -26,8 +26,7 @@ fn a_hidden_widget_draws_nothing_and_takes_no_clicks() {
         "control: the visible button did not take the click"
     );
 
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
+    set_shown(&app, entity, false);
     let hidden = pass(&app, &ctx, vec![]);
     assert!(
         hidden.shapes.is_empty(),
@@ -350,22 +349,15 @@ fn a_root_draws_on_the_surface_it_names() {
     );
     let chrome = add_widget(
         &app,
-        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 layer = "shell" }
+        &toml::toml! { kind = "panel" text = "chrome" x = 0.0 y = 0.0 width = 40.0 height = 20.0 whole_window = true }
             .into(),
     );
     // The default surface is pushed into a corner, the way the editor points
-    // it at the viewport. The named one is placed on the whole screen.
+    // it at the viewport. The chrome stays on the whole screen.
     {
         let config = app.engine.resource::<balaur_ui::WidgetLayerConfig>();
         let mut config = config.borrow_mut();
         config.rect = Some([300.0, 200.0, 100.0, 100.0]);
-        config.layers.insert(
-            "shell".into(),
-            balaur_ui::Surface {
-                enabled: true,
-                rect: None,
-            },
-        );
     }
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -380,7 +372,7 @@ fn a_root_draws_on_the_surface_it_names() {
     );
     assert!(
         rect(chrome).min.x < 10.0,
-        "a named surface should not follow the default one: {:?}",
+        "a whole-window root should not follow the default surface: {:?}",
         rect(chrome)
     );
 
@@ -930,11 +922,9 @@ fn a_surface_appears_at_full_alpha_rather_than_fading_in() {
 
     // Hidden, then shown again: egui counts that as a new appearance, and
     // this is the path a collapsing panel takes.
-    let hide = toml::toml! { visible = false };
-    balaur::components::patch(&app.engine, entity, "widget", &hide.into()).unwrap();
+    set_shown(&app, entity, false);
     pass(&app, &ctx, vec![]);
-    let show = toml::toml! { visible = true };
-    balaur::components::patch(&app.engine, entity, "widget", &show.into()).unwrap();
+    set_shown(&app, entity, true);
     let shown = format!("{:?}", pass(&app, &ctx, vec![]).shapes);
     assert_eq!(
         shown, settled,
@@ -953,8 +943,9 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
             &app,
             &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = [0.0, 0.0] }.into(),
         );
-        let first = toml::toml! { kind = "label" text = "First" height = 60.0 visible = (!hide) };
-        add_child_widget(&app, column, "First", &first.into());
+        let first = toml::toml! { kind = "label" text = "First" height = 60.0 };
+        let first = add_child_widget(&app, column, "First", &first.into());
+        set_shown(&app, first, !hide);
         let second = toml::toml! { kind = "label" text = "Second" height = 60.0 };
         add_child_widget(&app, column, "Second", &second.into());
         let ctx = egui::Context::default();
@@ -972,19 +963,19 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
     );
 }
 
-/// A root that avoids the keyboard measures its bottom from the keyboard's
-/// top, and one that does not stays where it was.
+/// Every root measures its bottom from the keyboard's top, but a backdrop,
+/// which stays behind it.
 #[test]
-fn a_root_can_keep_above_the_on_screen_keyboard() {
+fn a_root_keeps_above_the_on_screen_keyboard_and_a_backdrop_stays() {
     let (_dir, app) = app();
-    let at = |avoid: bool| {
-        let params = toml::toml! {
-            kind = "label" text = "send" anchor = "center_bottom"
-            x = 0.0 y = 0.0 avoid_keyboard = avoid
-        };
-        add_widget(&app, &params.into())
-    };
-    let (lifted, left) = (at(true), at(false));
+    let lifted = add_widget(
+        &app,
+        &toml::toml! {
+            kind = "label" text = "send" anchor = "center_bottom" x = 0.0 y = 0.0
+        }
+        .into(),
+    );
+    let left = add_widget(&app, &toml::toml! { kind = "panel" anchor = "fill" }.into());
     let ctx = egui::Context::default();
     let bottom = |entity: Entity| {
         ctx.memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
@@ -995,7 +986,6 @@ fn a_root_can_keep_above_the_on_screen_keyboard() {
     pass(&app, &ctx, vec![]);
     pass(&app, &ctx, vec![]);
     let (before, unmoved) = (bottom(lifted), bottom(left));
-    assert!((before - unmoved).abs() < 1.0, "no keyboard, no difference");
 
     balaur_core::facts::update_device(&app.engine, |f| f.keyboard_height = 200.0);
     pass(&app, &ctx, vec![]);

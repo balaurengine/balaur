@@ -1,4 +1,4 @@
-//! `light2d`, `occluder2d` and the camera's `ambient`, without a window.
+//! `light2d`, `occluder2d` and the environment's ambient, without a window.
 //!
 //! The light map itself needs a GPU; everything it is built from — the world
 //! space lights, the outlines that occlude them, and the polygon an edge
@@ -7,17 +7,17 @@
 use balaur_core::glamx::{Quat, Vec2, Vec3};
 use balaur_core::{App, AppConfig, Transform, components, scene};
 use balaur_render::light::{LightKind2d, LitLight2d, lights, occluder_edges, outline, shadow_quad};
-use balaur_render::{CameraConfig2d, Occluder2d, RenderPlugin};
+use balaur_render::{CameraConfig2d, Outline2d, RenderPlugin};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
 fn physics_app() -> App {
     let mut app = app();
-    balaur_plugin::load(&mut app, &mut balaur::PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::PhysicsPlugin).unwrap();
     app
 }
 
@@ -78,7 +78,7 @@ fn a_light_is_collected_where_the_scene_tree_puts_it() {
 fn a_scene_with_no_light2d_collects_nothing() {
     let mut app = app();
     let bare = node(&app);
-    add(&app, bare, "shape2d", "kind = \"rectangle\"");
+    add(&app, bare, "shape2d", "shape = { kind = \"rectangle\" }");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     assert!(lights(&world, app.engine.root()).is_empty());
@@ -114,12 +114,12 @@ fn an_occluder_defaults_to_the_nodes_collider_outline() {
         &app,
         wall,
         "collider2d",
-        "kind = \"rectangle\"\nsize = [4.0, 1.0]",
+        "shape = { kind = \"rectangle\", size = [4.0, 1.0] }",
     );
     add(&app, wall, "occluder2d", "");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
-    let points = world.get::<&Occluder2d>(wall).unwrap().points.clone();
+    let points = world.get::<&Outline2d>(wall).unwrap().points.clone();
     assert_eq!(points.len(), 4, "a rect traces four corners: {points:?}");
     assert!(points.contains(&Vec2::new(2.0, 0.5)), "{points:?}");
     assert!(points.contains(&Vec2::new(-2.0, -0.5)), "{points:?}");
@@ -136,24 +136,29 @@ fn an_occluder_declared_before_its_collider_still_resolves() {
     assert!(
         app.engine
             .world()
-            .get::<&Occluder2d>(wall)
+            .get::<&Outline2d>(wall)
             .unwrap()
             .points
             .is_empty(),
         "control: nothing to trace yet"
     );
-    add(&app, wall, "collider2d", "kind = \"circle\"\nradius = 1.0");
+    add(
+        &app,
+        wall,
+        "collider2d",
+        "shape = { kind = \"circle\", radius = 1.0 }",
+    );
     app.tick(1.0 / 60.0);
     // A traced circle is cut as finely as a drawn one, because it is the
     // same outline: a shadow's edge follows the shape's, not a coarser copy.
     assert_eq!(
         app.engine
             .world()
-            .get::<&Occluder2d>(wall)
+            .get::<&Outline2d>(wall)
             .unwrap()
             .points
             .len(),
-        balaur_core::primitive::DEFAULT_SEGMENTS as usize
+        balaur_geometry::primitive::DEFAULT_SEGMENTS as usize
     );
 }
 
@@ -165,12 +170,12 @@ fn an_occluder_falls_back_to_the_nodes_2d_shape() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
-    let points = world.get::<&Occluder2d>(crate_node).unwrap().points.clone();
+    let points = world.get::<&Outline2d>(crate_node).unwrap().points.clone();
     assert_eq!(points.len(), 4, "{points:?}");
     assert!(points.contains(&Vec2::new(1.0, 1.0)), "{points:?}");
 }
@@ -186,7 +191,7 @@ fn a_closed_occluder_edge_list_wraps_around() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -224,7 +229,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
         &app,
         crate_node,
         "shape2d",
-        "kind = \"rectangle\"\nsize = [2.0, 2.0]",
+        "shape = { kind = \"rectangle\", size = [2.0, 2.0] }",
     );
     add(&app, crate_node, "occluder2d", "");
     app.tick(1.0 / 60.0);
@@ -244,7 +249,7 @@ fn an_outline_comes_back_in_world_space_and_closed() {
 fn a_node_without_an_occluder_has_no_outline() {
     let mut app = app();
     let bare = node(&app);
-    add(&app, bare, "shape2d", "kind = \"rectangle\"");
+    add(&app, bare, "shape2d", "shape = { kind = \"rectangle\" }");
     app.tick(1.0 / 60.0);
     let world = app.engine.world();
     assert!(outline(&world, bare).is_empty());
@@ -309,11 +314,14 @@ fn an_edge_through_the_light_casts_no_infinity() {
     assert_close(quad[3], Vec2::ZERO);
 }
 
+/// The scene's one ambient, its `environment`'s, lights a 2D scene too.
 #[test]
-fn the_cameras_ambient_reaches_the_2d_config() {
+fn the_environments_ambient_reaches_the_2d_config() {
     let mut app = app();
     let cam = node(&app);
-    add(&app, cam, "camera2d", "ambient_color = \"#402010\"");
+    add(&app, cam, "camera2d", "");
+    let scene = node(&app);
+    add(&app, scene, "environment", "ambient_color = \"#402010\"");
     let before = app.engine.resource::<CameraConfig2d>().borrow().ambient;
     assert!(
         before.iter().all(|c| c.abs() < 1e-6),
@@ -348,19 +356,6 @@ fn the_components_round_trip() {
     let table = saved.as_table().unwrap();
     assert!(!table["closed"].as_bool().unwrap());
     assert_eq!(table["mesh"].as_str().unwrap(), "");
-
-    let cam = node(&app);
-    add(
-        &app,
-        cam,
-        "camera2d",
-        "ambient_color = [0.1, 0.2, 0.3, 1.0]",
-    );
-    let saved = components::get(&app.engine, cam, "camera2d").unwrap();
-    let ambient = saved.as_table().unwrap()["ambient_color"]
-        .as_array()
-        .unwrap();
-    assert!((ambient[1].as_float().unwrap() - 0.2).abs() < 1e-6);
 }
 
 #[test]
@@ -390,8 +385,7 @@ auto_exposure_enabled = true
 auto_exposure_speed = 1.5
 auto_exposure_key = 0.25
 transmission_enabled = false
-transmission_blur_quality = "low"
-transmission_steps = 3"#,
+transmission_blur_quality = "low""#,
     );
     let env = {
         let world = app.engine.world();
@@ -411,11 +405,9 @@ transmission_steps = 3"#,
         env.transmission.blur_quality,
         balaur_render::BlurQuality::Low
     );
-    assert_eq!(env.transmission.steps, 3);
     let read = balaur_core::components::get(&app.engine, entity, "environment").unwrap();
     assert_eq!(read["tonemap"].as_str(), Some("tony_mcmapface"));
     assert_eq!(read["transmission_blur_quality"].as_str(), Some("low"));
-    assert_eq!(read["transmission_steps"].as_integer(), Some(3));
     assert_eq!(read["auto_exposure_enabled"].as_bool(), Some(true));
 }
 
@@ -429,9 +421,9 @@ fn an_unknown_glass_blur_is_refused() {
     );
 }
 
-/// The shadow knobs past distance, the sky's own light and the renderer's
-/// limits are read off the `environment`, held to kiss3d's ranges, and read
-/// back as written.
+/// The shadow knobs past distance and the sky's own light are read off the
+/// `environment`, held to kiss3d's ranges, and read back as written; the
+/// renderer's limits are the device's, `[render]`, and no row of it.
 #[test]
 fn the_environment_carries_the_shadow_budget_sky_light_and_limits() {
     let app = app();
@@ -445,12 +437,8 @@ shadow_first_cascade_distance = 6.0
 shadow_bias = 0.01
 shadow_constant_bias = 3
 shadow_slope_bias = 2.5
-shadow_views = 200
 sky_light = "art/room.hdr"
-sky_light_intensity = 0.5
-probe_capture_size_pixels = 64
-cluster_grid = [8.0, 4.0, 300.0]
-cluster_max_lights = 32"#,
+sky_light_intensity = 0.5"#,
     );
     let env = {
         let world = app.engine.world();
@@ -459,15 +447,27 @@ cluster_max_lights = 32"#,
     assert_eq!(env.shadow_cascades, 4, "kiss3d splits at most four");
     assert!((env.shadow_first_cascade_distance - 6.0).abs() < 1e-6);
     assert_eq!(env.shadow_constant_bias, 3);
-    assert_eq!(env.shadow_views, 64, "the view budget tops out at 64");
     assert_eq!(env.sky_light, "art/room.hdr");
     assert_eq!(env.sky_light_intensity, Some(0.5));
-    assert_eq!(env.probe_capture_size, 64);
-    assert_eq!(env.cluster_grid, [8, 4, 128]);
-    assert_eq!(env.cluster_max_lights, 32);
     let read = components::get(&app.engine, entity, "environment").unwrap();
-    assert_eq!(read["shadow_views"].as_integer(), Some(64));
+    assert!(
+        read.get("shadow_views").is_none(),
+        "the budget is no row of it"
+    );
     assert_eq!(read["sky_light"].as_str(), Some("art/room.hdr"));
+    for (key, default) in [
+        ("render/shadow_resolution", 2048),
+        ("render/shadow_views", 16),
+        ("render/cluster_max_lights", 256),
+        ("render/probe_capture_size_pixels", 256),
+        ("render/transmission_steps", 1),
+    ] {
+        assert_eq!(
+            balaur_core::settings::get(&app.engine, key).and_then(|v| v.as_integer()),
+            Some(default),
+            "{key}"
+        );
+    }
     assert!((read["shadow_slope_bias"].as_float().unwrap() - 2.5).abs() < 1e-6);
 }
 

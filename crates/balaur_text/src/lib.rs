@@ -11,7 +11,7 @@
 //! lands and nothing else, so this whole module runs on the render side and
 //! is outside the digest.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
 use balaur_core::Engine;
@@ -19,11 +19,13 @@ use cosmic_text::{Buffer, CacheKeyFlags};
 use egui::{Color32, Mesh, Pos2, Rect, Vec2, pos2, vec2};
 
 pub mod bitmap;
+pub mod edit;
 pub mod font;
 pub mod fonts;
 pub mod glyph;
 pub mod markup;
 pub mod options;
+mod system_fonts;
 pub mod text_style;
 pub mod vocabulary;
 
@@ -107,6 +109,13 @@ pub struct RequestRef<'a> {
 }
 
 impl RequestRef<'_> {
+    /// Everything about the request that changes its picture, hashed: what a
+    /// caller keeping layouts of its own files them under.
+    #[must_use]
+    pub fn fingerprint(&self) -> u64 {
+        key_of(self, 0, 1.0)
+    }
+
     /// The owned request, built only where one is kept: a cache miss.
     #[must_use]
     pub fn to_owned(&self) -> Request {
@@ -181,7 +190,7 @@ type Key = u64;
 
 fn key_of(request: &RequestRef<'_>, generation: u64, scale: f32) -> Key {
     use std::hash::{Hash as _, Hasher as _};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let mut hasher = rustc_hash::FxHasher::default();
     request.text.hash(&mut hasher);
     request.size.to_bits().hash(&mut hasher);
     request.weight.hash(&mut hasher);
@@ -286,9 +295,9 @@ impl Shaped {
 /// fonts are installed.
 pub struct TextState {
     atlas: GlyphAtlas,
-    layouts: HashMap<Key, Rc<Shaped>>,
+    layouts: FxHashMap<Key, Rc<Shaped>>,
     /// Bitmap faces by the `.fnt` path, with their page's box in the atlas.
-    pages: HashMap<String, BitmapPage>,
+    pages: FxHashMap<String, BitmapPage>,
     /// The engine's own project's faces.
     host: ProjectFonts,
     /// The faces of the project whose content the engine plays, and its root,
@@ -332,8 +341,8 @@ impl TextState {
     fn over(host: ProjectFonts) -> Self {
         Self {
             atlas: GlyphAtlas::default(),
-            layouts: HashMap::new(),
-            pages: HashMap::new(),
+            layouts: FxHashMap::default(),
+            pages: FxHashMap::default(),
             host,
             content: None,
             fonts_generation: 0,
@@ -420,10 +429,25 @@ impl TextState {
         &self.atlas
     }
 
-    /// Whether any loaded face has a glyph for `c`, for a test that wants to
-    /// know before asserting on a script.
+    /// Have the operating system's faces drawn for whatever in `text` a
+    /// project's own have no glyph for: what text egui lays out itself asks,
+    /// since egui draws only the faces it was given and never says what it
+    /// lacked. A face gained reaches egui as any font read does.
+    pub fn cover(&mut self, text: &str) {
+        let mut gained = self.host.cover(text);
+        if let Some((_, fonts)) = &mut self.content {
+            gained |= fonts.cover(text);
+        }
+        if gained {
+            self.fonts_generation += 1;
+        }
+    }
+
+    /// Whether any loaded face has a glyph for `c`, the system's asked first,
+    /// for a test that wants to know before asserting on a script.
     #[cfg(test)]
     fn covers(&mut self, c: char) -> bool {
+        self.cover(&c.to_string());
         let fonts = &mut self.host.drawing;
         let ids: Vec<cosmic_text::fontdb::ID> = fonts.db().faces().map(|f| f.id).collect();
         ids.into_iter().any(|id| {
@@ -514,9 +538,74 @@ impl TextState {
                 .font
                 .layout(request.text, request.size, page.region, page.page_size);
         }
+        if fonts.cover(request.text) {
+            self.fonts_generation += 1;
+        }
         let parsed = spans_of(request);
         let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, request);
         place(&mut self.atlas, fonts, &buffer, &parsed, request, scale)
+    }
+
+    /// Where each cluster of `request`'s text sits, laid out as a label lays
+    /// it out, markup off: what a field's caret, clicks and selection are
+    /// measured against. A bitmap font is measured in the default face.
+    pub fn clusters(&mut self, request: &RequestRef<'_>) -> edit::Clusters {
+        let factor = if request.line_height > 0.0 {
+            request.line_height
+        } else {
+            shape::LINE_HEIGHT
+        };
+        let fonts = fonts_of(&mut self.host, &mut self.content, request.project);
+        if fonts.cover(request.text) {
+            self.fonts_generation += 1;
+        }
+        let plain = RequestRef {
+            markup: false,
+            ..*request
+        };
+        let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, &plain);
+        edit::clusters(&buffer, request.text, request.size * factor)
+    }
+
+    /// `request`'s text laid out for editing, markup off: the glyphs, drawn
+    /// into the atlas at `scale`, and the cluster boxes, from one layout.
+    /// Not cached: a field keeps what it laid out until its text moves.
+    ///
+    /// A bitmap font draws in the default face here, so its caret stands
+    /// where its glyphs are.
+    pub fn editable(&mut self, request: &RequestRef<'_>, scale: f32) -> edit::Laid {
+        let plain = RequestRef {
+            markup: false,
+            ..*request
+        };
+        let factor = if plain.line_height > 0.0 {
+            plain.line_height
+        } else {
+            shape::LINE_HEIGHT
+        };
+        let fonts = fonts_of(&mut self.host, &mut self.content, plain.project);
+        if fonts.cover(plain.text) {
+            self.fonts_generation += 1;
+        }
+        let parsed = spans_of(&plain);
+        let buffer = shape_into(&mut fonts.drawing, &fonts.tweaks, &fonts.table, &plain);
+        let shaped = place(&mut self.atlas, fonts, &buffer, &parsed, &plain, scale);
+        let clusters = edit::clusters(&buffer, plain.text, plain.size * factor);
+        edit::Laid { shaped, clusters }
+    }
+
+    /// Hand egui whatever the atlas gained since it was last handed over, so
+    /// the texture behind [`Self::texture`] holds every glyph laid out.
+    pub fn flush_egui(&mut self, ctx: &egui::Context) {
+        self.atlas.flush_egui(ctx);
+    }
+
+    /// What a laid-out block depends on beyond its request: the atlas its
+    /// glyphs sit in and the faces they came from. A block kept across a
+    /// change of either draws the wrong glyphs.
+    #[must_use]
+    pub fn generation(&self) -> u64 {
+        (self.atlas.generation << 32) ^ self.fonts_generation
     }
 
     /// Load a bitmap font and put its page in the atlas, under `name`.
@@ -722,29 +811,25 @@ pub struct Effects {
 impl Effects {
     /// The offsets each copy is drawn at, back to front, with its colour:
     /// the shadow, the outline's eight neighbours, then the text at none.
-    #[must_use]
-    pub fn copies(&self) -> Vec<(Vec2, Option<Color32>)> {
-        let mut out = Vec::new();
-        if self.shadow_offset != Vec2::ZERO {
-            out.push((self.shadow_offset, Some(self.shadow_color)));
-        }
-        if self.outline_size > 0.0 {
-            let r = self.outline_size;
-            for (x, y) in [
-                (-1.0, -1.0),
-                (0.0, -1.0),
-                (1.0, -1.0),
-                (-1.0, 0.0),
-                (1.0, 0.0),
-                (-1.0, 1.0),
-                (0.0, 1.0),
-                (1.0, 1.0),
-            ] {
-                out.push((vec2(x * r, y * r), Some(self.outline_color)));
-            }
-        }
-        out.push((Vec2::ZERO, None));
-        out
+    pub fn copies(&self) -> impl Iterator<Item = (Vec2, Option<Color32>)> + use<> {
+        const AROUND: [(f32, f32); 8] = [
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (-1.0, 0.0),
+            (1.0, 0.0),
+            (-1.0, 1.0),
+            (0.0, 1.0),
+            (1.0, 1.0),
+        ];
+        let shadow = (self.shadow_offset != Vec2::ZERO)
+            .then_some((self.shadow_offset, Some(self.shadow_color)));
+        let (radius, ring) = (self.outline_size, Some(self.outline_color));
+        let outline = (radius > 0.0).then_some(AROUND).into_iter().flatten();
+        shadow
+            .into_iter()
+            .chain(outline.map(move |(x, y)| (vec2(x * radius, y * radius), ring)))
+            .chain(std::iter::once((Vec2::ZERO, None)))
     }
 }
 
@@ -770,6 +855,10 @@ pub fn paint(
         return;
     };
     let mut mesh = Mesh::with_texture(texture);
+    // Sized once: growing a mesh quad by quad was most of a caption's allocations.
+    let rects = effects.copies().count() * (shaped.quads.len() + shaped.lines.len());
+    mesh.reserve_triangles(rects * 2);
+    mesh.reserve_vertices(rects * 4);
     for (shift, flat) in effects.copies() {
         let at = origin.to_vec2() + shift;
         for quad in &shaped.quads {
@@ -797,6 +886,39 @@ pub fn paint(
             let color = flat.or(line.color).unwrap_or(tint);
             mesh.add_rect_with_uv(line.rect.translate(at), line.uv, color);
         }
+    }
+    if !mesh.is_empty() {
+        painter.add(egui::Shape::mesh(mesh));
+    }
+}
+
+/// Draw a shaped block with its top-left corner at `origin`, each glyph in
+/// the colour of the last of `spans` starting at or before it, by byte, or
+/// in `tint` before the first: what colours a line of code.
+pub fn paint_spans(
+    painter: &egui::Painter,
+    texture: Option<egui::TextureId>,
+    shaped: &Shaped,
+    origin: Pos2,
+    tint: Color32,
+    spans: &[(u32, Color32)],
+) {
+    let Some(texture) = texture else {
+        return;
+    };
+    let mut mesh = Mesh::with_texture(texture);
+    mesh.reserve_triangles(shaped.quads.len() * 2);
+    mesh.reserve_vertices(shaped.quads.len() * 4);
+    for quad in &shaped.quads {
+        let color = if quad.colored {
+            Color32::WHITE
+        } else {
+            match spans.partition_point(|(start, _)| *start <= quad.start) {
+                0 => tint,
+                after => spans[after - 1].1,
+            }
+        };
+        mesh.add_rect_with_uv(quad.rect.translate(origin.to_vec2()), quad.uv, color);
     }
     if !mesh.is_empty() {
         painter.add(egui::Shape::mesh(mesh));

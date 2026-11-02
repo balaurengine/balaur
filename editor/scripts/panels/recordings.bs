@@ -18,27 +18,26 @@ impl Recordings {
 
     /// The verify switch is this panel's own; a row's verbs have run their
     /// handlers by now, so what is left is to show what they changed.
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "click" {
-            return;
-        }
-        if node.name() == "Verify" {
-            self.editor.call("recordings_verify");
-        }
+    pub fn verify() {
+        self.editor.call("recordings_verify");
+        self.refresh();
+    }
+
+    pub fn refill() {
         self.refresh();
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("recordings_fill");
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Tools/Verify").patch_component("widget", map().with("checked", view.get("verify")));
-        self.node.get_node("Nothing").patch_component("widget", map().with("visible", view.get("count").as_int() == 0));
+        self.node.get_node("Tools/Verify").widget.checked = view["verify"].as_bool();
+        self.node.get_node("Nothing").set_visible(view["count"].as_int() == 0);
     }
 }

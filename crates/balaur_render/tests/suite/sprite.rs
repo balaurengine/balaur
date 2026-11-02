@@ -19,7 +19,7 @@ const GRID: &str = concat!(
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
@@ -183,6 +183,10 @@ fn a_missing_texture_is_an_error() {
         format!("{err:#}").contains("absent.png"),
         "the error should name the file: {err:#}"
     );
+    assert!(
+        components::get(&app.engine, entity, "sprite").is_none(),
+        "a refused add leaves the node without the sprite it asked for"
+    );
 }
 
 /// Like the frame, a flip only moves UVs, so it must ride along without
@@ -250,8 +254,9 @@ fn patching_the_sheet_fields_resizes_a_derived_sprite() {
     // The read is what used to write a resolved `size` into the
     // component, which `patch` then overlaid as an explicit size.
     let read_back = components::get(&app.engine, entity, "sprite").unwrap();
-    assert!(
-        read_back.get("size").is_none(),
+    assert_eq!(
+        read_back["size"],
+        toml::Value::try_from([0.0, 0.0]).unwrap(),
         "a derived size must not be reported as the author's: {read_back:?}"
     );
     let (before, _) = half_extents(&app, entity);

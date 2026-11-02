@@ -111,8 +111,7 @@ which is why a state lists only what differs.
 **Variables are a typed table on the scene, in the digest.** `[variables]`
 at the top of a scene file, spelled like `exports()` specs, with
 `scene.variable(name)`, `scene.set_variable(name, value)`,
-`on_variable_changed(this, name, value)` to every node that declares it, and
-`persist = true` on one that should survive through `save`. They are what a
+`on_variable_changed(this, name, value)` to every node that declares it. They are what a
 page sets through `docs/PLAN-embed.md` and what a binding's condition reads.
 
 **A binding is one row: an event, a condition, an action, a target.**
@@ -171,7 +170,7 @@ Spline's event and action lists, and where each lands.
 | State change | `on_state_changed`, step 2 |
 | Collision | have |
 | Screen resize | `on_resize`, step 1 |
-| API updated | `on_response` (have) |
+| API updated | `await task::wait(http::request(..))` (have) |
 
 | Spline action | Balaur |
 | --- | --- |

@@ -17,13 +17,13 @@ shift || true
 only=("$@")
 mkdir -p "$out_dir"
 
-# Built once, then run directly: `cargo run` takes the build lock on every
-# call. `--features window`, or `--offscreen` runs headless and checks nothing.
+# Built once, then run directly: `cargo run` takes the build lock on every call.
+# Built without the renderer, `--offscreen` runs headless and checks nothing.
 # `BALAUR_BIN` names one already built, as uiaudit.sh and views.sh take it.
 if [ -n "${BALAUR_BIN:-}" ]; then
   built=${BALAUR_BIN%.exe}
 else
-  cargo build -q -p balaur_cli --features window --bin balaur
+  cargo editor -q
   built=${CARGO_TARGET_DIR:-target}/debug/balaur
 fi
 # A copy of its own: another build writing target/debug/balaur mid-run would
@@ -101,7 +101,7 @@ render_step() { # render_step <label> <balaur args...>
   set -e
   check_run "$label" "$rc" "$out"
   grep -qE "$RENDERED" <<<"$out" ||
-    fail "$label rendered nothing: build balaur with --features window"
+    fail "$label rendered nothing: this balaur was built with no window feature"
 }
 
 # An invariant the log states but does not call an error: every editor
@@ -157,10 +157,9 @@ EDITOR_STATES=(
 # a Windows developer with a GPU still gets them.
 gpu=${BALAUR_E2E_GPU:-1}
 
-# A windowed step needs a display, and a Linux CI runner has none: the editor
-# opens offscreen there rather than failing to build an event loop. A scalar
-# rather than an array, which bash 3.2 calls unbound when it is empty.
-offscreen=
+# Offscreen on a Linux runner with no display, or wherever
+# `BALAUR_E2E_OFFSCREEN=--offscreen` asks; a scalar, which bash 3.2 allows empty.
+offscreen=${BALAUR_E2E_OFFSCREEN:-}
 if [ "$(uname)" = Linux ] && [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
   offscreen=--offscreen
 fi

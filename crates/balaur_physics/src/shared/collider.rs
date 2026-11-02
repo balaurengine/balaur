@@ -1,37 +1,42 @@
 //! The collider functions both dimensions share: the material vocabulary, the
 //! hook flag, and the lookups every collider call starts from.
 
-use crate::vocabulary::{self as v, keys as k};
+/// The rows a mesh-backed collider tidies its triangles by, from the
+/// component beside it.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is one of rapier's flags, by name"
+)]
+pub(crate) struct Tidy {
+    pub(crate) merge_vertices: bool,
+    pub(crate) drop_degenerate_triangles: bool,
+    pub(crate) drop_duplicate_triangles: bool,
+    pub(crate) drop_bad_topology: bool,
+    pub(crate) topology: bool,
+    pub(crate) connected_components: bool,
+    pub(crate) oriented: bool,
+}
 
-/// The `TriMeshFlags` bits a `triangle_mesh`'s keys ask for. rapier2d's flags
-/// take the same bits as rapier3d's (see `crate::vocabulary::flags`).
-pub(crate) fn trimesh_bits(params: &toml::Value) -> u16 {
+/// The `TriMeshFlags` bits a `triangle_mesh` asks for. rapier2d's flags take
+/// the same bits as rapier3d's (see `crate::vocabulary::flags`).
+pub(crate) fn trimesh_bits(fix_internal_edges: bool, two_sided_edges: bool, tidy: &Tidy) -> u16 {
     use crate::rapier3d::prelude::TriMeshFlags as F;
     let mut flags = F::empty();
-    for (key, default, flag) in [
-        (k::FIX_INTERNAL_EDGES, true, F::FIX_INTERNAL_EDGES),
-        (k::TWO_SIDED_EDGES, false, F::FIX_INTERNAL_EDGES_TWO_SIDED),
-        (k::MERGE_VERTICES, false, F::MERGE_DUPLICATE_VERTICES),
+    for (on, flag) in [
+        (fix_internal_edges, F::FIX_INTERNAL_EDGES),
+        (two_sided_edges, F::FIX_INTERNAL_EDGES_TWO_SIDED),
+        (tidy.merge_vertices, F::MERGE_DUPLICATE_VERTICES),
         (
-            k::DROP_DEGENERATE_TRIANGLES,
-            false,
+            tidy.drop_degenerate_triangles,
             F::DELETE_DEGENERATE_TRIANGLES,
         ),
-        (
-            k::DROP_DUPLICATE_TRIANGLES,
-            false,
-            F::DELETE_DUPLICATE_TRIANGLES,
-        ),
-        (
-            k::DROP_BAD_TOPOLOGY,
-            false,
-            F::DELETE_BAD_TOPOLOGY_TRIANGLES,
-        ),
-        (k::TOPOLOGY, false, F::HALF_EDGE_TOPOLOGY),
-        (k::CONNECTED_COMPONENTS, false, F::CONNECTED_COMPONENTS),
-        (k::ORIENTED, false, F::ORIENTED),
+        (tidy.drop_duplicate_triangles, F::DELETE_DUPLICATE_TRIANGLES),
+        (tidy.drop_bad_topology, F::DELETE_BAD_TOPOLOGY_TRIANGLES),
+        (tidy.topology, F::HALF_EDGE_TOPOLOGY),
+        (tidy.connected_components, F::CONNECTED_COMPONENTS),
+        (tidy.oriented, F::ORIENTED),
     ] {
-        if v::boolean(params, key, default) {
+        if on {
             flags |= flag;
         }
     }
@@ -52,13 +57,6 @@ pub(crate) fn mesh_edges(indices: &[[u32; 3]]) -> Vec<[u32; 2]> {
     edges
 }
 
-/// Whether `params` asks for any surface velocity, in either dimension.
-pub(crate) fn slides(params: &toml::Value) -> bool {
-    v::vec3(params, k::SURFACE_VELOCITY, [0.0; 3])
-        .iter()
-        .any(|n| *n != 0.0)
-}
-
 macro_rules! functions {
     (state = $State:ty, refit = $refit:path) => {
         fn combine_rule(name: &str) -> CoefficientCombineRule {
@@ -73,49 +71,97 @@ macro_rules! functions {
             }
         }
 
-        /// The one hook a collider can ask for: a one-way platform and a
-        /// conveyor belt are both contact modification with the answer
-        /// written for them.
-        pub(crate) fn active_hooks(params: &toml::Value) -> ActiveHooks {
-            if v::boolean(params, k::ONE_WAY, false) || crate::shared::collider::slides(params) {
+        /// The groups a collider's layers, mask and test make. An empty mask
+        /// is every layer, and an empty set of layers is layer 1.
+        pub(crate) fn groups_of(
+            (layers, mask, test): (
+                &[balaur_core::layers::Layer],
+                &[balaur_core::layers::Layer],
+                crate::properties::LayerTest,
+            ),
+        ) -> InteractionGroups {
+            InteractionGroups::new(
+                Group::from_bits_truncate(balaur_core::layers::Layer::bits(layers, false)),
+                Group::from_bits_truncate(balaur_core::layers::Layer::bits(mask, true)),
+                match test {
+                    crate::properties::LayerTest::Either => InteractionTestMode::Or,
+                    crate::properties::LayerTest::Both => InteractionTestMode::And,
+                },
+            )
+        }
+
+        /// The body pairs a collider is tested against, as rapier counts them.
+        pub(crate) fn collision_types_of(
+            pairs: &[crate::properties::ContactPair],
+        ) -> ActiveCollisionTypes {
+            use crate::properties::ContactPair as P;
+            pairs
+                .iter()
+                .fold(ActiveCollisionTypes::empty(), |types, pair| {
+                    types
+                        | match pair {
+                            P::DynamicDynamic => ActiveCollisionTypes::DYNAMIC_DYNAMIC,
+                            P::DynamicKinematic => ActiveCollisionTypes::DYNAMIC_KINEMATIC,
+                            P::DynamicStatic => ActiveCollisionTypes::DYNAMIC_FIXED,
+                            P::KinematicKinematic => ActiveCollisionTypes::KINEMATIC_KINEMATIC,
+                            P::KinematicStatic => ActiveCollisionTypes::KINEMATIC_FIXED,
+                            P::StaticStatic => ActiveCollisionTypes::FIXED_FIXED,
+                        }
+                })
+        }
+
+        /// The pairs a collider is tested against. A sensor only ever reports,
+        /// so it hears every kind of body, whatever its row left out; static
+        /// against static stays out, since neither of the two can arrive.
+        pub(crate) fn collision_types_for(
+            pairs: &[crate::properties::ContactPair],
+            sensor: bool,
+        ) -> ActiveCollisionTypes {
+            let asked = collision_types_of(pairs);
+            if sensor {
+                asked | (ActiveCollisionTypes::all() - ActiveCollisionTypes::FIXED_FIXED)
+            } else {
+                asked
+            }
+        }
+
+        /// The hook a collider's rows ask for, if any.
+        pub(crate) fn hooks_of(rows: &impl crate::properties::ColliderRows) -> ActiveHooks {
+            if rows.hooked() {
                 ActiveHooks::MODIFY_SOLVER_CONTACTS
             } else {
                 ActiveHooks::empty()
             }
         }
 
-        fn test_mode(name: &str) -> InteractionTestMode {
-            if name == crate::vocabulary::words::EITHER {
-                InteractionTestMode::Or
-            } else {
-                InteractionTestMode::And
+        /// Every row a collider carries that is not its shape or its mass's
+        /// frame: what it is made of, what it meets and what it reports.
+        pub(crate) fn with_rows(
+            builder: ColliderBuilder,
+            rows: &impl crate::properties::ColliderRows,
+            material: &crate::material::PhysicsMaterial,
+        ) -> ColliderBuilder {
+            let mut builder = builder
+                .restitution(material.restitution)
+                .friction(material.friction)
+                .density(rows.density().max(0.0))
+                .friction_combine_rule(combine_rule(&material.friction_combine))
+                .restitution_combine_rule(combine_rule(&material.restitution_combine))
+                .contact_skin(rows.collision_margin().max(0.0))
+                .contact_force_event_threshold(rows.contact_force_threshold())
+                .collision_groups(groups_of(rows.collision()))
+                .solver_groups(groups_of(rows.solver()))
+                .active_collision_types(collision_types_for(rows.contact_pairs(), rows.sensor()))
+                .active_hooks(hooks_of(rows))
+                .enabled(rows.enabled())
+                .sensor(rows.sensor());
+            // An explicit mass overrides what the density works out to, which
+            // is what an author who typed a number in kilograms means.
+            let mass = rows.mass();
+            if mass > 0.0 {
+                builder = builder.mass(mass);
             }
-        }
-
-        fn test_mode_name(mode: InteractionTestMode) -> &'static str {
-            match mode {
-                InteractionTestMode::Or => crate::vocabulary::words::EITHER,
-                InteractionTestMode::And => crate::vocabulary::words::BOTH,
-            }
-        }
-
-        /// The 32 layers a `flags` pair names, tested as `test_key` says. An
-        /// empty mask means every layer: the alternative is 32 strings in every
-        /// scene file that wants the default.
-        pub(crate) fn interaction_groups(
-            params: &toml::Value,
-            memberships_key: &str,
-            filter_key: &str,
-            test_key: &str,
-        ) -> InteractionGroups {
-            InteractionGroups::new(
-                Group::from_bits_truncate(balaur_core::layers::bits(
-                    params.get(memberships_key),
-                    false,
-                )),
-                Group::from_bits_truncate(balaur_core::layers::bits(params.get(filter_key), true)),
-                test_mode(v::text(params, test_key, crate::vocabulary::words::BOTH)),
-            )
+            builder
         }
 
         /// The nearest body at or above `entity` in the scene tree, and the node that
@@ -177,82 +223,6 @@ macro_rules! functions {
                 return Err(anyhow!("this node's collider is gone: the node was freed"));
             }
             Ok(handle)
-        }
-
-        /// The non-shape half of a collider, read back off it. The inverse of
-        /// `with_material`, property for property, so the inspector round-trips.
-        /// `body_states_mass` says the body zeroed this collider's weight.
-        pub(crate) fn read_material(
-            collider: &Collider,
-            body_states_mass: bool,
-            map: &mut toml::map::Map<String, toml::Value>,
-        ) {
-            let f = |value: Real| toml::Value::Float(f64::from(value));
-            // Each of `mass` and `density` is derived from the other, so
-            // reporting both would pin one on the next patch or re-save.
-            let authored = |key: &str| map.get(key).and_then(balaur_core::components::as_f64);
-            let own_mass = authored(k::MASS).unwrap_or(0.0) > 0.0;
-            let zeroed = body_states_mass;
-            if own_mass {
-                let mass = if zeroed {
-                    authored(k::MASS).unwrap_or(0.0) as Real
-                } else {
-                    collider.mass()
-                };
-                map.insert(k::MASS.into(), f(mass));
-            } else {
-                let density = if zeroed {
-                    authored(k::DENSITY).unwrap_or(1.0) as Real
-                } else {
-                    collider.density()
-                };
-                map.insert(k::MASS.into(), f(0.0));
-                map.insert(k::DENSITY.into(), f(density));
-            }
-            map.insert(k::COLLISION_MARGIN.into(), f(collider.contact_skin()));
-            map.insert(
-                k::CONTACT_FORCE_THRESHOLD.into(),
-                f(collider.contact_force_event_threshold()),
-            );
-            map.insert(k::SENSOR.into(), collider.is_sensor().into());
-            map.insert(k::ENABLED.into(), collider.is_enabled().into());
-            let groups = collider.collision_groups();
-            map.insert(
-                k::COLLISION_LAYER.into(),
-                balaur_core::layers::names(groups.memberships.bits()),
-            );
-            map.insert(
-                k::COLLISION_MASK.into(),
-                balaur_core::layers::names(groups.filter.bits()),
-            );
-            let solver = collider.solver_groups();
-            map.insert(
-                k::SOLVER_LAYER.into(),
-                balaur_core::layers::names(solver.memberships.bits()),
-            );
-            map.insert(
-                k::SOLVER_MASK.into(),
-                balaur_core::layers::names(solver.filter.bits()),
-            );
-            map.insert(
-                k::COLLISION_TEST.into(),
-                test_mode_name(groups.test_mode).into(),
-            );
-            map.insert(
-                k::SOLVER_TEST.into(),
-                test_mode_name(solver.test_mode).into(),
-            );
-            map.insert(
-                k::EVENTS.into(),
-                v::names(collider.active_events().bits(), &v::flags::events()),
-            );
-            map.insert(
-                k::CONTACT_PAIRS.into(),
-                v::names(
-                    collider.active_collision_types().bits(),
-                    &v::flags::collision_types(),
-                ),
-            );
         }
     };
 }

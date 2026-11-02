@@ -1,0 +1,70 @@
+// `{str: V}` and `{int: V}`: built in, typed, kept in the order keys were
+// first set; a map holds maps and classes by reference, and a str-keyed map
+// goes into an `any` and back.
+
+pub class Player { name: str, score: int }
+
+pub fn ages() -> {str: int} {
+    let ages: {str: int} = {"ada": 36, "alan": 41};
+    ages["grace"] = 85;
+    ages["ada"] += 1;
+    ages
+}
+
+pub fn read(name: str) -> int {
+    let ages = ages();
+    ages[name].or(-1)
+}
+
+pub fn order() -> [str] {
+    let ages = ages();
+    ages["alan"] = 42;
+    ages.remove("ada");
+    ages["ada"] = 1;
+    ages.keys()
+}
+
+pub fn nested() -> int {
+    let teams: {str: {str: int}} = {};
+    teams["red"] = {"ada": 1};
+    teams["red"].unwrap()["alan"] = 2;
+    teams["blue"] = {};
+    teams["red"].unwrap().len() * 10 + teams["blue"].unwrap().len()
+}
+
+pub fn players() -> int {
+    let by_name: {str: Player} = {};
+    let ada = Player { name: "ada", score: 3 };
+    by_name["ada"] = ada;
+    let held = by_name["ada"].unwrap();
+    held.score += 4;
+    ada.score
+}
+
+pub fn boxed() -> any {
+    let ages: {str: int} = {"ada": 36, "alan": 41};
+    let cell: any = ages;
+    cell
+}
+
+pub fn unboxed() -> int {
+    let cell: any = { "x": 3, "y": 4 };
+    let point: {str: int} = cell;
+    point["x"].unwrap() * 10 + point["y"].unwrap()
+}
+
+pub fn shown() -> str {
+    let ages: {str: int} = {"ada": 36};
+    "{ages}"
+}
+
+// expect: read("ada") == 37
+// expect: read("grace") == 85
+// expect: read("nobody") == -1
+// expect: order() == ["alan", "grace", "ada"]
+// expect: nested() == 20
+// expect: players() == 7
+// expect: boxed() == { "ada": 36, "alan": 41 }
+// expect: unboxed() == 34
+// expect: shown() == "{\"ada\": 36}"
+// live: 0

@@ -13,15 +13,72 @@ use std::sync::Arc;
 
 impl BsHost {
     /// Built as units: every file compiled alone once, a script linked with
-    /// the units of the modules it uses when it loads. A debugger's probes,
-    /// a profiler's counters, a browser's metering and a native build each
-    /// want the whole file in one module, as does `BALAUR_BS_UNITS=0`.
+    /// the units of the modules it uses when it loads; a native build holds
+    /// units too. A debugger's probes, a profiler's counters and a browser's
+    /// metering each want the whole file in one module, as does
+    /// `BALAUR_BS_UNITS=0`.
     pub(super) fn as_units(&self, key: &str) -> bool {
         !METER
-            && !crate::native::any_native()
             && !self.probed(key)
             && !self.inner.profiling.get()
             && std::env::var("BALAUR_BS_UNITS").map_or(true, |v| v != "0")
+    }
+
+    /// Whether the unit at `key` can join the project's instance as it runs:
+    /// any unit when the instance runs on its engine, and one a loaded
+    /// native build has, with every unit it uses, when it runs as native
+    /// code. A file of the project the build lacks, changed since the build
+    /// was made, moves the instance onto its engine for good: now, or
+    /// between frames while a script runs, the file alone until then. A file
+    /// from outside the project runs alone, and the project stays native.
+    pub(super) fn joins_project(
+        &self,
+        key: &str,
+        unit: &Compiled,
+        linked: &[(String, Arc<Compiled>)],
+    ) -> bool {
+        #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
+        crate::native::load_beside_executable();
+        let missing = std::iter::once((key, unit))
+            .chain(linked.iter().map(|(k, u)| (k.as_str(), &**u)))
+            .find(|(_, u)| !crate::native::has_native(&u.wasm));
+        let Some((file, u)) = missing else {
+            return true;
+        };
+        if !self.instance_native() {
+            return true;
+        }
+        if super::outside(key) {
+            return false;
+        }
+        tracing::warn!(
+            "{file}: the native build has no module {}; the project's scripts run on their engine",
+            balaur_bs::module_hash(&u.wasm)
+        );
+        self.inner.skip_native.set(true);
+        if self.inner.project.borrow().is_none() {
+            return true;
+        }
+        if let Err(e) = self.rebuild_project(&[]) {
+            tracing::error!("{file}: moving the project's scripts off native code: {e:#}");
+        }
+        if self.instance_native() {
+            self.inner.rebuild.borrow_mut().push(key.to_string());
+            return false;
+        }
+        true
+    }
+
+    /// Whether the project's instance runs as native code: the one there is,
+    /// or the one the first file to join would make.
+    fn instance_native(&self) -> bool {
+        if let Some(home) = self.inner.project.borrow().as_ref() {
+            return home.native;
+        }
+        !self.inner.skip_native.get()
+            && self
+                .project_unit()
+                .is_ok_and(|root| crate::native::has_native(&root.wasm))
     }
 
     /// The file at `key` built as a unit, once until an edit, and kept on
@@ -56,7 +113,7 @@ impl BsHost {
         }
         let api = match self.inner.api_hash.take() {
             Some(h) => h,
-            None => balaur_bs::module_hash(api::lines(&self.api()).join("\n").as_bytes()),
+            None => balaur_bs::module_hash(api::compiled_against(&self.api()).as_bytes()),
         };
         self.inner.api_hash.set(Some(api.clone()));
         let name = balaur_bs::module_hash(format!("{api}\n{key}\n{source}").as_bytes());
@@ -105,7 +162,7 @@ impl BsHost {
         }
     }
 
-    pub(super) fn unit_of(&self, key: &str, source: &str) -> Result<Compiled> {
+    pub(crate) fn unit_of(&self, key: &str, source: &str) -> Result<Compiled> {
         balaur_bs::compile(source, &self.unit_options(key)).map_err(|e| anyhow!("{key}:{e}"))
     }
 

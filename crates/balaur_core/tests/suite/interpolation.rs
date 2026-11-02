@@ -1,18 +1,16 @@
-//! Drawing between two fixed steps: who opts in, what the renderer sees, and
+//! Drawing between two fixed steps: who keeps poses, what the renderer sees, and
 //! what the tick still answers.
 
 use balaur_core::interpolate;
 use balaur_core::scene::{self, GlobalTransform, Transform, spawn_node};
-use balaur_core::{App, AppConfig, settings};
+use balaur_core::{App, AppConfig, facts};
 
-/// An app with `[time] interpolate` on, and one node under the root.
+/// An app on a display faster than the tick, and one node under the root.
 fn app() -> (App, hecs::Entity) {
     let app = App::new(AppConfig::bare(".")).unwrap();
-    settings::set(&app.engine, "time/interpolate", toml::Value::Boolean(true));
-    interpolate::apply_setting(&app.engine);
+    facts::update_device(&app.engine, |f| f.refresh_rate = 144.0);
     let root = app.engine.root();
     let node = spawn_node(&mut app.engine.world_mut(), "Body", root);
-    balaur_core::transform::ensure(&app.engine, node);
     (app, node)
 }
 
@@ -28,11 +26,18 @@ fn step_to(app: &App, node: hecs::Entity, x: f32) {
 }
 
 #[test]
-fn nothing_is_drawn_between_steps_until_the_project_asks() {
+fn a_display_at_the_tick_rate_draws_the_tick_and_any_other_draws_between_steps() {
     let app = App::new(AppConfig::bare(".")).unwrap();
-    let node = spawn_node(&mut app.engine.world_mut(), "Body", app.engine.root());
-    interpolate::enable(&app.engine, node);
-    assert!(!interpolate::is_on(&app.engine, node));
+    let tick = balaur_core::tick_hz() as f32;
+    for (rate, blends) in [
+        (tick, false),
+        (tick - 0.06, false),
+        (tick * 2.0, true),
+        (tick / 2.0, true),
+    ] {
+        facts::update_device(&app.engine, |f| f.refresh_rate = rate);
+        assert_eq!(interpolate::on(&app.engine), blends, "at {rate} Hz");
+    }
 }
 
 #[test]
@@ -93,19 +98,7 @@ fn a_reset_stops_a_teleport_streaking_across_the_level() {
 }
 
 #[test]
-fn the_interpolate_key_outranks_what_the_node_is_made_of() {
-    let (app, node) = app();
-    interpolate::set(&app.engine, node, Some(false));
-    interpolate::enable(&app.engine, node);
-    assert!(!interpolate::is_on(&app.engine, node), "off stays off");
-
-    interpolate::set(&app.engine, node, Some(true));
-    interpolate::disable(&app.engine, node);
-    assert!(interpolate::is_on(&app.engine, node), "and on stays on");
-}
-
-#[test]
-fn a_node_nobody_opted_in_is_drawn_where_the_frame_left_it() {
+fn a_node_keeping_no_poses_is_drawn_where_the_frame_left_it() {
     let (app, node) = app();
     app.engine
         .world()

@@ -43,7 +43,7 @@ impl FnGen<'_> {
             owner: None,
             kind: Kind::Script,
         };
-        let places = self.script_args(&sig, args, pos, name, None)?;
+        let places = self.script_args(&sig, args, pos, name)?;
         self.get_raw(f);
         self.spill();
         let (p, r) = self.g.wasm_sig(&sig);
@@ -72,19 +72,28 @@ impl FnGen<'_> {
         if !self.prelude && crate::prelude::owns(name) {
             return err(pos, format!("unknown function `{name}`"));
         }
-        let native = match name {
-            "sqrt" => Some((I::F64Sqrt, 1)),
-            "abs" => Some((I::F64Abs, 1)),
-            "floor" => Some((I::F64Floor, 1)),
-            "ceil" => Some((I::F64Ceil, 1)),
-            "min" => Some((I::F64Min, 2)),
-            "max" => Some((I::F64Max, 2)),
-            _ => self
+        // `math::sqrt` is wasm's own instruction, and the rest of `math`'s
+        // functions of a float fixed imports, unless a module of the project's
+        // goes by that name.
+        let scripted = self
+            .g
+            .sigs
+            .get(name)
+            .is_some_and(|sig| !matches!(sig.kind, Kind::Extern | Kind::Host));
+        let native = match name.strip_prefix("math::").filter(|_| !scripted) {
+            Some("sqrt") => Some((I::F64Sqrt, 1)),
+            Some("abs") => Some((I::F64Abs, 1)),
+            Some("floor") => Some((I::F64Floor, 1)),
+            Some("ceil") => Some((I::F64Ceil, 1)),
+            Some("min") => Some((I::F64Min, 2)),
+            Some("max") => Some((I::F64Max, 2)),
+            Some(function) => self
                 .g
                 .imp
                 .math
-                .get(name)
+                .get(if function == "log" { "ln" } else { function })
                 .map(|(idx, n)| (I::Call(*idx), *n)),
+            None => None,
         };
         if let Some((i, n)) = native {
             self.args(&vec![Ty::Float; n], args, pos, name)?;
@@ -96,12 +105,11 @@ impl FnGen<'_> {
             self.e(I::I32Const(0));
             return Ok(Ty::Any);
         }
-        // An empty map: a cell whose key and value arrays are not made yet.
         if name == "map" {
-            self.args(&[], args, pos, name)?;
-            self.e(I::I64Const(0));
-            self.cell(crate::anys::MAP);
-            return Ok(Ty::Any);
+            return err(
+                pos,
+                "there is no `map()`: an `any` map is a literal where an `any` goes, `let m: any = {};`",
+            );
         }
         if let Some(fields) = match name {
             "vec2" => Some(2),
@@ -116,14 +124,11 @@ impl FnGen<'_> {
         }
         let sig = self.g.sigs.get(name).cloned().ok_or_else(|| Error {
             pos,
-            msg: match name.split_once("::") {
-                Some((m, f)) if self.g.sigs.contains_key(&format!("{m}::#{f}")) => {
-                    format!("`{f}` is private to `{m}`: mark it `pub` there")
-                }
-                Some(_) => format!("the engine has no `{name}`"),
-                None => format!("unknown function `{name}`"),
-            },
+            msg: self.no_function(name),
         })?;
+        if matches!(sig.kind, Kind::Extern | Kind::Host) {
+            self.no_node_for_a_reply(name, args, pos)?;
+        }
         match sig.kind {
             Kind::ExternAsync | Kind::HostAsync | Kind::Async => {
                 return err(
@@ -146,7 +151,7 @@ impl FnGen<'_> {
                 );
             }
             Kind::Script => {
-                let places = self.script_args(&sig, args, pos, name, None)?;
+                let places = self.script_args(&sig, args, pos, name)?;
                 self.spill();
                 self.e(I::Call(self.g.callee(name, &sig)));
                 if let Some(r) = self.store_back(places, &sig.ret) {
@@ -157,29 +162,139 @@ impl FnGen<'_> {
         Ok(sig.ret)
     }
 
+    // Why `name` calls nothing.
+    fn no_function(&self, name: &str) -> String {
+        match name.split_once("::") {
+            Some((m, f)) if self.g.sigs.contains_key(&format!("{m}::#{f}")) => {
+                format!("`{f}` is private to `{m}`: mark it `pub` there")
+            }
+            Some((_, f)) => super::dropped::function(name)
+                .or_else(|| self.on_a_component(name, f))
+                .unwrap_or_else(|| format!("the engine has no `{name}`")),
+            None => format!("unknown function `{name}`"),
+        }
+    }
+
+    // A module's function that drives a component is called on it.
+    fn on_a_component(&self, name: &str, function: &str) -> Option<String> {
+        let mut on: Vec<String> = self
+            .g
+            .host
+            .functions
+            .iter()
+            .filter_map(|host| {
+                let (component, op) = host.key.strip_prefix("node.")?.split_once('.')?;
+                (op == function).then(|| format!("`node.{component}.{function}(..)`"))
+            })
+            .collect();
+        if on.is_empty() {
+            return None;
+        }
+        on.sort();
+        Some(format!(
+            "`{name}` is called on its component: {}",
+            on.join(" or ")
+        ))
+    }
+
+    /// A call whose one reply is what `task::wait` answers names no node to tell.
+    fn no_node_for_a_reply(&mut self, name: &str, args: &[Expr], pos: Pos) -> R<()> {
+        let Some(first) = args
+            .first()
+            .filter(|_| super::dropped::answers_by_await(name))
+        else {
+            return Ok(());
+        };
+        let nil = matches!(&first.kind, ExprKind::Nil)
+            || matches!(&first.kind, ExprKind::Call(callee, _) if callee == "nil");
+        if nil || self.type_of(first)? == Ty::Node {
+            return err(
+                pos,
+                format!(
+                    "`{name}` takes no node: await what it answers, `await task::wait({name}(..))`"
+                ),
+            );
+        }
+        Ok(())
+    }
+
+    /// A spelling a value has no more, refused by name with the one it keeps.
+    /// A prelude function may call what its own code needs by any name.
+    pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
+        let nil_test = matches!(name, "is_nil" | "is_none" | "is_some" | "unwrap_or");
+        let read = matches!(
+            name,
+            "as_int" | "as_float" | "as_bool" | "as_str" | "as_node"
+        );
+        if self.prelude || !(nil_test || read || matches!(name, "get" | "at" | "set" | "put")) {
+            return Ok(());
+        }
+        let msg = match (&self.type_of(base)?, name) {
+            (Ty::Any | Ty::Optional(_), "is_nil" | "is_none") => {
+                format!("write `x == nil`, not `x.{name}()`")
+            }
+            (Ty::Any | Ty::Optional(_), "is_some") => {
+                "write `x != nil`, not `x.is_some()`".to_string()
+            }
+            (Ty::Any | Ty::Optional(_), "unwrap_or") => {
+                "write `x.or(v)`, not `x.unwrap_or(v)`".to_string()
+            }
+            (Ty::Any, "get") => {
+                "an `any` reads a key as `a[\"k\"]`, not `a.get(\"k\")`".to_string()
+            }
+            (Ty::Any, "at") => {
+                "an `any` list reads an element as `a[i]`, not `a.at(i)`".to_string()
+            }
+            (Ty::Any, "set") => {
+                "an `any` writes a key as `a[\"k\"] = v`, not `a.set(\"k\", v)`".to_string()
+            }
+            (Ty::Any, "put") => {
+                "an `any` list writes an element as `a[i] = v`, not `a.put(i, v)`".to_string()
+            }
+            (Ty::Array(_), "at") => {
+                "a list reads an element as `xs[i]`, not `xs.at(i)`".to_string()
+            }
+            (Ty::Struct(s), "at" | "get") if matches!(s.as_str(), "Vec2" | "Vec3" | "Color") => {
+                format!(
+                    "a {s} reads a field by its name, as `v.{}`",
+                    if s == "Color" { "r" } else { "x" }
+                )
+            }
+            (Ty::Struct(s), "get") if crate::maps::is_map(s) => {
+                "a map reads a key as `m[k]`, not `m.get(k)`".to_string()
+            }
+            (Ty::Struct(s), "set") if crate::maps::is_map(s) => {
+                "a map writes a key as `m[k] = v`, not `m.set(k, v)`".to_string()
+            }
+            (Ty::Int, "as_float") => {
+                "an int becomes a float as `x as float`, not `x.as_float()`".to_string()
+            }
+            (Ty::Float, "as_int") => {
+                "a float becomes an int as `x as int`, not `x.as_int()`".to_string()
+            }
+            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, "as_str") => {
+                "a value becomes text as `\"{x}\"`, not `x.as_str()`".to_string()
+            }
+            (from @ (Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node), _) if read => {
+                format!("`{name}` reads an `any`, and this is a {}", show(from))
+            }
+            _ => return Ok(()),
+        };
+        err(pos, msg)
+    }
+
     pub(crate) fn method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         // `node.transform.translate(..)`: an operation a component drives is
-        // called on that component, as Rune calls it.
-        if let Some(field) = self.component_get(base, name) {
-            return self.method(&field, name, args, pos);
-        }
+        // called on that component.
         if let ExprKind::Field(node, comp) = &base.kind
             && let Some(sig) = self.g.sigs.get(&format!("node.{comp}.{name}")).cloned()
             && sig.kind == Kind::Host
         {
-            // An `any` holding the node is read as one.
             if self.type_of(node)? == Ty::Any {
-                self.expr(node)?;
-                self.unbox_any(&Ty::Node);
-                let lv = self.alloc(&Ty::Node);
-                self.set_raw(&lv);
-                let hidden = format!("#node{}", lv.slots[0]);
-                self.declare(&hidden, lv);
-                let var = Expr {
-                    kind: ExprKind::Var(hidden),
+                return err(
                     pos,
-                };
-                return self.node_call(&var, &sig, args, pos, name);
+                    format!("`{comp}.{name}` on an `any`: read the node with `.as_node()` first"),
+                );
             }
             if self.type_of(node)? != Ty::Node {
                 return err(
@@ -194,9 +309,6 @@ impl FnGen<'_> {
             Some(lv) => lv.ty.clone(),
             None => self.type_of(base)?,
         };
-        if let Some(t) = self.method_sugar(base, &bty, name, args, pos)? {
-            return Ok(t);
-        }
         match &bty {
             Ty::Array(_) => self.array_method(base, name, args, pos),
             Ty::Str if name == "len" => {
@@ -221,8 +333,7 @@ impl FnGen<'_> {
         }
     }
 
-    // `v.m(..)` on a script struct or class: `self` lent from where `v` is
-    // and handed back there.
+    // `v.m(..)` on a class: its pointer, which the call lends and never moves.
     fn script_method(
         &mut self,
         base: &Expr,
@@ -244,58 +355,26 @@ impl FnGen<'_> {
                 format!("`{key}` is async: `await self.{name}(..)` inside an `async fn`"),
             );
         }
-        // A class is shared, so any expression holding one will do;
-        // a value inside an object is lent and handed back there.
-        let mut held = None;
-        let mut lent = None;
-        let lv = match place {
-            Some(lv) => lv,
-            None if self.g.is_class(&bty).is_some() => {
-                self.expr(base)?;
-                let t = self.temp(&bty);
-                self.set_raw(&t);
-                held = Some(t.clone());
-                t
-            }
-            None => match self.mem_place(base)? {
-                Some(mp) if mp.stable => {
-                    let t = self.alloc(&bty);
-                    self.mem_get_raw(&mp);
-                    self.set_raw(&t);
-                    lent = Some(mp);
-                    t
-                }
-                _ => {
-                    return err(
-                        pos,
-                        "a method changes its value: call it on a variable or a field",
-                    );
-                }
-            },
+        // A class is shared, so any expression holding one will do.
+        let (lv, held) = if let Some(lv) = place {
+            (lv, None)
+        } else {
+            self.expr(base)?;
+            let t = self.temp(&bty);
+            self.set_raw(&t);
+            (t.clone(), Some(t))
         };
         self.get_raw(&lv);
-        let places = self.script_args(&sig, args, pos, &key, Some(&lv))?;
+        let places = self.script_args(&sig, args, pos, &key)?;
         self.spill();
         self.e(I::Call(sig.idx));
-        let ret = if let Some(r) = self.store_back(places, &sig.ret) {
-            r
-        } else {
-            let r = self.alloc(&sig.ret);
-            self.set_raw(&r);
-            r
-        };
-        self.set_raw(&lv);
-        if let Some(mp) = lent {
-            self.get_raw(&lv);
-            self.mem_set_raw(&mp);
-            if let Some(r) = &mp.release {
-                self.release(r);
-            }
-        }
+        let ret = self.store_back(places, &sig.ret);
         if let Some(t) = held {
             self.release(&t);
         }
-        self.get_raw(&ret);
+        if let Some(r) = ret {
+            self.get_raw(&r);
+        }
         Ok(sig.ret)
     }
 
@@ -308,7 +387,6 @@ impl FnGen<'_> {
         args: &[Expr],
         pos: Pos,
         name: &str,
-        receiver: Option<&super::func::LVal>,
     ) -> R<Vec<RefPlace>> {
         if !sig.has_refs() {
             self.args(&sig.params, args, pos, name)?;
@@ -361,11 +439,11 @@ impl FnGen<'_> {
                 RefPlace::Local(l) => Some(l),
                 RefPlace::Mem(_) => None,
             });
-            if locals.chain(receiver).any(overlaps) {
+            if locals.into_iter().any(overlaps) {
                 return err(
                     a.pos,
                     format!(
-                        "`{name}` would change this twice: it is part of another `&mut` argument or of what the method is called on"
+                        "`{name}` would change this twice: it is part of another `&mut` argument"
                     ),
                 );
             }
@@ -399,65 +477,6 @@ impl FnGen<'_> {
             }
         }
         Some(r)
-    }
-
-    // `n.get("transform")` before a method the component drives is
-    // `n.transform`: the key-reading spelling of the same thing.
-    fn component_get(&self, base: &Expr, name: &str) -> Option<Expr> {
-        let ExprKind::Method(n, get, key) = &base.kind else {
-            return None;
-        };
-        let [arg] = key.as_slice() else { return None };
-        let ExprKind::Str(comp) = &arg.kind else {
-            return None;
-        };
-        let drives = get == "get" && self.g.sigs.contains_key(&format!("node.{comp}.{name}"));
-        drives.then(|| Expr {
-            kind: ExprKind::Field(n.clone(), comp.clone()),
-            pos: base.pos,
-        })
-    }
-
-    // What a value answers before its own kind's methods: a vector's field
-    // by `at`/`get`, `as_` conversions, and the `T?` methods on a value that
-    // is always there.
-    fn method_sugar(
-        &mut self,
-        base: &Expr,
-        bty: &Ty,
-        name: &str,
-        args: &[Expr],
-        pos: Pos,
-    ) -> R<Option<Ty>> {
-        let bty = bty.clone();
-        // `v.at(0)` or `v.get("y")` on a vector is its field.
-        if let Ty::Struct(s) = &bty
-            && matches!(s.as_str(), "Vec2" | "Vec3" | "Color")
-            && let [arg] = args
-        {
-            let fields: &[&str] = match s.as_str() {
-                "Vec2" => &["x", "y"],
-                "Vec3" => &["x", "y", "z"],
-                _ => &["r", "g", "b", "a"],
-            };
-            let field = match (name, &arg.kind) {
-                ("at", ExprKind::Int(i)) => usize::try_from(*i).ok().and_then(|i| fields.get(i)),
-                ("get", ExprKind::Str(k)) => fields.iter().find(|f| **f == k.as_str()),
-                _ => None,
-            };
-            if let Some(f) = field {
-                let read = Expr {
-                    kind: ExprKind::Field(Box::new(base.clone()), (*f).to_string()),
-                    pos,
-                };
-                return self.expr(&read).map(Some);
-            }
-        }
-        let plain = matches!(bty, Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node);
-        if plain && args.is_empty() && name.starts_with("as_") {
-            return self.plain_as(base, name, pos).map(Some);
-        }
-        Ok(None)
     }
 
     // `node.f(a)` is the host's `f(node, a)`.
@@ -505,20 +524,27 @@ impl FnGen<'_> {
         Ok(sig.ret.clone())
     }
 
-    // `a.get("k")` is the host's `get(a, "k")`; `a["k"]` and `a[0]` are the
-    // same calls.
     pub(crate) fn any_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
+        if name == "with" {
+            return err(
+                pos,
+                "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or write the key, `a[\"k\"] = v`",
+            );
+        }
+        if name == "equals" && !self.prelude {
+            return err(pos, "an `any` compares as `a == b`, not `a.equals(b)`");
+        }
         if !self.g.sigs.contains_key(&format!("any::{name}")) {
             return self.held_method(base, name, args, pos);
         }
         self.prelude_method("any", base, name, args, pos)
     }
 
-    // `value.method(..)` on a `str` or an `any`: the prelude's
-    // `str::method(value, ..)`. The receiver is compiled where it is, not
-    // cloned into a call: a clone is a tree `type_of` has not seen, so each
-    // link of a chain would type the whole chain under it again.
-    fn prelude_method(
+    /// `value.method(..)` on a `str` or an `any`: the prelude's
+    /// `str::method(value, ..)`. The receiver is compiled where it is, not
+    /// cloned into a call: a clone is a tree `type_of` has not seen, so each
+    /// link of a chain would type the whole chain under it again.
+    pub(crate) fn prelude_method(
         &mut self,
         ty: &str,
         base: &Expr,
@@ -544,7 +570,7 @@ impl FnGen<'_> {
             refs: sig.refs[1..].to_vec(),
             ..sig.clone()
         };
-        self.script_args(&rest, args, pos, name, None)?;
+        self.script_args(&rest, args, pos, name)?;
         self.spill();
         self.e(I::Call(self.g.callee(&key, &sig)));
         Ok(sig.ret)
@@ -559,26 +585,12 @@ impl FnGen<'_> {
         sig.ret
     }
 
-    // A method an `any` lacks but what it holds has: a `T?`'s, read as nil
-    // or not; a string's or a node's, called on it read as one.
+    // A method an `any` lacks: a `T?`'s, read as nil or not. A string's or a
+    // node's is named, with the read it wants first.
     fn held_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         match (name, args.len()) {
-            // Nil is no cell.
-            ("is_some" | "is_none", 0) => {
-                self.expr_as(base, &Ty::Any)?;
-                let cell = self.temp(&Ty::Any);
-                self.set_raw(&cell);
-                self.get_raw(&cell);
-                if name == "is_none" {
-                    self.e(I::I32Eqz);
-                } else {
-                    self.emit([I::I32Const(0), I::I32Ne]);
-                }
-                self.release(&cell);
-                return Ok(Ty::Bool);
-            }
             ("unwrap", 0) => return self.expr(base),
-            ("or" | "unwrap_or", 1) => {
+            ("or", 1) => {
                 self.expr(base)?;
                 let cell = self.temp(&Ty::Any);
                 self.set_raw(&cell);
@@ -596,59 +608,29 @@ impl FnGen<'_> {
             }
             _ => {}
         }
-        let held = if self.g.sigs.contains_key(&format!("str::{name}")) {
-            Ty::Str
-        } else if self.g.sigs.contains_key(&format!("node.{name}")) {
-            Ty::Node
-        } else {
-            let names: Vec<String> = crate::prelude::methods("any")
-                .into_iter()
-                .map(|method| method.0)
-                .collect();
+        if self.g.sigs.contains_key(&format!("str::{name}")) {
             return err(
                 pos,
-                format!("an `any` has `{}`, not `{name}`", names.join("`, `")),
+                format!("an `any` has no `{name}`: read it with `.as_str()` first"),
             );
-        };
-        self.expr(base)?;
-        self.unbox_any(&held);
-        let lv = self.alloc(&held);
-        self.set_raw(&lv);
-        let hidden = format!("#held{}", lv.slots[0]);
-        self.declare(&hidden, lv.clone());
-        let var = Expr {
-            kind: ExprKind::Var(hidden),
-            pos,
-        };
-        let out = self.method(&var, name, args, pos)?;
-        self.release(&lv);
-        Ok(out)
-    }
-
-    // `x.as_float()` on a value that is one already, or converts plainly.
-    fn plain_as(&mut self, base: &Expr, name: &str, pos: Pos) -> R<Ty> {
-        let to = match name {
-            "as_int" => Ty::Int,
-            "as_float" => Ty::Float,
-            "as_bool" => Ty::Bool,
-            "as_str" => Ty::Str,
-            "as_node" => Ty::Node,
-            _ => return err(pos, format!("no method `{name}` on this value")),
-        };
-        let from = self.expr(base)?;
-        match (&from, &to) {
-            (a, b) if a == b => {}
-            (Ty::Int, Ty::Float) => self.e(I::F64ConvertI64S),
-            (Ty::Float, Ty::Int) => self.e(I::I64TruncSatF64S),
-            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, Ty::Str) => self.stringify(&from, pos)?,
-            _ => {
-                return err(
-                    pos,
-                    format!("a {} cannot be read as {}", show(&from), show(&to)),
-                );
-            }
         }
-        Ok(to)
+        let takes_node = |sig: &super::Sig| sig.params.first() == Some(&Ty::Node);
+        if self.g.sigs.contains_key(&format!("node.{name}"))
+            || self.g.sigs.get(name).is_some_and(takes_node)
+        {
+            return err(
+                pos,
+                format!("an `any` has no `{name}`: read it with `.as_node()` first"),
+            );
+        }
+        let names: Vec<String> = crate::prelude::methods("any")
+            .into_iter()
+            .map(|method| method.0)
+            .collect();
+        err(
+            pos,
+            format!("an `any` has `{}`, not `{name}`", names.join("`, `")),
+        )
     }
 
     // `text.contains(needle)` is the prelude's `str::contains(text, needle)`.
@@ -666,17 +648,9 @@ impl FnGen<'_> {
         self.prelude_method("str", base, name, args, pos)
     }
 
-    // `at`, `extend` and `sort`, written with what a list has already.
+    // `extend` and `sort`, written with what a list has already.
     fn list_sugar(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Option<Ty>> {
         match (name, args) {
-            // `xs.at(i)` is `xs[i]`.
-            ("at", [i]) => {
-                let read = Expr {
-                    kind: ExprKind::Index(Box::new(base.clone()), Box::new(i.clone())),
-                    pos,
-                };
-                return self.expr(&read).map(Some);
-            }
             // `xs.extend(ys)` pushes each of `ys`.
             ("extend", [other]) => {
                 let var = format!("#each{}", self.locals.len());

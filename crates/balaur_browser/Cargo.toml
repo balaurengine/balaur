@@ -8,6 +8,9 @@ authors.workspace = true
 repository.workspace = true
 description = "Balaur browser plugin: the page a browser build runs in, as named verbs for scripts"
 
+[lib]
+test = false
+
 [dependencies]
 balaur_core.workspace = true
 balaur_plugin.workspace = true

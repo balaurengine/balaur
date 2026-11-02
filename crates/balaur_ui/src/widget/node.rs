@@ -1,8 +1,6 @@
 //! The `widget` component and the resources the layer reads: what a scene
 //! file says about a widget, where the layer draws, and which widget has focus.
 
-use std::collections::HashMap;
-
 use balaur_core::hecs::Entity;
 use egui::Color32;
 // A widget's words are short and cloned once a node a frame; inline they are
@@ -22,9 +20,10 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
     )
 }
 
-/// `Default` is every field zeroed, which no scene means: a widget is read
-/// from a table its schema's defaults were merged into.
-#[derive(Clone, Default)]
+/// What the widget layer reads of a `widget` component, built from its
+/// `WidgetProperties` each time they are written. `Default` is every field
+/// zeroed, which no scene means.
+#[derive(Clone, Debug, Default)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"
@@ -32,7 +31,8 @@ pub(crate) fn rgba_color(rgba: [f32; 4]) -> Color32 {
 pub struct Widget {
     pub kind: SmolStr,
     pub text: SmolStr,
-    /// Hidden widgets draw nothing and take no clicks, but keep their state.
+    /// Whether it draws and takes clicks this pass: its node's `visible`,
+    /// folded in from the tree by the arena. Hidden widgets keep their state.
     pub visible: bool,
     pub anchor: SmolStr,
     pub x: f32,
@@ -49,9 +49,6 @@ pub struct Widget {
     /// Empty means nothing is connected. A name rather than a function value:
     /// scene files cannot hold closures, and a name works on any backend.
     pub on_click: SmolStr,
-    /// Whether each handler this widget calls gets the widget's node as its
-    /// last argument: Godot's connection that appends its source.
-    pub pass_node: bool,
     /// Name of a `menu` node whose rows open at the pointer on a secondary
     /// click or a long touch. Empty means none.
     pub context: SmolStr,
@@ -95,8 +92,22 @@ pub struct Widget {
     pub axis: SmolStr,
     /// Whether focus may land here, for a widget that could take it.
     pub focusable: bool,
+    /// The widgets focus goes to pointing up, down, left and right, by node
+    /// name; an empty one leaves it to where the widgets were drawn.
+    pub neighbours: [SmolStr; 4],
     /// Method on this node's script, called when focus arrives.
     pub on_focus: SmolStr,
+    /// The methods the rest of a widget's events call, each key's own.
+    pub on_double_click: SmolStr,
+    pub on_blur: SmolStr,
+    pub on_commit: SmolStr,
+    pub on_caret: SmolStr,
+    pub on_activate: SmolStr,
+    pub on_fold: SmolStr,
+    pub on_opened: SmolStr,
+    pub on_closed: SmolStr,
+    pub on_scrolled: SmolStr,
+    pub on_close_request: SmolStr,
     /// A `widget_theme` reference, or empty to take the one above.
     pub theme: SmolStr,
     /// A localization key drawn instead of `text` when it is set.
@@ -120,9 +131,9 @@ pub struct Widget {
     pub handle: f32,
     /// Which child a `tabs` shows, by node name; empty shows the first.
     pub active: SmolStr,
-    /// The drawing surface a *root* widget belongs to; empty is the default
-    /// one. Ignored on a child, which is placed by its parent.
-    pub layer: SmolStr,
+    /// Whether a *root* widget draws over the whole window, whatever the host
+    /// set. Ignored on a child, which is placed by its parent.
+    pub whole_window: bool,
     /// Whether text breaks to the width it was given rather than running past
     /// it on one line.
     pub wrap: bool,
@@ -202,8 +213,11 @@ pub struct Widget {
     pub step: f32,
     /// What a `dropdown` offers; `text` is the one chosen.
     pub options: Vec<SmolStr>,
-    /// The rows a `list`, `tree` or `table` holding many has picked. `text` is
-    /// the last row clicked, which is where a shift range measures from.
+    /// The rows a `list`, `tree` or `table` holds.
+    pub(crate) items: Vec<crate::widget::properties::Item>,
+    /// The keys of the rows a `list`, `tree` or `table` holding many has
+    /// picked. `text` is the key of the last row clicked, which is where a
+    /// shift range measures from.
     pub selection: Vec<SmolStr>,
     /// Whether more than one row of a `list`, `tree` or `table` may be picked.
     pub multi: bool,
@@ -244,9 +258,6 @@ pub struct Widget {
     /// Left, top, right and bottom margins a `fill` root keeps from its
     /// surface, in design pixels.
     pub inset: [f32; 4],
-    /// A root that measures its bottom from the top of the on-screen
-    /// keyboard, so a form stays above it.
-    pub avoid_keyboard: bool,
     /// The nine-patch borders of an `image`, in the picture's own pixels.
     pub slice: [f32; 4],
     /// How far a finger drags a `scroll` before it scrolls, in design pixels.
@@ -280,14 +291,13 @@ pub struct Widget {
     pub radius: f32,
     /// How a container spreads its children along its own direction.
     pub justify: SmolStr,
-    /// Keep a root clear of what a notch or a home bar covers.
     /// Which edges this root keeps clear of the display's insets, left, top,
     /// right then bottom, the order an `inset` is spelled in.
     pub safe_area: [bool; 4],
-    /// The widget as it was authored, kept only when it carries a class
-    /// table, so a rotation can resolve it again. `None` is the common case
-    /// and costs nothing.
-    pub(crate) authored: Option<std::sync::Arc<toml::Value>>,
+    /// The class tables it was written with, each over the properties while
+    /// the screen answers to its word, so a rotation can resolve it again.
+    /// `None` is the common case and costs nothing.
+    pub(crate) classes: Option<crate::widget::schema::ClassTables>,
     /// What taffy reads besides the sizes above.
     pub(crate) layout: Layout,
     /// What the egui widget behind each kind takes. Shared: almost every
@@ -303,7 +313,7 @@ pub struct Widget {
 
 /// The taffy fields a widget states beyond its size, padding and gap.
 /// Words stay words here; [`crate::widget::taffy`] reads them into taffy's.
-#[derive(Clone, Default, PartialEq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Hash)]
 pub(crate) struct Layout {
     pub(crate) absolute: bool,
     /// Zero is no limit.
@@ -344,7 +354,7 @@ pub(crate) struct Layout {
 
 /// A float that hashes and compares by its bits, so a layout's fields can
 /// stamp the taffy style they build.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub(crate) struct Bits(u32);
 
 impl Bits {
@@ -359,7 +369,7 @@ impl Bits {
 
 /// What an `inspector` shows: a node, one of its components, the width of
 /// its label column, and how it spells a file.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Inspecting {
     /// The node, by path from the root, and which of its components.
     pub(crate) target: SmolStr,
@@ -372,7 +382,7 @@ pub(crate) struct Inspecting {
 
 /// The options the egui widget behind each kind takes: one struct for every
 /// kind, since a widget changes kind with one property.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 #[allow(
     clippy::struct_excessive_bools,
     reason = "one flag per scene property, and a scene sets them independently"
@@ -471,22 +481,17 @@ pub struct WidgetLayerConfig {
     pub enabled: bool,
     /// Whether arrows, Tab, Enter and Space move and activate the focus.
     ///
-    /// Off by default: a game that moves with the arrows and jumps with Space
-    /// would otherwise click its own HUD button. `standard_app` turns it on
-    /// for a project that declares the `ui_*` actions, and a script asks for
-    /// it with `ui.set_keyboard_navigation`.
+    /// `standard_app` takes it away while the game has those keys: an action
+    /// binding one, or a script reading one, so a game that moves with the
+    /// arrows and jumps with Space does not click its own HUD button.
     pub keyboard: bool,
     /// Design-px rect (x, y, w, h); None = whole screen.
     pub rect: Option<[f32; 4]>,
-    /// Where a root that names a `layer` draws instead. A name nothing here
-    /// configures takes the default surface, so a host that confines the
-    /// default confines every layer it was never told about.
-    pub layers: HashMap<String, Surface>,
 }
 
-/// One drawing surface: whether roots on it draw, and where.
+/// Whether a root draws, and where.
 #[derive(Clone, Copy)]
-pub struct Surface {
+pub(crate) struct Surface {
     pub enabled: bool,
     pub rect: Option<[f32; 4]>,
 }
@@ -504,9 +509,8 @@ impl Default for WidgetLayerConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            keyboard: false,
+            keyboard: true,
             rect: None,
-            layers: HashMap::new(),
         }
     }
 }
@@ -527,13 +531,24 @@ pub struct UiFocus {
     /// The draw consumes it to put the caret in a field, which is what a
     /// command palette opening needs and what no property can say.
     pub taking: bool,
+    /// Whether focus moved to where it rests by a key, a pad or a script
+    /// this pass, which scrolls it into view; a click lands where the reader
+    /// can already see.
+    pub arrived: bool,
 }
 
-/// What a script or the keyboard asked focus to do.
+/// What a script, the keyboard or a pad asked focus to do.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Move {
     Next,
     Previous,
     /// Activate what is focused, as a click would.
     Accept,
+    /// To the nearest stop that way, as an arrow, a stick or a d-pad does.
+    Up,
+    Down,
+    Left,
+    Right,
+    /// Focus nothing, as a pad's back button leaves a menu.
+    Leave,
 }

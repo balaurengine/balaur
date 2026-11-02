@@ -23,7 +23,7 @@
 //! Playback advances on its own 1/60 accumulator, never on `engine.time()`:
 //! a variable dt in a simulation path is a different result on every machine.
 //! The system runs in `Stage::Update`, after the script tick, so a script's
-//! `animation.play()` lands the same frame — and before `Stage::PostUpdate`,
+//! `node.animation.play()` lands the same frame — and before `Stage::PostUpdate`,
 //! so physics reads an animated kinematic body's transform in the frame it
 //! was animated.
 //!
@@ -60,18 +60,17 @@ use balaur_plugin::Registry;
 use std::any::Any;
 use std::rc::Rc;
 
-use crate::keys as k;
 use anyhow::Result;
 use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Stage};
 
 pub use crate::bindings::install_animation_api;
-pub use crate::machine::{STATE_FINISHED_EVENT, STATE_STARTED_EVENT};
+pub use crate::machine::{STATE_FINISHED_EVENT, STATE_STARTED_EVENT, StateMachine};
 pub use crate::player::{
-    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing,
-    just_finished, pause, play, play_blended, play_from, queue, resume, seek, set_retarget,
-    set_speed_scale, stop, time,
+    AnimationState, LIBRARY_ASSET_TYPE, Playback, add_clip, current_clip, is_playing, pause, play,
+    play_blended, play_from, queue, resume, seek, set_retarget, set_speed_scale, stop, time,
 };
 pub use crate::retarget::{BONE_MAP_ASSET_TYPE, BoneMap, PROFILE_ASSET_TYPE, SkeletonProfile};
 pub use crate::system::{
@@ -80,17 +79,8 @@ pub use crate::system::{
 };
 pub use crate::tween::{Tween, TweenId};
 
-pub struct AnimationPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for AnimationPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("animation", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct AnimationPlugin;
 
 /// What a definition table holds, for the generated reference.
 const LIBRARY_ASSET_DOC: &str = r#"A library holds clips, and a clip keys node properties over time. `loop_mode` is `none`, `linear` or `pingpong`; each track names a `target`, a `property`, an `interpolation` and its `keys`.
@@ -116,8 +106,8 @@ keys = [{ time = 2.0, call = "on_halfway" }]
 ```"#;
 
 impl balaur_plugin::Plugin for AnimationPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "animation"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -155,51 +145,49 @@ impl balaur_plugin::Plugin for AnimationPlugin {
         register_animation_component(reg);
         register_machine_component(reg);
         let mut m = reg.script_module("animation")?;
-        install_animation_api(&mut *m);
+        install_animation_api(&mut m);
         Ok(())
     }
 }
 
+/// What a removed `Animation` leaves behind, taken with it.
+fn animation_removed(eng: &Engine, entity: Entity) {
+    if let Some(state) = eng.try_resource::<AnimationState>() {
+        state.borrow_mut().players.shift_remove(&entity);
+    }
+}
+
+/// Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.
+#[derive(Clone, Debug, Component)]
+#[component(
+    name = "animation",
+    on_remove = animation_removed,
+    events = &[ (system::STARTED_EVENT, "the clip's name"), (system::CHANGED_EVENT, "`{ from, to }`, the clips' names"), (system::LOOPED_EVENT, "the clip's name"), (system::FINISHED_EVENT, "the clip's name"), ],
+    tags = [balaur_core::components::tag::ANIMATION],
+    after_write = animation_written,
+)]
+pub struct Animation {
+    /// The clip library this node plays from
+    #[property(asset = "animation_library")]
+    pub library: String,
+    /// Clip to start when the scene loads; empty starts nothing
+    pub autoplay: String,
+    /// Playback rate for every clip on this node
+    #[property(default = 1.0)]
+    pub speed_scale: f32,
+    /// The node the clip's tracks resolve against; empty means this node
+    #[property(node)]
+    pub root_node: String,
+}
+
 /// The `animation` scene key — the one an editor-saved `[nodes.animation]`
-/// writes, which until now had no handler.
+/// writes.
 ///
-/// It backs no component of its own: what it writes is a [`Playback`] in
-/// [`AnimationState`], keyed by entity, because the clip is shared between
-/// nodes and the playhead is not.
+/// The node holds what was asked, an [`Animation`]; the playhead is a
+/// [`Playback`] in [`AnimationState`], keyed by entity, because the clip is
+/// shared between nodes and the playhead is not.
 fn register_animation_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        COMPONENT,
-        ComponentDef {
-            events: &[
-                (system::STARTED_EVENT, "the clip's name"),
-                (system::CHANGED_EVENT, "`#{ from, to }`, the clips' names"),
-                (system::LOOPED_EVENT, "the clip's name"),
-                (system::FINISHED_EVENT, "the clip's name"),
-            ],
-            warnings: None,
-            doc: "Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.",
-            schema: ComponentDef::parse_schema(
-                "animation",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::LIBRARY, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The clip library this node plays from" }}"#, crate::player::LIBRARY_ASSET_TYPE)),
-                    (k::AUTOPLAY, r#"{ type = "string", default = "", description = "Clip to start when the scene loads; empty starts nothing" }"#),
-                    (k::SPEED_SCALE, r#"{ type = "float", default = 1.0, description = "Playback rate for every clip on this node" }"#),
-                    (k::ROOT_NODE, r#"{ type = "node", default = "", description = "The node the clip's tracks resolve against; empty means this node" }"#),
-                ]),
-            ),
-            tags: &[balaur_core::components::tag::ANIMATION],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                apply_animation(eng, entity, params);
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                remove_animation(eng, entity);
-                Ok(())
-            }),
-            get: Box::new(animation_of),
-        },
-    );
+    reg.add_component::<Animation>();
 }
 
 /// The `state_machine` scene key: a machine asset run against a player.
@@ -211,79 +199,51 @@ fn register_machine_component(reg: &mut Registry<'_>) {
                 (machine::STATE_STARTED_EVENT, "the state entered"),
                 (machine::STATE_FINISHED_EVENT, "the state left"),
             ],
-            warnings: None,
-            doc: "Runs the `state_machine` asset in `machine` over the `player` node's clips. `auto` transitions fire when their conditions come on; `animation.travel` moves to a state.",
-            schema: ComponentDef::parse_schema(
-                machine::COMPONENT,
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::MACHINE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "The state machine to run" }}"#, machine::MACHINE_ASSET_TYPE)),
-                    (k::PLAYER, r#"{ type = "node", default = "", description = "The `animation` player it drives; empty means this node" }"#),
-                    (k::ENABLED, r#"{ type = "bool", default = true, description = "Whether the machine is running" }"#),
-                    (k::CHECK_NODE, r#"{ type = "node", default = "", description = "The node whose script answers the transitions' `check` methods; empty means this node" }"#),
-                ]),
-            ),
             tags: &[balaur_core::components::tag::ANIMATION],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                machine::apply(eng, entity, params);
-                Ok(())
-            }),
             remove: Box::new(|eng, entity| {
-                machine::remove(eng, entity);
+                let _ = eng.remove_one::<StateMachine>(entity);
+                if let Some(state) = eng.try_resource::<AnimationState>() {
+                    state.borrow_mut().machines.shift_remove(&entity);
+                }
                 Ok(())
             }),
-            get: Box::new(machine::get),
+            ..ComponentDef::of::<StateMachine>()
         },
     );
 }
 
-fn apply_animation(eng: &Engine, entity: Entity, params: &toml::Value) {
-    let text = |key: &str| {
-        params
-            .get(key)
-            .and_then(toml::Value::as_str)
-            .unwrap_or_default()
-            .to_string()
+/// The playhead takes what the node now asks, and the `autoplay` clip starts.
+///
+/// Re-writing the component must not restart a running clip, and a clip that
+/// will not load only warns — one bad reference must not kill the scene.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "an after-write hook may refuse a write; this one never does"
+)]
+fn animation_written(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let Some(asked) = eng
+        .world()
+        .get::<&Animation>(entity)
+        .ok()
+        .map(|held| (*held).clone())
+    else {
+        return Ok(());
     };
-    let autoplay = text(k::AUTOPLAY);
-    let speed_scale = balaur_core::components::prop_f32(params, k::SPEED_SCALE);
     let running = {
         let state = eng.resource::<AnimationState>();
         let mut state = state.borrow_mut();
         let playback = state.players.entry(entity).or_default();
-        playback.library = text(k::LIBRARY);
-        playback.root_node = text(k::ROOT_NODE);
-        playback.autoplay.clone_from(&autoplay);
-        playback.speed_scale = speed_scale;
+        playback.library.clone_from(&asked.library);
+        playback.root_node.clone_from(&asked.root_node);
+        playback.autoplay.clone_from(&asked.autoplay);
+        playback.speed_scale = asked.speed_scale;
         playback.active()
     };
-    // Re-applying the component must not restart a running clip, and a clip
-    // that will not load only warns — one bad reference must not kill the scene.
-    if !autoplay.is_empty()
+    if !asked.autoplay.is_empty()
         && !running
-        && let Err(why) = play(eng, entity, &autoplay)
+        && let Err(why) = play(eng, entity, &asked.autoplay)
     {
-        tracing::warn!("autoplay '{autoplay}': {why:#}");
+        tracing::warn!("autoplay '{}': {why:#}", asked.autoplay);
     }
-}
-
-fn remove_animation(eng: &Engine, entity: Entity) {
-    if let Some(state) = eng.try_resource::<AnimationState>() {
-        state.borrow_mut().players.shift_remove(&entity);
-    }
-}
-
-fn animation_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let state = eng.try_resource::<AnimationState>()?;
-    let state = state.borrow();
-    let playback = state.players.get(&entity)?;
-    let mut out = toml::map::Map::new();
-    out.insert(k::LIBRARY.into(), playback.library.clone().into());
-    out.insert(k::AUTOPLAY.into(), playback.autoplay.clone().into());
-    out.insert(
-        k::SPEED_SCALE.into(),
-        f64::from(playback.speed_scale).into(),
-    );
-    out.insert(k::ROOT_NODE.into(), playback.root_node.clone().into());
-    Some(toml::Value::Table(out))
+    Ok(())
 }

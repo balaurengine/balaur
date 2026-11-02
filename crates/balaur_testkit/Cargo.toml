@@ -7,6 +7,9 @@ license.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+test = false
+
 [dependencies]
 tempfile = "3"
 balaur = { workspace = true, features = ["compile", "physics2d", "physics3d"] }

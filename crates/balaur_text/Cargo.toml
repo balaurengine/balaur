@@ -7,6 +7,8 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+rustc-hash.workspace = true
+balaur_geometry.workspace = true
 balaur_core.workspace = true
 balaur_plugin.workspace = true
 egui.workspace = true
@@ -21,16 +23,22 @@ libm.workspace = true
 # `monospace_width` resizes it to.
 cosmic-text = { version = "0.19", default-features = false, features = ["std", "shape-run-cache", "swash", "monospace_fallback"] }
 unicode-script = "0.5"
+# Which characters want a face of their own, and which draw as emoji.
+unicode-properties = { version = "0.1", default-features = false, features = ["emoji", "general-category"] }
+# A caret moves and deletes by grapheme and by word (`edit.rs`).
+unicode-segmentation = "1"
 # A glyph's outline, for text that is geometry rather than an atlas quad.
 # The version is cosmic-text's, so `Font::as_swash` hands back this crate's
 # `FontRef` and not a second copy of it.
 swash = "0.2.10"
 
-# The faces a desktop has installed, listed for a picker that copies one into
-# a project: read from their files, mapped rather than loaded. The version is
-# cosmic-text's, so this only adds the features.
+# The operating system's faces, asked for once a text needs one: CoreText,
+# DirectWrite, Android's list, and fontconfig opened at run time, so a machine
+# without it draws no fallback rather than failing to start.
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
-fontdb = { version = "0.23", default-features = false, features = ["std", "fs", "memmap"] }
+fontique = { version = "0.12", features = ["fontconfig-dlopen"] }
+# The operating system's faces, mapped for the shaper and egui alike.
+memmap2 = "0.9"
 
 [lints]
 workspace = true

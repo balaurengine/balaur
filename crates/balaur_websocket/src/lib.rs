@@ -1,5 +1,5 @@
 //! Websockets as a Balaur plugin: `websocket.*` for scripts, and a
-//! `balaur_core::transport::Transport` for sessions.
+//! `balaur_net::transport::Transport` for sessions.
 //!
 //! Connections run on background threads; events cross back over a channel
 //! and enter the simulation once per tick, at [`Stage::First`], recorded in
@@ -19,7 +19,7 @@ use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::wake::Commands;
 use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 pub mod connection;
 #[cfg(not(target_family = "wasm"))]
@@ -294,7 +294,12 @@ fn pump_websocket_system(eng: &Engine, _: f32) {
                     state.handlers.shift_remove(socket)
                 }
                 SocketEvent::Open { socket } => {
-                    if let Some(status) = state.status.get_mut(socket) {
+                    // A socket closed while it dialed is still on its way out.
+                    if let Some(status) = state
+                        .status
+                        .get_mut(socket)
+                        .filter(|status| **status != self::state::CLOSING)
+                    {
                         *status = self::state::OPEN;
                     }
                     state.handlers.get(socket).cloned()
@@ -391,21 +396,12 @@ fn event_value(event: SocketEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct WebSocketPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for WebSocketPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("websocket", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct WebSocketPlugin;
 
 impl balaur_plugin::Plugin for WebSocketPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "websocket"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -425,7 +421,7 @@ compression = { type = "bool", default = true, help = "Offer permessage-deflate 
             ),
         );
         let mut m = reg.script_module("websocket")?;
-        install_websocket_api(&mut *m);
+        install_websocket_api(&mut m);
         Ok(())
     }
 }
@@ -461,13 +457,18 @@ fn socket_options_of(opts: Option<&Value>, config: &WebsocketConfig) -> Result<S
 
 /// `websocket.*`. Text and binary frames both cross as themselves: a text
 /// frame arrives as `Value::Str`, a binary one as `Value::Bytes`.
-fn install_websocket_api(m: &mut dyn Bindings<Engine>) {
+fn install_websocket_api(m: &mut Module<Engine>) {
     m.module_doc(
         "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant. An `error` carries its `reason`, and the HTTP `status` when a server refused the upgrade.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
+    m.records(&[(
+        "ConnectOptions",
+        "{ on_event: string?, compression: bool?, headers: any }",
+        "How `connect` opens a socket: the method that hears its events, whether frames are compressed, and the upgrade request's `headers`.",
+    )]);
     m.describe(&[
-        ("connect", &[], "", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
+        ("connect", &[], "(node: any, url: string, opts: ConnectOptions?) -> int", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
         ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
         ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
         ("state", &[], "", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),

@@ -64,7 +64,7 @@ pub(crate) struct FnGen<'a> {
     pub depth: u32,
     pub loops: Vec<(u32, u32)>,
     pub self_lv: Option<LVal>,
-    /// The `&mut` parameters, handed back after `self` when the call ends.
+    /// The `&mut` parameters, handed back when the call ends.
     pub refs: Vec<LVal>,
     /// Each expression's type once worked out, by where it sits: a chain
     /// `a.f().g()` asks its receiver's type at every link. Cleared when a
@@ -452,7 +452,10 @@ impl<'a> FnGen<'a> {
             Ty::Int => {}
             Ty::Float => self.e(I::I64TruncSatF64S),
             Ty::Any => {
-                self.unbox_any(&Ty::Int);
+                return err(
+                    idx.pos,
+                    "an index is int, not any: read it with `.as_int()`",
+                );
             }
             t => return err(idx.pos, format!("an index is int, not {}", show(&t))),
         }
@@ -555,6 +558,13 @@ impl<'a> FnGen<'a> {
         } else if *got == Ty::Int && *want == Ty::Float {
             self.e(I::F64ConvertI64S);
             Ok(())
+        } else if *got == Ty::Any
+            && let Some(read) = any_read(want).filter(|_| !self.prelude)
+        {
+            err(
+                pos,
+                format!("an `any` is no {}: read it with `.{read}()`", show(want)),
+            )
         } else if (*want == Ty::Any && self.box_any(got))
             || (*got == Ty::Any && self.unbox_any(want))
         {
@@ -628,13 +638,12 @@ impl<'a> FnGen<'a> {
     /// The `any` is released after; false for a type it cannot become.
     pub(crate) fn unbox_any(&mut self, want: &Ty) -> bool {
         let read = match want {
-            Ty::Int | Ty::Fn(..) => Some("as_int"),
-            Ty::Float => Some("as_float"),
-            Ty::Bool => Some("as_bool"),
-            Ty::Str => Some("as_str"),
-            Ty::Node => Some("as_node"),
+            Ty::Fn(..) => Some("as_int"),
             Ty::Struct(_) | Ty::Array(_) | Ty::Optional(_) => None,
-            _ => return false,
+            _ => match any_read(want) {
+                Some(read) => Some(read),
+                None => return false,
+            },
         };
         if let Some(method) = read {
             self.call_prelude(&format!("any::{method}"));
@@ -720,42 +729,27 @@ impl<'a> FnGen<'a> {
         if let (ExprKind::ArrayLit(items), Ty::Array(et)) = (&e.kind, want) {
             return self.array_lit(items, Some(et), e.pos).map(|_| ());
         }
-        // `[x, y, z]` where a `Vec3` goes, and the same for `Vec2` and
-        // `Color`: the struct, a field an item.
-        if let (ExprKind::ArrayLit(items), Ty::Struct(s)) = (&e.kind, want) {
-            let fields: &[&str] = match s.as_str() {
-                "Vec2" => &["x", "y"],
-                "Vec3" => &["x", "y", "z"],
-                "Color" => &["r", "g", "b", "a"],
-                _ => &[],
-            };
-            if !fields.is_empty() && items.len() == fields.len() {
-                let lit = Expr {
-                    kind: ExprKind::StructLit(
-                        s.clone(),
-                        fields
-                            .iter()
-                            .zip(items)
-                            .map(|(f, v)| ((*f).to_string(), v.clone()))
-                            .collect(),
-                    ),
-                    pos: e.pos,
-                };
-                return self.expr_as(&lit, want);
-            }
+        // A vector or a colour is made by its function, not from a list.
+        if let (ExprKind::ArrayLit(_), Ty::Struct(s)) = (&e.kind, want)
+            && let Some(made) = vector_fn(s)
+        {
+            return err(
+                e.pos,
+                format!("a {s} is written `{made}(..)`, not as a list"),
+            );
         }
-        // A list literal where a `[T]?` goes: the list, there.
+        // A list literal where a `[T]?` goes: the list, there. Where a `Vec3?`
+        // goes it is refused as it is where a `Vec3` goes.
         if let (ExprKind::ArrayLit(_), Ty::Optional(inner)) = (&e.kind, want)
-            && matches!(**inner, Ty::Array(_))
+            && (matches!(**inner, Ty::Array(_))
+                || matches!(&**inner, Ty::Struct(s) if vector_fn(s).is_some()))
         {
             self.expr_as(e, inner)?;
             self.e(I::I32Const(1));
             return Ok(());
         }
-        // `[]` where an `any` goes: an empty list of anys.
-        if let (ExprKind::ArrayLit(items), Ty::Any) = (&e.kind, want)
-            && items.is_empty()
-        {
+        // `[..]` where an `any` goes: a list of anys, each item boxed.
+        if let (ExprKind::ArrayLit(items), Ty::Any) = (&e.kind, want) {
             let list = Ty::Array(Box::new(Ty::Any));
             self.array_lit(items, Some(&Ty::Any), e.pos)?;
             return self.coerce(&list, want, e.pos);
@@ -770,6 +764,9 @@ impl<'a> FnGen<'a> {
         }
         if self.script_as(e, want)? {
             return Ok(());
+        }
+        if let (ExprKind::MapLit(entries), Ty::Any) = (&e.kind, want) {
+            return self.any_map(entries, e.pos);
         }
         if let ExprKind::MapLit(entries) = &e.kind
             && let Some(class) = map_wanted(want)
@@ -998,8 +995,7 @@ impl<'a> FnGen<'a> {
         }
     }
 
-    /// Leaves the function with `v`: a method also hands `self` back; an async
-    /// fn writes its result into its frame.
+    /// Leaves the function with `v`; an async fn writes its result into its frame.
     pub(crate) fn ret(&mut self, v: Option<&Expr>, pos: Pos, explicit: bool) -> R<()> {
         let want = match &self.mode {
             Mode::Normal { ret } | Mode::Poll { ret, .. } => ret.clone(),
@@ -1030,13 +1026,7 @@ impl<'a> FnGen<'a> {
                 ]);
             }
             self.e(I::I64Const(0));
-            if let Some(s) = self.self_lv.clone() {
-                self.get_raw(&s);
-            }
         } else {
-            if let Some(s) = self.self_lv.clone() {
-                self.get_raw(&s);
-            }
             for r in self.refs.clone() {
                 self.get_raw(&r);
             }
@@ -1045,6 +1035,29 @@ impl<'a> FnGen<'a> {
         if explicit {
             self.e(I::Return);
         }
+    }
+}
+
+/// The function that makes a vector or a colour, for one of those structs.
+pub(crate) fn vector_fn(name: &str) -> Option<&'static str> {
+    match name {
+        "Vec2" => Some("vec2"),
+        "Vec3" => Some("vec3"),
+        "Color" => Some("color"),
+        _ => None,
+    }
+}
+
+/// The method that reads an `any` as `want`, for a scalar: the one spelling
+/// of that, as nothing else asks what the value holds.
+pub(crate) fn any_read(want: &Ty) -> Option<&'static str> {
+    match want {
+        Ty::Int => Some("as_int"),
+        Ty::Float => Some("as_float"),
+        Ty::Bool => Some("as_bool"),
+        Ty::Str => Some("as_str"),
+        Ty::Node => Some("as_node"),
+        _ => None,
     }
 }
 

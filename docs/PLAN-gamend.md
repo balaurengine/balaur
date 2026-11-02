@@ -51,7 +51,7 @@ The engine:
 | Phoenix Channels V2 over a `balaur_websocket` connection on every platform, stepped once a tick; Fetch for REST in the browser | `client/phoenix.rs`, `realtime.rs`, `browser.rs` |
 | Tests against a local Gamend on port 4000, or `GAMEND_URL`, in the e2e suite: the public API, and accounts that register by device, sign in again, open the socket and delete themselves | `crates/balaur_gamend/tests` |
 | A token the server refuses heals: a call refreshes on its 401 and runs again, and a socket renews a stale token before it connects. A refused refresh answers the 401 | `client/rest.rs`, `worker.rs`, `browser.rs`, `realtime.rs` |
-| Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/player_flows.rs`, `player_flows.rn` |
+| Player flows through the SDK addon, with a second player answering over HTTP: profile, lobby with chat and a ready check, friends, notifications, parties, groups, economy, quests, leaderboards, a tournament entry, push tokens | `tests/suite/player_flows.rs`, `player_flows.rn` |
 | The plans that already hand Gamend a job: Steam and Google sign-in verification, purchase verification, web hosting of a game | `docs/PLAN-steam.md` step 2, `docs/PLAN-google.md` steps 2, 5, 6, `docs/PLAN-deploy.md` step 3 |
 
 Missing:
@@ -151,7 +151,6 @@ still gets a function, because the next game has one.
 
 ```rune
 pub async fn init(this) {
-    gamend::configure("https://play.example");
     task::wait(gamend::login(#{ provider: gamend::PROVIDER_STEAM, ticket: ticket })).await;
     let ticket = task::wait(gamend::matchmaking_join(this.node, #{ mode: "duel" }, #{ min_players: 2 })).await;
 }
@@ -218,8 +217,8 @@ Designed on 2026-09-18, before building past the first tab. The dock is an
 editor plugin the addon carries (`addons/gamend/editor/gamend.bs`), so only a
 project with the addon shows it, and it is written the way anyone's plugin
 is: `register()` returning docks, windows and commands. Since 2026-10-24 it
-is Balaur Script and fills the kit's rows on the editor's words; a reply
-reaches its `on_gamend_event`, which says the dock moved, so nothing polls.
+is Balaur Script and fills the kit's rows on the editor's words; a method
+awaits each reply and says the dock moved, so nothing polls.
 
 **One header, seven sub-tabs, then a tab per feature.** The header is one
 row: the server target as two chips, `Open` and `Admin` links to the
@@ -299,11 +298,12 @@ declares, so it is on the settings screen like any other:
 | `gamend/url` | project | `https://gamend.org` | The server a shipped game talks to: `https://polyglotpirates.com` for that game |
 | `gamend/local_url` | project | `http://localhost:4000` | A developer's own `mix dev.start` |
 | `gamend/plugin` | project | empty | The server plugin hooks are called in |
-| `gamend/server` | editor | `production` | `production` or `local`: the person's choice, kept in the editor's own file so it can never ship |
+| `gamend/server` | editor | `local` | `production` or `local`: the person's choice, kept in the editor's own file so it can never ship |
 
-`client.rn`'s `configure()` with no argument reads them. `gamend/server`
-is the header's two chips. An exported game has no editor file, so it can
-only ever read `gamend/url`. `configure(url)` with an argument still wins,
+The first call that reaches a server configures the plugin from them, unless
+`GAMEND_URL` is in the environment. `gamend/server` is the header's two chips;
+with none picked a run from the sources talks to `gamend/local_url`. An exported
+game has no editor file, so it reads `gamend/url`. `configure(url)` still wins,
 for a game that picks its server at run time.
 
 **Logs: a cursor, a file, and shipping.** Today `log::recent(n)` is the

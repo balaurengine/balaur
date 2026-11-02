@@ -9,6 +9,17 @@ name = "Arena"
 source = "scripts/arena.bs"
 
 [[nodes]]
+id = "n_camera"
+name = "Camera"
+parent = "n_arena"
+
+[nodes.transform]
+position = [0.0, 0.0, 0.0]
+
+[nodes.camera2d]
+pixels_per_unit = 120.0
+
+[[nodes]]
 id = "n_ship0"
 name = "Ship0"
 parent = "n_arena"
@@ -17,9 +28,7 @@ parent = "n_arena"
 position = [-2.0, 0.0, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.8, 0.8]
-corner_radius = 0.1
+shape = { kind = "rectangle", size = [0.8, 0.8], corner_radius = 0.1 }
 color = "#e0653f"
 
 [[nodes]]
@@ -31,9 +40,7 @@ parent = "n_arena"
 position = [2.0, 0.0, 0.0]
 
 [nodes.shape2d]
-kind = "rectangle"
-size = [0.8, 0.8]
-corner_radius = 0.1
+shape = { kind = "rectangle", size = [0.8, 0.8], corner_radius = 0.1 }
 color = "#4a8fd4"
 
 # Says which ship is yours, so it reads differently on each machine. The
@@ -46,5 +53,4 @@ tags = ["local"]
 
 [nodes.widget]
 kind = "label"
-text = ""
 anchor = "top_left"

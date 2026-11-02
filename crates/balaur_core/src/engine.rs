@@ -3,13 +3,6 @@ use std::rc::Rc;
 
 use crate::resources::Resources;
 
-/// Deferred structural change, applied at the end of the frame so scripts can
-/// freely request them mid-update without invalidating iteration.
-pub enum Command {
-    /// Recursively despawn a node and its subtree.
-    Free(hecs::Entity),
-}
-
 /// Cheap-to-clone handle to the whole engine state. The engine is
 /// single-threaded by design (the data plane can go parallel later behind
 /// this same facade); interior mutability keeps borrows short and explicit.
@@ -18,7 +11,7 @@ pub enum Command {
 /// closures capture, so both sides of the FFI see the exact same state.
 #[derive(Clone)]
 pub struct Engine {
-    inner: Rc<EngineInner>,
+    pub(crate) inner: Rc<EngineInner>,
 }
 
 pub(crate) struct EngineInner {
@@ -28,11 +21,17 @@ pub(crate) struct EngineInner {
     // an Engine clone for its binding closures). This is a deliberate Rc cycle:
     // the engine is a live-forever singleton.
     pub(crate) script_host: RefCell<Option<Rc<dyn balaur_script::ScriptHost<Engine>>>>,
-    pub(crate) commands: RefCell<Vec<Command>>,
+    /// Writes made at the end of the stage (`commands`).
+    pub(crate) deferred: RefCell<Vec<crate::commands::Deferred>>,
+    /// Nodes freed with the frame's batch, in `Last`.
+    pub(crate) frees: RefCell<Vec<hecs::Entity>>,
     pub(crate) root: Cell<hecs::Entity>,
     pub(crate) time: Cell<f64>,
     pub(crate) delta: Cell<f32>,
     pub(crate) tick: Cell<u64>,
+    /// Stepped before every system runs: what a component's change is
+    /// stamped with and a reader compares against (PLAN-ecs §2).
+    pub(crate) change_tick: Cell<u64>,
     pub(crate) quit: Cell<bool>,
     /// What the process exits with once it quits; 0 unless a script said.
     pub(crate) exit_code: Cell<i32>,
@@ -71,11 +70,13 @@ impl Engine {
                 world: RefCell::new(world),
                 resources: RefCell::new(Resources::default()),
                 script_host: RefCell::new(None),
-                commands: RefCell::new(Vec::new()),
+                deferred: RefCell::new(Vec::new()),
+                frees: RefCell::new(Vec::new()),
                 root: Cell::new(root),
                 time: Cell::new(0.0),
                 delta: Cell::new(0.0),
                 tick: Cell::new(0),
+                change_tick: Cell::new(1),
                 quit: Cell::new(false),
                 exit_code: Cell::new(0),
                 tokens: Cell::new(1),
@@ -95,8 +96,87 @@ impl Engine {
         self.inner.world.borrow()
     }
 
+    /// The whole world, writable: the kernel's, and a test's to set a world up.
+    /// Everywhere else a structural write goes through the door below, so
+    /// what hangs off a write runs every time (PLAN-ecs §1), and a component
+    /// changes in place through [`Engine::world`]; `scripts/house_lints.py`
+    /// fails another caller (`world-write`).
     pub fn world_mut(&self) -> RefMut<'_, hecs::World> {
         self.inner.world.borrow_mut()
+    }
+
+    /// A new entity holding `components`.
+    pub fn spawn(&self, components: impl hecs::DynamicBundle) -> hecs::Entity {
+        self.inner.world.borrow_mut().spawn(components)
+    }
+
+    /// Put `components` on `entity`, replacing any it already holds.
+    ///
+    /// # Errors
+    /// If `entity` is gone.
+    pub fn insert(
+        &self,
+        entity: hecs::Entity,
+        components: impl hecs::DynamicBundle,
+    ) -> Result<(), hecs::NoSuchEntity> {
+        self.inner.world.borrow_mut().insert(entity, components)
+    }
+
+    /// Put one component on `entity`, replacing the one of its type it holds.
+    ///
+    /// # Errors
+    /// If `entity` is gone.
+    pub fn insert_one<T: hecs::Component>(
+        &self,
+        entity: hecs::Entity,
+        component: T,
+    ) -> Result<(), hecs::NoSuchEntity> {
+        self.inner.world.borrow_mut().insert_one(entity, component)
+    }
+
+    /// Take one component off `entity`, answering it.
+    ///
+    /// # Errors
+    /// If `entity` is gone or holds no `T`.
+    pub fn remove_one<T: hecs::Component>(
+        &self,
+        entity: hecs::Entity,
+    ) -> Result<T, hecs::ComponentError> {
+        self.inner.world.borrow_mut().remove_one::<T>(entity)
+    }
+
+    /// Take a bundle of components off `entity`, answering them.
+    ///
+    /// # Errors
+    /// If `entity` is gone or lacks one of them.
+    pub fn remove<T: hecs::Bundle + 'static>(
+        &self,
+        entity: hecs::Entity,
+    ) -> Result<T, hecs::ComponentError> {
+        self.inner.world.borrow_mut().remove::<T>(entity)
+    }
+
+    /// A new node named `name` under `parent`, as `scene::spawn_node` makes one.
+    pub fn spawn_node(&self, name: &str, parent: hecs::Entity) -> hecs::Entity {
+        crate::scene::spawn_node(&mut self.inner.world.borrow_mut(), name, parent)
+    }
+
+    /// Move a node under `parent`, keeping where it stands in the world, as
+    /// `scene::reparent` moves one.
+    ///
+    /// # Errors
+    /// If `parent` is the node or under it.
+    pub fn reparent(&self, node: hecs::Entity, parent: hecs::Entity) -> anyhow::Result<()> {
+        crate::scene::reparent(&mut self.inner.world.borrow_mut(), node, parent)
+    }
+
+    /// Destroy `entity` and everything it holds. A node's subtree is
+    /// `scene::free_subtree`'s.
+    ///
+    /// # Errors
+    /// If `entity` is gone.
+    pub fn despawn(&self, entity: hecs::Entity) -> Result<(), hecs::NoSuchEntity> {
+        self.inner.world.borrow_mut().despawn(entity)
     }
 
     pub fn insert_resource<T: 'static>(&self, value: T) {
@@ -165,14 +245,6 @@ impl Engine {
         *self.inner.script_host.borrow_mut() = Some(host);
     }
 
-    pub fn push_command(&self, cmd: Command) {
-        self.inner.commands.borrow_mut().push(cmd);
-    }
-
-    pub fn take_commands(&self) -> Vec<Command> {
-        std::mem::take(&mut self.inner.commands.borrow_mut())
-    }
-
     pub fn root(&self) -> hecs::Entity {
         self.inner.root.get()
     }
@@ -189,6 +261,26 @@ impl Engine {
     ///
     /// A replay, a digest trace and a networked peer all key off this rather
     /// than off [`Engine::time`], which accumulates float error.
+    /// The change tick now: stepped before and after every system runs, so a
+    /// write is stamped with the run that made it, and one between two runs
+    /// with a tick no reader covered yet. It starts at 1, so a reader that
+    /// never ran asks from 0 and hears everything. It only goes up, a restored
+    /// frame included, so a reader's last tick is never ahead of it; a `u64`,
+    /// so it never wraps.
+    #[must_use]
+    pub fn change_tick(&self) -> u64 {
+        self.inner.change_tick.get()
+    }
+
+    /// Step the change tick for the system about to run, answering the new
+    /// one.
+    pub fn advance_change_tick(&self) -> u64 {
+        let next = self.inner.change_tick.get() + 1;
+        self.inner.change_tick.set(next);
+        crate::components::ticks::set_now(next);
+        next
+    }
+
     pub fn tick(&self) -> u64 {
         self.inner.tick.get()
     }
@@ -270,8 +362,7 @@ impl Engine {
 
     /// Pause or resume the game: every node whose `process` mode is
     /// `pausable` stops ticking, physics holds both worlds, and the frame
-    /// loop keeps drawing. `always` and `when_paused` subtrees are what runs
-    /// through it.
+    /// loop keeps drawing. An `always` subtree is what runs through it.
     pub fn set_paused(&self, paused: bool) {
         if self.inner.paused.get() == paused {
             return;
@@ -328,18 +419,5 @@ impl Engine {
 impl Default for Engine {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Lets a binding call back into script without knowing the backend.
-impl balaur_script::CallbackHost for Engine {
-    fn invoke(
-        &self,
-        callback: balaur_script::CallbackId,
-        args: &[balaur_script::Value],
-    ) -> anyhow::Result<balaur_script::Value> {
-        self.script_host()
-            .ok_or_else(|| anyhow::anyhow!("no script backend is running"))?
-            .invoke(callback, args)
     }
 }

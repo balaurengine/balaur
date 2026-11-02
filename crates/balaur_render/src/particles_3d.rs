@@ -3,18 +3,102 @@
 //! live particle, so the material, texture, shadows, layers and overlay keys
 //! every 3D renderable takes apply as they do to `multimesh3d`.
 
-use crate::particles::Emission;
-use crate::vocabulary::keys as k;
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
-use balaur_core::components::{ComponentDef, prop_bool, prop_f32, prop_str, prop_vec3};
+use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::{Component, Written};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 
-pub(crate) const PARTICLES_3D: &str = "particles3d";
+use crate::particles::Emission;
+use balaur_core::layers::Layer;
 
-/// What `particles3d` wrote on the node: emitter settings only.
-pub(crate) struct Particles3d {
+/// A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.
+#[derive(Component)]
+#[component(name = "particles3d", after_write = after_write)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is its own property, not a state machine"
+)]
+pub struct Particles3d {
+    /// Whether new particles are born; live ones finish either way
+    #[property(default = true)]
+    pub emitting: bool,
+    /// Particles born per second
+    #[property(default = 20.0, min = 0.0)]
+    pub rate: f32,
+    /// Seconds a particle lives
+    #[property(default = 1.0, min = 0.05)]
+    pub lifetime: f32,
+    /// A particle's edge length in world units
+    #[property(default = 0.1, min = 0.0)]
+    pub size: f32,
+    /// Tint, as channel floats or #rrggbb / #rrggbbaa
+    #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
+    pub color: [f32; 4],
+    /// An image, or a `texture` asset, each particle draws with; empty draws a flat square
+    #[property(asset = "texture")]
+    pub texture: String,
+    /// The material every particle draws with; empty draws with the built-in one, which blends
+    #[property(asset = "material")]
+    pub material: String,
+    /// Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another
+    #[property(group = "emission")]
+    pub one_shot: bool,
+    /// How much of a one-shot burst is born at once; the rest is spread over the lifetime
+    #[property(min = 0.0, max = 1.0, group = "emission")]
+    pub explosiveness: f32,
+    /// Initial speed in world units per second
+    #[property(default = 2.0, min = 0.0, group = "motion")]
+    pub speed: f32,
+    /// Which way the particles leave, in world space; [0, 1, 0] is straight up
+    #[property(default = [0.0, 1.0, 0.0], group = "motion")]
+    pub direction: [f32; 3],
+    /// Half-angle of the emission cone; 180 scatters every way
+    #[property(default = 30.0, min = 0.0, max = 180.0, group = "motion")]
+    pub spread_degrees: f32,
+    /// Acceleration applied over a particle's life, in world space
+    #[property(default = [0.0, -3.0, 0.0], group = "motion")]
+    pub gravity: [f32; 3],
+    /// The most a particle is turned in its own plane at birth, either way, in degrees
+    #[property(min = 0.0, group = "motion")]
+    pub rotation_degrees: f32,
+    /// The fastest a particle spins in its own plane, in degrees a second; each takes a speed at random between zero and this
+    #[property(group = "motion")]
+    pub angular_speed_degrees: f32,
+    /// The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`
+    #[property(default = -1.0, group = "paint")]
+    pub size_end: f32,
+    /// The tint a particle fades to by the end of its life
+    #[property(color, default = [1.0, 1.0, 1.0, 0.0], group = "paint")]
+    pub color_end: [f32; 4],
+    /// Turn each particle to face the camera; off lays every one in the node's own XY plane
+    #[property(default = true, group = "paint")]
+    pub billboard: bool,
+    /// Whether the particles cast a shadow from the lights that cast
+    #[property(group = "shadows")]
+    pub cast_shadow: bool,
+    /// The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub render_layers: Vec<Layer>,
+    /// The light layers this is lit on: a `light3d` lights it when their `light_layers` share one; empty is every layer
+    #[property(flags, group = "layers")]
+    pub light_layers: Vec<Layer>,
+    /// Whether shadows land on it; off lights it as if nothing stood between it and every light
+    #[property(default = true, group = "shadows")]
+    pub receive_shadows: bool,
+    /// The id `render.snap_aov("segmentation")` colours this node by; nodes sharing one share a colour. Zero takes one of its own, from 1 up
+    #[property(min = 0, group = "layers")]
+    pub segmentation_id: i64,
+}
+
+/// A [`Particles3d`] as the backend draws it: emitter settings only, every
+/// number bounded.
+#[cfg_attr(
+    not(feature = "window"),
+    allow(dead_code, reason = "the particles are the windowed backend's")
+)]
+pub(crate) struct Emitter3d {
     pub(crate) emitting: bool,
     pub(crate) rate: f32,
     pub(crate) lifetime: f32,
@@ -38,7 +122,7 @@ pub(crate) struct Particles3d {
     pub(crate) billboard: bool,
 }
 
-impl Particles3d {
+impl Emitter3d {
     pub(crate) fn emission(&self) -> Emission {
         Emission {
             emitting: self.emitting,
@@ -48,36 +132,36 @@ impl Particles3d {
             explosiveness: self.explosiveness,
         }
     }
-}
 
-fn from_params(params: &toml::Value) -> Particles3d {
-    let direction = glamx::Vec3::from_array(prop_vec3(params, k::DIRECTION));
-    Particles3d {
-        emitting: prop_bool(params, k::EMITTING),
-        rate: prop_f32(params, k::RATE).max(0.0),
-        lifetime: prop_f32(params, k::LIFETIME).max(0.05),
-        speed: prop_f32(params, k::SPEED).max(0.0),
-        direction: direction
-            .try_normalize()
-            .unwrap_or(glamx::Vec3::Y)
-            .to_array(),
-        spread: prop_f32(params, k::SPREAD_DEGREES).clamp(0.0, 180.0),
-        size: prop_f32(params, k::SIZE).max(0.0),
-        size_end: prop_f32(params, k::SIZE_END),
-        gravity: prop_vec3(params, k::GRAVITY),
-        color: crate::color_from_params(params),
-        color_end: crate::color_from_key(params, k::COLOR_END, [1.0, 1.0, 1.0, 0.0]),
-        one_shot: prop_bool(params, k::ONE_SHOT),
-        explosiveness: prop_f32(params, k::EXPLOSIVENESS).clamp(0.0, 1.0),
-        rotation: prop_f32(params, k::ROTATION_DEGREES).max(0.0),
-        angular_speed: prop_f32(params, k::ANGULAR_SPEED_DEGREES),
-        billboard: prop_bool(params, k::BILLBOARD),
+    /// `asked` with every number bounded and its direction a unit vector.
+    fn of(asked: &Particles3d) -> Self {
+        Self {
+            emitting: asked.emitting,
+            rate: asked.rate.max(0.0),
+            lifetime: asked.lifetime.max(0.05),
+            speed: asked.speed.max(0.0),
+            direction: glamx::Vec3::from_array(asked.direction)
+                .try_normalize()
+                .unwrap_or(glamx::Vec3::Y)
+                .to_array(),
+            spread: asked.spread_degrees.clamp(0.0, 180.0),
+            size: asked.size.max(0.0),
+            size_end: asked.size_end,
+            gravity: asked.gravity,
+            color: asked.color,
+            color_end: asked.color_end,
+            one_shot: asked.one_shot,
+            explosiveness: asked.explosiveness.clamp(0.0, 1.0),
+            rotation: asked.rotation_degrees.max(0.0),
+            angular_speed: asked.angular_speed_degrees,
+            billboard: asked.billboard,
+        }
     }
 }
 
 /// A unit quad in the XY plane facing +z, as every particle draws.
-fn quad() -> balaur_core::mesh::MeshData {
-    balaur_core::mesh::MeshData {
+fn quad() -> balaur_geometry::mesh::MeshData {
+    balaur_geometry::mesh::MeshData {
         positions: vec![
             [-0.5, -0.5, 0.0],
             [0.5, -0.5, 0.0],
@@ -87,15 +171,33 @@ fn quad() -> balaur_core::mesh::MeshData {
         normals: Some(vec![[0.0, 0.0, 1.0]; 4]),
         uvs: Some(vec![[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]]),
         indices: vec![[0, 1, 2], [0, 2, 3]],
-        ..balaur_core::mesh::MeshData::default()
+        ..balaur_geometry::mesh::MeshData::default()
     }
 }
 
-fn apply(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
-    let texture = prop_str(params, k::TEXTURE).to_string();
+/// The quad the emitter draws, its emitter and its lighting, worked out
+/// again from what was written.
+fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
+    let (emitter, texture, material, lighting) = {
+        let world = eng.world();
+        let Ok(asked) = world.get::<&Particles3d>(entity) else {
+            return Ok(());
+        };
+        (
+            Emitter3d::of(&asked),
+            asked.texture.clone(),
+            asked.material.clone(),
+            crate::Lighting3d::of(
+                asked.cast_shadow,
+                &asked.light_layers,
+                &asked.render_layers,
+                asked.receive_shadows,
+                asked.segmentation_id,
+            ),
+        )
+    };
     {
-        let mut world = eng.world_mut();
-        if let Ok(mut r) = world.get::<&mut crate::Renderable3d>(entity) {
+        if let Ok(mut r) = eng.world().get::<&mut crate::Renderable3d>(entity) {
             if r.shape != crate::Shape3d::Built || r.texture != texture {
                 r.version += 1;
             }
@@ -119,187 +221,35 @@ fn apply(eng: &Engine, entity: Entity, params: &toml::Value) -> Result<()> {
                 overlay: crate::overlay::Overlay3d::default(),
                 version: 0,
             };
-            world
-                .insert_one(entity, renderable)
+            eng.insert_one(entity, renderable)
                 .map_err(|_| anyhow!("node is dead"))?;
         }
-        let next = from_params(params);
-        if let Ok(mut emitter) = world.get::<&mut Particles3d>(entity) {
-            *emitter = next;
-        } else {
-            let _ = world.insert_one(entity, next);
-        }
+        eng.insert_one(entity, emitter)
+            .map_err(|_| anyhow!("node is dead"))?;
     }
-    crate::lighting_from_params(eng, entity, params);
-    crate::material::set_material_3d(eng, entity, prop_str(params, k::MATERIAL))
-}
-
-fn get(eng: &Engine, entity: Entity) -> Option<toml::Value> {
-    let world = eng.world();
-    let emitter = world.get::<&Particles3d>(entity).ok()?;
-    let renderable = world.get::<&crate::Renderable3d>(entity).ok()?;
-    let mut map = toml::map::Map::new();
-    let float = |v: f32| toml::Value::Float(f64::from(v));
-    let vector = |v: [f32; 3]| toml::Value::Array(v.map(float).to_vec());
-    for (key, on) in [
-        (k::EMITTING, emitter.emitting),
-        (k::ONE_SHOT, emitter.one_shot),
-        (k::BILLBOARD, emitter.billboard),
-        (k::CAST_SHADOW, renderable.shadows),
-    ] {
-        map.insert(key.into(), toml::Value::Boolean(on));
-    }
-    for (key, value) in [
-        (k::RATE, emitter.rate),
-        (k::LIFETIME, emitter.lifetime),
-        (k::SPEED, emitter.speed),
-        (k::SPREAD_DEGREES, emitter.spread),
-        (k::SIZE, emitter.size),
-        (k::SIZE_END, emitter.size_end),
-        (k::EXPLOSIVENESS, emitter.explosiveness),
-        (k::ROTATION_DEGREES, emitter.rotation),
-        (k::ANGULAR_SPEED_DEGREES, emitter.angular_speed),
-    ] {
-        map.insert(key.into(), float(value));
-    }
-    map.insert(k::DIRECTION.into(), vector(emitter.direction));
-    map.insert(k::GRAVITY.into(), vector(emitter.gravity));
-    map.insert(k::COLOR.into(), crate::color_to_toml(emitter.color));
-    map.insert(k::COLOR_END.into(), crate::color_to_toml(emitter.color_end));
-    for (key, text) in [
-        (k::TEXTURE, &renderable.texture),
-        (k::MATERIAL, &renderable.material),
-    ] {
-        map.insert(key.into(), toml::Value::String(text.clone()));
-    }
-    for (key, mask) in [
-        (k::LIGHT_LAYERS, renderable.layers),
-        (k::RENDER_LAYERS, renderable.render_layers),
-    ] {
-        map.insert(key.into(), balaur_core::layers::names(mask));
-    }
-    crate::overlay::overlay_3d_to_map(renderable.overlay, &mut map);
-    Some(toml::Value::Table(map))
-}
-
-fn schema() -> String {
-    let texture = format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "An image, or a `texture` asset, each particle draws with; empty draws a flat square" }}"#,
-        balaur_core::texture_asset::TEXTURE_ASSET_TYPE
-    );
-    let material = format!(
-        r#"{{ type = "asset", asset = "{}", default = "", description = "The material every particle draws with; empty draws with the built-in one, which blends" }}"#,
-        crate::material::MATERIAL_ASSET_TYPE
-    );
-    ComponentDef::schema(&crate::overlay::with_rows(
-        &[
-            (
-                k::EMITTING,
-                r#"{ type = "bool", default = true, description = "Whether new particles are born; live ones finish either way" }"#,
-            ),
-            (
-                k::RATE,
-                r#"{ type = "float", default = 20.0, min = 0.0, description = "Particles born per second" }"#,
-            ),
-            (
-                k::LIFETIME,
-                r#"{ type = "float", default = 1.0, min = 0.05, description = "Seconds a particle lives" }"#,
-            ),
-            (
-                k::SIZE,
-                r#"{ type = "float", default = 0.1, min = 0.0, description = "A particle's edge length in world units" }"#,
-            ),
-            (
-                k::COLOR,
-                r#"{ type = "color", default = [1.0, 1.0, 1.0, 1.0], description = "Tint, as channel floats or #rrggbb / #rrggbbaa" }"#,
-            ),
-            (k::TEXTURE, &texture),
-            (k::MATERIAL, &material),
-            (
-                k::ONE_SHOT,
-                r#"{ type = "bool", default = false, description = "Emit one burst of `rate` times `lifetime` particles and stop; setting `emitting` false and true again fires another", group = "emission" }"#,
-            ),
-            (
-                k::EXPLOSIVENESS,
-                r#"{ type = "float", default = 0.0, min = 0.0, max = 1.0, description = "How much of a one-shot burst is born at once; the rest is spread over the lifetime", group = "emission" }"#,
-            ),
-            (
-                k::SPEED,
-                r#"{ type = "float", default = 2.0, min = 0.0, description = "Initial speed in world units per second", group = "motion" }"#,
-            ),
-            (
-                k::DIRECTION,
-                r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way the particles leave, in world space; [0, 1, 0] is straight up", group = "motion" }"#,
-            ),
-            (
-                k::SPREAD_DEGREES,
-                r#"{ type = "float", default = 30.0, min = 0.0, max = 180.0, description = "Half-angle of the emission cone; 180 scatters every way", group = "motion" }"#,
-            ),
-            (
-                k::GRAVITY,
-                r#"{ type = "vec3", default = [0.0, -3.0, 0.0], description = "Acceleration applied over a particle's life, in world space", group = "motion" }"#,
-            ),
-            (
-                k::ROTATION_DEGREES,
-                r#"{ type = "float", default = 0.0, min = 0.0, description = "The most a particle is turned in its own plane at birth, either way, in degrees", group = "motion" }"#,
-            ),
-            (
-                k::ANGULAR_SPEED_DEGREES,
-                r#"{ type = "float", default = 0.0, description = "The fastest a particle spins in its own plane, in degrees a second; each takes a speed at random between zero and this", group = "motion" }"#,
-            ),
-            (
-                k::SIZE_END,
-                r#"{ type = "float", default = -1.0, description = "The edge length a particle grows or shrinks to by the end of its life, in world units; below zero keeps `size`", group = "paint" }"#,
-            ),
-            (
-                k::COLOR_END,
-                r#"{ type = "color", default = [1.0, 1.0, 1.0, 0.0], description = "The tint a particle fades to by the end of its life", group = "paint" }"#,
-            ),
-            (
-                k::BILLBOARD,
-                r#"{ type = "bool", default = true, description = "Turn each particle to face the camera; off lays every one in the node's own XY plane", group = "paint" }"#,
-            ),
-            (
-                k::CAST_SHADOW,
-                r#"{ type = "bool", default = false, description = "Whether the particles cast a shadow from the lights that cast", group = "shadows" }"#,
-            ),
-            (
-                k::RENDER_LAYERS,
-                &balaur_core::layers::row_of_all(
-                    "The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one",
-                    "layers",
-                ),
-            ),
-            (
-                k::LIGHT_LAYERS,
-                &balaur_core::layers::row_of_all(
-                    "The light layers this is lit on: a `light3d` lights it when their `light_layers` share one",
-                    "layers",
-                ),
-            ),
-        ],
-        &crate::overlay::schema_3d(),
-    ))
+    crate::set_lighting(eng, entity, &lighting);
+    crate::material::set_material_3d(eng, entity, &material)
 }
 
 pub(crate) fn register_particles_3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
-        PARTICLES_3D,
+        Particles3d::NAME,
         ComponentDef {
-            events: &[(crate::particles::FINISHED_EVENT, "nil, once a one-shot burst has died out")],
-            warnings: None,
-            doc: "A visual-only 3D emitter at the node, drawn as instances of one quad: `rate`, `lifetime`, `speed`, `direction`, `spread_degrees` and `gravity` in world space. The live particles are renderer state the simulation never sees; a sprite sheet does not reach them, because a 3D instance carries no texture rectangle.",
-            schema: ComponentDef::parse_schema(PARTICLES_3D, &schema()),
-            tags: &[crate::vocabulary::words::PERSPECTIVE, balaur_core::components::tag::RENDER],
-            expects: &[],
-            apply: Box::new(apply),
+            events: &[(
+                crate::particles::FINISHED_EVENT,
+                "nil, once a one-shot burst has died out",
+            )],
+            tags: &[
+                crate::vocabulary::words::PERSPECTIVE,
+                balaur_core::components::tag::RENDER,
+            ],
             remove: Box::new(|eng, entity| {
-                let mut world = eng.world_mut();
-                let _ = world.remove_one::<Particles3d>(entity);
-                let _ = world.remove_one::<crate::Renderable3d>(entity);
+                let _ = eng.remove_one::<Particles3d>(entity);
+                let _ = eng.remove_one::<Emitter3d>(entity);
+                let _ = eng.remove_one::<crate::Renderable3d>(entity);
                 Ok(())
             }),
-            get: Box::new(get),
+            ..ComponentDef::of::<Particles3d>()
         },
     );
 }
@@ -334,7 +284,7 @@ impl Live3d {
         }
     }
 
-    fn step(&mut self, emitter: &Particles3d, origin: glamx::Vec3, dt: f32) {
+    fn step(&mut self, emitter: &Emitter3d, origin: glamx::Vec3, dt: f32) {
         let gravity = glamx::Vec3::from_array(emitter.gravity);
         for particle in &mut self.particles {
             particle.age += dt;
@@ -349,7 +299,7 @@ impl Live3d {
     }
 
     /// A direction inside the cone around `direction`, uniform over its cap.
-    fn birth(&mut self, emitter: &Particles3d, origin: glamx::Vec3) -> Particle {
+    fn birth(&mut self, emitter: &Emitter3d, origin: glamx::Vec3) -> Particle {
         let axis = glamx::Vec3::from_array(emitter.direction);
         let cos_spread = libm::cosf(emitter.spread.to_radians());
         let z = 1.0 - (self.rng.next_f64() as f32) * (1.0 - cos_spread);
@@ -385,7 +335,7 @@ impl Live3d {
 pub(crate) fn draw(
     node: &mut kiss3d::scene::SceneNode3d,
     live: &mut Live3d,
-    emitter: &Particles3d,
+    emitter: &Emitter3d,
     global: &balaur_core::scene::GlobalTransform,
     (eye, dt): (glamx::Vec3, f32),
 ) -> bool {
@@ -438,4 +388,26 @@ pub(crate) fn draw(
         .collect();
     node.set_instances(&instances);
     !instances.is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Emitter3d, Particles3d};
+
+    /// The direction a scene writes is held as written; the emitter leaves
+    /// along its unit vector, and along up where it names none.
+    #[test]
+    fn an_emitter_leaves_along_the_unit_vector_its_direction_names() {
+        let asked = Particles3d {
+            direction: [0.0, 0.0, 2.0],
+            ..Particles3d::default()
+        };
+        let same = |a: [f32; 3], b: [f32; 3]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6);
+        assert!(same(Emitter3d::of(&asked).direction, [0.0, 0.0, 1.0]));
+        let none = Particles3d {
+            direction: [0.0; 3],
+            ..Particles3d::default()
+        };
+        assert!(same(Emitter3d::of(&none).direction, [0.0, 1.0, 0.0]));
+    }
 }

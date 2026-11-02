@@ -112,9 +112,12 @@ pub struct DigestRegistry(pub Vec<(String, DigestFn)>);
 pub fn scope_of(eng: &Engine) -> Option<std::collections::HashSet<Entity>> {
     let scope = eng.debug_scope();
     let world = eng.world();
-    let (nodes, skipped) = covered(&world, scope.unwrap_or_else(|| eng.root()));
+    let (mut nodes, skipped) = covered(&world, scope.unwrap_or_else(|| eng.root()));
     if scope.is_none() && !skipped {
         return None;
+    }
+    for (_, holder) in crate::parked::holders(eng) {
+        nodes.extend(covered(&world, holder).0);
     }
     Some(nodes.into_iter().collect())
 }
@@ -156,21 +159,33 @@ pub fn entries(eng: &Engine) -> Vec<Entry> {
         // The debug scope when there is one: inside an editor the game is a
         // subtree, and the editor's own nodes are not the run being checked.
         let scope = eng.debug_scope();
-        covered(&world, scope.unwrap_or_else(|| eng.root()))
+        let row = |e: Entity, label: String| {
+            let transform = world.get::<&Transform>(e).ok().map(|t| *t);
+            let appearance = world.get::<&Appearance>(e).ok().map(|a| *a);
+            (e, label, transform, appearance)
+        };
+        let mut rows: Vec<_> = covered(&world, scope.unwrap_or_else(|| eng.root()))
             .0
             .into_iter()
             // Not the container itself: an editor makes a fresh one for every
             // run, and its generated id would differ between two runs of the
             // same game.
             .filter(|e| Some(*e) != scope)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .map(|e| {
-                let transform = world.get::<&Transform>(e).ok().map(|t| *t);
-                let appearance = world.get::<&Appearance>(e).ok().map(|a| *a);
-                (e, node_label(&world, e), transform, appearance)
-            })
-            .collect()
+            .map(|e| row(e, node_label(&world, e)))
+            .collect();
+        // A parked scene is world state: two runs that part while it sits
+        // there part here, not at the tick it comes back.
+        for (path, holder) in crate::parked::holders(eng) {
+            for e in covered(&world, holder).0 {
+                if e != holder {
+                    rows.push(row(
+                        e,
+                        crate::ids::parked_key(&path, &node_label(&world, e)),
+                    ));
+                }
+            }
+        }
+        rows
     };
 
     for (entity, label, transform, appearance) in &nodes {

@@ -53,7 +53,5 @@ script = { source = "scripts/turntable.bs" }
 position = [0, 0, 0]
 
 [nodes.shape3d]
-kind = "cylinder"
-radius = 2
-height = 0.1
+shape = { kind = "cylinder", radius = 2, height = 0.1 }
 color = "#2a2e35"

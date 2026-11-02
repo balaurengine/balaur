@@ -1,6 +1,5 @@
 use balaur_core::{App, AppConfig, Engine, Stage};
 use balaur_plugin::{Fingerprint, Manifest, Plugin, Registry, load, load_all, load_order};
-use balaur_script::BindingsExt as _;
 
 fn app() -> App {
     App::new(AppConfig::bare(".")).unwrap()
@@ -13,32 +12,34 @@ fn bump_marker_system(eng: &Engine, _: f32) {
 }
 
 struct Probe {
-    manifest: Manifest,
+    name: String,
+    requires: Vec<String>,
 }
 
 impl Probe {
     fn new(name: &str) -> Self {
-        Self {
-            manifest: Manifest::new(name, "1.0.0"),
-        }
+        Self::requiring(name, &[])
     }
 
     fn requiring(name: &str, needs: &[&str]) -> Self {
         Self {
-            manifest: Manifest::new(name, "1.0.0").requiring(needs),
+            name: name.to_string(),
+            requires: needs.iter().map(ToString::to_string).collect(),
         }
-    }
-
-    fn from_the_future(name: &str) -> Self {
-        let mut manifest = Manifest::new(name, "1.0.0");
-        manifest.fingerprint.engine = "999.0.0".into();
-        Self { manifest }
     }
 }
 
 impl Plugin for Probe {
-    fn manifest(&self) -> &Manifest {
-        &self.manifest
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &'static str {
+        "1.0.0"
+    }
+
+    fn requires(&self) -> Vec<String> {
+        self.requires.clone()
     }
 
     fn declare(&mut self, reg: &mut Registry<'_>) -> anyhow::Result<()> {
@@ -62,20 +63,6 @@ fn a_plugin_registers_its_resources_and_systems() {
         app.engine.resource::<Marker>().borrow().0,
         8,
         "the system did not run"
-    );
-}
-
-#[test]
-fn a_build_from_another_engine_version_is_refused_by_name() {
-    let mut app = app();
-    let Err(err) = load(&mut app, &mut Probe::from_the_future("stale")) else {
-        panic!("a mismatched build was loaded");
-    };
-    let text = format!("{err:#}");
-    assert!(text.contains("stale"), "does not name the plugin: {text}");
-    assert!(
-        text.contains("999.0.0"),
-        "does not name the version it wants: {text}"
     );
 }
 
@@ -223,8 +210,7 @@ fn loading_a_plugin_records_who_it_is() {
 #[test]
 fn a_plugin_that_requires_an_unloaded_one_is_refused() {
     let mut app = app();
-    let mut probe = Probe::new("late");
-    probe.manifest = probe.manifest.clone().requiring(&["early"]);
+    let mut probe = Probe::requiring("late", &["early"]);
 
     let err = load(&mut app, &mut probe).unwrap_err().to_string();
     assert!(
@@ -241,8 +227,7 @@ fn a_plugin_that_requires_an_unloaded_one_is_refused() {
 fn a_requirement_loaded_first_is_accepted() {
     let mut app = app();
     load(&mut app, &mut Probe::new("early")).unwrap();
-    let mut probe = Probe::new("late");
-    probe.manifest = probe.manifest.clone().requiring(&["early"]);
+    let mut probe = Probe::requiring("late", &["early"]);
 
     load(&mut app, &mut probe).unwrap();
     assert_eq!(
@@ -257,25 +242,15 @@ fn a_requirement_loaded_first_is_accepted() {
 #[test]
 fn a_plugin_whose_registration_fails_is_not_recorded() {
     let mut app = app();
-    load(&mut app, &mut Failing::new("broken")).unwrap_err();
+    load(&mut app, &mut Failing).unwrap_err();
     assert!(app.plugins().is_empty());
 }
 
-struct Failing {
-    manifest: Manifest,
-}
-
-impl Failing {
-    fn new(name: &str) -> Self {
-        Self {
-            manifest: Manifest::new(name, "1.0.0"),
-        }
-    }
-}
+struct Failing;
 
 impl Plugin for Failing {
-    fn manifest(&self) -> &Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "broken"
     }
 
     fn declare(&mut self, _: &mut Registry<'_>) -> anyhow::Result<()> {
@@ -328,13 +303,12 @@ fn a_set_may_require_something_loaded_before_it() {
 }
 
 struct Configured {
-    manifest: Manifest,
     seen: Option<toml::Table>,
 }
 
 impl Plugin for Configured {
-    fn manifest(&self) -> &Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "probe"
     }
 
     fn declare(&mut self, reg: &mut Registry<'_>) -> anyhow::Result<()> {
@@ -355,10 +329,7 @@ fn a_plugin_reads_the_table_the_project_handed_it() {
         .insert("other".to_string(), toml::from_str("nope = 1").unwrap());
     app.engine.insert_resource(configs);
 
-    let mut plugin = Configured {
-        manifest: Manifest::new("probe", "1"),
-        seen: None,
-    };
+    let mut plugin = Configured { seen: None };
     load(&mut app, &mut plugin).unwrap();
 
     let seen = plugin.seen.expect("no table reached the plugin");
@@ -372,10 +343,7 @@ fn a_plugin_reads_the_table_the_project_handed_it() {
 #[test]
 fn a_plugin_given_no_table_reads_nothing() {
     let mut app = app();
-    let mut plugin = Configured {
-        manifest: Manifest::new("probe", "1"),
-        seen: None,
-    };
+    let mut plugin = Configured { seen: None };
 
     load(&mut app, &mut plugin).unwrap();
     assert!(plugin.seen.is_none());

@@ -7,93 +7,49 @@
 //! numbers, never read off a sink, so a run with no sound card and a replay
 //! reach every boundary on the same tick as one with speakers.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::FileSettings;
+
+/// A sound file's encoded bytes, shared by every play of it, and how long it
+/// runs once a play has asked. Finding that builds a decoder, which for a
+/// Vorbis file is its whole codebook setup, so the cache's copy answers it
+/// once rather than every play.
+#[derive(Clone)]
+pub struct SoundBytes {
+    pub bytes: Arc<[u8]>,
+    pub(crate) length: Arc<OnceLock<Option<f64>>>,
+}
+
+impl From<Vec<u8>> for SoundBytes {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self {
+            bytes: bytes.into(),
+            length: Arc::default(),
+        }
+    }
+}
 
 /// One file a play reads: its encoded bytes and its own import settings.
 #[derive(Clone)]
 pub struct Clip {
     pub bytes: Arc<[u8]>,
     pub file: FileSettings,
+    /// [`SoundBytes`]'s length, shared with every other play of the file.
+    pub(crate) length: Arc<OnceLock<Option<f64>>>,
 }
 
 impl Clip {
     #[must_use]
-    pub fn new(bytes: Vec<u8>, file: FileSettings) -> Self {
+    pub fn new(sound: impl Into<SoundBytes>, file: FileSettings) -> Self {
+        let sound = sound.into();
         Self {
-            bytes: bytes.into(),
+            bytes: sound.bytes,
             file,
+            length: sound.length,
         }
     }
 }
-
-/// Automatic gain control: rodio's `automatic_gain_control` with every knob it
-/// takes, and the floor its filter adds.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AutoGain {
-    pub on: bool,
-    pub target: f32,
-    pub attack_time: f32,
-    pub release_time: f32,
-    pub max: f32,
-    pub floor: f32,
-}
-
-impl Default for AutoGain {
-    fn default() -> Self {
-        Self {
-            on: false,
-            target: 1.0,
-            attack_time: 4.0,
-            release_time: 0.0,
-            max: 7.0,
-            floor: 0.0,
-        }
-    }
-}
-
-/// What a play does to its samples between the decoder and the player. Each
-/// is one of rodio's adapters, kept here as numbers so a headless run reads
-/// back what a device would be given.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Effects {
-    /// Balance of a sound that is not positional: -1 left, 1 right.
-    pub pan: f32,
-    /// 0 is off.
-    pub low_pass_hz: f32,
-    pub low_pass_q: f32,
-    /// 0 is off.
-    pub high_pass_hz: f32,
-    pub high_pass_q: f32,
-    /// 0 is off.
-    pub reverb_time: f32,
-    pub reverb_level: f32,
-    pub distortion_gain: f32,
-    /// 0 is off.
-    pub distortion_threshold: f32,
-    pub auto_gain: AutoGain,
-}
-
-impl Default for Effects {
-    fn default() -> Self {
-        Self {
-            pan: 0.0,
-            low_pass_hz: 0.0,
-            low_pass_q: DEFAULT_Q,
-            high_pass_hz: 0.0,
-            high_pass_q: DEFAULT_Q,
-            reverb_time: 0.0,
-            reverb_level: 0.0,
-            distortion_gain: 1.0,
-            distortion_threshold: 0.0,
-            auto_gain: AutoGain::default(),
-        }
-    }
-}
-
-/// rodio's own Q for `low_pass` and `high_pass` (`blt.rs`).
-pub const DEFAULT_Q: f32 = 0.5;
 
 /// Everything a play needs to be built again from any point: a seek and a
 /// skip start the files over from where the clock says, rather than asking a
@@ -114,7 +70,9 @@ pub struct Program {
     pub end_time: f32,
     pub delay: f32,
     pub fade_in_time: f32,
-    pub effects: Effects,
+    /// Balance of a sound that is not positional: -1 left, 1 right. A
+    /// placement, not an effect, so it stays the sound's own.
+    pub pan: f32,
 }
 
 impl Program {
@@ -130,7 +88,7 @@ impl Program {
             end_time: 0.0,
             delay: 0.0,
             fade_in_time: 0.0,
-            effects: Effects::default(),
+            pan: 0.0,
         }
     }
 

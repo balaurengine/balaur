@@ -14,7 +14,6 @@ name = "Sheet"
 parent = "n_lobby"
 [nodes.widget]
 kind = "panel"
-text = ""
 anchor = "center"
 x = 0
 y = 0

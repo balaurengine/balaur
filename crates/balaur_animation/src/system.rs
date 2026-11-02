@@ -16,7 +16,7 @@ use balaur_core::Engine;
 use balaur_core::components;
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
-use balaur_core::skeleton::Bone;
+use balaur_geometry::skeleton::Bone;
 use glamx::{EulerRot, Vec3, Vec4};
 
 use crate::clip::{Clip, LoopMode, Property, Track};
@@ -40,8 +40,6 @@ pub(crate) enum Effect {
         method: String,
         args: Vec<balaur_script::Value>,
     },
-    /// Call a function a tween step was handed, which the host keeps.
-    Invoke { id: u64 },
     /// Tell a node's script the tween it holds a handle to has run out.
     TweenFinished { entity: Entity, id: TweenId },
     /// Tell a node a tween on it went round again, and how many times it has.
@@ -68,15 +66,15 @@ pub(crate) enum Effect {
 pub const FINISHED_EVENT: &str = "animation_finished";
 /// What it emits when a clip starts from its beginning, with the clip's name.
 pub const STARTED_EVENT: &str = "animation_started";
-/// What it emits when a clip takes over from another, `#{ from, to }`.
+/// What it emits when a clip takes over from another, `{ from, to }`.
 pub const CHANGED_EVENT: &str = "animation_changed";
 /// What it emits each time a looping clip goes round an end.
 pub const LOOPED_EVENT: &str = "animation_looped";
 /// What a node announces when a tween on it starts another loop,
-/// `#{ tween, played }`.
+/// `{ tween, played }`.
 pub const TWEEN_LOOPED_EVENT: &str = "tween_looped";
 /// What a node announces when one step of a tween on it is over,
-/// `#{ tween, step }`.
+/// `{ tween, step }`.
 pub const TWEEN_STEP_EVENT: &str = "tween_step";
 
 /// What a node announces when a tween on it runs out, with the tween's handle.
@@ -158,8 +156,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         state
             .tweens
             .retain(|_, tween| world.contains(tween.node) && (tween.running || !tween.value));
-        // A frame's worth of `just_finished` expires here: the script tick
-        // that could read it has already run.
+        // What ended last step has been told, and a digest should not keep it.
         for playback in state.players.values_mut() {
             playback.finished.clear();
         }
@@ -206,12 +203,10 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
                     continue;
                 }
                 if tween::advance(&world, id, tween, &mut effects) {
-                    if tween.played > 0 {
-                        effects.push(Effect::TweenFinished {
-                            entity: tween.node,
-                            id,
-                        });
-                    }
+                    effects.push(Effect::TweenFinished {
+                        entity: tween.node,
+                        id,
+                    });
                     done.push(id);
                 }
             }
@@ -223,7 +218,6 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
     }
     apply_effects(eng, &effects);
     // After the effects, so a tween's last call runs before it is let go.
-    tween::release_unheld(eng);
     settle_ended(eng, &ended);
     crate::machine::announce(eng, &moved);
     announce_began(eng);
@@ -552,8 +546,6 @@ pub(crate) fn collect_calls(
                     method: method.clone(),
                     args: key.args.clone(),
                 });
-            } else if let Some(id) = key.function {
-                effects.push(Effect::Invoke { id });
             }
         }
     }
@@ -653,25 +645,21 @@ fn apply_effects(eng: &Engine, effects: &[Effect]) {
                     host.call_on(balaur_core::node_id_of(*entity), method, args);
                 }
             }
-            Effect::Invoke { id } => {
-                if let Some(host) = host.as_ref()
-                    && let Err(why) = host.invoke(balaur_script::CallbackId(*id), &[])
-                {
-                    tracing::warn!("a tween's function failed: {why:#}");
-                }
-            }
             Effect::Deform { entity, offsets } => {
                 // Written into the offsets already there where there are any:
                 // a deform track runs every frame, and this is a vector as
                 // long as the mesh.
-                if let Ok(mut deform) = eng.world().get::<&mut balaur_core::mesh::Deform>(*entity) {
+                if let Ok(mut deform) = eng
+                    .world()
+                    .get::<&mut balaur_geometry::mesh::Deform>(*entity)
+                {
                     deform.offsets.clear();
                     deform.offsets.extend_from_slice(offsets);
                     continue;
                 }
-                let _ = eng.world_mut().insert_one(
+                let _ = eng.insert_one(
                     *entity,
-                    balaur_core::mesh::Deform {
+                    balaur_geometry::mesh::Deform {
                         offsets: offsets.clone(),
                     },
                 );
@@ -725,9 +713,7 @@ fn handle(id: TweenId) -> balaur_script::Value {
 ///
 /// The signal goes out after the queue moves on, so a handler asking
 /// `animation.current(node)` sees what is playing now rather than what just
-/// stopped. The clip that ended is the handler's argument —
-/// `animation.just_finished(node)` still answers for this frame, for a script
-/// that would rather poll than declare a method.
+/// stopped. The clip that ended is the handler's argument.
 fn settle_ended(eng: &Engine, ended: &[Entity]) {
     for &entity in ended {
         let next = {

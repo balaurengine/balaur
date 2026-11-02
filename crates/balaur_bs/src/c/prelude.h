@@ -14,7 +14,7 @@ typedef __UINT64_TYPE__ uint64_t;
 typedef __UINTPTR_TYPE__ uintptr_t;
 typedef __SIZE_TYPE__ size_t;
 
-#define BS_ABI 2u
+#define BS_ABI 3u
 #define BS_UNREACHABLE 1
 #define BS_OUT_OF_BOUNDS 2
 #define BS_DIVIDE_BY_ZERO 3
@@ -27,7 +27,9 @@ typedef __SIZE_TYPE__ size_t;
 #define BS_STACK_MARGIN (128u << 10)
 
 typedef struct bs_host {
-  int32_t (*import)(void *ctx, uint32_t index, const uint64_t *args, uint64_t *results);
+  /* An engine call: `unit` is the unit of a script built as units that made
+   * it, 0 for a whole module. */
+  int32_t (*import)(void *ctx, uint32_t unit, uint32_t index, const uint64_t *args, uint64_t *results);
   /* The host's allocator: a null block allocates, a new size of 0 frees, and
    * every byte a block gains reads as zero. */
   void *(*resize)(void *block, uint64_t old_size, uint64_t new_size);
@@ -166,7 +168,38 @@ typedef jmp_buf bs_jmp;
 #define BS_LONGJMP(b) longjmp(b, 1)
 #endif
 
+/* A function as a `fn` table slot holds it, whatever its type. */
+typedef void (*bs_fn)(void);
+
+/* One unit of a script built as units: where its static data, its own `fn`
+ * table slots and its link slots start, and the number the host knows its
+ * engine calls by. The runtime owns it; every unit of one script shares the
+ * instance's memory, globals and table. */
+typedef struct bs_unit {
+  uint32_t base[3];
+  uint32_t number;
+} bs_unit;
+
+/* A `fn` table slot: the function, the unit it runs as, and its signature's
+ * tag, which a call through the slot must match. */
+typedef struct bs_slot {
+  bs_fn fn;
+  bs_unit *unit;
+  uint64_t type;
+} bs_slot;
+
+/* An export as a link slot takes it: the function and its signature's tag. */
+typedef struct bs_ref {
+  bs_fn fn;
+  uint64_t type;
+} bs_ref;
+
 typedef struct bs_inst {
+  /* The unit whose code runs now, or null in a whole module. */
+  bs_unit *unit;
+  /* The `fn` table the units of a script share. */
+  bs_slot *table;
+  uint64_t table_len;
   uint8_t *mem;
   uint64_t mem_len;
   uint64_t mem_max;
@@ -191,10 +224,23 @@ typedef struct bs_module {
   const char *const *import_params;
   const char *const *import_results;
   bs_inst *(*instantiate)(const bs_host *host, void *ctx, uint64_t max_bytes);
-  int32_t (*call)(bs_inst *inst, uint32_t func, const uint64_t *args, uint64_t *results);
+  /* An export by its place in `func_names`, run as `unit` (null in a whole module). */
+  int32_t (*call)(bs_inst *inst, bs_unit *unit, uint32_t func, const uint64_t *args, uint64_t *results);
   void (*destroy)(bs_inst *inst);
   uint8_t *(*memory)(bs_inst *inst, uint64_t *len);
   uint64_t *(*globals)(bs_inst *inst);
+  /* A unit's: 1, and what follows is set; 0 for a whole module. */
+  uint32_t unit;
+  /* Each export in `func_names` order, for a link slot to call. */
+  const bs_ref *refs;
+  /* Copies its static data to its memory base and fills its own table slots
+   * from its table base; 0, or the trap code when either is past the end. */
+  int32_t (*make)(bs_inst *inst, bs_unit *unit);
+  /* The instance the units of one script share: `heap` bytes of memory, the
+   * allocator starting there, and a table with slot 0 empty. */
+  bs_inst *(*link_instance)(const bs_host *host, void *ctx, uint64_t heap, uint64_t max_bytes);
+  /* The table grown by `grow` empty slots, and its length. */
+  bs_slot *(*table)(bs_inst *inst, uint32_t grow, uint64_t *len);
 } bs_module;
 
 typedef struct bs_entry {
@@ -466,14 +512,16 @@ static inline uint32_t bs_trunc_s32(bs_inst *I, double x) {
 
 /* One call into a module from the host. A trap unwinds to here, never past a
  * host frame: a call a host function makes back in has its own. */
-static int32_t bs_run(bs_inst *I, void (*dispatch)(bs_inst *, uint32_t, const uint64_t *, uint64_t *),
+static int32_t bs_run(bs_inst *I, bs_unit *U, void (*dispatch)(bs_inst *, uint32_t, const uint64_t *, uint64_t *),
                       uint32_t f, const uint64_t *a, uint64_t *r) {
   bs_jmp here;
   bs_jmp *outer = I->trap;
   uintptr_t floor = I->floor;
+  bs_unit *was = I->unit;
   int32_t code = 0;
   if (!outer) I->floor = bs_stack_floor(I->host);
   I->trap = &here;
+  I->unit = U;
   if (BS_SETJMP(here) == 0) {
     dispatch(I, f, a, r);
   } else {
@@ -481,7 +529,17 @@ static int32_t bs_run(bs_inst *I, void (*dispatch)(bs_inst *, uint32_t, const ui
   }
   I->trap = outer;
   I->floor = floor;
+  I->unit = was;
   return code;
+}
+
+/* The slot a call through the table names, when it holds a function of the
+ * signature `type`; a trap otherwise. */
+static inline bs_slot bs_slot_at(bs_inst *I, uint32_t idx, uint64_t type) {
+  if (idx >= I->table_len) bs_trap(I, BS_INDIRECT);
+  bs_slot s = I->table[idx];
+  if (!s.fn || s.type != type) bs_trap(I, BS_INDIRECT);
+  return s;
 }
 
 static bs_inst *bs_new(const bs_host *host, void *ctx, uint32_t nglobals, uint64_t initial, uint64_t max) {
@@ -503,8 +561,37 @@ static bs_inst *bs_new(const bs_host *host, void *ctx, uint32_t nglobals, uint64
 
 static void bs_destroy(bs_inst *I) {
   const bs_host *host = I->host;
+  if (I->table) host->resize(I->table, I->table_len * sizeof(bs_slot), 0);
   host->resize(I->mem, I->mem_len, 0);
   host->resize(I, I->size, 0);
+}
+
+/* The six globals the units of a script share, in `UNIT_GLOBALS` order. */
+#define BS_UNIT_GLOBALS 6u
+
+static bs_slot *bs_table(bs_inst *I, uint32_t grow, uint64_t *len) {
+  if (grow) {
+    uint64_t old = I->table_len, now = old + grow;
+    bs_slot *t = (bs_slot *)I->host->resize(I->table, old * sizeof(bs_slot), now * sizeof(bs_slot));
+    if (!t) return 0;
+    I->table = t;
+    I->table_len = now;
+  }
+  *len = I->table_len;
+  return I->table;
+}
+
+static bs_inst *bs_link_instance(const bs_host *host, void *ctx, uint64_t heap, uint64_t max) {
+  uint64_t initial = (heap + 65535u) & ~(uint64_t)65535u;
+  bs_inst *I = bs_new(host, ctx, BS_UNIT_GLOBALS, initial ? initial : 65536u, max);
+  if (!I) return 0;
+  I->g[0] = heap;
+  uint64_t len;
+  if (!bs_table(I, 1, &len)) {
+    bs_destroy(I);
+    return 0;
+  }
+  return I;
 }
 static uint8_t *bs_memory(bs_inst *I, uint64_t *len) {
   *len = I->mem_len;

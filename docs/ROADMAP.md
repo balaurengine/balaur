@@ -93,6 +93,7 @@ being built, marked `done`, never back in the shipped one.
 | **Rune scripting** — the first language, replaced by Balaur Script: a `math` module, hot reload, a DAP debugger and a self-documenting API. | 0.1 done | no plan |
 | **A second scripting language** — Luau, C# or mimas beside Balaur Script, over the same `balaur_script` seam, held to the same determinism bar. | 0.7 | [PLAN-second-language.md](PLAN-second-language.md) |
 | **Scenes, assets and export packs** — prefabs with per-path overrides, `id://` references that survive a rename, import settings beside each file, and sha256-verified binary export packs. | 0.1 done | no plan |
+| **Parked scenes** — `scene.switch` keeps the scene it leaves built and returns it with no rebuild; `scene.unload` lets it go. | 0.2 done | no plan |
 | **A bad call caught before it runs** — `balaur check` reads the scene beside the script and resolves a component's method against the table the run time uses. | 0.2 done | [PLAN-script-analysis.md](PLAN-script-analysis.md) |
 | **Addons as modules** — a file directly under `addons/<name>/` is `<name>::<file>` in every script, its functions and constants reached by path. | 0.2 done | no plan |
 | **FBX import** — `balaur import` over the `ufbx` crate, for the meshes, rigs and clips that never ship as glTF. | 0.7 | no plan |
@@ -103,7 +104,9 @@ being built, marked `done`, never back in the shipped one.
 | **A package manager** — any Forge project or folder imported whole into `deps/<alias>/`: `[dependencies]` in `project.toml`, `balaur add`, `balaur fetch`, and a lockfile carrying each one's commit and hash. | 1.1 | [PLAN-dependencies.md](PLAN-dependencies.md) |
 | **Procedural noise** — a `noise` module of value, perlin, simplex and worley with fbm over them, seeded like `rng` and computed on `libm`. | 0.9 | no plan |
 | **A world bigger than a float** — origin rebasing on the fixed step, so a world runs past the precision `f32` has left, with the scene streamed in chunks. | 0.9 | no plan |
+| **Enums and `match`** — `enum` variants carrying nothing, values by position or named fields, matched exhaustively, the same on every script engine. | 0.2 done | [PLAN-script-tests.md](PLAN-script-tests.md) |
 | **Scripts compiled to WebAssembly** — Balaur Script, a typed language built to `.wasm` over the same host calls; the editor and examples run on it, each module compiled once. | 0.7 done | [PLAN-engine-in-bs.md](PLAN-engine-in-bs.md) |
+| **One way to do each thing** — `balaur_bs` refuses by name every second spelling of an `any` read, a nil test, a vector and a property. | 0.7 done | [PLAN-balaur-script.md](PLAN-balaur-script.md) |
 | **Extensions in WebAssembly** — a third tier beside the Rust and C ones: a `.wasm` module over `wasmtime` natively and the browser's own engine on the web. | 1.1 | [PLAN-wasm-extensions.md](PLAN-wasm-extensions.md) |
 | **`#[export]` on a script constant** — in place of the `exports` table. | (0.5) | [PLAN-scripting.md](PLAN-scripting.md) |
 | **Properties that hold properties** — a `list`, a `map` and a `record` a component or a script exports, drawn a row an entry in the inspector. | 0.2 done | [PLAN-property-types.md](PLAN-property-types.md) |
@@ -208,7 +211,7 @@ can do today, in the batches it would be built in.
 
 | Item | Milestone | Plan |
 | --- | :-: | --- |
-| **The Gamend SDK** — a Rune addon generated in the Gamend repository from its OpenAPI document and realtime protocol, one function per operation, copied into the library. | 0.4 | [PLAN-gamend-bindings.md](PLAN-gamend-bindings.md) |
+| **The Gamend SDK** — a Balaur Script addon generated in the Gamend repository from its OpenAPI document and realtime protocol, one function per operation, copied into the library. | 0.4 | [PLAN-gamend-bindings.md](PLAN-gamend-bindings.md) |
 | **A game server per lobby** — launched and registered by Gamend. | 0.4 | [PLAN-gamend.md#3-steps](PLAN-gamend.md#3-steps) |
 | **Lobby tokens and rejoin** — lobby-scoped tokens, and a grace period to rejoin. | 0.4 | [PLAN-gamend.md#1-design](PLAN-gamend.md#1-design) |
 | **The match record** — the match recording uploaded as the lobby's record. | 0.4 | [PLAN-gamend.md#1-design](PLAN-gamend.md#1-design) |

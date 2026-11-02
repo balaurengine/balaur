@@ -7,10 +7,6 @@ pub class Bonemap {
     editor: Node,
 }
 
-fn VERBS() -> [str] {
-    ["guess", "clear", "save"]
-}
-
 impl Bonemap {
     pub fn init() {
         self.editor = scene::get_node("Editor");
@@ -27,19 +23,13 @@ impl Bonemap {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event == "click" {
-            for verb in VERBS() {
-                if node.name() == verb {
-                    self.editor.call("bonemap_verb", verb);
-                }
-            }
-        }
+    pub fn verb(_value: any, node: Node) {
+        self.editor.call("bonemap_verb", node.name());
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.visible() == false {
             return;
         }
         self.editor.call("bonemap_fill");

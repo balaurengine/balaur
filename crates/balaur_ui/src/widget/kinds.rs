@@ -61,22 +61,10 @@ fn tick_box(
 ) -> egui::Response {
     let spacing = ui.spacing().clone();
     let side = spacing.icon_width;
-    let text = (!caption.is_empty()).then(|| {
-        egui::WidgetText::from(label).into_galley(
-            ui,
-            Some(egui::TextWrapMode::Extend),
-            f32::INFINITY,
-            egui::TextStyle::Button,
-        )
-    });
-    let tall = side.max(spacing.interact_size.y);
-    let wide = text
-        .as_ref()
-        .map_or(side, |text| side + spacing.icon_spacing + text.size().x);
-    let want = vec2(
-        wide.max(spacing.interact_size.y),
-        text.as_ref().map_or(tall, |text| tall.max(text.size().y)),
-    );
+    let text = (!caption.is_empty())
+        .then(|| crate::widget::sizing::control_galley(ui.ctx(), ui.style(), label));
+    let want =
+        crate::widget::sizing::tick_box_size(&spacing, text.as_ref().map(|text| text.size()));
     let (id, rect) = ui.allocate_space(want);
     let response = ui.interact(rect, id, Sense::click());
     let enabled = ui.is_enabled();
@@ -137,8 +125,9 @@ pub(crate) fn switch(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         (placed.entity, placed.widget.checked)
     };
     let look = at.resting(index);
-    let height = look.style.height.unwrap_or(18.0);
-    let (rect, response) = ui.allocate_exact_size(vec2(height * 1.75, height), Sense::click());
+    let size = crate::widget::sizing::switch_size(&look.style);
+    let height = size.y;
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     if response.clicked() {
         at.clicked.push(entity);
     }
@@ -172,7 +161,7 @@ pub(crate) fn dropdown(
     let placed = &at.arena[index];
     let widget = &placed.widget;
     let entity = placed.entity;
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let mut chosen = widget.text.clone();
     let picked = rich(chosen.as_str(), font, color, slant, &widget.text_look);
     let fold = if widget.wrap {
@@ -185,7 +174,11 @@ pub(crate) fn dropdown(
     let id = ui.make_persistent_id(("balaur-dropdown", entity));
     let popup = id.with("popup");
     let open = egui::Popup::is_id_open(ui.ctx(), popup);
-    let width = (want.x > 0.0).then_some(want.x);
+    // As wide as its widest option at least, so picking one does not move
+    // what is beside it.
+    let natural =
+        crate::widget::sizing::dropdown_size(ui.ctx(), ui.style(), widget, (font, color, slant));
+    let width = Some(if want.x > 0.0 { want.x } else { natural.x });
     let button = ui
         .horizontal(|ui| {
             let response = picker(ui, id, open, picked, (fold, width));
@@ -315,10 +308,10 @@ fn picker(
 /// A file being edited, with its gutter and its colouring: Godot's `CodeEdit`
 /// as a node.
 pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let placed = &at.arena[index];
-    let (entity, widget) = (placed.entity, placed.widget.clone());
-    let want = solved_of(&widget, &at.style_of(&widget), at.assigned);
-    let id = format!("balaur-code-{}", entity.to_bits());
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let (entity, widget) = (placed.entity, &placed.widget);
+    let want = solved_of(widget, &at.style(index), at.assigned);
     let mut inner = ui.new_child(egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
         ui.max_rect().min,
         egui::vec2(
@@ -335,38 +328,25 @@ pub(crate) fn code(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ),
     )));
     let look = crate::widget::code::CodeLook {
-        widget: &widget,
+        widget,
         theme: &at.theme,
         project: at.arena[index].project,
     };
-    let (text, changed, hit, caret) =
-        crate::widget::code::code_editor(at.eng, &mut inner, &id, &look);
-    if changed {
+    let coded = crate::widget::code::code_editor(at.eng, &mut inner, entity, &look);
+    if let Some(text) = coded.typed {
         at.edits.push((entity, Edit::Text(text)));
     }
-    if let Some(caret) = caret.filter(|c| moved_caret(entity, c.index)) {
+    if let Some(caret) = coded.caret {
         at.edits
             .push((entity, Edit::Caret(caret.x, caret.y, caret.index)));
     }
     // The line alone: what a click on the gutter means is the script's to
     // decide, as a breakpoint in one editor and a value in another.
-    if let Some(line) = hit {
+    if let Some(line) = coded.gutter {
         at.edits.push((entity, Edit::Gutter(line)));
     }
-    let used = inner.min_rect().size();
-    record_measure(entity, used);
-    ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, used));
-}
-
-thread_local! {
-    /// Where each `code` widget's caret was last said to be, so `caret` is
-    /// emitted when it moves rather than every pass it is drawn.
-    static CARETS: std::cell::RefCell<rustc_hash::FxHashMap<u64, usize>> =
-        std::cell::RefCell::new(rustc_hash::FxHashMap::default());
-}
-
-fn moved_caret(entity: balaur_core::hecs::Entity, index: usize) -> bool {
-    CARETS.with(|carets| carets.borrow_mut().insert(entity.to_bits().get(), index) != Some(index))
+    record_measure(entity, coded.used);
+    ui.advance_cursor_after_rect(egui::Rect::from_min_size(inner.max_rect().min, coded.used));
 }
 
 /// A button that drops a list of items: Godot's `MenuButton`, and the same
@@ -381,10 +361,11 @@ pub(crate) fn menu(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let placed = &at.arena[index];
+    let nodes = at.arena;
+    let placed = &nodes[index];
     let entity = placed.entity;
-    let widget = placed.widget.clone();
-    let fallbacks = fallbacks_of(&widget);
+    let widget = &placed.widget;
+    let fallbacks = fallbacks_of(widget);
     // A menu drawn inside an open menu is a submenu: egui opens it to the
     // side on hover, keeps one of them open at a time, and shuts it with the
     // menu it hangs off.
@@ -399,7 +380,7 @@ pub(crate) fn menu(
                 .show(ui, &response, |ui| popup_rows(ui, at, index))
                 .is_some()
         } else {
-            dropped(&response, &widget, &fallbacks, ui)
+            dropped(&response, widget, &fallbacks, ui)
                 .show(|ui| popup_rows(ui, at, index))
                 .is_some()
         };
@@ -430,7 +411,7 @@ pub(crate) fn menu(
             .show(ui, &response, rows)
             .is_some()
     } else {
-        dropped(&response, &widget, &fallbacks, ui)
+        dropped(&response, widget, &fallbacks, ui)
             .show(rows)
             .is_some()
     };
@@ -554,11 +535,11 @@ pub(crate) fn popup_rows(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize)
     lay_out(&mut inner, at, index, Axis::Column);
     at.rects = held;
     ui.advance_cursor_after_rect(inner.min_rect());
-    let arena = at.arena;
+    let nodes = at.arena;
     // A row that opened a submenu chose nothing, so the menu it sits in
     // stays up; every other row closes it unless it says `keep_open`.
     let closes = at.clicked[before..].iter().any(|entity| {
-        arena
+        nodes
             .iter()
             .find(|placed| placed.entity == *entity)
             .is_some_and(|placed| !placed.widget.keep_open && placed.widget.kind != w::MENU)
@@ -577,15 +558,12 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     // Unit floats are sRGB here as on every other widget property, so the
     // picker is egui's sRGB one: its linear `Rgba` showed them too light.
     let mut srgba = crate::widget::node::rgba_color(widget.color);
-    let want = solved_of(widget, &at.style_of(widget), at.assigned);
-    if want.x > 0.0 {
+    let want = solved_of(widget, &at.style(index), at.assigned);
+    // The swatch's width; the open picker is laid out by egui alone.
+    if want.x > 0.0 && !widget.egui.inline {
         ui.spacing_mut().interact_size.x = want.x;
     }
-    let alpha = match widget.egui.alpha.as_str() {
-        w::NONE => egui::color_picker::Alpha::Opaque,
-        w::ADDITIVE => egui::color_picker::Alpha::BlendOrAdditive,
-        _ => egui::color_picker::Alpha::OnlyBlend,
-    };
+    let alpha = crate::widget::sizing::alpha_of(widget);
     let changed = if widget.egui.inline {
         egui::color_picker::color_picker_color32(ui, &mut srgba, alpha)
     } else {
@@ -611,7 +589,7 @@ pub(crate) fn color(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
 /// A line across the parent's direction, in the theme's stroke.
 pub(crate) fn separator(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let widget = &at.arena[index].widget;
-    let style = at.style_of(widget);
+    let style = at.style(index);
     if let Some(color) = style.stroke {
         ui.visuals_mut().widgets.noninteractive.bg_stroke = Stroke::new(style.stroke_px(), color);
     }
@@ -667,8 +645,9 @@ pub(crate) fn fold(
     font: &egui::FontId,
     color: Color32,
 ) {
-    let widget = at.arena[index].widget.clone();
-    let style = at.style_of(&widget);
+    let nodes = at.arena;
+    let widget = &nodes[index].widget;
+    let style = at.style(index);
     let room = ui.available_rect_before_wrap();
     let strip = fold_header(ui, at, index, &style, (caption, font, color), room);
     ui.advance_cursor_after_rect(strip);
@@ -820,7 +799,7 @@ fn plate(ui: &egui::Ui, eng: &Engine, slot: crate::widget::paint::Slot, style: &
         nine_patch_plate(ui, eng, slot, path, style.slice, rect);
         return;
     }
-    if style.fill.is_none() && style.stroke.is_none() {
+    if !style.paints() {
         return;
     }
     let radius = if style.round == Some(true) {
@@ -830,7 +809,7 @@ fn plate(ui: &egui::Ui, eng: &Engine, slot: crate::widget::paint::Slot, style: &
     };
     Brush::of(ui).set(
         slot,
-        crate::widget::theme::frame_shape(
+        crate::widget::frame::frame_shape(
             rect,
             egui::CornerRadius::same(radius.clamp(0.0, 255.0) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -910,15 +889,16 @@ fn in_header(ui: &mut egui::Ui, at: &mut Painting<'_>, child: usize, rect: Rect)
 /// own `anchor`: Godot's MarginContainer, and a Control whose children anchor
 /// themselves rather than queue up.
 pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
-    let placed = &at.arena[index];
-    let children = placed.children.clone();
+    let nodes = at.arena;
+    let placed = &nodes[index];
+    let children = &placed.children;
     if children.is_empty() {
         return;
     }
-    let widget = placed.widget.clone();
-    let style = at.style_of(&widget);
-    let pad = padding_of(&widget, &style);
-    let box_size = solved_of(&widget, &at.style_of(&widget), at.assigned);
+    let widget = &placed.widget;
+    let style = at.style(index);
+    let pad = padding_of(widget, &style);
+    let box_size = solved_of(widget, &at.style(index), at.assigned);
     // The box this widget was handed, not what is left after the cursor: a
     // root reserves its box up front, and a stack fills what it was given.
     let room = ui.max_rect();
@@ -938,8 +918,8 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ),
     );
     // The frame first, under everything the stack holds, as a container's is.
-    if style.fill.is_some() || style.stroke.is_some() {
-        Brush::of(ui).add(crate::widget::theme::frame_shape(
+    if style.paints() {
+        Brush::of(ui).add(crate::widget::frame::frame_shape(
             outer,
             egui::CornerRadius::same((style.radius.unwrap_or(0.0)) as u8),
             style.fill.unwrap_or(Color32::TRANSPARENT),
@@ -947,13 +927,13 @@ pub(crate) fn stack(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         ));
     }
     let area = pad.inside(outer);
-    for child in &children {
+    for child in children {
         let want = {
             let mut measure = Measure::new(at.eng, at.arena, ui);
             measure.of(*child, &at.theme)
         };
-        let kid = at.arena[*child].widget.clone();
-        let rect = anchored_in(area, &kid, &at.style_of(&kid), want);
+        let nodes = at.arena;
+        let rect = anchored_in(area, &nodes[*child].widget, &at.style(*child), want);
         // This kind placed the child, so taffy has not solved what is under
         // it: its subtree is solved against the box it was just given.
         let space = crate::widget::taffy::Room::fixed(rect);
@@ -1145,7 +1125,7 @@ pub(crate) fn context_sensor(ui: &egui::Ui, at: &Painting<'_>, index: usize) {
 /// back. The innermost widget under the pointer that names a menu takes the
 /// press; a widget's own `on_click` never fires for it, egui counting only
 /// the primary button as a click. The menu's own button is not drawn here,
-/// so a menu that is only ever a context menu can be `visible = false`.
+/// so a menu that is only ever a context menu names no caption and no icon.
 pub(crate) fn context_menu(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
     let placed = &at.arena[index];
     let context = &placed.widget.context;

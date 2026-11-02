@@ -83,7 +83,7 @@ fn nothing(w: world::World, c: Case) {}
 fn none_at(w: world::World, c: Case, i: int) {}
 
 fn no_extra(w: world::World, c: Case) -> any {
-    map()
+    {}
 }
 
 /// A load case: `count` of whatever `place` makes.
@@ -99,9 +99,9 @@ pub fn with(w: world::World, i: int, pitch: float, component: str, params: any) 
     let node = world::plain(w, i);
     let at = world::grid(i, 20000, pitch);
     if w.dimensions == 2 {
-        node.transform.position = [at.x, at.y, 0.0];
+        node.transform.position = vec3(at.x, at.y, 0.0);
     } else {
-        node.transform.position = [at.x, 0.0, at.y];
+        node.transform.position = vec3(at.x, 0.0, at.y);
     }
     node.set_component(component, params);
     node

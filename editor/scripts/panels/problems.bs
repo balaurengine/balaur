@@ -22,13 +22,10 @@ impl Problems {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "change" || node.name() != "List" {
-            return;
-        }
-        let row = node.get_component("widget", "text");
-        node.patch_component("widget", map().with("text", ""));
-        if row.as_str() != "" {
+    pub fn list_picked(_value: any, node: Node) {
+        let row = node.widget.text;
+        node.widget.text = "";
+        if row != "" {
             self.editor.call("problems_pick", row);
         }
     }
@@ -40,11 +37,11 @@ impl Problems {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("List").patch_component("widget", map()
-            .with("options", view.get("items"))
-            .with("visible", view.get("items").len() > 0));
-        self.node.get_node("Nothing").patch_component("widget", map()
-            .with("visible", view.get("says").as_str() != "")
-            .with("text", view.get("says")));
+        let patched = self.node.get_node("List");
+        patched.widget.items = view["items"];
+        patched.set_visible(view["items"].len() > 0);
+        let patched = self.node.get_node("Nothing");
+        patched.set_visible(view["says"].as_str() != "");
+        patched.widget.text = view["says"].as_str();
     }
 }

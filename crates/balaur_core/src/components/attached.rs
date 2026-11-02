@@ -80,25 +80,6 @@ pub(super) fn mark(eng: &Engine, entity: Entity, index: usize, on: bool) {
     );
 }
 
-/// Say the node has the definition at `index` without owing its `remove` hook.
-///
-/// For state a node acquires outside [`add`]: the bundle's `Transform`, and
-/// [`crate::transform::ensure`] giving one to a node a body was put on. The
-/// hook belongs to whoever attached it, which here is core.
-pub(crate) fn mark_present(world: &mut hecs::World, entity: Entity, bit: u128) {
-    if let Ok(mut bits) = world.get::<&mut Attached>(entity) {
-        bits.present |= bit;
-        return;
-    }
-    let _ = world.insert_one(
-        entity,
-        Attached {
-            present: bit,
-            hooked: 0,
-        },
-    );
-}
-
 /// The bits a node carries, or none when it carries nothing.
 #[must_use]
 pub fn attached_of(eng: &Engine, entity: Entity) -> Attached {

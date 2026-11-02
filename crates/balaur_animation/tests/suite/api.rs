@@ -16,7 +16,7 @@ fn app() -> App {
     // Asset references resolve against the project root when no script host
     // is running, which is every Rust-only app and every test.
     let mut app = App::new(AppConfig::bare("tests/fixtures")).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 
@@ -426,9 +426,14 @@ fn a_clip_run_backwards_names_itself_as_the_one_that_finished() {
     balaur_animation::play(&app.engine, entity, "spin").unwrap();
     balaur_animation::seek(&app.engine, entity, 0.1);
     balaur_animation::set_speed_scale(&app.engine, entity, -1.0);
-    tick(&mut app, 7);
-    assert_eq!(
-        balaur_animation::just_finished(&app.engine, entity).as_deref(),
-        Some("spin")
-    );
+    let mut heard = Vec::new();
+    for _ in 0..8 {
+        tick(&mut app, 1);
+        heard.extend(balaur_core::events::delivered_from(
+            &app.engine,
+            entity,
+            balaur_animation::FINISHED_EVENT,
+        ));
+    }
+    assert_eq!(heard, vec![balaur_script::Value::text("spin")]);
 }

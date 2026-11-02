@@ -97,9 +97,9 @@ no account.
 
 Published templates are built with `window` and `extensions`, plus `apple` on
 macOS. A release also carries a `-2d` and `-3d` template of every target, with
-one physics world, and a `-server` one of every desktop, headless. A project's
-`[export] runtime = "2d"` puts every target on its `-2d` template, which
-`setup` fetches when `targets` names it (`web-2d`); a server is a target of
+one physics world, and a `-server` one of every desktop, headless. A game whose
+scenes and scripts use one world goes on that world's template, or the `[export]
+runtime` it names, which `setup` fetches when `targets` names it (`web-2d`); a server is a target of
 its own (`windows-x64-server`). For a different set — a smaller web build, or
 one without networking:
 

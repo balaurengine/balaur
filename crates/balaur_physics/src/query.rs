@@ -6,9 +6,7 @@
 //! Two rules hold for everything here. **Order is ours, not rapier's**: the
 //! pipeline walks a BVH, and BVH order is not something a replay may depend
 //! on, so every list is sorted by distance and then by stable id before it
-//! crosses the binding seam. And **the world is borrowed while a query runs**:
-//! a `predicate` that calls back into `physics3d` gets an error saying so
-//! rather than a panic from the `RefCell`.
+//! crosses the binding seam.
 
 use crate::rapier3d::parry::query::{Ray, ShapeCastOptions};
 use crate::rapier3d::prelude::{
@@ -19,7 +17,7 @@ use crate::scalar::{self, Pose, Real};
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of, node_id_of};
-use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
 use crate::vocabulary::{Opts, component as c, keys as k, map};
@@ -37,93 +35,103 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let dir = opts.vec3(k::DIRECTION, [0.0, -1.0, 0.0]);
     (
         Ray::new(scalar::v3a(from), scalar::v3a(dir)),
-        scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+        opts.f32(k::MAX_DISTANCE, 1000.0),
         opts.boolean(k::HIT_FROM_INSIDE, true),
     )
 }
 
-pub(crate) fn install_query_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("raycast", &[], "(opts: table) -> map?", "The first collider a ray meets: `#{ from = [x, y, z], dir = [x, y, z], max = 100.0, filter = #{ exclude = node, only = \"dynamic\" } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
-    ]);
+/// The tables this module's queries take and give.
+const RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "QueryFilter",
+        "{ only: string?, hit_sensors: bool?, hit_solids: bool?, collision_mask: [int]?, exclude: node?, exclude_body: node? }",
+        "Which colliders a query sees: `only` dynamic, kinematic or static bodies, sensors and solids or not, the layers of `collision_mask`, a node's colliders or its body's left out, and a `predicate` function that keeps a node or not.",
+    ),
+    (
+        "RayQuery",
+        "{ origin: vec3?, direction: vec3?, max_distance: float?, hit_from_inside: bool?, filter: QueryFilter? }",
+        "A ray: where it starts, which way it goes and how far, and whether a collider it starts inside is hit.",
+    ),
+    (
+        "ShapeQuery",
+        "{ shape: any, origin: vec3?, direction: vec3?, at: vec3?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
+        "A shape, in the collider's vocabulary, swept from `origin` along `direction`, or standing `at` a point.",
+    ),
+    (
+        "PointQuery",
+        "{ point: vec3?, max_distance: float?, hit_from_inside: bool?, filter: QueryFilter? }",
+        "A world point, and how far from it a collider may be.",
+    ),
+    (
+        "BoxQuery",
+        "{ min: vec3?, max: vec3?, filter: QueryFilter? }",
+        "An axis-aligned box from its lowest corner to its highest.",
+    ),
+    (
+        "Hit",
+        "{ node: node, point: vec3, normal: vec3, distance: float }",
+        "What a ray or a swept shape met first: the node, the point and the normal there, and how far along it was.",
+    ),
+    (
+        "Closest",
+        "{ node: node, point: vec3, inside: bool, distance: float }",
+        "The collider nearest a point: its node, the point on it, whether the point was inside, and how far.",
+    ),
+    (
+        "ImpactOptions",
+        "{ velocity_a: any, velocity_b: any, max_time: float?, stop_at_penetration: bool? }",
+        "How two colliders move for `time_of_impact`: each one's velocity, and how far ahead to look.",
+    ),
+];
+
+pub(crate) fn install_query_api(m: &mut Module<Engine>) {
+    m.records(RECORDS);
+    m.describe(&[(
+        "raycast",
+        &[],
+        "(opts: RayQuery) -> Hit?",
+        "The first collider a ray meets, or nothing.",
+    )]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
-        // Without a script predicate rapier stops at the nearest hit and prunes
-        // the tree by it; `raycast_all` is what walks every collider instead.
-        if !has_predicate(&opts) {
-            let state = eng.resource::<PhysicsState3d>();
-            let state = state.borrow();
-            let mut groups = None;
-            let skip = excluded(&opts, &state);
-            let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
-            let filter = filter_of(&opts, &mut groups).predicate(&keep);
-            let found = state
-                .world
-                .query_pipeline_with_filter(filter)
-                .cast_ray_and_get_normal(&ray, max, solid);
-            let Some((handle, hit)) = found else {
-                return Ok(Value::Nil);
-            };
-            let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
-                return Ok(Value::Nil);
-            };
-            let point = ray.point_at(hit.time_of_impact);
-            return Ok(hit_value(
-                entity,
-                scalar::a3(point),
-                scalar::a3(hit.normal),
-                hit.time_of_impact,
-            ));
-        }
-        // Collect candidates with the world borrowed, then let the predicate
-        // run with it released.
-        let mut candidates = Vec::new();
-        {
-            let state = eng.resource::<PhysicsState3d>();
-            let state = state.borrow();
-            let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
-            let skip = excluded(&opts, &state);
-            for (handle, collider, hit) in state
-                .world
-                .query_pipeline_with_filter(filter)
-                .intersect_ray(ray, max, solid)
-            {
-                if skip.contains(&handle) {
-                    continue;
-                }
-                let Some(entity) = entity_of_collider(collider) else {
-                    continue;
-                };
-                let point = ray.point_at(hit.time_of_impact);
-                candidates.push((
-                    entity,
-                    hit.time_of_impact,
-                    scalar::a3(point),
-                    scalar::a3(hit.normal),
-                ));
-            }
-        }
-        sort_hits(&mut candidates, &eng.world())?;
-        for (entity, toi, point, normal) in candidates {
-            if allowed(eng, &opts, entity)? {
-                return Ok(hit_value(entity, point, normal, toi));
-            }
-        }
-        Ok(Value::Nil)
+        // Rapier stops at the nearest hit and prunes the tree by it; `raycast_all`
+        // is what walks every collider instead.
+        let state = eng.resource::<PhysicsState3d>();
+        let state = state.borrow();
+        let mut groups = None;
+        let skip = excluded(&opts, &state);
+        let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
+        let filter = filter_of(&opts, &mut groups).predicate(&keep);
+        let found = state
+            .world
+            .query_pipeline_with_filter(filter)
+            .cast_ray_and_get_normal(&ray, max, solid);
+        let Some((handle, hit)) = found else {
+            return Ok(Value::Nil);
+        };
+        let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
+            return Ok(Value::Nil);
+        };
+        let point = ray.point_at(hit.time_of_impact);
+        Ok(hit_value(
+            entity,
+            scalar::a3(point),
+            scalar::a3(hit.normal),
+            hit.time_of_impact,
+        ))
     });
 }
 
 /// Every collider along a ray rather than the nearest one.
 ///
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_raycast_all_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "raycast_all",
         &[],
-        "(opts: table) -> [map]",
+        "(opts: RayQuery) -> [Hit]",
         "Every collider a ray meets, nearest first.",
     )]);
     m.function("raycast_all", |eng: &Engine, opts: Value| {
@@ -156,17 +164,12 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
                 }
             }
         }
-        // Sorted first, then filtered: the predicate sees the hits in the
-        // order a script will, and reading the node back out of a built value
-        // to ask about it would be the long way round.
         sort_hits(&mut hits, &eng.world())?;
-        let mut out = Vec::new();
-        for (entity, distance, point, normal) in hits {
-            if allowed(eng, &opts, entity)? {
-                out.push(hit_value(entity, point, normal, distance));
-            }
-        }
-        Ok(Value::List(out))
+        Ok(Value::List(
+            hits.into_iter()
+                .map(|(entity, distance, point, normal)| hit_value(entity, point, normal, distance))
+                .collect(),
+        ))
     });
 }
 
@@ -174,19 +177,19 @@ pub(crate) fn install_raycast_all_api(m: &mut dyn Bindings<Engine>) {
 /// avoids walls.
 ///
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_shapecast_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("shapecast", &[], "(opts: table) -> map?", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
+        ("shapecast", &[], "(opts: ShapeQuery) -> Hit?", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
     ]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::collider::collider_builder(eng, &params)?;
+        let builder = crate::collider::query_shape(eng, &params)?;
         let from = scalar::v3a(opts.vec3(k::ORIGIN, [0.0; 3]));
         let dir = scalar::v3a(opts.vec3(k::DIRECTION, [0.0, -1.0, 0.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+            max_time_of_impact: opts.f32(k::MAX_DISTANCE, 1000.0),
             stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
@@ -219,12 +222,12 @@ pub(crate) fn install_shapecast_api(m: &mut dyn Bindings<Engine>) {
 /// inside a shape, or within a box.
 ///
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("closest_point", &[], "(opts: table) -> map?", "The closest point on any collider to a world point."),
-        ("overlap_point", &[], "(opts: table) -> [node]", "Every collider containing a world point."),
-        ("overlap_shape", &[], "(opts: table) -> [node]", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
-        ("overlap_aabb", &[], "(opts: table) -> [node]", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
+        ("closest_point", &[], "(opts: PointQuery) -> Closest?", "The closest point on any collider to a world point."),
+        ("overlap_point", &[], "(opts: PointQuery) -> [node]", "Every collider containing a world point."),
+        ("overlap_shape", &[], "(opts: ShapeQuery) -> [node]", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
+        ("overlap_aabb", &[], "(opts: BoxQuery) -> [node]", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
     ]);
     m.function("closest_point", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
@@ -239,7 +242,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+                opts.f32(k::MAX_DISTANCE, 1000.0),
                 opts.boolean(k::HIT_FROM_INSIDE, true),
             );
         let Some((handle, projection)) = found else {
@@ -276,7 +279,7 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::collider::collider_builder(eng, &params)?;
+        let builder = crate::collider::query_shape(eng, &params)?;
         let at = scalar::v3a(opts.vec3(k::AT, [0.0; 3]));
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
@@ -314,14 +317,14 @@ pub(crate) fn install_volume_query_api(m: &mut dyn Bindings<Engine>) {
 /// apart, where they nearly touch, and what they are touching with.
 ///
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("distance", &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
         ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders."),
         ("intersects", &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
-        ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: table) -> map?", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
@@ -371,7 +374,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
                 scalar::v3a(opts.vec3(k::VELOCITY_B, [0.0; 3])),
             );
             let options = ShapeCastOptions {
-                max_time_of_impact: scalar::real(opts.f32(k::MAX_TIME, 1.0)),
+                max_time_of_impact: opts.f32(k::MAX_TIME, 1.0),
                 stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
                 ..ShapeCastOptions::default()
             };
@@ -401,7 +404,7 @@ pub(crate) fn install_pair_query_api(m: &mut dyn Bindings<Engine>) {
 /// What the world holds: every body, and every body that is awake.
 ///
 /// Split from [`install_pair_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_world_list_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_world_list_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
         ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),

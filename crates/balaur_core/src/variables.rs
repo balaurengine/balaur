@@ -84,8 +84,6 @@ pub fn as_num(value: &Value) -> f64 {
 pub struct Variable {
     pub kind: VarType,
     pub value: Value,
-    /// Whether the value survives through `save`.
-    pub persist: bool,
 }
 
 /// The scene's variable table.
@@ -101,16 +99,10 @@ pub struct Variables {
 
 impl Variables {
     /// Declare one, replacing what a previous scene declared under that name.
-    pub fn declare(&mut self, name: &str, kind: VarType, value: &Value, persist: bool) {
+    pub fn declare(&mut self, name: &str, kind: VarType, value: &Value) {
         let value = kind.coerce(value);
-        self.declared.insert(
-            name.to_string(),
-            Variable {
-                kind,
-                value,
-                persist,
-            },
-        );
+        self.declared
+            .insert(name.to_string(), Variable { kind, value });
     }
 
     #[must_use]
@@ -152,21 +144,11 @@ impl Variables {
     fn drain(&mut self) -> Vec<(String, Value)> {
         std::mem::take(&mut self.pending)
     }
-
-    /// The names and values `save` should carry, in order.
-    #[must_use]
-    pub fn persisted(&self) -> Vec<(String, Value)> {
-        self.declared
-            .iter()
-            .filter(|(_, v)| v.persist)
-            .map(|(name, v)| (name.as_str().into(), v.value.clone()))
-            .collect()
-    }
 }
 
 /// Read a scene's `[variables]` table into the engine.
 ///
-/// Each row is `name = { type = "int", value = 0, persist = false }`, or a
+/// Each row is `name = { type = "int", value = 0 }`, or a
 /// bare value whose type is read off it — the short form a small scene wants.
 ///
 /// # Errors
@@ -175,7 +157,7 @@ pub fn declare_from_toml(eng: &Engine, table: &toml::Table) -> Result<()> {
     let variables = eng.resource::<Variables>();
     let mut variables = variables.borrow_mut();
     for (name, row) in table {
-        let (kind, value, persist) = match row {
+        let (kind, value) = match row {
             toml::Value::Table(spec) => {
                 let word = spec
                     .get("type")
@@ -184,15 +166,11 @@ pub fn declare_from_toml(eng: &Engine, table: &toml::Table) -> Result<()> {
                 let kind = VarType::of(word)
                     .ok_or_else(|| anyhow::anyhow!("variable `{name}`: no type `{word}`"))?;
                 let value = spec.get("value").map_or(Value::Num(0.0), from_toml);
-                let persist = spec
-                    .get("persist")
-                    .and_then(toml::Value::as_bool)
-                    .unwrap_or(false);
-                (kind, value, persist)
+                (kind, value)
             }
-            other => (kind_of(other), from_toml(other), false),
+            other => (kind_of(other), from_toml(other)),
         };
-        variables.declare(name, kind, &value, persist);
+        variables.declare(name, kind, &value);
     }
     Ok(())
 }
@@ -253,12 +231,12 @@ mod tests {
     #[test]
     fn a_value_is_coerced_to_the_type_that_was_declared() {
         let mut variables = Variables::default();
-        variables.declare("lives", VarType::Int, &Value::Num(3.7), false);
+        variables.declare("lives", VarType::Int, &Value::Num(3.7));
         assert_eq!(variables.get("lives"), Some(&Value::Num(3.0)));
         variables.set("lives", &Value::Str("2.9".into())).unwrap();
         assert_eq!(variables.get("lives"), Some(&Value::Num(2.0)));
 
-        variables.declare("open", VarType::Bool, &Value::Num(1.0), false);
+        variables.declare("open", VarType::Bool, &Value::Num(1.0));
         assert_eq!(variables.get("open"), Some(&Value::Bool(true)));
     }
 
@@ -266,12 +244,12 @@ mod tests {
     #[test]
     fn a_whole_number_from_a_script_is_written_as_itself() {
         let mut variables = Variables::default();
-        variables.declare("lives", VarType::Int, &Value::Num(0.0), false);
+        variables.declare("lives", VarType::Int, &Value::Num(0.0));
         variables.set("lives", &Value::Int(7)).unwrap();
         assert_eq!(variables.get("lives"), Some(&Value::Num(7.0)));
-        variables.declare("open", VarType::Bool, &Value::Int(1), false);
+        variables.declare("open", VarType::Bool, &Value::Int(1));
         assert_eq!(variables.get("open"), Some(&Value::Bool(true)));
-        variables.declare("label", VarType::Text, &Value::Int(3), false);
+        variables.declare("label", VarType::Text, &Value::Int(3));
         assert_eq!(variables.get("label"), Some(&Value::Str("3".into())));
     }
 
@@ -280,7 +258,7 @@ mod tests {
     #[test]
     fn writing_the_same_value_is_not_a_change() {
         let mut variables = Variables::default();
-        variables.declare("score", VarType::Int, &Value::Num(0.0), false);
+        variables.declare("score", VarType::Int, &Value::Num(0.0));
         variables.set("score", &Value::Num(1.0)).unwrap();
         variables.set("score", &Value::Num(1.0)).unwrap();
         assert_eq!(variables.drain().len(), 1);
@@ -297,7 +275,7 @@ mod tests {
     fn a_scene_table_declares_the_long_form_and_the_short_one() {
         let table: toml::Table = toml::from_str(
             r#"
-score = { type = "int", value = 0, persist = true }
+score = { type = "int", value = 0 }
 name = "ana"
 speed = 2.5
 "#,
@@ -305,20 +283,17 @@ speed = 2.5
         .unwrap();
         let mut variables = Variables::default();
         for (name, row) in &table {
-            let (kind, value, persist) = match row {
+            let (kind, value) = match row {
                 toml::Value::Table(spec) => (
                     VarType::of(spec.get("type").and_then(toml::Value::as_str).unwrap()).unwrap(),
                     spec.get("value").map(from_toml).unwrap(),
-                    spec.get("persist").and_then(toml::Value::as_bool).unwrap(),
                 ),
-                other => (kind_of(other), from_toml(other), false),
+                other => (kind_of(other), from_toml(other)),
             };
-            variables.declare(name, kind, &value, persist);
+            variables.declare(name, kind, &value);
         }
         assert_eq!(variables.spec("score").unwrap().kind, VarType::Int);
-        assert!(variables.spec("score").unwrap().persist);
         assert_eq!(variables.spec("name").unwrap().kind, VarType::Text);
         assert_eq!(variables.spec("speed").unwrap().kind, VarType::Float);
-        assert_eq!(variables.persisted().len(), 1);
     }
 }

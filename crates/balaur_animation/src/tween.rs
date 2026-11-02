@@ -8,18 +8,20 @@
 //! crate and a tween does not add another — which also means a tween is
 //! serialisable, so an editor can author one and it can hot reload.
 //!
-//! ```rune
-//! let id = animation::tween(this.node, #{
-//!   loops: 1, speed: 1.0,
-//!   steps: [
-//!     #{ property: "position",   to: [0.0, 3.0, 0.0],      duration: 0.5, ease: "out_back" },
-//!     #{ property: "color/rgba", to: [1.0, 0.0, 0.0, 1.0], duration: 0.5, parallel: true },
-//!     #{ interval: 0.2 },
-//!     #{ call: "on_landed" },
-//!     #{ property: "position", by: [0.0, -3.0, 0.0], duration: 0.4, ease: "in_quad" },
-//!   ],
+//! ```bs
+//! let id = animation::tween(self.node, animation::Tween {
+//!     loops: 1,
+//!     speed_scale: 1.0,
+//!     steps: [
+//!         animation::Step { property: "position", to: [0.0, 3.0, 0.0], duration: 0.5, ease: animation::EASE_OUT_BACK },
+//!         animation::Step { property: "color/rgba", to: [1.0, 0.0, 0.0, 1.0], duration: 0.5, parallel: true },
+//!         animation::Step { interval: 0.2 },
+//!         animation::Step { call: "on_landed" },
+//!         animation::Step { property: "position", by: [0.0, -3.0, 0.0], duration: 0.4, ease: animation::EASE_IN_QUAD },
+//!     ],
 //! });
-//! animation::stop(id);  animation::is_running(id)
+//! animation::stop(id);
+//! animation::is_tween_running(id);
 //! ```
 //!
 //! `delay` holds the start values for that many seconds before the first
@@ -48,11 +50,9 @@
 //!
 //! There is deliberately no chainable builder: a handle with methods would
 //! need new userdata in every backend and again in every future language,
-//! which is exactly what declaring against `Bindings<Engine>` exists to
+//! which is exactly what declaring against `Module<Engine>` exists to
 //! avoid. The data form needs no backend sugar at all.
 
-use std::cell::RefCell;
-use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -60,7 +60,6 @@ use balaur_core::Engine;
 use balaur_core::components::{self, as_f64};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::scene::{self, Transform};
-use balaur_script::Value;
 use glamx::{Quat, Vec4};
 
 use crate::clip::{Clip, Interpolation, Key, LoopMode, Property, Track};
@@ -70,8 +69,8 @@ use crate::player::{AnimationState, fixed_dt};
 use crate::sampler::{self, euler_from_quat};
 use crate::system::Effect;
 
-/// What `animation.tween` hands back, and what `animation.stop` and
-/// `animation.is_running` take. Opaque: a script holds it and gives it back.
+/// What `animation::tween` hands back, and what `animation::stop` and
+/// `animation::is_tween_running` take. Opaque: a script holds it and gives it back.
 pub type TweenId = u64;
 
 /// Where a call at the very head of a tween is placed.
@@ -101,8 +100,8 @@ pub struct Tween {
     /// Scales the whole sequence. Always positive: a tween that ran backwards
     /// would never reach its end and never be cleaned up.
     pub speed: f32,
-    /// Whether the playhead is advancing. False only in the instant between
-    /// the last step and removal.
+    /// Whether the playhead is advancing. False once the last loop has played:
+    /// a tween goes at once, and a value tween on the next frame.
     pub running: bool,
     /// How many times to play the sequence; zero is forever (Godot's
     /// `set_loops(0)`).
@@ -338,106 +337,6 @@ pub fn start_to(
     start(eng, node, &toml::Value::Table(spec))
 }
 
-/// Script functions tween steps call, kept by the host until no live tween
-/// names them.
-#[derive(Default)]
-pub(crate) struct KeptFunctions(BTreeSet<u64>);
-
-/// [`start`] from a script's table, whose `call` steps may pass a function:
-/// each is kept by the host past the binding call, and named by its id.
-///
-/// # Errors
-/// As [`start`], or when the host cannot keep a function.
-pub fn start_script(eng: &Engine, node: Entity, spec: &Value) -> Result<TweenId> {
-    let mut spec = spec.clone();
-    if let Value::Map(fields) = &mut spec {
-        for (key, steps) in fields.iter_mut() {
-            if key != k::STEPS {
-                continue;
-            }
-            let Value::List(steps) = steps else {
-                continue;
-            };
-            for step in steps {
-                if let Value::Map(step) = step {
-                    keep_calls(eng, step)?;
-                }
-            }
-        }
-    }
-    start(eng, node, &balaur_core::node_api::to_toml(&spec)?)
-}
-
-fn keep_calls(eng: &Engine, step: &mut [(String, Value)]) -> Result<()> {
-    for (name, call) in step.iter_mut() {
-        let Value::Callback(id) = call else {
-            continue;
-        };
-        if name != k::CALL {
-            continue;
-        }
-        let host = eng
-            .script_host()
-            .ok_or_else(|| anyhow!("no script host to keep a tween's function"))?;
-        host.keep(*id)?;
-        kept(eng).borrow_mut().0.insert(id.0);
-        *call = Value::Int(i64::try_from(id.0)?);
-    }
-    Ok(())
-}
-
-fn kept(eng: &Engine) -> Rc<RefCell<KeptFunctions>> {
-    if let Some(kept) = eng.try_resource::<KeptFunctions>() {
-        return kept;
-    }
-    eng.insert_resource(KeptFunctions::default());
-    eng.resource::<KeptFunctions>()
-}
-
-/// Let go of every kept function that no live tween's keys, nor a waiting
-/// tween's table, names any more.
-pub(crate) fn release_unheld(eng: &Engine) {
-    let Some(kept) = eng.try_resource::<KeptFunctions>() else {
-        return;
-    };
-    if kept.borrow().0.is_empty() {
-        return;
-    }
-    let mut held = BTreeSet::new();
-    if let Some(state) = eng.try_resource::<AnimationState>() {
-        for tween in state.borrow().tweens.values() {
-            let keys = tween.clip.tracks.iter().flat_map(|track| &track.keys);
-            held.extend(keys.filter_map(|key| key.function));
-            if let Some(spec) = &tween.pending {
-                held.extend(functions_in(spec));
-            }
-        }
-    }
-    let gone: Vec<u64> = kept.borrow().0.difference(&held).copied().collect();
-    let host = eng.script_host();
-    let mut kept = kept.borrow_mut();
-    for id in gone {
-        kept.0.remove(&id);
-        if let Some(host) = host.as_ref() {
-            host.release(balaur_script::CallbackId(id));
-        }
-    }
-}
-
-/// The function ids a waiting tween's table calls.
-fn functions_in(spec: &str) -> Vec<u64> {
-    let Ok(spec) = toml::from_str::<toml::Value>(spec) else {
-        return Vec::new();
-    };
-    spec.get(k::STEPS)
-        .and_then(toml::Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|step| step.get(k::CALL)?.as_integer())
-        .filter_map(|id| u64::try_from(id).ok())
-        .collect()
-}
-
 /// End a tween now, wherever it had got to. Unknown handles are a no-op, so
 /// stopping a tween that already finished is not an error.
 pub fn stop(eng: &Engine, id: TweenId) {
@@ -601,16 +500,10 @@ impl Builder<'_> {
         let duration = match (step.get(k::CALL), step.get(k::INTERVAL)) {
             (Some(_), Some(_)) => bail!("a step waits or calls a method, not both"),
             (Some(call), None) => {
-                // A method name, or the id of a function `start_script` kept.
-                let function = call.as_integer().and_then(|id| u64::try_from(id).ok());
-                let method = call.as_str();
-                if method.is_none() && function.is_none() {
-                    bail!(
-                        "`call` is {}, not a method name or a function",
-                        call.type_str()
-                    );
-                }
-                self.add_call(target, start, method, function)?;
+                let Some(method) = call.as_str() else {
+                    bail!("`call` is {}, not a method name", call.type_str());
+                };
+                self.add_call(target, start, method)?;
                 0.0
             }
             (None, Some(interval)) => as_f64(interval)
@@ -628,20 +521,13 @@ impl Builder<'_> {
     }
 
     /// A callback step: a moment on a method track, and no time of its own.
-    fn add_call(
-        &mut self,
-        target: &str,
-        start: f32,
-        method: Option<&str>,
-        function: Option<u64>,
-    ) -> Result<()> {
+    fn add_call(&mut self, target: &str, start: f32, method: &str) -> Result<()> {
         target_of(self.eng, self.node, target)?;
         let index = self.track_for(target, &Property::Call, 0);
         self.tracks[index].keys.push(Key {
             time: start.max(CALL_AT_HEAD),
             value: Vec4::ZERO,
-            call: method.map(str::to_string),
-            function,
+            call: Some(method.to_string()),
             ease: None,
             wide: Vec::new(),
             discrete: None,
@@ -800,7 +686,6 @@ fn push_segment(
             time: start,
             value: held,
             call: None,
-            function: None,
             ease: None,
             wide: Vec::new(),
             discrete: None,
@@ -811,7 +696,6 @@ fn push_segment(
         time: start,
         value: from,
         call: None,
-        function: None,
         ease: None,
         wide: Vec::new(),
         discrete: None,
@@ -821,7 +705,6 @@ fn push_segment(
         time: start + duration,
         value: to,
         call: None,
-        function: None,
         ease,
         wide: Vec::new(),
         discrete: None,
@@ -868,8 +751,7 @@ fn current_value(
     // A node that never moved carries no transform yet: it stands at the
     // identity, which is where a tween of it starts.
     if eng.world().get::<&Transform>(entity).is_err() {
-        eng.world_mut()
-            .insert_one(entity, Transform::identity())
+        eng.insert_one(entity, Transform::identity())
             .map_err(|_| anyhow!("node is dead"))?;
     }
     let world = eng.world();

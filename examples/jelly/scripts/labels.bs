@@ -46,12 +46,11 @@ impl Labels {
     pub fn init() {
         self.frame = 0;
         render::set_background(0.07, 0.08, 0.10);
-        render::set_camera_2d(0.0, 0.5, 85.0);
     }
 }
 
 fn label(x: float, y: float, text: str, size: float, color: [float]) {
-    render::draw_text_2d(x, y, text, map().with("font_size", size).with("color", color).with("text_align", render::ALIGN_CENTER));
+    render::draw_text_2d(x, y, text, render::TextOptions { font_size: size, color: color, text_align: render::ALIGN_CENTER });
 }
 
 impl Labels {

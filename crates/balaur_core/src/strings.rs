@@ -22,7 +22,8 @@ use crate::engine::Engine;
 /// registry so a platform may start in its own.
 #[derive(Clone, Debug)]
 pub struct LocaleConfig {
-    /// The locale a fresh run starts in.
+    /// The locale a fresh run starts in; empty is the system's where the
+    /// project ships it, else [`LocaleConfig::fallback`].
     pub default: String,
     /// Where a key missing from the current locale is looked for next. One
     /// step, not a chain: two hops means two files to keep in mind, and the
@@ -33,7 +34,7 @@ pub struct LocaleConfig {
 impl Default for LocaleConfig {
     fn default() -> Self {
         Self {
-            default: "en".to_string(),
+            default: String::new(),
             fallback: "en".to_string(),
         }
     }
@@ -65,6 +66,9 @@ pub struct Strings {
     fallback: smol_str::SmolStr,
     /// Locale name to its catalogue, read once and kept.
     loaded: RefCell<BTreeMap<String, Catalogue>>,
+    /// What a key with nothing to fill in reads as now, for a caption asking
+    /// every frame. Emptied with whatever it was read from.
+    plain: RefCell<rustc_hash::FxHashMap<String, smol_str::SmolStr>>,
     /// The content root `loaded` was read under, so a new one is read again
     /// rather than answered from the last project's catalogues.
     read_under: Option<std::path::PathBuf>,
@@ -185,15 +189,61 @@ fn read(eng: &Engine, locale: &str) -> Catalogue {
 
 /// Make sure the catalogues exist and the locale is the project's default.
 fn ensure_ready(eng: &Engine) {
+    follow_content_root(eng);
     let strings = eng.resource::<Strings>();
     if strings.borrow().ready {
         return;
     }
     let config = LocaleConfig::load(eng);
+    let start = if config.default.is_empty() {
+        let shipped = locales(eng);
+        crate::facts::platform(eng)
+            .system_locale
+            .and_then(|reported| closest(&reported, &shipped))
+            .unwrap_or_else(|| config.fallback.clone())
+    } else {
+        config.default
+    };
     let mut strings = strings.borrow_mut();
-    strings.current = config.default.as_str().into();
+    strings.current = start.as_str().into();
     strings.fallback = config.fallback.as_str().into();
     strings.ready = true;
+}
+
+/// The locale in `shipped` nearest what a system reports: `pt-BR` is `pt_BR`,
+/// and `pt` where a project has only that; `zh-Hant`, `zh-TW` and `zh-HK` are
+/// `zh_TW`, any other `zh` is `zh_CN`; `nb` and `nn` are `no`. `None` where the
+/// project ships nothing in that language.
+#[must_use]
+pub fn closest(reported: &str, shipped: &[String]) -> Option<String> {
+    let tag = reported.replace('-', "_").to_lowercase();
+    let language = language_of(&tag);
+    let spelled = |wanted: &str| {
+        shipped
+            .iter()
+            .find(|locale| locale.to_lowercase() == wanted)
+            .cloned()
+    };
+    let region = match language {
+        "zh" if ["hant", "tw", "hk", "mo"]
+            .iter()
+            .any(|part| tag.split('_').any(|held| held == *part)) =>
+        {
+            "zh_tw"
+        }
+        "zh" => "zh_cn",
+        "nb" | "nn" => "no",
+        _ => "",
+    };
+    spelled(&tag)
+        .or_else(|| spelled(region))
+        .or_else(|| spelled(language))
+        .or_else(|| {
+            shipped
+                .iter()
+                .find(|locale| language_of(&locale.to_lowercase()) == language)
+                .cloned()
+        })
 }
 
 pub fn locale(eng: &Engine) -> String {
@@ -205,7 +255,10 @@ pub fn locale(eng: &Engine) -> String {
 /// key means the next frame.
 pub fn set_locale(eng: &Engine, locale: &str) {
     ensure_ready(eng);
-    eng.resource::<Strings>().borrow_mut().current = locale.into();
+    let strings = eng.resource::<Strings>();
+    let mut strings = strings.borrow_mut();
+    strings.current = locale.into();
+    strings.plain.borrow_mut().clear();
 }
 
 /// Forget the catalogues read under another content root: the editor opening
@@ -223,12 +276,22 @@ fn follow_content_root(eng: &Engine) {
         let mut held = strings.borrow_mut();
         held.read_under = crate::project::content_root(eng);
         held.loaded.borrow_mut().clear();
+        held.plain.borrow_mut().clear();
+        // Another project ships other locales, and starts in its own.
+        held.ready = false;
     }
 }
 
 /// Every locale the project ships a file for, in name order.
 pub fn locales(eng: &Engine) -> Vec<String> {
     let mut out = Vec::new();
+    if let Some(documents) = eng.try_resource::<crate::pack::Documents>() {
+        out.extend(documents.borrow().0.iter().filter_map(|path| {
+            let name = path.strip_prefix("strings/")?.strip_suffix(".toml")?;
+            (!name.contains('/')).then(|| name.to_string())
+        }));
+        return out;
+    }
     let root = crate::project::content_root(eng).unwrap_or_else(|| {
         eng.try_resource::<crate::project::ProjectRoot>()
             .map(|r| r.borrow().0.clone())
@@ -243,6 +306,22 @@ pub fn locales(eng: &Engine) -> Vec<String> {
     }
     out.sort();
     out
+}
+
+/// The string for `key` in the current locale, with nothing to fill in: what a
+/// widget's `text_key` draws, read once per locale rather than every frame.
+pub fn plain(eng: &Engine, key: &str) -> smol_str::SmolStr {
+    ensure_ready(eng);
+    let held = eng.resource::<Strings>();
+    if let Some(text) = held.borrow().plain.borrow().get(key) {
+        return text.clone();
+    }
+    let text: smol_str::SmolStr = tr(eng, key, &[]).into();
+    held.borrow()
+        .plain
+        .borrow_mut()
+        .insert(key.to_owned(), text.clone());
+    text
 }
 
 /// The string for `key` in the current locale, with `args` interpolated.
@@ -328,7 +407,9 @@ fn interpolate(text: &str, args: &[(String, balaur_script::Value)]) -> String {
 /// watcher calls when a strings file is saved.
 pub fn reload(eng: &Engine) -> Result<()> {
     if let Some(strings) = eng.try_resource::<Strings>() {
-        strings.borrow().loaded.borrow_mut().clear();
+        let strings = strings.borrow();
+        strings.loaded.borrow_mut().clear();
+        strings.plain.borrow_mut().clear();
     }
     Ok(())
 }

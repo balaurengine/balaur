@@ -1,0 +1,4 @@
+enum Pair { Two(int, int) }
+pub fn f() -> Pair { Pair::Two(1) }
+
+// error: 2:22: `Pair::Two` takes 2 values, given 1

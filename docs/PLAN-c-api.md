@@ -12,9 +12,7 @@ Worth stating plainly, because the gap is what a real addon will hit first:
 
 - No components, systems, scene keys, or ECS access — that is Tier 2, and it
   still deserves to wait for an addon that asks for it.
-- No calling *back* into script. `Value::Callback` crosses the boundary as an
-  id, but there is no `api->invoke` yet, so a C extension cannot run a script
-  function it was handed.
+- No calling *back* into script: a script hands an extension no function.
 - No `Engine` access at all: a C function receives its own `void*` and its
   arguments, and nothing else.
 - No asynchrony. A Tier 1 extension has no `ExternalIo`, no await token and no

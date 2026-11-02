@@ -24,37 +24,32 @@ impl Docs {
         self.refresh();
     }
 
-    pub fn on_widget_event(event: str, node: Node, value: any) {
-        if event != "change" {
-            return;
-        }
-        let name = node.name();
-        if name == "Module" {
-            self.editor.call("docs_pick", value);
-        } else if name == "Search" {
-            self.query = value.as_str();
-        } else {
-            return;
-        }
+    pub fn module_picked(value: any) {
+        self.editor.call("docs_pick", value);
+        self.refresh();
+    }
+
+    pub fn search_typed(value: any) {
+        self.query = value.as_str();
         self.refresh();
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
-        if self.node.get_component("widget", "visible").as_bool() == false {
+        if self.node.visible() == false {
             return;
         }
         let view = self.editor.call("docs_view", self.query);
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Tools/Module").patch_component("widget", map()
-            .with("options", view.get("modules"))
-            .with("text", view.get("pick")));
-        self.node.get_node("List").patch_component("widget", map().with("options", view.get("items")));
-        self.node.get_node("Nothing").patch_component("widget", map()
-            .with("visible", view.get("says").as_str() != "")
-            .with("text", view.get("says")));
+        let patched = self.node.get_node("Tools/Module");
+        patched.widget.options = view["modules"];
+        patched.widget.text = view["pick"].as_str();
+        self.node.get_node("List").widget.items = view["items"];
+        let patched = self.node.get_node("Nothing");
+        patched.set_visible(view["says"].as_str() != "");
+        patched.widget.text = view["says"].as_str();
     }
 }

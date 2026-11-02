@@ -74,7 +74,7 @@ fn a_request_spent_by_its_own_pass_still_owes_the_next_frame() {
 #[test]
 fn a_repaint_asked_for_as_another_comes_due_is_kept() {
     let (_dir, app, ctx, errors) = run_with(
-        r#"ui::request_repaint(map().with("after", 0.0)); ui::request_repaint(map().with("after", 30.0));"#,
+        r"ui::request_repaint(ui::RepaintOptions { after: 0.0 }); ui::request_repaint(ui::RepaintOptions { after: 30.0 });",
     );
     assert!(errors.is_empty(), "{errors:?}");
     balaur_ui::honour_lazy(&app.engine);
@@ -85,7 +85,8 @@ fn a_repaint_asked_for_as_another_comes_due_is_kept() {
 
 #[test]
 fn a_repaint_scheduled_ahead_is_how_long_the_loop_may_sleep() {
-    let (_dir, app, ctx, errors) = run_with(r#"ui::request_repaint(map().with("after", 30.0));"#);
+    let (_dir, app, ctx, errors) =
+        run_with(r"ui::request_repaint(ui::RepaintOptions { after: 30.0 });");
     assert!(errors.is_empty(), "{errors:?}");
     let next = balaur_ui::next_frame(&app.engine, &ctx);
     assert!(sleeps_at_most(&next, Duration::from_secs(30)), "{next:?}");
@@ -109,18 +110,22 @@ fn egui_s_own_requests_wake_the_loop_when_due() {
     assert_eq!(balaur_ui::next_frame(&app.engine, &ctx), NextFrame::Now);
 }
 
+const FIELD: &str = "[[nodes]]\nid = \"field\"\nname = \"Field\"\nparent = \"root\"\n\
+     widget = { kind = \"text_field\", text = \"name\", x = 0.0, y = 0.0, width = 200.0 }\n";
+
 /// One pass of a focused field at egui time `time`, with the loop's
 /// `wants_pass` before it: how long egui lets the loop sleep after it.
 fn focused_field(app: &balaur_core::App, ctx: &egui::Context, time: f64, input: bool) -> Duration {
     balaur_ui::wants_pass(&app.engine, ctx, input);
     ctx.begin_pass(egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::pos2(0.0, 0.0),
+            egui::vec2(640.0, 480.0),
+        )),
         time: Some(time),
         ..Default::default()
     });
-    egui::Area::new(egui::Id::unique("field")).show(ctx, |ui| {
-        let mut text = String::from("name");
-        ui.text_edit_singleline(&mut text).request_focus();
-    });
+    balaur_ui::run_pass(&app.engine, ctx);
     let mut out = ctx.end_pass();
     out.textures_delta.clear();
     out.viewport_output[&egui::ViewportId::ROOT].repaint_delay
@@ -128,11 +133,32 @@ fn focused_field(app: &balaur_core::App, ctx: &egui::Context, time: f64, input: 
 
 #[test]
 fn a_focused_caret_stops_blinking_ten_seconds_after_the_last_input() {
-    let (_dir, app, _, errors) = run_with("ui::set_lazy(true);");
+    let (_dir, app, ctx, errors) = crate::pass::run(&crate::pass::Script {
+        scene: FIELD,
+        ..crate::pass::Script::default()
+    });
     assert!(errors.is_empty(), "{errors:?}");
+    balaur_core::settings::set(
+        &app.engine,
+        "window/low_processor",
+        toml::Value::Boolean(true),
+    );
     balaur_ui::honour_lazy(&app.engine);
-    let ctx = egui::Context::default();
-    // A click focuses the field; its pass and the next answer it.
+    let field = app
+        .engine
+        .world()
+        .query::<(balaur_core::hecs::Entity, &balaur::scene::Name)>()
+        .iter()
+        .find(|(_, name)| name.0 == "Field")
+        .map(|(entity, _)| entity)
+        .expect("the field node");
+    {
+        let focus = app.engine.resource::<balaur_ui::UiFocus>();
+        let mut focus = focus.borrow_mut();
+        focus.focused = Some(field);
+        focus.taking = true;
+    }
+    // Focus put on the field; its pass and the next answer it.
     focused_field(&app, &ctx, 0.0, true);
     focused_field(&app, &ctx, 0.1, true);
     // Then every blink is a pass egui owes, until the timeout.

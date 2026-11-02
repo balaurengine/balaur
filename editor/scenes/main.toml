@@ -22,10 +22,9 @@ parent = "n_editor"
 [nodes.widget]
 kind = "column"
 interactive = false
-layer = "shell"
-# What a notch or a home bar covers is not the shell's to draw in. Anchored
-# `fill`, the engine sizes and places it, insets and all; nothing patches it.
-safe_area = ["left", "top", "right", "bottom"]
+whole_window = true
+# Anchored `fill`, the engine sizes and places it, insets and all; nothing
+# patches it.
 anchor = "fill"
 role = "layout_shell"
 
@@ -39,7 +38,6 @@ parent = "shell"
 script = { source = "scripts/panels/topbar.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 # The bar's own row is 30, and this sheet keeps 5 inside each edge: the one
 # strip that is chrome from edge to edge takes less than a panel would.
 height = 40
@@ -85,6 +83,7 @@ kind = "scroll"
 role = "header_toolbar"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -125,7 +124,6 @@ parent = "left"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 grow = 1
 # What a sheet keeps inside its edge. Stated rather than left to the widget
 # theme because a folded dock writes a smaller one and needs this back.
@@ -151,6 +149,7 @@ kind = "scroll"
 role = "header_dock"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -190,9 +189,9 @@ instance = "scenes/panels/outline.toml"
 id = "left_plugins"
 name = "LeftPlugins"
 parent = "left_sheet"
+visible = false
 [nodes.widget]
 kind = "column"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -233,7 +232,6 @@ parent = "right"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 grow = 1
 padding = 8
 
@@ -259,6 +257,7 @@ kind = "scroll"
 role = "header_dock"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -298,9 +297,9 @@ instance = "scenes/panels/import.toml"
 id = "right_plugins"
 name = "RightPlugins"
 parent = "right_sheet"
+visible = false
 [nodes.widget]
 kind = "column"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -330,20 +329,19 @@ height = 0
 id = "rail_handle"
 name = "Handle"
 parent = "railtop"
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
-visible = false
 
 [[nodes]]
 id = "rail_handle_open"
 name = "Open"
 parent = "rail_handle"
 [nodes.widget]
+on_click = "open_left"
 kind = "button"
 role = "icon_action"
-text = ""
 padding = 0
 
 # The rail is only as tall as its tools, so it takes the top of the slot
@@ -355,7 +353,6 @@ parent = "railslot"
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 height = 42
 
 # The scene and the dock, stacked beside the rail.
@@ -394,7 +391,6 @@ parent = "centre"
 script = { source = "scripts/panels/dock.bs" }
 [nodes.widget]
 kind = "panel"
-text = ""
 height = 174
 gap = [0, 0]
 
@@ -419,6 +415,7 @@ kind = "scroll"
 role = "header_dock"
 axis = "horizontal"
 grow = 1
+[nodes.widget_scroll]
 scroll_deadzone = 6
 
 [[nodes]]
@@ -545,9 +542,9 @@ instance = "scenes/panels/bonemap.toml"
 id = "bottom_plugins"
 name = "BottomPlugins"
 parent = "bottom"
+visible = false
 [nodes.widget]
 kind = "column"
-visible = false
 grow = 1
 
 [[nodes]]
@@ -617,12 +614,11 @@ id = "doc_panel"
 name = "DocPanel"
 parent = "stage"
 script = { source = "scripts/panels/events.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet_doc"
 # A `panel` draws its caption, and the default one is the word "label".
-text = ""
-visible = false
 grow = 1
 
 [[nodes]]
@@ -662,7 +658,6 @@ script = { source = "scripts/panels/hooks.bs" }
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 width = 172
 padding = [12, 0, 12, 0]
 gap = [0, 6]
@@ -689,11 +684,11 @@ gap = [0, 6]
 id = "hooks_unsaved"
 name = "Unsaved"
 parent = "hooks"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_caption_primary"
 text = "● unsaved · ⌘S"
-visible = false
 
 # The start screen, over the shell rather than inside it: its own root on the
 # same surface, drawn after, so it covers the editor and takes every click.
@@ -702,14 +697,13 @@ id = "manager"
 name = "Manager"
 parent = "n_editor"
 script = { source = "scripts/panels/manager.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
-layer = "shell"
+whole_window = true
 anchor = "fill"
-safe_area = ["left", "top", "right", "bottom"]
 role = "sheet_manager"
 align_items = "center"
-visible = false
 
 [[nodes]]
 id = "manager_head"
@@ -744,23 +738,22 @@ gap = [0, 10]
 id = "manager_note"
 name = "Note"
 parent = "manager_body"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
 wrap = true
-text = ""
-visible = false
 
 [[nodes]]
 id = "manager_progress"
 name = "Progress"
 parent = "manager_body"
+visible = false
 [nodes.widget]
 kind = "row"
 gap = [10, 10]
 align_items = "center"
-visible = false
 
 # Wraps under a phone's width: a filter and three buttons do not share 280
 # pixels, so the verbs drop to the line below.
@@ -768,29 +761,31 @@ visible = false
 id = "manager_tools"
 name = "Tools"
 parent = "manager_body"
+visible = false
 [nodes.widget]
 kind = "flow"
 gap = [6, 8]
 align_items = "center"
-visible = false
 
 [[nodes]]
 id = "manager_filter"
 name = "Filter"
 parent = "manager_tools"
 [nodes.widget]
+on_change = "filter_typed"
 kind = "text_field"
 role = "input_form"
-text = ""
-placeholder = "Filter projects"
 grow = 1
 min_width = 240
+[nodes.widget_field]
+placeholder = "Filter projects"
 
 [[nodes]]
 id = "manager_open"
 name = "Open"
 parent = "manager_tools"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_manager"
 text = "Open folder"
@@ -800,6 +795,7 @@ id = "manager_new"
 name = "New"
 parent = "manager_tools"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "New project"
@@ -830,11 +826,11 @@ name = "Picker"
 parent = "n_editor"
 script = { source = "scripts/panels/picker.bs" }
 [nodes.widget]
+on_closed = "closed"
 kind = "dialog"
-layer = "shell"
+whole_window = true
 role = "sheet_picker"
 # A `dialog` draws its caption, and the default one is the word "label".
-text = ""
 anchor = "center_top"
 y = 96
 open = false
@@ -874,11 +870,11 @@ name = "Sheet"
 parent = "n_editor"
 script = { source = "scripts/panels/sheet.bs" }
 [nodes.widget]
+on_closed = "closed"
 kind = "dialog"
-layer = "shell"
+whole_window = true
 role = "sheet_dialog"
 # A `dialog` draws its caption, and the default one is the word "label".
-text = ""
 open = false
 
 [[nodes]]
@@ -950,43 +946,41 @@ id = "dialogs"
 name = "Dialogs"
 parent = "n_editor"
 script = { source = "scripts/panels/dialogs.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 anchor = "top_left"
 gap = [12, 12]
-layer = "shell"
-visible = false
+whole_window = true
 
 # `--state fontdemo`'s sheet of every script, face and icon, over the stage.
 [[nodes]]
 id = "font_sheet"
 name = "FontSheet"
 parent = "n_editor"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 role = "sheet"
 anchor = "top_left"
-layer = "shell"
+whole_window = true
 gap = [6, 6]
 padding = [16, 12, 16, 12]
-visible = false
 
 # The box select's outline, placed while the drag lasts.
 [[nodes]]
 id = "marquee"
 name = "Marquee"
 parent = "n_editor"
+visible = false
 [nodes.widget]
 kind = "panel"
-text = ""
 anchor = "top_left"
-layer = "shell"
+whole_window = true
 fill = "none"
 stroke = "primary_text"
 dashed = true
 interactive = false
-visible = false
 
 # Typing over a text node where it is drawn: see scenes/panels/textedit.toml.
 [[nodes]]

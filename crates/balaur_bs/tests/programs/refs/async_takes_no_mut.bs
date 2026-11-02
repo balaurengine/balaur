@@ -1,0 +1,6 @@
+// An `async fn` takes no `&mut`: the caller's value would outlive the call.
+
+pub struct I { n: int }
+async fn w(i: &mut I) {}
+
+// error: 4:12: an `async fn` takes no `&mut` parameter: its caller runs on while it waits

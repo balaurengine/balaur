@@ -70,7 +70,7 @@ fn project() -> tempfile::TempDir {
 
 fn app(root: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut RenderPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut RenderPlugin).unwrap();
     app
 }
 
@@ -115,7 +115,7 @@ fn the_material_asset_loads_and_its_shader_links() {
     assert_eq!(asset.shader, "shaders/wave.wesl");
 
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-    let compiled = compile(&asset, &source).unwrap();
+    let compiled = compile(&asset, &source, &[], false).unwrap();
     assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
     assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
     // speed at 0, glow padded to 16: the shader's own struct decides, and the
@@ -170,7 +170,8 @@ fn a_shape3d_remembers_the_material_it_names() {
     let dir = project();
     let app = app(dir.path());
     let entity = node(&app);
-    let table = toml::from_str("kind = \"sphere\"\nmaterial = \"materials/lit.toml\"").unwrap();
+    let table =
+        toml::from_str("shape = { kind = \"sphere\" }\nmaterial = \"materials/lit.toml\"").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&table)).unwrap();
 
     let world = app.engine.world();
@@ -185,7 +186,8 @@ fn the_component_writes_the_material_back() {
     let dir = project();
     let app = app(dir.path());
     let entity = node(&app);
-    let table = toml::from_str("kind = \"sphere\"\nmaterial = \"materials/lit.toml\"").unwrap();
+    let table =
+        toml::from_str("shape = { kind = \"sphere\" }\nmaterial = \"materials/lit.toml\"").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&table)).unwrap();
 
     let read = components::get(&app.engine, entity, "shape3d").unwrap();
@@ -202,7 +204,7 @@ fn a_3d_material_links_against_the_mesh_contract() {
     let asset =
         balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-    let compiled = compile(&asset, &source).unwrap();
+    let compiled = compile(&asset, &source, &[], false).unwrap();
     assert!(compiled.wgsl.contains("fn fs_main"), "{}", compiled.wgsl);
     // `shade` pulled the lighting loop and the fog in with it.
     assert!(compiled.wgsl.contains("ambient_count"), "{}", compiled.wgsl);
@@ -221,7 +223,7 @@ fn a_3d_material_carries_the_per_copy_inputs_it_never_asked_for() {
     let asset =
         balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-    let compiled = compile(&asset, &source).unwrap();
+    let compiled = compile(&asset, &source, &[], false).unwrap();
     for location in 3..=7 {
         assert!(
             compiled.wgsl.contains(&format!("@location({location})")),
@@ -270,7 +272,8 @@ struct Stripe { color: vec4<f32> }
         balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/striped.toml")
             .unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-    let compiled = compile(&asset, &source).expect("a shader that reads its copy links");
+    let compiled =
+        compile(&asset, &source, &[], false).expect("a shader that reads its copy links");
     assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
 }
 
@@ -308,7 +311,7 @@ import package::mesh::{VertexInput, VertexOutput, vertex, vertex_color, shade};
         "the feature is read off the asset"
     );
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-    let compiled = compile(&asset, &source).expect("a painted material links");
+    let compiled = compile(&asset, &source, &[], false).expect("a painted material links");
     assert!(compiled.vertex_color, "and reaches the compiled material");
     assert!(
         compiled.wgsl.contains("@location(8)"),
@@ -320,7 +323,7 @@ import package::mesh::{VertexInput, VertexOutput, vertex, vertex_color, shade};
     let plain =
         balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let plain_source = balaur_core::project::scene_text(&app.engine, &plain.shader).unwrap();
-    let plain = compile(&plain, &plain_source).unwrap();
+    let plain = compile(&plain, &plain_source, &[], false).unwrap();
     assert!(!plain.vertex_color);
     assert!(
         !plain.wgsl.contains("@location(8)"),
@@ -373,7 +376,7 @@ fn the_2d_contract_covers_the_builtins_a_canvas_shader_uses() {
         balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/builtins.toml")
             .unwrap();
     let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-    let compiled = compile(&asset, &source).unwrap();
+    let compiled = compile(&asset, &source, &[], false).unwrap();
 
     assert!(compiled.wgsl.contains("fn vs_main"), "{}", compiled.wgsl);
     assert!(
@@ -450,9 +453,10 @@ fn an_empty_material_component_stays_on_the_node() {
     assert_eq!(got["source"].as_str(), Some(""));
 }
 
-/// `node.set_material` writes the same field, so the inspector shows it.
+/// The component reads the node's `Appearance`, so the inspector shows what
+/// the engine draws with.
 #[test]
-fn a_material_a_script_set_reads_back_as_the_component() {
+fn a_material_on_the_appearance_reads_back_as_the_component() {
     let dir = project();
     let app = app(dir.path());
     let entity = node(&app);
@@ -562,7 +566,8 @@ import package::sprite::{VertexInput, VertexOutput, vertex, sample_albedo, textu
     return sample_albedo(in.uv) * step(0.5, noise);
 }
 ";
-    let compiled = balaur_render::material::compile(&material, shader).expect("a slot links");
+    let compiled =
+        balaur_render::material::compile(&material, shader, &[], false).expect("a slot links");
     assert!(compiled.wgsl.contains("texture_2"), "{}", compiled.wgsl);
 }
 
@@ -587,7 +592,8 @@ fn every_library_material_links_against_the_shader_it_names() {
             .unwrap_or_else(|why| panic!("{}: {why:#}", path.display()));
         let shader = std::fs::read_to_string(library.join(&material.shader))
             .unwrap_or_else(|why| panic!("{}: {} {why}", path.display(), material.shader));
-        compile(&material, &shader).unwrap_or_else(|why| panic!("{}: {why:#}", path.display()));
+        compile(&material, &shader, &[], false)
+            .unwrap_or_else(|why| panic!("{}: {why:#}", path.display()));
         seen += 1;
     }
     assert!(seen >= 4, "the library ships materials to check: {seen}");
@@ -689,7 +695,8 @@ import package::sprite::{VertexInput, VertexOutput, place, instance_custom};
         .unwrap();
         assert!(asset.reads_instance_custom());
         let source = balaur_core::project::scene_text(&app.engine, &asset.shader).unwrap();
-        let compiled = compile(&asset, &source).expect("a material reading custom data links");
+        let compiled =
+            compile(&asset, &source, &[], false).expect("a material reading custom data links");
         assert!(
             compiled.instance_custom,
             "the feature reaches the compiled {name}"
@@ -703,7 +710,7 @@ import package::sprite::{VertexInput, VertexOutput, place, instance_custom};
     let plain =
         balaur_core::assets::load_typed::<Material3d>(&app.engine, "materials/lit.toml").unwrap();
     let plain_source = balaur_core::project::scene_text(&app.engine, &plain.shader).unwrap();
-    let plain = compile(&plain, &plain_source).unwrap();
+    let plain = compile(&plain, &plain_source, &[], false).unwrap();
     assert!(!plain.instance_custom);
     assert!(!plain.wgsl.contains("@location(9)"), "{}", plain.wgsl);
 }

@@ -6,75 +6,53 @@
 //! the window, as it does for the player.
 
 use anyhow::anyhow;
-use balaur_core::components::{ComponentDef, prop_vec2};
+use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalAppearance, GlobalTransform};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
-use crate::vocabulary::keys as k;
-
-pub(crate) const COMPONENT: &str = "screen_notifier2d";
+pub(crate) const COMPONENT: &str = <ScreenNotifier2d as Component>::NAME;
 /// What a notifier announces as its box comes on screen, and as it leaves.
 pub(crate) const SCREEN_ENTER_EVENT: &str = "screen_enter";
 pub(crate) const SCREEN_EXIT_EVENT: &str = "screen_exit";
 
-/// The box, in the node's own units around its origin, and whether any of it
-/// was on screen when last looked.
+/// A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.
+#[derive(Component)]
+#[component(
+    name = "screen_notifier2d",
+    on_add = added,
+    on_remove = removed,
+    events = &[ (SCREEN_ENTER_EVENT, "nil, as any of the box comes on screen"), (SCREEN_EXIT_EVENT, "nil, as the last of it leaves"), ],
+    tags = [ balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
+)]
 pub struct ScreenNotifier2d {
-    pub offset: [f32; 2],
+    /// The box's width and height, in the node's own units: scaled and turned with it
+    #[property(default = [1.0, 1.0])]
     pub size: [f32; 2],
-    pub on_screen: bool,
+    /// The box's lower corner from the node, in the node's own units: scaled and turned with it
+    #[property(default = [-0.5, -0.5])]
+    pub offset: [f32; 2],
+}
+
+/// Whether any of a notifier's box was on screen when last looked: the
+/// system's, not the component's.
+pub(crate) struct OnScreen {
+    on_screen: bool,
+}
+
+/// A notifier starts off screen; a written one keeps what it last saw.
+fn added(eng: &Engine, entity: Entity) {
+    let _ = eng.insert_one(entity, OnScreen { on_screen: false });
+}
+
+/// What it last saw goes with it.
+fn removed(eng: &Engine, entity: Entity) {
+    let _ = eng.remove_one::<OnScreen>(entity);
 }
 
 pub(crate) fn register_notifier_component(reg: &mut Registry<'_>) {
-    reg.register_component(
-        COMPONENT,
-        ComponentDef {
-            events: &[
-                (SCREEN_ENTER_EVENT, "nil, as any of the box comes on screen"),
-                (SCREEN_EXIT_EVENT, "nil, as the last of it leaves"),
-            ],
-            warnings: None,
-            doc: "A box that announces `screen_enter` as it comes on screen and `screen_exit` as it leaves; `offset` and `size` place it around the node. A hidden node is off screen.",
-            schema: ComponentDef::parse_schema(
-                COMPONENT,
-                &ComponentDef::schema(&[
-                    (k::SIZE, r#"{ type = "vec2", default = [1.0, 1.0], description = "The box's width and height, in the node's own units: scaled and turned with it" }"#),
-                    (k::OFFSET, r#"{ type = "vec2", default = [-0.5, -0.5], description = "The box's lower corner from the node, in the node's own units: scaled and turned with it" }"#),
-                ]),
-            ),
-            tags: &[balaur_core::components::tag::DIM_2D, balaur_core::components::tag::RENDER],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                let offset = prop_vec2(params, k::OFFSET);
-                let size = prop_vec2(params, k::SIZE);
-                let mut world = eng.world_mut();
-                if let Ok(mut notifier) = world.get::<&mut ScreenNotifier2d>(entity) {
-                    notifier.offset = offset;
-                    notifier.size = size;
-                    return Ok(());
-                }
-                let on_screen = false;
-                world
-                    .insert_one(entity, ScreenNotifier2d { offset, size, on_screen })
-                    .map_err(|_| anyhow!("node is dead"))
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<ScreenNotifier2d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let notifier = world.get::<&ScreenNotifier2d>(entity).ok()?;
-                let pair = |v: [f32; 2]| toml::Value::Array(v.map(|n| toml::Value::Float(f64::from(n))).to_vec());
-                let mut out = toml::map::Map::new();
-                out.insert(k::OFFSET.into(), pair(notifier.offset));
-                out.insert(k::SIZE.into(), pair(notifier.size));
-                Some(toml::Value::Table(out))
-            }),
-        },
-    );
+    reg.add_component::<ScreenNotifier2d>();
 }
 
 /// The world rectangle the screen shows: `[min_x, min_y, max_x, max_y]`.
@@ -138,16 +116,16 @@ pub(crate) fn notify_screen_system(eng: &Engine, _dt: f32) {
     let mut changed: Vec<(Entity, bool)> = {
         let world = eng.world();
         let mut changed = Vec::new();
-        for (entity, notifier, global) in
-            &mut world.query::<(Entity, &mut ScreenNotifier2d, &GlobalTransform)>()
+        for (entity, notifier, global, seen) in
+            &mut world.query::<(Entity, &ScreenNotifier2d, &GlobalTransform, &mut OnScreen)>()
         {
             let shown = world
                 .get::<&GlobalAppearance>(entity)
                 .map_or(true, |appearance| appearance.visible);
             let [x0, y0, x1, y1] = span(notifier, global);
             let on = shown && x0 <= view[2] && x1 >= view[0] && y0 <= view[3] && y1 >= view[1];
-            if on != notifier.on_screen {
-                notifier.on_screen = on;
+            if on != seen.on_screen {
+                seen.on_screen = on;
                 changed.push((entity, on));
             }
         }
@@ -165,7 +143,7 @@ pub(crate) fn notify_screen_system(eng: &Engine, _dt: f32) {
 }
 
 /// `node.screen_notifier2d.is_on_screen()`.
-pub(crate) fn install_notifier_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_notifier_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "is_on_screen",
         &[COMPONENT],
@@ -175,9 +153,9 @@ pub(crate) fn install_notifier_api(m: &mut dyn Bindings<Engine>) {
     m.function("is_on_screen", |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let world = eng.world();
-        let notifier = world
-            .get::<&ScreenNotifier2d>(entity)
+        let seen = world
+            .get::<&OnScreen>(entity)
             .map_err(|_| anyhow!("this node has no `{COMPONENT}`"))?;
-        Ok(notifier.on_screen)
+        Ok(seen.on_screen)
     });
 }

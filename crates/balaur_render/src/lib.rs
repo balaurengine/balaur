@@ -10,10 +10,10 @@
 
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
-pub use balaur_core::primitive::{Flat, Solid};
+use balaur_core::system_param::{Res, ResMut};
 use balaur_core::{Engine, Stage};
+pub use balaur_geometry::primitive::{Flat, Solid};
 use balaur_plugin::Registry;
-use balaur_script::Bindings;
 
 #[cfg(feature = "aseprite")]
 pub mod aseprite;
@@ -57,6 +57,8 @@ mod multimesh;
 mod multimesh_api;
 mod notifier;
 pub mod overlay;
+#[cfg(feature = "window")]
+mod pacing;
 mod particles;
 mod particles_3d;
 pub mod pick;
@@ -97,13 +99,15 @@ mod tilemap;
 mod tilemap_mesh;
 mod vocabulary;
 pub mod world_text;
+pub use boolean::{Boolean2d, Boolean3d, FillRule2d, Operation2d, Operation3d};
 pub use camera::{Camera2d, Camera3d};
 pub use debug_view::{ChannelView, PreviewRequest, ProbeReading, ProbeRequest};
-pub use lens::Lens3d;
-pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d};
+pub use lens::{Lens3d, Projection};
+pub use light::{Light2d, LightKind2d, LitLight2d, Occluder2d, Outline2d};
 pub use multimesh::{
     Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MULTIMESH_ASSET_TYPE, MeshSource,
-    MultiMesh, MultiMeshAsset, Placed, buffer_of, buffer_stride, instances_from_buffer,
+    MultiMesh, MultiMesh2d, MultiMesh3d, MultiMeshAsset, Placed, buffer_of, buffer_stride,
+    instances_from_buffer,
 };
 pub use pick::under_pointer as pick_under_pointer;
 pub use post::{
@@ -120,16 +124,22 @@ pub fn viewport_size(eng: &Engine) -> (u32, u32) {
     (vp.width, vp.height)
 }
 pub use light3d::{
-    AutoExposure, BlurQuality, Environment, FogKind, Light3d, LightKind3d, LitLight3d, Tonemap,
-    Transmission,
+    AutoExposure, BlurQuality, Environment, FogKind, Light3d, LightKind3d, LitEnvironment,
+    LitLight3d, Tonemap, Transmission,
 };
 pub use mesh::MorphWeights;
 pub use notifier::ScreenNotifier2d;
-pub use particles::Particles;
-pub use polygon::PolygonMesh;
+pub use particles::{Particles, Particles2d};
+pub use particles_3d::Particles3d;
+pub use polygon::{Polygon, PolygonMesh};
 pub use reflection::{LitProbe, ProbeUpdate, ReflectionProbe};
+pub use shape::{FlatShape, Line2d, LineCap, LineJoin, Primitive2d, Primitive3d, SolidShape};
 pub use sheet::{SPRITE_SHEET_ASSET_TYPE, SheetFrame, SheetSlice, SheetTag, SpriteSheet};
-pub use tilemap::{TILESET_ASSET_TYPE, TileSet, Tilemap};
+pub use sprite::Sprite;
+pub use text_component::{FontStyle, LineBreak, Text2d, Text3d, TruncateAt};
+pub use tilemap::{
+    Cells, CellsFile, InlineCells, TILESET_ASSET_TYPE, TileLayout, TileSet, Tilemap,
+};
 
 #[cfg(feature = "window")]
 mod app_icon;
@@ -145,6 +155,8 @@ mod debug_lines;
 mod device;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use appearance::keep_android_app;
+#[cfg(feature = "window")]
+mod boot_cost;
 #[cfg(feature = "window")]
 mod frame_group;
 #[cfg(all(feature = "window", target_family = "wasm"))]
@@ -210,7 +222,7 @@ pub enum Aov {
 /// What a screenshot announces to anyone listening once its file is written,
 /// with the path.
 pub const SCREENSHOT_WRITTEN_EVENT: &str = "screenshot_written";
-/// What it announces when no file came of it, `#{ path, error }`.
+/// What it announces when no file came of it, `{ path, error }`.
 pub const SCREENSHOT_FAILED_EVENT: &str = "screenshot_failed";
 
 /// Tell every listener a screenshot could not be written.
@@ -335,7 +347,7 @@ pub struct Renderable3d {
     /// Geometry computed for this node, present exactly when `shape` is
     /// built. Shared rather than copied: a backend keeps a handle to it
     /// between rebuilds.
-    pub built: Option<std::sync::Arc<balaur_core::mesh::MeshData>>,
+    pub built: Option<std::sync::Arc<balaur_geometry::mesh::MeshData>>,
     /// Node path to the rig a skinned mesh deforms with, relative to the
     /// node; empty means the node itself. Ignored by a mesh with no skin.
     pub skeleton: String,
@@ -370,7 +382,7 @@ pub enum Shape2d {
     /// A chain of points drawn thick: open it is a line, closed it is a
     /// polygon outline. The points live in `Renderable2d::polyline`, the way a
     /// sprite's texture lives beside its quad — the enum stays `Copy`.
-    Polyline(balaur_core::stroke::Stroke),
+    Polyline(balaur_geometry::stroke::Stroke),
     /// A filled, textured polygon, deformed by a rig when its mesh carries
     /// skin weights. The geometry lives in `Renderable2d::polygon`.
     Polygon,
@@ -422,10 +434,6 @@ pub struct SpriteSheet2d {
 
 /// What a `Shape2d::Sprite` draws.
 #[derive(Clone, PartialEq)]
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "each flag is its own authored sprite property, not a state machine"
-)]
 pub struct SpriteTexture {
     /// Project-relative (or absolute) path to the image.
     pub path: String,
@@ -440,27 +448,13 @@ pub struct SpriteTexture {
     /// One rectangle of the image, in texture pixels as `[x, y, w, h]`: an
     /// atlas cell. `None` draws the whole image, or the sheet's frame.
     pub region: Option<[u32; 4]>,
-    /// The `sprite_sheet` asset `frame` indexes, or empty. With one, `region`
-    /// is that frame's rectangle and is derived rather than authored.
-    pub sheet_asset: String,
-    /// Whether `path` came from the sheet rather than the component, so
-    /// `get` reports the texture as the author left it: unset.
-    pub sheet_texture: bool,
-    /// Where the quad sits against its node, in texture pixels with y down,
-    /// as authored; `shift` is the same in node units.
-    pub offset: [f32; 2],
     /// Whether the quad is centred on its node. Off, its top-left corner is,
     /// which is where a sprite cut to sit on a point wants its origin.
     pub centered: bool,
-    /// `offset` and `centered` in the node's own units, y up, worked out
-    /// where the pixels per unit are known: how far the quad's centre sits
-    /// from the node before the node's rotation and scale.
+    /// The sprite's `offset` and `centered` in the node's own units, y up,
+    /// worked out where the pixels per unit are known: how far the quad's
+    /// centre sits from the node before the node's rotation and scale.
     pub shift: [f32; 2],
-    /// `pixels_per_unit` as authored, where 0 follows the texture's own;
-    /// the renderable carries the value it resolved to.
-    pub own_pixels_per_unit: f32,
-    /// `nine_slice_margins_pixels` as authored: left, right, top, bottom.
-    pub nine_slice_margins: [f32; 4],
     /// The margins the quad is cut by, in texture pixels: the authored ones,
     /// or a sheet slice's centre. `None` draws one plain quad.
     pub nine: Option<[f32; 4]>,
@@ -507,12 +501,7 @@ pub struct Renderable2d {
     pub texture: String,
     /// The `material` asset this draws with; empty means the built-in one.
     pub material: String,
-    /// Whether the author stated the size, rather than a sprite deriving it
-    /// from its image: a derived one re-derives when the sheet or
-    /// `pixels_per_unit` moves, and an authored one is left alone.
-    pub sized: bool,
-    /// The scale a sprite's size was derived at. Kept so `get` reports it and
-    /// a patch of anything else does not re-derive the quad at the default.
+    /// The scale a sprite's size was derived at.
     pub pixels_per_unit: f32,
     pub version: u64,
 }
@@ -530,7 +519,6 @@ impl Renderable2d {
             polygon: None,
             texture: String::new(),
             material: String::new(),
-            sized: false,
             pixels_per_unit: DEFAULT_PIXELS_PER_UNIT,
             version: 0,
         }
@@ -544,8 +532,7 @@ pub(crate) fn set_polygon(
     entity: Entity,
     polygon: std::sync::Arc<PolygonMesh>,
 ) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         let rebuild = r.shape != Shape2d::Polygon || r.polygon.as_deref() != Some(&*polygon);
         r.shape = Shape2d::Polygon;
         r.polygon = Some(polygon);
@@ -554,15 +541,14 @@ pub(crate) fn set_polygon(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                polygon: Some(polygon),
-                ..Renderable2d::fresh(Shape2d::Polygon)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            polygon: Some(polygon),
+            ..Renderable2d::fresh(Shape2d::Polygon)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// The box a mesh's vertices fill, or `None` when the asset will not load.
@@ -574,7 +560,7 @@ fn mesh_bounds(eng: &Engine, source: &str) -> Option<Bounds3d> {
         return None;
     }
     let definition =
-        balaur_core::assets::load_typed::<balaur_core::mesh::MeshData>(eng, source).ok()?;
+        balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, source).ok()?;
     let mut low = glamx::Vec3::splat(f32::INFINITY);
     let mut high = glamx::Vec3::splat(f32::NEG_INFINITY);
     for p in &definition.positions {
@@ -602,8 +588,7 @@ pub(crate) fn set_mesh(
     texture: String,
 ) -> Result<()> {
     let bounds = mesh_bounds(eng, &source);
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable3d>(entity) {
         let rebuild = r.shape != Shape3d::Mesh
             || r.mesh.as_deref() != Some(source.as_str())
             || r.skeleton != skeleton
@@ -618,49 +603,92 @@ pub(crate) fn set_mesh(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable3d {
-                shape: Shape3d::Mesh,
-                bounds,
-                color: [1.0, 1.0, 1.0, 1.0],
-                mesh: Some(source),
-                built: None,
-                skeleton,
-                texture,
-                material: String::new(),
-                shadows: true,
-                layers: u32::MAX,
-                render_layers: u32::MAX,
-                overlay: overlay::Overlay3d::default(),
-                version: 0,
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable3d {
+            shape: Shape3d::Mesh,
+            bounds,
+            color: [1.0, 1.0, 1.0, 1.0],
+            mesh: Some(source),
+            built: None,
+            skeleton,
+            texture,
+            material: String::new(),
+            shadows: true,
+            layers: u32::MAX,
+            render_layers: u32::MAX,
+            overlay: overlay::Overlay3d::default(),
+            version: 0,
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
-/// The `cast_shadow`, `light_layers`, `render_layers` and overlay keys a 3D
-/// renderable component offers, applied to whatever renderable the node just
-/// gained. A node with none of them casts, and every light and camera finds it.
+/// What a 3D renderable component's `cast_shadow`, `light_layers`,
+/// `render_layers`, `receive_shadows` and `segmentation_id` rows hold, as the
+/// renderable carries them.
+pub(crate) struct Lighting3d {
+    pub(crate) shadows: bool,
+    pub(crate) layers: u32,
+    pub(crate) render_layers: u32,
+    pub(crate) overlay: overlay::Overlay3d,
+}
+
+impl Lighting3d {
+    /// The rows as a component holds them.
+    pub(crate) fn of(
+        cast_shadow: bool,
+        light_layers: &[balaur_core::layers::Layer],
+        render_layers: &[balaur_core::layers::Layer],
+        receive_shadows: bool,
+        segmentation_id: i64,
+    ) -> Self {
+        Self {
+            shadows: cast_shadow,
+            layers: balaur_core::layers::Layer::bits(light_layers, true),
+            render_layers: balaur_core::layers::Layer::bits(render_layers, true),
+            overlay: overlay::Overlay3d {
+                segmentation_id: u32::try_from(segmentation_id.max(0)).unwrap_or(u32::MAX),
+                receive_shadows,
+            },
+        }
+    }
+}
+
+/// Put `lighting` on whatever 3D renderable the node just gained. A node
+/// with none of the rows casts, and every light and camera finds it.
+pub(crate) fn set_lighting(eng: &Engine, entity: Entity, lighting: &Lighting3d) {
+    let world = eng.world();
+    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+        r.shadows = lighting.shadows;
+        r.layers = lighting.layers;
+        r.render_layers = lighting.render_layers;
+        r.overlay = lighting.overlay;
+    }
+}
+
+/// [`set_lighting`] from a table, for the one 3D renderable still read from
+/// one: `mesh`, which takes keys of its own beside its schema's.
 pub(crate) fn lighting_from_params(eng: &Engine, entity: Entity, params: &toml::Value) {
     let shadows = params
         .get(crate::vocabulary::keys::CAST_SHADOW)
         .and_then(toml::Value::as_bool)
         .unwrap_or(true);
     let mask = |key: &str| balaur_core::layers::bits(params.get(key), true);
-    let world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
-        r.shadows = shadows;
-        r.layers = mask(crate::vocabulary::keys::LIGHT_LAYERS);
-        r.render_layers = mask(crate::vocabulary::keys::RENDER_LAYERS);
-        r.overlay = overlay::overlay_3d(params);
-    }
+    set_lighting(
+        eng,
+        entity,
+        &Lighting3d {
+            shadows,
+            layers: mask(crate::vocabulary::keys::LIGHT_LAYERS),
+            render_layers: mask(crate::vocabulary::keys::RENDER_LAYERS),
+            overlay: overlay::overlay_3d(params),
+        },
+    );
 }
 
 pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable3d>(entity) {
         // A shape carries its own tessellation now, so a rebuild re-runs the
         // mesher: only a shape that actually changed asks for one.
         if r.shape != shape {
@@ -669,32 +697,31 @@ pub(crate) fn set_shape(eng: &Engine, entity: Entity, shape: Shape3d) -> Result<
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable3d {
-                shape,
-                bounds: None,
-                color: [0.8, 0.8, 0.8, 1.0],
-                mesh: None,
-                built: None,
-                skeleton: String::new(),
-                texture: String::new(),
-                material: String::new(),
-                shadows: true,
-                layers: u32::MAX,
-                render_layers: u32::MAX,
-                overlay: overlay::Overlay3d::default(),
-                version: 0,
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable3d {
+            shape,
+            bounds: None,
+            color: [0.8, 0.8, 0.8, 1.0],
+            mesh: None,
+            built: None,
+            skeleton: String::new(),
+            texture: String::new(),
+            material: String::new(),
+            shadows: true,
+            layers: u32::MAX,
+            render_layers: u32::MAX,
+            overlay: overlay::Overlay3d::default(),
+            version: 0,
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// Point a 3D renderable at the image it draws, rebuilding its node when that
 /// changes.
 pub(crate) fn set_texture_3d(eng: &Engine, entity: Entity, texture: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut r = world
         .get::<&mut Renderable3d>(entity)
         .map_err(|_| anyhow!("node has no 3D shape yet"))?;
@@ -707,7 +734,7 @@ pub(crate) fn set_texture_3d(eng: &Engine, entity: Entity, texture: &str) -> Res
 
 /// The same for a 2D shape or polyline.
 pub(crate) fn set_texture_2d(eng: &Engine, entity: Entity, texture: &str) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut r = world
         .get::<&mut Renderable2d>(entity)
         .map_err(|_| anyhow!("node has no 2D shape yet"))?;
@@ -726,8 +753,7 @@ pub(crate) fn set_polyline(
     shape: Shape2d,
     style: LineStyle,
 ) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         let rebuild = r.shape != shape
             || r.polyline.as_deref() != Some(source.as_str())
             || r.line.as_ref() != Some(&style);
@@ -739,36 +765,33 @@ pub(crate) fn set_polyline(
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                polyline: Some(source),
-                line: Some(style),
-                ..Renderable2d::fresh(shape)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            polyline: Some(source),
+            line: Some(style),
+            ..Renderable2d::fresh(shape)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 pub(crate) fn set_shape2d(eng: &Engine, entity: Entity, shape: Shape2d) -> Result<()> {
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         if r.shape != shape {
             r.shape = shape;
             r.version += 1;
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                color: [0.8, 0.8, 0.8, 1.0],
-                ..Renderable2d::fresh(shape)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            color: [0.8, 0.8, 0.8, 1.0],
+            ..Renderable2d::fresh(shape)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// Half-extents of one frame of `path`, read from the image header.
@@ -821,11 +844,7 @@ pub(crate) fn set_sprite(
         hx: hx.max(f32::EPSILON),
         hy: hy.max(f32::EPSILON),
     };
-    // A size the caller stated is the author's; one read off the image is
-    // this call's, and `read_sprite` must not report it back as authored.
-    let sized = half_extents.is_some();
-    let mut world = eng.world_mut();
-    if let Ok(mut r) = world.get::<&mut Renderable2d>(entity) {
+    if let Ok(mut r) = eng.world().get::<&mut Renderable2d>(entity) {
         // The frame alone changes UVs, which the backend re-applies every
         // sync; anything else means the backend's node has to be rebuilt.
         let rebuild = r.shape != shape
@@ -834,24 +853,21 @@ pub(crate) fn set_sprite(
                 .is_none_or(|s| s.path != texture.path || s.sheet != texture.sheet);
         r.shape = shape;
         r.sprite = Some(texture);
-        r.sized = sized;
         r.pixels_per_unit = ppu;
         if rebuild {
             r.version += 1;
         }
         return Ok(());
     }
-    world
-        .insert_one(
-            entity,
-            Renderable2d {
-                sprite: Some(texture),
-                sized,
-                pixels_per_unit: ppu,
-                ..Renderable2d::fresh(shape)
-            },
-        )
-        .map_err(|_| anyhow!("node is dead"))
+    eng.insert_one(
+        entity,
+        Renderable2d {
+            sprite: Some(texture),
+            pixels_per_unit: ppu,
+            ..Renderable2d::fresh(shape)
+        },
+    )
+    .map_err(|_| anyhow!("node is dead"))
 }
 
 /// The `color` property of a renderable component's params.
@@ -871,20 +887,6 @@ pub(crate) fn color_from_params(params: &toml::Value) -> [f32; 4] {
     [c(0, 0.8), c(1, 0.8), c(2, 0.8), c(3, 1.0)]
 }
 
-/// A colour property read by name, with its own default per channel: what
-/// `color_from_params` does for the one property called `color`.
-pub(crate) fn color_from_key(params: &toml::Value, key: &str, fallback: [f32; 4]) -> [f32; 4] {
-    let c = |i: usize| {
-        params
-            .get(key)
-            .and_then(|v| v.as_array())
-            .and_then(|a| a.get(i))
-            .and_then(balaur_core::components::as_f64)
-            .map_or(fallback[i], |v| v as f32)
-    };
-    [c(0), c(1), c(2), c(3)]
-}
-
 /// The `color` property, for a component's `get`.
 pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
     toml::Value::Array(
@@ -897,7 +899,7 @@ pub(crate) fn color_to_toml(color: [f32; 4]) -> toml::Value {
 
 /// Tint whichever renderable(s) the node carries (3D, 2D and/or particles).
 pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result<()> {
-    let world = eng.world_mut();
+    let world = eng.world();
     let mut any = false;
     if let Ok(mut r) = world.get::<&mut Renderable3d>(entity) {
         r.color = color;
@@ -917,24 +919,24 @@ pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result
     Ok(())
 }
 
-pub struct RenderPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for RenderPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("render", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct RenderPlugin;
 
 impl balaur_plugin::Plugin for RenderPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "render"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
+        balaur_core::settings::define_group(
+            reg.engine(),
+            "render",
+            balaur_core::settings::Scope::Project,
+            &balaur_core::ComponentDef::parse_schema(
+                "settings.render",
+                &light3d::budget_settings(),
+            ),
+        );
         reg.insert_resource(CameraConfig3d::default());
         reg.insert_resource(ClearColorConfig {
             color: [0.09, 0.098, 0.11],
@@ -963,31 +965,31 @@ impl balaur_plugin::Plugin for RenderPlugin {
         for (name, value) in vocabulary::CONSTANTS {
             m.constant(name, balaur_script::Value::Str((*value).to_string()));
         }
-        script_api::install_camera_api(&mut *m);
-        script_api::install_camera_2d_api(&mut *m);
-        debug_view::install_debug_view_api(&mut *m);
-        script_api::install_backdrop_api(&mut *m);
-        retained::install_retained_api(&mut *m);
-        material::install_material_check(&mut *m);
-        material::install_material_params(&mut *m);
-        shape::install_shape_api(&mut *m);
-        boolean::install_boolean_api(&mut *m);
-        multimesh_api::install_multimesh_api(&mut *m);
-        multimesh_api::install_multimesh_list_api(&mut *m);
-        populate::install_populate_api(&mut *m);
-        light::install_occluder_api(&mut *m);
-        stats::install_stats_api(&mut *m);
-        script_api::install_sprite_api(&mut *m);
-        script_api::install_sprite_state_api(&mut *m);
-        script_api::install_texture_api(&mut *m);
-        draw_2d::install_draw_2d_api(&mut *m);
-        text_component::install_text_api(&mut *m);
-        tilemap::install_tilemap_api(&mut *m);
-        tilemap::install_tilemap_terrain_api(&mut *m);
-        notifier::install_notifier_api(&mut *m);
+        script_api::install_camera_api(&mut m);
+        script_api::install_camera_2d_api(&mut m);
+        debug_view::install_debug_view_api(&mut m);
+        script_api::install_backdrop_api(&mut m);
+        retained::install_retained_api(&mut m);
+        material::install_material_check(&mut m);
+        material::install_material_params(&mut m);
+        boolean::install_boolean_api(&mut m);
+        multimesh_api::install_multimesh_api(&mut m);
+        multimesh_api::install_multimesh_list_api(&mut m);
+        populate::install_populate_api(&mut m);
+        light::install_occluder_api(&mut m);
+        stats::install_stats_api(&mut m);
+        script_api::install_sprite_api(&mut m);
+        script_api::install_sprite_state_api(&mut m);
+        script_api::install_texture_api(&mut m);
+        draw_2d::install_draw_2d_api(&mut m);
+        text_component::install_text_api(&mut m);
+        tilemap::install_tilemap_api(&mut m);
+        tilemap::install_tilemap_terrain_api(&mut m);
+        notifier::install_notifier_api(&mut m);
         script_api::register_window_module(reg)?;
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
+        shape::register_line2d_component(reg);
         register_render_presets(reg)?;
         sprite::register_sprite_component(reg);
         polygon::register_polygon_component(reg);
@@ -1030,7 +1032,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         // Before the buffers are drained or cleared: a kept group is part of
         // the frame being drawn.
         reg.add_system(Stage::Render, retained::replay_system);
-        reg.add_system(Stage::Render, clear_debug_lines_system);
+        reg.add_typed(Stage::Render, clear_debug_lines_system);
         reg.add_system(Stage::Last, unserved_screenshot_system);
 
         Ok(())
@@ -1045,21 +1047,31 @@ impl balaur_plugin::Plugin for RenderPlugin {
 /// Without it a headless run — `--headless`, CI, tests, the editor's
 /// screenshot mode — grows both `Vec`s forever, one push per
 /// `render.draw_line` per frame.
-fn clear_debug_lines_system(eng: &Engine, _dt: f32) {
-    if eng.try_resource::<WindowedBackend>().is_some() {
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "a typed system takes its parameters by value, as the engine hands them"
+)]
+fn clear_debug_lines_system(
+    window: Option<Res<'_, WindowedBackend>>,
+    lines_3d: Option<ResMut<'_, DebugLineBuffer3d>>,
+    lines_2d: Option<ResMut<'_, DebugLineBuffer2d>>,
+    shapes: Option<ResMut<'_, DrawBuffer2d>>,
+    text: Option<ResMut<'_, world_text::TextDrawBuffer>>,
+) {
+    if window.is_some() {
         return;
     }
-    if let Some(lines) = eng.try_resource::<DebugLineBuffer3d>() {
-        lines.borrow_mut().lines.clear();
+    if let Some(mut lines) = lines_3d {
+        lines.lines.clear();
     }
-    if let Some(lines) = eng.try_resource::<DebugLineBuffer2d>() {
-        lines.borrow_mut().lines.clear();
+    if let Some(mut lines) = lines_2d {
+        lines.lines.clear();
     }
-    if let Some(shapes) = eng.try_resource::<DrawBuffer2d>() {
-        shapes.borrow_mut().shapes.clear();
+    if let Some(mut shapes) = shapes {
+        shapes.shapes.clear();
     }
-    if let Some(text) = eng.try_resource::<world_text::TextDrawBuffer>() {
-        text.borrow_mut().items.clear();
+    if let Some(mut text) = text {
+        text.items.clear();
     }
 }
 
@@ -1085,7 +1097,7 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("shape2d", Some("kind = \"rectangle\""))],
+            &[("shape2d", Some("shape = { kind = \"rectangle\" }"))],
         )?,
     );
     reg.register_preset(

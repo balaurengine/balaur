@@ -115,7 +115,7 @@ host_stream() {
     # nextest gives each test its own process and runs them in parallel. It
     # has no doctest runner, so those stay with cargo.
     if command -v cargo-nextest >/dev/null 2>&1; then
-      step 'tests' cargo nextest run --workspace --no-fail-fast || bad=1
+      step 'tests' cargo suite --no-fail-fast || bad=1
       step 'doctests' cargo test --workspace --doc || bad=1
     else
       step 'tests' cargo test --workspace || bad=1
@@ -133,7 +133,6 @@ host_stream() {
 features_stream() {
   side_env
   local bad=0
-  step 'clippy window' shape window clippy -p balaur_cli --features window --all-targets -- -D warnings || bad=1
   step 'clippy extensions' shape ext clippy -p balaur_plugin -p balaur --features balaur/extensions --all-targets -- -D warnings || bad=1
   if [ "$(uname)" = "Darwin" ]; then
     step 'clippy apple' shape apple clippy -p balaur_apple -p balaur --features balaur/apple --all-targets -- -D warnings || bad=1
@@ -177,7 +176,7 @@ shapes_stream() {
 
 # The suites that boot an app over real sockets, and the example pipeline:
 # minutes, so they are their own tier rather than part of every commit. Both
-# build in `target/`, where e2e.sh's `window` feature costs the CLI a rebuild.
+# build in `target/`.
 e2e_stream() {
   export CARGO_BUILD_JOBS=$side_jobs RUST_TEST_THREADS=$side_jobs
   local bad=0
@@ -187,7 +186,7 @@ e2e_stream() {
 }
 
 # The web editor module's features (scripts/package_play.sh), which reach every
-# browser file; then the defaults, where `window` is off.
+# browser file; then the defaults.
 wasm_stream() {
   side_env
   local bad=0
@@ -225,8 +224,11 @@ mobile_stream() {
     export CC_aarch64_linux_android="$bin/aarch64-linux-android26-clang"
     export CXX_aarch64_linux_android="$bin/aarch64-linux-android26-clang++"
     export AR_aarch64_linux_android="$bin/llvm-ar"
+    # Clippy calls every thread_local! on Android one that could be `const`,
+    # one that is too: std keeps no native thread locals there (1.98).
     step 'clippy android' shape android clippy --workspace --all-targets \
-      --target aarch64-linux-android -- -D warnings || bad=1
+      --target aarch64-linux-android -- -D warnings \
+      -A clippy::missing_const_for_thread_local || bad=1
   else
     printf 'no Android NDK or aarch64-linux-android target, clippy android skipped\n'
   fi
@@ -234,7 +236,7 @@ mobile_stream() {
     export IPHONEOS_DEPLOYMENT_TARGET=15.0
     step 'clippy ios' shape ios clippy --workspace --all-targets \
       --target aarch64-apple-ios -- -D warnings || bad=1
-    step 'clippy ios template' shape ios clippy -p balaur_cli --features window,apple \
+    step 'clippy ios template' shape ios clippy -p balaur_cli --features apple \
       --target aarch64-apple-ios -- -D warnings || bad=1
   elif [ "$(uname)" = "Darwin" ]; then
     printf 'no aarch64-apple-ios target, clippy ios skipped\n'

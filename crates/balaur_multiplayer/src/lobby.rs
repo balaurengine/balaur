@@ -6,7 +6,7 @@ use balaur_core::Engine;
 use balaur_core::rollback::PlayerId;
 use balaur_core::snapshot::Checkpoint;
 use balaur_core::time::Instant;
-use balaur_core::transport::{LinkState, Transport};
+use balaur_net::transport::{LinkState, Transport};
 use balaur_script::Value;
 
 use crate::links::{self, Listener};
@@ -123,7 +123,9 @@ pub(crate) fn join(
 
 /// Start with whoever is in. Answers whether a lobby was there to start.
 pub(crate) fn start(state: &mut MultiplayerState) -> bool {
-    let Phase::Hosting(lobby) = std::mem::replace(&mut state.phase, Phase::Idle) else {
+    let phase = std::mem::replace(&mut state.phase, Phase::Idle);
+    let Phase::Hosting(lobby) = phase else {
+        state.phase = phase;
         return false;
     };
     let Lobby {

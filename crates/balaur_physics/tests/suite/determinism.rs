@@ -29,7 +29,7 @@ id = "n_ground"
 name = "Ground"
 parent = "n_world"
 body3d = { kind = "static" }
-collider3d = { kind = "box", size = [20.0, 1.0, 20.0] }
+collider3d = { shape = { kind = "box", size = [20.0, 1.0, 20.0] } }
 
 [nodes.transform]
 position = [0.0, -1.0, 0.0]
@@ -39,7 +39,7 @@ id = "n_balla"
 name = "BallA"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.5 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
 
 [nodes.transform]
 position = [0.1, 5.0, 0.0]
@@ -49,7 +49,7 @@ id = "n_ballb"
 name = "BallB"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.5 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
 
 [nodes.transform]
 position = [-0.1, 7.0, 0.05]
@@ -60,7 +60,7 @@ position = [-0.1, 7.0, 0.05]
 
 fn boot(root: &std::path::Path) -> App {
     let mut app = App::new(AppConfig::bare(root.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app.load_project().unwrap();
     app
 }
@@ -130,7 +130,7 @@ id = "n_ground"
 name = "Ground"
 parent = "n_world"
 body2d = { kind = "static" }
-collider2d = { kind = "rectangle", size = [20, 2] }
+collider2d = { shape = { kind = "rectangle", size = [20, 2] } }
 
 [nodes.transform]
 position = [0.0, -1.0, 0.0]
@@ -140,7 +140,7 @@ id = "n_balla"
 name = "BallA"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.5, physics_material = { restitution = 0.4 } }
+collider2d = { shape = { kind = "circle", radius = 0.5 }, physics_material = { restitution = 0.4 } }
 
 [nodes.transform]
 position = [0.1, 5.0, 0.0]
@@ -150,7 +150,7 @@ id = "n_boxb"
 name = "BoxB"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "rectangle", size = [1.0, 0.6] }
+collider2d = { shape = { kind = "rectangle", size = [1.0, 0.6] } }
 
 [nodes.transform]
 position = [-0.1, 7.0, 0.0]

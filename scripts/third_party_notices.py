@@ -6,8 +6,10 @@ carries Apache-2.0-only, MPL-2.0 and BSD-3-Clause crates, and every one of
 those licences obliges us to pass its text and its copyright line on to
 whoever receives the binary. This walks the graph and writes that file.
 
-Dev-dependencies are excluded: criterion and tempfile are not in anything we
-ship. Everything reachable from a workspace crate as a normal or build
+Dev-dependencies are excluded: tempfile is not in anything we ship, and
+neither is the benchmarks crate, whose criterion is a normal dependency so
+that a test build shares the editor's (docs/QUALITY.md). Everything reachable
+from a workspace crate as a normal or build
 dependency is included, for every platform, because the exporter ships to all
 of them from one source tree.
 
@@ -35,6 +37,8 @@ BANNER = (
 LICENCE_FILE = re.compile(
     r"^(licen[cs]e|copying|notice|unlicen[cs]e|copyright)([-_.].*)?$", re.IGNORECASE
 )
+# Workspace crates no binary is built from.
+NOT_SHIPPED = {"balaur_bench"}
 # Files that match the name but carry no licence text.
 SKIP_SUFFIX = (".rs", ".py", ".toml", ".json", ".lock")
 
@@ -58,7 +62,9 @@ def shipped(meta):
     """Package ids reachable from a workspace crate, dev-dependencies aside."""
     nodes = {n["id"]: n for n in meta["resolve"]["nodes"]}
     members = set(meta["workspace_members"])
-    seen, queue = set(members), list(members)
+    names = {p["id"]: p["name"] for p in meta["packages"]}
+    roots = {m for m in members if names.get(m) not in NOT_SHIPPED}
+    seen, queue = set(members), list(roots)
     while queue:
         node = nodes.get(queue.pop())
         if not node:

@@ -15,41 +15,46 @@
 //! asset index skips what it matches and a pack leaves it out, so it never
 //! reaches a shipped game. A shipped script that `use`s a file it matches
 //! fails the export, which names the pattern, rather than the game.
+//!
+//! `tests/` is on every project's list: `balaur test` owns that folder.
 
 use crate::engine::Engine;
 
 pub const SETTING: &str = "application/ignore";
 
-/// The patterns a running project declares.
+/// What no project ships.
+const ALWAYS: &str = "tests/**";
+
+/// The patterns in force for a project that lists `declared`.
+fn with_always(declared: Option<&Vec<toml::Value>>) -> Vec<String> {
+    declared
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_str().map(str::to_string))
+        .chain([ALWAYS.to_string()])
+        .collect()
+}
+
+/// The patterns a running project holds to.
 pub fn patterns(eng: &Engine) -> Vec<String> {
-    crate::settings::get(eng, SETTING)
-        .and_then(|value| value.as_array().cloned())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    with_always(
+        crate::settings::get(eng, SETTING)
+            .as_ref()
+            .and_then(toml::Value::as_array),
+    )
 }
 
 /// The same list read straight from a `project.toml`, for a tool holding the
 /// text rather than a running engine.
 pub fn from_manifest(manifest: &str) -> Vec<String> {
-    let Ok(document) = toml::from_str::<toml::Value>(manifest) else {
-        return Vec::new();
-    };
-    document
-        .get("application")
-        .and_then(|table| table.get("ignore"))
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default()
+    let document = toml::from_str::<toml::Value>(manifest).ok();
+    with_always(
+        document
+            .as_ref()
+            .and_then(|document| document.get("application"))
+            .and_then(|table| table.get("ignore"))
+            .and_then(toml::Value::as_array),
+    )
 }
 
 /// Whether a project-relative path is ignored: the path itself, or a
@@ -71,6 +76,31 @@ pub fn matching<'a>(patterns: &'a [String], rel: &str) -> Option<&'a str> {
         let pattern = pattern.trim_end_matches('/');
         std::iter::once(rel)
             .chain(rel.match_indices('/').map(|(at, _)| &rel[..at]))
-            .any(|part| crate::pack::glob_matches(pattern, part))
+            .any(|part| glob_matches(pattern, part))
     })
+}
+
+/// Whether `pattern` matches `text`, with `*` inside a path segment and `**`
+/// across them. Byte-wise: a wildcard spans whatever it spans, and everything
+/// else is compared literally.
+pub fn glob_matches(pattern: &str, text: &str) -> bool {
+    fn matches(pattern: &[u8], text: &[u8]) -> bool {
+        match pattern.first() {
+            None => text.is_empty(),
+            Some(b'*') if pattern.get(1) == Some(&b'*') => {
+                let rest = &pattern[2..];
+                // `**/` stands for no directory at all as well as for many.
+                if rest.first() == Some(&b'/') && matches(&rest[1..], text) {
+                    return true;
+                }
+                (0..=text.len()).any(|at| matches(rest, &text[at..]))
+            }
+            Some(b'*') => {
+                let segment = text.iter().position(|&b| b == b'/').unwrap_or(text.len());
+                (0..=segment).any(|at| matches(&pattern[1..], &text[at..]))
+            }
+            Some(&byte) => text.first() == Some(&byte) && matches(&pattern[1..], &text[1..]),
+        }
+    }
+    matches(pattern.as_bytes(), text.as_bytes())
 }

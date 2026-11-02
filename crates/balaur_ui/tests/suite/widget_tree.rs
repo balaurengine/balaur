@@ -109,15 +109,15 @@ impl Owner {
     );
 }
 
-/// A panel's one script answers every control under it through
-/// `on_widget_event`, with no handler named on any of them.
+/// A panel's one script answers the controls under it that name its method,
+/// and the method is told which control spoke.
 #[test]
-fn a_panel_script_hears_every_control_under_it_through_on_widget_event() {
+fn a_key_hands_its_method_the_value_and_the_widget() {
     let script = "pub class Panel { node: Node, heard: int, last: str }
 impl Panel {
-    pub fn on_widget_event(event: str, node: Node, value: any) {
+    pub fn pressed(_value: any, node: Node) {
         self.heard += 1;
-        self.last = \"{event} {node.name()}\";
+        self.last = \"click {node.name()}\";
     }
     pub fn last() -> str { self.last }
     pub fn heard() -> int { self.heard }
@@ -139,13 +139,13 @@ impl Panel {
         &app,
         column,
         "Go",
-        &toml::toml! { kind = "button" text = "Go" }.into(),
+        &toml::toml! { kind = "button" text = "Go" on_click = "pressed" }.into(),
     );
     let stop = add_child_widget(
         &app,
         column,
         "Stop",
-        &toml::toml! { kind = "button" text = "Stop" }.into(),
+        &toml::toml! { kind = "button" text = "Stop" on_click = "pressed" }.into(),
     );
     app.tick(1.0 / 60.0);
     let last = || host.call_on(balaur::node_id_of(panel), "last", &[]);
@@ -158,7 +158,7 @@ impl Panel {
     assert_eq!(
         host.call_on(balaur::node_id_of(panel), "heard", &[]),
         Some(balaur_script::Value::Int(2)),
-        "one call a click, and none for the column the clicks passed through"
+        "one call a click"
     );
 }
 

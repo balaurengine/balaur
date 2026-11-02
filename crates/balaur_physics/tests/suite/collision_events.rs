@@ -7,11 +7,10 @@ use balaur_script::Value;
 use crate::boot::{self, entry, number};
 
 /// A crate resting on a ground box after a short fall, both scripted and both
-/// asking for `events`.
-fn landing(events: &str) -> boot::Booted {
+/// hearing what the fall raises.
+fn landing() -> boot::Booted {
     let mut b = boot::project(
-        &format!(
-            r#"[[nodes]]
+        r#"[[nodes]]
 id = "n_world"
 name = "World"
 
@@ -19,19 +18,18 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-script = {{ source = "scripts/scenario.bs" }}
-collider3d = {{ kind = "box", size = [10.0, 1.0, 10.0], events = [{events}] }}
+script = { source = "scripts/scenario.bs" }
+collider3d = { shape = { kind = "box", size = [10.0, 1.0, 10.0] } }
 
 [[nodes]]
 id = "n_crate"
 name = "Crate"
 parent = "n_world"
-script = {{ source = "scripts/scenario.bs" }}
-body3d = {{ kind = "dynamic" }}
-collider3d = {{ kind = "box", events = [{events}] }}
-transform = {{ position = [0.0, 1.5, 0.0] }}
-"#
-        ),
+script = { source = "scripts/scenario.bs" }
+body3d = { kind = "dynamic" }
+collider3d = { shape = { kind = "box" } }
+transform = { position = [0.0, 1.5, 0.0] }
+"#,
         r#"pub class Scenario { node: Node, entered: [any], left: [any], forces: [any] }
 impl Scenario {
     pub fn on_collision_enter(collision: any) { self.entered.push(collision); }
@@ -69,7 +67,7 @@ fn y(value: &Value) -> f64 {
 
 #[test]
 fn each_side_of_a_landing_hears_the_other_and_its_own_contact_points() {
-    let b = landing("\"collision\"");
+    let b = landing();
     for (node, other, facing) in [
         ("World/Ground", "World/Crate", 1.0),
         ("World/Crate", "World/Ground", -1.0),
@@ -104,6 +102,83 @@ fn each_side_of_a_landing_hears_the_other_and_its_own_contact_points() {
     }
 }
 
+const HEARS: &str = r"pub class Scenario { node: Node, entered: [any] }
+impl Scenario {
+    pub fn on_collision_enter(collision: any) { self.entered.push(collision); }
+    pub fn entered() -> [any] { self.entered }
+}
+";
+
+/// A sensor only reports, so it hears a kinematic body with no row saying so.
+#[test]
+fn a_sensor_hears_a_kinematic_body_it_overlaps() {
+    let mut b = boot::project(
+        r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_sensor"
+name = "Sensor"
+parent = "n_world"
+script = { source = "scripts/scenario.bs" }
+collider3d = { shape = { kind = "box" }, sensor = true }
+
+[[nodes]]
+id = "n_platform"
+name = "Platform"
+parent = "n_world"
+body3d = { kind = "kinematic" }
+collider3d = { shape = { kind = "box" } }
+"#,
+        HEARS,
+    );
+    b.tick(5);
+    first(&b, "World/Sensor", "entered");
+}
+
+/// A collider asks rapier only for what something hears: a script's hook, or
+/// a listener arriving later.
+#[test]
+fn a_collider_nothing_hears_raises_nothing_until_something_listens() {
+    let mut b = boot::project(
+        r#"[[nodes]]
+id = "n_world"
+name = "World"
+
+[[nodes]]
+id = "n_ground"
+name = "Ground"
+parent = "n_world"
+collider3d = { shape = { kind = "box", size = [10.0, 1.0, 10.0] } }
+
+[[nodes]]
+id = "n_ear"
+name = "Ear"
+parent = "n_world"
+script = { source = "scripts/scenario.bs" }
+"#,
+        r#"pub class Scenario { node: Node }
+impl Scenario {
+    pub fn listen() { events::listen(self.node, "collision_enter", self.node.get_node("../Ground")); }
+}
+"#,
+    );
+    let ground = b.node("World/Ground");
+    let active = |b: &boot::Booted| {
+        let state = b.app.engine.resource::<balaur_physics::PhysicsState3d>();
+        let state = state.borrow();
+        let handle = state.colliders[&ground][0];
+        state.world.colliders[handle].active_events()
+    };
+    b.tick(2);
+    assert!(active(&b).is_empty(), "nothing hears the ground yet");
+    let ear = b.node("World/Ear");
+    b.call(ear, "listen");
+    b.tick(2);
+    assert!(!active(&b).is_empty(), "a listener asked for it");
+}
+
 #[test]
 fn a_sensor_touch_says_so_and_holds_no_points() {
     let mut b = boot::project(
@@ -116,14 +191,14 @@ id = "n_zone"
 name = "Zone"
 parent = "n_world"
 script = { source = "scripts/scenario.bs" }
-collider3d = { kind = "box", size = [4.0, 1.0, 4.0], sensor = true, events = ["collision"] }
+collider3d = { shape = { kind = "box", size = [4.0, 1.0, 4.0] }, sensor = true }
 
 [[nodes]]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.25 }
+collider3d = { shape = { kind = "sphere", radius = 0.25 } }
 transform = { position = [0.0, 1.5, 0.0] }
 "#,
         r"pub class Scenario { node: Node, entered: [any], left: [any] }
@@ -146,7 +221,7 @@ impl Scenario {
 
 #[test]
 fn a_touch_that_ends_with_a_freed_collider_says_it_was_removed() {
-    let mut b = landing("\"collision\"");
+    let mut b = landing();
     let ground = b.node("World/Ground");
     b.call(ground, "drop_crate");
     b.tick(2);
@@ -156,7 +231,7 @@ fn a_touch_that_ends_with_a_freed_collider_says_it_was_removed() {
 
 #[test]
 fn both_sides_of_a_contact_force_point_away_from_themselves() {
-    let b = landing("\"contact_force\"");
+    let b = landing();
     for (node, facing) in [("World/Ground", 1.0), ("World/Crate", -1.0)] {
         let heard = first(&b, node, "forces");
         assert!(number(entry(&heard, "force")) > 0.0, "{node} felt no force");

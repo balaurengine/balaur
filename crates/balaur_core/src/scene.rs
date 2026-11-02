@@ -12,9 +12,33 @@ use smol_str::SmolStr;
 
 use crate::engine::Engine;
 
+mod rank;
+pub use rank::{TreeRank, tree_rank};
+
 pub struct Name(pub String);
+/// The node a node is under: the scene tree's relationship.
 pub struct Parent(pub Entity);
+/// The nodes under a node, in order: the side [`Parent`] keeps in step.
 pub struct Children(pub Vec<Entity>);
+
+impl crate::relationships::Relationship for Parent {
+    type Sources = Children;
+    fn new(target: Entity) -> Self {
+        Self(target)
+    }
+    fn target(&self) -> Entity {
+        self.0
+    }
+}
+
+impl crate::relationships::Sources for Children {
+    fn list(&self) -> &[Entity] {
+        &self.0
+    }
+    fn list_mut(&mut self) -> &mut Vec<Entity> {
+        &mut self.0
+    }
+}
 
 /// Bumped whenever the tree's shape changes: a node attached, detached, moved
 /// among its siblings, or renamed.
@@ -106,15 +130,21 @@ pub fn name_script(
     }
 }
 
-/// Local (parent-relative) transform, TRS convention.
-#[derive(Clone, Copy)]
+/// The node's `position`, `rotation_euler`, `scale` and `skew` in its parent's space. A node without one sits at its parent.
+#[derive(Clone, Copy, crate::components::derived::Component)]
+#[component(name = "transform", tags = ["2d", "3d"])]
 pub struct Transform {
+    /// Where the node sits in its parent's space
+    #[property(default = Vec3::ZERO)]
     pub position: Vec3,
+    /// Local rotation as euler angles in radians, x then y then z
+    #[property(name = "rotation_euler", default = Quat::IDENTITY, unit = "degrees")]
     pub rotation: Quat,
+    /// Size relative to the parent's
+    #[property(default = Vec3::ONE)]
     pub scale: Vec3,
-    /// A 2D shear: how far the y axis is turned past square with the x axis,
-    /// in radians, before the scale. Zero on everything that is not a 2D node
-    /// asking for one, and the composition takes the plain path when it is.
+    /// A 2D shear in radians: how far the y axis leans past square with the x axis; children lean with it
+    #[property(unit = "degrees")]
     pub skew: f32,
 }
 
@@ -498,6 +528,29 @@ pub fn spawn_node(world: &mut World, name: &str, parent: Entity) -> Entity {
     spawn_node_with_id(world, name, parent, id)
 }
 
+/// A node named `name` under `parent` on `entity`, which [`hecs::World::reserve_entity`]
+/// handed out earlier: what a deferred spawn makes.
+pub(crate) fn spawn_node_into(world: &mut World, entity: Entity, name: &str, parent: Entity) {
+    let id = crate::ids::mint_under(world, parent);
+    if world
+        .insert(
+            entity,
+            node_bundle!(
+                name,
+                Parent(parent),
+                Transform::identity(),
+                crate::components::Attached::with_transform(),
+                crate::components::StableId(id)
+            ),
+        )
+        .is_err()
+    {
+        tracing::warn!(?entity, name, "a deferred node's entity is gone");
+        return;
+    }
+    attach(world, parent, name, entity);
+}
+
 /// A node with the id a scene file gave it, and no local `Transform`: one that
 /// only groups or only draws.
 ///
@@ -534,6 +587,20 @@ pub fn spawn_node_with_id(world: &mut World, name: &str, parent: Entity, id: Str
     entity
 }
 
+/// What a parked scene's roots hang from: a node outside the tree, hidden and
+/// never ticking, which everything under it inherits.
+pub(crate) fn spawn_holder(world: &mut World, held: crate::parked::Held) -> Entity {
+    let holder = world.spawn(node_bundle!(
+        "Parked",
+        crate::process::ProcessMode::Disabled,
+        held
+    ));
+    if let Ok(mut look) = world.get::<&mut Appearance>(holder) {
+        look.visible = false;
+    }
+    holder
+}
+
 /// Spawn a node as `parent`'s child number `index`, clamped to the end.
 ///
 /// Where a snapshot puts a freed node back: the digest walks the tree in
@@ -557,16 +624,10 @@ pub fn spawn_node_at(
 /// rather than only the set.
 pub fn move_child_to(world: &World, parent: Entity, entity: Entity, index: usize) {
     shape_changed();
+    if world.get::<&Parent>(entity).map(|p| p.0) != Ok(parent)
+        || !crate::relationships::place::<Parent>(world, entity, index)
     {
-        let Ok(mut children) = world.get::<&mut Children>(parent) else {
-            return;
-        };
-        let Some(at) = children.0.iter().position(|&c| c == entity) else {
-            return;
-        };
-        let moved = children.0.remove(at);
-        let to = index.min(children.0.len());
-        children.0.insert(to, moved);
+        return;
     }
     // Among siblings sharing its name, the earliest may now be another; a
     // unique name stays on its one holder wherever it moves.
@@ -602,11 +663,9 @@ pub fn rename(world: &World, entity: Entity, name: &str) {
 }
 
 /// Append `child`, named `name`, to `parent`'s children and index it.
-fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
+pub(crate) fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
     shape_changed();
-    if let Ok(mut children) = world.get::<&mut Children>(parent) {
-        children.0.push(child);
-    }
+    crate::relationships::link::<Parent>(world, child, parent, None);
     if let Ok(mut index) = world.get::<&mut NameIndex>(parent) {
         if let Some(slot) = index.0.get_mut(name) {
             slot.count += 1;
@@ -623,10 +682,10 @@ fn attach(world: &World, parent: Entity, name: &str, child: Entity) {
 }
 
 /// Take `child` out of `parent`'s children and its name out of the index.
-fn detach(world: &World, parent: Entity, child: Entity) {
+pub(crate) fn detach(world: &World, parent: Entity, child: Entity) {
     shape_changed();
-    if let Ok(mut children) = world.get::<&mut Children>(parent) {
-        children.0.retain(|&c| c != child);
+    if crate::relationships::target_of::<Parent>(world, child) == Some(parent) {
+        crate::relationships::unlink::<Parent>(world, child);
     }
     if let Ok(name) = world.get::<&Name>(child) {
         unindex(world, parent, &name.0, child);
@@ -908,10 +967,10 @@ pub fn reparent(world: &mut World, entity: Entity, new_parent: Entity) -> anyhow
         .get::<&Name>(entity)
         .map(|n| n.0.clone())
         .unwrap_or_default();
-    attach(world, new_parent, &name, entity);
     world
         .insert(entity, (Parent(new_parent), local))
         .map_err(|_| anyhow::anyhow!("node is dead"))?;
+    attach(world, new_parent, &name, entity);
     Ok(())
 }
 
@@ -946,17 +1005,7 @@ pub fn collect_subtree(world: &World, entity: Entity) -> Vec<Entity> {
 /// [`collect_subtree`] appending to `out`, for a caller with many to gather;
 /// a leaf costs no allocation.
 pub fn collect_subtree_into(world: &World, entity: Entity, out: &mut Vec<Entity>) {
-    out.push(entity);
-    let mut stack: Vec<Entity> = match world.get::<&Children>(entity) {
-        Ok(children) if !children.0.is_empty() => children.0.clone(),
-        _ => return,
-    };
-    while let Some(e) = stack.pop() {
-        out.push(e);
-        if let Ok(children) = world.get::<&Children>(e) {
-            stack.extend(children.0.iter().copied());
-        }
-    }
+    crate::relationships::linked::<Parent>(world, entity, out);
 }
 
 /// Whether `entity` is `root` or somewhere below it.
@@ -1053,19 +1102,10 @@ pub fn free_nodes(eng: &Engine, entities: &[Entity]) {
     parents.sort_unstable_by_key(|e| e.to_bits());
     parents.dedup();
     for parent in parents {
-        let (emptied, gone) = {
-            let Ok(mut children) = world.get::<&mut Children>(parent) else {
-                continue;
-            };
-            let gone: Vec<Entity> = children
-                .0
-                .iter()
-                .copied()
-                .filter(|c| doomed.contains(c))
-                .collect();
-            children.0.retain(|c| !doomed.contains(c));
-            (children.0.is_empty(), gone)
-        };
+        let gone = crate::relationships::unlink_all::<Parent>(&world, parent, &doomed);
+        let emptied = world
+            .get::<&Children>(parent)
+            .is_ok_and(|children| children.0.is_empty());
         // A parent losing every child drops its index whole rather than
         // one name at a time.
         if emptied {

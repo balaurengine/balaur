@@ -6,12 +6,12 @@
 id = "panel"
 name = "Inspector"
 script = { source = "scripts/panels/inspector.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 3]
-visible = false
 
 # The node's mark and name, then its type beside them on one line.
 [[nodes]]
@@ -32,7 +32,6 @@ parent = "head"
 [nodes.widget]
 kind = "button"
 role = "text_title"
-text = ""
 interactive = false
 
 [[nodes]]
@@ -42,7 +41,6 @@ parent = "head"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
-text = ""
 truncate = true
 
 [[nodes]]
@@ -50,20 +48,21 @@ id = "search"
 name = "Search"
 parent = "panel"
 [nodes.widget]
+on_change = "search_typed"
 kind = "text_field"
 role = "input_dock"
-text = ""
+[nodes.widget_field]
 placeholder = "Search"
 
 [[nodes]]
 id = "nothing"
 name = "Nothing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "label"
 role = "text_note"
 text = "nothing selected"
-visible = false
 
 [[nodes]]
 id = "scroll"
@@ -98,6 +97,7 @@ id = "add"
 name = "Add"
 parent = "foot"
 [nodes.widget]
+on_click = "add"
 kind = "button"
 role = "action"
 text = "Add component"

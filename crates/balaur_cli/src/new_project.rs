@@ -199,7 +199,7 @@ mod tests {
             .iter()
             .find(|node| node["name"].as_str() == Some("Paper"))
             .unwrap();
-        let size: Vec<f64> = paper["shape2d"]["size"]
+        let size: Vec<f64> = paper["shape2d"]["shape"]["size"]
             .as_array()
             .unwrap()
             .iter()

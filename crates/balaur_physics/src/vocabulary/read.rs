@@ -26,63 +26,7 @@ pub(crate) fn text<'a>(params: &'a toml::Value, key: &str, default: &'a str) -> 
         .unwrap_or(default)
 }
 
-/// One component of a vector-typed property.
-pub(crate) fn axis(params: &toml::Value, key: &str, i: usize, default: f32) -> f32 {
-    params
-        .get(key)
-        .and_then(toml::Value::as_array)
-        .and_then(|a| a.get(i))
-        .and_then(as_f64)
-        .map_or(default, |v| v as f32)
-}
-
-pub(crate) fn vec3(params: &toml::Value, key: &str, default: [f32; 3]) -> [f32; 3] {
-    [
-        axis(params, key, 0, default[0]),
-        axis(params, key, 1, default[1]),
-        axis(params, key, 2, default[2]),
-    ]
-}
-
-/// A colour property, which the component layer has already turned into
-/// four channel floats.
-pub(crate) fn color(params: &toml::Value, key: &str, default: [f32; 4]) -> [f32; 4] {
-    [0, 1, 2, 3].map(|i| axis(params, key, i, default[i]))
-}
-
-pub(crate) fn vec2(params: &toml::Value, key: &str, default: [f32; 2]) -> [f32; 2] {
-    [
-        axis(params, key, 0, default[0]),
-        axis(params, key, 1, default[1]),
-    ]
-}
-
-/// The whole numbers a list-of-indices property holds; anything that is not
-/// one is skipped, so a half-typed row in the inspector does not throw the
-/// others away. A number written as text still counts, as scenes saved it so.
-pub(crate) fn indices(params: &toml::Value, key: &str) -> Vec<u32> {
-    params
-        .get(key)
-        .and_then(toml::Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| match item {
-                    toml::Value::Integer(n) => u32::try_from(*n).ok(),
-                    toml::Value::String(text) => text.trim().parse::<u32>().ok(),
-                    _ => None,
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-/// Whether a `flags`-typed property holds `name`.
-pub(crate) fn flag(params: &toml::Value, key: &str, name: &str) -> bool {
-    balaur_core::components::has_flag(params.get(key), name)
-}
-
-/// A trailing options table, as scripts write it (`#{ max = 10.0 }`).
+/// A trailing options table, as scripts write it (`{ "max": 10.0 }`).
 ///
 /// Every query, joint and character call takes one: they have more parameters
 /// than a positional list can carry legibly, and most of them are optional

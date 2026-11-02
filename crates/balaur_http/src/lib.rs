@@ -5,30 +5,19 @@
 //! [`HttpSnapshot`] — the same model as input. Recording the snapshot per
 //! tick is all a replay needs.
 //!
-//! Scripts never poll. A request names the node that handles its reply, and
-//! the pump dispatches it as a method call — the same signal shape a widget's
-//! `on_click` or an animation key uses:
-//!
-//! ```rune
-//! function S:init()
-//!     self.request = http.request(self.node, "https://example.com")
-//! end
-//! function S:on_response(r) print(r.status, r.body) end
-//! ```
-//!
-//! Or, sequentially: a request made without a node is a token the script
-//! suspends on until the pump wakes it:
-//! `let r = task::wait(http::request(url)).await`.
+//! Scripts never poll. A request answers an id the script suspends on until
+//! the pump wakes it: `let r = await task::wait(http::request(url));`. What
+//! lands or leaves on the way is the `http_progress` event.
 //!
 //! Nothing here blocks the frame: `http.request` returns an id immediately,
-//! and handlers and resumptions run at [`Stage::First`] of a later tick, in
-//! arrival order, never from an I/O thread.
+//! and resumptions run at [`Stage::First`] of a later tick, in arrival order,
+//! never from an I/O thread.
 
 use anyhow::{Result, anyhow};
-use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
+use balaur_core::handler::{headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
-use balaur_script::{Bindings, BindingsExt, Value};
+use balaur_script::{Module, Value};
 
 #[cfg(not(target_family = "wasm"))]
 mod request;
@@ -190,14 +179,11 @@ pub struct HttpState {
     /// The worker channel, this tick's arrivals, and the rule that a replay
     /// never reaches the network — all three live in here.
     io: ExternalIo<HttpEvent>,
-    handlers: DetHashMap<u64, Handler>,
-    /// Who hears a download's progress, by request.
-    progress: DetHashMap<u64, Handler>,
     /// Each request still in flight, with the flag that stops its worker.
     in_flight: DetHashMap<u64, std::sync::Arc<std::sync::atomic::AtomicBool>>,
     /// Cancelled requests whose late reply is still to be dropped.
     cancelled: balaur_core::collections::DetHashSet<u64>,
-    /// Cancelled since the last pump, told to their handlers there.
+    /// Cancelled since the last pump, whose waiters wake there.
     cancelled_now: Vec<u64>,
     /// The workers, started with the first request.
     pool: Option<backend::Pool>,
@@ -206,31 +192,10 @@ pub struct HttpState {
 impl HttpState {
     /// Start a request under `id` — an [`Engine::next_token`] value, so
     /// awaiting it can never collide with another subsystem's ids. The
-    /// response (or error) reaches `handler` on a later tick, and is recorded
-    /// in that tick's [`HttpSnapshot`] either way.
-    pub fn request(&mut self, eng: &Engine, id: u64, call: HttpCall, handler: Option<Handler>) {
-        self.request_with_progress(eng, id, call, handler, None);
-    }
-
-    /// As [`Self::request`], with a second handler hearing each chunk of a
-    /// download land as `{ request, received, total }`.
-    pub fn request_with_progress(
-        &mut self,
-        eng: &Engine,
-        id: u64,
-        mut call: HttpCall,
-        handler: Option<Handler>,
-        progress: Option<Handler>,
-    ) {
+    /// response (or error) wakes `id` on a later tick, and is recorded in that
+    /// tick's [`HttpSnapshot`] either way.
+    pub fn request(&mut self, eng: &Engine, id: u64, mut call: HttpCall) {
         call.id = id;
-        // The handler is wired up either way: on a replay the recorded reply
-        // still has to find its way home.
-        if let Some(handler) = handler {
-            self.handlers.insert(id, handler);
-        }
-        if let Some(handler) = progress {
-            self.progress.insert(id, handler);
-        }
         // The outbound side, which no source records: a reply is captured
         // with the id it answers, and nothing else says the request went out.
         balaur_core::replay::event(
@@ -254,21 +219,21 @@ impl HttpState {
     }
 
     /// Stop waiting on a request: its reply is never delivered, a download
-    /// stops writing, and the handler hears `cancelled` at the next pump.
+    /// stops writing, and whatever awaits it wakes with `cancelled` at the next
+    /// pump.
     /// False when it had already finished.
     pub fn cancel(&mut self, request: u64) -> bool {
         let Some(flag) = self.in_flight.shift_remove(&request) else {
             return false;
         };
         flag.store(true, std::sync::atomic::Ordering::Relaxed);
-        self.progress.shift_remove(&request);
         self.cancelled.insert(request);
         self.cancelled_now.push(request);
         true
     }
 }
 
-/// This tick's completions, as the neutral values the handlers received.
+/// This tick's completions, as the neutral values the waiters received.
 /// Cleared and refilled by `pump_http_system` at [`Stage::First`]. Scripts
 /// never read it — it exists so Rust code can observe traffic, and so a
 /// recorder has one place to tap for replay.
@@ -277,19 +242,23 @@ pub struct HttpSnapshot {
     pub responses: Vec<Value>,
 }
 
+/// The event a download's or a long body's progress arrives as, with the
+/// `request` it belongs to: heard with `events::listen` as `on_http_progress`.
+pub const PROGRESS_EVENT: &str = "http_progress";
+
 /// Drain the worker threads' reports, record them in the frame's snapshot,
-/// then dispatch each to its handler — in arrival order throughout. Arrival
-/// order is an input to the simulation, like a key press: not reproducible
-/// across runs, but stable for everyone this tick.
+/// then wake what awaits each — in arrival order throughout. Arrival order is
+/// an input to the simulation, like a key press: not reproducible across runs,
+/// but stable for everyone this tick.
 ///
-/// Dispatch happens after the borrows are released, so a handler may itself
+/// The wakes happen after the borrows are released, so what wakes may itself
 /// make another request.
 fn pump_http_system(eng: &Engine, _: f32) {
     // Backends with no delivery threads (the browser) flush their queues
     // here; the native one is a no-op.
     backend::pump();
-    let mut dispatches: Vec<(Option<Handler>, u64, Value)> = Vec::new();
-    let mut progress: Vec<(Option<Handler>, Value)> = Vec::new();
+    let mut finished: Vec<(u64, Value)> = Vec::new();
+    let mut progress: Vec<Value> = Vec::new();
     {
         let state = eng.resource::<HttpState>();
         let snapshot = eng.resource::<HttpSnapshot>();
@@ -297,13 +266,12 @@ fn pump_http_system(eng: &Engine, _: f32) {
         let mut snapshot = snapshot.borrow_mut();
         snapshot.responses.clear();
         for request in std::mem::take(&mut state.cancelled_now) {
-            let handler = state.handlers.shift_remove(&request);
             let value = Value::Map(vec![
                 ("kind".into(), Value::Str(kind::CANCELLED.into())),
                 ("request".into(), id_value(request)),
             ]);
             snapshot.responses.push(value.clone());
-            dispatches.push((handler, request, value));
+            finished.push((request, value));
         }
         for event in state.io.drain() {
             let request = event.request();
@@ -316,37 +284,23 @@ fn pump_http_system(eng: &Engine, _: f32) {
             }
             // A chunk landing or leaving wakes nothing: the call is still going.
             if matches!(event, HttpEvent::Progress { .. } | HttpEvent::Sent { .. }) {
-                let handler = state.progress.get(&request).cloned();
                 let value = event_value(event);
                 snapshot.responses.push(value.clone());
-                progress.push((handler, value));
+                progress.push(value);
                 continue;
             }
             // shift_remove: keeps the remaining entries in insertion order,
             // so iteration stays deterministic.
-            let handler = state.handlers.shift_remove(&request);
-            state.progress.shift_remove(&request);
             state.in_flight.shift_remove(&request);
             let value = event_value(event);
             snapshot.responses.push(value.clone());
-            // Every completion wakes its id too, so a script that chose
-            // `await` over a handler resumes here.
-            dispatches.push((handler, request, value));
+            finished.push((request, value));
         }
     }
-    if let Some(host) = eng.script_host() {
-        for (handler, value) in progress {
-            if let Some(handler) = handler {
-                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-            }
-        }
-        for (handler, token, value) in dispatches {
-            if let Some(handler) = handler {
-                host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-            }
-            host.wake(token, &value);
-        }
+    for value in progress {
+        balaur_core::events::emit(eng, PROGRESS_EVENT, value);
     }
+    balaur_core::handler::wake_all(eng, finished);
 }
 
 /// The `kind` each event map carries, and the `EVENT_*` constants of it.
@@ -431,21 +385,12 @@ fn event_value(event: HttpEvent) -> Value {
     Value::Map(pairs)
 }
 
-pub struct HttpPlugin {
-    manifest: balaur_plugin::Manifest,
-}
-
-impl Default for HttpPlugin {
-    fn default() -> Self {
-        Self {
-            manifest: balaur_plugin::Manifest::new("http", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct HttpPlugin;
 
 impl balaur_plugin::Plugin for HttpPlugin {
-    fn manifest(&self) -> &balaur_plugin::Manifest {
-        &self.manifest
+    fn name(&self) -> &'static str {
+        "http"
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -474,7 +419,7 @@ max_parallel = {{ type = "int", default = {parallel}, min = {fewest}, max = {mos
             ),
         );
         let mut m = reg.script_module("http")?;
-        install_http_api(&mut *m);
+        install_http_api(&mut m);
         Ok(())
     }
 }
@@ -557,49 +502,39 @@ fn save_path_of(eng: &Engine, opts: Option<&Value>) -> Result<Option<std::path::
 }
 
 /// `http.*`. Declared against the neutral seam, so it works on any backend.
-fn install_http_api(m: &mut dyn Bindings<Engine>) {
+fn install_http_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. The reply reaches `on_response` as a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; `save_to` downloads report to `on_progress` with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
+        "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
+    m.records(&[(
+        "RequestOptions",
+        "{ method: string?, headers: any, body: any, timeout_seconds: float?, save_to: string? }",
+        "One request: its `method`, `headers` and `body`, how long it may take, and the file under the user directory a download is written to.",
+    )]);
     m.describe(&[
-        ("request", &[], "-> int", "Start an HTTP request and return the id its reply carries, to await or to match inside the handler. With `save_to` the body is written under the user directory and the reply says where in `path`."),
-        ("cancel", &[], "", "Stop waiting on a request: its reply is dropped, a download stops writing, and the handler and any await hear `kind` `cancelled` next frame. False when it had already finished."),
+        ("request", &[], "(url: string, opts: RequestOptions?) -> int", "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."),
+        ("cancel", &[], "", "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished."),
     ]);
     m.function("cancel", |eng: &Engine, request: i64| {
         let state = eng.resource::<HttpState>();
         let cancelled = u64::try_from(request).is_ok_and(|id| state.borrow_mut().cancel(id));
         Ok(Value::Bool(cancelled))
     });
-    // An HTTP error status is a response, not an error. With a nil node the
-    // returned id is a token to suspend on (`await` / `task::wait`).
+    // An HTTP error status is a response, not an error. The returned id is a
+    // token to suspend on.
     m.function(
         "request",
-        |eng: &Engine, (first, second, third): (Value, Option<Value>, Option<Value>)| {
-            let (node, url, opts) = match &first {
-                Value::Str(url) => (Value::Nil, url.clone(), second),
-                _ => match second {
-                    Some(Value::Str(url)) => (first, url, third),
-                    other => return Err(anyhow!("argument 1 should be a url, got {other:?}")),
-                },
-            };
-            let handler = handler_of(&node, opts.as_ref(), "on_response", "on_response")?;
+        |eng: &Engine, (url, opts): (String, Option<Value>)| {
             let mut call = call_of(&url, opts.as_ref())?;
             call.save_to = save_path_of(eng, opts.as_ref())?;
-            // A download reports what lands and a long body what goes out.
-            let progress = if call.save_to.is_some() || call.body.is_some() {
-                handler_of(&node, opts.as_ref(), "on_progress", "on_progress")?
-            } else {
-                None
-            };
             if call.timeout.is_none() {
                 call.timeout = Some(HttpConfig::from_settings(eng).timeout);
             }
             let id = eng.next_token();
-            let state = eng.resource::<HttpState>();
-            state
+            eng.resource::<HttpState>()
                 .borrow_mut()
-                .request_with_progress(eng, id, call, handler, progress);
+                .request(eng, id, call);
             Ok(id_value(id))
         },
     );

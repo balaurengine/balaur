@@ -36,8 +36,6 @@ pub enum SocketEvent {
         event: String,
         payload: Value,
     },
-    /// The connection ended; no further events will come.
-    Closed { reason: String },
 }
 
 /// The channel protocol without a transport: what to send, and what a

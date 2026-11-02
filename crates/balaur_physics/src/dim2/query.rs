@@ -13,7 +13,7 @@ use crate::scalar::{self, Pose2, Real};
 use anyhow::{Result, anyhow};
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, entity_of, node_id_of};
-use balaur_script::{Bindings, BindingsExt, CallbackHost, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
 use crate::vocabulary::{Opts, component as c, keys as k, map};
@@ -30,89 +30,103 @@ fn ray_of(opts: &Opts<'_>) -> (Ray, Real, bool) {
     let dir = opts.vec2(k::DIRECTION, [0.0, -1.0]);
     (
         Ray::new(scalar::v2a(from), scalar::v2a(dir)),
-        scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+        opts.f32(k::MAX_DISTANCE, 1000.0),
         opts.boolean(k::HIT_FROM_INSIDE, true),
     )
 }
 
-pub(crate) fn install_physics2d_query_api(m: &mut dyn Bindings<Engine>) {
-    m.describe(&[
-        ("raycast", &[], "(opts: table) -> map?", "The first collider a ray meets: `#{ from = [x, y], dir = [x, y], max = 100.0, filter = #{ exclude = node } }`. Returns `#{ node, point, normal, distance }`, or nothing."),
-    ]);
+/// The tables this module's queries take and give.
+const RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "QueryFilter",
+        "{ only: string?, hit_sensors: bool?, hit_solids: bool?, collision_mask: [int]?, exclude: node?, exclude_body: node? }",
+        "Which colliders a query sees: `only` dynamic, kinematic or static bodies, sensors and solids or not, the layers of `collision_mask`, a node's colliders or its body's left out, and a `predicate` function that keeps a node or not.",
+    ),
+    (
+        "RayQuery",
+        "{ origin: vec2?, direction: vec2?, max_distance: float?, hit_from_inside: bool?, filter: QueryFilter? }",
+        "A ray: where it starts, which way it goes and how far, and whether a collider it starts inside is hit.",
+    ),
+    (
+        "ShapeQuery",
+        "{ shape: any, origin: vec2?, direction: vec2?, at: vec2?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
+        "A shape, in the collider's vocabulary, swept from `origin` along `direction`, or standing `at` a point.",
+    ),
+    (
+        "PointQuery",
+        "{ point: vec2?, max_distance: float?, hit_from_inside: bool?, filter: QueryFilter? }",
+        "A world point, and how far from it a collider may be.",
+    ),
+    (
+        "BoxQuery",
+        "{ min: vec2?, max: vec2?, filter: QueryFilter? }",
+        "An axis-aligned box from its lowest corner to its highest.",
+    ),
+    (
+        "Hit",
+        "{ node: node, point: vec2, normal: vec2, distance: float }",
+        "What a ray or a swept shape met first: the node, the point and the normal there, and how far along it was.",
+    ),
+    (
+        "Closest",
+        "{ node: node, point: vec2, inside: bool, distance: float }",
+        "The collider nearest a point: its node, the point on it, whether the point was inside, and how far.",
+    ),
+    (
+        "ImpactOptions",
+        "{ velocity_a: any, velocity_b: any, max_time: float?, stop_at_penetration: bool? }",
+        "How two colliders move for `time_of_impact`: each one's velocity, and how far ahead to look.",
+    ),
+];
+
+pub(crate) fn install_physics2d_query_api(m: &mut Module<Engine>) {
+    m.records(RECORDS);
+    m.describe(&[(
+        "raycast",
+        &[],
+        "(opts: RayQuery) -> Hit?",
+        "The first collider a ray meets, or nothing.",
+    )]);
     m.function("raycast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
-        // The pruning path, as in 3D: see `crate::query`.
-        if !has_predicate(&opts) {
-            let state = eng.resource::<PhysicsState2d>();
-            let state = state.borrow();
-            let mut groups = None;
-            let skip = excluded(&opts, &state);
-            let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
-            let filter = filter_of(&opts, &mut groups).predicate(&keep);
-            let found = state
-                .world
-                .query_pipeline_with_filter(filter)
-                .cast_ray_and_get_normal(&ray, max, solid);
-            let Some((handle, hit)) = found else {
-                return Ok(Value::Nil);
-            };
-            let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
-                return Ok(Value::Nil);
-            };
-            let point = ray.point_at(hit.time_of_impact);
-            return Ok(hit_value(
-                entity,
-                scalar::a2(point),
-                scalar::a2(hit.normal),
-                hit.time_of_impact,
-            ));
-        }
-        let mut candidates = Vec::new();
-        {
-            let state = eng.resource::<PhysicsState2d>();
-            let state = state.borrow();
-            let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
-            let skip = excluded(&opts, &state);
-            for (handle, collider, hit) in state
-                .world
-                .query_pipeline_with_filter(filter)
-                .intersect_ray(ray, max, solid)
-            {
-                if skip.contains(&handle) {
-                    continue;
-                }
-                if let Some(entity) = entity_of_collider(collider) {
-                    let point = ray.point_at(hit.time_of_impact);
-                    candidates.push((
-                        entity,
-                        hit.time_of_impact,
-                        scalar::a2(point),
-                        scalar::a2(hit.normal),
-                    ));
-                }
-            }
-        }
-        sort_hits(&mut candidates, &eng.world())?;
-        for (entity, toi, point, normal) in candidates {
-            if allowed(eng, &opts, entity)? {
-                return Ok(hit_value(entity, point, normal, toi));
-            }
-        }
-        Ok(Value::Nil)
+        // Rapier stops at the nearest hit and prunes the tree by it; `raycast_all`
+        // is what walks every collider instead.
+        let state = eng.resource::<PhysicsState2d>();
+        let state = state.borrow();
+        let mut groups = None;
+        let skip = excluded(&opts, &state);
+        let keep = |handle: ColliderHandle, _: &Collider| !skip.contains(&handle);
+        let filter = filter_of(&opts, &mut groups).predicate(&keep);
+        let found = state
+            .world
+            .query_pipeline_with_filter(filter)
+            .cast_ray_and_get_normal(&ray, max, solid);
+        let Some((handle, hit)) = found else {
+            return Ok(Value::Nil);
+        };
+        let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
+            return Ok(Value::Nil);
+        };
+        let point = ray.point_at(hit.time_of_impact);
+        Ok(hit_value(
+            entity,
+            scalar::a2(point),
+            scalar::a2(hit.normal),
+            hit.time_of_impact,
+        ))
     });
 }
 
 /// Every collider along a 2D ray rather than the nearest one.
 ///
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_physics2d_raycast_all_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_raycast_all_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "raycast_all",
         &[],
-        "(opts: table) -> [map]",
+        "(opts: RayQuery) -> [Hit]",
         "Every collider a ray meets, nearest first.",
     )]);
     m.function("raycast_all", |eng: &Engine, opts: Value| {
@@ -146,35 +160,33 @@ pub(crate) fn install_physics2d_raycast_all_api(m: &mut dyn Bindings<Engine>) {
             }
         }
         sort_hits(&mut hits, &eng.world())?;
-        let mut out = Vec::new();
-        for (entity, toi, point, normal) in hits {
-            if allowed(eng, &opts, entity)? {
-                out.push(hit_value(entity, point, normal, toi));
-            }
-        }
-        Ok(Value::List(out))
+        Ok(Value::List(
+            hits.into_iter()
+                .map(|(entity, toi, point, normal)| hit_value(entity, point, normal, toi))
+                .collect(),
+        ))
     });
 }
 
 /// Sweeping a 2D shape rather than a ray.
 ///
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_shapecast_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "shapecast",
         &[],
-        "(opts: table) -> map?",
+        "(opts: ShapeQuery) -> Hit?",
         "Sweep a shape along a direction until it hits something: a thick raycast.",
     )]);
     m.function("shapecast", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::dim2::collider::collider_builder(eng, &params)?;
+        let builder = crate::dim2::collider::query_shape(eng, &params)?;
         let from = scalar::v2a(opts.vec2(k::ORIGIN, [0.0; 2]));
         let dir = scalar::v2a(opts.vec2(k::DIRECTION, [0.0, -1.0]));
         let options = ShapeCastOptions {
-            max_time_of_impact: scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+            max_time_of_impact: opts.f32(k::MAX_DISTANCE, 1000.0),
             stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
             ..ShapeCastOptions::default()
         };
@@ -206,30 +218,30 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut dyn Bindings<Engine>) {
 /// The 2D queries that ask about a place rather than a line.
 ///
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
             "closest_point",
             &[],
-            "(opts: table) -> map?",
+            "(opts: PointQuery) -> Closest?",
             "The closest point on any collider to a world point.",
         ),
         (
             "overlap_point",
             &[],
-            "(opts: table) -> [node]",
+            "(opts: PointQuery) -> [node]",
             "Every collider containing a world point: what a mouse click asks.",
         ),
         (
             "overlap_shape",
             &[],
-            "(opts: table) -> [node]",
+            "(opts: ShapeQuery) -> [node]",
             "Every collider a shape overlaps where it stands.",
         ),
         (
             "overlap_aabb",
             &[],
-            "(opts: table) -> [node]",
+            "(opts: BoxQuery) -> [node]",
             "Every collider whose bounds meet an axis-aligned box.",
         ),
         (
@@ -258,7 +270,7 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
             .query_pipeline_with_filter(filter)
             .project_point(
                 point,
-                scalar::real(opts.f32(k::MAX_DISTANCE, 1000.0)),
+                opts.f32(k::MAX_DISTANCE, 1000.0),
                 opts.boolean(k::HIT_FROM_INSIDE, true),
             );
         let Some((handle, projection)) = found else {
@@ -296,13 +308,13 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut dyn Bindings<Engine>) {
 /// The 2D queries that take a shape rather than a point.
 ///
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_shape_query_api(m: &mut Module<Engine>) {
     m.describe(&[]);
     m.function("overlap_shape", |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
-        let builder = crate::dim2::collider::collider_builder(eng, &params)?;
+        let builder = crate::dim2::collider::query_shape(eng, &params)?;
         let at = scalar::v2a(opts.vec2(k::AT, [0.0; 2]));
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
@@ -338,10 +350,10 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut dyn Bindings<Engine>) {
 /// The 2D questions asked about two nodes rather than about the world.
 ///
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
-pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `#{ a, b }`; nothing when they overlap."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: table) -> map?", "When two moving colliders would meet, given each one's velocity: `#{ velocity_a = [..], velocity_b = [..], max_time = 1.0 }`. Nothing when they never do."),
+        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `{ a, b }`; nothing when they overlap."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -373,7 +385,7 @@ pub(crate) fn install_physics2d_pair_query_api(m: &mut dyn Bindings<Engine>) {
 /// The two pair questions about where colliders nearly meet.
 ///
 /// Split from [`install_physics2d_pair_query_api`] under `MAX_FN_LINES`.
-fn install_physics2d_sweep_api(m: &mut dyn Bindings<Engine>) {
+fn install_physics2d_sweep_api(m: &mut Module<Engine>) {
     m.function(
         "closest_points",
         |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -405,7 +417,7 @@ fn install_physics2d_sweep_api(m: &mut dyn Bindings<Engine>) {
                 scalar::v2a(opts.vec2(k::VELOCITY_B, [0.0; 2])),
             );
             let options = ShapeCastOptions {
-                max_time_of_impact: scalar::real(opts.f32(k::MAX_TIME, 1.0)),
+                max_time_of_impact: opts.f32(k::MAX_TIME, 1.0),
                 stop_at_penetration: opts.boolean(k::STOP_AT_PENETRATION, true),
                 ..ShapeCastOptions::default()
             };
@@ -453,11 +465,11 @@ fn with_pair(
 
 /// What the 2D world holds, and what touches a node: `crate::query`'s
 /// `install_world_list_api` in two dimensions.
-pub(crate) fn install_physics2d_world_list_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_physics2d_world_list_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
         ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
-        ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `#{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
     ]);
     m.function("bodies", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState2d>();

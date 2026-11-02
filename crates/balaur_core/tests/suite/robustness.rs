@@ -1,7 +1,6 @@
 //! The parsers that read bytes somebody else wrote, against bytes nobody wrote.
 //!
-//! A pack arrives with a downloaded game, a `.glb` or an `.obj` arrives with
-//! an asset somebody was sent, and a scene is a file on disk. None of them is
+//! A pack arrives with a downloaded game, and a scene is a file on disk. None of them is
 //! the engine's own output once a project leaves the machine that built it,
 //! so each has to answer a corrupted input with an error rather than a panic.
 //!
@@ -11,53 +10,9 @@
 
 use balaur_core::{App, AppConfig, Pack};
 
-/// xorshift64*, so the corpus is the same on every machine and every run.
-struct Seeded(u64);
-
-impl Seeded {
-    fn next(&mut self) -> u64 {
-        let mut x = self.0;
-        x ^= x >> 12;
-        x ^= x << 25;
-        x ^= x >> 27;
-        self.0 = x;
-        x.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    fn below(&mut self, limit: usize) -> usize {
-        if limit == 0 {
-            return 0;
-        }
-        (self.next() % limit as u64) as usize
-    }
-}
-
-/// Every corruption a truncated download or a bad disk produces: a shorter
-/// file, one byte changed, one byte inserted, one byte dropped.
-fn corruptions(valid: &[u8], cases: usize) -> Vec<Vec<u8>> {
-    let mut rng = Seeded(0x5eed_1234_5eed_1234);
-    let mut out = Vec::with_capacity(cases + 3);
-    out.push(Vec::new());
-    out.push(valid[..valid.len() / 2].to_vec());
-    out.push(valid[..valid.len().saturating_sub(1)].to_vec());
-    for _ in 0..cases {
-        let mut bytes = valid.to_vec();
-        if bytes.is_empty() {
-            break;
-        }
-        let at = rng.below(bytes.len());
-        match rng.next() % 4 {
-            0 => bytes.truncate(at),
-            1 => bytes[at] ^= 1 << (rng.next() % 8),
-            2 => bytes.insert(at, (rng.next() % 256) as u8),
-            _ => {
-                bytes.remove(at);
-            }
-        }
-        out.push(bytes);
-    }
-    out
-}
+#[path = "../support/corrupt.rs"]
+mod corrupt;
+use corrupt::corruptions;
 
 fn a_pack() -> Pack {
     let mut pack = Pack {
@@ -104,59 +59,6 @@ fn a_corrupted_pack_is_an_error_and_never_a_panic() {
         "only {decoded_anyway} corrupted packs got past the header, so the \
          entries themselves were barely read"
     );
-}
-
-/// A `.glb` is a container with its own lengths, which is where a reader
-/// trusting the file walks off the end of it.
-#[test]
-fn a_corrupted_glb_is_an_error_and_never_a_panic() {
-    // 12-byte header, then one JSON chunk holding the smallest legal document.
-    let json = br#"{"asset":{"version":"2.0"},"meshes":[],"nodes":[],"scenes":[]}"#;
-    let padded = json.len().next_multiple_of(4);
-    let mut chunk = json.to_vec();
-    chunk.resize(padded, b' ');
-    let mut valid = Vec::new();
-    valid.extend_from_slice(b"glTF");
-    valid.extend_from_slice(&2u32.to_le_bytes());
-    valid.extend_from_slice(&((12 + 8 + padded) as u32).to_le_bytes());
-    valid.extend_from_slice(&(padded as u32).to_le_bytes());
-    valid.extend_from_slice(b"JSON");
-    valid.extend_from_slice(&chunk);
-
-    for (case, bytes) in corruptions(&valid, 2000).into_iter().enumerate() {
-        let read = std::panic::catch_unwind(|| {
-            balaur_core::glb::parse_gltf(&bytes, "corrupt.glb", &|_| {
-                Err(anyhow::anyhow!("no side files"))
-            })
-        });
-        assert!(
-            read.is_ok(),
-            "case {case}: parse_gltf panicked on {} bytes",
-            bytes.len()
-        );
-    }
-}
-
-/// An `.obj` is text with counts and indices in it, which is where a reader
-/// that trusts the file indexes past the end of its own vertex list.
-#[test]
-fn a_corrupted_obj_is_an_error_and_never_a_panic() {
-    let valid = b"# a quad\nv 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\n\
-                  vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\n\
-                  vn 0 0 1\n\
-                  f 1/1/1 2/2/1 3/3/1\nf 1/1/1 3/3/1 4/4/1\n";
-    assert!(
-        balaur_core::mesh::parse_obj(valid, "q.obj").is_ok(),
-        "the corpus itself must parse"
-    );
-    for (case, bytes) in corruptions(valid, 2000).into_iter().enumerate() {
-        let read = std::panic::catch_unwind(|| balaur_core::mesh::parse_obj(&bytes, "q.obj"));
-        assert!(
-            read.is_ok(),
-            "case {case}: parse_obj panicked on {} bytes",
-            bytes.len()
-        );
-    }
 }
 
 /// A scene names components, properties and parents, and a corrupted one

@@ -1,0 +1,29 @@
+[package]
+name = "balaur_geometry"
+description = "Balaur geometry: meshes, primitives, paths, CSG, tiles, voxels, heightfields and bones"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+balaur_core.workspace = true
+balaur_script.workspace = true
+anyhow.workspace = true
+toml.workspace = true
+glamx.workspace = true
+libm.workspace = true
+tracing.workspace = true
+rustc-hash.workspace = true
+i_overlay = "9"
+# The one triangulator: `balaur_core::triangulate` is where it is named, and
+# `balaur_text`'s glyph filler goes through that. `i_overlay`'s sibling.
+i_triangle = "0.50"
+# A model's simpler copies, generated at load; pure Rust, so a browser runs it.
+meshopt-rs = { version = "0.1", features = ["experimental"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

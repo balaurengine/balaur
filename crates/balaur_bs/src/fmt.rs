@@ -12,8 +12,8 @@ const INDENT: &str = "    ";
 
 /// Words after which `(` and `[` start a value rather than call or index
 /// the one before.
-const CONTROL: [&str; 9] = [
-    "if", "else", "while", "for", "in", "return", "loop", "let", "await",
+const CONTROL: [&str; 10] = [
+    "if", "else", "while", "for", "in", "return", "loop", "let", "await", "match",
 ];
 
 /// Operators that join two values: spaced on both sides, and a line that

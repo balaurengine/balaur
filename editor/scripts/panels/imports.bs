@@ -20,7 +20,7 @@ impl Imports {
 
     /// The clock: the frame the repaint it asked for ran, once the list is due
     /// to come down.
-    pub fn update(_dt: float) {
+    pub fn update(_delta_time: float) {
         if self.until > 0.0 && engine::unix_time() >= self.until {
             self.refresh();
         }
@@ -31,11 +31,13 @@ impl Imports {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.patch_component("widget", map().with("visible", view.get("shown")));
-        self.node.get_node("Bar").patch_component("widget", map().with("visible", view.get("bar")).with("value", view.get("value")));
-        self.until = view.get("until").as_float();
-        if view.get("until").as_float() > 0.0 {
-            ui::request_repaint(map().with("after", view.get("until").as_float() - engine::unix_time() + 0.05));
+        self.node.set_visible(view["shown"].as_bool());
+        let bar = self.node.get_node("Bar");
+        bar.set_visible(view["bar"].as_bool());
+        bar.widget_range.value = view["value"].as_float();
+        self.until = view["until"].as_float();
+        if view["until"].as_float() > 0.0 {
+            ui::request_repaint(ui::RepaintOptions { after: view["until"].as_float() - engine::unix_time() + 0.05 });
         }
     }
 }

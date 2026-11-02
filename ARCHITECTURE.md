@@ -10,7 +10,7 @@ names.
 ├────────────────────────────────────────────────────────────┤
 │  balaur_script_bs: host, hot reload, `use` files, debugger │
 ├────────────────────────────────────────────────────────────┤
-│  balaur_script: the seam — Bindings, ScriptHost, Value.    │
+│  balaur_script: the seam — Module, ScriptHost, Value.      │
 │  Traits only. No language; anyhow and serde.               │
 ├────────────────────────────────────────────────────────────┤
 │  modules declared once, reaching every language:           │
@@ -19,18 +19,38 @@ names.
 │ physics  │ render  │ audio  │ input  │ anim  │ your plugin │
 │ (rapier) │ (kiss3d)│ (rodio)│ (gilrs)│ (clip)│             │
 ├──────────┴─────────┴────────┴────────┴───────┴─────────────┤
-│  balaur_core: hecs ECS + scene tree + assets + scheduler.  │
-│  Names no scripting language.                              │
+│  geometry · asset · net · project · debug: shapes, models  │
+│  and pictures, sessions, packs, the debugger               │
+├────────────────────────────────────────────────────────────┤
+│  balaur_core, the kernel: hecs ECS + scene tree + assets + │
+│  scheduler. Names no scripting language, decodes no image. │
 └────────────────────────────────────────────────────────────┘
 ```
 
 Backends depend on core; core never depends on a backend. The compiler enforces
-the direction, and it is what keeps core language-free.
+the direction, and it is what keeps core language-free. The five crates around
+the kernel (`docs/PLAN-core-split.md`) depend on it and on nothing above it,
+and a test keeps the kernel's manifest free of them and of the image, glTF and
+mesh crates they took. `balaur::builtins()` composes an app: every crate's
+registration steps and script modules, in one order, handed to `App::new` as
+a `Builtins`; a bare app gets the kernel's own.
 
 ## Foundations
 
 - **ECS: hecs 0.11** — minimal, archetype-based, the most used maintained ECS
-  that is not `bevy_ecs`. Scheduling, hierarchy and resources are Balaur's own.
+  that is not `bevy_ecs`. Scheduling, hierarchy and resources are Balaur's own,
+  and so is what `bevy_ecs` adds over hecs (`docs/PLAN-ecs.md`): one door for
+  every structural write (`Engine::spawn`, `insert`, `remove_one`,
+  `despawn`, …; the `world-write` lint fails a `world_mut()` outside the
+  kernel); change ticks stamped by the registry's writes
+  (`components::ticks`, `scene.changed_since`); lifecycle calls and required
+  components declared on the derive (`#[component(on_add = f, requires =
+  [..])]`); commands made at each stage's end (`Engine::defer*`); typed
+  messages (`App::add_messages`, `MessageCursor`); observers inside
+  `events::announce`; relationships (`relationships`, the scene tree's
+  `Parent` and `Children`); schedules (`schedule::System`, `Set`); typed systems
+  (`system_param`, `App::add_typed`); and batches on the thread pool
+  (`Query::par_for_each`).
 - **Math: glamx** (glam + `Pose3`/`Rot3`), shared with rapier 0.35 and kiss3d
   0.46, so there are no conversion layers. It re-exports glam whole. The
   workspace pins `libm` and `scalar-math` — the features parry's
@@ -43,13 +63,66 @@ the direction, and it is what keeps core language-free.
 - Hand-written instead: `primitive` (parry returns no UVs or normals and lacks
   half the shapes), `csg` (parry has intersection only), `geometry2d`'s booleans
   on `i_overlay`, the 2D convex hull. Triangulation is `i_triangle`, named in
-  `balaur_core::triangulate` alone — parry's ear clipper is `pub(crate)` —
+  `balaur_geometry::triangulate` alone — parry's ear clipper is `pub(crate)` —
   with two forms: one over the caller's own points, which refuses a loop that
   crosses itself, and one that returns the vertex a crossing or a hole needed.
 - **`Engine`** is a clonable `Rc` handle over world, resources, command queue
   and script host, with interior mutability and short borrows: Rust systems and
   script bindings see one state, unmarshalled. Single-threaded by design;
   parallelism goes inside a system.
+- **What the ECS work costs**, measured with `examples/benchmark` in release
+  on an Apple M1 on 2026-10-31, `690bc856` (before PLAN-ecs step 3) against
+  the build after step 13, two alternating runs each, the median of a case:
+
+  | Case | Before | After |
+  | --- | ---: | ---: |
+  | `nodes/add_children`, 50,000 | 37.4–37.9 ms | 38.2–38.3 ms |
+  | `nodes/delete_children_random`, 50,000 | 27.7–27.9 ms | 28.1 ms |
+  | `nodes/get_node` | 51.3–51.4 ms | 51.7–52.0 ms |
+  | `3d/drop` frame, 8,000 bodies | 3.54–3.55 ms | 3.54–3.68 ms |
+  | its scene mirror | 2.11 ms | 0.42 ms |
+
+  Peak memory did not move past run-to-run noise (the `kind/*` cases at
+  5,000 nodes read 1.0–1.1 GB either way, ±50 MB a run). By its types, a
+  change stamp is 40 bytes for each registered component a write put on a
+  node, and nothing for a node's spawned transform. The web module (the
+  `web` profile with the runtime's features) went from 23,538,175 to
+  23,608,909 bytes, 6.39 to 6.41 MB under brotli: 22 KB on the wire. One regression was found and fixed on the way: a
+  frame's frees built a replay label for every freed node instead of the
+  first few the tick's log keeps, 10 ms on 50,000 frees.
+
+  Against hecs 0.11.2 and bevy_ecs 0.20.1 on the same operations (Apple M1,
+  release, fat LTO, the median of 11 to 201 runs, 2026-10-31):
+
+  | | hecs | balaur | bevy_ecs |
+  | --- | ---: | ---: | ---: |
+  | Spawn 100k entities, one at a time | 2.18 ms | 1.58 ms | 3.39 ms |
+  | Spawn 100k scene nodes (name, transform, parent, id) | — | 26.5 ms | — |
+  | Iterate 100k, `pos += vel` | 96 µs | 75 µs | 123 µs |
+  | The same, `par_for_each` in batches of 4,096 | — | 27 µs | — |
+  | Get 10k random entities | 117 µs | 121 µs | 60 µs |
+  | 10k tracked writes | 103 µs untracked | 1.17 ms | 75 µs |
+  | Despawn 100k entities | 1.27 ms | 1.35 ms | 2.53 ms |
+  | Free 100k scene nodes in one batch | — | 16.5 ms | — |
+  | 50 empty systems × 10k frames | 0.52 ms | 1.36 ms | 6.20 ms |
+  | The same, typed systems reading a resource | — | 2.66 ms | — |
+  | 1% of 100k written, then the written found | — | 251 µs | 107 µs |
+  | 100k written from a system, untracked | 41 µs | 41 µs | — |
+  | 100k written from a system, tracked | — | 181 µs | 64 µs |
+
+  The door, a query and a get are hecs's own, so they run at its speed (the
+  differences in those rows are where each world sits in memory). A
+  balaur system costs 2.7 ns a run, a typed one 5.3 ns, where bevy's
+  schedule costs 12. A tracked write is the one place balaur pays: a
+  property written through the registry, as a script, a scene or the editor
+  writes it, is 117 ns with its change stamp and its log entry, where bevy
+  stamps a column in 7.5. A Rust system's write through a typed query's
+  `Tracked<T>` is seen by change detection and costs 1.8 ns: like bevy, a
+  derived component carries a tick column beside it (`Ticked<T>`), and the
+  write stores the system's change tick there. A plain `&mut T` costs 0.4
+  ns and is not seen; bevy stamps every `&mut` it hands out, at 0.64. Finding
+  what changed scans that column, as bevy's `Changed` does (PLAN-ecs §2,
+  *Change detection*).
 - **Scene tree over ECS.** A node is an entity with `Name`, `Parent`,
   `Children`, `GlobalTransform`. Its local `Transform` is the `transform`
   component, `[nodes.transform]` in a file, and a node without one sits at its
@@ -64,13 +137,18 @@ the direction, and it is what keeps core language-free.
 animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSync
 (transforms) → Render → Last (deferred destruction)`.
 
-- `queue_free` lands in `Last`, so iteration is never invalidated mid-frame.
+- `queue_free` lands in `Last`, so iteration is never invalidated mid-frame;
+  every other deferred write (`Engine::defer`) lands at the end of the stage
+  that asked, or of the fixed step. A mode set with `Engine::set_mode`
+  changes at the next frame's start, before `First`.
 - `FixedUpdate` drains one app-owned accumulator in whole `fixed_dt()` steps: 0
   in a fast frame, up to `max_substeps()` in a slow one. One accumulator, not one
   per plugin — per-plugin ones made the step count depend on wall-clock jitter.
   `DEFAULT_FIXED_DT` is the default rate, and `[time] tick_hz` is what moves it.
-- Order inside a stage is registration order, and core registers the script
-  callback first, so `fixed_update` runs before that frame's physics step.
+- Order inside a stage is registration order unless a system says otherwise
+  (`schedule::System::before`, `after`, `in_set`; sorted once, cycles named),
+  and core registers the script callback first, so `fixed_update` runs before
+  that frame's physics step.
 - A debugger's freeze stops the whole stage. A game's own pause does not: the
   stage runs and each per-node subsystem asks `process::ticks`, because
   `process = "always"` has to let one subtree run while its sibling is held.
@@ -84,7 +162,7 @@ animation) → FixedUpdate (scripts, physics) → PostUpdate (audio) → SceneSy
 ### The seam
 
 `balaur_script` is traits and a neutral `Value`, three dependencies (`anyhow`,
-`serde`, `smol_str`), no language. Subsystems declare against `Bindings<Engine>`; a backend implements
+`serde`, `smol_str`), no language. Subsystems declare into a `Module<Engine>`; a backend implements
 `ScriptHost<Engine>`. Balaur Script (`balaur_bs`, `balaur_script_bs`) is the
 one backend; the Rune backend before it was one crate and went as one.
 
@@ -101,9 +179,8 @@ one backend; the Rune backend before it was one crate and went as one.
 - Nothing subscribes with a closure — that lifetime is call-scoped. A
   subscription is a node plus a method name: `ScriptHost::call_on(node, method,
   args)`. Persistent callbacks would need an id space with explicit release.
-- Most events also ship a polling twin (`animation.just_finished(node)`,
-  `input.key_just_pressed(key)`): an event is a frame-scoped
-  snapshot.
+- Input also answers when asked (`input.key_just_pressed(key)`): a press is a
+  frame-scoped snapshot.
 - `events.listen(node, name)` / `events.emit(name, payload)` deliver
   `on_<name>(payload)` at the top of the next `Update`, in emission then
   subscription order. The frame of delay keeps a handler from freeing the node
@@ -115,8 +192,6 @@ one backend; the Rune backend before it was one crate and went as one.
 - A scene inits its scripts children before parents, Godot's `_ready` order: a
   child can always reach its parent node, while a parent reading a child's
   script state is the one that would find nothing.
-- `script_language` in `project.toml` names the language; absent means `bs`,
-  the one this build runs.
 
 ### Model
 
@@ -134,8 +209,35 @@ one backend; the Rune backend before it was one crate and went as one.
   is made in one instance, one memory, each on its first call
   (`docs/PLAN-bs-linking.md`). A script holds another node's script as its
   class, `let tree: scene_tree::SceneTree? = node.script;`, and calls it
-  directly. A debugger's probes, a profiler, the browser and a native build
-  compile the whole file with its modules in, an instance of its own.
+  directly. A native build holds those units, translated to C, and links
+  them the same way (`balaur_bs::c`, `runtime/native_engine.rs`). A
+  debugger's probes, a profiler and the browser compile the whole file with
+  its modules in, an instance of its own.
+
+### Enums
+
+`enum Shape { Circle(float), Rect { w: float, h: float }, Empty }` and
+`match` are lowered before any code is made (`balaur_bs/src/enums.rs`), so
+neither the code generator, the C translator nor any engine knows them.
+
+- An enum is a value struct no script can see inside: `#tag`, the variant's
+  index, then every variant's fields as `Variant#field`. A field is stored
+  optional unless its type already holds nil, so a constructor names only
+  its own variant's fields; an `any` field of another variant is set to nil.
+  The parser writes the struct with the declaration, so linking, renaming
+  and a unit's declarations carry it as any struct.
+- `Shape::Circle(2.0)`, `Shape::Rect { w: 1.0, h: 2.0 }` and `Shape::Empty`
+  are that struct's literal, resolved after linking, so a module's enum is
+  `util::Shape::Circle`.
+- A `match` is `let match#n: Shape = subject;` and an `if .. else if ..
+  else` on the tag, the last arm the `else` once every variant is named. In
+  a statement's place, or as a block's value, the `let` and the `if` move
+  into the block around it, so the async lowering sees an ordinary `if` and
+  an `await` in an arm works.
+- Exhaustive: a variant left out, one named twice, or an arm after `_` or a
+  bare name is a compile error.
+- An enum is a value, so one cannot hold itself; a recursive shape goes
+  through a class or an array.
 
 ### Exported properties
 
@@ -199,6 +301,42 @@ the node's own, and the root's children become the node's.
   texture, model, font, sound or `.wesl` is a source, so only the asset
   generation moves and each consumer re-derives. Textures are keyed by path and
   mtime, so saving one image re-decodes that image alone.
+
+### Scene switches
+
+`scene.switch(path)` parks the scene it leaves and returns a scene already
+parked, with no node built and no `init` run. `crates/balaur_core/src/parked.rs`
+holds it. On a phone-sized screen of 55 cards, in release, the first visit takes
+9.2 ms and a park with a return 0.23 ms.
+
+- **Parked means out of the tree.** The scene's roots hang from a holder outside
+  it, hidden and `process = disabled`. Whatever walks from the root passes it by:
+  transforms, the widget arena, input, cameras, lights, `scene.find`. Whatever
+  asks the process mode stops, and whatever queries a component reads it as
+  hidden.
+- **Nothing reaches a parked script.** The host takes the instance out of every
+  pass and call, and a task it awaits holds with its wake kept in the runtime.
+  `on_parked_changed(false)` is where a script catches up on a theme, a locale or
+  a variable that moved meanwhile.
+- **State beside a node hears through `parked::on_change`.** Physics disables
+  bodies and colliders, and audio holds the sounds.
+- **A switch to the file already there is a reset:** freed and built again. A
+  file edited since a parked scene was built is built again on the way back, so
+  an edit still shows on a revisit.
+- **What stays is bounded by itself.** `parked::MAX_PARKED_NODES` nodes, 20,000,
+  the scene left longest ago freed first and a scene past it alone never parked.
+  A system memory warning frees them all. The budget is a node count rather than
+  a share of the machine's memory: a parked tree is in the digest, and two
+  machines must park alike. A scene freed is built again on the next visit.
+- **A pack warms what it ships.** After the first frame, one scene a frame is read
+  and parsed and its pictures decoded off the frame, one a pass, so a first visit
+  is no slower than the next; a memory warning ends it.
+- **`scene.unload(path)` lets go.** It frees the parked scene and drops its parsed
+  files and pictures, for a scene a game wants new.
+- **A multiplayer session starts with none.** Each peer visited its own screens
+  on the way there, and a rollback would carry them every tick.
+
+`docs/DETERMINISM.md` has how a parked scene counts as world state.
 
 ### Debugger
 
@@ -302,9 +440,9 @@ and remove hooks.
 
 A second set of components over the same tree, on the same `transform`.
 
-- `shape2d` (seven kinds, `circle` to `polyline`) and `sprite` render through a pan/zoom
-  orthographic camera: `render.set_camera_2d(cx, cy, zoom)` in logical px per
-  world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
+- `shape2d` (six kinds) and `sprite` render through a pan/zoom
+  orthographic camera: a `camera2d` node's position and `pixels_per_unit`, in
+  logical px per world unit, plus `camera_2d`, `mouse_world_2d`, `draw_line_2d`.
 - `body2d`/`collider2d` run in a rapier2d world beside the 3D one — same
   determinism build, accumulator and ordered collections. Both carry joints,
   character controller, queries, contacts and closest-point queries; 3D adds
@@ -315,7 +453,7 @@ A second set of components over the same tree, on the same `transform`.
 - Changing the frame moves UVs only and does not bump the renderable's version;
   changing texture or sheet does.
 - `physics.set_paused`, `is_paused`, `clear`, `set_sleeping_allowed`,
-  `sleeping_allowed`, `set_tuning`, `set_debug_draw`, `set_threads` span both
+  `sleeping_allowed`, `set_tuning`, `set_debug_draw` span both
   worlds, so an editor treats physics as one simulation.
 - The editor detects a 2D scene from its components and switches grid, camera,
   gizmo, picking and collider overlays. `examples/angrynerds` is a full 2D game.
@@ -373,14 +511,14 @@ content is `asset`.
   same world. That is why downscaling is an export key and not an import one:
   `[export] max_size` records the drawn `size` beside what it shrank. An SVG's
   `scale` and a model's `scale` do set sizes, and every build reads them alike.
-- Every reader of a picture goes through `balaur_core::pixels`: a raster
+- Every reader of a picture goes through `balaur_asset::pixels`: a raster
   decoded, an SVG rasterized, then `bleed` and `flip_green` applied. An export
   writes an SVG's raster under its own name, so a game runtime has no
   rasterizer.
 - A texture property is asset-typed, `asset = "texture"`: a plain image path
   resolves as `{ source = <path> }`, so the asset layer reads no file, and a
   `textures/*.toml`, `[[assets]]` block or inline table adds settings that win
-  over the sidecar. `balaur_core::texture_asset::source` is the one resolver.
+  over the sidecar. `balaur_asset::texture_asset::source` is the one resolver.
 - A model's `lods` are index lists over its own vertices, simplified at load by
   `meshopt-rs` and swapped by camera distance in the renderer alone, so no
   simulation reads which copy is drawn.
@@ -425,7 +563,7 @@ its `Cargo.toml` and fails if one appears.
   `max_substeps()` catch-up steps, so the sampler only sees the fixed step. Folding is floor-and-subtract;
   every transcendental is `libm`'s, glam's included. Players and tweens live in
   `DetHashMap`s and apply in insertion order.
-- Scheduling: after the script tick, so `animation.play()` lands the same frame;
+- Scheduling: after the script tick, so `node.animation.play()` lands the same frame;
   before `FixedUpdate`, where physics reads `Transform` for kinematic bodies, so
   an animated platform pushes what stands on it with no wiring. A step records
   deferred effects rather than applying in place — an `apply` may want the world
@@ -444,7 +582,7 @@ its `Cargo.toml` and fails if one appears.
 
 ### Objects: every shape is a mesh
 
-A shape is a function from parameters to `MeshData` in `balaur_core::primitive`
+A shape is a function from parameters to `MeshData` in `balaur_geometry::primitive`
 on `libm`. So a collider fitted to a torus, a ray picking one, a headless test
 and the triangles on screen are the same triangles.
 
@@ -614,6 +752,7 @@ such an export pack: the editor's, never a game template.
   variant is a game template, with no editor and no compiler, takes its
   platform's tags and is found as `balaur-runtime-<target>-<variant>`. A
   server is a target of its own; `[export] runtime` turns `web` into `web-2d`,
+  by default whichever is the smallest the game's scenes and scripts fit,
   and the export refuses a game whose scenes or scripts use the world it
   leaves out, since a script's body is invisible until it runs. CI builds,
   exports and runs every one; `scripts/features.sh` holds the feature sets.
@@ -761,9 +900,9 @@ write. It walks widgets in scene order and wraps.
 - A widget calls the method its `on_<verb>` key names and emits the event of
   that name without the `on_`: `click`, `change`, `submit`. The key reaches one
   method, the event reaches whoever subscribed or is awaiting it.
-- egui drives keyboard focus, but only once a project declares a `ui_*` action
-  or a script calls `ui.set_keyboard_focus`, so a game's arrows stay its own. A
-  pad goes through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
+- The keyboard drives focus until the game shows the keys are its own: an action
+  binding an arrow, Tab, Enter or Space, or a script reading one, unless it also
+  declares a `ui_*` action. A pad goes through `ui.focus_next/previous/activate_focused`, which `standard_app` maps
   to the actions `ui_next`, `ui_previous`, `ui_accept` — wiring in the
   assembling crate, since `balaur_ui` has no pads and `balaur_input` no widgets.
 
@@ -788,6 +927,11 @@ write. It walks widgets in scene order and wraps.
   between a mixer and a default; a handle remembers its bus and starting volume.
 - An undeclared bus is unity, not silence, so a typo stays audible and findable.
   A parent cycle is cut and reported.
+- **Effects are a bus's, not a sound's**: the filters, distortion, reverb and
+  automatic gain control (`low_pass_hz`, `reverb_time`, `auto_gain`, ...) and
+  the limiter are keys in `[audio.buses]`. A bus with any of them is mixed on
+  its own and passed through them once, before its parent; a sound wanting its
+  own plays on a bus of its own. They are built when the device opens.
 
 **Cues** are named sounds in `audio/cues.toml`. A script says
 `audio.play_cue("hit")`; which file, level and bus is the sound designer's.
@@ -795,9 +939,9 @@ write. It walks widgets in scene order and wraps.
 and the engine RNG would put what a player hears into the simulation's stream.
 Where the rotation got to is presentation: not snapshotted, not digested.
 
-**Positional.** A `listener` node is the ears: distance sets volume, offset
-across its right sets pan. A sound is placed by its `sound` component or per
-call; `audio.set_listener_position` covers a game whose ears are not a node.
+**Positional.** A `listener` node is the ears, else the current camera, a 3D one
+over a 2D one: distance sets volume, offset across its right sets pan. A sound
+is placed by its `sound` component or per call.
 
 - Attenuation is `inverse`, halving per doubling, or `inverse_square`,
   quartering, full inside `min_distance` and cut at `max_distance`. Pan is
@@ -835,8 +979,9 @@ call; `audio.set_listener_position` covers a game whose ears are not a node.
 ## Save games
 
 `save.write(slot, data)` and `save.read(slot)`, per user, under
-`user_data_dir()`. A save is whatever the game puts in the table; the engine
-decides three things.
+`user_data_dir()`. A save is whatever the game puts in the table, so a parked
+scene reaches one only if a script writes it there; the engine decides three
+things.
 
 - **Where it lives.** A slot name is letters, digits, `-` and `_`, so
   `../../id_rsa` is refused.
@@ -860,8 +1005,8 @@ things are shared.
   none every call still answers.
 - **Delivery is the engine's usual one**: an id out, the answer across a
   channel, `ExternalIo` landing it at `Stage::First` of a later tick — recorded,
-  replayable with no store present, dispatched to `on_platform_event` and to whoever
-  awaits the id.
+  replayable with no store present, waking whoever awaits the id; who is playing
+  is also the `platform_event` event.
 - **A write waits for its tick to settle.** A rollback cannot take an
   achievement back, so an outward call is held until its tick leaves the
   snapshot ring (`rollback::Clock`; `u64::MAX` with no session). Reads are never
@@ -897,6 +1042,12 @@ sees half of one.
   `scripts/fixed_update`, `scripts/reload`, `scene/transforms`.
 - `fixed_steps` sits beside the stages because a free-looking `fixed_update`
   usually means the accumulator had nothing to drain.
+- `--timings` opens with the boot, up to the first picture on screen: `device`,
+  `renderer` and `shaders` are what opening the window cost, and `later shaders`
+  counts pipelines built after it, each a stall on the frame that asked. A driver
+  compiles what it has not seen, so a first launch and a later one are different
+  runs: `scripts/first_launch.py` measures both on macOS, and
+  [docs/PLAN-loading.md](docs/PLAN-loading.md) has what they cost.
 - **Timings are an observer**: never recorded, replayed or hashed, so a
   `fixed_update` branching on one would desync and the digest would say so.
 
@@ -1025,7 +1176,7 @@ tick.
 `SnapshotRing` of the last N ticks.
 
 - Core snapshots the node set, transforms, appearance, tags, pause, clock,
-  timers, script state (through `save_state`/`load_state`) and the RNG; every
+  timers, each script's plain fields and the RNG; every
   other subsystem registers its own (physics through serde, animation). Core
   does not snapshot components: re-adding a `body3d` would rebuild the body and
   discard its velocity.
@@ -1163,6 +1314,14 @@ scale, the theme, the clipboard, when the next pass runs and pooled rows.
   `<project>/fonts/*.ttf`; `heading` / `ui` / `mono` / `icon` always exist.
 - `balaur_text` shapes (cosmic-text, swash) for both the widget layer and the
   renderer's world text, so a label and a `text3d` share one font set.
+- A character no face of a project has a glyph for asks the operating system
+  through `fontique`, for drawing only: a measurement stays on the project's
+  faces. That reads every font on macOS, iOS and Android, tens of
+  milliseconds, so a worker does it once the first frame is out. A character
+  asking sooner waits for the worker and gets the same face, so what a frame
+  draws never depends on when it finishes. Text egui lays out itself is noted
+  as it goes by (`theme::asked_of_egui`), since egui never says what it could
+  not draw.
 - Dimensions are design pixels: `ui.set_scale(f)` multiplies every metric and
   the queries divide back. HiDPI is separate and automatic; `set_scale` is
   comfort zoom (⌘+/⌘−).
@@ -1188,7 +1347,7 @@ overlay, dark and light token sets.
 - Reusable bindings it is built on: `fs`, `toml`, `scene.instantiate`,
   `engine.args`, `engine.reload_script`, `require` with in-place module reload,
   `log.recent`, `physics.set_paused/clear/set_sleeping_allowed`,
-  `render.set_background/set_grid/set_grid_colors/draw_line/draw_box/draw_sphere`, `render.set_camera`,
+  `render.set_background/set_grid/set_grid_colors/draw_line/draw_box/draw_sphere`,
   `render.camera_pose`, `render.set_camera_input`.
 - The gizmo follows steadyum's: an orange bounding-box frame, a face drag
   translating in that face's plane, a rectangle at each face centre scaling
@@ -1217,9 +1376,7 @@ overlay, dark and light token sets.
   screenshots any state offscreen; `scripts/e2e.sh` runs the self-tests headless.
 - The workspace patches `kiss3d` to `github.com/Ughuuu/kiss3d` (`balaur-hooks`):
   upstream v0.46.0 plus the opaque web canvas, IME events, a mid-pass screen
-  copy for 2D materials and UIKit's safe area. The `rune` patch
-  (`balaurengine/rune`, `deterministic-pow`) is left for `balaur port`, which
-  reads a `.rn` file with Rune's own parser to translate it to `.bs`.
+  copy for 2D materials and UIKit's safe area.
 
 ## Input
 
@@ -1298,7 +1455,7 @@ fire = ["mouse:left"]
   the fixed step, never recorded, and skipped on a rollback's second run of a
   tick, where their timers would count twice.
 - The keyboard height lives on `DeviceFacts`, beside the safe area a layout
-  reads with it; `avoid_keyboard` on a root widget measures from its top.
+  reads with it; every root but a backdrop measures its bottom from its top.
 
 ## Showcase: the manual's pictures are a test
 
@@ -1342,7 +1499,7 @@ it at the head. Post-processing is an observer like the rest of rendering.
 
 ## Camera and screenshots
 
-`render.set_camera(ex, ey, ez, tx, ty, tz)` writes a `CameraConfig3d`; the backend
+A `camera3d` node's position and `look_at` write a `CameraConfig3d`; the backend
 applies it, and no mouse or key moves the camera between. `render.screenshot(path)`
 saves a frame to PNG.
 

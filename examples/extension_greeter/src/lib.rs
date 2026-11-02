@@ -3,17 +3,8 @@
 
 use balaur_plugin::prelude::*;
 
-pub struct Greeter {
-    manifest: Manifest,
-}
-
-impl Default for Greeter {
-    fn default() -> Self {
-        Self {
-            manifest: Manifest::new("greeter", env!("CARGO_PKG_VERSION")),
-        }
-    }
-}
+#[derive(Default)]
+pub struct Greeter;
 
 pub struct GreetingCount(pub u32);
 
@@ -22,8 +13,8 @@ pub struct GreetingCount(pub u32);
 pub const NOT_VISIBLE: &str = "<not visible from the extension>";
 
 impl Plugin for Greeter {
-    fn manifest(&self) -> &Manifest {
-        &self.manifest
+    fn name(&self) -> &str {
+        "greeter"
     }
 
     fn declare(&mut self, reg: &mut Registry<'_>) -> Result<()> {

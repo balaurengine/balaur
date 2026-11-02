@@ -8,7 +8,7 @@ use balaur_physics::{PhysicsPlugin, PhysicsState3d};
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -22,13 +22,12 @@ fn collider_material_round_trips() {
     let root = app.engine.root();
     let e = child_of(&app, root, "Box");
     let params: toml::Value = toml::from_str(
-        r#"kind = "box"
+        r#"shape = { kind = "box" }
 physics_material = { friction = 0.9, restitution = 0.25, friction_combine = "max", restitution_combine = "min" }
 collision_margin = 0.02
 mass = 4.0
 collision_layer = ["1", "3"]
 collision_mask = ["2"]
-events = ["collision"]
 contact_pairs = ["dynamic_dynamic", "static_static"]"#,
     )
     .unwrap();
@@ -66,7 +65,6 @@ contact_pairs = ["dynamic_dynamic", "static_static"]"#,
     }
     assert_eq!(flags("collision_layer"), ["1", "3"]);
     assert_eq!(flags("collision_mask"), ["2"]);
-    assert_eq!(flags("events"), ["collision"]);
     assert_eq!(flags("contact_pairs"), ["dynamic_dynamic", "static_static"]);
     assert!(
         (back
@@ -86,7 +84,7 @@ fn a_density_a_patch_writes_reaches_the_collider() {
     let app = app();
     let root = app.engine.root();
     let e = child_of(&app, root, "Box");
-    let params: toml::Value = toml::from_str("kind = \"box\"\ndensity = 1.0").unwrap();
+    let params: toml::Value = toml::from_str("shape = { kind = \"box\" }\ndensity = 1.0").unwrap();
     components::add(&app.engine, e, "collider3d", Some(&params)).unwrap();
     let read = |key: &str| {
         components::get(&app.engine, e, "collider3d")
@@ -143,7 +141,7 @@ fn a_child_collider_joins_the_body_above_it() {
         &app.engine,
         feet,
         "collider3d",
-        Some(&toml::from_str("kind = \"sphere\"\nradius = 0.5").unwrap()),
+        Some(&toml::from_str("shape = { kind = \"sphere\", radius = 0.5 }").unwrap()),
     )
     .unwrap();
     let state = app.engine.resource::<PhysicsState3d>();
@@ -180,7 +178,7 @@ fn an_offset_moves_the_shape_and_not_the_node() {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"sphere\"\noffset = [0.0, 1.0, 0.0]").unwrap()),
+        Some(&toml::from_str("shape = { kind = \"sphere\" }\noffset = [0.0, 1.0, 0.0]").unwrap()),
     )
     .unwrap();
     let state = app.engine.resource::<PhysicsState3d>();
@@ -206,7 +204,8 @@ fn every_declared_shape_builds() {
         "world_boundary",
     ] {
         let e = child_of(&app, root, kind);
-        let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
+        let params: toml::Value =
+            toml::from_str(&format!("shape = {{ kind = \"{kind}\" }}")).unwrap();
         components::add(&app.engine, e, "collider3d", Some(&params))
             .unwrap_or_else(|e| panic!("collider3d kind '{kind}' did not build: {e:#}"));
         let state = app.engine.resource::<PhysicsState3d>();
@@ -228,13 +227,13 @@ fn a_border_rounds_a_cuboid() {
         &app.engine,
         e,
         "collider3d",
-        Some(&toml::from_str("kind = \"box\"\nedge_radius = 0.1").unwrap()),
+        Some(&toml::from_str("shape = { kind = \"box\", edge_radius = 0.1 }").unwrap()),
     )
     .unwrap();
     let back = components::get(&app.engine, e, "collider3d").unwrap();
-    assert_eq!(back.get("kind").unwrap().as_str(), Some("box"));
+    assert_eq!(back["shape"].get("kind").unwrap().as_str(), Some("box"));
     assert!(
-        (back
+        (back["shape"]
             .get("edge_radius")
             .and_then(balaur_core::components::as_f64)
             .unwrap()
@@ -258,7 +257,8 @@ fn every_declared_2d_shape_builds() {
         "world_boundary",
     ] {
         let e = child_of(&app, root, kind);
-        let params: toml::Value = toml::from_str(&format!("kind = \"{kind}\"")).unwrap();
+        let params: toml::Value =
+            toml::from_str(&format!("shape = {{ kind = \"{kind}\" }}")).unwrap();
         components::add(&app.engine, e, "collider2d", Some(&params))
             .unwrap_or_else(|e| panic!("collider2d kind '{kind}' did not build: {e:#}"));
     }
@@ -273,8 +273,7 @@ fn a_2d_collider_round_trips_through_get() {
     let root = app.engine.root();
     let e = child_of(&app, root, "Platform");
     let params: toml::Value = toml::from_str(
-        r#"kind = "rectangle"
-size = [4.0, 0.5]
+        r#"shape = { kind = "rectangle", size = [4.0, 0.5] }
 offset = [0.5, -1.0]
 offset_rotation = 0.75
 one_way = true
@@ -289,7 +288,10 @@ physics_material = { friction = 0.9 }"#,
             .and_then(balaur_core::components::as_f64)
             .unwrap_or_default()
     };
-    assert_eq!(back.get("kind").unwrap().as_str(), Some("rectangle"));
+    assert_eq!(
+        back["shape"].get("kind").unwrap().as_str(),
+        Some("rectangle")
+    );
     assert_eq!(back.get("one_way").unwrap().as_bool(), Some(true));
     assert!((f("offset_rotation") - 0.75).abs() < 1e-6);
     let friction = {
@@ -316,7 +318,7 @@ fn a_2d_one_way_collider_lets_a_body_up_and_lands_it_coming_down() {
         "collider2d",
         Some(
             &toml::from_str(
-                "kind = \"rectangle\"\nsize = [4.0, 0.2]\none_way = true\none_way_axis = [0.0, 1.0]",
+                "shape = { kind = \"rectangle\", size = [4.0, 0.2] }\none_way = true\none_way_axis = [0.0, 1.0]",
             )
             .unwrap(),
         ),
@@ -331,7 +333,7 @@ fn a_2d_one_way_collider_lets_a_body_up_and_lands_it_coming_down() {
         .y = -1.0;
     for (name, params) in [
         ("body2d", "kind = \"dynamic\""),
-        ("collider2d", "kind = \"circle\"\nradius = 0.25"),
+        ("collider2d", "shape = { kind = \"circle\", radius = 0.25 }"),
     ] {
         components::add(
             &app.engine,
@@ -425,7 +427,7 @@ id = "n_ball"
 name = "Ball"
 script = { source = "scripts/scenario.bs" }
 body3d = { kind = "dynamic", gravity_scale = 0.0 }
-collider3d = { kind = "sphere", radius = 0.5 }
+collider3d = { shape = { kind = "sphere", radius = 0.5 } }
 "#,
         r"pub class Scenario { node: Node }
 impl Scenario {
@@ -477,7 +479,7 @@ id = "n_ground"
 name = "Ground"
 parent = "n_world"
 body2d = { kind = "static" }
-collider2d = { kind = "rectangle", size = [20.0, 1.0] }
+collider2d = { shape = { kind = "rectangle", size = [20.0, 1.0] } }
 
 [[nodes]]
 id = "n_crate"
@@ -493,7 +495,7 @@ position = [0.0, 1.0, 0.0]
 id = "n_shape"
 name = "Shape"
 parent = "n_crate"
-collider2d = { kind = "rectangle", size = [1.0, 1.0] }
+collider2d = { shape = { kind = "rectangle", size = [1.0, 1.0] } }
 "#,
         r"pub class Scenario { node: Node }
 impl Scenario {
@@ -530,13 +532,13 @@ name = "World"
 id = "n_floor"
 name = "Floor"
 parent = "n_world"
-collider3d = { kind = "box", physics_material = "physics_materials/ice.toml" }
+collider3d = { shape = { kind = "box" }, physics_material = "physics_materials/ice.toml" }
 
 [[nodes]]
 id = "n_ramp"
 name = "Ramp"
 parent = "n_world"
-collider3d = { kind = "box", physics_material = "physics_materials/ice.toml" }
+collider3d = { shape = { kind = "box" }, physics_material = "physics_materials/ice.toml" }
 "#;
     let mut booted = crate::boot::project_with(
         scene,
@@ -578,9 +580,10 @@ fn a_material_refuses_a_key_it_does_not_have() {
     let app = app();
     let root = app.engine.root();
     let e = child_of(&app, root, "Box");
-    let params: toml::Value =
-        toml::from_str("kind = \"box\"\nphysics_material = { friction = 0.5, grip = 2.0 }")
-            .unwrap();
+    let params: toml::Value = toml::from_str(
+        "shape = { kind = \"box\" }\nphysics_material = { friction = 0.5, grip = 2.0 }",
+    )
+    .unwrap();
     let why = components::add(&app.engine, e, "collider3d", Some(&params)).unwrap_err();
     let chain = format!("{why:#}");
     assert!(

@@ -6,25 +6,25 @@
 id = "panel"
 name = "Timeline"
 script = { source = "scripts/panels/timeline.bs" }
+visible = false
 [nodes.widget]
 kind = "column"
 role = "layout_dock"
 grow = 1
 gap = [0, 2]
-visible = false
 
 # What the player is missing, and the verb that gives it a clip.
 [[nodes]]
 id = "missing"
 name = "Missing"
 parent = "panel"
+visible = false
 [nodes.widget]
 kind = "row"
 gap = [12, 12]
 align_items = "center"
 height = 30
 padding = [12, 0, 12, 0]
-visible = false
 
 [[nodes]]
 id = "missing_says"
@@ -33,13 +33,13 @@ parent = "missing"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
-text = ""
 
 [[nodes]]
 id = "create"
 name = "Create"
 parent = "missing"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "action_form_primary"
 text = "Create clip"
@@ -69,6 +69,7 @@ id = "add"
 name = "AddKey"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "chip"
 checked = true
@@ -80,6 +81,7 @@ id = "delete"
 name = "DeleteKey"
 parent = "head"
 [nodes.widget]
+on_click = "verb"
 kind = "button"
 role = "chip"
 text = "− Key"
@@ -91,17 +93,20 @@ id = "length"
 name = "Length"
 parent = "head"
 [nodes.widget]
+on_change = "clip_changed"
 kind = "number_field"
 width = 72
-drag_speed = 0.01
 suffix = " s"
 tooltip = "How long the clip runs"
+[nodes.widget_range]
+drag_speed = 0.01
 
 [[nodes]]
 id = "loop"
 name = "Loop"
 parent = "head"
 [nodes.widget]
+on_change = "clip_changed"
 kind = "dropdown"
 width = 92
 tooltip = "What the clip does at its end"
@@ -123,7 +128,6 @@ parent = "head"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 [[nodes]]
 id = "time"
@@ -133,7 +137,6 @@ parent = "head"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 # The ticks along the top, placed by time.
 [[nodes]]
@@ -205,7 +208,9 @@ id = "scrub"
 name = "Scrub"
 parent = "scrub_row"
 [nodes.widget]
+on_change = "seek"
 kind = "slider"
+[nodes.widget_range]
 value = 0.0
 min = 0.0
 max = 1.0

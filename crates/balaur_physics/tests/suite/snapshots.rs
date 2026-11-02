@@ -76,14 +76,14 @@ name = "World"
 id = "n_ground"
 name = "Ground"
 parent = "n_world"
-collider3d = { kind = "voxels", voxels = "#ground" }
+collider3d = { shape = { kind = "voxels", voxels = "#ground" } }
 
 [[nodes]]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.3 }
+collider3d = { shape = { kind = "sphere", radius = 0.3 } }
 transform = { position = [0.2, 2.5, 0.1] }
 "##,
     );
@@ -112,14 +112,14 @@ name = "World"
 id = "n_ledge"
 name = "Ledge"
 parent = "n_world"
-collider2d = { kind = "rectangle", size = [4.0, 0.2], one_way = true }
+collider2d = { shape = { kind = "rectangle", size = [4.0, 0.2] }, one_way = true }
 
 [[nodes]]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.25 }
+collider2d = { shape = { kind = "circle", radius = 0.25 } }
 transform = { position = [0.0, -1.0, 0.0] }
 "#,
     );
@@ -172,7 +172,7 @@ name = "Map"
 
 [nodes.tilemap]
 tileset = "#dungeon"
-cells = [[1, 1]]
+cells = { kind = "inline", rows = [[1, 1]] }
 pixels_per_unit = 16.0
 
 [nodes.tile_collision]
@@ -201,16 +201,32 @@ fn params_tables(app: &App) -> Vec<toml::Value> {
     let three = three.borrow();
     let two = app.engine.resource::<balaur_physics::PhysicsState2d>();
     let two = two.borrow();
+    let tables = |rows: Vec<(std::num::NonZeroU64, toml::Value)>| {
+        let mut rows = rows;
+        rows.sort_by_key(|(entity, _)| *entity);
+        rows.into_iter().map(|(_, params)| params)
+    };
     let mut out: Vec<toml::Value> = Vec::new();
-    for map in [
-        &three.collider_params,
-        &three.joint_params,
-        &two.collider_params,
-    ] {
-        let mut rows: Vec<_> = map.iter().collect();
-        rows.sort_by_key(|(entity, _)| entity.to_bits());
-        out.extend(rows.into_iter().map(|(_, params)| params.clone()));
-    }
+    out.extend(tables(
+        three
+            .collider_params
+            .iter()
+            .map(|(entity, asked)| (entity.to_bits(), asked.to_table()))
+            .collect(),
+    ));
+    out.extend(tables(
+        three
+            .joint_params
+            .iter()
+            .map(|(entity, ask)| (entity.to_bits(), ask.to_table()))
+            .collect(),
+    ));
+    out.extend(tables(
+        two.collider_params
+            .iter()
+            .map(|(entity, asked)| (entity.to_bits(), asked.to_table()))
+            .collect(),
+    ));
     out
 }
 
@@ -228,14 +244,14 @@ id = "n_anchor"
 name = "Anchor"
 parent = "n_world"
 body3d = { kind = "static" }
-collider3d = { kind = "sphere", radius = 0.3 }
+collider3d = { shape = { kind = "sphere", radius = 0.3 } }
 
 [[nodes]]
 id = "n_ball"
 name = "Ball"
 parent = "n_world"
 body3d = { kind = "dynamic" }
-collider3d = { kind = "sphere", radius = 0.3, offset = [-0.0, 0.0, 0.0] }
+collider3d = { shape = { kind = "sphere", radius = 0.3 }, offset = [-0.0, 0.0, 0.0] }
 joint3d = { kind = "hinge", connected_body = "../Anchor", anchor = [-1.0, 0.0, 0.0] }
 transform = { position = [1.0, 0.0, 0.0] }
 
@@ -244,7 +260,7 @@ id = "n_disc"
 name = "Disc"
 parent = "n_world"
 body2d = { kind = "dynamic" }
-collider2d = { kind = "circle", radius = 0.25 }
+collider2d = { shape = { kind = "circle", radius = 0.25 } }
 "#,
     );
     let ball = node(&app, "World/Ball");
@@ -263,11 +279,7 @@ collider2d = { kind = "circle", radius = 0.25 }
         .map(String::as_str)
         .collect();
     kept.sort_unstable();
-    assert_eq!(
-        kept,
-        ["kind", "radius"],
-        "the frame holds defaults: {anchor}"
-    );
+    assert_eq!(kept, ["shape"], "the frame holds defaults: {anchor}");
     let before = params_tables(&app);
     path(&mut app, ball, 5);
     balaur_core::snapshot::restore(&app.engine, &taken);

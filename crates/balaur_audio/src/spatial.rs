@@ -1,8 +1,8 @@
 //! Positional audio: where the ears are, where a sound is, and what the
 //! distance between them does to it.
 //!
-//! A `listener` node is the ears; a `sound` marked `positional`, or an
-//! `audio.play_cue` given a `position`, is an emitter. Once a frame's transforms
+//! A `listener` node is the ears, else the current camera; a `sound` marked
+//! `positional`, or an `audio.play_cue` given a `position`, is an emitter. Once a frame's transforms
 //! have settled, every live emitter is re-placed: distance sets its gain, its
 //! offset across the listener's right sets its pan, and the speed the two
 //! close at bends its pitch. All of it multiplies the bus chain rather than
@@ -13,13 +13,13 @@
 //! handle remembers — which is what a run with no output device can still
 //! assert, the same rule the rest of this crate holds to.
 
-use balaur_core::components::ComponentDef;
+use anyhow::Result;
+use balaur_core::components::derived::{Component, Enum, Written};
 use balaur_core::glamx::Vec3;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, GlobalTransform, scene};
 
 use crate::bus::{self, Buses};
-use crate::vocabulary::keys as k;
 use crate::{AudioState, MIN_PITCH};
 
 /// Metres per second: the `listener`'s `speed_of_sound` when it sets none.
@@ -34,29 +34,31 @@ pub const MAX_DOPPLER: f32 = 2.0;
 /// full volume to nothing the instant it left the listener's exact point.
 const MIN_DISTANCE: f32 = 0.001;
 
-/// The `listener` component: the node a positional mix is heard from, and
-/// how it hears.
-#[derive(Clone, Copy, Debug)]
+/// The point positional sounds are heard from: distance sets volume, offset across its right sets pan, and the closing speed against `speed_of_sound` bends pitch. The last `current` listener wins; without one, sounds play flat.
+#[derive(Clone, Copy, Debug, Component)]
+#[component(
+    name = "listener",
+    on_remove = listener_removed,
+    tags = [balaur_core::components::tag::AUDIO],
+    after_write = listener_written,
+)]
 pub struct Listener {
+    /// Whether the mix is heard from this node; the last current one wins
+    #[property(default = true)]
     pub current: bool,
+    /// Distance between the ears along the node's right. Above 0 the pan is how much nearer one ear is; 0 pans by direction alone, opening up inside `min_distance`
+    #[property(min = 0.0)]
     pub ear_distance: f32,
+    /// Units a second sound travels at, which doppler measures closing speeds against
+    #[property(default = SPEED_OF_SOUND, min = 0.001)]
     pub speed_of_sound: f32,
+    /// The most doppler multiplies a pitch by; its inverse is the least
+    #[property(default = MAX_DOPPLER, min = 1.0)]
     pub max_doppler: f32,
 }
 
-impl Default for Listener {
-    fn default() -> Self {
-        Self {
-            current: true,
-            ear_distance: 0.0,
-            speed_of_sound: SPEED_OF_SOUND,
-            max_doppler: MAX_DOPPLER,
-        }
-    }
-}
-
 /// How a positional sound falls off past its `min_distance`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Enum)]
 pub enum Attenuation {
     /// `min / d`: half the gain at every doubling, OpenAL's inverse model.
     #[default]
@@ -66,26 +68,6 @@ pub enum Attenuation {
     InverseSquare,
 }
 
-impl Attenuation {
-    /// The value an `attenuation` key names; anything else is `inverse`.
-    #[must_use]
-    pub fn from_word(word: &str) -> Self {
-        if word == crate::vocabulary::words::INVERSE_SQUARE {
-            Self::InverseSquare
-        } else {
-            Self::Inverse
-        }
-    }
-
-    #[must_use]
-    pub const fn word(self) -> &'static str {
-        match self {
-            Self::Inverse => crate::vocabulary::words::INVERSE,
-            Self::InverseSquare => crate::vocabulary::words::INVERSE_SQUARE,
-        }
-    }
-}
-
 /// Where the ears are this frame.
 pub struct ListenerPose {
     pub position: Vec3,
@@ -93,8 +75,8 @@ pub struct ListenerPose {
     /// the pan.
     pub right: Vec3,
     pub velocity: Vec3,
-    /// False until a `listener` node or `audio.set_listener_position` places
-    /// it, and positional sounds play flat until it is true.
+    /// False until a `listener` node or a camera places it, and positional
+    /// sounds play flat until it is true.
     pub placed: bool,
     /// The current `listener`'s ears, and the speeds its doppler works from.
     pub hearing: Listener,
@@ -125,6 +107,14 @@ impl ListenerPose {
     pub fn follow(&mut self, at: &GlobalTransform) {
         self.place(at.position);
         self.right = at.rotation * Vec3::X;
+    }
+
+    /// Put the ears where the camera is, with nothing of a `listener`'s to hear
+    /// by.
+    fn follow_view(&mut self, view: balaur_core::viewpoint::Pose) {
+        self.place(view.position);
+        self.right = view.right;
+        self.hearing = Listener::default();
     }
 
     fn track(&mut self, dt: f32) {
@@ -312,8 +302,8 @@ pub(crate) fn spatialize_system(eng: &Engine, dt: f32) {
     place_live(&mut state, &buses, dt);
 }
 
-/// The ears go where the current listener node is, and a positional `sound`
-/// emits from wherever its own node is now.
+/// The ears go where the current listener node is, else where the camera is,
+/// and a positional `sound` emits from wherever its own node is now.
 fn follow_nodes(state: &mut AudioState, eng: &Engine) {
     let world = eng.world();
     let AudioState {
@@ -326,7 +316,7 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
     let current = listeners
         .iter()
         .rev()
-        .find(|(_, node)| node.current)
+        .find(|(entity, node)| node.current && !balaur_core::parked::is_parked(eng, **entity))
         .map(|(entity, _)| *entity);
     if let Some(entity) = current
         && let Ok(global) = world.get::<&GlobalTransform>(entity)
@@ -335,6 +325,10 @@ fn follow_nodes(state: &mut AudioState, eng: &Engine) {
         if let Some(hearing) = listeners.get(&entity) {
             listener.hearing = *hearing;
         }
+    } else if current.is_none()
+        && let Some(view) = balaur_core::viewpoint::get(eng)
+    {
+        listener.follow_view(view);
     }
     for (entity, sound) in nodes.iter() {
         let Some(handle) = sound.handle else { continue };
@@ -374,70 +368,52 @@ fn place_live(state: &mut AudioState, buses: &Buses, dt: f32) {
     }
 }
 
-/// The `listener` scene key. Kept in `AudioState` beside the `sound` nodes
-/// rather than on the entity, so finding the current one costs no query.
+/// What a removed `Listener` leaves behind, taken with it.
+fn listener_removed(eng: &Engine, entity: Entity) {
+    if let Some(state) = eng.try_resource::<AudioState>() {
+        state.borrow_mut().listeners.shift_remove(&entity);
+    }
+}
+
+/// The `listener` scene key. The node holds a [`Listener`], and a copy of it
+/// waits in `AudioState` beside the `sound` voices, in the order they were
+/// written: finding the current one costs no query, and the last current one
+/// is the same node on every run.
 ///
 /// Takes the plugin `Registry` rather than `&mut App`, as the `sound`
 /// component beside it does: audio registers through the plugin seam.
 pub(crate) fn register_listener_component(reg: &mut balaur_plugin::Registry<'_>) {
-    reg.register_component(
-        "listener",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "The point positional sounds are heard from: distance sets volume, offset across its right sets pan, and the closing speed against `speed_of_sound` bends pitch. The last `current` listener wins; without one, sounds play flat.",
-            schema: ComponentDef::parse_schema(
-                "listener",
-                &balaur_core::components::ComponentDef::schema(&[
-                    (k::CURRENT, r#"{ type = "bool", default = true, description = "Whether the mix is heard from this node; the last current one wins" }"#),
-                    (k::EAR_DISTANCE, r#"{ type = "float", default = 0.0, min = 0.0, description = "Distance between the ears along the node's right. Above 0 the pan is how much nearer one ear is; 0 pans by direction alone, opening up inside `min_distance`" }"#),
-                    (k::SPEED_OF_SOUND, r#"{ type = "float", default = 343.0, min = 0.001, description = "Units a second sound travels at, which doppler measures closing speeds against" }"#),
-                    (k::MAX_DOPPLER, r#"{ type = "float", default = 2.0, min = 1.0, description = "The most doppler multiplies a pitch by; its inverse is the least" }"#),
-                ]),
-            ),
-            tags: &[balaur_core::components::tag::AUDIO],
-            expects: &[],
-            apply: Box::new(|eng, entity, params| {
-                use balaur_core::components::{prop_bool, prop_f32};
-                let hearing = Listener {
-                    current: prop_bool(params, k::CURRENT),
-                    ear_distance: prop_f32(params, k::EAR_DISTANCE).max(0.0),
-                    speed_of_sound: prop_f32(params, k::SPEED_OF_SOUND).max(MIN_DISTANCE),
-                    max_doppler: prop_f32(params, k::MAX_DOPPLER).max(1.0),
-                };
-                // Composed and placed as the component is applied: a sound
-                // started before the first scene sync would hear the origin.
-                let pose = hearing
-                    .current
-                    .then(|| scene::composed_global(&eng.world(), entity));
-                let state = eng.resource::<AudioState>();
-                let mut state = state.borrow_mut();
-                state.listeners.insert(entity, hearing);
-                if let Some(pose) = pose {
-                    state.listener.follow(&pose);
-                    state.listener.hearing = hearing;
-                }
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                if let Some(state) = eng.try_resource::<AudioState>() {
-                    state.borrow_mut().listeners.shift_remove(&entity);
-                }
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let state = eng.try_resource::<AudioState>()?;
-                let state = state.borrow();
-                let node = state.listeners.get(&entity)?;
-                let mut out = toml::map::Map::new();
-                out.insert(k::CURRENT.into(), node.current.into());
-                out.insert(k::EAR_DISTANCE.into(), f64::from(node.ear_distance).into());
-                out.insert(k::SPEED_OF_SOUND.into(), f64::from(node.speed_of_sound).into());
-                out.insert(k::MAX_DOPPLER.into(), f64::from(node.max_doppler).into());
-                Some(toml::Value::Table(out))
-            }),
-        },
-    );
+    reg.add_component::<Listener>();
+}
+
+/// The listener's copy in `AudioState`, its speeds held where the ratio
+/// stays finite, and the ears moved to it at once: a sound started before
+/// the first scene sync would hear the origin.
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "an after-write hook may refuse a write; this one never does"
+)]
+fn listener_written(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+    let Some(asked) = eng.world().get::<&Listener>(entity).ok().map(|held| *held) else {
+        return Ok(());
+    };
+    let hearing = Listener {
+        ear_distance: asked.ear_distance.max(0.0),
+        speed_of_sound: asked.speed_of_sound.max(MIN_DISTANCE),
+        max_doppler: asked.max_doppler.max(1.0),
+        ..asked
+    };
+    let pose = hearing
+        .current
+        .then(|| scene::composed_global(&eng.world(), entity));
+    let state = eng.resource::<AudioState>();
+    let mut state = state.borrow_mut();
+    state.listeners.insert(entity, hearing);
+    if let Some(pose) = pose {
+        state.listener.follow(&pose);
+        state.listener.hearing = hearing;
+    }
+    Ok(())
 }
 
 /// Forget the listeners of nodes that have been freed. Called from the same

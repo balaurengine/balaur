@@ -6,12 +6,11 @@
 //! in. Both answers are small and both are identical everywhere, so they live
 //! here rather than once per protocol crate.
 //!
-//! A handler is a method *name* on a node, never a function value.
-//! `Value::Callback` is valid only during the binding call that received it,
-//! so anything outliving that call is named and looked up later.
+//! A handler is a method *name* on a node: a script hands the engine no
+//! function, so anything that reports later is named and looked up then.
 
 use anyhow::{Result, anyhow};
-use balaur_script::{Bindings, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::Engine;
 
@@ -79,17 +78,14 @@ pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
     }
 }
 
-/// Deliver finished work: each value to the handlers named for it, then to
-/// whatever awaits the request's token. Called with the world unborrowed,
-/// since a handler is script code and may do anything to it.
-pub fn dispatch(eng: &Engine, dispatches: Vec<(Vec<Handler>, u64, Value)>) {
+/// Wake whatever awaits each finished call's token, with its value. Called
+/// with the world unborrowed, since what wakes is script code and may do
+/// anything to it.
+pub fn wake_all(eng: &Engine, finished: Vec<(u64, Value)>) {
     let Some(host) = eng.script_host() else {
         return;
     };
-    for (targets, token, value) in dispatches {
-        for handler in targets {
-            host.call_on(handler.node, &handler.method, std::slice::from_ref(&value));
-        }
+    for (token, value) in finished {
         host.wake(token, &value);
     }
 }
@@ -107,7 +103,7 @@ pub const ERROR: &str = "error";
 
 /// A module's event kinds as `EVENT_<KIND>` constants, so a script compares
 /// `e["kind"] == websocket::EVENT_OPEN` rather than spelling the word.
-pub fn install_event_kinds<E>(m: &mut dyn Bindings<E>, kinds: &[&str]) {
+pub fn install_event_kinds<E>(m: &mut Module<E>, kinds: &[&str]) {
     for kind in kinds {
         m.constant(
             &format!("EVENT_{}", kind.to_uppercase()),

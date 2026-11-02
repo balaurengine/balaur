@@ -7,8 +7,12 @@ authors.workspace = true
 description = "Balaur Script: a small statically typed scripting language compiled to WebAssembly; compiler, runtime and debugger."
 
 [dependencies]
+# xxh3 for a module's name and a cached module's checksum: many bytes a
+# step, where FNV took one, and the same answer on every platform.
+twox-hash = { version = "2", default-features = false, features = ["xxhash3_64", "xxhash3_128"] }
 libm.workspace = true
 rustc-hash.workspace = true
+smol_str.workspace = true
 wasm-encoder = "0.262"
 smallvec.workspace = true
 wasmi = { version = "2", optional = true, default-features = false, features = ["stable", "std", "validate", "auto-dispatch"] }
@@ -26,10 +30,21 @@ rayon = { version = "1", optional = true }
 # browser has no dlopen, so there `native` is inert like `wasmtime`.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 libloading = { version = "0.9", optional = true }
+# The calling thread's real stack bottom, on every native platform, for a
+# native module's recursion guard.
+stacker = { version = "0.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = { version = "0.3.106", optional = true }
 wasm-bindgen = { version = "0.2.129", optional = true }
+
+[dev-dependencies]
+# The corpus runner validates every module it builds.
+wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
+
+# The corpus on the browser's engine, run in Node (`tests/web/main.rs`).
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"
 
 [features]
 default = ["wasmi"]
@@ -43,7 +58,7 @@ web = ["dep:js-sys", "dep:wasm-bindgen"]
 # Modules translated to C, for an export to a platform that runs no JIT.
 c = ["dep:wasmparser"]
 # Runs a module from the native build an export made of it, when one is loaded.
-native = ["libloading"]
+native = ["libloading", "stacker"]
 
 [lints]
 workspace = true

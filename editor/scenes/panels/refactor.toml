@@ -5,16 +5,15 @@
 id = "panel"
 name = "Refactor"
 script = { source = "scripts/panels/refactor.bs" }
+visible = false
 [nodes.widget]
 kind = "panel"
 role = "sheet"
-text = ""
 absolute = true
 inset = [-1.0, 16.0, 20.0, -1.0]
 width = 420
 padding = [14, 12, 14, 12]
 gap = [0, 6]
-visible = false
 
 [[nodes]]
 id = "title"
@@ -30,9 +29,10 @@ id = "from"
 name = "From"
 parent = "panel"
 [nodes.widget]
+on_change = "field_typed"
 kind = "text_field"
 role = "input_form"
-text = ""
+[nodes.widget_field]
 placeholder = "name"
 
 [[nodes]]
@@ -40,9 +40,10 @@ id = "to"
 name = "To"
 parent = "panel"
 [nodes.widget]
+on_change = "field_typed"
 kind = "text_field"
 role = "input_form"
-text = ""
+[nodes.widget_field]
 placeholder = "new name"
 
 [[nodes]]
@@ -53,7 +54,6 @@ parent = "panel"
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
-text = ""
 
 [[nodes]]
 id = "hits"
@@ -61,7 +61,6 @@ name = "Hits"
 parent = "panel"
 [nodes.widget]
 kind = "list"
-text = ""
 height = 120
 row_height = 20
 font = "fonts/JetBrainsMono-Regular.ttf"
@@ -79,6 +78,7 @@ id = "apply"
 name = "Apply"
 parent = "verbs"
 [nodes.widget]
+on_click = "apply"
 kind = "button"
 role = "action_form_primary"
 text = "Apply"
@@ -89,6 +89,7 @@ id = "cancel"
 name = "Cancel"
 parent = "verbs"
 [nodes.widget]
+on_click = "cancel"
 kind = "button"
 role = "action_form"
 text = "Cancel"

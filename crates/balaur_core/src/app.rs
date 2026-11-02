@@ -9,7 +9,7 @@ use crate::time::Instant;
 use anyhow::{Context, Result, bail};
 use serde::Deserialize as _;
 
-use crate::engine::{Command, Engine};
+use crate::engine::Engine;
 use crate::pack::Pack;
 use crate::plugins::{PluginInfo, PluginRegistry};
 use crate::project::{self, ProjectManifest, ProjectRoot, SceneKeyRegistry};
@@ -42,6 +42,18 @@ pub enum Stage {
 }
 
 const STAGE_COUNT: usize = 8;
+
+/// Each stage's name, for what a stage that cannot be ordered says.
+const STAGE_NAMES: [&str; STAGE_COUNT] = [
+    "First",
+    "PreUpdate",
+    "Update",
+    "FixedUpdate",
+    "PostUpdate",
+    "SceneSync",
+    "Render",
+    "Last",
+];
 
 /// The simulation's tick rate. One declaration, because two independently
 /// written 60ths of a second are equal today and a desync the day one moves.
@@ -132,6 +144,41 @@ pub struct AppConfig {
     /// Where extension libraries load from; `None` is the project's own
     /// `extensions/`. Only a build with the `extensions` feature reads it.
     pub extensions: Option<PathBuf>,
+    /// What the app registers before any plugin, in order.
+    pub builtins: Builtins,
+}
+
+/// The engine's own registrations, in the order an app makes them, before
+/// any plugin.
+///
+/// The order is the components' places in the registry, and the digest walks
+/// a node's components in that order, so every app built from one list hashes
+/// a world the same way. The kernel's list is [`Builtins::kernel`]; the
+/// `balaur` crate's adds the crates around the kernel in their places.
+#[derive(Clone)]
+pub struct Builtins {
+    /// Each registers components, assets, resources, or snapshot and replay
+    /// sources.
+    pub steps: Vec<fn(&mut App)>,
+    /// The script API, module by module.
+    pub api: Vec<crate::engine_api::ApiPart>,
+}
+
+impl Builtins {
+    /// The kernel's own, and nothing of the crates around it.
+    #[must_use]
+    pub fn kernel() -> Self {
+        Self {
+            steps: vec![
+                crate::transform::register_transform_component,
+                register_scene_content,
+                crate::snapshot::build_core_sources,
+                register_facts,
+                register_core_settings,
+            ],
+            api: crate::engine_api::kernel_api(),
+        }
+    }
 }
 
 impl AppConfig {
@@ -143,6 +190,7 @@ impl AppConfig {
             script_args: Vec::new(),
             script_backend: None,
             extensions: None,
+            builtins: Builtins::default(),
         }
     }
 
@@ -178,6 +226,19 @@ impl AppConfig {
     }
 }
 
+/// The project's settings rows the kernel declares.
+pub fn register_core_settings(app: &mut App) {
+    crate::settings::build_core_settings(&app.engine);
+}
+
+/// The kernel's: what a test that loads one plugin into an app needs. A
+/// whole engine's list is the `balaur` crate's `builtins`.
+impl Default for Builtins {
+    fn default() -> Self {
+        Self::kernel()
+    }
+}
+
 /// Takes a live frame instead of [`App::tick`]: a networked match, which
 /// decides each tick's inputs and may run several ticks or none. Answers
 /// whether it took the frame.
@@ -189,7 +250,7 @@ pub struct FrameDriver(pub Option<DriveFn>);
 
 pub struct App {
     pub engine: Engine,
-    systems: Vec<Vec<SystemFn>>,
+    systems: Vec<crate::schedule::Schedule>,
     pack: Option<Pack>,
     project_root: PathBuf,
     manifest: Option<ProjectManifest>,
@@ -207,7 +268,6 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     eng.insert_resource(SceneKeyRegistry::default());
     eng.insert_resource(crate::components::ComponentRegistry::default());
     eng.insert_resource(crate::warnings::Refusals::default());
-    eng.insert_resource(crate::components::Authored::default());
     eng.insert_resource(crate::plugins::PluginRegistry::default());
     eng.insert_resource(crate::presets::PresetRegistry::default());
     eng.insert_resource(crate::assets::AssetTypeRegistry::default());
@@ -220,6 +280,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     }
     eng.insert_resource(crate::settings::SettingsRegistry::default());
     eng.insert_resource(crate::settings::SettingsValues::default());
+    eng.insert_resource(crate::settings::SettingsAnswers::default());
     eng.insert_resource(crate::settings::SettingsRevision::default());
     // Before any setting is read, since the tags in force decide which
     // `[override.<tag>]` a read answers from.
@@ -231,6 +292,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     {
         crate::settings::answer_to_built_tags(eng);
     }
+    crate::pack::Documents::note(eng, config.pack.as_ref());
     // A packed game serves its textures, sounds and fonts from the pack;
     // a dev run serves them from the source tree.
     eng.insert_resource(
@@ -249,13 +311,12 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
     );
     eng.insert_resource(ScriptArgs(config.script_args.clone()));
     eng.insert_resource(crate::rng::RngState::default());
-    eng.insert_resource(crate::netsession::PeerTraffic::default());
-    eng.insert_resource(crate::netsession::SessionStats::default());
     eng.insert_resource(crate::rollback::TickInputs::default());
     eng.insert_resource(crate::rollback::Resimulating::default());
     eng.insert_resource(crate::rollback::Clock::default());
     eng.insert_resource(crate::events::EventState::default());
     eng.insert_resource(crate::changes::Changes::default());
+    eng.insert_resource(crate::components::ticks::Ticks::default());
     eng.insert_resource(crate::digest::DigestRegistry::default());
     eng.insert_resource(crate::replay::ReplayRegistry::default());
     eng.insert_resource(crate::replay::ReplaySetupRegistry::default());
@@ -271,7 +332,7 @@ fn insert_core_resources(eng: &Engine, config: &AppConfig) {
 
 /// The facts and timers every app carries: recorded as replay sources so a
 /// replay answers as the original run did, and timers in the snapshot.
-fn register_facts(app: &mut App) {
+pub fn register_facts(app: &mut App) {
     app.engine.insert_resource(crate::facts::Facts::default());
     app.engine
         .insert_resource(crate::facts::WallClock::default());
@@ -319,21 +380,10 @@ fn register_facts(app: &mut App) {
     );
 }
 
-/// The assets and components core owns, and the resources behind them.
-///
-/// Geometry is core content, not a rendering concern: physics reads the same
-/// asset for its trimesh colliders. A bone is scene-tree data the same way.
-/// Interactivity is core because a binding's actions are calls core already
-/// has, and because the digest carries what they change.
-fn register_core_content(app: &mut App) {
-    crate::mesh::register_mesh_asset(app);
-    crate::texture_asset::register_texture_asset(app);
-    crate::path::register_path_assets(app);
-    crate::heightfield::register_heightfield_asset(app);
-    crate::voxels::register_voxels_asset(app);
-    crate::transform::register_transform_component(app);
-    crate::skeleton::register_bone2d_component(app);
-    crate::skeleton::register_bone3d_component(app);
+/// The kernel's components past the transform, and the resources behind
+/// them. Interactivity is core because a binding's actions are calls core
+/// already has, and because the digest carries what they change.
+pub fn register_scene_content(app: &mut App) {
     crate::states::register_states_component(app);
     crate::timer::register_timer_component(app);
     crate::bindings::register_bindings_component(app);
@@ -344,12 +394,14 @@ fn register_core_content(app: &mut App) {
         .insert_resource(crate::bindings::Runners::default());
     app.engine
         .insert_resource(crate::scene_switch::Pending::default());
+    app.engine.insert_resource(crate::parked::Parked::default());
 }
 
 impl App {
     pub fn new(mut config: AppConfig) -> Result<Self> {
         let engine = Engine::new();
         insert_core_resources(&engine, &config);
+        let builtins = std::mem::take(&mut config.builtins);
         match config.script_backend.take() {
             Some(make) => {
                 engine.set_script_host(make(ScriptSetup {
@@ -358,7 +410,7 @@ impl App {
                     pack: config.pack.clone(),
                     watch: config.watch,
                 })?);
-                crate::engine_api::install_engine_api(&engine)?;
+                crate::engine_api::install_engine_api(&engine, &builtins.api)?;
             }
             _ => {
                 tracing::info!("no script backend configured; scripting is off");
@@ -366,7 +418,9 @@ impl App {
         }
         let mut app = Self {
             engine,
-            systems: (0..STAGE_COUNT).map(|_| Vec::new()).collect(),
+            systems: (0..STAGE_COUNT)
+                .map(|_| crate::schedule::Schedule::default())
+                .collect(),
             pack: config.pack,
             project_root: config.project_root,
             manifest: None,
@@ -377,11 +431,9 @@ impl App {
         // A test binary builds many apps on one thread, and the rate is that
         // thread's: each starts at the default until its project moves it.
         set_tick_hz(DEFAULT_TICK_HZ);
-        register_core_content(&mut app);
-        crate::snapshot::build_core_sources(&mut app);
-        crate::netsession::build_session_source(&mut app);
-        register_facts(&mut app);
-        crate::settings::build_core_settings(&app.engine);
+        for step in &builtins.steps {
+            step(&mut app);
+        }
         // Before every plugin's First work, so a subsystem that dispatches
         // incoming traffic there sees the recording rather than the network.
         app.add_system(Stage::First, |eng, _| {
@@ -422,8 +474,7 @@ impl App {
         app.add_system(Stage::SceneSync, |eng, _| {
             crate::timings::measure(eng, "scene/transforms", || {
                 let root = eng.root();
-                // 1.0 is the tick's own pose for every node, and the pass
-                // skips the per-node lookup that a blend would cost.
+                // 1.0 is the tick's own pose for every node.
                 let alpha = if crate::interpolate::on(eng) {
                     eng.frame_alpha()
                 } else {
@@ -434,34 +485,28 @@ impl App {
         });
         app.add_system(Stage::Last, |eng, _| {
             // Every free of the frame in one batch: see `scene::free_nodes`.
-            let mut freed = Vec::new();
-            for cmd in eng.take_commands() {
-                match cmd {
-                    Command::Free(entity) => {
-                        // Most ticks record nothing; the label is only built
-                        // for one that does.
-                        if crate::replay::wants_events(eng) {
-                            let label = crate::digest::node_label(&eng.world(), entity);
-                            crate::replay::event(
-                                eng,
-                                "scene.free",
-                                format!("freed {label}"),
-                                Some(serde_json::json!({ "node": label })),
-                            );
-                        }
-                        freed.push(entity);
-                    }
+            let freed = eng.take_frees();
+            // Most ticks record nothing, and a tick's log takes so many: a
+            // label is built only while one is wanted, so freeing fifty
+            // thousand nodes names the first few.
+            for &entity in &freed {
+                if !crate::replay::wants_events(eng) {
+                    break;
                 }
+                let label = crate::digest::node_label(&eng.world(), entity);
+                crate::replay::event(
+                    eng,
+                    "scene.free",
+                    format!("freed {label}"),
+                    Some(serde_json::json!({ "node": label })),
+                );
             }
             if !freed.is_empty() {
                 scene::announce_leaving(eng, &freed);
                 scene::free_nodes(eng, &freed);
             }
         });
-        // After deferred destruction, so a recorded digest describes the
-        // world the next tick starts from, and after every plugin's Last work
-        // so nothing this frame produced is left out of the events.
-        app.add_system(Stage::Last, crate::replay::record_frame_system);
+        app.add_system(Stage::Last, crate::preload::warm_system);
         Ok(app)
     }
 
@@ -616,25 +661,76 @@ impl App {
         self
     }
 
-    pub fn add_system(
+    /// A system in `stage`, after every one added before it that nothing
+    /// orders it against; named by its function, so another can order itself
+    /// by that name.
+    pub fn add_system<F: FnMut(&Engine, f32) + 'static>(
         &mut self,
         stage: Stage,
-        system: impl FnMut(&Engine, f32) + 'static,
+        system: F,
     ) -> &mut Self {
-        self.systems[stage as usize].push(Box::new(system));
+        let name = std::any::type_name::<F>().to_owned();
+        self.systems[stage as usize].add(crate::schedule::System::boxed(name, Box::new(system)));
         self
     }
 
-    /// The binding group a plugin registers into, creating it if needed.
-    /// With no script backend the registrations go nowhere, since nothing can
-    /// call them.
-    pub fn script_module(
+    /// A typed system in `stage`: a function of
+    /// [`SystemParam`](crate::system_param::SystemParam)s, named by its path.
+    pub fn add_typed<M, F: crate::system_param::TypedSystem<M>>(
         &mut self,
+        stage: Stage,
+        system: F,
+    ) -> &mut Self {
+        let name = std::any::type_name::<F>().to_owned();
+        let run = system.into_run(name.clone());
+        self.systems[stage as usize].add(crate::schedule::System::boxed(name, run));
+        self
+    }
+
+    /// A system in `stage` with a name, sets, an order and conditions.
+    pub fn add_scheduled(&mut self, stage: Stage, system: crate::schedule::System) -> &mut Self {
+        self.systems[stage as usize].add(system);
+        self
+    }
+
+    /// Give set `name` in `stage` an order and conditions, added to what it
+    /// had.
+    pub fn configure_set(
+        &mut self,
+        stage: Stage,
         name: &str,
-    ) -> Result<Box<dyn balaur_script::Bindings<Engine>>> {
+        set: crate::schedule::Set,
+    ) -> &mut Self {
+        self.systems[stage as usize].configure_set(name, set);
+        self
+    }
+
+    /// Sort every stage now, answering the first that cannot be ordered: a
+    /// check before running, where a frame would panic.
+    ///
+    /// # Errors
+    /// The stage and the systems of its cycle.
+    pub fn check_schedules(&mut self) -> Result<()> {
+        for (stage, schedule) in self.systems.iter_mut().enumerate() {
+            schedule.order().map_err(|why| {
+                anyhow::anyhow!("the {} stage cannot be ordered: {why}", STAGE_NAMES[stage])
+            })?;
+        }
+        Ok(())
+    }
+
+    /// How many systems `stage` runs.
+    #[must_use]
+    pub fn system_count(&self, stage: Stage) -> usize {
+        self.systems[stage as usize].len()
+    }
+
+    /// The binding group a plugin registers into, creating it if needed. With
+    /// no script backend the registrations go nowhere.
+    pub fn script_module(&mut self, name: &str) -> Result<balaur_script::Module<Engine>> {
         match self.engine.script_host() {
             Some(host) => host.module(name),
-            None => Ok(Box::new(balaur_script::NoBindings)),
+            None => Ok(balaur_script::Module::detached(name)),
         }
     }
 
@@ -649,6 +745,11 @@ impl App {
             .resource::<crate::components::ComponentRegistry>();
         registry.borrow_mut().accept_keys(name, accepts);
         self
+    }
+
+    /// A derived component, everything about it read from its derive.
+    pub fn add_component<C: crate::components::derived::Component>(&mut self) -> &mut Self {
+        self.register_component(C::NAME, crate::components::ComponentDef::of::<C>())
     }
 
     pub fn register_component(
@@ -667,9 +768,6 @@ impl App {
                 crate::components::MAX_COMPONENTS
             );
             registry.insert(name, def);
-            let index = registry.len() - 1;
-            drop(registry);
-            crate::components::resolve_property_hooks(&self.engine, name, index);
         }
         let component = name.to_string();
         // Through the one write a script makes, so what the scene asked is
@@ -799,18 +897,18 @@ impl App {
             );
         }
         let tags = self.engine.resource::<crate::tags::Tags>().borrow().clone();
-        // Before the scene: a node's `interpolate` key is read as it is built,
-        // and its step is what the first tick takes.
+        // Before the scene: its step is what the first tick takes.
         self.apply_time_settings();
         let manifest = ProjectManifest::parse_for(&manifest_src, &tags)?;
         let main_scene = self.main_scene.as_ref().unwrap_or(&manifest.main_scene);
+        let main_scene = main_scene.clone();
         let scene_src = if let Some(pack) = &self.pack {
             pack.scenes
-                .get(main_scene)
+                .get(&main_scene)
                 .cloned()
                 .with_context(|| format!("scene {main_scene} missing from pack"))?
         } else {
-            let scene_path = self.project_root.join(main_scene);
+            let scene_path = self.project_root.join(&main_scene);
             fs.read(&scene_path)
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())
@@ -826,7 +924,8 @@ impl App {
             .insert_resource(project::ManifestSource(manifest_src.clone()));
         self.load_project_presets()?;
         let root = self.engine.root();
-        project::instantiate_scene(&self.engine, &scene_src, root, true)?;
+        project::instantiate_main_scene(&self.engine, &main_scene, &scene_src, root)?;
+        crate::preload::queue_pack(&self.engine, self.pack.as_ref(), &main_scene);
         Ok(self)
     }
 
@@ -843,7 +942,6 @@ impl App {
             reason = "a rate from a setting bounded at 1..=480"
         )]
         set_tick_hz(hz.map_or(DEFAULT_TICK_HZ, |n| n as u32));
-        crate::interpolate::apply_setting(&self.engine);
     }
 
     /// Load `presets.toml`, letting a project name its own recipes.
@@ -920,13 +1018,21 @@ impl App {
         }
     }
 
-    /// Feed and run `count` recorded frames.
+    /// Feed and run up to `count` recorded frames.
     ///
     /// A seek runs many in one call, which is why this is here and not in a
     /// system: only the app can both put a frame in the feed and tick it, and
     /// the fixed-step accumulator it owns has to start where the recording's
-    /// did.
+    /// did. A call stops once it has spent one fixed step of wall time, so a
+    /// seek moves as fast as the machine runs frames and the window it runs
+    /// in keeps its rate on a slow one and a fast one alike.
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "paces a seek against the window's frame; which frames run is the recording's"
+    )]
     fn replay_frames(&mut self, count: usize) {
+        let started = Instant::now();
+        let budget = std::time::Duration::from_secs_f32(crate::fixed_dt());
         if std::mem::take(
             &mut self
                 .engine
@@ -952,7 +1058,7 @@ impl App {
             // A seek arrives mid-budget, and a script may pause from inside
             // the frame that just ran: either way the rest of the budget is
             // no longer wanted.
-            if !crate::replay::is_advancing(&self.engine) {
+            if !crate::replay::is_advancing(&self.engine) || started.elapsed() >= budget {
                 break;
             }
         }
@@ -1001,6 +1107,8 @@ impl App {
         // A re-run tick is simulation only: nothing draws a world about to be
         // stepped again.
         let resimulating = crate::rollback::is_resimulating(&self.engine);
+        crate::components::ticks::frame_started(&self.engine);
+        crate::messages::frame_started(&self.engine);
         for (stage, elapsed) in stages.iter_mut().enumerate() {
             let started = Instant::now();
             if resimulating && stage == Stage::Render as usize {
@@ -1009,12 +1117,15 @@ impl App {
             if stage == Stage::FixedUpdate as usize {
                 fixed_steps = self.run_fixed_steps(dt);
             } else {
-                for system in &mut self.systems[stage] {
-                    system(&self.engine, dt);
-                }
+                self.systems[stage].run(STAGE_NAMES[stage], &self.engine, dt);
+                self.engine.apply_deferred();
             }
             *elapsed = started.elapsed();
         }
+        // After every stage, every plugin's `Last` work and the frees and the
+        // scene switch included: a recorded digest describes the world the next
+        // tick starts from, and nothing this frame produced is left out.
+        crate::replay::record_frame_system(&self.engine, dt);
         crate::timings::publish(&self.engine, frame_started.elapsed(), stages, fixed_steps);
         crate::logbuf::flush_file();
     }
@@ -1044,9 +1155,9 @@ impl App {
         let budget = step * max_substeps() as f32 * self.engine.time_scale().max(1.0);
         self.accumulator = (self.accumulator + dt).min(budget);
         while self.accumulator >= step {
-            for system in &mut self.systems[Stage::FixedUpdate as usize] {
-                system(&self.engine, step);
-            }
+            let fixed = Stage::FixedUpdate as usize;
+            self.systems[fixed].run(STAGE_NAMES[fixed], &self.engine, step);
+            self.engine.apply_deferred();
             // After the step, so the pair kept is the pose this step left and
             // the one before it: what a frame between the two blends.
             crate::interpolate::capture(&self.engine);

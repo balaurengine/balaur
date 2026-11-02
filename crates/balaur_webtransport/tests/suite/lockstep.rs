@@ -7,10 +7,10 @@
 //! this, which is the point of the trait.
 
 use balaur_core::components::StableId;
-use balaur_core::netsession::NetSession;
 use balaur_core::rollback;
-use balaur_core::transport::{LinkState, Transport};
 use balaur_core::{App, AppConfig, Stage, Transform};
+use balaur_net::netsession::NetSession;
+use balaur_net::transport::{LinkState, Transport};
 use balaur_script::Value;
 use balaur_webtransport::{Accept, WebTransportLink, WebTransportServer};
 
@@ -21,6 +21,8 @@ const GUEST: u32 = 2;
 /// wrong tick shows up in the digest.
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
+    // A bare app has no session resources: the net crate brings them.
+    balaur_net::netsession::build_session_source(&mut app);
     let root = app.engine.root();
     let mover = {
         let mut world = app.engine.world_mut();

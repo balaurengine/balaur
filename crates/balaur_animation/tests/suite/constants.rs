@@ -71,7 +71,7 @@ fn every_ease_constant_names_a_curve_by_its_own_name() {
 #[test]
 fn the_modifier_kinds_are_the_ones_both_modifier_schemas_declare() {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     let declared: Vec<&str> = MODIFIER_KINDS.iter().map(|(_, word)| *word).collect();

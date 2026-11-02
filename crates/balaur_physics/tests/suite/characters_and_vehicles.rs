@@ -27,8 +27,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = {{ kind = "box", size = [1.0, 8.0, 16.0] }}
 {wall}
 
 [[nodes]]
@@ -38,9 +37,7 @@ parent = "n_world"
 script = {{ source = "scripts/scenario.bs" }}
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = {{ kind = "capsule", radius = 0.4, height = 1.0 }}
 {collider}
 
 [nodes.character3d]
@@ -104,9 +101,7 @@ body3d = { kind = "kinematic" }
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider3d]
-kind = "capsule"
-radius = 0.4
-height = 1.0
+shape = { kind = "capsule", radius = 0.4, height = 1.0 }
 
 [nodes.character3d]
 floor_snap_length = 0.0
@@ -120,8 +115,7 @@ parent = "n_player"
 position = [0.6, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.15
+shape = { kind = "sphere", radius = 0.15 }
 "#,
         r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
@@ -154,8 +148,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider2d]
-kind = "rectangle"
-size = [1.0, 8.0]
+shape = { kind = "rectangle", size = [1.0, 8.0] }
 sensor = true
 
 [[nodes]]
@@ -165,8 +158,7 @@ parent = "n_world"
 script = { source = "scripts/scenario.bs" }
 
 [nodes.collider2d]
-kind = "circle"
-radius = 0.4
+shape = { kind = "circle", radius = 0.4 }
 
 [nodes.character2d]
 floor_snap_length = 0.0
@@ -191,7 +183,7 @@ impl Scenario {
 #[test]
 fn slope_angles_take_their_bounds_in_degrees() {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     for component in ["character3d", "character2d"] {
@@ -211,7 +203,7 @@ fn slope_angles_take_their_bounds_in_degrees() {
 
 fn app() -> App {
     let mut app = App::new(balaur_core::AppConfig::bare(".")).unwrap();
-    balaur_plugin::load(&mut app, &mut PhysicsPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut PhysicsPlugin).unwrap();
     app
 }
 
@@ -249,7 +241,7 @@ fn car(app: &App, ground: &str, vehicle: &str, wheel: &str) -> (Entity, Entity) 
         app,
         slab,
         "collider3d",
-        &format!("kind = \"box\"\nsize = [8.0, 1.0, 4.0]\n{ground}"),
+        &format!("shape = {{ kind = \"box\", size = [8.0, 1.0, 4.0] }}\n{ground}"),
     );
     // The ray is rest_length 0.3 and radius 0.4 long, so it reaches 0.1 into the slab.
     let chassis = node(app, "Car", root, [0.0, 0.6, 0.0]);
@@ -263,7 +255,7 @@ fn car(app: &App, ground: &str, vehicle: &str, wheel: &str) -> (Entity, Entity) 
         app,
         chassis,
         "collider3d",
-        "kind = \"sphere\"\nradius = 0.1",
+        "shape = { kind = \"sphere\", radius = 0.1 }",
     );
     add(app, chassis, "vehicle3d", vehicle);
     let tyre = node(app, "Wheel", chassis, [0.0, 0.0, 0.0]);
@@ -454,8 +446,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = {{ kind = "box", size = [1.0, 8.0, 16.0] }}
 
 [[nodes]]
 id = "n_player"
@@ -477,7 +468,8 @@ impl Scenario {
 }
 ";
 
-const CAPSULE: &str = "\n[nodes.collider3d]\nkind = \"capsule\"\nradius = 0.4\nheight = 2.0\n";
+const CAPSULE: &str =
+    "\n[nodes.collider3d]\nshape = { kind = \"capsule\", radius = 0.4, height = 2.0 }\n";
 
 #[test]
 fn a_character_s_lengths_are_world_units_or_fractions_of_it() {
@@ -515,8 +507,7 @@ parent = "n_world"
 position = [2.0, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 8.0, 16.0]
+shape = {{ kind = "box", size = [1.0, 8.0, 16.0] }}
 
 [[nodes]]
 id = "n_player"
@@ -535,8 +526,7 @@ parent = "n_player"
 position = [0.8, 0.0, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.3
+shape = {{ kind = "sphere", radius = 0.3 }}
 "#
     );
     let (_dir, app, errors) = boot(&text, WALK, 60);
@@ -553,29 +543,29 @@ radius = 0.3
 fn a_collision_reports_where_the_sweep_met_the_obstacle() {
     let (_dir, _app, errors) = boot(
         &wall_and_player(CAPSULE, ""),
-        r#"fn x(v: any) -> float { v.at(0).as_float() }
+        r#"fn x(v: any) -> float { v[0].as_float() }
 
 pub class Scenario { node: Node, done: bool }
 impl Scenario {
     fn fixed_update(dt: float) {
         let moved = self.node.character3d.move_character(0.2, 0.0, 0.0);
-        if !self.done && moved.get("collisions").len() > 0 {
-            let hit = moved.get("collisions").at(0);
-            let point = x(hit.get("point"));
+        if !self.done && moved["collisions"].len() > 0 {
+            let hit = moved["collisions"][0];
+            let point = x(hit["point"]);
             if point <= 1.4 || point >= 1.6 { log::error("the wall was met at {point}"); }
-            let own = x(hit.get("own_point"));
+            let own = x(hit["own_point"]);
             if own <= 1.3 || own >= 1.6 { log::error("the capsule was met at {own}"); }
-            let normal = x(hit.get("own_normal"));
+            let normal = x(hit["own_normal"]);
             if normal <= 0.9 { log::error("the capsule's normal points {normal}"); }
-            let distance = hit.get("distance").as_float();
+            let distance = hit["distance"].as_float();
             if distance < 0.0 || distance > 0.2 { log::error("it swept {distance}"); }
-            let stood = x(hit.get("position"));
+            let stood = x(hit["position"]);
             if stood + 0.4 >= 1.6 { log::error("the character stood at {stood}"); }
-            let applied = x(hit.get("applied"));
+            let applied = x(hit["applied"]);
             if applied < 0.0 { log::error("applied {applied}"); }
-            let status = hit.get("status").as_str();
+            let status = hit["status"].as_str();
             if status != physics3d::SWEEP_CONVERGED && status != physics3d::SWEEP_OUT_OF_ITERATIONS { log::error("status {status}"); }
-            let subshape = hit.get("subshape").as_int();
+            let subshape = hit["subshape"].as_int();
             if subshape != 0 { log::error("a box has no parts: {subshape}"); }
             self.done = true;
             log::error("checked: collision record");
@@ -608,8 +598,7 @@ parent = "n_world"
 position = [0.0, -1.5, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [40.0, 1.0, 40.0]
+shape = {{ kind = "box", size = [40.0, 1.0, 40.0] }}
 physics_material = {{ friction = 0.0 }}
 
 [[nodes]]
@@ -622,8 +611,7 @@ body3d = {{ kind = "dynamic", mass = 20.0 }}
 position = [1.2, -0.5, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [1.0, 1.0, 1.0]
+shape = {{ kind = "box", size = [1.0, 1.0, 1.0] }}
 physics_material = {{ friction = 0.0 }}
 
 [[nodes]]
@@ -637,8 +625,7 @@ body3d = {{ kind = "kinematic" }}
 position = [0.0, -0.4, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.4
+shape = {{ kind = "sphere", radius = 0.4 }}
 
 [nodes.character3d]
 floor_snap_length = 0.0
@@ -699,8 +686,7 @@ parent = "n_world"
 position = [0.0, -0.5, 0.0]
 
 [nodes.collider3d]
-kind = "box"
-size = [8.0, 1.0, 40.0]
+shape = { kind = "box", size = [8.0, 1.0, 40.0] }
 
 [[nodes]]
 id = "n_car"
@@ -714,8 +700,7 @@ vehicle3d = { forward_axis = "-z" }
 position = [0.0, 0.6, 0.0]
 
 [nodes.collider3d]
-kind = "sphere"
-radius = 0.1
+shape = { kind = "sphere", radius = 0.1 }
 
 [[nodes]]
 id = "n_wheel"
@@ -728,8 +713,8 @@ wheel3d = { radius = 0.4 }
 fn speed_and_wheel_state_read_the_kept_controller() {
     let (_dir, _app, errors) = boot(
         DRIVEWAY,
-        r#"fn x(v: any) -> float { v.at(0).as_float() }
-fn y(v: any) -> float { v.at(1).as_float() }
+        r#"fn x(v: any) -> float { v[0].as_float() }
+fn y(v: any) -> float { v[1].as_float() }
 
 pub class Scenario { node: Node, ticks: int }
 impl Scenario {
@@ -742,30 +727,30 @@ impl Scenario {
         let wheel = self.node.get_node("Wheel");
         if self.ticks == 3 {
             wheel.wheel3d.set_wheel_rotation(1.5);
-            if math::abs(wheel.wheel3d.wheel_state().get("rotation").as_float() - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
+            if math::abs(wheel.wheel3d.wheel_state()["rotation"].as_float() - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
         }
         if self.ticks == 10 {
-            let speed = self.node.vehicle3d.speed();
+            let speed = self.node.vehicle3d.vehicle_speed();
             if math::abs(speed + 4.0) >= 0.5 { log::error("a car rolling backwards read {speed}"); }
             let state = wheel.wheel3d.wheel_state();
-            if !state.get("in_contact").as_bool() { log::error("the wheel is off the ground"); }
-            let ground = state.get("ground");
+            if !state["in_contact"].as_bool() { log::error("the wheel is off the ground"); }
+            let ground = state["ground"];
             if ground.as_node() != scene::get_node("World/Ground") { log::error("the ray hit {ground}"); }
-            let contact = y(state.get("contact_point"));
+            let contact = y(state["contact_point"]);
             if math::abs(contact) >= 0.05 { log::error("the ray met the ground at {contact}"); }
-            let normal = y(state.get("contact_normal"));
+            let normal = y(state["contact_normal"]);
             if normal <= 0.9 { log::error("the ground's normal points {normal}"); }
-            let origin = y(state.get("ray_origin"));
+            let origin = y(state["ray_origin"]);
             if math::abs(origin - 0.6) >= 0.05 { log::error("the ray started at {origin}"); }
-            let length = state.get("suspension_length").as_float();
+            let length = state["suspension_length"].as_float();
             if length <= 0.0 || length >= 0.31 { log::error("suspension {length}"); }
-            let suspension = y(state.get("suspension"));
+            let suspension = y(state["suspension"]);
             if suspension >= -0.9 { log::error("the suspension points {suspension}"); }
-            let axle = x(state.get("axle"));
+            let axle = x(state["axle"]);
             if math::abs(axle) <= 0.9 { log::error("the axle points {axle}"); }
-            let center = y(state.get("center"));
+            let center = y(state["center"]);
             if center >= 0.6 { log::error("the wheel's centre is at {center}"); }
-            let rotation = state.get("rotation").as_float();
+            let rotation = state["rotation"].as_float();
             if math::abs(rotation) <= 1.6 { log::error("the wheel stopped turning after the set: {rotation}"); }
             log::error("checked: wheel state");
         }

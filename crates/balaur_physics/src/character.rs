@@ -19,93 +19,90 @@ use crate::rapier3d::prelude::{
 };
 use crate::scalar::{self, Pose, Real, Vector};
 use anyhow::{Result, anyhow};
-use balaur_core::components::ComponentDef;
+use balaur_core::components::derived::Component;
 use balaur_core::hecs::Entity;
 use balaur_core::{Engine, Transform, entity_of};
 use balaur_plugin::Registry;
-use balaur_script::{Bindings, BindingsExt, NodeId, Value};
+use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
-use crate::vocabulary::{self as v, component as c, keys as k, map, words as w};
+use crate::properties::{LengthMode, NodePath, SweepIgnore};
+use crate::vocabulary::{component as c, keys as k, map};
 use balaur_core::fixed_dt;
 
-/// The schema both dimensions share. `up_direction` is the one property whose shape
-/// differs, so each adds its own.
-pub(crate) fn shared_character_schema() -> String {
-    let ignores = v::options(w::IGNORES);
-    let sensors = w::SENSORS;
-    v::schema(&[
-        (
-            k::SLIDE,
-            r#"{ type = "bool", default = true, description = "Slide along what is in the way instead of stopping dead against it" }"#,
-        ),
-        (
-            k::PUSH_BODIES,
-            r#"{ type = "bool", default = true, description = "Push dynamic bodies the character walks into, rather than passing through them" }"#,
-        ),
-        (k::LENGTHS, &lengths()),
-        (
-            k::FLOOR_MAX_ANGLE,
-            r#"{ type = "float", default = 0.7853982, min = 0.0, max = 90.0, unit = "degrees", description = "The steepest slope the character may walk up; radians in the file, degrees in the inspector", group = "floor" }"#,
-        ),
-        (
-            k::MIN_SLIDE_ANGLE,
-            r#"{ type = "float", default = 0.5235988, min = 0.0, max = 90.0, unit = "degrees", description = "The shallowest slope the character slides back down; radians in the file, degrees in the inspector", group = "floor" }"#,
-        ),
-        (
-            k::FLOOR_SNAP_LENGTH,
-            r#"{ type = "float", default = 0.2, min = 0.0, description = "How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off", group = "floor" }"#,
-        ),
-        (
-            k::STEP_HEIGHT,
-            r#"{ type = "float", default = 0.3, min = 0.0, description = "The tallest step the character climbs without jumping; 0 turns stepping off", group = "steps" }"#,
-        ),
-        (
-            k::STEP_MIN_WIDTH,
-            r#"{ type = "float", default = 0.2, min = 0.0, description = "How much clear ground a step needs on top before it may be climbed", group = "steps" }"#,
-        ),
-        (
-            k::STEP_ON_DYNAMIC,
-            r#"{ type = "bool", default = false, description = "Climb onto dynamic bodies too, not only static and kinematic ones", group = "steps" }"#,
-        ),
-        (
-            k::SAFE_MARGIN,
-            r#"{ type = "float", default = 0.01, min = 0.0, description = "A gap kept between the character and everything else, so the solver never has to push it out of a wall", group = "contacts" }"#,
-        ),
-        (
-            k::NORMAL_NUDGE,
-            r#"{ type = "float", default = 0.0001, min = 0.0, description = "A tiny push along the contact normal that stops the character catching on seams", group = "contacts" }"#,
-        ),
-        (
-            k::PUSH_MASS,
-            r#"{ type = "float", default = 0.0, min = 0.0, description = "The mass a push is worked out with; 0 takes the body's mass, or the colliders' when there is no body", group = "contacts" }"#,
-        ),
-        (
-            k::IGNORE,
-            &format!(
-                r#"{{ type = "flags", default = ["{sensors}"], options = [{ignores}], description = "What a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest", group = "filtering" }}"#
-            ),
-        ),
-        (
-            k::IGNORE_NODES,
-            r#"{ type = "list", of = { type = "node" }, default = [], description = "Nodes a move passes through: their colliders, and every collider on their body", group = "filtering" }"#,
-        ),
-    ])
-}
-
-/// The schema line of one `*_lengths` key: whether `key` is in world units or
-/// a fraction of the character's own extent, as rapier measures that length.
-/// It sits in `key`'s `group`, beside the length it measures.
-fn lengths() -> String {
-    let modes = v::options(w::LENGTH_MODES);
-    let absolute = w::ABSOLUTE;
-    format!(
-        r#"{{ type = "enum", default = "{absolute}", options = [{modes}], description = "Whether floor_snap_length, step_height, step_min_width and safe_margin are world units or fractions of the character's shape: relative measures the width across up_direction for step_min_width, and the height along it for the rest" }}"#
-    )
+// Held on the node itself: rapier keeps no character state, and the
+// controller is rebuilt from this at every move.
+/// A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.
+#[derive(Clone, Component)]
+#[component(
+    name = "character3d",
+    requires = [balaur_core::transform::COMPONENT],
+    tags = [ balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
+    expects = [c::COLLIDER_3D],
+)]
+pub struct Character3d {
+    /// Which way is up for this character: the axis it stands along and measures slopes against
+    #[property(default = [0.0, 1.0, 0.0])]
+    pub up_direction: [f32; 3],
+    /// Slide along what is in the way instead of stopping dead against it
+    #[property(default = true)]
+    pub slide: bool,
+    /// Push dynamic bodies the character walks into, rather than passing through them
+    #[property(default = true)]
+    pub push_bodies: bool,
+    /// Whether floor_snap_length, step_height, step_min_width and safe_margin are world units or fractions of the character's shape: relative measures the width across up_direction for step_min_width, and the height along it for the rest
+    #[property(default = LengthMode::Absolute)]
+    pub lengths: LengthMode,
+    /// The steepest slope the character may walk up; radians in the file, degrees in the inspector
+    #[property(
+        default = std::f32::consts::FRAC_PI_4,
+        min = 0.0,
+        max = 90.0,
+        unit = "degrees",
+        group = "floor"
+    )]
+    pub floor_max_angle: f32,
+    /// The shallowest slope the character slides back down; radians in the file, degrees in the inspector
+    #[property(
+        default = std::f32::consts::FRAC_PI_6,
+        min = 0.0,
+        max = 90.0,
+        unit = "degrees",
+        group = "floor"
+    )]
+    pub min_slide_angle: f32,
+    /// How far below its feet the character looks for ground to stay stuck to over a crest; 0 turns snapping off
+    #[property(default = 0.2, min = 0.0, group = "floor")]
+    pub floor_snap_length: f32,
+    /// The tallest step the character climbs without jumping; 0 turns stepping off
+    #[property(default = 0.3, min = 0.0, group = "steps")]
+    pub step_height: f32,
+    /// How much clear ground a step needs on top before it may be climbed
+    #[property(default = 0.2, min = 0.0, group = "steps")]
+    pub step_min_width: f32,
+    /// Climb onto dynamic bodies too, not only static and kinematic ones
+    #[property(group = "steps")]
+    pub step_on_dynamic: bool,
+    /// A gap kept between the character and everything else, so the solver never has to push it out of a wall
+    #[property(default = 0.01, min = 0.0, group = "contacts")]
+    pub safe_margin: f32,
+    /// A tiny push along the contact normal that stops the character catching on seams
+    #[property(default = 0.0001, min = 0.0, group = "contacts")]
+    pub normal_nudge: f32,
+    /// The mass a push is worked out with; 0 takes the body's mass, or the colliders' when there is no body
+    #[property(min = 0.0, group = "contacts")]
+    pub push_mass: f32,
+    /// What a move passes through: static takes colliders with no body too. The character's own collision_layer and collision_mask filter the rest
+    #[property(flags, default = vec![SweepIgnore::Sensors], group = "filtering")]
+    pub ignore: Vec<SweepIgnore>,
+    /// Nodes a move passes through: their colliders, and every collider on their body
+    #[property(group = "filtering")]
+    pub ignore_nodes: Vec<NodePath>,
 }
 
 crate::shared::character::functions!(
     state = PhysicsState3d,
+    character = Character3d,
     vector = Vector,
     pose = Pose,
     value = Vec3,
@@ -119,27 +116,23 @@ crate::shared::character::functions!(
 /// *is* its node, and a caller that had to apply the result itself would get
 /// it wrong the first time and every time after.
 pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) -> Result<Value> {
-    let params = {
+    let character = {
         let world = eng.world();
         let character = world
             .get::<&Character3d>(entity)
             .map_err(|_| anyhow!("node has no character3d"))?;
-        character.0.clone()
+        Character3d::clone(&character)
     };
-    let up = scalar::v3a(crate::vocabulary::vec3(
-        &params,
-        k::UP_DIRECTION,
-        [0.0, 1.0, 0.0],
-    ));
+    let up = scalar::v3a(character.up_direction);
     let up = if up.length_squared() < 1.0e-12 {
         Vector::Y
     } else {
         up.normalize()
     };
-    let controller = controller_of(&params, up);
-    let push = crate::vocabulary::boolean(&params, k::PUSH_BODIES, true);
+    let controller = controller_of(&character, up);
+    let push = character.push_bodies;
 
-    let ignored = ignored_nodes(eng, entity, &params);
+    let ignored = ignored_nodes(eng, entity, &character.ignore_nodes);
 
     let (movement, collisions) = {
         let state = eng.resource::<PhysicsState3d>();
@@ -149,12 +142,12 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
         // Its own layers, never its own body, and nothing `ignore` names.
         let skipped = Skipped::of(&ignored, state);
         let passes = |_: ColliderHandle, collider: &Collider| skipped.passes(collider);
-        let filter = QueryFilter::from(ignore_flags(&params))
+        let filter = QueryFilter::from(ignore_flags(&character.ignore))
             .groups(groups)
             .predicate(&passes);
         let mut collisions = Vec::new();
         let movement = controller.move_shape(
-            scalar::real(fixed_dt()),
+            fixed_dt(),
             &state.world.query_pipeline_with_filter(filter),
             shape.as_ref(),
             &pose,
@@ -164,7 +157,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
         // Pushing what it walks into is the difference between a character
         // that shoves a crate and one that scrapes past it.
         if push && !collisions.is_empty() {
-            let mass = push_mass(state, entity, &params);
+            let mass = push_mass(state, entity, character.push_mass);
             let dispatcher = state.world.narrow_phase.query_dispatcher();
             let mut queries = state.world.broad_phase.as_query_pipeline_mut(
                 dispatcher,
@@ -173,7 +166,7 @@ pub(crate) fn move_character(eng: &Engine, entity: Entity, translation: Vector) 
                 filter,
             );
             controller.solve_character_collision_impulses(
-                scalar::real(fixed_dt()),
+                fixed_dt(),
                 &mut queries,
                 shape.as_ref(),
                 mass,
@@ -231,9 +224,9 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector) {
     state.queries_ready = false;
 }
 
-pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
+pub(crate) fn install_character_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `#{ x, y, z, on_floor, sliding, collisions }`, each collision `#{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
+        ("move_character", &[c::CHARACTER_3D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, z, on_floor, sliding, collisions }`, each collision `{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
         ("is_on_floor", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
@@ -252,50 +245,8 @@ pub(crate) fn install_character_api(m: &mut dyn Bindings<Engine>) {
     });
 }
 
-/// A character's settings, held on the node itself.
-///
-/// The one physics component backed by a real component type (N16): rapier
-/// keeps no character state, the controller is rebuilt per move, so there is
-/// nothing in the world to write it into.
-pub struct Character3d(pub toml::Value);
-
 /// The character component writes no rapier state of its own: it is read at
 /// the moment a script moves the node, and the collider does the rest.
 pub(crate) fn register_character_component(reg: &mut Registry<'_>) {
-    let shared = shared_character_schema();
-    let schema = [
-        v::schema(&[
-            (k::UP_DIRECTION, r#"{ type = "vec3", default = [0.0, 1.0, 0.0], description = "Which way is up for this character: the axis it stands along and measures slopes against" }"#),
-        ]),
-        shared,
-    ]
-    .join("\n");
-    reg.register_component(
-        c::CHARACTER_3D,
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "A 3D character controller: `physics3d.move_character` slides the node along walls and steps it up ledges. Needs a `collider3d`; a `kinematic` `body3d` lets it push bodies.",
-            schema: ComponentDef::parse_schema(c::CHARACTER_3D, &schema),
-            tags: &[balaur_core::components::tag::DIM_3D, balaur_core::components::tag::PHYSICS],
-            expects: &[c::COLLIDER_3D],
-            // Every property is read at move time, so applying one is
-            // remembering it and nothing else.
-            apply: Box::new(|eng, entity, params| {
-                // Moving a character writes the node's transform.
-                balaur_core::transform::ensure(eng, entity);
-                let _ = eng.world_mut().insert_one(entity, Character3d(params.clone()));
-                Ok(())
-            }),
-            remove: Box::new(|eng, entity| {
-                let _ = eng.world_mut().remove_one::<Character3d>(entity);
-                Ok(())
-            }),
-            get: Box::new(|eng, entity| {
-                let world = eng.world();
-                let character = world.get::<&Character3d>(entity).ok()?;
-                Some(character.0.clone())
-            }),
-        },
-    );
+    reg.add_component::<Character3d>();
 }

@@ -3,6 +3,7 @@
 
 use balaur_core::Engine;
 use balaur_core::collections::DetHashMap;
+use balaur_core::components::derived::{self, Component};
 use balaur_core::hecs::Entity;
 use balaur_plugin::Registry;
 use serde::Deserialize as _;
@@ -10,7 +11,7 @@ use serde::Deserialize as _;
 use crate::rapier3d::pipeline::PhysicsWorld;
 use crate::rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 use crate::vocabulary::component as c;
-use crate::{PhysicsState3d, events, joint, softbody, vehicle};
+use crate::{PhysicsState3d, collider, events, joint, softbody, vehicle};
 
 /// The rapier world plus the maps tying it to entities.
 ///
@@ -25,6 +26,7 @@ struct PhysicsFrame3d {
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
     body_authored: Vec<(NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(NodeKey, toml::Value)>,
     joints: Vec<(NodeKey, joint::JointRef3d)>,
     soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
     soft_params: Vec<(NodeKey, toml::Value)>,
@@ -35,6 +37,7 @@ struct PhysicsFrame3d {
     vehicles: Vec<(NodeKey, vehicle::VehicleFrame3d)>,
     follows: Vec<(NodeKey, crate::follow::FollowRef3d)>,
     grounded: Vec<(NodeKey, bool)>,
+    beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
@@ -49,6 +52,7 @@ struct PhysicsFrameRef3d<'a> {
     bodies: Vec<(NodeKey, RigidBodyHandle)>,
     colliders: Vec<(NodeKey, Vec<ColliderHandle>)>,
     body_authored: Vec<(NodeKey, crate::shared::body::Authored)>,
+    body_params: Vec<(NodeKey, toml::Value)>,
     joints: Vec<(NodeKey, joint::JointRef3d)>,
     soft_bodies: Vec<(NodeKey, softbody::SoftRef3d)>,
     soft_params: Vec<(NodeKey, toml::Value)>,
@@ -59,6 +63,7 @@ struct PhysicsFrameRef3d<'a> {
     vehicles: Vec<(NodeKey, vehicle::VehicleFrame3d)>,
     follows: Vec<(NodeKey, crate::follow::FollowRef3d)>,
     grounded: Vec<(NodeKey, bool)>,
+    beside: crate::shared::beside::Frame,
     shape_revision: u64,
     paused: bool,
     sleeping_allowed: bool,
@@ -110,7 +115,7 @@ pub(crate) type NodeKey = (String, u64);
 
 pub(crate) fn key_of(world: &balaur_core::hecs::World, entity: Entity) -> NodeKey {
     (
-        balaur_core::ids::of(world, entity).unwrap_or_default(),
+        balaur_core::ids::key_of(world, entity).unwrap_or_default(),
         entity.to_bits().get(),
     )
 }
@@ -130,7 +135,7 @@ pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
     let root = eng.root();
     let world = eng.world();
     if !key.0.is_empty()
-        && let Some(entity) = balaur_core::ids::find(&world, root, &key.0)
+        && let Some(entity) = balaur_core::ids::find_key(&world, root, &key.0)
     {
         return Some(entity);
     }
@@ -140,25 +145,67 @@ pub(crate) fn resolve_key(eng: &Engine, key: &NodeKey) -> Option<Entity> {
 
 /// A component's params as a frame keeps them: each table without the keys
 /// still at their schema default, which [`filled`] writes back on restore.
+/// `components` names the one the params are of, then those beside it whose
+/// rows its build wrote in.
 pub(crate) fn authored(
     eng: &Engine,
     world: &balaur_core::hecs::World,
     map: &DetHashMap<Entity, toml::Value>,
-    component: &str,
+    components: &[&str],
 ) -> Vec<(NodeKey, toml::Value)> {
-    let defaults = defaults_of(eng, component);
+    let defaults = defaults_of(eng, components);
     map.iter()
         .map(|(entity, params)| (key_of(world, *entity), trimmed(params, &defaults)))
         .collect()
+}
+
+/// What each node's `C` asks for, as a frame keeps it: [`authored`] rows,
+/// in node order.
+pub(crate) fn asked_rows<C: Component>(
+    eng: &Engine,
+    world: &balaur_core::hecs::World,
+) -> Vec<(NodeKey, toml::Value)> {
+    let held: DetHashMap<Entity, toml::Value> = world
+        .query::<(Entity, &C)>()
+        .iter()
+        .map(|(entity, asked)| (entity, derived::to_table(asked)))
+        .collect();
+    let mut rows = authored(eng, world, &held, &[C::NAME]);
+    rows.sort_by(|first, second| first.0.cmp(&second.0));
+    rows
+}
+
+/// Each node's `C` as a restored frame's `rows` hold it, and none on a node
+/// they leave out: what a node reports is what its restored body, collider,
+/// joint or soft body was built from.
+pub(crate) fn restore_asked<C: Component>(eng: &Engine, rows: &DetHashMap<Entity, toml::Value>) {
+    let stale: Vec<Entity> = eng
+        .world()
+        .query::<(Entity, &C)>()
+        .iter()
+        .map(|(entity, _)| entity)
+        .filter(|entity| !rows.contains_key(entity))
+        .collect();
+    for entity in stale {
+        let _ = eng.remove_one::<C>(entity);
+    }
+    for (entity, params) in rows {
+        match derived::from_table::<C>(params) {
+            Ok(asked) => {
+                let _ = eng.insert_one(*entity, asked);
+            }
+            Err(why) => tracing::error!(component = C::NAME, "restoring a component: {why:#}"),
+        }
+    }
 }
 
 /// The rows a frame kept, with every key it left out at its default again.
 pub(crate) fn filled(
     eng: &Engine,
     rows: Vec<(NodeKey, toml::Value)>,
-    component: &str,
+    components: &[&str],
 ) -> Vec<(NodeKey, toml::Value)> {
-    let defaults = defaults_of(eng, component);
+    let defaults = defaults_of(eng, components);
     rows.into_iter()
         .map(|(key, mut params)| {
             if let Some(table) = params.as_table_mut() {
@@ -171,16 +218,24 @@ pub(crate) fn filled(
         .collect()
 }
 
-/// Every property a component declares, at its default, as an `add` would
-/// fill it in.
-fn defaults_of(eng: &Engine, component: &str) -> toml::map::Map<String, toml::Value> {
+/// Every property the components declare, at its default, as an `add` would
+/// fill it in. A row two of them share has one default: a beside component's
+/// rows kept the defaults they had on the main one.
+fn defaults_of(eng: &Engine, components: &[&str]) -> toml::map::Map<String, toml::Value> {
     let registry = eng.resource::<balaur_core::components::ComponentRegistry>();
     let registry = registry.borrow();
-    registry
-        .def(component)
-        .and_then(|def| balaur_core::components::merge_defaults(&def.schema, None).ok())
-        .and_then(|params| params.as_table().cloned())
-        .unwrap_or_default()
+    let mut out = toml::map::Map::new();
+    for component in components {
+        let defaults = registry
+            .def(component)
+            .and_then(|def| balaur_core::components::merge_defaults(&def.schema, None).ok());
+        if let Some(toml::Value::Table(rows)) = defaults {
+            for (name, value) in rows {
+                out.entry(name).or_insert(value);
+            }
+        }
+    }
+    out
 }
 
 /// `params` without its defaults. A table missing a key the schema defaults
@@ -232,16 +287,45 @@ fn save_physics(eng: &Engine) -> serde_json::Value {
         bodies: keyed(&world, &state.bodies),
         colliders: keyed(&world, &state.colliders),
         body_authored: keyed(&world, &state.body_authored),
+        body_params: asked_rows::<crate::body::Body3d>(eng, &world),
         joints: keyed(&world, &state.joints),
         soft_bodies: keyed(&world, &state.soft_bodies),
-        soft_params: authored(eng, &world, &state.soft_params, c::SOFTBODY_3D),
-        collider_params: authored(eng, &world, &state.collider_params, c::COLLIDER_3D),
-        joint_params: authored(eng, &world, &state.joint_params, c::JOINT_3D),
+        soft_params: authored(
+            eng,
+            &world,
+            &state
+                .soft_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            softbody::PARAMS,
+        ),
+        collider_params: authored(
+            eng,
+            &world,
+            &state
+                .collider_params
+                .iter()
+                .map(|(entity, asked)| (*entity, asked.to_table()))
+                .collect(),
+            collider::PARAMS,
+        ),
+        joint_params: authored(
+            eng,
+            &world,
+            &state
+                .joint_params
+                .iter()
+                .map(|(entity, ask)| (*entity, ask.to_table()))
+                .collect(),
+            joint::PARAMS,
+        ),
         surfaces: state.surfaces.iter().map(|(h, s)| (*h, *s)).collect(),
         wheel_inputs: keyed(&world, &state.wheel_inputs),
         vehicles: vehicle::frame_rows(&world, &state.vehicles),
         follows: keyed(&world, &state.follows),
         grounded: keyed(&world, &state.grounded),
+        beside: crate::shared::beside::save(eng, &world, CARRIED),
         shape_revision: state.shape_revision,
         paused: state.paused,
         sleeping_allowed: state.sleeping_allowed,
@@ -260,15 +344,21 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     let bodies = resolved(eng, frame.bodies);
     let colliders = resolved(eng, frame.colliders);
     let body_authored = resolved(eng, frame.body_authored);
+    let body_params = resolved(eng, filled(eng, frame.body_params, &[c::BODY_3D]));
     let joints = resolved(eng, frame.joints);
     let soft_bodies = resolved(eng, frame.soft_bodies);
-    let soft_params = resolved(eng, filled(eng, frame.soft_params, c::SOFTBODY_3D));
-    let collider_params = resolved(eng, filled(eng, frame.collider_params, c::COLLIDER_3D));
-    let joint_params = resolved(eng, filled(eng, frame.joint_params, c::JOINT_3D));
+    let soft_params = resolved(eng, filled(eng, frame.soft_params, softbody::PARAMS));
+    let collider_params = resolved(eng, filled(eng, frame.collider_params, collider::PARAMS));
+    let joint_params = resolved(eng, filled(eng, frame.joint_params, joint::PARAMS));
     let wheel_inputs = resolved(eng, frame.wheel_inputs);
     let vehicles = vehicle::resolved_rows(eng, frame.vehicles);
     let follows = resolved(eng, frame.follows);
     let grounded = resolved(eng, frame.grounded);
+    restore_asked::<crate::body::Body3d>(eng, &body_params);
+    restore_asked::<crate::collider::Collider3d>(eng, &collider_params);
+    restore_asked::<joint::Joint3d>(eng, &joint_params);
+    restore_asked::<softbody::Softbody3d>(eng, &soft_params);
+    crate::shared::beside::restore(eng, CARRIED, frame.beside);
     let state = eng.resource::<PhysicsState3d>();
     let mut state = state.borrow_mut();
     state.world = frame.world;
@@ -280,9 +370,42 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     state.body_authored = body_authored;
     state.joints = joints;
     state.soft_bodies = soft_bodies;
-    state.soft_params = soft_params;
-    state.collider_params = collider_params;
-    state.joint_params = joint_params;
+    state.soft_params = soft_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match softbody::SoftAsked3d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a softbody3d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
+    state.collider_params = collider_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match collider::Asked3d::from_table(params) {
+                Ok(asked) => Some((*entity, asked)),
+                Err(why) => {
+                    tracing::error!("restoring a collider3d: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
+    state.joint_params = joint_params
+        .iter()
+        .filter_map(
+            |(entity, params)| match joint::JointAsk3d::from_table(params) {
+                Ok(ask) => Some((*entity, ask)),
+                Err(why) => {
+                    tracing::error!("restoring a joint: {why:#}");
+                    None
+                }
+            },
+        )
+        .collect();
     state.surfaces = frame.surfaces.into_iter().collect();
     state.wheel_inputs = wheel_inputs;
     state.vehicles = vehicles;
@@ -290,6 +413,25 @@ fn load_physics(eng: &Engine, value: &serde_json::Value) {
     state.grounded = grounded;
     super::restamp_collider_owners(&mut state);
 }
+
+/// Every component beside a 3D physics one, as a frame carries it.
+const CARRIED: &[crate::shared::beside::Carried] = &[
+    crate::shared::beside::carried::<collider::MeshCollider3d>(),
+    crate::shared::beside::carried::<collider::ConvexDecomposition3d>(),
+    crate::shared::beside::carried::<softbody::SoftGrid3d>(),
+    crate::shared::beside::carried::<softbody::SoftSphere3d>(),
+    crate::shared::beside::carried::<softbody::SoftClothTube3d>(),
+    crate::shared::beside::carried::<softbody::SoftRope3d>(),
+    crate::shared::beside::carried::<softbody::SoftVolumetric3d>(),
+    crate::shared::beside::carried::<softbody::SoftCustom3d>(),
+    crate::shared::beside::carried::<softbody::SoftCollision3d>(),
+    crate::shared::beside::carried::<softbody::SoftSkin3d>(),
+    crate::shared::beside::carried::<joint::RopeJoint3d>(),
+    crate::shared::beside::carried::<joint::SpringJoint3d>(),
+    crate::shared::beside::carried::<joint::GenericJoint3d>(),
+    crate::shared::beside::carried::<joint::Articulation3d>(),
+    crate::shared::beside::carried::<joint::BreakableJoint3d>(),
+];
 
 pub(crate) fn build_physics_snapshot(reg: &mut Registry<'_>) {
     reg.add_snapshot_source("physics", save_physics, load_physics);

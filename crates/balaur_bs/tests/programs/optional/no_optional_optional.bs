@@ -1,0 +1,5 @@
+// An optional cannot itself be optional.
+
+pub fn f(x: int??) -> int { 1 }
+
+// error: 3:17: an optional cannot itself be optional, found `?`

@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Balaur Script behind the scripting seam: `.bs` scripts beside Rune ones."
+description = "Balaur Script behind the scripting seam: `.bs` scripts."
 
 [dependencies]
+smol_str.workspace = true
 notify.workspace = true
 anyhow.workspace = true
 balaur_core.workspace = true

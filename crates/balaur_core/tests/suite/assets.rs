@@ -48,14 +48,9 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
     // string reaches `apply`, not what a real plugin would build from it.
     app.register_component(
         "instrument",
-        ComponentDef {
-            events: &[],
-            warnings: None,
-            doc: "",
-            schema: ComponentDef::parse_schema("instrument", INSTRUMENT_SCHEMA),
-            tags: &[],
-            expects: &[],
-            apply: Box::new(|eng: &Engine, _, value: &toml::Value| {
+        ComponentDef::by_hand(
+            ComponentDef::parse_schema("instrument", INSTRUMENT_SCHEMA),
+            Box::new(|eng: &Engine, _, value: &toml::Value| {
                 let reference = value
                     .get("song")
                     .and_then(toml::Value::as_str)
@@ -64,9 +59,9 @@ fn app_in(project_root: &std::path::Path, pack: Option<Pack>) -> App {
                 eng.resource::<Heard>().borrow_mut().0.push(reference);
                 Ok(())
             }),
-            remove: Box::new(|_, _| Ok(())),
-            get: Box::new(|_, _| None),
-        },
+            Box::new(|_, _| Ok(())),
+            Box::new(|_, _| None),
+        ),
     );
     app
 }
@@ -385,9 +380,9 @@ struct PackedHost {
 }
 
 impl balaur_script::ScriptHost<Engine> for PackedHost {
-    fn module(&self, name: &str) -> anyhow::Result<Box<dyn balaur_script::Bindings<Engine>>> {
+    fn module(&self, name: &str) -> anyhow::Result<balaur_script::Module<Engine>> {
         self.modules.borrow_mut().push(name.to_string());
-        Ok(Box::new(balaur_script::NoBindings))
+        Ok(balaur_script::Module::detached(name))
     }
     fn attach_with_props(
         &self,
@@ -425,31 +420,9 @@ impl balaur_script::ScriptHost<Engine> for PackedHost {
     fn instance_count(&self) -> usize {
         0
     }
-    fn invoke(
-        &self,
-        _: balaur_script::CallbackId,
-        _: &[balaur_script::Value],
-    ) -> anyhow::Result<balaur_script::Value> {
-        Ok(balaur_script::Value::Nil)
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
 }
 
 /// A shipped game has no source tree, so an asset that only resolves off disk
-struct NoScripts;
-
-impl balaur_script::ScriptCompiler for NoScripts {
-    fn extensions(&self) -> &[&str] {
-        &[]
-    }
-
-    fn compile(&self, _: &str, _: &str) -> anyhow::Result<Vec<u8>> {
-        Ok(Vec::new())
-    }
-}
-
 /// is an asset that works in development and vanishes on release.
 #[test]
 fn a_packed_run_resolves_an_asset_exactly_as_a_dev_run_does() {
@@ -457,8 +430,7 @@ fn a_packed_run_resolves_an_asset_exactly_as_a_dev_run_does() {
     let dev = app_in(dir.path(), None);
     let from_disk = assets::definition(&dev.engine, "notes/scale.toml#high").unwrap();
 
-    let pack = Pack::build(dir.path(), &NoScripts).unwrap();
-    assert!(pack.scenes.contains_key("notes/scale.toml"));
+    let pack = crate::packs::of_files(dir.path());
 
     // A project root that does not exist, so nothing can fall back to disk.
     let elsewhere = dir.path().join("shipped");

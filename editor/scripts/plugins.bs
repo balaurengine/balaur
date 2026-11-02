@@ -37,9 +37,9 @@ pub fn state() -> PluginsState {
         commands: [],
         inspector_sections: [],
         overlays: [],
-        property_editors: map(),
-        startup_states: map(),
-        open: map(),
+        property_editors: {},
+        startup_states: {},
+        open: {},
         loaded: [],
     }
 }
@@ -57,9 +57,9 @@ fn roots(state: editor::State) -> [str] {
     }
     let found = ["plugins", state.game_root + "/editor"];
     let addons = state.game_root + "/addons";
-    for entry in util::vec(fs::list(addons)) {
-        if entry.is_dir.as_bool() {
-            found.push(addons + "/" + entry.name.as_str() + "/editor");
+    for entry in util::list_or_empty(fs::list(addons)) {
+        if entry["is_dir"].as_bool() {
+            found.push(addons + "/" + entry["name"].as_str() + "/editor");
         }
     }
     found
@@ -76,9 +76,9 @@ pub fn load(state: &mut editor::State) {
     }
     for root in roots(state) {
         let names: [str] = [];
-        for entry in util::vec(fs::list(root)) {
-            let name = entry.name.as_str();
-            if !entry.is_dir.as_bool() && name.ends_with(".bs") {
+        for entry in util::list_or_empty(fs::list(root)) {
+            let name = entry["name"].as_str();
+            if !entry["is_dir"].as_bool() && name.ends_with(".bs") {
                 names.push(name);
             }
         }
@@ -111,56 +111,58 @@ fn load_one(state: &mut editor::State, host: Node, path: str, id: str) {
 
 // Every list is optional: a plugin declares only what it adds.
 fn add_all(state: &mut editor::State, owner: Node, declared: any) {
-    for entry in util::vec(declared.panels) {
-        state.registry.panels.push(map()
-            .with("id", entry.id)
-            .with("title", entry.title)
-            .with("icon", entry.icon.as_str())
-            .with("tall", entry.tall.as_bool())
-            .with("draw", entry.draw)
-            .with("owner", owner));
+    for entry in util::list_or_empty(declared["panels"]) {
+        state.registry.panels.push({
+            "id": entry["id"],
+            "title": entry["title"],
+            "icon": entry["icon"].as_str(),
+            "tall": entry["tall"].as_bool(),
+            "draw": entry["draw"],
+            "owner": owner,
+        });
         // Registering a panel is not enough to reach it: a panel is drawn by
         // the dock whose tab list holds its id.
-        docks::adopt(state, entry.id.as_str());
+        docks::adopt(state, entry["id"].as_str());
     }
-    for entry in util::vec(declared.dialogs) {
-        state.registry.dialogs.push(map().with("id", entry.id).with("title", entry.title).with("rows", entry.rows).with("owner", owner));
+    for entry in util::list_or_empty(declared["dialogs"]) {
+        state.registry.dialogs.push({ "id": entry["id"], "title": entry["title"], "rows": entry["rows"], "owner": owner });
     }
-    for entry in util::vec(declared.commands) {
-        let icon = entry.icon;
-        state.registry.commands.push(map()
-            .with("title", entry.title)
-            .with("icon", if icon.is_nil() { "·" } else { icon.as_str() })
-            .with("shortcut", entry.shortcut.as_str())
-            .with("run", entry.run)
-            .with("owner", owner));
+    for entry in util::list_or_empty(declared["commands"]) {
+        let icon = entry["icon"];
+        state.registry.commands.push({
+            "title": entry["title"],
+            "icon": if icon == nil { "·" } else { icon.as_str() },
+            "shortcut": entry["shortcut"].as_str(),
+            "run": entry["run"],
+            "owner": owner,
+        });
     }
-    for rows in util::vec(declared.inspector_sections) {
-        state.registry.inspector_sections.push(map().with("rows", rows).with("owner", owner));
+    for rows in util::list_or_empty(declared["inspector_sections"]) {
+        state.registry.inspector_sections.push({ "rows": rows, "owner": owner });
     }
-    for draw in util::vec(declared.overlays) {
-        state.registry.overlays.push(map().with("draw", draw).with("owner", owner));
+    for draw in util::list_or_empty(declared["overlays"]) {
+        state.registry.overlays.push({ "draw": draw, "owner": owner });
     }
     // A property editor answers a row's controls for a value of its type.
-    let editors = util::obj(declared.property_editors);
+    let editors = util::map_or_empty(declared["property_editors"]);
     for datatype in editors.keys() {
-        state.registry.property_editors.set(datatype, map().with("controls", editors.get(datatype)).with("owner", owner));
+        state.registry.property_editors[datatype] = { "controls": editors[datatype], "owner": owner };
     }
-    let states = util::obj(declared.startup_states);
+    let states = util::map_or_empty(declared["startup_states"]);
     for name in states.keys() {
-        state.registry.startup_states.set(name, map().with("run", states.get(name)).with("owner", owner));
+        state.registry.startup_states[name] = { "run": states[name], "owner": owner };
     }
 }
 
 // What the plugin that registered `entry` answers to its method under `key`.
 fn ask(entry: any, key: str, payload: any) -> any {
-    entry.owner.as_node().call(entry.get(key).as_str(), payload)
+    entry["owner"].as_node().call(entry[key].as_str(), payload)
 }
 
 /// A registered panel's entry, or nil.
 pub fn panel(state: editor::State, id: str) -> any {
     for entry in state.registry.panels {
-        if entry.id.as_str() == id {
+        if entry["id"].as_str() == id {
             return entry;
         }
     }
@@ -170,45 +172,47 @@ pub fn panel(state: editor::State, id: str) -> any {
 /// Have the plugin whose panel is `id` fill the node at `host`.
 pub fn draw_panel(state: &mut editor::State, id: str, host: str) {
     let entry = panel(state, id);
-    if !entry.is_nil() {
-        ask(entry, "draw", map().with("host", host).with("theme", state.theme));
+    if entry != nil {
+        ask(entry, "draw", { "host": host, "theme": state.theme });
     }
 }
 
 /// Run a command a plugin registered: one of `state.registry.commands`.
 pub fn run(state: &mut editor::State, command: any) {
-    ask(command, "run", map());
+    ask(command, "run", {});
 }
 
 /// The rows each plugin's inspector section asks for, after the built-ins: a
 /// section returns row specs as `pool.bs` takes them, and draws nothing.
 pub fn section_rows(state: &mut editor::State, tokens: any, node: Node) {
     for entry in state.registry.inspector_sections {
-        for row in util::vec(ask(entry, "rows", map().with("theme", tokens).with("node", node))) {
-            inspector::add_row(state, calls_back(entry, util::obj(row)));
+        for row in util::list_or_empty(ask(entry, "rows", { "theme": tokens, "node": node })) {
+            inspector::add_row(state, calls_back(entry, util::map_or_empty(row)));
         }
     }
 }
 
 // A control naming a `call` presses back into the plugin: that method runs
 // on the plugin's node with the control's `data`.
-fn calls_back(entry: any, row: any) -> any {
-    let controls: [any] = [];
-    for control in util::vec(row.get("controls")) {
-        let call = control.get("call");
+fn calls_back(entry: any, row: any) -> ui::Row {
+    let controls: [ui::Control] = [];
+    for control in util::list_or_empty(row["controls"]) {
+        let call = control["call"];
         if call.kind() == "str" {
-            let data = map().with("owner", entry.owner).with("call", call).with("payload", control.get("data"));
+            let data: any = { "owner": entry["owner"], "call": call, "payload": control["data"] };
             control.remove("call");
             controls.push(pool::on(control, pressed, data));
         } else {
             controls.push(control);
         }
     }
-    row.with("controls", controls)
+    let out = util::copy(row);
+    out["controls"] = controls;
+    out
 }
 
 fn pressed(state: &mut editor::State, data: any, _value: any) {
-    data.owner.as_node().call(data.call.as_str(), data.payload);
+    data["owner"].as_node().call(data["call"].as_str(), data["payload"]);
     changed(state);
 }
 
@@ -216,71 +220,78 @@ fn pressed(state: &mut editor::State, data: any, _value: any) {
 /// show moves: see `draw_overlays` in editor.bs.
 pub fn draw_overlays(state: editor::State) {
     for entry in state.registry.overlays {
-        ask(entry, "draw", map());
+        ask(entry, "draw", {});
     }
 }
 
 // Where the open dialogs go: a column down the left of the stage.
 const DIALOGS: str = "Editor/Dialogs";
-const DIALOG_W: float = 260.0;
+const DIALOG_WIDTH: float = 260.0;
 
 /// Fill the open plugin dialogs, a sheet each with its title and close over
 /// the rows the plugin hands back, and place them against the stage.
 pub fn fill_dialogs(state: &mut editor::State) {
     let tokens = state.theme;
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for entry in state.registry.dialogs {
-        if !state.registry.open.get(entry.id.as_str()).as_bool() {
+        if !state.registry.open[entry["id"].as_str()].as_bool() {
             continue;
         }
-        let close = pool::on(map()
-            .with("kind", "button")
-            .with("role", "icon_action")
-            .with("text", "")
-            .with("icon", icons::ui("close"))
-            .with("tooltip", "Close"), close_dialog, map().with("id", entry.id));
-        let head: [any] = [
-            map().with("kind", "label").with("role", "text_title_dialog").with("text", entry.title),
-            map().with("kind", "row").with("grow", 1),
+        let close = pool::on(ui::Control {
+            kind: "button",
+            role: "icon_action",
+            text: "",
+            icon: icons::ui("close"),
+            tooltip: "Close",
+        }, close_dialog, { "id": entry["id"] });
+        let head: [ui::Control] = [
+            ui::Control { kind: "label", role: "text_title_dialog", text: entry["title"] },
+            ui::Control { kind: "row", grow: 1 },
             close,
         ];
-        let body: [any] = [
-            map().with("kind", "row").with("align_items", "center").with("controls", head),
-            map().with("kind", "separator"),
+        let body: [ui::Control] = [
+            ui::Control { kind: "row", align_items: "center", controls: head },
+            ui::Control { kind: "separator" },
         ];
-        for row in util::vec(ask(entry, "rows", map().with("theme", tokens))) {
-            body.push(row_controls(util::obj(row)));
+        for row in util::list_or_empty(ask(entry, "rows", { "theme": tokens })) {
+            body.push(row_controls(util::map_or_empty(row)));
         }
-        out.push(map()
-            .with("kind", "panel")
-            .with("role", "sheet")
-            .with("width", DIALOG_W)
-            .with("padding", [12, 6, 12, 8])
-            .with("gap", [6, 6])
-            .with("controls", body));
+        out.push(ui::Control {
+            kind: "panel",
+            role: "sheet",
+            width: DIALOG_WIDTH,
+            padding: [12, 6, 12, 8],
+            gap: [6, 6],
+            controls: body,
+        });
     }
-    let vp = state.layout.stage;
-    util::fill(DIALOGS, map().with("visible", out.len() > 0).with("x", vp.x.as_float() + 12.0).with("y", vp.y.as_float() + 12.0));
-    pool::strip(state, DIALOGS, out);
+    let viewport_rect = state.layout["stage"];
+    let filled = scene::get_node(DIALOGS);
+    if filled.is_valid() {
+        filled.set_visible(out.len() > 0);
+        filled.widget.x = viewport_rect["x"].as_float() + 12.0;
+        filled.widget.y = viewport_rect["y"].as_float() + 12.0;
+    }
+    ui::fill_strip(DIALOGS, out);
 }
 
 fn close_dialog(state: &mut editor::State, data: any, _value: any) {
-    state.registry.open.set(data.id.as_str(), false);
+    state.registry.open[data["id"].as_str()] = false;
     changed(state);
 }
 
 // A row a plugin hands back, as the pool's row specs read, laid out as one
 // line: its label, then its controls.
-fn row_controls(row: any) -> any {
-    let controls: [any] = [];
-    let label = row.label;
-    if !label.is_nil() {
-        controls.push(map().with("kind", "label").with("role", "text_caption").with("text", label));
+fn row_controls(row: any) -> ui::Control {
+    let controls: [ui::Control] = [];
+    let label = row["label"];
+    if label != nil {
+        controls.push(ui::Control { kind: "label", role: "text_caption", text: label });
     }
-    for one in util::vec(row.controls) {
+    for one in util::list_or_empty(row["controls"]) {
         controls.push(one);
     }
-    map().with("kind", "row").with("gap", [6, 6]).with("align_items", "center").with("controls", controls)
+    ui::Control { kind: "row", gap: [6, 6], align_items: "center", controls: controls }
 }
 
 /// What a plugin's docks and dialogs show moved.
@@ -291,11 +302,11 @@ pub fn changed(state: &mut editor::State) {
 /// The controls a plugin's property editor answers for a value of
 /// `datatype`, or nil when no plugin registered one.
 pub fn property_controls(state: editor::State, datatype: str, spec: any, value: any, at: inspector::AtTop) -> any {
-    let entry = state.registry.property_editors.get(datatype);
-    if entry.is_nil() {
+    let entry = state.registry.property_editors[datatype];
+    if entry == nil {
         return nil;
     }
-    ask(entry, "controls", map().with("spec", spec).with("value", value).with("at", at))
+    ask(entry, "controls", { "spec": spec, "value": value, "at": at })
 }
 
 /// Whether a plugin registered the start-up state `name`.
@@ -305,8 +316,8 @@ pub fn has_start_state(state: editor::State, name: str) -> bool {
 
 /// Run the start-up state `name` a plugin registered.
 pub fn run_start_state(state: &mut editor::State, name: str) {
-    let entry = state.registry.startup_states.get(name);
-    if !entry.is_nil() {
-        ask(entry, "run", map());
+    let entry = state.registry.startup_states[name];
+    if entry != nil {
+        ask(entry, "run", {});
     }
 }

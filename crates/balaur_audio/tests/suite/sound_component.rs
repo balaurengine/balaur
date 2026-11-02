@@ -52,7 +52,7 @@ pub(crate) fn write_wav_of(dir: &Path, name: &str, samples: u32) {
 
 pub(crate) fn app_in(dir: &Path) -> App {
     let mut app = App::new(AppConfig::bare(dir.to_path_buf())).unwrap();
-    balaur_plugin::load(&mut app, &mut AudioPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AudioPlugin).unwrap();
     app
 }
 
@@ -266,26 +266,21 @@ fn a_sound_file_carries_its_own_level_and_loop() {
     assert_eq!(plain, balaur_audio::FileSettings::default());
 }
 
-/// `gapless` and `seekable` reach the decoder from a file's own sidecar.
+/// `gapless` reaches the decoder from a file's own sidecar.
 #[test]
 fn a_sound_file_carries_its_own_decoder_settings() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("music")).unwrap();
     std::fs::write(
         dir.path().join("music/theme.ogg.import.toml"),
-        "gapless = false\nseekable = true\n",
+        "gapless = false\n",
     )
     .unwrap();
     let app = app_in(dir.path());
     let own = balaur_audio::FileSettings::of(&app.engine, "music/theme.ogg");
     assert!(!own.gapless);
-    assert!(own.seekable);
     let plain = balaur_audio::FileSettings::of(&app.engine, "music/other.ogg");
     assert!(plain.gapless, "gapless is on by default");
-    assert!(
-        !plain.seekable,
-        "seeking in the container is off by default"
-    );
 }
 
 /// A sound that plays out ends on the fixed step its length runs out on, with

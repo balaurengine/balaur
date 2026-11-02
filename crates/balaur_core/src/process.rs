@@ -25,8 +25,6 @@ pub enum ProcessMode {
     Inherit,
     /// Ticks while the game runs and stops while it is paused.
     Pausable,
-    /// Ticks only while the game is paused: a menu that drives itself.
-    WhenPaused,
     /// Ticks either way. What a pause menu, a loading screen and the music
     /// that outlives a pause are set to.
     Always,
@@ -40,7 +38,6 @@ impl ProcessMode {
         match self {
             Self::Inherit => "inherit",
             Self::Pausable => "pausable",
-            Self::WhenPaused => "when_paused",
             Self::Always => "always",
             Self::Disabled => "disabled",
         }
@@ -53,7 +50,6 @@ impl ProcessMode {
         match name {
             "inherit" => Some(Self::Inherit),
             "pausable" => Some(Self::Pausable),
-            "when_paused" => Some(Self::WhenPaused),
             "always" => Some(Self::Always),
             "disabled" => Some(Self::Disabled),
             _ => None,
@@ -61,20 +57,13 @@ impl ProcessMode {
     }
 
     /// Every mode a node may be set to, for a schema and an editor's list.
-    pub const ALL: [Self; 5] = [
-        Self::Inherit,
-        Self::Pausable,
-        Self::WhenPaused,
-        Self::Always,
-        Self::Disabled,
-    ];
+    pub const ALL: [Self; 4] = [Self::Inherit, Self::Pausable, Self::Always, Self::Disabled];
 
     /// Whether a node resolved to this mode ticks, given the game's state.
     #[must_use]
     const fn runs(self, paused: bool) -> bool {
         match self {
             Self::Disabled => false,
-            Self::WhenPaused => paused,
             Self::Always => true,
             // Inherit cannot reach here: `resolved` stops at the root.
             Self::Inherit | Self::Pausable => !paused,
@@ -132,9 +121,20 @@ pub struct Pause {
     /// Whether any node carries a mode at all. False is the common case, and
     /// it turns the walk to the root into one compare.
     modes: bool,
+    /// Whether any scene is parked. A parked node reads hidden, so only a
+    /// hidden node is walked for it.
+    parked: bool,
 }
 
 impl Pause {
+    /// Whether a pause or a mode holds anything, so a pass over many nodes
+    /// has any node to ask about. A parked node is held all the same, for a
+    /// pass that can meet one: [`ticks`] answers for it.
+    #[must_use]
+    pub const fn holds(self) -> bool {
+        self.on || self.modes
+    }
+
     #[must_use]
     fn covers(self, world: &World, entity: Entity) -> bool {
         self.on
@@ -150,7 +150,15 @@ pub fn pause(eng: &Engine) -> Pause {
     Pause {
         on: eng.paused(),
         scope: eng.debug_scope(),
-        modes: eng.world().query::<&ProcessMode>().iter().next().is_some(),
+        // A holder's mode is the parked trees', which `parked` asks about.
+        modes: eng
+            .world()
+            .query::<&ProcessMode>()
+            .without::<&crate::parked::Held>()
+            .iter()
+            .next()
+            .is_some(),
+        parked: !crate::parked::holders(eng).is_empty(),
     }
 }
 
@@ -160,7 +168,12 @@ pub fn ticks(world: &World, entity: Entity, pause: Pause) -> bool {
     // With no mode anywhere the answer is the pause alone, and `covers`
     // answers that without touching the node.
     if !pause.modes {
-        return !pause.covers(world, entity);
+        let parked = pause.parked
+            && world
+                .get::<&crate::scene::GlobalAppearance>(entity)
+                .is_ok_and(|shown| !shown.visible)
+            && crate::parked::path_of(world, entity).is_some();
+        return !parked && !pause.covers(world, entity);
     }
     resolved(world, entity).runs(pause.covers(world, entity))
 }

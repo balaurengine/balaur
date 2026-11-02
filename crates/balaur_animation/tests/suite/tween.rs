@@ -16,8 +16,8 @@ use std::f32::consts::FRAC_PI_2;
 
 fn app() -> App {
     let mut app = App::new(AppConfig::bare(std::path::PathBuf::from("tests/fixtures"))).unwrap();
-    balaur_plugin::load(&mut app, &mut balaur::RenderPlugin::default()).unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut balaur::RenderPlugin).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     app
 }
 
@@ -248,7 +248,7 @@ fn a_tween_dies_with_the_node_it_was_made_on() {
     tick(&mut app, 5);
     assert!(tween::is_running(&app.engine, id));
 
-    app.engine.push_command(balaur_core::Command::Free(entity));
+    app.engine.defer_free(entity);
     // `queue_free` defers to `Stage::Last`, so the node survives this frame
     // and the tween notices on the next one.
     tick(&mut app, 3);
@@ -485,7 +485,7 @@ fn a_tween_drives_a_component_property_the_animation_crate_does_not_depend_on() 
     let mut app = app();
     let entity = spawn(&app, "Box");
     let params: toml::Value =
-        toml::from_str("kind = \"box\"\ncolor = [0.0, 0.0, 0.0, 1.0]").unwrap();
+        toml::from_str("shape = { kind = \"box\" }\ncolor = [0.0, 0.0, 0.0, 1.0]").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&params)).unwrap();
     start(
         &app,
@@ -518,7 +518,7 @@ fn a_tween_captures_the_component_value_it_starts_from() {
     let mut app = app();
     let entity = spawn(&app, "Box");
     let params: toml::Value =
-        toml::from_str("kind = \"box\"\ncolor = [0.0, 1.0, 0.0, 1.0]").unwrap();
+        toml::from_str("shape = { kind = \"box\" }\ncolor = [0.0, 1.0, 0.0, 1.0]").unwrap();
     components::add(&app.engine, entity, "shape3d", Some(&params)).unwrap();
     start(
         &app,
@@ -982,8 +982,8 @@ const MOVER: &str = r#"
 pub class Mover { node: Node, landed: int, ready: bool }
 impl Mover {
     fn init() {
-        let rise = map().with("property", "position").with("to", [0.0, 10.0, 0.0]).with("duration", 0.5);
-        animation::tween(self.node, map().with("steps", [rise, map().with("call", "land")]));
+        let rise = animation::Step { property: "position", to: [0.0, 10.0, 0.0], duration: 0.5 };
+        animation::tween(self.node, animation::Tween { steps: [rise, animation::Step { call: "land" }] });
         self.ready = true;
     }
     pub fn land() {
@@ -1034,7 +1034,7 @@ fn a_call_step_runs_the_method_the_script_named() {
         ..AppConfig::bare(dir.path().to_path_buf())
     })
     .unwrap();
-    balaur_plugin::load(&mut app, &mut AnimationPlugin::default()).unwrap();
+    balaur_plugin::load(&mut app, &mut AnimationPlugin).unwrap();
     let entity = spawn(&app, "Box");
     app.engine
         .script_host()

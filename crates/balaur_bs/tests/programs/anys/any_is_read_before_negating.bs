@@ -1,0 +1,3 @@
+fn f(a: any) -> float { -a["n"] }
+
+// error: 1:25: cannot negate an `any`: read it with `.as_float()` or `.as_int()`

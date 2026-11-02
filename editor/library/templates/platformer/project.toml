@@ -6,16 +6,11 @@ main_scene = "scenes/main.toml"
 move = ["keys:KeyA,KeyD", "axis:left_x"]
 jump = ["Space", "gamepad:south"]
 
-# What an export re-encodes on the way into the pack. Every one is off, so a
-# build ships the bytes you gave it; each is measured on the examples.
+# What an export re-encodes on the way into the pack, kept only where it comes
+# out smaller. Images go to lossless WebP and uncompressed audio to FLAC with no
+# row here; `image_recode` and `audio_recode` choose otherwise.
 [export]
-# "webp" writes images as lossless WebP, about a third off a PNG and nothing
-# off a JPEG, which it leaves alone. "quantized" is a 256-colour palette.
-image_recode = "original"
 # "subset" keeps only the code points the project's scenes and scripts name.
 # The largest saving here by far: it takes the `text` example down by 89%.
 # `font_ranges` adds hex ranges for text a server sends or a player types.
 font_recode = "original"
-# "flac" re-encodes uncompressed audio sample for sample; "vorbis" is lossy.
-# Neither touches an .ogg or an .mp3 that is already compressed.
-audio_recode = "original"
