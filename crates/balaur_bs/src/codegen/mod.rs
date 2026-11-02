@@ -27,6 +27,7 @@ use checks::{check_structs, check_types, defaults};
 pub(crate) use func::show;
 /// Where a module's static data starts: past the scratch space and the
 /// allocator's free lists. A linked script's units put theirs from here.
+#[cfg(any(jit, native, feature = "wasmi"))]
 pub(crate) const DATA_START: u32 = DATA_BASE;
 use func::{FnGen, LVal, Mode, R, err};
 use rt::{DATA_BASE, G_MEMORY_BASE, GLOBALS, HELPER_COUNT, Helpers, mem};

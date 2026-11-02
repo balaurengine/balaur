@@ -235,6 +235,7 @@ impl HostState {
 
     /// Another unit of a linked script, its imports bound: the number its
     /// calls are dispatched by.
+    #[cfg(any(jit, native, feature = "wasmi"))]
     pub(crate) fn bind_unit(&mut self, unit: Arc<crate::Compiled>) -> Result<usize, String> {
         let kinds = self.kinds_of(&unit.meta)?;
         self.units.push((unit, kinds));

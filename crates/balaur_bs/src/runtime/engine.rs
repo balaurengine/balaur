@@ -200,7 +200,15 @@ pub(crate) struct Setup<'a> {
     pub fuel: Option<u64>,
     pub memory_bytes: Option<usize>,
     /// A unit's file key and the units of the modules it uses.
+    #[cfg_attr(
+        not(any(jit, native, feature = "wasmi")),
+        allow(dead_code, reason = "only an engine that links units reads it")
+    )]
     pub key: &'a str,
+    #[cfg_attr(
+        not(any(jit, native, feature = "wasmi")),
+        allow(dead_code, reason = "only an engine that links units reads them")
+    )]
     pub linked: &'a [(String, std::sync::Arc<crate::Compiled>)],
     /// Whether a loaded native build may run it ([`super::Limits::skip_native`]).
     #[cfg_attr(
@@ -212,6 +220,7 @@ pub(crate) struct Setup<'a> {
 
 /// Where each unit of a linked script puts its static data, its own first,
 /// then `linked`'s in order; and where its heap starts after them all.
+#[cfg(any(jit, native, feature = "wasmi"))]
 pub(crate) fn unit_layout(
     meta: &Meta,
     linked: &[(String, std::sync::Arc<crate::Compiled>)],
