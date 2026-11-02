@@ -55,7 +55,6 @@ balaur_plugin = { path = "crates/balaur_plugin", version = "0.2.0" }
 balaur_script = { path = "crates/balaur_script", version = "0.2.0" }
 balaur_bs = { path = "crates/balaur_bs", version = "0.2.0", default-features = false }
 balaur_script_bs = { path = "crates/balaur_script_bs", version = "0.2.0", default-features = false }
-balaur_port = { path = "crates/balaur_port", version = "0.2.0" }
 balaur_physics = { path = "crates/balaur_physics", version = "0.2.0", default-features = false }
 balaur_animation = { path = "crates/balaur_animation", version = "0.2.0" }
 balaur_render = { path = "crates/balaur_render", version = "0.2.0", default-features = false }
@@ -144,7 +143,7 @@ balaur_ui = { opt-level = 1 }
 # copied into each of the 130 test binaries; only the workspace keeps its own.
 [profile.dev.package."*"]
 debug = false
-# Rune's VM, egui and hecs: at 0 an editor frame ran 2.6 to 2.9x the instructions.
+# The script VM, egui and hecs: at 0 an editor frame ran 2.6 to 2.9x the instructions.
 opt-level = 3
 
 # Optimised, wasmi dispatches each instruction by tail call, and the debug
@@ -171,20 +170,9 @@ codegen-units = 1
 panic = "abort"
 strip = true
 
-# Rune's VM at "z" ran an editor frame in 1.2 to 1.6x the cycles of "s", which
-# costs 0.07 MB of brotli; 3 is no quicker for twice that. Same plan, §9.
-[profile.web.package]
-rune = { opt-level = "s" }
-rune-alloc = { opt-level = "s" }
-rune-core = { opt-level = "s" }
-
-# Four forks. Cargo.lock pins each commit; to hack on one locally, use a
+# Three forks. Cargo.lock pins each commit; to hack on one locally, use a
 # `paths` override in .cargo/config.toml rather than editing this.
 [patch.crates-io]
-# 0.14.2 made deterministic and debuggable: `powf`/`powi` and hashing off the
-# platform, break points in the VM, an instruction counter. Rune installs its
-# stdlib wholesale and nothing can be overridden, so a fork is the only way.
-rune = { git = "https://github.com/balaurengine/rune.git", branch = "deterministic-pow" }
 # Upstream v0.47.0 plus the opaque web canvas and the engine's three hooks:
 # IME events, a mid-pass screen copy for 2D materials, UIKit's safe area.
 # On `balaur-wrapped-surface` (Ughuuu/kiss3d#1) until it merges into `balaur-hooks`.

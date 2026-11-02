@@ -32,11 +32,10 @@ ignore = [
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# Four forks, none on crates.io, all pinned in the root Cargo.toml: kiss3d,
-# rune (docs/DETERMINISM.md), cosmic-text on epaint's harfrust, egui on zeno.
+# Three forks, none on crates.io, all pinned in the root Cargo.toml: kiss3d,
+# cosmic-text on epaint's harfrust, egui on zeno.
 allow-git = [
     "https://github.com/Ughuuu/kiss3d.git",
-    "https://github.com/balaurengine/rune.git",
     "https://github.com/Ughuuu/cosmic-text.git",
     "https://github.com/Ughuuu/egui.git",
 ]

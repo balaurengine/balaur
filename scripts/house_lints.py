@@ -143,97 +143,6 @@ def rust_files() -> list[Path]:
     return sorted(out)
 
 
-def rune_files() -> list[Path]:
-    """Every `.rn` in the tree: the editor is a Balaur project and its scripts
-    are shipped code, but no Rust lint has ever looked at them."""
-    out = []
-    for dirpath, dirnames, filenames in os.walk(ROOT):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.startswith("."))
-        out.extend(Path(dirpath) / f for f in filenames if f.endswith(".rn"))
-    return sorted(out)
-
-
-# `obj.field = a || b` puts the short-circuit result in `a`'s slot as well as
-# in the field when `a` is a local. Parentheses do not help; a temporary does.
-# A closure, `x.f = || ..`, has no left operand and is not the trap.
-SHORT_CIRCUIT = re.compile(r"^\s*[A-Za-z_][\w.]*(\.\w+|\[[^\]]+\])\s*=\s*[^=|\s].*?(\|\||&&)")
-# `if let Some(x) = x` fails to compile with "Missing variable"; the name has
-# to differ on the two sides.
-REBOUND_LET = re.compile(r"\bif\s+let\s+\w+\(\s*(\w+)\s*\)\s*=\s*(\w+)\s*(\{|$)")
-# `return || f` is `(return) || f`, and `return match` and `return `..``
-# do not parse: the value is bound to a local first.
-RETURN_TRAP = re.compile(r"\breturn\s+(\||match\b|`)")
-# The blocks whose value is never an operand: loops and items.
-BLOCK_STATEMENT = re.compile(
-    r"\s*(}\s*)?(pub(\(\w+\))?\s+)?(async\s+)?(for|while|loop|fn|impl|mod|struct|enum)\b")
-STRING_LITERAL = re.compile(r'"(\\.|[^"\\])*"|`(\\.|[^`\\])*`')
-# A control a finger can never reach: its `visible` answers to a hover, which
-# a touch screen does not have. The shell has none and this keeps it so.
-HOVER_GATED = re.compile(r"\bvisible\s*:\s*[^,}]*\bhover")
-
-
-def check_rune(path: Path) -> list[Finding]:
-    """The Rune 0.14 traps that have each already cost a day, and the one
-    control shape a touch screen cannot reach.
-
-    The traps are compiler behaviour rather than style, and `AGENTS.md`
-    writes them up: some miscompile silently, the others refuse to compile.
-    """
-    rel = path.relative_to(ROOT)
-    findings: list[Finding] = []
-    # Each open brace, and whether its block is an expression: an `if` or a
-    # `match` is, a loop or an item is not.
-    opened: list[bool] = []
-    closed_value = False
-    closed_any = False
-    for i, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
-        code = line.split("//")[0]
-        # A line opening with `(` or `[` after an `if` or `match` block calls
-        # or indexes that block's value.
-        if closed_value and code.lstrip().startswith(("(", "[")):
-            findings.append(Finding(rel, i, "rune-block-call",
-                                    "a `}` then `(` or `[` calls or indexes the block above; "
-                                    "bind the value first (AGENTS.md)", "ERROR"))
-        # A `-` after any block, a loop's included, subtracts from its value.
-        opener = code.lstrip()
-        if closed_any and opener.startswith("-") and not opener.startswith("->"):
-            findings.append(Finding(rel, i, "rune-block-call",
-                                    "a `}` then a line opening with `-` subtracts from the block "
-                                    "above; write `return -1;` or bind first (AGENTS.md)",
-                                    "ERROR"))
-        if code.strip():
-            closed_any = code.rstrip().endswith("}")
-            closed_value = False
-            bare = STRING_LITERAL.sub('""', code)
-            statement = bool(BLOCK_STATEMENT.match(bare))
-            for ch in bare:
-                if ch == "{":
-                    opened.append(not statement)
-                elif ch == "}" and opened:
-                    closed_value = opened.pop()
-            closed_value = closed_value and bare.rstrip().endswith("}")
-        if SHORT_CIRCUIT.search(code):
-            findings.append(Finding(rel, i, "rune-short-circuit",
-                                    "`field = a || b` overwrites the local `a`; compute into a "
-                                    "temporary first (AGENTS.md)", "ERROR"))
-        m = REBOUND_LET.search(code)
-        if m and m.group(1) == m.group(2):
-            findings.append(Finding(rel, i, "rune-rebound-let",
-                                    f"`if let ..({m.group(1)}) = {m.group(2)}` is a missing "
-                                    "variable in Rune; bind to another name", "ERROR"))
-        if RETURN_TRAP.search(code):
-            findings.append(Finding(rel, i, "rune-return-trap",
-                                    "`return ||` returns nothing, and `return match` and a "
-                                    "template after `return` do not parse; bind the value "
-                                    "first (AGENTS.md)", "ERROR"))
-        if HOVER_GATED.search(code):
-            findings.append(Finding(rel, i, "hover-only-control",
-                                    "a control shown only while hovered cannot be reached by a "
-                                    "finger; show it always or put it behind a long press",
-                                    "ERROR"))
-    return findings
-
-
 @dataclass
 class Context:
     """What the naming rules need to know about the whole tree at once.
@@ -437,7 +346,7 @@ def seam_rules(rel, i, line, lines, ctx, crate, impl_name) -> list[Finding]:
                             f"bare `fn {verb}(` in a crate with a plugin seam: say what it "
                             f"fills — `{verb}_<thing>` — or use a different verb (N10)", "ERROR")]
         return []
-    want = "&mut dyn Bindings" if verb == "install" else "&mut Registry"
+    want = "&mut Module" if verb == "install" else "&mut Registry"
     param = first_param(signature(lines, i - 1))
     if want in param:
         return []
@@ -1006,8 +915,6 @@ def main() -> int:
     ctx = scan_context(files)
     for path in files:
         findings.extend(check_file(path, ctx))
-    for path in rune_files():
-        findings.extend(check_rune(path))
     findings.extend(check_showcase())
     findings.extend(check_setting_units(files))
     findings.extend(check_themes())

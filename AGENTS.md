@@ -92,7 +92,7 @@ Never write: a restatement of the line below, a divider or banner,
 commented-out code, a doc comment on a test whose name already says it, or
 three-plus lines defending a decision.
 
-`scripts/comment_lints.py` enforces the mechanical half across Rust, Rune,
+`scripts/comment_lints.py` enforces the mechanical half across Rust,
 Balaur Script, Python, shell, YAML and TOML; a plain-comment block over three
 lines fails CI.
 
@@ -112,32 +112,6 @@ it. A typo should: a component or property nothing has, a node that is gone.
 Where a failure is expected the host answers nil or `false` instead
 (`toml::parse`, `node.patch_component` on a value the component refuses, which
 logs `write refused` with the reason), and the caller checks.
-
-## Rune
-
-`obj.field = a || b` (and `&&`) **overwrites `a`** when `a` is a local — the
-short-circuit result lands in the local's slot too. Parentheses do not help.
-Index targets (`arr[i] = a || b`) are affected, and so is a branch of an `if`
-expression assigned to a field; `let`, call arguments and `if` conditions are
-safe. Compute into a local first:
-
-    let live = split || !document;
-    S.viewport_live = live;
-
-`return || f` is **`(return) || f`**: it returns nothing, and `return |x| ..`,
-`return match ..`, `return [..]`, `return crate::m::f()` and a template string
-after `return` do not compile. Bind the value first.
-
-A `}` followed by `(` or `[` **continues the expression**: the block's value is
-called or indexed, and the error names a type from the line above. Bind first:
-
-    let work = case.run;
-    if again { prepare(world); }
-    work(world);
-
-A line opening with `-` after any block, a loop's included, **subtracts from
-it**: a bare `-1` closing a function after a `while` is `() - 1`. Write
-`return -1;`.
 
 ## Threads
 
