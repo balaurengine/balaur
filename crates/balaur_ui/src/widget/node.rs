@@ -213,8 +213,11 @@ pub struct Widget {
     pub step: f32,
     /// What a `dropdown` offers; `text` is the one chosen.
     pub options: Vec<SmolStr>,
-    /// The rows a `list`, `tree` or `table` holding many has picked. `text` is
-    /// the last row clicked, which is where a shift range measures from.
+    /// The rows a `list`, `tree` or `table` holds.
+    pub(crate) items: Vec<crate::widget::properties::Item>,
+    /// The keys of the rows a `list`, `tree` or `table` holding many has
+    /// picked. `text` is the key of the last row clicked, which is where a
+    /// shift range measures from.
     pub selection: Vec<SmolStr>,
     /// Whether more than one row of a `list`, `tree` or `table` may be picked.
     pub multi: bool,

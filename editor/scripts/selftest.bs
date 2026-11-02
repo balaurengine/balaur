@@ -4206,7 +4206,7 @@ pub fn rows_step(state: &mut editor::State) {
         return;
     }
     let widget = util::map_or_empty(tree.get_component("widget"));
-    let rows = util::list_or_empty(widget["options"]);
+    let rows = util::list_or_empty(widget["items"]);
     if rows.len() == 0 {
         state.rows_waited = state.rows_waited + 1;
         if state.rows_waited > 60 {
@@ -4278,16 +4278,16 @@ fn rows_drawn(state: editor::State, widget: any, rows: any) {
     let lit = util::list_or_empty(widget["selection"]);
     check(lit.len() == selection::count(state), "every selected node is lit ({lit.len()} of {selection::count(state)})");
     check(widget["text"].as_str() == "", "and the pick channel is clear, so nothing here undoes a selection made elsewhere");
-    // The node knows a row by its string: two alike light and pick as one.
+    // The node knows a row by its key: two alike light and pick as one.
     let seen: any = {};
     let alike = 0;
     for row in rows {
-        if seen.has(row.as_str()) {
+        if seen.has(row["key"].as_str()) {
             alike += 1;
         }
-        seen[row.as_str()] = true;
+        seen[row["key"].as_str()] = true;
     }
-    check(alike == 0, "no two rows are the same string ({alike} repeat)");
+    check(alike == 0, "no two rows have one key ({alike} repeat)");
 }
 
 // A pick as the pointer makes one: the tree announces it and the panel's
@@ -4295,7 +4295,7 @@ fn rows_drawn(state: editor::State, widget: any, rows: any) {
 fn rows_picked(state: &mut editor::State, tree: Node, rows: any) {
     let want = if state.selected == 0 && state.nodes.len() > 1 { 1 } else { 0 };
     state.rows_want = want;
-    ui::edit(tree, rows[want]);
+    ui::edit(tree, rows[want]["key"]);
 }
 
 fn rows_answered(state: editor::State, widget: any, rows: any) {
@@ -4304,7 +4304,7 @@ fn rows_answered(state: editor::State, widget: any, rows: any) {
     // Lit from the selection before the pick, the row went back to the old
     // node for a pass, and stayed there while nothing asked for another.
     let lit = util::list_or_empty(widget["selection"]);
-    check(lit.len() == 1 && lit[0] == rows[want], "and the pass that answered it lights that row ({lit})");
+    check(lit.len() == 1 && lit[0] == rows[want]["key"], "and the pass that answered it lights that row ({lit})");
     check(rows.len() == state.nodes.len(), "and the walk is the document's still");
 }
 
@@ -4322,7 +4322,7 @@ fn rows_narrowed(state: editor::State, rows: any) {
     check(rows.len() == want && narrowed, "a query narrows the same tree node ({rows.len()} of {state.nodes.len()})");
     let named = 0;
     for row in rows {
-        if row.as_str().contains(query) {
+        if row["label"].as_str().contains(query) {
             named += 1;
         }
     }
@@ -4558,20 +4558,29 @@ pub fn tree_marks(state: &mut editor::State) {
     shell::choose(state, 0);
     let index = state.nodes.len() - 1;
     let node = model::node(state, index);
-    let row = util::cells(["", node.name(), "", "", node.stable_id(), left::row_marks(state, index)]);
+    let row = node.stable_id();
     let shown = !arrange::is_hidden(state, index);
     left::mark_clicked(state, row, "eye");
     check(arrange::is_hidden(state, index) == shown, "the eye hides {node.name()}");
-    check(left::row_marks(state, index).contains(icons::ui("eye-closed")), "and its row shows the eye closed");
+    check(shows_mark(left::row_marks(state, index), icons::ui("eye-closed")), "and its row shows the eye closed");
     check(state.selected == 0, "a mark picks nothing");
     shell::undo(state);
     check(arrange::is_hidden(state, index) != shown, "undo shows it again");
     selection::set_locked(state, index, true);
-    check(left::row_marks(state, index).contains(icons::ui("lock")), "a locked row shows the lock");
+    check(shows_mark(left::row_marks(state, index), icons::ui("lock")), "a locked row shows the lock");
     left::mark_clicked(state, row, "lock");
     check(!selection::is_locked(state, index), "the lock unlocks it");
-    check(!left::row_marks(state, index).contains(icons::ui("lock")), "and the lock goes");
+    check(!shows_mark(left::row_marks(state, index), icons::ui("lock")), "and the lock goes");
     log::info("selftest marks: done");
+}
+
+fn shows_mark(marks: [ui::Mark], glyph: str) -> bool {
+    for mark in marks {
+        if mark.glyph == glyph {
+            return true;
+        }
+    }
+    false
 }
 
 /// Populate: a grid, then a surface, written into the selected multimesh's

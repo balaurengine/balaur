@@ -4,29 +4,28 @@
 use egui::{Color32, Rect, Sense, pos2};
 
 use crate::widget::paint::Brush;
-use crate::widget::rows::{Ink, SEP};
+use crate::widget::properties;
+use crate::widget::rows::Ink;
 
 /// One mark as a pass saw it: its name, its glyph, and what the pointer did.
 pub(super) type Mark<'a> = (&'a str, &'a str, egui::Response);
 
-fn of(item: &str) -> impl DoubleEndedIterator<Item = (&str, &str)> {
-    item.trim_start_matches('\t')
-        .split(SEP)
-        .nth(5)
-        .unwrap_or_default()
-        .split('\u{1e}')
-        .filter_map(|mark| mark.split_once('='))
-}
-
 /// A row's marks with the hit box each answers in, from the right edge in:
 /// the last mark named is the rightmost. Called after the row is allocated,
 /// so a click on a mark is the mark's, as one on the caret is the caret's.
-pub(super) fn sense<'a>(ui: &egui::Ui, item: &'a str, slot: usize, rect: Rect) -> Vec<Mark<'a>> {
+pub(super) fn sense<'a>(
+    ui: &egui::Ui,
+    marks: &'a [properties::Mark],
+    slot: usize,
+    rect: Rect,
+) -> Vec<Mark<'a>> {
     let step = rect.height();
-    of(item)
+    marks
+        .iter()
         .rev()
         .enumerate()
-        .map(|(n, (name, glyph))| {
+        .map(|(n, mark)| {
+            let (name, glyph) = (mark.name.as_str(), mark.glyph.as_str());
             let right = rect.max.x - step * n as f32;
             let box_ = Rect::from_min_max(pos2(right - step, rect.min.y), pos2(right, rect.max.y));
             let sensed = ui.interact(

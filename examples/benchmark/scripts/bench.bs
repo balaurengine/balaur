@@ -478,11 +478,11 @@ impl Bench {
             menu.queue_free();
             return;
         }
-        let keys: [str] = [];
+        let keys: [ui::Item] = [];
         for c in self.cases {
-            keys.push(c.key);
+            keys.push(ui::Item { label: c.key });
         }
-        menu.get_node("Cases").widget.options = keys;
+        menu.get_node("Cases").widget.items = keys;
         self.show_status();
     }
 

@@ -79,7 +79,7 @@ impl Debugger {
         tools.get_node("BreakOnError").widget.checked = view["break_on_error"].as_bool();
         let patched = self.node.get_node("Stack");
         patched.set_visible(view["stopped"].as_bool());
-        patched.widget.options = view["frames"];
+        patched.widget.items = view["frames"];
         patched.widget.text = view["picked"].as_str();
     }
 }

@@ -8,9 +8,8 @@ use crate::widget::arrange::solved_of;
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::node::Widget;
 use crate::widget::paint::Brush;
-use crate::widget::rows::{
-    Clicked, Ink, SEP, after_click, backdrop, landed, picked_set, shows, strings_of,
-};
+use crate::widget::properties::Item;
+use crate::widget::rows::{Clicked, Ink, after_click, backdrop, landed, picked_set, shows};
 
 /// The narrowest a column may be dragged, in design pixels.
 const NARROWEST: f32 = 32.0;
@@ -26,8 +25,8 @@ const RIGHT: char = '>';
 const CARET_DOWN: char = '\u{25be}';
 const CARET_UP: char = '\u{25b4}';
 
-/// Godot's `Tree` with named columns: `options` holds the rows, each split on
-/// U+001F into one cell a column, and `text` is the row picked.
+/// Godot's `Tree` with named columns: `items` holds the rows, each with one of
+/// its `cells` a column, and `text` is the key of the row picked.
 ///
 /// `titles` names the columns; a table that names none takes its first row
 /// as the names. Only the rows the box shows are built, as a `list`'s are, so
@@ -43,11 +42,11 @@ pub(crate) fn table(
     let placed = &nodes[index];
     let (entity, widget) = (placed.entity, &placed.widget);
     let want = solved_of(widget, &at.style(index), at.assigned);
-    let items = strings_of(widget);
-    let (heads, first) = header(widget, &items);
+    let items = widget.items.as_slice();
+    let (heads, first) = header(widget, items);
     // The order the rows are drawn in, which is the order given unless a
     // column was named to sort by, or the whole of it was turned round.
-    let walk = ordered(widget, &items, &heads, first);
+    let walk = ordered(widget, items, &heads, first);
     let row_h = row_pitch(ui, widget, font);
     let id = egui::Id::unique(("balaur-table", entity));
     let style = at.style(index);
@@ -96,7 +95,9 @@ pub(crate) fn table(
             let Some(&row) = walk.get(slot) else {
                 continue;
             };
-            let on = items.get(row).is_some_and(|item| picked.contains(item));
+            let on = items
+                .get(row)
+                .is_some_and(|item| picked.contains(item.key()));
             let cell = Cells {
                 item: &items[row],
                 slot,
@@ -117,12 +118,12 @@ pub(crate) fn table(
     crate::widget::scroll::report(ui, &mut at.edits, entity, shown.state.clamped_offset());
     // A row already picked keeps the set it is in, so a menu opened over one
     // of several picked rows is opened over all of them.
-    let aimed = aimed.filter(|&row| !picked.contains(&items[row]));
+    let aimed = aimed.filter(|&row| !picked.contains(items[row].key()));
     let held = ui.input(|i| i.modifiers);
     if let Some((hit, mods, click)) = landed(hit, aimed, held) {
         let next = after_click(
             &Clicked {
-                items: &items,
+                items,
                 walk: &walk,
                 picked: &picked,
                 hit,
@@ -135,7 +136,7 @@ pub(crate) fn table(
             at.clicked.push(entity);
         }
         at.edits
-            .push((entity, Edit::Picked(items[hit].clone(), next)));
+            .push((entity, Edit::Picked(items[hit].key().to_owned(), next)));
     }
 }
 
@@ -189,7 +190,7 @@ struct Look<'a> {
 /// a table read out of a log or a spreadsheet has. One drawing no header
 /// keeps that row: the names are still the column count, and nothing is spent
 /// on a strip nobody sees.
-fn header(widget: &Widget, items: &[String]) -> (Vec<String>, usize) {
+fn header(widget: &Widget, items: &[Item]) -> (Vec<String>, usize) {
     let named: Vec<String> = widget
         .titles
         .iter()
@@ -201,7 +202,7 @@ fn header(widget: &Widget, items: &[String]) -> (Vec<String>, usize) {
     }
     match items.first() {
         Some(first) => {
-            let heads = first.split(SEP).map(ToString::to_string).collect();
+            let heads = first.cells.iter().map(ToString::to_string).collect();
             (heads, usize::from(widget.header))
         }
         None => (vec![String::new()], 0),
@@ -228,21 +229,20 @@ fn shares(widget: &Widget, columns: usize) -> Vec<f32> {
 ///
 /// A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`
 /// rather than leading it; anything else sorts as text, case folded.
-fn ordered(widget: &Widget, items: &[String], heads: &[String], first: usize) -> Vec<usize> {
+fn ordered(widget: &Widget, items: &[Item], heads: &[String], first: usize) -> Vec<usize> {
     let mut walk: Vec<usize> = (first..items.len()).collect();
     let column = heads
         .iter()
         .position(|head| name(head) == widget.sort)
         .filter(|_| !widget.sort.is_empty());
     if let Some(column) = column {
-        let cell = |row: usize| -> String {
+        let cell = |row: usize| {
             items[row]
-                .split(SEP)
-                .nth(column)
-                .unwrap_or_default()
-                .to_owned()
+                .cells
+                .get(column)
+                .map_or("", |text| text.as_str())
         };
-        walk.sort_by(|a, b| compare(&cell(*a), &cell(*b)));
+        walk.sort_by(|a, b| compare(cell(*a), cell(*b)));
     }
     if widget.reverse {
         walk.reverse();
@@ -375,7 +375,7 @@ fn drag_seam(widths: &mut [f32], n: usize, dx: f32, room: f32) {
 
 /// One body row: its plate, and a cell a column.
 struct Cells<'a> {
-    item: &'a str,
+    item: &'a Item,
     /// Which row this is on screen, for the stripe.
     slot: usize,
     widths: &'a [f32],
@@ -402,19 +402,18 @@ fn cells(ui: &mut egui::Ui, c: &Cells<'_>) -> (bool, bool) {
         let held = response.is_pointer_button_down_on();
         Brush::of(ui).fill(rect, radius, c.look.ink.wash(held));
     }
-    let (cells, tint) = split(c.item, c.heads.len());
     let ink = if c.on {
         c.look.ink.on_color
     } else {
-        tint.unwrap_or(c.look.color)
+        c.item.ink().unwrap_or(c.look.color)
     };
     let mut x = rect.min.x;
     for (n, head) in c.heads.iter().enumerate() {
         let width = c.widths[n] * rect.width();
         let cell = Rect::from_min_size(pos2(x, rect.min.y), vec2(width, c.look.row_h));
-        if let Some(text) = cells.get(n) {
+        if let Some(text) = c.item.cells.get(n) {
             let one = Cell {
-                text,
+                text: text.as_str(),
                 right: right(head),
                 look: c.look,
             };
@@ -423,17 +422,6 @@ fn cells(ui: &mut egui::Ui, c: &Cells<'_>) -> (bool, bool) {
         x += width;
     }
     (response.clicked(), response.secondary_clicked())
-}
-
-fn split(item: &str, columns: usize) -> (Vec<&str>, Option<Color32>) {
-    let mut parts: Vec<&str> = item.split(SEP).collect();
-    let tint = (parts.len() > columns)
-        .then(|| parts.last().and_then(|last| crate::theme::parse_hex(last)))
-        .flatten();
-    if tint.is_some() {
-        parts.pop();
-    }
-    (parts, tint)
 }
 
 /// One cell's text: what it says, whether its own column pins it to the right

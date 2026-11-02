@@ -122,15 +122,15 @@ kind = "label"
 text = "TABLE"
 role = "group"
 
-# The column names, split on the separator the rows are; a name ending in `>`
-# draws its column against the right edge.
+# The column names; a name ending in `>` draws its column against the right
+# edge.
 [[nodes]]
 id = "table"
 name = "Table"
 parent = "table_box"
 [nodes.widget]
 kind = "table"
-text = "Torus\u001Fmesh\u001F3.8 kB"
+text = "Torus"
 # A click on a header sorts by that column and the next turns it round; the
 # shares are the scene's until a drag on a seam writes its own.
 row_height = 22

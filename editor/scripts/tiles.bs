@@ -21,7 +21,6 @@ pub class TilesState {
     terrain: int,
     stamp: Block,
     editing: bool,
-    cards: [str],
 }
 
 /// A cell of the map, counted from the top left.
@@ -83,7 +82,7 @@ pub struct Layer {
 /// What the Tiles panel's cards are cut from: the tiles as rows, the one
 /// held, and the sheet they are cut from.
 pub struct Palette {
-    items: [str],
+    items: [ui::Item],
     picked: str,
     sheet: str,
 }
@@ -102,7 +101,6 @@ pub fn state() -> TilesState {
         terrain: 1,
         stamp: Block { wide: 1, tall: 1 },
         editing: false,
-        cards: [],
     }
 }
 
@@ -1039,27 +1037,22 @@ fn on_layer_clicked(state: &mut editor::State, data: any, _value: any) {
     selection::only(state, data["index"].as_int());
 }
 
-// The atlas as the panel's cards. A row's first field is the tile's rect in
-// the sheet's own pixels, which the card draws in place of a glyph because
+// The atlas as the panel's cards. A row's icon is the tile's rect in the
+// sheet's own pixels, which the card draws in place of a glyph because
 // the panel names the sheet as its `source`.
 fn swatches(state: &mut editor::State, set: Set, count: int) -> Palette {
     let tint = state.theme["text_muted"].as_str();
-    let items: [str] = [];
+    let items: [ui::Item] = [];
     for tile in 0..count {
         let rect = tile_rect(set, tile);
-        items.push(util::row("{rect[0]},{rect[1]},{rect[2]},{rect[3]}", "{tile}", "tile {tile}", tint));
+        items.push(ui::Item { icon: "{rect[0]},{rect[1]},{rect[2]},{rect[3]}", label: "{tile}", note: "tile {tile}", tint: tint });
     }
-    state.tiles.cards = items;
-    let picked = if state.tiles.tile >= 0 && state.tiles.tile < items.len() { items[state.tiles.tile] } else { "" };
+    let picked = if state.tiles.tile >= 0 && state.tiles.tile < items.len() { "{state.tiles.tile}" } else { "" };
     Palette { items: items, picked: picked, sheet: util::engine_path(state.game_root, set.texture) }
 }
 
 /// A card picked: the tile the brush lays down.
 pub fn pick(state: &mut editor::State, row: str) {
-    for index in 0..state.tiles.cards.len() {
-        if state.tiles.cards[index] == row {
-            state.tiles.tile = index;
-            signals::changed(state, "tiles");
-        }
-    }
+    state.tiles.tile = row.parse_int();
+    signals::changed(state, "tiles");
 }

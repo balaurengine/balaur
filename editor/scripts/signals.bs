@@ -81,9 +81,16 @@ fn tell(state: &mut editor::State, name: str) {
     scene::get_node("Editor").emit(name, nil);
 }
 
-/// The document, the selection, a lock or a warning moved: what a panel
-/// showing the document's outline listens for.
+/// The document, a lock or a warning moved: what a panel showing the
+/// document's outline listens for, with the rows it holds out of date.
 pub fn outline(state: &mut editor::State) {
+    state.outline_rows += 1;
+    tell(state, OUTLINE);
+    bars(state);
+}
+
+/// Only the selection moved: the same word, with the rows as they were.
+pub fn selected(state: &mut editor::State) {
     tell(state, OUTLINE);
     bars(state);
 }

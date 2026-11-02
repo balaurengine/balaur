@@ -100,7 +100,7 @@ impl Assets {
         patched.widget.role = if view["chosen"].as_bool() { "action_dock_danger" } else { "action_dock_quiet" };
         patched.widget.tooltip = if view["chosen"].as_bool() { "Delete the selected item" } else { "Select an item first" };
         let patched = self.node.get_node("Cards");
-        patched.widget.options = view["items"];
+        patched.widget.items = view["items"];
         patched.widget.text = view["picked"].as_str();
     }
 }

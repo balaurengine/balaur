@@ -11,12 +11,60 @@
 //! words, and a vocabulary list is the one place each is spelled.
 
 use balaur_core::components::derived::{
-    Component, Property, Result, describe_enum, not_an_option, toml,
+    Component, Property, Record, Result, describe_enum, not_an_option, toml,
 };
 use balaur_text::vocabulary::words as tw;
 use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
+
+/// A mark at the right of a `list` or `tree` row.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub(crate) struct Mark {
+    /// What `on_mark` reports when it is clicked
+    pub(crate) name: SmolStr,
+    /// What it draws, from the icon face
+    pub(crate) glyph: SmolStr,
+}
+
+/// One row of a `list`, `tree` or `table`.
+#[derive(Clone, Debug, PartialEq, Record)]
+pub(crate) struct Item {
+    /// What the row says, and on a card its caption
+    pub(crate) label: SmolStr,
+    /// A glyph from the icon face before the label. On a card in a `list` that names a `source`, `x,y,w,h` in that picture's pixels
+    pub(crate) icon: SmolStr,
+    /// What the row trails at the right, and on a card its tooltip
+    pub(crate) note: SmolStr,
+    /// The row's own `#rrggbb`; empty takes the widget's ink
+    pub(crate) tint: SmolStr,
+    /// What `text`, `selection` and every row event know the row by, never drawn. Empty takes the label, or a `table` row's first cell, so two rows that say the same need one to stay two rows
+    pub(crate) key: SmolStr,
+    /// How many levels into a `tree` the row sits
+    pub(crate) depth: u32,
+    /// Drawn at the right, the last rightmost, and reported by `on_mark`
+    pub(crate) marks: Vec<Mark>,
+    /// A `table` row's text, one cell a column
+    pub(crate) cells: Vec<SmolStr>,
+}
+
+impl Item {
+    /// What the row is known by.
+    pub(crate) fn key(&self) -> &str {
+        if !self.key.is_empty() {
+            return &self.key;
+        }
+        if self.label.is_empty() {
+            return self.cells.first().map_or("", SmolStr::as_str);
+        }
+        &self.label
+    }
+
+    /// The row's own colour, where it names one.
+    pub(crate) fn ink(&self) -> Option<egui::Color32> {
+        crate::theme::parse_hex(&self.tint)
+    }
+}
 
 /// The refusal of a value that is not text, where a word was expected.
 fn not_text(value: &toml::Value) -> anyhow::Error {
@@ -561,10 +609,13 @@ pub(crate) struct WidgetProperties {
     /// Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look
     #[property(group = "value")]
     pub(crate) checked: bool,
-    /// The items a `dropdown`, `menu`, `list`, `tree` or `table` holds; `text` is the one picked, except on a `menu` where it is the button caption. A `tree` row starts with one tab per level, a `list` or `tree` row splits on U+001F into icon, label, a trailing note, an `#rrggbb` for that row, a key that is never drawn, which two rows with the same label need to stay two rows, and marks, each `name=glyph` from the icon face and joined on U+001E, drawn at the right and reported by `on_mark`; and a `table` row splits on the same into one cell a column. `on_change` hears every pick. An `inspector` shows the properties it names, in that order
+    /// The words a `dropdown` or `menu` offers; `text` is the one picked, except on a `menu` where it is the button caption. `on_change` hears every pick. An `inspector` shows the properties it names, in that order
     #[property(group = "value")]
     pub(crate) options: Vec<SmolStr>,
-    /// The rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the row where it holds one
+    /// The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key
+    #[property(group = "value")]
+    pub(crate) items: Vec<Item>,
+    /// The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the key where it holds one
     #[property(group = "value")]
     pub(crate) selection: Vec<SmolStr>,
     /// Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked

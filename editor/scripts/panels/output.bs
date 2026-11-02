@@ -56,7 +56,7 @@ impl Output {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Log").widget.options = view["items"];
+        self.node.get_node("Log").widget.items = view["items"];
         let patched = self.node.get_node("Nothing");
         patched.set_visible(view["says"].as_str() != "");
         patched.widget.text = view["says"].as_str();

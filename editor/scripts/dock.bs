@@ -23,11 +23,11 @@ pub class Built {
     rows: [any],
     hidden: int,
     theme: any,
-    items: [str],
+    items: [ui::Item],
 }
 
 pub struct OutputView {
-    items: [str],
+    items: [ui::Item],
     says: str,
 }
 
@@ -41,13 +41,11 @@ pub class AssetsState {
     directory: str,
     selected: str,
     renaming: bool,
-    cards: any,
     shown: Shown,
 }
 
 /// The cards the Assets panel shows, and the path and kind of each.
 pub struct Shown {
-    items: [str],
     paths: [str],
     is_folder: [bool],
 }
@@ -63,7 +61,7 @@ pub struct AssetsView {
     import_tip: str,
     folder_text: str,
     chosen: bool,
-    items: [str],
+    items: [ui::Item],
     picked: str,
     /// The selection is a dependency's file, which Make local copies out.
     local: bool,
@@ -82,12 +80,12 @@ pub struct DebuggerView {
     where: str,
     threw: str,
     break_on_error: bool,
-    frames: [str],
+    frames: [ui::Item],
     picked: str,
 }
 
 pub struct ProblemsView {
-    items: [str],
+    items: [ui::Item],
     says: str,
 }
 
@@ -99,7 +97,7 @@ pub struct RecordingsFill {
 pub struct MeterView {
     titles: [str],
     widths: [str],
-    items: [str],
+    items: [ui::Item],
     says: str,
     headline: str,
     scripts: bool,
@@ -227,8 +225,8 @@ pub fn output_clear(state: &mut editor::State) {
 }
 
 // One `list` row a log entry: its mark, the time, tag and message, its ink.
-fn log_lines(rows: [any], tokens: any) -> [str] {
-    let items: [str] = [];
+fn log_lines(rows: [any], tokens: any) -> [ui::Item] {
+    let items: [ui::Item] = [];
     for entry in rows {
         let level = entry["level"].as_str();
         let tag = entry["tag"].as_str();
@@ -246,7 +244,7 @@ fn log_lines(rows: [any], tokens: any) -> [str] {
         let short = if tag.len() > 9 { tag.slice(0, 9) } else { tag };
         let time = util::fixed(entry["time"].as_float(), 1);
         let line = util::repeat(" ", util::int_max(0, 6 - time.len())) + time;
-        items.push(util::row(marker, "{line}s  {short}  {entry["message"].as_str()}", "", tint));
+        items.push(ui::Item { icon: marker, label: "{line}s  {short}  {entry["message"].as_str()}", tint: tint });
     }
     items
 }
@@ -300,7 +298,7 @@ fn parent_directory(directory: str) -> str {
 /// The Assets dock's own state, hung on `state.assets`. `selected` is the card acted
 /// on by rename and delete; `renaming` swaps the breadcrumb for a field.
 pub fn assets_state() -> AssetsState {
-    AssetsState { directory: "", selected: "", renaming: false, cards: {}, shown: Shown { items: [], paths: [], is_folder: [] } }
+    AssetsState { directory: "", selected: "", renaming: false, shown: Shown { paths: [], is_folder: [] } }
 }
 
 fn asset_path(state: editor::State, relative_path: str) -> str {
@@ -482,10 +480,9 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         }
     }
     // One string a card: the mark, the name, the path it opens and its ink.
-    let items: [str] = [];
+    let items: [ui::Item] = [];
     let paths: [str] = [];
     let is_folder: [bool] = [];
-    let cards: any = {};
     let picked = "";
     for entry in files {
         let name = entry["name"].as_str();
@@ -495,19 +492,14 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         // A dependency's files are one shade quieter, as a prefab's rows are:
         // there to use, not to change.
         let ink = if relative_path.starts_with("deps/") { "text_subtle" } else { look.ink };
-        let item = util::row(look.icon, name, relative_path, tokens[ink].as_str());
         if relative_path == state.assets.selected {
-            picked = item;
+            picked = relative_path;
         }
-        if !is_directory {
-            cards[item] = relative_path;
-        }
-        items.push(item);
+        items.push(ui::Item { icon: look.icon, label: name, note: relative_path, tint: tokens[ink].as_str(), key: relative_path });
         paths.push(relative_path);
         is_folder.push(is_directory);
     }
-    state.assets.cards = cards;
-    state.assets.shown = Shown { items: items, paths: paths, is_folder: is_folder };
+    state.assets.shown = Shown { paths: paths, is_folder: is_folder };
     let importing = dropin::in_flight(state) > 0;
     let here = dependency_at(state, if state.assets.selected != "" { state.assets.selected } else { directory });
     let in_dependency = dependency_at(state, directory);
@@ -548,11 +540,11 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
 /// A card clicked: the first click selects it, a second opens it.
 pub fn assets_pick(state: &mut editor::State, row: str) {
     let shown = state.assets.shown;
-    for index in 0..shown.items.len() {
-        if shown.items[index] != row {
+    for index in 0..shown.paths.len() {
+        let relative_path = shown.paths[index];
+        if relative_path != row {
             continue;
         }
-        let relative_path = shown.paths[index];
         if relative_path == state.assets.selected {
             if shown.is_folder[index] {
                 state.assets.directory = relative_path;
@@ -615,15 +607,15 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
 /// A card dragged out of the Assets panel and let go: over the viewport, the
 /// file is placed where the pointer is; anywhere else, nothing happens.
 pub fn drop_card(state: &mut editor::State, card: any) -> bool {
-    let relative_path = state.assets.cards[card.as_str()];
-    if relative_path == nil {
+    let relative_path = card.as_str();
+    if shown_folder(state, relative_path) {
         return false;
     }
     let at = viewport::pointer(state);
     if !viewport::owns_pointer(state, at.x, at.y) {
         return false;
     }
-    dropin::place_file(state, relative_path.as_str())
+    dropin::place_file(state, relative_path)
 }
 
 // Keyframe timeline over the engine's clip (scripts/anim.bs is the adapter):
@@ -842,15 +834,13 @@ fn value_text(value: any) -> str {
 }
 
 /// What the Debugger panel shows: the stop and its stack while a script is
-/// stopped, and what to do while none is. The stack's rows are kept, so a
-/// pick names its frame.
+/// stopped, and what to do while none is. A row's key starts with its frame,
+/// so a pick names it.
 pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
     let tokens = state.theme;
     let paused = state.debug.paused;
     let on = debugger::break_on_error();
     if paused.kind() != "map" {
-        state.debug.rows = [];
-        state.debug.owners = [];
         let where = if state.playing {
             "running · click a line number in the script to set a breakpoint"
         } else {
@@ -867,31 +857,19 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
             picked: "",
         };
     }
-    // A frame is a row, and its locals are rows a tab deeper. The caret is the
-    // tree's own, so nothing here folds.
-    let items: [str] = [];
-    let owners: [int] = [];
+    // A frame is a row, and its locals are rows a level deeper. The caret is
+    // the tree's own, so nothing here folds.
+    let items: [ui::Item] = [];
     let frames = util::list_or_empty(paused["frames"]);
     for index in 0..frames.len() {
         let frame = frames[index];
         let site = "{shell::script_rel(state, frame["path"].as_str())}:{frame["line"]}";
         // A recursion stacks frames that read alike; the depth keeps them apart.
-        items.push(util::cells([icons::ui("step-into"), frame["function"].as_str(), site, tokens["text_default"].as_str(), "{index}"]));
-        owners.push(index);
+        items.push(ui::Item { icon: icons::ui("step-into"), label: frame["function"].as_str(), note: site, tint: tokens["text_default"].as_str(), key: "{index}" });
         for name in util::keys_sorted(frame["locals"]) {
-            items.push("\t" + util::cells(["", name, value_text(frame["locals"][name]), tokens["text_muted"].as_str(), "{index}/{name}"]));
-            owners.push(index);
+            items.push(ui::Item { label: name, note: value_text(frame["locals"][name]), tint: tokens["text_muted"].as_str(), key: "{index}/{name}", depth: 1 });
         }
     }
-    let picked = "";
-    for index in 0..owners.len() {
-        let owner = owners[index];
-        if owner == state.debug.frame && picked == "" {
-            picked = items[index];
-        }
-    }
-    state.debug.rows = items;
-    state.debug.owners = owners;
     DebuggerView {
         stopped: true,
         can_pause: false,
@@ -905,7 +883,7 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
         threw: paused["message"].as_str(),
         break_on_error: on,
         frames: items,
-        picked: picked,
+        picked: "{state.debug.frame}",
     }
 }
 
@@ -925,14 +903,8 @@ pub fn debugger_step(state: &mut editor::State, step: str) {
 
 /// A row of the stack picked: the frame it is, or is a local of.
 pub fn debugger_frame(state: &mut editor::State, row: str) {
-    let rows = state.debug.rows;
-    for index in 0..rows.len() {
-        if rows[index] == row {
-            state.debug.frame = state.debug.owners[index];
-            signals::changed(state, "debugger");
-            return;
-        }
-    }
+    state.debug.frame = row.split("/")[0].parse_int();
+    signals::changed(state, "debugger");
 }
 
 // Problems: every finding the last sweep produced, worst first, each row a
@@ -953,18 +925,22 @@ fn problem_rows(state: editor::State) -> [any] {
     rows
 }
 
-fn problem_line(finding: any, tokens: any) -> str {
-    let bad = finding["severity"].as_str() == "error";
+fn problem_label(finding: any) -> str {
     let file = finding["file"].as_str();
     let at = if finding["line"].as_int() > 0 { "{file}:{finding["line"].as_int()}" } else { file };
+    "{at}  {finding["message"].as_str()}"
+}
+
+fn problem_line(finding: any, tokens: any) -> ui::Item {
+    let bad = finding["severity"].as_str() == "error";
     let tint = if bad { tokens["danger_text"] } else { tokens["warning_text"] };
-    util::row(if bad { "×" } else { "!" }, "{at}  {finding["message"].as_str()}", "", tint.as_str())
+    ui::Item { icon: if bad { "×" } else { "!" }, label: problem_label(finding), tint: tint.as_str() }
 }
 
 /// What the Problems panel shows: a line a finding, and what to say when
 /// there are none.
 pub fn problems_view(state: editor::State) -> ProblemsView {
-    let items: [str] = [];
+    let items: [ui::Item] = [];
     for finding in problem_rows(state) {
         items.push(problem_line(finding, state.theme));
     }
@@ -978,10 +954,10 @@ pub fn problems_view(state: editor::State) -> ProblemsView {
     ProblemsView { items: items, says: says }
 }
 
-/// The Problems panel picked the line written `picked`: open what it names.
+/// The Problems panel picked the line that says `picked`: open what it names.
 pub fn problems_pick(state: &mut editor::State, picked: str) {
     for finding in problem_rows(state) {
-        if problem_line(finding, state.theme) == picked {
+        if problem_label(finding) == picked {
             open_at(state, finding);
             return;
         }
@@ -1243,7 +1219,7 @@ pub fn meter_view(state: editor::State, what: str) -> MeterView {
         return MeterView { titles: titles, widths: widths, items: [], says: "no timings yet", headline: frame_hint(), scripts: scripts };
     }
     let timings = found.unwrap();
-    let items: [str] = [];
+    let items: [ui::Item] = [];
     let stages: any = timings.stages;
     cost_rows(items, tokens, stages, "stage");
     let spans = util::map_or_empty(timings.spans);
@@ -1271,13 +1247,13 @@ pub fn profiler_scripts(state: &mut editor::State) {
 /// Statements rather than milliseconds: the same frame runs the same
 /// statements on every machine, so a number that moved is a change in what
 /// a script does. Re-armed after reading, so a row is one frame's work.
-fn script_rows(items: [str], tokens: any) {
+fn script_rows(items: [ui::Item], tokens: any) {
     let costs = engine::script_costs();
     let worst = if costs.len() == 0 { 0.0 } else { costs[0].instructions as float };
     for row in costs {
         let count = row.instructions as float;
         let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
-        items.push(util::cells([row.path, "{row.instructions} st", bar(share), tokens["secondary_text"].as_str()]));
+        items.push(ui::Item { cells: [row.path, "{row.instructions} st", bar(share)], tint: tokens["secondary_text"].as_str() });
     }
     // Each function's own statements under its file's rows, a handler the
     // pool calls by name among them.
@@ -1286,12 +1262,10 @@ fn script_rows(items: [str], tokens: any) {
     for index in 0..util::int_min(functions.len(), FUNCTION_ROWS) {
         let row = functions[index];
         let share = if top > 0.0 { util::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
-        items.push(util::cells([
-            row.function,
-            "{row.instructions} st · {row.calls} calls",
-            bar(share),
-            tokens["text_muted"].as_str(),
-        ]));
+        items.push(ui::Item {
+            cells: [row.function, "{row.instructions} st · {row.calls} calls", bar(share)],
+            tint: tokens["text_muted"].as_str(),
+        });
     }
     engine::set_script_profiling(true);
 }
@@ -1332,7 +1306,7 @@ fn by_cost(table: any) -> [Cost] {
 
 // One row per entry, worst first, with a bar as its share of the budget: a
 // number needs reading, a bar does not.
-fn cost_rows(items: [str], tokens: any, table: any, kind: str) {
+fn cost_rows(items: [ui::Item], tokens: any, table: any, kind: str) {
     for row in by_cost(table) {
         let tint = (if row.milliseconds > BUDGET_MILLISECONDS * 0.5 {
             tokens["primary_text"]
@@ -1341,12 +1315,10 @@ fn cost_rows(items: [str], tokens: any, table: any, kind: str) {
         } else {
             tokens["text_muted"]
         }).as_str();
-        items.push(util::cells([
-            row.name,
-            util::fixed(row.milliseconds, 3) + " ms",
-            bar(row.milliseconds / BUDGET_MILLISECONDS),
-            tint,
-        ]));
+        items.push(ui::Item {
+            cells: [row.name, util::fixed(row.milliseconds, 3) + " ms", bar(row.milliseconds / BUDGET_MILLISECONDS)],
+            tint: tint,
+        });
     }
 }
 
@@ -1393,17 +1365,19 @@ fn cost_view(state: editor::State, tokens: any) -> MeterView {
         return MeterView { titles: titles, widths: widths, items: [], says: "nothing is drawing", headline: headline, scripts: false };
     }
     let worst = util::max(nodes[0].triangles, 1.0);
-    let items: [str] = [];
+    let items: [ui::Item] = [];
     for row in nodes {
         let copies = row.copies as int;
-        items.push(util::cells([
-            util::leaf(row.node),
-            "{row.triangles as int} tri",
-            bytes(row.texture_bytes),
-            if copies > 1 { "x{copies}" } else { "" },
-            bar(util::clamp(row.triangles / worst, 0.0, 1.0)),
-            tokens["text_muted"].as_str(),
-        ]));
+        items.push(ui::Item {
+            cells: [
+                util::leaf(row.node),
+                "{row.triangles as int} tri",
+                bytes(row.texture_bytes),
+                if copies > 1 { "x{copies}" } else { "" },
+                bar(util::clamp(row.triangles / worst, 0.0, 1.0)),
+            ],
+            tint: tokens["text_muted"].as_str(),
+        });
     }
     MeterView { titles: titles, widths: widths, items: items, says: "", headline: headline, scripts: false }
 }

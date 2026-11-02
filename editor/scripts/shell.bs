@@ -39,8 +39,6 @@ pub class DebugState {
     paused: any,
     paused_rel: str,
     demo: int?,
-    rows: [str],
-    owners: [int],
 }
 
 /// A start-up state written `<prefix><argument>`, and what it runs with the
@@ -60,7 +58,7 @@ pub struct Capture {
 /// The debugger's own state, hung on `state.debug`. `demo` drives the breakdemo
 /// self-test's step/continue alternation.
 pub fn debug_state() -> DebugState {
-    DebugState { frame: 0, breakpoints: {}, paused: nil, paused_rel: "", demo: nil, rows: [], owners: [] }
+    DebugState { frame: 0, breakpoints: {}, paused: nil, paused_rel: "", demo: nil }
 }
 
 pub fn choose(state: &mut editor::State, row: int) {

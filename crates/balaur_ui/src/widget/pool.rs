@@ -835,7 +835,7 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
     visible: bool?, enabled: bool?, interactive: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
-    options: [string]?, value: any, text_color: any, picked_color: any, padding: any, inset: any, margin: any, gap: any }";
+    options: [string]?, items: [Item]?, value: any, text_color: any, picked_color: any, padding: any, inset: any, margin: any, gap: any }";
 
 /// `ui.fill_strip` and `ui.fill_rows`.
 pub(crate) fn install_pool(m: &mut Module<Engine>) {
@@ -863,6 +863,16 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             "Row",
             "{ label: string?, controls: [Control], height: float?, tooltip: string?, label_role: string?, slot_role: string? }",
             "One row of a form: its `label` and `controls`, with no label across both columns, `height` and `tooltip`, and the roles that dress the label and the control column.",
+        ),
+        (
+            "Item",
+            "{ label: string?, icon: string?, note: string?, tint: string?, key: string?, depth: int?, marks: [Mark]?, cells: [string]? }",
+            "One row of a `list`, `tree` or `table`: what it says and shows, its `key`, which `text`, `selection` and every row event know it by and which is its label or first cell where it names none, how deep in a tree it sits, its marks, and a table's `cells`.",
+        ),
+        (
+            "Mark",
+            "{ name: string, glyph: string }",
+            "A mark at the right of a row: the glyph it draws from the icon face, and the name `on_mark` reports.",
         ),
     ]);
     let Some(ops) = Ops::resolve() else {

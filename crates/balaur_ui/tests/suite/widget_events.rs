@@ -66,7 +66,7 @@ fn a_double_clicked_row_is_activated() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 120.0
-        options = ["First", "Second"]
+        items = [{ label = "First" }, { label = "Second" }]
     };
     let list = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -93,7 +93,7 @@ fn a_tree_row_says_when_its_caret_folds_it() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 120.0
-        options = ["Root", "\tChild"]
+        items = [{ label = "Root" }, { label = "Child", depth = 1 }]
     };
     let tree = add_widget(&app, &params.into());
     let ctx = egui::Context::default();

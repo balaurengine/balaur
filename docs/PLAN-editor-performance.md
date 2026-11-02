@@ -604,9 +604,10 @@ text frame to frame and warns when it changed while `doc_rev` did not, and a
 warning fails e2e. A rename planted without a bump trips it; the 80 states run
 clean.
 
-- The outliner keeps its row strings and selection until the rows, the
+- The outliner keeps its rows and selection until the rows, the
   document, the warnings, the selection or the theme move, and writes nothing
-  to its node on a frame where none did.
+  to its node on a frame where none did. A move of the selection alone writes
+  `selection` and leaves the rows: at 2,000 nodes they are most of a click.
 - Output remakes its lines only when `log::since` returns a new one, or the
   filter or the theme changes, and every writer of the log node skips a list
   equal to the last one it wrote.

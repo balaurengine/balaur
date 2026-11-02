@@ -23,7 +23,7 @@ pub struct RootPose {
 pub fn only(state: &mut editor::State, row: int) {
     state.selected_rows = [row];
     state.selected = row;
-    signals::outline(state);
+    signals::selected(state);
 }
 
 /// Every selected index, active first.
@@ -63,7 +63,7 @@ pub fn toggle(state: &mut editor::State, row: int) {
         selected_rows.insert(0, row);
         state.selected = row;
     }
-    signals::outline(state);
+    signals::selected(state);
 }
 
 /// Extend the set to the document rows between the active node and `row`, for
@@ -79,7 +79,7 @@ pub fn extend_to(state: &mut editor::State, row: int) {
     }
     state.selected_rows = out;
     state.selected = row;
-    signals::outline(state);
+    signals::selected(state);
 }
 
 /// Select nothing: a click on empty space in the viewport, or a delete that
@@ -88,7 +88,7 @@ pub fn extend_to(state: &mut editor::State, row: int) {
 pub fn clear(state: &mut editor::State) {
     state.selected_rows = [];
     state.selected = -1;
-    signals::outline(state);
+    signals::selected(state);
 }
 
 /// Select exactly these rows; the first is active. An empty list is ignored.
@@ -98,7 +98,7 @@ pub fn set(state: &mut editor::State, rows: [int]) {
     }
     state.selected_rows = rows;
     state.selected = rows[0];
-    signals::outline(state);
+    signals::selected(state);
 }
 
 pub fn select_all(state: &mut editor::State) {
@@ -124,7 +124,7 @@ pub fn clamp(state: &mut editor::State) {
     }
     state.selected_rows = rows;
     state.selected = rows[0];
-    signals::outline(state);
+    signals::selected(state);
 }
 
 fn id_of(state: editor::State, row: int) -> str {

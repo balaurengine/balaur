@@ -40,7 +40,7 @@ pub struct View {
     open: bool,
     x: float,
     y: float,
-    items: [str],
+    items: [ui::Item],
     picked: str,
     list_h: float,
     doc: str,
@@ -157,15 +157,9 @@ pub fn key(state: &mut editor::State, name: str) {
 
 /// A row clicked: accept that one.
 pub fn pick(state: &mut editor::State, row: str) {
-    let shown = rows(state);
-    for index in 0..shown.len() {
-        if shown[index] == row {
-            state.complete.pick = index;
-            accept(state);
-            signals::changed(state, "complete");
-            return;
-        }
-    }
+    state.complete.pick = row.parse_int();
+    accept(state);
+    signals::changed(state, "complete");
 }
 
 // Replace the prefix under the caret with the chosen item.
@@ -220,11 +214,13 @@ fn glyph(kind: str) -> str {
 /// The list, under the caret, with the picked entry's doc line under it. One
 /// sheet, not two: a second overlay beside this one runs off the pane.
 // A row each completion, its mark, its label and its detail.
-fn rows(state: editor::State) -> [str] {
+fn rows(state: editor::State) -> [ui::Item] {
     let tint = state.theme["text_muted"].as_str();
-    let out: [str] = [];
-    for one in state.complete.items {
-        out.push(util::row(glyph(one.kind), one.label, one.detail, tint));
+    let out: [ui::Item] = [];
+    let shown = state.complete.items;
+    for index in 0..shown.len() {
+        let one = shown[index];
+        out.push(ui::Item { icon: glyph(one.kind), label: one.label, note: one.detail, tint: tint, key: "{index}" });
     }
     out
 }
@@ -243,7 +239,7 @@ pub fn view(state: editor::State) -> View {
         x: state.complete.x,
         y: state.complete.y + 4.0,
         items: items,
-        picked: items[pick],
+        picked: "{pick}",
         list_h: (util::int_min(items.len(), MAX_ROWS) as float) * ROW,
         doc: clip(doc, 78),
     }

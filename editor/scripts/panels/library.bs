@@ -61,9 +61,9 @@ impl Library {
         let table = view["templates"].as_bool() && view["items"].len() > 0;
         let patched = self.node.get_node("Cards");
         patched.set_visible(cards);
-        patched.widget.options = if cards { view["items"] } else { [] };
+        patched.widget.items = if cards { view["items"] } else { [] };
         let patched = self.node.get_node("Table");
         patched.set_visible(table);
-        patched.widget.options = if table { view["items"] } else { [] };
+        patched.widget.items = if table { view["items"] } else { [] };
     }
 }

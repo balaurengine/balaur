@@ -143,14 +143,6 @@ pub fn hide(id: str) {
     found.set_visible(false);
 }
 
-pub fn row(icon: str, label: str, trailing: str, tint: str) -> str {
-    cells([icon, label, trailing, tint])
-}
-
-pub fn cells(parts: [str]) -> str {
-    join(parts, "\u{1f}")
-}
-
 /// `value` with `places` decimals, rounded: what `{:.2}` wrote.
 pub fn fixed(value: float, places: int) -> str {
     let scale = 1;

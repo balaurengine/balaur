@@ -6,6 +6,8 @@ pub class SceneTree {
     query: str,
     facet: str,
     editor: Node,
+    /// What names the rows the tree holds.
+    drawn: str,
 }
 
 /// The component tag the facet labelled `label` filters on; "" for all.
@@ -31,6 +33,7 @@ impl SceneTree {
     pub fn init() {
         self.query = "";
         self.facet = "";
+        self.drawn = "";
         self.editor = scene::get_node("Editor");
         events::listen(self.node, "outline_changed", self.editor);
     }
@@ -56,8 +59,8 @@ impl SceneTree {
     }
 
     // `text` is the row the click landed on. The set the tree lit is the
-    // Editor's to decide, so the rows are filled again from its answer even
-    // when the pick changed nothing.
+    // Editor's to decide, so it is filled again from its answer even when the
+    // pick changed nothing.
     pub fn tree_picked(_value: any, node: Node) {
         let row = node.widget.text;
         node.widget.text = "";
@@ -75,14 +78,14 @@ impl SceneTree {
     }
 
     fn refresh() {
-        let view = self.editor.call("outline_view", self.query, self.facet);
+        let view = self.editor.call("outline_view", self.query, self.facet, self.drawn);
         if !(view.kind() == "map") {
             return;
         }
         self.node.get_node("Find/Add").widget.icon = view["add_icon"].as_str();
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
-        if view["filtering"].as_bool() && view["items"].len() == 0 {
+        if view["filtering"].as_bool() && view["empty"].as_bool() {
             tree.set_visible(false);
             nothing.set_visible(true);
             nothing.widget.text = view["nothing"].as_str();
@@ -90,7 +93,10 @@ impl SceneTree {
         }
         nothing.set_visible(false);
         tree.set_visible(true);
-        tree.widget.options = view["items"];
+        if view["stamp"].as_str() != self.drawn {
+            tree.widget.items = view["items"];
+            self.drawn = view["stamp"].as_str();
+        }
         tree.widget.selection = view["chosen"];
     }
 }

@@ -26,7 +26,7 @@ pub struct View {
     from_hint: str,
     to_hint: str,
     count: str,
-    hits: [str],
+    hits: [ui::Item],
     ready: bool,
 }
 
@@ -131,9 +131,9 @@ pub fn view(state: editor::State) -> View {
         return View { open: false, title: "", from: "", to: "", from_hint: "", to_hint: "", count: "", hits: [], ready: false };
     }
     let renaming = state.refactor.mode == "rename";
-    let hits: [str] = [];
+    let hits: [ui::Item] = [];
     for hit in state.refactor.hits {
-        hits.push("{hit.file}:{hit.line}");
+        hits.push(ui::Item { label: "{hit.file}:{hit.line}" });
     }
     View {
         open: true,

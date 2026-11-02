@@ -27,7 +27,7 @@ fn kinds() -> Vec<toml::Value> {
         toml::toml! { kind = "fold" text = "Advanced" open = false }.into(),
         toml::toml! { kind = "image" image = "missing.png" widget_image = { alt_text = "no picture" } }.into(),
         toml::toml! { kind = "color_picker" widget_color_picker = { inline = true } }.into(),
-        toml::toml! { kind = "list" options = ["first", "second"] width = 160.0 height = 120.0 }.into(),
+        toml::toml! { kind = "list" items = [{ label = "first" }, { label = "second" }] width = 160.0 height = 120.0 }.into(),
         toml::toml! { kind = "panel" text = "Title" }.into(),
         toml::toml! { kind = "window" text = "Debug" width = 200.0 height = 120.0 }.into(),
     ]

@@ -485,6 +485,7 @@ cache_fields! {
         k::KEEP_OPEN => widget.keep_open = asked.keep_open;
         k::CHECKED => widget.checked = asked.checked;
         k::OPTIONS => widget.options.clone_from(&asked.options);
+        k::ITEMS => widget.items.clone_from(&asked.items);
         k::SELECTION => widget.selection.clone_from(&asked.selection);
         k::MULTI_SELECT => widget.multi = asked.multi_select;
         k::RADIO_GROUP => widget.radio_group = asked.radio_group.clone();
@@ -647,7 +648,14 @@ mod tests {
             (toml::Value::Integer(number), _) => toml::Value::Integer(number + 3),
             (toml::Value::Float(number), _) => toml::Value::Float(number + 3.0),
             (toml::Value::Array(items), None) if items.is_empty() => {
-                toml::Value::Array(vec![toml::Value::String("7".into())])
+                let of = spec.get("of").and_then(|of| of.get("type"));
+                toml::Value::Array(vec![
+                    if of.and_then(toml::Value::as_str) == Some("record") {
+                        toml::Value::Table(toml::map::Map::new())
+                    } else {
+                        toml::Value::String("7".into())
+                    },
+                ])
             }
             (toml::Value::Array(items), None) => toml::Value::Array(
                 items

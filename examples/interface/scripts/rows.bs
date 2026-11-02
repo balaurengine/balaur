@@ -11,7 +11,7 @@ pub class Rows {
     pub shot: str = "",
     node: Node,
     frame: int,
-    cards: [str],
+    cards: [ui::Item],
 }
 
 fn asked() -> str {
@@ -41,12 +41,12 @@ impl Rows {
         // Two rows held at once, which is what `multi` is for; a script reads
         // `selection` back rather than the one row `text` carries.
         self.fill(LIST, {
-            "options": self.cards,
-            "selection": [self.cards[1], self.cards[2]],
-            "text": self.cards[2],
+            "items": self.cards,
+            "selection": [self.cards[1].label.unwrap(), self.cards[2].label.unwrap()],
+            "text": self.cards[2].label.unwrap(),
         });
-        self.fill("Sheet/Views/TreeBox/Outline", { "options": screen::outline() });
-        self.fill("Sheet/Views/TableBox/Table", { "options": screen::table() });
+        self.fill("Sheet/Views/TreeBox/Outline", { "items": screen::outline() });
+        self.fill("Sheet/Views/TableBox/Table", { "items": screen::table() });
     }
 
     /// A row dropped somewhere else in the list, which the kind reports and this
@@ -56,21 +56,28 @@ impl Rows {
         let moved = what[0].as_str();
         let onto = what[1].as_str();
         let side = what[2].as_str();
-        let out: [str] = [];
+        let held = self.cards[0];
         for row in self.cards {
-            if row == moved {
+            if row.label.unwrap() == moved {
+                held = row;
+            }
+        }
+        let out: [ui::Item] = [];
+        for row in self.cards {
+            let name = row.label.unwrap();
+            if name == moved {
                 continue;
             }
-            if row == onto && side == "before" {
-                out.push(moved);
+            if name == onto && side == "before" {
+                out.push(held);
             }
             out.push(row);
-            if row == onto && side != "before" {
-                out.push(moved);
+            if name == onto && side != "before" {
+                out.push(held);
             }
         }
         self.cards = out;
-        self.fill(LIST, { "options": out, "text": moved, "selection": [moved] });
+        self.fill(LIST, { "items": out, "text": moved, "selection": [moved] });
     }
 
     // Late enough that the layout has settled and the rows are in.

@@ -39,16 +39,14 @@ pub struct Item {
 }
 
 pub struct OutlineView {
-    items: [str],
+    /// The rows, or none where they are the ones `stamp` already names.
+    items: [ui::Item],
+    stamp: str,
     chosen: [str],
+    empty: bool,
     filtering: bool,
     nothing: str,
     add_icon: str,
-}
-
-pub struct Built {
-    items: [str],
-    chosen: [str],
 }
 
 /// Where the tree drew a row, in design px.
@@ -232,26 +230,30 @@ fn tagged(state: editor::State, index: int, tag: str) -> bool {
     false
 }
 
-/// The Scene panel's rows for a search and a facet tag: each row's string,
-/// the selected ones, and what to say when the filter leaves none.
-pub fn outline_view(state: &mut editor::State, query: str, facet: str) -> OutlineView {
+/// The Scene panel's rows for a search and a facet tag: each row, the keys of
+/// the selected ones, and what to say when the filter leaves none. A panel that
+/// drew the rows `drawn` names is handed none: a click moves the selection, and
+/// on a long document the rows are most of what a click costs.
+pub fn outline_view(state: &mut editor::State, query: str, facet: str, drawn: str) -> OutlineView {
     let filtering = query != "" || facet != "";
     let rows = if filtering { filtered_rows(state, query, facet) } else { open_rows(state) };
-    let built = tree_items(state, state.theme, rows);
+    let stamp = "{state.outline_rows}|{query}|{facet}";
     let says = if query != "" { query } else { facet };
     OutlineView {
-        items: built.items,
-        chosen: built.chosen,
+        items: if stamp == drawn { [] } else { tree_items(state, state.theme, rows) },
+        stamp: stamp,
+        chosen: chosen_keys(state, rows),
+        empty: rows.len() == 0,
         filtering: filtering,
         nothing: search::nothing_says(says),
         add_icon: icons::ui("add"),
     }
 }
 
-/// A row the Scene panel's tree picked, by the id its string carries: that
-/// node is chosen, with the modifiers the click was made with.
+/// A row the Scene panel's tree picked, by the id that is its key: that node
+/// is chosen, with the modifiers the click was made with.
 pub fn outline_pick(state: &mut editor::State, row: str) {
-    let found = model::index_of_id(state, row_id(row));
+    let found = model::index_of_id(state, row);
     if found != nil {
         let index = found.unwrap();
         if index != state.selected {
@@ -260,9 +262,21 @@ pub fn outline_pick(state: &mut editor::State, row: str) {
     }
 }
 
-// Each row's string, and the strings of the selected rows.
-fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
-    let items: [str] = [];
+// Every selected node lit, not only the active one: the document holds a set,
+// and `multi_select` is what draws one.
+fn chosen_keys(state: editor::State, rows: [any]) -> [str] {
+    let chosen: [str] = [];
+    for row in rows {
+        let index = row["index"].as_int();
+        if selection::contains(state, index) {
+            chosen.push(state.nodes[index].stable_id());
+        }
+    }
+    chosen
+}
+
+fn tree_items(state: editor::State, tokens: any, rows: [any]) -> [ui::Item] {
+    let items: [ui::Item] = [];
     for row in rows {
         let index = row["index"].as_int();
         let node = state.nodes[index];
@@ -273,42 +287,26 @@ fn tree_items(state: editor::State, tokens: any, rows: [any]) -> Built {
         // the row's key: two nodes may share a name, never a row.
         let note = if lint::warned(state, id).len() > 0 { "⚠" } else { "" };
         let tint = if tokens[icon.role] == nil { tokens["text_default"].as_str() } else { tokens[icon.role].as_str() };
-        let line = util::repeat("\t", row["depth"].as_int());
-        items.push(line + util::cells([icon.glyph, node.name(), note, tint, id, row_marks(state, index)]));
+        items.push(ui::Item { icon: icon.glyph, label: node.name(), note: note, tint: tint, key: id, depth: row["depth"].as_int(), marks: row_marks(state, index) });
     }
-    // Every selected node lit, not only the active one: the document holds a
-    // set, and `multi_select` is what draws one.
-    let chosen: [str] = [];
-    for position in 0..rows.len() {
-        let row = rows[position];
-        if selection::contains(state, row["index"].as_int()) {
-            chosen.push(items[position]);
-        }
-    }
-    Built { items: items, chosen: chosen }
+    items
 }
 
 /// The eye on every row, open or closed, and the lock only on a locked one,
 /// rightmost: the tree draws them and reports a click as `tree_mark`.
-pub fn row_marks(state: editor::State, index: int) -> str {
+pub fn row_marks(state: editor::State, index: int) -> [ui::Mark] {
     let eye = if arrange::is_hidden(state, index) { "eye-closed" } else { "visible" };
-    let marks = "{MARK_EYE}={icons::ui(eye)}";
+    let marks = [ui::Mark { name: MARK_EYE, glyph: icons::ui(eye) }];
     if selection::is_locked(state, index) {
-        marks += "\u{1e}{MARK_LOCK}={icons::ui("lock")}";
+        marks.push(ui::Mark { name: MARK_LOCK, glyph: icons::ui("lock") });
     }
     marks
-}
-
-// The node id a tree row's string carries, its fifth cell.
-fn row_id(row: str) -> str {
-    let parts = row.split("\u{1f}");
-    if parts.len() > 4 { parts[4] } else { "" }
 }
 
 /// A mark clicked on a tree row: the eye shows or hides that node, the lock
 /// unlocks it. The row stays as it was picked, or not.
 pub fn mark_clicked(state: &mut editor::State, row: str, mark: str) {
-    let index_or = model::index_of_id(state, row_id(row));
+    let index_or = model::index_of_id(state, row);
     if index_or == nil {
         return;
     }
@@ -378,20 +376,20 @@ fn filtered_rows(state: editor::State, query: str, facet: str) -> [any] {
     out
 }
 
-/// The Outline tab's rows for the workspace, one string a row.
-pub fn secondary_view(state: &mut editor::State) -> [str] {
-    let items: [str] = [];
+/// The Outline tab's rows for the workspace.
+pub fn secondary_view(state: &mut editor::State) -> [ui::Item] {
+    let items: [ui::Item] = [];
     for row in secondary_content(state).rows {
-        items.push(util::cells([row.icon, row.name, row.meta, "", row.key]));
+        items.push(ui::Item { icon: row.icon, label: row.name, note: row.meta, key: row.key });
     }
     items
 }
 
-/// The Outline tab picked the row written `picked`: that row's own action,
-/// found again by its string rather than held on the node.
+/// The Outline tab picked the row `picked` names: that row's own action,
+/// found again by its key rather than held on the node.
 pub fn secondary_pick(state: &mut editor::State, picked: str) {
     for row in secondary_content(state).rows {
-        if util::cells([row.icon, row.name, row.meta, "", row.key]) == picked {
+        if row.key == picked {
             act(state, row);
         }
     }

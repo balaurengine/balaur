@@ -37,7 +37,7 @@ impl Outline {
     fn refresh() {
         let items = self.editor.call("secondary_view");
         if items.kind() == "list" {
-            self.node.get_node("List").widget.options = items;
+            self.node.get_node("List").widget.items = items;
         }
     }
 }

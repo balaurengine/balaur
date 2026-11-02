@@ -25,7 +25,7 @@ Measured 2026-09-08, after the migration.
 | the outliner | one `tree` |
 | the workspace outline, Output, Problems, Cost, Profiler, Docs | one `list` each |
 | Assets, Library, Tiles | one `list` with `grid_columns`, in its card mode |
-| the Debugger | one `tree`: a frame is a row, its locals a tab deeper |
+| the Debugger | one `tree`: a frame is a row, its locals a level deeper |
 | the Inspector and Import | a row pool: one node a row, made and reused |
 | Timeline, Session, Weights, Bone map | a `draw` node each |
 
@@ -54,9 +54,9 @@ Four capabilities, and every view fell out of them.
 
 ## 0.2 A list is a kind, not a repeater
 
-`list` and `tree` are kinds like any other. Rows come from `options`, the
-pick lands on `text`, and `on_change` hears it. A `tree` reads a row's
-leading tabs as its depth, which is how an outline is written down anyway.
+`list` and `tree` are kinds like any other. Rows come from `items`, the
+key of the pick lands on `text`, and `on_change` hears it. A `tree` draws a
+row at its `depth`.
 
 Only the rows on screen are built, which is where the saving was, and
 `ScrollArea::show_rows` does it.

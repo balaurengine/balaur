@@ -74,12 +74,11 @@ its body by `ScrollArea::show_rows` as the other two do, rather than by the
   widget without `multi` keeps the single pick it always had. `on_change`
   hears the whole set where the widget holds many, and the row where it holds
   one.
-- **Columns.** A `table`'s `placeholder` names them, split on U+001F as its
-  rows are; a name ending in `>` draws its column against the right edge,
+- **Columns.** A name ending in `>` draws its column against the right edge,
   which is what a column of numbers wants. Each column's share of the width
   is dragged by the seam in the header and held per table, so the widths
-  survive a rebuild of the rows. A row may carry an `#rrggbb` past its last
-  cell, the way a `list` row carries its own colour.
+  survive a rebuild of the rows. A row's `cells` are one a column, and its
+  `tint` is its own colour, as on a `list` row.
 - **A row a secondary click lands on is picked**, so a `context` menu acts on
   what it opened over rather than on whatever was picked before. A row already
   picked keeps the set it is in, which is how a menu is opened over several.
@@ -111,8 +110,7 @@ its body by `ScrollArea::show_rows` as the other two do, rather than by the
   nothing, so `row_rule = "#00000000"` is a table with no lines.
 
 - **Columns a scene states.** `titles` names them and says how many there
-  are, in a list of its own rather than a string joined on U+001F: it used to
-  be `placeholder`, which is a `field`'s hint and a `drag_value`'s prefix and
+  are: it used to be `placeholder`, which is a `field`'s hint and a `drag_value`'s prefix and
   had no business naming columns. `widths` is a share a column in the same
   order, normalised, so `["3", "1"]` is three quarters and a quarter and
   empty divides the width evenly. A drag on a seam writes the shares back
@@ -131,18 +129,24 @@ its body by `ScrollArea::show_rows` as the other two do, rather than by the
   drag, draws where the row in hand would land -- a line across the gap, or a
   frame around the row it would go inside -- and calls `on_move` with the row
   moved, the row it landed on, and `before`, `after` or `into`. The kind moves
-  nothing itself, because a row view holds strings and what they stand for is
-  the script's; `egui_dnd` stays unnecessary for the same reason. It is not
+  nothing itself, because what a row stands for is the script's; `egui_dnd`
+  stays unnecessary for the same reason. It is not
   the drag and drop batch's `drop`: this one never leaves the widget, and that
   one is a payload from anywhere to anywhere.
-- **Marks at a row's right.** A sixth field on a `list` or `tree` row holds
-  its marks, each `name=glyph` from the icon face and joined on U+001E, drawn
-  in from the right edge in the widget's ink. `on_mark` hears `#{ row, mark }`
+- **A row is a record.** `items` holds a `list`, `tree` or `table`'s rows, each
+  a `ui::Item`: what it says (`label`, `icon`, `note`, a table's `cells`), its
+  `tint`, its `depth` and its `marks`. `options` stays the words a `dropdown`
+  or a `menu` offers. Its `key` is what `text`, `selection` and every row event
+  name it by, and is its label or first cell where it states none, so a handler
+  gets the node id or the path it wrote rather than a string to take apart, and
+  a fold outlives a row's note or marks changing.
+- **Marks at a row's right.** A row's `marks` are each a `name` and a `glyph`
+  from the icon face, drawn in from the right edge in the widget's ink. `on_mark` hears `{ row, mark }`
   for the one clicked, and the click picks no row. The outliner's eye and lock
   are two of them.
 - **One row or many, read the same way.** `selection` carries what the widget
   holds whether it holds one row or several, so nothing reading it back
-  branches on `multi`; `text` is the row last clicked, which is where a shift
+  branches on `multi`; `text` is the key of the row last clicked, which is where a shift
   range measures from and what a one-shot pick channel clears. `row_height`
   is the pitch and `height` is the box, which a `list` used to conflate: a
   list 200 pixels tall drew one row 200 pixels high.

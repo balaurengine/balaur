@@ -482,7 +482,7 @@ fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
     let (_dir, app) = app();
     let tree = toml::toml! {
         kind = "tree" x = 10.0 y = 10.0 width = 200.0 height = 200.0
-        row_height = 18.0 options = ["One", "\tTwo", "Three"] context = "cm"
+        row_height = 18.0 items = [{ label = "One" }, { label = "Two", depth = 1 }, { label = "Three" }] context = "cm"
     };
     add_widget(&app, &tree.into());
     let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };

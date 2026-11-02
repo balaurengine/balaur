@@ -495,6 +495,7 @@ pub(crate) mod keys {
     pub(crate) const ON_SUBMIT: &str = "on_submit";
     pub(crate) const OPEN: &str = "open";
     pub(crate) const OPTIONS: &str = "options";
+    pub(crate) const ITEMS: &str = "items";
     pub(crate) const PADDING: &str = "padding";
     pub(crate) const PADDING_X: &str = "padding_x";
     pub(crate) const PADDING_Y: &str = "padding_y";

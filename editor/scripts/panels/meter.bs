@@ -61,7 +61,7 @@ impl Meter {
             table.widget_table.sort = "";
             table.widget.reverse = false;
         }
-        table.widget.options = view["items"];
+        table.widget.items = view["items"];
         table.set_visible(view["items"].len() > 0);
         let patched = self.node.get_node("Nothing");
         patched.set_visible(view["says"].as_str() != "");

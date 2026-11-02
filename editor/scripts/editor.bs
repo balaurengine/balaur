@@ -109,6 +109,8 @@ pub class State {
     // the wall-clock second it was last typed into.
     script_dirty: any,
     collapsed: any,
+    // Moved whenever the rows the outline shows may have.
+    outline_rows: int,
     view_shot: str,
     view_logged: str,
     code_scroll: float,
@@ -357,6 +359,7 @@ pub fn fresh_state() -> State {
         opened: {},
         script_dirty: {},
         collapsed: {},
+        outline_rows: 0,
         // The panel `view:<id>` asked for, and the rect last logged for it.
         view_shot: "",
         view_logged: "",
@@ -1676,7 +1679,7 @@ impl Editor {
     }
 
     /// The Outline tab's rows, and what a pick on one does.
-    pub fn secondary_view() -> [str] {
+    pub fn secondary_view() -> [ui::Item] {
         left::secondary_view(self.state)
     }
 
@@ -1705,8 +1708,8 @@ impl Editor {
     }
 
     /// What the Scene panel shows for a search and a facet tag.
-    pub fn outline_view(query: str, facet: str) -> left::OutlineView {
-        left::outline_view(self.state, query, facet)
+    pub fn outline_view(query: str, facet: str, drawn: str) -> left::OutlineView {
+        left::outline_view(self.state, query, facet, drawn)
     }
 
     /// The Scene panel's tree picked the row written `row`.

@@ -7,7 +7,7 @@ pub class Tiles {
 }
 
 pub struct Parameters {
-    options: any,
+    items: any,
     text: any,
 }
 
@@ -50,7 +50,7 @@ impl Tiles {
         let cards = view["items"].len() > 0;
         let list = self.node.get_node("Cards");
         list.set_visible(cards);
-        list.patch_component("widget", Parameters { options: view["items"], text: view["picked"] });
+        list.patch_component("widget", Parameters { items: view["items"], text: view["picked"] });
         if cards {
             list.widget_list.sheet = view["sheet"].as_str();
         }
