@@ -319,8 +319,7 @@ fn declarations_are_uniquely_named_within_a_module() {
 fn a_script_can_write_to_the_log_it_reads_back() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
 
     for level in ["info", "warn", "error"] {
         call(

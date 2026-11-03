@@ -33,25 +33,25 @@ fn GROWN_AT() -> [float] {
 
 // One per piece, translucent: where two pieces cover the same ground the
 // tints stack, and that band is the overlap the seam gained.
-fn TINTS() -> [[float]] {
+fn TINTS() -> [Color] {
     [
-        [0.88, 0.42, 0.28, 0.55],
-        [0.29, 0.56, 0.82, 0.55],
-        [0.37, 0.69, 0.54, 0.55],
-        [0.79, 0.63, 0.25, 0.55],
+        color(0.88, 0.42, 0.28, 0.55),
+        color(0.29, 0.56, 0.82, 0.55),
+        color(0.37, 0.69, 0.54, 0.55),
+        color(0.79, 0.63, 0.25, 0.55),
     ]
 }
 
-fn EDGE() -> [float] {
-    [1.0, 1.0, 1.0, 0.35]
+fn EDGE() -> Color {
+    color(1.0, 1.0, 1.0, 0.35)
 }
 
-fn INK() -> [float] {
-    [0.93, 0.94, 0.96, 1.0]
+fn INK() -> Color {
+    color(0.93, 0.94, 0.96, 1.0)
 }
 
-fn FAINT() -> [float] {
-    [0.62, 0.66, 0.72, 1.0]
+fn FAINT() -> Color {
+    color(0.62, 0.66, 0.72, 1.0)
 }
 
 impl Pieces {
@@ -82,7 +82,7 @@ fn draw_pieces(at: [float], overlap: float) -> int {
     cut.len()
 }
 
-fn label(x: float, y: float, text: str, size: float, color: [float]) {
+fn label(x: float, y: float, text: str, size: float, color: Color) {
     render::draw_text_2d(x, y, text, render::TextOptions { font_size: size, color: color, text_align: "center" });
 }
 

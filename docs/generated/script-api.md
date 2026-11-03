@@ -16,7 +16,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
-| [`encoding`](#encoding) | 2 | 0 |
+| [`encoding`](#encoding) | 1 | 0 |
 | [`engine`](#engine) | 30 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
@@ -32,6 +32,8 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`json`](#json) | 2 | 0 |
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
+| [`multimesh2d`](#multimesh2d) | 0 | 0 |
+| [`multimesh3d`](#multimesh3d) | 0 | 0 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
 | [`node`](#node) | 52 | 0 |
 | [`physics`](#physics) | 12 | 0 |
@@ -68,8 +70,8 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 | `is_tween_running` | `(any) -> bool` |
 | `stop` | `(any)` |
 | `tween` | `(Node, animation::Tween) -> int` |
-| `tween_value` | `(any, any, float, str?) -> int` |
-| `tween_value_of` | `(any) -> float` |
+| `tween_value` | `(float, float, float, str?) -> int` |
+| `tween_value_of` | `(int) -> float` |
 
 Called on a node's component: `animation`, `state_machine`. See [components](components.md).
 
@@ -110,7 +112,7 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 
 | Function | Signature |
 | --- | --- |
-| `access_point` | `(any, any) -> bool` |
+| `access_point` | `(bool, any) -> bool` |
 | `authenticated` | `() -> any` |
 | `available` | `() -> any` |
 | `cancel_notification` | `(any) -> any` |
@@ -201,7 +203,7 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `pan` | `(int) -> float?` |
 | `play_cue` | `(str, audio::CueOptions?) -> int?` |
 | `set_bus_volume_linear` | `(str, float)` |
-| `set_emitter_position` | `(int, any, any, any)` |
+| `set_emitter_position` | `(int, float, float, float)` |
 | `set_pitch_scale` | `(int, float)` |
 | `set_volume_linear` | `(int, float)` |
 | `stop_all` | `()` |
@@ -271,8 +273,7 @@ Bytes to base64 text and back.
 
 | Function | Signature |
 | --- | --- |
-| `base64` | `(any) -> str` |
-| `from_base64` | `(str) -> any` |
+| `from_base64` | `(str) -> [int]` |
 
 ## `engine`
 
@@ -409,14 +410,14 @@ Polygons on the plane as lists of `[x, y]` points in outline order: triangulatio
 | Function | Signature |
 | --- | --- |
 | `area` | `(any) -> float` |
-| `contains` | `(any, any) -> bool` |
+| `contains` | `(any, Vec2) -> bool` |
 | `convex_decomposition` | `(any, geometry2d::DecompositionOptions?) -> any` |
 | `convex_hull` | `(any) -> any` |
 | `difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 | `intersection` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 | `is_clockwise` | `(any) -> bool` |
 | `reverse_difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
-| `segments_intersect` | `(any, any, any, any) -> Vec2` |
+| `segments_intersect` | `(Vec2, Vec2, Vec2, Vec2) -> Vec2` |
 | `symmetric_difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
 | `triangulate` | `(any) -> [[int]]` |
 | `union` | `(any, any, geometry2d::BooleanOptions?) -> any` |
@@ -510,7 +511,7 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `gamepad_pressure` | `(int, str) -> float` |
 | `gamepad_repeated` | `(int, str) -> bool` |
 | `gamepad_rumble` | `(int, input::RumbleOptions?) -> bool` |
-| `gamepad_set_listener` | `(int, any)` |
+| `gamepad_set_listener` | `(int, Vec3)` |
 | `gamepad_stop_rumble` | `(int)` |
 | `gamepad_touches` | `(int) -> any` |
 | `gamepads` | `() -> any` |
@@ -628,6 +629,18 @@ Deterministic float maths backed by pure-Rust `libm`: the same inputs give the s
 | `INFINITY` | `inf` |
 | `PI` | `3.141592653589793` |
 | `TAU` | `6.283185307179586` |
+
+## `multimesh2d`
+
+Thousands of copies of one sprite in one draw, each with its own transform, colour and custom data, through `node.multimesh2d`.
+
+Called on a node's component: `multimesh2d`. See [components](components.md).
+
+## `multimesh3d`
+
+Thousands of copies of one mesh in one draw, each with its own transform, colour and custom data, through `node.multimesh3d`.
+
+Called on a node's component: `multimesh3d`. See [components](components.md).
 
 ## `multiplayer`
 
@@ -981,20 +994,20 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `clear_retained` | `(str)` |
 | `debug_view` | `() -> str` |
 | `debug_views` | `() -> [str]` |
-| `draw_arc_2d` | `(float, float, float, float, float, float?, any, render::DrawOptions?)` |
-| `draw_box` | `(float, float, float, float, float, float, any)` |
-| `draw_capsule` | `(float, float, float, float, float, any)` |
-| `draw_circle_2d` | `(float, float, float, any, render::DrawOptions?)` |
+| `draw_arc_2d` | `(float, float, float, float, float, float?, Color, render::DrawOptions?)` |
+| `draw_box` | `(float, float, float, float, float, float, Color)` |
+| `draw_capsule` | `(float, float, float, float, float, Color)` |
+| `draw_circle_2d` | `(float, float, float, Color, render::DrawOptions?)` |
 | `draw_line_2d` | `(float, float, float, float, float, float, float, float?, render::DrawOptions?)` |
 | `draw_line_3d` | `(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)` |
 | `draw_lines` | `(any)` |
-| `draw_polygon_2d` | `(any, any, render::DrawOptions?)` |
-| `draw_polyline_2d` | `(any, float?, any, render::DrawOptions?)` |
-| `draw_rect_2d` | `(float, float, float, float, any, render::DrawOptions?)` |
-| `draw_sphere` | `(float, float, float, float, any)` |
+| `draw_polygon_2d` | `(any, Color, render::DrawOptions?)` |
+| `draw_polyline_2d` | `(any, float?, Color, render::DrawOptions?)` |
+| `draw_rect_2d` | `(float, float, float, float, Color, render::DrawOptions?)` |
+| `draw_sphere` | `(float, float, float, float, Color)` |
 | `draw_text_2d` | `(float, float, str, render::TextOptions?)` |
 | `draw_text_3d` | `(float, float, float, str, render::TextOptions?)` |
-| `draw_texture_2d` | `(str, float, float, float, float, any, render::TextureOptions?)` |
+| `draw_texture_2d` | `(str, float, float, float, float, Color, render::TextureOptions?)` |
 | `end_retained` | `()` |
 | `hold_cameras` | `(Node?)` |
 | `material_params` | `(str) -> [render::Param]` |
@@ -1017,7 +1030,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `texture_size` | `(str) -> [int]` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
 
-Called on a node's component: `boolean3d`, `multimesh2d`, `multimesh3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
+Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
 
 **Constants** (45):
 
@@ -1254,7 +1267,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
-| `reread` | `(Node, str?, any) -> bool` |
+| `reread` | `(Node, str?, [str]?) -> bool` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |

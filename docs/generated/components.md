@@ -574,23 +574,23 @@ On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>buffer()</code></td><td><code>any</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_color(int)</code></td><td><code>any</code></td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_count()</code></td><td><code>int</code></td><td>How many instances the node holds.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_custom_data(int)</code></td><td><code>any</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_region(int)</code></td><td><code>any</code></td><td>One instance&#x27;s texture rectangle as `[x, y, w, h]` in pixels, or nil when it draws the whole texture.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_transform(int)</code></td><td><code>any</code></td><td>One instance&#x27;s transform as a list of floats, the axes and then the origin: 12 of them, or 6 on a 2D node.</td><td><code>render</code></td></tr>
-<tr><td><code>instances()</code></td><td><code>any</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>render</code></td></tr>
-<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>any</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>render</code></td></tr>
-<tr><td><code>set_buffer(any)</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_color(int, any)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_custom_data(int, any)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour or a list.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_region(int, any, any)</code></td><td>—</td><td>The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur&#x27;s own pipeline, which binds no rectangle per instance.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_transform(int, any)</code></td><td>—</td><td>Place one instance with a transform as `instance_transform` answers it: 12 floats, or 6 on a 2D node. A shear is kept, as the instance&#x27;s `basis`.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instances(any)</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>render</code></td></tr>
-<tr><td><code>set_visible_instance_count(int)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>render</code></td></tr>
-<tr><td><code>visible_instance_count()</code></td><td><code>int</code></td><td>How many instances draw; -1 is all of them.</td><td><code>render</code></td></tr>
+<tr><td><code>buffer()</code></td><td><code>[float]</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>instance_color(int)</code></td><td><code>Color</code></td><td>The colour one instance draws in.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>instance_count()</code></td><td><code>int</code></td><td>How many instances the node holds.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>instance_custom_data(int)</code></td><td><code>Color</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>instance_region(int)</code></td><td><code>render::InstanceRegion?</code></td><td>One instance&#x27;s texture rectangle in pixels, or nil when it draws the whole texture.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>instance_transform(int)</code></td><td><code>Transform2d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>[render::MultimeshInstance]</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_instance_custom_data(int, Color)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_instance_region(int, Vec2, Vec2)</code></td><td>—</td><td>The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur&#x27;s own pipeline, which binds no rectangle per instance.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_instance_transform(int, Transform2d)</code></td><td>—</td><td>Place one instance. A shear is kept, as the instance&#x27;s `basis`.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_instances([render::MultimeshInstance])</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>set_visible_instance_count(int)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>multimesh2d</code></td></tr>
+<tr><td><code>visible_instance_count()</code></td><td><code>int</code></td><td>How many instances draw; -1 is all of them.</td><td><code>multimesh2d</code></td></tr>
 </tbody>
 </table>
 
@@ -1771,21 +1771,21 @@ On a node carrying `multimesh3d`, as `node.multimesh3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>buffer()</code></td><td><code>any</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_color(int)</code></td><td><code>any</code></td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_count()</code></td><td><code>int</code></td><td>How many instances the node holds.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_custom_data(int)</code></td><td><code>any</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>render</code></td></tr>
-<tr><td><code>instance_transform(int)</code></td><td><code>any</code></td><td>One instance&#x27;s transform as a list of floats, the axes and then the origin: 12 of them, or 6 on a 2D node.</td><td><code>render</code></td></tr>
-<tr><td><code>instances()</code></td><td><code>any</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>render</code></td></tr>
-<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>any</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>render</code></td></tr>
-<tr><td><code>set_buffer(any)</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_color(int, any)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_custom_data(int, any)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour or a list.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instance_transform(int, any)</code></td><td>—</td><td>Place one instance with a transform as `instance_transform` answers it: 12 floats, or 6 on a 2D node. A shear is kept, as the instance&#x27;s `basis`.</td><td><code>render</code></td></tr>
-<tr><td><code>set_instances(any)</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>render</code></td></tr>
-<tr><td><code>set_visible_instance_count(int)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>render</code></td></tr>
-<tr><td><code>visible_instance_count()</code></td><td><code>int</code></td><td>How many instances draw; -1 is all of them.</td><td><code>render</code></td></tr>
+<tr><td><code>buffer()</code></td><td><code>[float]</code></td><td>Every instance as one flat list of floats in Godot&#x27;s `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>instance_color(int)</code></td><td><code>Color</code></td><td>The colour one instance draws in.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>instance_count()</code></td><td><code>int</code></td><td>How many instances the node holds.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>instance_custom_data(int)</code></td><td><code>Color</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>instance_transform(int)</code></td><td><code>Transform3d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>[render::MultimeshInstance]</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_instance_custom_data(int, Color)</code></td><td>—</td><td>Four floats a material&#x27;s shader reads for one instance, as a colour.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_instance_transform(int, Transform3d)</code></td><td>—</td><td>Place one instance. A shear is kept, as the instance&#x27;s `basis`.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_instances([render::MultimeshInstance])</code></td><td>—</td><td>Replace every instance with a list in the `multimesh` asset&#x27;s shape.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>set_visible_instance_count(int)</code></td><td>—</td><td>How many instances draw, from the first; -1 draws them all.</td><td><code>multimesh3d</code></td></tr>
+<tr><td><code>visible_instance_count()</code></td><td><code>int</code></td><td>How many instances draw; -1 is all of them.</td><td><code>multimesh3d</code></td></tr>
 </tbody>
 </table>
 

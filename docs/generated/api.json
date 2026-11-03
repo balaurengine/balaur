@@ -1714,15 +1714,15 @@
       },
       "animation::tween_value": {
         "least": 3,
-        "signature": "(any, any, float, str?) -> int"
+        "signature": "(float, float, float, str?) -> int"
       },
       "animation::tween_value_of": {
-        "least": 0,
-        "signature": "(any) -> float"
+        "least": 1,
+        "signature": "(int) -> float"
       },
       "apple::access_point": {
-        "least": 0,
-        "signature": "(any, any) -> bool"
+        "least": 1,
+        "signature": "(bool, any) -> bool"
       },
       "apple::authenticated": {
         "least": 0,
@@ -1905,8 +1905,8 @@
         "signature": "(str, float)"
       },
       "audio::set_emitter_position": {
-        "least": 1,
-        "signature": "(int, any, any, any)"
+        "least": 4,
+        "signature": "(int, float, float, float)"
       },
       "audio::set_pitch_scale": {
         "least": 2,
@@ -2004,13 +2004,9 @@
         "least": 1,
         "signature": "(str) -> str?"
       },
-      "encoding::base64": {
-        "least": 0,
-        "signature": "(any) -> str"
-      },
       "encoding::from_base64": {
         "least": 1,
-        "signature": "(str) -> any"
+        "signature": "(str) -> [int]"
       },
       "engine::args": {
         "least": 0,
@@ -2305,8 +2301,8 @@
         "signature": "(any) -> float"
       },
       "geometry2d::contains": {
-        "least": 0,
-        "signature": "(any, any) -> bool"
+        "least": 2,
+        "signature": "(any, Vec2) -> bool"
       },
       "geometry2d::convex_decomposition": {
         "least": 0,
@@ -2333,8 +2329,8 @@
         "signature": "(any, any, geometry2d::BooleanOptions?) -> any"
       },
       "geometry2d::segments_intersect": {
-        "least": 0,
-        "signature": "(any, any, any, any) -> Vec2"
+        "least": 4,
+        "signature": "(Vec2, Vec2, Vec2, Vec2) -> Vec2"
       },
       "geometry2d::symmetric_difference": {
         "least": 0,
@@ -2529,8 +2525,8 @@
         "signature": "(int, input::RumbleOptions?) -> bool"
       },
       "input::gamepad_set_listener": {
-        "least": 1,
-        "signature": "(int, any)"
+        "least": 2,
+        "signature": "(int, Vec3)"
       },
       "input::gamepad_stop_rumble": {
         "least": 1,
@@ -3506,11 +3502,11 @@
       },
       "node.multimesh2d.buffer": {
         "least": 1,
-        "signature": "(Node) -> any"
+        "signature": "(Node) -> [float]"
       },
       "node.multimesh2d.instance_color": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> Color"
       },
       "node.multimesh2d.instance_count": {
         "least": 1,
@@ -3518,51 +3514,51 @@
       },
       "node.multimesh2d.instance_custom_data": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> Color"
       },
       "node.multimesh2d.instance_region": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> render::InstanceRegion?"
       },
       "node.multimesh2d.instance_transform": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> Transform2d"
       },
       "node.multimesh2d.instances": {
         "least": 1,
-        "signature": "(Node) -> any"
+        "signature": "(Node) -> [render::MultimeshInstance]"
       },
       "node.multimesh2d.populate": {
         "least": 2,
-        "signature": "(Node, render::PopulateOptions) -> any"
+        "signature": "(Node, render::PopulateOptions) -> [render::MultimeshInstance]"
       },
       "node.multimesh2d.set_buffer": {
-        "least": 1,
-        "signature": "(Node, any)"
+        "least": 2,
+        "signature": "(Node, [float])"
       },
       "node.multimesh2d.set_instance_color": {
-        "least": 2,
-        "signature": "(Node, int, any)"
+        "least": 3,
+        "signature": "(Node, int, Color)"
       },
       "node.multimesh2d.set_instance_count": {
         "least": 2,
         "signature": "(Node, int)"
       },
       "node.multimesh2d.set_instance_custom_data": {
-        "least": 2,
-        "signature": "(Node, int, any)"
+        "least": 3,
+        "signature": "(Node, int, Color)"
       },
       "node.multimesh2d.set_instance_region": {
-        "least": 2,
-        "signature": "(Node, int, any, any)"
+        "least": 4,
+        "signature": "(Node, int, Vec2, Vec2)"
       },
       "node.multimesh2d.set_instance_transform": {
-        "least": 2,
-        "signature": "(Node, int, any)"
+        "least": 3,
+        "signature": "(Node, int, Transform2d)"
       },
       "node.multimesh2d.set_instances": {
-        "least": 1,
-        "signature": "(Node, any)"
+        "least": 2,
+        "signature": "(Node, [render::MultimeshInstance])"
       },
       "node.multimesh2d.set_visible_instance_count": {
         "least": 2,
@@ -3574,11 +3570,11 @@
       },
       "node.multimesh3d.buffer": {
         "least": 1,
-        "signature": "(Node) -> any"
+        "signature": "(Node) -> [float]"
       },
       "node.multimesh3d.instance_color": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> Color"
       },
       "node.multimesh3d.instance_count": {
         "least": 1,
@@ -3586,43 +3582,43 @@
       },
       "node.multimesh3d.instance_custom_data": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> Color"
       },
       "node.multimesh3d.instance_transform": {
         "least": 2,
-        "signature": "(Node, int) -> any"
+        "signature": "(Node, int) -> Transform3d"
       },
       "node.multimesh3d.instances": {
         "least": 1,
-        "signature": "(Node) -> any"
+        "signature": "(Node) -> [render::MultimeshInstance]"
       },
       "node.multimesh3d.populate": {
         "least": 2,
-        "signature": "(Node, render::PopulateOptions) -> any"
+        "signature": "(Node, render::PopulateOptions) -> [render::MultimeshInstance]"
       },
       "node.multimesh3d.set_buffer": {
-        "least": 1,
-        "signature": "(Node, any)"
+        "least": 2,
+        "signature": "(Node, [float])"
       },
       "node.multimesh3d.set_instance_color": {
-        "least": 2,
-        "signature": "(Node, int, any)"
+        "least": 3,
+        "signature": "(Node, int, Color)"
       },
       "node.multimesh3d.set_instance_count": {
         "least": 2,
         "signature": "(Node, int)"
       },
       "node.multimesh3d.set_instance_custom_data": {
-        "least": 2,
-        "signature": "(Node, int, any)"
+        "least": 3,
+        "signature": "(Node, int, Color)"
       },
       "node.multimesh3d.set_instance_transform": {
-        "least": 2,
-        "signature": "(Node, int, any)"
+        "least": 3,
+        "signature": "(Node, int, Transform3d)"
       },
       "node.multimesh3d.set_instances": {
-        "least": 1,
-        "signature": "(Node, any)"
+        "least": 2,
+        "signature": "(Node, [render::MultimeshInstance])"
       },
       "node.multimesh3d.set_visible_instance_count": {
         "least": 2,
@@ -4609,20 +4605,20 @@
         "signature": "() -> [str]"
       },
       "render::draw_arc_2d": {
-        "least": 5,
-        "signature": "(float, float, float, float, float, float?, any, render::DrawOptions?)"
+        "least": 7,
+        "signature": "(float, float, float, float, float, float?, Color, render::DrawOptions?)"
       },
       "render::draw_box": {
-        "least": 6,
-        "signature": "(float, float, float, float, float, float, any)"
+        "least": 7,
+        "signature": "(float, float, float, float, float, float, Color)"
       },
       "render::draw_capsule": {
-        "least": 5,
-        "signature": "(float, float, float, float, float, any)"
+        "least": 6,
+        "signature": "(float, float, float, float, float, Color)"
       },
       "render::draw_circle_2d": {
-        "least": 3,
-        "signature": "(float, float, float, any, render::DrawOptions?)"
+        "least": 4,
+        "signature": "(float, float, float, Color, render::DrawOptions?)"
       },
       "render::draw_line_2d": {
         "least": 7,
@@ -4637,20 +4633,20 @@
         "signature": "(any)"
       },
       "render::draw_polygon_2d": {
-        "least": 0,
-        "signature": "(any, any, render::DrawOptions?)"
+        "least": 2,
+        "signature": "(any, Color, render::DrawOptions?)"
       },
       "render::draw_polyline_2d": {
-        "least": 0,
-        "signature": "(any, float?, any, render::DrawOptions?)"
+        "least": 3,
+        "signature": "(any, float?, Color, render::DrawOptions?)"
       },
       "render::draw_rect_2d": {
-        "least": 4,
-        "signature": "(float, float, float, float, any, render::DrawOptions?)"
+        "least": 5,
+        "signature": "(float, float, float, float, Color, render::DrawOptions?)"
       },
       "render::draw_sphere": {
-        "least": 4,
-        "signature": "(float, float, float, float, any)"
+        "least": 5,
+        "signature": "(float, float, float, float, Color)"
       },
       "render::draw_text_2d": {
         "least": 3,
@@ -4661,8 +4657,8 @@
         "signature": "(float, float, float, str, render::TextOptions?)"
       },
       "render::draw_texture_2d": {
-        "least": 5,
-        "signature": "(str, float, float, float, float, any, render::TextureOptions?)"
+        "least": 6,
+        "signature": "(str, float, float, float, float, Color, render::TextureOptions?)"
       },
       "render::end_retained": {
         "least": 0,
@@ -5226,7 +5222,7 @@
       },
       "ui::reread": {
         "least": 1,
-        "signature": "(Node, str?, any) -> bool"
+        "signature": "(Node, str?, [str]?) -> bool"
       },
       "ui::save_pasted_image": {
         "least": 1,
@@ -5808,6 +5804,20 @@
         "at": "float",
         "node": "Node"
       },
+      "render::InstanceRegion": {
+        "origin": "Vec2",
+        "size": "Vec2"
+      },
+      "render::MultimeshInstance": {
+        "basis": "[float]?",
+        "color": "Color?",
+        "custom": "Color?",
+        "position": "Vec3?",
+        "region_origin": "Vec2?",
+        "region_size": "Vec2?",
+        "rotation_euler": "Vec3?",
+        "scale": "Vec3?"
+      },
       "render::NodeCost": {
         "copies": "float",
         "draws": "float",
@@ -5822,14 +5832,14 @@
       },
       "render::PopulateOptions": {
         "count": "int?",
-        "counts": "any",
+        "counts": "[int]?",
         "kind": "str",
         "radius": "float?",
         "random_scale": "float?",
         "rotation": "float?",
         "scale": "float?",
         "seed": "int?",
-        "step": "any",
+        "step": "Vec3?",
         "surface": "Node?",
         "tilt": "float?"
       },
@@ -19590,8 +19600,8 @@
         "time": "(Node) -> float",
         "travel": "(Node, str)",
         "tween": "(Node, animation::Tween) -> int",
-        "tween_value": "(any, any, float, str?) -> int",
-        "tween_value_of": "(any) -> float"
+        "tween_value": "(float, float, float, str?) -> int",
+        "tween_value_of": "(int) -> float"
       }
     },
     {
@@ -19744,7 +19754,7 @@
       ],
       "name": "apple",
       "signatures": {
-        "access_point": "(any, any) -> bool",
+        "access_point": "(bool, any) -> bool",
         "authenticated": "() -> any",
         "available": "() -> any",
         "cancel_notification": "(any) -> any",
@@ -19910,7 +19920,7 @@
         "play_cue": "(str, audio::CueOptions?) -> int?",
         "seek": "(Node, float)",
         "set_bus_volume_linear": "(str, float)",
-        "set_emitter_position": "(int, any, any, any)",
+        "set_emitter_position": "(int, float, float, float)",
         "set_pitch_scale": "(int, float)",
         "set_volume_linear": "(int, float)",
         "skip": "(Node)",
@@ -20041,17 +20051,14 @@
       "constants": [],
       "doc": "Bytes to base64 text and back.",
       "docs": {
-        "base64": "Bytes, or a string's UTF-8, as standard base64 with padding.",
         "from_base64": "The bytes a base64 string encodes; an error for text that is not base64."
       },
       "functions": [
-        "base64",
         "from_base64"
       ],
       "name": "encoding",
       "signatures": {
-        "base64": "(any) -> str",
-        "from_base64": "(str) -> any"
+        "from_base64": "(str) -> [int]"
       }
     },
     {
@@ -20421,14 +20428,14 @@
       "name": "geometry2d",
       "signatures": {
         "area": "(any) -> float",
-        "contains": "(any, any) -> bool",
+        "contains": "(any, Vec2) -> bool",
         "convex_decomposition": "(any, geometry2d::DecompositionOptions?) -> any",
         "convex_hull": "(any) -> any",
         "difference": "(any, any, geometry2d::BooleanOptions?) -> any",
         "intersection": "(any, any, geometry2d::BooleanOptions?) -> any",
         "is_clockwise": "(any) -> bool",
         "reverse_difference": "(any, any, geometry2d::BooleanOptions?) -> any",
-        "segments_intersect": "(any, any, any, any) -> Vec2",
+        "segments_intersect": "(Vec2, Vec2, Vec2, Vec2) -> Vec2",
         "symmetric_difference": "(any, any, geometry2d::BooleanOptions?) -> any",
         "triangulate": "(any) -> [[int]]",
         "union": "(any, any, geometry2d::BooleanOptions?) -> any"
@@ -21454,7 +21461,7 @@
         "gamepad_pressure": "(int, str) -> float",
         "gamepad_repeated": "(int, str) -> bool",
         "gamepad_rumble": "(int, input::RumbleOptions?) -> bool",
-        "gamepad_set_listener": "(int, any)",
+        "gamepad_set_listener": "(int, Vec3)",
         "gamepad_stop_rumble": "(int)",
         "gamepad_touches": "(int) -> any",
         "gamepads": "() -> any",
@@ -21632,6 +21639,230 @@
         "tanh": "(float) -> float",
         "to_degrees": "(float) -> float",
         "to_radians": "(float) -> float"
+      }
+    },
+    {
+      "acts_on": {
+        "buffer": [
+          "multimesh2d"
+        ],
+        "instance_color": [
+          "multimesh2d"
+        ],
+        "instance_count": [
+          "multimesh2d"
+        ],
+        "instance_custom_data": [
+          "multimesh2d"
+        ],
+        "instance_region": [
+          "multimesh2d"
+        ],
+        "instance_transform": [
+          "multimesh2d"
+        ],
+        "instances": [
+          "multimesh2d"
+        ],
+        "populate": [
+          "multimesh2d"
+        ],
+        "set_buffer": [
+          "multimesh2d"
+        ],
+        "set_instance_color": [
+          "multimesh2d"
+        ],
+        "set_instance_count": [
+          "multimesh2d"
+        ],
+        "set_instance_custom_data": [
+          "multimesh2d"
+        ],
+        "set_instance_region": [
+          "multimesh2d"
+        ],
+        "set_instance_transform": [
+          "multimesh2d"
+        ],
+        "set_instances": [
+          "multimesh2d"
+        ],
+        "set_visible_instance_count": [
+          "multimesh2d"
+        ],
+        "visible_instance_count": [
+          "multimesh2d"
+        ]
+      },
+      "components": [
+        "multimesh2d"
+      ],
+      "constants": [],
+      "doc": "Thousands of copies of one sprite in one draw, each with its own transform, colour and custom data, through `node.multimesh2d`.",
+      "docs": {
+        "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
+        "instance_color": "The colour one instance draws in.",
+        "instance_count": "How many instances the node holds.",
+        "instance_custom_data": "One instance's four floats of custom data, as a colour.",
+        "instance_region": "One instance's texture rectangle in pixels, or nil when it draws the whole texture.",
+        "instance_transform": "One instance's transform.",
+        "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
+        "populate": "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
+        "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
+        "set_instance_color": "The colour one instance draws in.",
+        "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
+        "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour.",
+        "set_instance_region": "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance.",
+        "set_instance_transform": "Place one instance. A shear is kept, as the instance's `basis`.",
+        "set_instances": "Replace every instance with a list in the `multimesh` asset's shape.",
+        "set_visible_instance_count": "How many instances draw, from the first; -1 draws them all.",
+        "visible_instance_count": "How many instances draw; -1 is all of them."
+      },
+      "functions": [
+        "buffer",
+        "instance_color",
+        "instance_count",
+        "instance_custom_data",
+        "instance_region",
+        "instance_transform",
+        "instances",
+        "populate",
+        "set_buffer",
+        "set_instance_color",
+        "set_instance_count",
+        "set_instance_custom_data",
+        "set_instance_region",
+        "set_instance_transform",
+        "set_instances",
+        "set_visible_instance_count",
+        "visible_instance_count"
+      ],
+      "name": "multimesh2d",
+      "signatures": {
+        "buffer": "(Node) -> [float]",
+        "instance_color": "(Node, int) -> Color",
+        "instance_count": "(Node) -> int",
+        "instance_custom_data": "(Node, int) -> Color",
+        "instance_region": "(Node, int) -> render::InstanceRegion?",
+        "instance_transform": "(Node, int) -> Transform2d",
+        "instances": "(Node) -> [render::MultimeshInstance]",
+        "populate": "(Node, render::PopulateOptions) -> [render::MultimeshInstance]",
+        "set_buffer": "(Node, [float])",
+        "set_instance_color": "(Node, int, Color)",
+        "set_instance_count": "(Node, int)",
+        "set_instance_custom_data": "(Node, int, Color)",
+        "set_instance_region": "(Node, int, Vec2, Vec2)",
+        "set_instance_transform": "(Node, int, Transform2d)",
+        "set_instances": "(Node, [render::MultimeshInstance])",
+        "set_visible_instance_count": "(Node, int)",
+        "visible_instance_count": "(Node) -> int"
+      }
+    },
+    {
+      "acts_on": {
+        "buffer": [
+          "multimesh3d"
+        ],
+        "instance_color": [
+          "multimesh3d"
+        ],
+        "instance_count": [
+          "multimesh3d"
+        ],
+        "instance_custom_data": [
+          "multimesh3d"
+        ],
+        "instance_transform": [
+          "multimesh3d"
+        ],
+        "instances": [
+          "multimesh3d"
+        ],
+        "populate": [
+          "multimesh3d"
+        ],
+        "set_buffer": [
+          "multimesh3d"
+        ],
+        "set_instance_color": [
+          "multimesh3d"
+        ],
+        "set_instance_count": [
+          "multimesh3d"
+        ],
+        "set_instance_custom_data": [
+          "multimesh3d"
+        ],
+        "set_instance_transform": [
+          "multimesh3d"
+        ],
+        "set_instances": [
+          "multimesh3d"
+        ],
+        "set_visible_instance_count": [
+          "multimesh3d"
+        ],
+        "visible_instance_count": [
+          "multimesh3d"
+        ]
+      },
+      "components": [
+        "multimesh3d"
+      ],
+      "constants": [],
+      "doc": "Thousands of copies of one mesh in one draw, each with its own transform, colour and custom data, through `node.multimesh3d`.",
+      "docs": {
+        "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
+        "instance_color": "The colour one instance draws in.",
+        "instance_count": "How many instances the node holds.",
+        "instance_custom_data": "One instance's four floats of custom data, as a colour.",
+        "instance_transform": "One instance's transform.",
+        "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
+        "populate": "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
+        "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
+        "set_instance_color": "The colour one instance draws in.",
+        "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
+        "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour.",
+        "set_instance_transform": "Place one instance. A shear is kept, as the instance's `basis`.",
+        "set_instances": "Replace every instance with a list in the `multimesh` asset's shape.",
+        "set_visible_instance_count": "How many instances draw, from the first; -1 draws them all.",
+        "visible_instance_count": "How many instances draw; -1 is all of them."
+      },
+      "functions": [
+        "buffer",
+        "instance_color",
+        "instance_count",
+        "instance_custom_data",
+        "instance_transform",
+        "instances",
+        "populate",
+        "set_buffer",
+        "set_instance_color",
+        "set_instance_count",
+        "set_instance_custom_data",
+        "set_instance_transform",
+        "set_instances",
+        "set_visible_instance_count",
+        "visible_instance_count"
+      ],
+      "name": "multimesh3d",
+      "signatures": {
+        "buffer": "(Node) -> [float]",
+        "instance_color": "(Node, int) -> Color",
+        "instance_count": "(Node) -> int",
+        "instance_custom_data": "(Node, int) -> Color",
+        "instance_transform": "(Node, int) -> Transform3d",
+        "instances": "(Node) -> [render::MultimeshInstance]",
+        "populate": "(Node, render::PopulateOptions) -> [render::MultimeshInstance]",
+        "set_buffer": "(Node, [float])",
+        "set_instance_color": "(Node, int, Color)",
+        "set_instance_count": "(Node, int)",
+        "set_instance_custom_data": "(Node, int, Color)",
+        "set_instance_transform": "(Node, int, Transform3d)",
+        "set_instances": "(Node, [render::MultimeshInstance])",
+        "set_visible_instance_count": "(Node, int)",
+        "visible_instance_count": "(Node) -> int"
       }
     },
     {
@@ -24735,38 +24966,11 @@
     },
     {
       "acts_on": {
-        "buffer": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
         "built_mesh": [
           "boolean3d"
         ],
         "cell": [
           "tilemap"
-        ],
-        "instance_color": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "instance_count": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "instance_custom_data": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "instance_region": [
-          "multimesh2d"
-        ],
-        "instance_transform": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "instances": [
-          "multimesh3d",
-          "multimesh2d"
         ],
         "is_on_screen": [
           "screen_notifier2d"
@@ -24774,62 +24978,21 @@
         "outline": [
           "occluder2d"
         ],
-        "populate": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "set_buffer": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
         "set_cell": [
           "tilemap"
         ],
-        "set_instance_color": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "set_instance_count": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "set_instance_custom_data": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "set_instance_region": [
-          "multimesh2d"
-        ],
-        "set_instance_transform": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
-        "set_instances": [
-          "multimesh3d",
-          "multimesh2d"
-        ],
         "set_terrain": [
           "tilemap"
-        ],
-        "set_visible_instance_count": [
-          "multimesh3d",
-          "multimesh2d"
         ],
         "terrain": [
           "tilemap"
         ],
         "tile_data": [
           "tilemap"
-        ],
-        "visible_instance_count": [
-          "multimesh3d",
-          "multimesh2d"
         ]
       },
       "components": [
         "boolean3d",
-        "multimesh2d",
-        "multimesh3d",
         "occluder2d",
         "screen_notifier2d",
         "tilemap"
@@ -25020,7 +25183,6 @@
       "docs": {
         "begin_retained": "Keep what is drawn from here to `end_retained` under `key`, drawn every frame until the key is drawn again or cleared: an overlay redrawn when what it shows moves, not each frame.",
         "bounds": "The box the node's geometry covers in its own space, as a centre xyz and half-extents xyz, with a z of zero for a 2D node; nil for a node that draws nothing. A solver's body reports where it is now, not where it was built; a text, the lines it was last laid out in.",
-        "buffer": "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data.",
         "built_mesh": "The triangles the node's boolean settled on, as `{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
         "camera_2d": "The 2D camera this frame: centre xy and zoom in logical pixels per world unit; all zeros with no window.",
         "camera_matrix": "The camera's projection*view matrix this frame, 16 numbers column-major; all zeros with no window.",
@@ -25046,12 +25208,6 @@
         "draw_texture_2d": "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it.",
         "end_retained": "Keep what was drawn since `begin_retained` under its key, in place of what the key held.",
         "hold_cameras": "Let no camera under a node drive the view, whatever its `current` says, until it is called with nil: an editor looking at a game through its own camera. The cameras keep what the scene asked of them.",
-        "instance_color": "The colour one instance draws in.",
-        "instance_count": "How many instances the node holds.",
-        "instance_custom_data": "One instance's four floats of custom data, as a colour.",
-        "instance_region": "One instance's texture rectangle as `[x, y, w, h]` in pixels, or nil when it draws the whole texture.",
-        "instance_transform": "One instance's transform as a list of floats, the axes and then the origin: 12 of them, or 6 on a 2D node.",
-        "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
         "is_on_screen": "Whether any of the notifier's box was on screen at the end of the last frame.",
         "material_params": "The material's editable rows, one `{ name, type, value }` per field its linked shader declares; empty when it will not link.",
         "mouse_ray": "The picking ray through the mouse position: its origin xyz then its direction xyz, in world units.",
@@ -25059,24 +25215,15 @@
         "outline": "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
         "pick_ray": "The nearest node with a 3D shape that a world-space ray meets, from its origin xyz and direction xyz.",
         "pick_ray_at": "As `pick_ray`, but `node` and `at`, how far along the ray it was met; nil when the ray meets nothing.",
-        "populate": "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
         "screenshot": "Save the next rendered frame as a PNG at a project-relative path. `screenshot_written` goes to every listener with the path once it is on disk, and `screenshot_failed` with `{ path, error }` when it cannot be, a run with no renderer included.",
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
-        "set_buffer": "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
         "set_debug_view": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
         "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
         "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
-        "set_instance_color": "The colour one instance draws in.",
-        "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
-        "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour or a list.",
-        "set_instance_region": "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance.",
-        "set_instance_transform": "Place one instance with a transform as `instance_transform` answers it: 12 floats, or 6 on a 2D node. A shear is kept, as the instance's `basis`.",
-        "set_instances": "Replace every instance with a list in the `multimesh` asset's shape.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
-        "set_visible_instance_count": "How many instances draw, from the first; -1 draws them all.",
         "shader_probe": "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet.",
         "snap_aov": "Render the 3D scene once more as `render.AOV_DEPTH` (nearest brightest), `AOV_NORMALS` (world space), `AOV_CAMERA_NORMALS` or `AOV_SEGMENTATION` (a colour per object) and save it as a PNG, announcing it as `screenshot` does. A read-back of the GPU, as `screenshot` is.",
         "stats": "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
@@ -25085,13 +25232,11 @@
         "texture_pixels_per_unit": "How many of an image's pixels make a world unit when a sprite says 0: its own `pixels_per_unit` import setting, else 100.",
         "texture_size": "An image's width and height in pixels, read from the file's own header.",
         "tile_data": "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none.",
-        "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn.",
-        "visible_instance_count": "How many instances draw; -1 is all of them."
+        "trace_texture": "The outline of an image's opaque pixels, as `[x, y]` points in a node's own space, ready to be a polygon's `positions`. `opts` takes `threshold` (alpha counted as opaque, 0 to 1, default 0.5), `tolerance` (how many pixels of detail to drop, default 2), `pixels_per_unit` (default 100) and `holes` (every loop, largest first: each other island counter-clockwise and each hole clockwise; default false keeps the largest alone). Counter-clockwise with y up, centred on the origin, the way a sprite at the same `pixels_per_unit` is drawn."
       },
       "functions": [
         "begin_retained",
         "bounds",
-        "buffer",
         "built_mesh",
         "camera_2d",
         "camera_matrix",
@@ -25117,12 +25262,6 @@
         "draw_texture_2d",
         "end_retained",
         "hold_cameras",
-        "instance_color",
-        "instance_count",
-        "instance_custom_data",
-        "instance_region",
-        "instance_transform",
-        "instances",
         "is_on_screen",
         "material_params",
         "mouse_ray",
@@ -25130,24 +25269,15 @@
         "outline",
         "pick_ray",
         "pick_ray_at",
-        "populate",
         "screenshot",
         "set_background",
-        "set_buffer",
         "set_cell",
         "set_debug_view",
         "set_grid",
         "set_grid_colors",
-        "set_instance_color",
-        "set_instance_count",
-        "set_instance_custom_data",
-        "set_instance_region",
-        "set_instance_transform",
-        "set_instances",
         "set_shader_preview",
         "set_shader_probe",
         "set_terrain",
-        "set_visible_instance_count",
         "shader_probe",
         "snap_aov",
         "stats",
@@ -25156,14 +25286,12 @@
         "texture_pixels_per_unit",
         "texture_size",
         "tile_data",
-        "trace_texture",
-        "visible_instance_count"
+        "trace_texture"
       ],
       "name": "render",
       "signatures": {
         "begin_retained": "(str)",
         "bounds": "(Node) -> [Vec3]?",
-        "buffer": "(Node) -> any",
         "built_mesh": "(Node) -> any",
         "camera_2d": "() -> Vec3",
         "camera_matrix": "() -> [float]",
@@ -25173,28 +25301,22 @@
         "clear_retained": "(str)",
         "debug_view": "() -> str",
         "debug_views": "() -> [str]",
-        "draw_arc_2d": "(float, float, float, float, float, float?, any, render::DrawOptions?)",
-        "draw_box": "(float, float, float, float, float, float, any)",
-        "draw_capsule": "(float, float, float, float, float, any)",
-        "draw_circle_2d": "(float, float, float, any, render::DrawOptions?)",
+        "draw_arc_2d": "(float, float, float, float, float, float?, Color, render::DrawOptions?)",
+        "draw_box": "(float, float, float, float, float, float, Color)",
+        "draw_capsule": "(float, float, float, float, float, Color)",
+        "draw_circle_2d": "(float, float, float, Color, render::DrawOptions?)",
         "draw_line_2d": "(float, float, float, float, float, float, float, float?, render::DrawOptions?)",
         "draw_line_3d": "(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)",
         "draw_lines": "(any)",
-        "draw_polygon_2d": "(any, any, render::DrawOptions?)",
-        "draw_polyline_2d": "(any, float?, any, render::DrawOptions?)",
-        "draw_rect_2d": "(float, float, float, float, any, render::DrawOptions?)",
-        "draw_sphere": "(float, float, float, float, any)",
+        "draw_polygon_2d": "(any, Color, render::DrawOptions?)",
+        "draw_polyline_2d": "(any, float?, Color, render::DrawOptions?)",
+        "draw_rect_2d": "(float, float, float, float, Color, render::DrawOptions?)",
+        "draw_sphere": "(float, float, float, float, Color)",
         "draw_text_2d": "(float, float, str, render::TextOptions?)",
         "draw_text_3d": "(float, float, float, str, render::TextOptions?)",
-        "draw_texture_2d": "(str, float, float, float, float, any, render::TextureOptions?)",
+        "draw_texture_2d": "(str, float, float, float, float, Color, render::TextureOptions?)",
         "end_retained": "()",
         "hold_cameras": "(Node?)",
-        "instance_color": "(Node, int) -> any",
-        "instance_count": "(Node) -> int",
-        "instance_custom_data": "(Node, int) -> any",
-        "instance_region": "(Node, int) -> any",
-        "instance_transform": "(Node, int) -> any",
-        "instances": "(Node) -> any",
         "is_on_screen": "(Node) -> bool",
         "material_params": "(str) -> [render::Param]",
         "mouse_ray": "() -> [float]",
@@ -25202,24 +25324,15 @@
         "outline": "(Node) -> [float]",
         "pick_ray": "(float, float, float, float, float, float) -> Node",
         "pick_ray_at": "(float, float, float, float, float, float) -> render::Hit?",
-        "populate": "(Node, render::PopulateOptions) -> any",
         "screenshot": "(str)",
         "set_background": "(float, float, float)",
-        "set_buffer": "(Node, any)",
         "set_cell": "(Node, int, int, int)",
         "set_debug_view": "(str)",
         "set_grid": "(bool, float?, int?, int?)",
         "set_grid_colors": "(float, float, float, float, float, float)",
-        "set_instance_color": "(Node, int, any)",
-        "set_instance_count": "(Node, int)",
-        "set_instance_custom_data": "(Node, int, any)",
-        "set_instance_region": "(Node, int, any, any)",
-        "set_instance_transform": "(Node, int, any)",
-        "set_instances": "(Node, any)",
         "set_shader_preview": "(str, int)",
         "set_shader_probe": "(float, float)",
         "set_terrain": "(Node, int, int, int)",
-        "set_visible_instance_count": "(Node, int)",
         "shader_probe": "() -> any",
         "snap_aov": "(str, str)",
         "stats": "() -> render::Stats",
@@ -25228,8 +25341,7 @@
         "texture_pixels_per_unit": "(str) -> float",
         "texture_size": "(str) -> [int]",
         "tile_data": "(Node, int, int) -> any",
-        "trace_texture": "(str, render::TraceOptions?) -> [[Vec2]]",
-        "visible_instance_count": "(Node) -> int"
+        "trace_texture": "(str, render::TraceOptions?) -> [[Vec2]]"
       }
     },
     {
@@ -26044,7 +26156,7 @@
         "height_class": "() -> str",
         "pasted_text": "() -> str",
         "request_repaint": "(ui::RepaintOptions?)",
-        "reread": "(Node, str?, any) -> bool",
+        "reread": "(Node, str?, [str]?) -> bool",
         "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",
         "set_clipboard": "(str)",
@@ -26205,6 +26317,23 @@
         "a"
       ],
       "name": "Color"
+    },
+    {
+      "fields": [
+        "x",
+        "y",
+        "origin"
+      ],
+      "name": "Transform2d"
+    },
+    {
+      "fields": [
+        "x",
+        "y",
+        "z",
+        "origin"
+      ],
+      "name": "Transform3d"
     }
   ]
 }

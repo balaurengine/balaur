@@ -403,10 +403,11 @@ fn a_script_moves_an_instance_every_frame_and_reads_it_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn update(dt: float) {
-        let x = self.node.multimesh3d.instance_transform(1)[9].as_float() + 1.0;
-        let moved: [float] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, x, 0.0, 0.0];
+        let moved = self.node.multimesh3d.instance_transform(1);
+        moved.origin.x += 1.0;
+        let x = moved.origin.x;
         self.node.multimesh3d.set_instance_transform(1, moved);
-        self.node.multimesh3d.set_instance_color(0, [1.0, 0.0, 0.0, 1.0]);
+        self.node.multimesh3d.set_instance_color(0, color(1.0, 0.0, 0.0, 1.0));
         log::info("moved {x} of {self.node.multimesh3d.instance_count()}");
     }
 }
@@ -439,8 +440,8 @@ impl Scenario {
         let grown = self.node.multimesh3d.instances();
         self.node.multimesh3d.set_instance_count(1);
         self.node.multimesh3d.set_visible_instance_count(0);
-        let x = grown[1]["position"][0];
-        let scale = grown[3]["scale"][1];
+        let x = grown[1].position.unwrap().x;
+        let scale = grown[3].scale.unwrap().y;
         let now = self.node.multimesh3d.instance_count();
         let showing = self.node.multimesh3d.visible_instance_count();
         log::info("grown {grown.len()} {x} {scale} now {now} showing {showing}");
@@ -472,7 +473,7 @@ fn an_index_past_the_end_is_an_error_that_names_the_count() {
     let (_app, errors, _) = run_shared(
         r"pub class Scenario { node: Node }
 impl Scenario {
-    fn init() { self.node.multimesh3d.set_instance_color(5, [1.0, 1.0, 1.0, 1.0]); }
+    fn init() { self.node.multimesh3d.set_instance_color(5, color(1.0, 1.0, 1.0, 1.0)); }
 }
 ",
         1,
@@ -494,8 +495,8 @@ fn instances_read_off_one_node_set_another_whole() {
 impl Scenario {
     fn init() {
         let mine = self.node.multimesh3d.instances();
-        mine[0]["position"] = [0.0, 5.0, 0.0];
-        mine[1]["custom"] = [1.0, 2.0, 3.0, 4.0];
+        mine[0].position = vec3(0.0, 5.0, 0.0);
+        mine[1].custom = color(1.0, 2.0, 3.0, 4.0);
         self.node.get_node("../B").multimesh3d.set_instances(mine);
     }
 }
@@ -520,7 +521,12 @@ fn a_script_keeps_a_shear() {
         r"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        let sheared: [float] = [1.0, 0.0, 0.0, 0.5, 1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0];
+        let sheared = Transform3d {
+            x: vec3(1.0, 0.0, 0.0),
+            y: vec3(0.5, 1.0, 0.0),
+            z: vec3(0.0, 0.0, 1.0),
+            origin: vec3(2.0, 0.0, 0.0),
+        };
         self.node.multimesh3d.set_instance_transform(0, sheared);
     }
 }
@@ -560,15 +566,19 @@ impl Scenario {
 }
 
 #[test]
-fn a_2d_instance_reads_and_takes_six_numbers() {
+fn a_2d_instance_reads_and_takes_a_transform_2d() {
     let (app, errors, lines) = run_shared_as(
         "multimesh2d",
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
         let second = self.node.multimesh2d.instance_transform(1);
-        log::info("{second.len()} numbers, x at {second[4]}");
-        let turned: [float] = [0.0, 1.0, -1.0, 0.0, 3.0, 4.0];
+        log::info("x at {second.origin.x}");
+        let turned = Transform2d {
+            x: vec2(0.0, 1.0),
+            y: vec2(-1.0, 0.0),
+            origin: vec2(3.0, 4.0),
+        };
         self.node.multimesh2d.set_instance_transform(0, turned);
     }
 }
@@ -576,10 +586,7 @@ impl Scenario {
         1,
     );
     assert!(errors.is_empty(), "{errors:#?}");
-    assert!(
-        lines.iter().any(|l| l.contains("6 numbers, x at 1.0")),
-        "{lines:#?}"
-    );
+    assert!(lines.iter().any(|l| l.contains("x at 1.0")), "{lines:#?}");
     let a = named(&app, "Scenario");
     let world = app.engine.world();
     let local = world.get::<&MultiMesh>(a).unwrap().instances[0].local();
@@ -592,8 +599,9 @@ impl Scenario {
 }
 
 #[test]
-fn a_transform_of_the_wrong_length_is_an_error_that_names_the_count() {
-    let (_app, errors, _) = run_shared(
+#[should_panic(expected = "expected Transform3d, got [float]")]
+fn a_list_is_no_transform() {
+    run_shared(
         r"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
@@ -603,12 +611,6 @@ impl Scenario {
 }
 ",
         1,
-    );
-    assert!(
-        errors
-            .iter()
-            .any(|e| e.contains("12 numbers") && e.contains("not 3")),
-        "{errors:#?}"
     );
 }
 
@@ -620,10 +622,10 @@ fn a_script_sets_a_texture_rectangle() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.multimesh2d.set_instance_region(1, [8.0, 16.0], [32.0, 24.0]);
-        let region = self.node.multimesh2d.instance_region(1);
+        self.node.multimesh2d.set_instance_region(1, vec2(8.0, 16.0), vec2(32.0, 24.0));
+        let region = self.node.multimesh2d.instance_region(1).unwrap();
         let whole = self.node.multimesh2d.instance_region(0) == nil;
-        log::info("region {region[1]} {region[3]} {whole}");
+        log::info("region {region.origin.y} {region.size.y} {whole}");
     }
 }
 "#,

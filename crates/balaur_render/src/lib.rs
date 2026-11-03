@@ -973,9 +973,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_check(&mut m);
         material::install_material_params(&mut m);
         boolean::install_boolean_api(&mut m);
-        multimesh_api::install_multimesh_api(&mut m);
-        multimesh_api::install_multimesh_list_api(&mut m);
-        populate::install_populate_api(&mut m);
+        multimesh_api::install_multimesh_records(&mut m);
+        populate::install_populate_records(&mut m);
         light::install_occluder_api(&mut m);
         stats::install_stats_api(&mut m);
         script_api::install_sprite_api(&mut m);
@@ -987,6 +986,13 @@ impl balaur_plugin::Plugin for RenderPlugin {
         tilemap::install_tilemap_terrain_api(&mut m);
         notifier::install_notifier_api(&mut m);
         script_api::register_window_module(reg)?;
+        for handle in &multimesh_api::HANDLES {
+            let mut multimesh = reg.script_module(handle.component)?;
+            multimesh.module_doc(handle.doc);
+            multimesh_api::install_multimesh_api(&mut multimesh, handle);
+            multimesh_api::install_multimesh_list_api(&mut multimesh, handle);
+            populate::install_populate_api(&mut multimesh, handle);
+        }
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         shape::register_line2d_component(reg);

@@ -316,6 +316,7 @@ pub(crate) mod keys {
     /// The asset type a camera's `effects` row names.
     pub(crate) const CAMERA_EFFECTS: &str = "camera_effects";
     pub(crate) const RADIUS: &str = p::RADIUS;
+    pub(crate) const ORIGIN: &str = "origin";
     pub(crate) const REGION_ORIGIN: &str = "region_origin";
     pub(crate) const REGION_SIZE: &str = "region_size";
     pub(crate) const Z_INDEX: &str = "z_index";
