@@ -97,7 +97,7 @@ fn install(state: &mut editor::State, rel: str) -> str? {
     }
     let target = free_name(state, rel);
     fs::copy(from, state.game_root + "/" + target);
-    model::forget(state, nil);
+    model::forget(state);
     target
 }
 
@@ -115,7 +115,7 @@ fn install_tree(state: &mut editor::State, rel: str) {
         return;
     }
     copy_tree(from, to);
-    model::forget(state, nil);
+    model::forget(state);
     log::info("added " + rel);
 }
 
@@ -391,7 +391,7 @@ pub fn heard(state: &mut editor::State, event: any) {
         let alias = event["alias"].as_str();
         // Its files are on disk; installing makes the new one a root.
         dependency::install(state.game_root);
-        model::forget(state, nil);
+        model::forget(state);
         state.library.forge_says = "";
         if alias == "" {
             log::info("dependencies fetched");

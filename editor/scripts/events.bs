@@ -36,7 +36,7 @@ fn write(state: &mut editor::State, rows: any, label: str) {
     if !found.is_valid() {
         return;
     }
-    history::record(state, label, nil);
+    history::record(state, label);
     if rows.len() == 0 {
         if found.has_component(COMPONENT) {
             found.remove_component(COMPONENT);
@@ -419,8 +419,8 @@ pub fn convert_to_script(state: &mut editor::State) {
     let found = model::selected_node(state);
     let rel = script_path(state);
     fs::write(state.game_root + "/" + rel, as_script(state));
-    model::forget(state, nil);
-    history::record(state, "convert bindings to a script", nil);
+    model::forget(state);
+    history::record(state, "convert bindings to a script");
     found.set_script(rel, {});
     history::commit(state);
     state.shader_rel = "";

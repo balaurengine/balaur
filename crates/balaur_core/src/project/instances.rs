@@ -80,9 +80,9 @@ pub(super) fn apply_own_keys(
     let mut unhandled = toml::Table::new();
     for (key, value) in &node.extra {
         if !handlers.iter().any(|(k, _)| k == key) {
-            tracing::warn!(
-                "scene key '{key}' on node '{}' has no registered handler",
-                node.name
+            report_unhandled(
+                eng,
+                format_args!("scene key '{key}' on node '{}'", node.name),
             );
             unhandled.insert(key.clone(), value.clone());
         }
@@ -104,6 +104,16 @@ pub(super) fn apply_own_keys(
             .push((entity, script.source().to_string(), props));
     }
     Ok(())
+}
+
+/// Report a key nothing handles: a typo or a component that is gone, unless
+/// this host lacks a module that may own it. The scene loads either way.
+fn report_unhandled(eng: &Engine, key: std::fmt::Arguments<'_>) {
+    if eng.try_resource::<LacksKeyOwner>().is_some() {
+        tracing::warn!("{key} has no registered handler");
+    } else {
+        tracing::error!("{key} has no registered handler");
+    }
 }
 
 /// Build a prefab under the node that names it, with every id inside it
@@ -134,10 +144,11 @@ fn build_instance(
 /// Apply this node's `overrides` to the instance it just built, answering
 /// the ones whose path names nothing inside it.
 ///
-/// A path that no longer names anything is reported and kept: the prefab may
-/// have moved a node, and dropping the edit would lose work the file still
-/// holds. Everything else is dispatched exactly as a node's own keys are, so
-/// an override reaches components and the transform both.
+/// A path that no longer names anything is an error and is kept: the prefab
+/// may have moved a node, so the edit applies to nothing until the path is
+/// fixed, and dropping it would lose work the file still holds. Everything
+/// else is dispatched exactly as a node's own keys are, so an override reaches
+/// components and the transform both.
 pub(super) fn apply_overrides(
     eng: &Engine,
     node: &SceneNode,
@@ -148,7 +159,7 @@ pub(super) fn apply_overrides(
     let mut unmatched = toml::Table::new();
     for (path, table) in &node.overrides {
         let Some(target) = scene::find_node(&eng.world(), entity, path) else {
-            tracing::warn!(
+            tracing::error!(
                 "override '{path}' on node '{}' names nothing inside the instance",
                 node.name
             );
@@ -156,7 +167,7 @@ pub(super) fn apply_overrides(
             continue;
         };
         let Some(table) = table.as_table() else {
-            tracing::warn!(
+            tracing::error!(
                 "override '{path}' on node '{}' is not a table of scene keys",
                 node.name
             );
@@ -189,9 +200,9 @@ pub(super) fn apply_overrides(
                 && !NODE_KEYS.contains(&key.as_str())
                 && !handlers.iter().any(|(k, _)| k == key)
             {
-                tracing::warn!(
-                    "override '{path}.{key}' on node '{}' has no registered handler",
-                    node.name
+                report_unhandled(
+                    eng,
+                    format_args!("override '{path}.{key}' on node '{}'", node.name),
                 );
             }
         }

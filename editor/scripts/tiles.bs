@@ -15,18 +15,18 @@ pub class TilesState {
     tile: int,
     mode: str,
     stroke: str,
-    anchor: Cell?,
-    hover: Cell?,
+    internal anchor: Cell?,
+    internal hover: Cell?,
     sheet: Sheet?,
     terrain: int,
     stamp: Block,
-    editing: bool,
+    internal editing: bool,
 }
 
 /// A cell of the map, counted from the top left.
 pub struct Cell {
-    x: int,
-    y: int,
+    internal x: int,
+    internal y: int,
 }
 
 /// How many cells a stamp lays down, across and down.
@@ -288,7 +288,7 @@ pub fn paint_terrain(state: &mut editor::State, column: int, row: int, value: in
     }
     history::record(state, if value < 0 { "erase terrain" } else { "paint terrain" }, "terrain");
     found.tilemap.set_terrain(column, row, value);
-    let table = found.get_component("tilemap", nil);
+    let table = found.get_component("tilemap");
     if table.kind() != "map" {
         return false;
     }
@@ -630,7 +630,7 @@ pub fn fill_rect(state: &mut editor::State, from: Cell, to: Cell, tile: int) -> 
             cells.push(Cell { x: column, y: row });
         }
     }
-    write_cells(state, cells, tile, if tile < 0 { "erase tiles" } else { "fill tiles" }, nil)
+    write_cells(state, cells, tile, if tile < 0 { "erase tiles" } else { "fill tiles" })
 }
 
 /// A second map beside this one, same tile set and same place, with no tiles
@@ -704,7 +704,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
             let anchor = state.tiles.anchor.unwrap();
             let tile = if state.tiles.stroke == "erase" { -1 } else { state.tiles.tile };
             if state.tiles.mode == "line" {
-                write_cells(state, line_cells(anchor, at), tile, "draw tiles", nil);
+                write_cells(state, line_cells(anchor, at), tile, "draw tiles");
             } else {
                 fill_rect(state, anchor, at, tile);
             }
@@ -747,7 +747,7 @@ pub fn update(state: &mut editor::State, over_viewport: bool, world_x: float, wo
     if mode == "bucket" {
         if state.tiles.stroke == "" {
             state.tiles.stroke = stroke;
-            write_cells(state, flood(state, column, row), tile, "fill tiles", nil);
+            write_cells(state, flood(state, column, row), tile, "fill tiles");
         }
         return;
     }

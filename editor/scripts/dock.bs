@@ -38,8 +38,8 @@ pub struct AssetLook {
 }
 
 pub class AssetsState {
-    directory: str,
-    selected: str,
+    internal directory: str,
+    internal selected: str,
     renaming: bool,
     shown: Shown,
 }
@@ -314,7 +314,7 @@ pub fn new_folder(state: &mut editor::State) {
         number += 1;
     }
     fs::create_directory(asset_path(state, name));
-    model::forget(state, nil);
+    model::forget(state);
     state.assets.selected = name;
     signals::changed(state, "assets");
     log::info("made res://{name}");
@@ -337,7 +337,7 @@ pub fn rename_asset(state: &mut editor::State, name: str) {
     }
     // The engine moves the file and rewrites every `.toml` naming it.
     let rewritten = assets::rename(asset_path(state, from), asset_path(state, to));
-    model::forget(state, nil);
+    model::forget(state);
     state.assets.selected = to;
     signals::changed(state, "assets");
     log::info("renamed res://{from} to res://{to}; {rewritten.len()} file(s) updated");
@@ -350,7 +350,7 @@ pub fn delete_asset(state: &mut editor::State) {
     } else {
         log::warn("res://{relative_path} was not there");
     }
-    model::forget(state, nil);
+    model::forget(state);
     state.assets.selected = "";
     signals::changed(state, "assets");
 }
@@ -431,7 +431,7 @@ fn make_local(state: &mut editor::State) {
         copy_number += 1;
     }
     let rewritten = dependency::make_local(asset_path(state, relative_path), asset_path(state, target));
-    model::forget(state, nil);
+    model::forget(state);
     state.assets.selected = target;
     state.assets.directory = parent_directory(target);
     log::info("made res://{target} from {dependency_entry["alias"].as_str()}; {rewritten.len()} file(s) now name it");
@@ -445,7 +445,7 @@ fn move_to_shelf(state: &mut editor::State) {
         return;
     }
     let rewritten = dependency::move_into([asset_path(state, relative_path)], alias);
-    model::forget(state, nil);
+    model::forget(state);
     state.assets.selected = "deps/{alias}/{relative_path}";
     log::info("moved res://{relative_path} into {alias}; {rewritten.len()} file(s) updated");
 }

@@ -388,7 +388,7 @@ pub fn draw(state: editor::State) {
 }
 
 fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, world_x: any, world_y: any) {
-    history::record(state, "{part.kind} handle", nil);
+    history::record(state, "{part.kind} handle");
     let found = model::selected_node(state);
     let position = found.transform.position;
     let scale = found.transform.scale;
@@ -515,7 +515,7 @@ pub fn covering(state: editor::State, row: int, world_x: float, world_y: float) 
     if !found.is_valid() {
         return nil;
     }
-    let placed = placed_box(found, nil);
+    let placed = placed_box(found);
     if placed == nil {
         return nil;
     }

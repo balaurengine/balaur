@@ -33,10 +33,10 @@ pub struct Completion {
     pub detail: String,
 }
 
-const KEYWORDS: [&str; 25] = [
+const KEYWORDS: [&str; 26] = [
     "let", "if", "else", "while", "for", "in", "loop", "return", "break", "continue", "fn", "pub",
     "struct", "class", "enum", "match", "impl", "async", "await", "true", "false", "self", "const",
-    "extern", "as",
+    "extern", "as", "internal",
 ];
 
 /// The value types every script holds, each with its fields: `Vec2` and the
@@ -174,9 +174,16 @@ impl Analysis {
                 });
             }
         }
-        // A used module's `pub` functions and its structs.
+        // A used module's functions and structs, as far as this file may name them.
+        let reach = crate::reach::Reach::of(prog);
+        let open = |name: &&str| reach.refused("", &format!("{prefix}{name}")).is_none();
         for f in prog.fns.iter().filter(|f| f.owner.is_none()) {
-            if let Some(name) = f.name.strip_prefix(&prefix).filter(|n| !n.starts_with('#')) {
+            if let Some(name) = f
+                .name
+                .strip_prefix(&prefix)
+                .filter(|n| !n.starts_with('#'))
+                .filter(open)
+            {
                 out.push(Completion {
                     label: name.to_string(),
                     kind: Kind::Function,
@@ -185,7 +192,7 @@ impl Analysis {
             }
         }
         for (s, _) in &prog.structs {
-            if let Some(name) = s.strip_prefix(&prefix) {
+            if let Some(name) = s.strip_prefix(&prefix).filter(open) {
                 out.push(Completion {
                     label: name.to_string(),
                     kind: Kind::Struct,

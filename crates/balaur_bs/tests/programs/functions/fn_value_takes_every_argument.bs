@@ -1,0 +1,15 @@
+// A `fn` value's type says how many it takes, so none is left out, whatever
+// function it holds; the name of the function may still leave them out.
+fn add(a: int, b: int?) -> int { a + b.or(100) }
+
+pub fn by_name() -> int { add(1) }
+pub fn by_value() -> int {
+    let f = add;
+    f(1, 2) + f(1, nil)
+}
+pub fn too_few() -> int {
+    let f = add;
+    f(1)
+}
+
+// error: 12:5: `f` takes 2 argument(s), 1 given

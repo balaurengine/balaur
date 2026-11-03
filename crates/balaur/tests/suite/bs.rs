@@ -198,7 +198,7 @@ fn a_library_whose_struct_changes_rebuilds_the_script_reading_it() {
     let lib = dir.path().join("scripts/steps.bs");
     std::fs::write(
         &lib,
-        "pub struct Step { by: int }\npub fn step() -> Step { Step { by: 1 } }\n",
+        "pub struct Step { pub by: int }\npub fn step() -> Step { Step { by: 1 } }\n",
     )
     .unwrap();
     let mut app = booted(dir.path());
@@ -206,7 +206,7 @@ fn a_library_whose_struct_changes_rebuilds_the_script_reading_it() {
     assert_eq!(field(&app, "Counter", "count"), Some(Int(2)));
     std::fs::write(
         &lib,
-        "pub struct Step { first: int, by: int }\npub fn step() -> Step { Step { first: 0, by: 100 } }\n",
+        "pub struct Step { first: int, pub by: int }\npub fn step() -> Step { Step { first: 0, by: 100 } }\n",
     )
     .unwrap();
     let reached = ticked_until(
@@ -718,7 +718,7 @@ fn a_binding_that_takes_or_gives_a_value_is_typed_any() {
     let source = "pub class Fetcher { kept: any }
 impl Fetcher {
     fn init() {
-        script::store(\"key\", nil());
+        script::store(\"key\", 1);
         self.kept = script::stored(\"key\");
     }
 }
@@ -880,7 +880,7 @@ const ASKER_BS: &str = "pub class Asker { node: Node, hp: int, name: str }
 
 impl Asker {
     async fn init() {
-        let asked = self.node.get_node(\"Orc\").call_async(\"info\", nil());
+        let asked = self.node.get_node(\"Orc\").call_async(\"info\", nil);
         let info = await task::wait(asked);
         self.hp = info[\"hp\"].as_int();
         self.name = info[\"name\"].as_str();

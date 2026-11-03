@@ -290,6 +290,172 @@ fn a_malformed_reference_fails_with_a_message_naming_the_reference() {
     }
 }
 
+fn check_chord(body: &toml::Value) -> anyhow::Result<()> {
+    assets::refuse_keys(body, "a chord", &[assets::TYPE, "pitch"])
+}
+
+/// `app_in`, with a record asset and a checked one: both are held to their
+/// keys however a definition is written, and `parse_note` reads either.
+fn app_with_tone(project_root: &std::path::Path) -> App {
+    let mut app = app_in(project_root, None);
+    app.register_record_asset(
+        "tone",
+        "tones",
+        "",
+        ComponentDef::parse_schema("tone", r#"pitch = { type = "float", default = 1.0 }"#),
+        parse_note,
+    );
+    app.register_checked_asset("chord", "chords", "", check_chord, parse_note);
+    app
+}
+
+fn logged_at(level: &str) -> Vec<String> {
+    balaur_core::logbuf::recent(200)
+        .into_iter()
+        .filter(|entry| entry.level == level)
+        .map(|entry| entry.message)
+        .collect()
+}
+
+/// A scene whose one node names `song`, with `row` written into each way a
+/// definition of `kind` can be: a whole file, a file's entry and a scene's own
+/// block.
+fn tone_scene(dir: &std::path::Path, kind: &str, row: &str, song: &str) -> String {
+    std::fs::write(dir.join("tone.toml"), format!("type = \"{kind}\"\n{row}\n")).unwrap();
+    std::fs::write(
+        dir.join("tones.toml"),
+        format!("[tones.low]\ntype = \"{kind}\"\n{row}\n"),
+    )
+    .unwrap();
+    format!(
+        "[[assets]]\nid = \"block\"\ntype = \"{kind}\"\n{row}\n\n[[nodes]]\nid = \"n\"\nname = \"N\"\ninstrument = {{ song = {song} }}\n"
+    )
+}
+
+fn tone_spellings(kind: &str, row: &str) -> [String; 4] {
+    [
+        format!("{{ type = \"{kind}\", {row} }}"),
+        "\"tone.toml\"".to_string(),
+        "\"tones.toml#low\"".to_string(),
+        "\"#block\"".to_string(),
+    ]
+}
+
+/// The two ways a type is held to its keys, and what each says of `pich`.
+const HELD_TO_KEYS: [(&str, &str); 2] = [
+    ("tone", "`pich` is not a property of a tone"),
+    ("chord", "`pich` is not a key of a chord"),
+];
+
+#[test]
+fn an_asset_held_to_its_keys_refuses_another_however_it_is_written() {
+    balaur_core::logbuf::capture_for_test();
+    let row = "pich = 2.0";
+    for (kind, said) in HELD_TO_KEYS {
+        for song in tone_spellings(kind, row) {
+            let dir = project();
+            let scene = tone_scene(dir.path(), kind, row, &song);
+            let app = app_with_tone(dir.path());
+            let root = app.engine.root();
+            balaur_core::logbuf::clear();
+            balaur_core::project::instantiate_scene(&app.engine, &scene, root, false).unwrap();
+            let errors = logged_at("error");
+            assert!(
+                errors.iter().any(|error| error.contains(said)),
+                "{song}: {errors:?}"
+            );
+            assert!(heard(&app).is_empty(), "{song} applied a typo");
+            assert!(
+                scene::find_node(&app.engine.world(), root, "N").is_some(),
+                "{song}: the rest of the scene loads"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_asset_holding_only_its_keys_loads_however_it_is_written() {
+    balaur_core::logbuf::capture_for_test();
+    let row = "pitch = 2.0";
+    for (kind, _) in HELD_TO_KEYS {
+        for song in tone_spellings(kind, row) {
+            let dir = project();
+            let scene = tone_scene(dir.path(), kind, row, &song);
+            let app = app_with_tone(dir.path());
+            let root = app.engine.root();
+            balaur_core::logbuf::clear();
+            balaur_core::project::instantiate_scene(&app.engine, &scene, root, false).unwrap();
+            assert_eq!(logged_at("error"), Vec::<String>::new(), "{song}");
+            assert_eq!(logged_at("warn"), Vec::<String>::new(), "{song}");
+            let named = heard(&app);
+            assert_eq!(named.len(), 1, "{song}");
+            // A scene's block is only in scope while its scene builds.
+            if !named[0].starts_with("#block") {
+                assert!((pitch_of(&app.engine, &named[0]) - 2.0).abs() < f64::EPSILON);
+            }
+        }
+    }
+}
+
+#[test]
+fn an_inline_definition_is_refused_by_any_caller_unless_its_type_says_nothing() {
+    let dir = project();
+    let app = app_with_tone(dir.path());
+    let table = |text: &str| toml::Value::Table(toml::from_str(text).unwrap());
+    for (kind, said) in HELD_TO_KEYS {
+        let err = assets::define_inline(&app.engine, kind, table("pich = 2.0")).unwrap_err();
+        assert!(format!("{err:#}").contains(said), "{err:#}");
+        assert!(assets::define_inline(&app.engine, kind, table("pitch = 2.0")).is_ok());
+    }
+    assert!(
+        assets::define_inline(&app.engine, "note", table("pitch = 2.0\npich = 3.0")).is_ok(),
+        "a type with neither a schema nor a check says nothing about its keys"
+    );
+}
+
+/// A script loading a file reaches the parse and not a component's row.
+#[test]
+fn loading_a_definition_holds_it_to_its_keys_too() {
+    let dir = project();
+    let app = app_with_tone(dir.path());
+    for (kind, said) in HELD_TO_KEYS {
+        std::fs::write(
+            dir.path().join("typo.toml"),
+            format!("type = \"{kind}\"\npich = 2.0\n"),
+        )
+        .unwrap();
+        assets::reload(&app.engine, "typo.toml").unwrap();
+        let err = assets::load(&app.engine, "typo.toml").err().unwrap();
+        assert!(format!("{err:#}").contains(said), "{err:#}");
+    }
+}
+
+/// The other half of holding a reference to its schema: a tool has to be able
+/// to open a scene whose files it cannot reach.
+#[test]
+fn a_record_asset_that_cannot_be_read_only_warns() {
+    balaur_core::logbuf::capture_for_test();
+    let dir = project();
+    let app = app_with_tone(dir.path());
+    let root = app.engine.root();
+    balaur_core::logbuf::clear();
+    balaur_core::project::instantiate_scene(
+        &app.engine,
+        "[[nodes]]\nid = \"n\"\nname = \"N\"\ninstrument = { song = \"gone.toml\" }\n",
+        root,
+        false,
+    )
+    .unwrap();
+    assert_eq!(logged_at("error"), Vec::<String>::new());
+    assert!(
+        logged_at("warn")
+            .iter()
+            .any(|warning| warning.contains("gone.toml")),
+        "nothing said which reference was missing"
+    );
+    assert_eq!(heard(&app), vec!["gone.toml".to_string()]);
+}
+
 /// A reference that resolves to nothing is a broken link, not a broken scene:
 /// the node still loads and the message still names the reference, so a tool
 /// can open a project whose files it cannot reach and show what is missing.

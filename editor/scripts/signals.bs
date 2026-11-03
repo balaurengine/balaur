@@ -78,7 +78,7 @@ fn tell(state: &mut editor::State, name: str) {
         return;
     }
     state.told[name] = true;
-    scene::get_node("Editor").emit(name, nil);
+    scene::get_node("Editor").emit(name);
 }
 
 /// The document, a lock or a warning moved: what a panel showing the

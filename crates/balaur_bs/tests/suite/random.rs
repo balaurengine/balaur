@@ -35,8 +35,7 @@ enum T {
 }
 
 /// What every program declares before its functions.
-const DECLARATIONS: &str =
-    "struct Point { x: int, y: int }\nenum Shade { Dark, Lit(int) }\nfn any_map() -> any { {} }\n";
+const DECLARATIONS: &str = "struct Point { x: int, y: int }\nenum Shade { Dark, Lit(int) }\nfn any_map() -> any { {} }\nfn any_nil() -> any { nil }\n";
 
 /// The keys a `{str: int}` literal and a write may name.
 const KEYS: [&str; 3] = ["a", "b", "c"];
@@ -119,7 +118,7 @@ enum E {
     Method(Box<E>, &'static str, Vec<E>),
     /// `r[k]` of an `any`: `get` for a str key, `at` for an int.
     Index(Box<E>, Box<E>),
-    /// `nil()`: an `any` holding nothing.
+    /// `any_nil()`: an `any` holding nothing, which `DECLARATIONS` builds.
     NilAny,
     /// `any_map()`: a new, empty `any` map, which `DECLARATIONS` builds.
     MapAny,
@@ -469,7 +468,7 @@ fn a_disagreement_shrinks_to_the_lines_that_show_it() {
     assert!(broken(&small), "the shrunk program agrees:\n{after}");
     assert!(after.contains(" * "), "the product went:\n{after}");
     assert!(
-        after.lines().count() <= 10 && after.lines().count() * 3 <= before.lines().count(),
+        after.lines().count() <= 11 && after.lines().count() * 3 <= before.lines().count(),
         "not shrunk:\n{before}\n->\n{after}"
     );
 }

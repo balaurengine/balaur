@@ -1,0 +1,15 @@
+// A `&mut` parameter is a place the call stores back: never left out, though
+// its type is optional, and neither is what comes before it.
+fn set(out: &mut int?) { out = 1; }
+fn after(a: int?, out: &mut int?) { out = a; }
+
+pub fn alone() { set(); }
+pub fn last() {
+    let x: int? = nil;
+    after(x);
+}
+pub fn neither() { after(); }
+
+// error: 6:18: `set` takes 1 argument(s), 0 given
+// error: 9:5: `after` takes 2 argument(s), 1 given
+// error: 11:20: `after` takes 2 argument(s), 0 given

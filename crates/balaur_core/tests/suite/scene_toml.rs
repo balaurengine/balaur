@@ -105,6 +105,89 @@ fn load(dir: &std::path::Path, scene: &str) -> App {
     app
 }
 
+fn logged_at(level: &str) -> Vec<String> {
+    balaur_core::logbuf::recent(200)
+        .into_iter()
+        .filter(|entry| entry.level == level)
+        .map(|entry| entry.message)
+        .collect()
+}
+
+const UNKNOWN_KEY: &str = r#"
+[[nodes]]
+id = "n_host"
+name = "Host"
+
+[nodes.cloner]
+count = 3
+
+[nodes.marker]
+label = "host"
+"#;
+
+const UNKNOWN_KEY_SAID: &str = "scene key 'cloner' on node 'Host' has no registered handler";
+
+#[test]
+fn a_scene_key_nothing_handles_is_an_error_and_is_kept() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let dir = project(&[]);
+    let app = load(dir.path(), UNKNOWN_KEY);
+    let errors = logged_at("error");
+    assert!(
+        errors.iter().any(|error| error.contains(UNKNOWN_KEY_SAID)),
+        "{errors:?}"
+    );
+    let nodes = nodes(&written(&app));
+    assert_eq!(
+        nodes[0]["cloner"]["count"].as_integer(),
+        Some(3),
+        "the file keeps it for the build that handles it"
+    );
+    assert_eq!(
+        nodes[0]["marker"]["label"].as_str(),
+        Some("host"),
+        "the rest of the node loads"
+    );
+}
+
+#[test]
+fn a_scene_key_nothing_handles_only_warns_where_a_module_may_own_it() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let dir = project(&[]);
+    let app = app_in(dir.path());
+    app.engine
+        .insert_resource(balaur_core::project::LacksKeyOwner);
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(&app.engine, UNKNOWN_KEY, root, false).unwrap();
+    assert_eq!(logged_at("error"), Vec::<String>::new());
+    let warnings = logged_at("warn");
+    assert!(
+        warnings
+            .iter()
+            .any(|warning| warning.contains(UNKNOWN_KEY_SAID)),
+        "{warnings:?}"
+    );
+    assert_eq!(
+        nodes(&written(&app))[0]["cloner"]["count"].as_integer(),
+        Some(3)
+    );
+}
+
+#[test]
+fn a_scene_key_a_component_answers_logs_nothing() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let dir = project(&[]);
+    load(
+        dir.path(),
+        "[[nodes]]\nid = \"n_host\"\nname = \"Host\"\n\n[nodes.marker]\nlabel = \"host\"\n",
+    );
+    assert_eq!(logged_at("error"), Vec::<String>::new());
+    assert_eq!(logged_at("warn"), Vec::<String>::new());
+}
+
 #[test]
 fn a_scene_is_written_as_it_was_asked_for() {
     let dir = project(&[("scripts/spin.bs", "")]);

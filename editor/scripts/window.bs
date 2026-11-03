@@ -23,13 +23,13 @@ pub struct Size {
 
 pub class WindowState {
     open: str,
-    demo: int,
+    internal demo: int,
 }
 
 pub struct Hosts {
-    side: str,
-    side_rows: str,
-    form: str,
+    internal side: str,
+    internal side_rows: str,
+    internal form: str,
 }
 
 // Sized as a fraction of the screen rather than in pixels, so the same sheet

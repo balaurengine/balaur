@@ -5,6 +5,7 @@ use super::func::{R, err, show};
 use crate::FieldDefaults;
 use crate::Literal;
 use crate::ast::{ExprKind, Program, Ty};
+use crate::{Error, Options};
 
 pub(crate) fn unknown_type(t: &Ty, names: &[&String]) -> Option<String> {
     match t {
@@ -179,4 +180,33 @@ pub(crate) fn defaults(prog: &Program) -> R<Vec<(String, FieldDefaults)>> {
         }
     }
     Ok(out)
+}
+
+pub(crate) fn lints(prog: &Program, options: &Options) -> Vec<Error> {
+    let Ok(g) = super::layout(prog, options) else {
+        return vec![];
+    };
+    let mut found = vec![];
+    if super::emit_fns(&g, prog, options.debug, Some(&mut found)).is_err() || !found.is_empty() {
+        return vec![];
+    }
+    let mut lints = g.lints.take();
+    lints.sort_by_key(|e| (e.pos.line, e.pos.col));
+    lints.dedup_by_key(|e| e.pos);
+    lints
+}
+
+pub(crate) fn errors(prog: &Program, options: &Options) -> Vec<Error> {
+    let g = match super::layout(prog, options) {
+        Ok(g) => g,
+        Err(e) => return vec![e],
+    };
+    if let Err(e) = defaults(prog) {
+        return vec![e];
+    }
+    let mut found = vec![];
+    if let Err(e) = super::emit_fns(&g, prog, options.debug, Some(&mut found)) {
+        found.push(e);
+    }
+    found
 }

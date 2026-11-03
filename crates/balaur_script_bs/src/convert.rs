@@ -84,6 +84,8 @@ fn numbers(v: &N) -> Option<Vec<f64>> {
         N::Vec2(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
         N::Vec3(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
         N::Color(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
+        N::Transform2d(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
+        N::Transform3d(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
         N::List(items) | N::Many(items) => items
             .iter()
             .map(|i| match i {
@@ -96,7 +98,7 @@ fn numbers(v: &N) -> Option<Vec<f64>> {
     }
 }
 
-/// `v` as what an `any` holds: a vector is a list of its numbers.
+/// `v` as what an `any` holds: a vector or a transform is a list of its numbers.
 pub(crate) fn dynamic(v: &N) -> L {
     match v {
         N::Bool(b) => L::Bool(*b),

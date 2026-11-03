@@ -7,16 +7,35 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use glamx::Vec2;
 
 pub mod rules;
 
 pub use rules::{Mode, Outside, Quarter, Rule, Terrain, resolve, template};
 
+use balaur_core::assets::refuse_keys;
 use balaur_core::components::as_f64;
 
 pub const TILESET_ASSET_TYPE: &str = "tileset";
+
+const TILESET_KEYS: &[&str] = &[
+    balaur_core::assets::TYPE,
+    "texture",
+    "tile_size",
+    "columns",
+    "spacing",
+    "margin",
+    "layout",
+    "tiles",
+    "terrains",
+    "rules",
+];
+
+/// What a tile takes. Its `data` is the game's own, so nothing looks inside.
+const TILE_KEYS: &[&str] = &["collision", "one_way", "occluder", "animation", "data"];
+
+const TILE_ANIMATION_KEYS: &[&str] = &["frames", "fps"];
 
 /// What a tile collides as.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -187,6 +206,28 @@ impl TileSet {
             w,
             h,
         ]
+    }
+}
+
+/// Refuse a key a tileset, a tile, a terrain or a rule does not take.
+///
+/// # Errors
+/// Naming the key and the tile, the terrain or the rule it was written on.
+pub fn check_tileset(value: &toml::Value) -> Result<()> {
+    refuse_keys(value, "a tileset", TILESET_KEYS)?;
+    if let Some(tiles) = value.get("tiles").and_then(toml::Value::as_table) {
+        for (id, tile) in tiles {
+            check_tile(tile).with_context(|| format!("tile {id}"))?;
+        }
+    }
+    rules::check_keys(value)
+}
+
+fn check_tile(tile: &toml::Value) -> Result<()> {
+    refuse_keys(tile, "a tile", TILE_KEYS)?;
+    match tile.get("animation") {
+        Some(animation) => refuse_keys(animation, "a tile's animation", TILE_ANIMATION_KEYS),
+        None => Ok(()),
     }
 }
 
@@ -691,6 +732,89 @@ pub fn polygon_in_world(
             turn_unit(unit, flags) * half
         })
         .collect()
+}
+
+#[cfg(test)]
+mod check_tests {
+    use super::{check_tileset, parse_tileset};
+
+    const HEAD: &str = "type = \"tileset\"\ntexture = \"a.png\"\ntile_size = 16\ncolumns = 4\n";
+
+    fn check(body: &str) -> anyhow::Result<()> {
+        check_tileset(&toml::from_str(&format!("{HEAD}{body}")).unwrap())
+    }
+
+    #[test]
+    fn a_key_a_tileset_does_not_take_is_refused_at_every_level() {
+        let refused = [
+            ("colums = 4\n", "`colums` is not a key of a tileset"),
+            (
+                "[tiles.1]\nterrain = \"grass\"\n",
+                "tile 1: `terrain` is not a key of a tile",
+            ),
+            (
+                "[tiles.1.animation]\nframes = [1]\nfsp = 8\n",
+                "tile 1: `fsp` is not a key of a tile's animation",
+            ),
+            (
+                "[[terrains]]\nname = \"grass\"\nfirst = 1\n",
+                "terrain 0: `first` is not a key of a terrain",
+            ),
+            (
+                "[[rules]]\nterrain = 1\npatern = []\n",
+                "rule 0: `patern` is not a key of a rule",
+            ),
+            (
+                "[[rules]]\nterrain = 1\ntiles = [1, { tile = 2, wieght = 3 }]\n",
+                "rule 0: `wieght` is not a key of a rule's alternate",
+            ),
+        ];
+        for (body, said) in refused {
+            let why = check(body).unwrap_err();
+            assert!(format!("{why:#}").contains(said), "{body}: {why:#}");
+        }
+    }
+
+    /// A tile's `data` is the game's own, and a tile's id is a name.
+    #[test]
+    fn every_key_a_tileset_reads_and_a_tiles_data_pass() {
+        let body = r#"spacing = 0
+margin = 0
+layout = "orthogonal"
+
+[tiles.7]
+collision = "full"
+one_way = true
+occluder = true
+data = { colums = 1, anything = { at = "all" } }
+
+[tiles.7.animation]
+frames = [7, 8]
+fps = 4.0
+
+[[terrains]]
+name = "grass"
+value = 1
+kind = "quarters"
+first_tile = 16
+quarters = [1, 2, 3, 4, 5]
+
+[[rules]]
+terrain = "grass"
+pattern = ["???", "?#?", "???"]
+tiles = [1, { tile = 2, weight = 3 }]
+transforms = ["rotate"]
+chance = 0.5
+outside = "same"
+
+[[rules]]
+terrain = 1
+pattern = ["???", "?#?", "???"]
+tile = 12
+"#;
+        check(body).unwrap();
+        parse_tileset(&toml::from_str(&format!("{HEAD}{body}")).unwrap()).unwrap();
+    }
 }
 
 #[cfg(test)]

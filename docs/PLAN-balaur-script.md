@@ -46,7 +46,7 @@ impl Spinner {
 | `int` (i64), `float` (f64), `bool`, `str`, `Node`, `[T]`, structs, enums with `match` (built 2026-10-30, ARCHITECTURE.md *Enums*) | generics, traits |
 | `T?` and `nil`; `x == nil`, `x != nil`, `unwrap`, `or` | `T??`, `any?` |
 | `fn(int) -> int` values naming a function, called like one | closures, captures |
-| `use util;` links `util.bs`, `use a::b;` `a/b.bs`; its `pub` items as `util::name`; files may use each other and the one using them | a module per instance |
+| `use util;` links `util.bs`, `use a::b;` `a/b.bs`; its `pub` items as `util::name`; files may use each other and the one using them; what a file leaves unmarked only it names, field and method alike, and `internal` opens it to the file's `addons/<name>`, `deps/<alias>` or project | a module per instance |
 | `fn f(s: &mut State)`: the caller's own value, written back when `f` returns | a reference kept in a field; `&mut` in an `async fn` |
 | `class State { .. }`: one counted object every holder shares, passed as its pointer; `C?` for a link | a cycle of classes freed (it leaks, as an array holding itself does) |
 | any typed value goes into an `any`, and an `any` into a struct, list, map, `T?` or `fn` at the typed place it is wanted in; `a["k"]`, `a[i]`, `a["k"] = v`, `a[i] = v`; `.as_int()`, `.as_float()`, `.as_str()`, `.as_bool()`, `.as_node()`; `for x in a`, `a == b`; an `any` in `"{..}"` prints as its `text()` | |
@@ -57,6 +57,7 @@ impl Spinner {
 | `"hp {self.hp}"` interpolation, `+` on strings, `==` on strings | |
 | array literals, `[v; n]`, `push`, `pop`, `len`, `arr[i].x += 1` | |
 | struct literals naming what differs: a field left out takes its declared default, or nil when it is optional | |
+| a call leaving out trailing `T?` and `any` parameters, which are nil, as an engine function's always could: a function, a method, an `async fn`, across units, where the caller makes the nil from the declaration. `balaur check` warns about a last `nil` that could go, unless it is the only argument | a default value; leaving out a `&mut` parameter or an argument of a `fn` value, whose type says how many it takes |
 | `vec2()`, `vec3()`, `color()`; `node.c.p` and `node.c.p = v` | |
 | `{ str: V }` and `{ int: V }`: `{ "a": 1 }` where one is wanted, `m[k]` as a `V?`, `m[k] = v`, `m[k] += 1` (a missing key traps), `has`, `remove`, `len`, `keys` and `values` in the order keys were first set; a `{ str: V }` goes into an `any` and back | a key of another type; a `V?` value |
 | `async fn`, `await` on host calls and on script async fns, with values | |

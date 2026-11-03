@@ -46,7 +46,7 @@ pub struct Found {
 
 /// One line of the palette: what it says, and `run` called with `data`.
 pub struct Command {
-    label: str,
+    internal label: str,
     icon: str,
     key: str,
     tags: str,

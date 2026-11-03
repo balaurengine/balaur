@@ -92,7 +92,7 @@ pub(super) fn expr(e: &E) -> String {
         E::Or(v, d) => format!("{v}.or({})", expr(d)),
         E::Method(r, name, args) => format!("{}.{name}({})", receiver(r), list(args)),
         E::Index(r, k) => format!("{}[{}]", receiver(r), expr(k)),
-        E::NilAny => "nil()".into(),
+        E::NilAny => "any_nil()".into(),
         E::MapAny => "any_map()".into(),
     }
 }

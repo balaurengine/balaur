@@ -10,21 +10,21 @@ use util;
 use window;
 
 pub class ManagerState {
-    on: bool,
+    internal on: bool,
     covering: bool,
-    tab: str,
+    internal tab: str,
     recent: [project::Recent],
     read: bool,
     filter: str,
     name: str,
     template: str,
     parent: str,
-    note: str,
-    failed: str,
+    internal note: str,
+    internal failed: str,
     spots: any,
-    releases: [any],
-    asked: bool,
-    reading: bool,
+    internal releases: [any],
+    internal asked: bool,
+    internal reading: bool,
     follow: str,
     tag: str,
     installing: Installing,
@@ -47,8 +47,8 @@ pub struct Installing {
 
 /// A control's centre in design px.
 pub struct Spot {
-    x: float,
-    y: float,
+    internal x: float,
+    internal y: float,
 }
 
 /// The state the screen keeps: what it read, what is being typed, and what it

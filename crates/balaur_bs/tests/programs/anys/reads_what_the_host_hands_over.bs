@@ -20,7 +20,7 @@ pub fn describe(hit: any) -> str {
 pub fn boxed() -> str {
     let a: any = 3;
     let b: any = "x";
-    let l: [any] = [a, b, 2.5, true, nil()];
+    let l: [any] = [a, b, 2.5, true, nil];
     let all: any = l;
     all.text()
 }

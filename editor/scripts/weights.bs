@@ -73,7 +73,7 @@ fn begin(state: &mut editor::State, label: str) -> bool {
         log::warn("this polygon's mesh is a file; embed it to edit its weights");
         return false;
     }
-    history::record(state, label, nil);
+    history::record(state, label);
     true
 }
 

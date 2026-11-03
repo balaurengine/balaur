@@ -6,9 +6,11 @@
 // script says `use addons::gamend::notifications;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -25,7 +27,7 @@ pub fn delete_notifications(params: any) -> any {
 /// `GET /api/v1/notifications`
 pub fn list_notifications(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/notifications{query}", nil())
+    gamend::rest("GET", "/api/v1/notifications{query}")
 }
 
 /// Send a notification to a friend

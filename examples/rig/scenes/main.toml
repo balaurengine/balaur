@@ -145,7 +145,7 @@ from = "wave"
 to = "bow"
 advance_mode = "auto"
 switch_mode = "at_end"
-fade = 0.5
+blend_time = 0.5
 ease = "in_out_sine"
 
 [[nodes.state_machine.machine.transitions]]
@@ -153,7 +153,7 @@ from = "bow"
 to = "wave"
 advance_mode = "auto"
 switch_mode = "at_end"
-fade = 0.5
+blend_time = 0.5
 ease = "in_out_sine"
 
 [nodes.modifier2d]

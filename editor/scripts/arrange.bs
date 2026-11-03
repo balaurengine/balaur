@@ -49,7 +49,7 @@ pub fn align(state: &mut editor::State, axis: int, mode: str) {
     } else {
         sum / rows.len() as float
     };
-    history::record(state, "align {axis_name(axis)}", nil);
+    history::record(state, "align {axis_name(axis)}");
     for row in rows {
         let target = world_of(state, row);
         target[axis] = to;
@@ -83,7 +83,7 @@ pub fn distribute(state: &mut editor::State, axis: int) {
     let first = world_of(state, sorted[0])[axis];
     let last = world_of(state, sorted[sorted.len() - 1])[axis];
     let step = (last - first) / (sorted.len() - 1) as float;
-    history::record(state, "distribute {axis_name(axis)}", nil);
+    history::record(state, "distribute {axis_name(axis)}");
     for rank in 0..sorted.len() {
         let row = sorted[rank];
         let target = world_of(state, row);
@@ -133,7 +133,7 @@ pub fn group(state: &mut editor::State) {
     center = util::vector_scale(center, 1.0 / rows.len() as float);
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
-    history::record(state, "group", nil);
+    history::record(state, "group");
     let made = model::spawn(state, parent, "Group", { "transform": {
         "position": util::vector_subtract(center, base),
         "rotation_euler": [0.0, 0.0, 0.0],
@@ -165,7 +165,7 @@ pub fn ungroup(state: &mut editor::State) {
         log::info("nothing to ungroup");
         return;
     }
-    history::record(state, "ungroup", nil);
+    history::record(state, "ungroup");
     let up = found.parent();
     let place = found.sibling_index();
     for child in children {
@@ -199,7 +199,7 @@ pub fn toggle_hidden_of(state: &mut editor::State, rows: [int]) {
         }
     }
     let to = !any_visible;
-    history::record(state, if to { "show" } else { "hide" }, nil);
+    history::record(state, if to { "show" } else { "hide" });
     for row in rows {
         let found = model::node(state, row);
         if found.is_valid() {
@@ -211,7 +211,7 @@ pub fn toggle_hidden_of(state: &mut editor::State, rows: [int]) {
 
 pub fn show_all(state: &mut editor::State) {
     leave_isolate(state);
-    history::record(state, "show all", nil);
+    history::record(state, "show all");
     for found in state.nodes {
         if found.is_valid() && !found.visible() {
             found.set_visible(true);

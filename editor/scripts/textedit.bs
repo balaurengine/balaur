@@ -27,12 +27,12 @@ pub class TexteditState {
 /// The field: where it is in design px, the text it opens with, and the size
 /// its letters are typed at, 0 for the size its role carries.
 pub struct View {
-    open: bool,
+    internal open: bool,
     x: float,
     y: float,
     width: float,
     height: float,
-    text: str,
+    internal text: str,
     size: float,
 }
 

@@ -26,8 +26,8 @@ pub struct Brand {
 
 /// A control's centre in design px.
 pub struct Spot {
-    x: float,
-    y: float,
+    internal x: float,
+    internal y: float,
 }
 
 pub struct FillImports {

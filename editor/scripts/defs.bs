@@ -1,17 +1,17 @@
 use icons;
 
 pub struct Workspace {
-    id: str,
-    name: str,
-    icon: str,
+    internal id: str,
+    internal name: str,
+    internal icon: str,
 }
 
 /// A viewport chip: its key, its label, and what it starts as; nil for one
 /// the engine backs, which `shell::chip_value` reads live each frame.
 pub struct Chip {
-    key: str,
-    label: str,
-    starts: bool?,
+    internal key: str,
+    internal label: str,
+    internal starts: bool?,
 }
 
 fn chip(key: str, label: str, starts: bool?) -> Chip {
@@ -151,7 +151,7 @@ pub fn chips(workspace: str) -> [Chip] {
     } else if workspace == "animation" {
         [chip(CHIP_PATH, "Motion path", true), chip(CHIP_SNAP, "Snap 8 px", false)]
     } else if workspace == "physics" {
-        [chip(CHIP_COLLIDERS, "Show colliders", true), chip(CHIP_SLEEP, "Sleep bodies", nil)]
+        [chip(CHIP_COLLIDERS, "Show colliders", true), chip(CHIP_SLEEP, "Sleep bodies")]
     } else if workspace == "ui" {
         [chip(CHIP_SAFE, "Safe area", true), chip(CHIP_RESOLUTION, "1920 × 1080", false)]
     } else {

@@ -687,7 +687,7 @@
         {
           "comment": "other keywords",
           "name": "keyword.other.rune",
-          "match": "\\b(as|async|become|box|dyn|move|final|impl|in|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
+          "match": "\\b(as|async|become|box|dyn|move|final|impl|in|internal|override|priv|pub|ref|typeof|union|unsafe|unsized|use|virtual|where)\\b"
         },
         {
           "comment": "fn",

@@ -1,6 +1,6 @@
 // `use util;`: another `.bs` file linked into this one when it compiles. Its
 // items take the name `util::item`, and a private function a name no script
-// can write, so only what it makes `pub` is reached from outside.
+// can write. `crate::reach` says who may name the rest.
 
 use crate::Error;
 use crate::ast::{Block, Expr, ExprKind, Part, Pattern, Pos, Program, StmtKind, Ty};
@@ -125,13 +125,24 @@ fn declared_hash(m: &Program) -> u64 {
                 .default
                 .as_ref()
                 .map(|d| without_pos(format!("{:?}", d.kind)));
-            let _ = write!(text, " {} {:?} {} {default:?};", f.name, f.ty, f.public);
+            let _ = write!(
+                text,
+                " {} {:?} {} {} {default:?};",
+                f.name, f.ty, f.public, f.internal
+            );
         }
         text.push('\n');
     }
     let _ = writeln!(text, "classes {:?}", m.classes);
     for f in &m.fns {
-        let _ = write!(text, "fn {} {} {}", f.key(), f.public, f.is_async);
+        let _ = write!(
+            text,
+            "fn {} {} {} {}",
+            f.key(),
+            f.public,
+            f.internal,
+            f.is_async
+        );
         for p in &f.params {
             let _ = write!(text, " {} {:?} {};", p.name, p.ty, p.by_ref);
         }
@@ -149,6 +160,9 @@ fn declared_hash(m: &Program) -> u64 {
     }
     for (u, _) in &m.uses {
         let _ = writeln!(text, "use {u}");
+    }
+    for (n, internal) in &m.kept {
+        let _ = writeln!(text, "kept {n} {internal}");
     }
     crate::fnv(text.as_bytes(), 0x6c62_272e_07bb_0142)
 }
@@ -202,7 +216,7 @@ pub(crate) fn link(
         }
     }
     let keys = linked.done.iter().map(|(k, _)| k.clone()).collect();
-    let mut out = linked.out;
+    let mut out = std::mem::take(&mut linked.out);
     root.linked.append(&mut out.linked);
     root.structs.append(&mut out.structs);
     root.enums.append(&mut out.enums);
@@ -211,6 +225,14 @@ pub(crate) fn link(
     root.consts.append(&mut out.consts);
     root.origin.append(&mut out.origin);
     root.class_origin.append(&mut out.class_origin);
+    root.kept.append(&mut out.kept);
+    root.files.push((String::new(), from.to_string()));
+    root.files.extend(
+        linked
+            .done
+            .iter()
+            .map(|(key, name)| (name.clone(), key.clone())),
+    );
     for x in out.externs {
         if !root.externs.iter().any(|e| e.name == x.name) {
             root.externs.push(x);
@@ -391,6 +413,7 @@ impl Linker<'_> {
             self.out.externs.append(&mut m.externs);
             self.out.origin.append(&mut m.origin);
             self.out.class_origin.append(&mut m.class_origin);
+            self.out.kept.append(&mut m.kept);
         }
         Ok(())
     }
@@ -466,7 +489,9 @@ impl Linker<'_> {
 }
 
 /// How a module's names change as it is linked.
-trait Rename {
+pub(crate) trait Rename {
+    /// Where the names that follow are written.
+    fn at(&self, _pos: Pos) {}
     /// A function called by this name.
     fn func(&self, n: &str) -> Option<String>;
     /// A name read as a value: a constant, or a function.
@@ -616,7 +641,7 @@ fn unalias(prog: &mut Program, aliases: &[String], made: &Made) {
 
 pub(crate) fn prefix(m: &mut Program, name: &str, key: &str) {
     let free = m.fns.iter().filter(|f| f.owner.is_none());
-    let (public, private): (Vec<_>, Vec<_>) = free.partition(|f| f.public);
+    let (public, private): (Vec<_>, Vec<_>) = free.partition(|f| f.public || f.internal);
     let names = Names {
         prefix: name.to_string(),
         public_fns: public.iter().map(|f| f.name.clone()).collect(),
@@ -649,6 +674,9 @@ pub(crate) fn prefix(m: &mut Program, name: &str, key: &str) {
         expr(&names, &mut vec![], e);
         *n = format!("{name}::{n}");
     }
+    for (n, _) in &mut m.kept {
+        *n = format!("{name}::{n}");
+    }
     for f in &mut m.fns {
         match &mut f.owner {
             Some(o) => *o = format!("{name}::{o}"),
@@ -670,9 +698,10 @@ pub(crate) fn prefix(m: &mut Program, name: &str, key: &str) {
     }
 }
 
-fn block(n: &dyn Rename, scope: &mut Vec<String>, b: &mut Block) {
+pub(crate) fn block(n: &dyn Rename, scope: &mut Vec<String>, b: &mut Block) {
     let mark = scope.len();
     for s in &mut b.stmts {
+        n.at(s.pos);
         match &mut s.kind {
             StmtKind::Let { name, ty, init } => {
                 expr(n, scope, init);
@@ -727,7 +756,8 @@ fn variant_path(n: &dyn Rename, path: &mut String) {
     }
 }
 
-fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
+pub(crate) fn expr(n: &dyn Rename, scope: &mut Vec<String>, e: &mut Expr) {
+    n.at(e.pos);
     let local = |scope: &Vec<String>, v: &str| scope.iter().any(|s| s == v);
     match &mut e.kind {
         ExprKind::Call(name, args) => {

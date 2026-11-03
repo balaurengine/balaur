@@ -30,14 +30,14 @@ pub async fn providers() -> any {
 pub async fn sign_in(provider: str) -> any {
     let status = await provider_page(provider, sign_in_start, sign_in_status);
     if status.kind() != "map" {
-        return nil();
+        return nil;
     }
     // The tokens ride under `session`, once; signing in from them is what
     // `restore` does for a kept session, so a fresh one goes the same way.
     let session = status["session"];
     if session.kind() != "map" {
         log::warn("gamend: {provider} sign-in completed without a session");
-        return nil();
+        return nil;
     }
     gamend::restore(session);
     keep(session);
@@ -74,11 +74,11 @@ async fn provider_page(provider: str, start: fn(str) -> any, status: fn(str) -> 
     let started = await task::wait(start(provider).as_int());
     if !core::ok(started) {
         log::warn(core::error_of(started));
-        return nil();
+        return nil;
     }
     let opened = data_of(core::body(started));
     if opened.kind() != "map" {
-        return nil();
+        return nil;
     }
     let session = opened["session_id"].text();
     engine::open_url(opened["authorization_url"].text());
@@ -100,11 +100,11 @@ async fn provider_page(provider: str, start: fn(str) -> any, status: fn(str) -> 
         }
         if state != "pending" {
             log::warn("gamend: {provider} {now["error"].text()}: {now["message"].text()}");
-            return nil();
+            return nil;
         }
     }
     log::warn("gamend: {provider} timed out");
-    nil()
+    nil
 }
 
 /// Confirm a `client::register_email` account with the code from its email,
@@ -118,11 +118,11 @@ pub async fn confirm_registration(email: str, code: str, password: str) -> any {
     let reply = await task::wait(authentication::confirm_registration(params).as_int());
     if !core::ok(reply) {
         log::warn(core::error_of(reply));
-        return nil();
+        return nil;
     }
     let session = data_of(core::body(reply));
     if session.kind() != "map" {
-        return nil();
+        return nil;
     }
     gamend::restore(session);
     keep(session);
@@ -131,7 +131,7 @@ pub async fn confirm_registration(email: str, code: str, password: str) -> any {
 
 /// What `{"data": ...}` carries, or nil for any other body.
 fn data_of(body: any) -> any {
-    if body.has("data") { body["data"] } else { nil() }
+    if body.has("data") { body["data"] } else { nil }
 }
 
 /// Keep a session for the next run. Not `save`: a function of that name
@@ -143,7 +143,7 @@ pub fn keep(session: any) {
 /// The session the last run kept, or nil.
 pub fn saved() -> any {
     let kept = save::read(SLOT);
-    if kept.kind() == "map" { kept } else { nil() }
+    if kept.kind() == "map" { kept } else { nil }
 }
 
 /// Sign out here: the saved session is dropped. The server's own logout is

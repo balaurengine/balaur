@@ -6,28 +6,39 @@
 // script says `use addons::gamend::friends;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
 /// Accept a friend request
 /// `POST /api/v1/friends/{id}/accept`
 pub fn accept_friend_request(id: any) -> any {
-    gamend::rest("POST", "/api/v1/friends/{id}/accept", nil())
+    if id == nil {
+        return core::missing("gamend::friends::accept_friend_request", "id");
+    }
+    gamend::rest("POST", "/api/v1/friends/{id}/accept")
 }
 
 /// Block a friend request / user
 /// `POST /api/v1/friends/{id}/block`
 pub fn block_friend_request(id: any) -> any {
-    gamend::rest("POST", "/api/v1/friends/{id}/block", nil())
+    if id == nil {
+        return core::missing("gamend::friends::block_friend_request", "id");
+    }
+    gamend::rest("POST", "/api/v1/friends/{id}/block")
 }
 
 /// Blacklist a user, with or without an existing friendship
 /// `POST /api/v1/users/{user_id}/block`
 pub fn block_user(user_id: any) -> any {
-    gamend::rest("POST", "/api/v1/users/{user_id}/block", nil())
+    if user_id == nil {
+        return core::missing("gamend::friends::block_user", "user_id");
+    }
+    gamend::rest("POST", "/api/v1/users/{user_id}/block")
 }
 
 /// Send a friend request
@@ -43,50 +54,62 @@ pub fn create_friend_request(params: any) -> any {
 /// `GET /api/v1/me/blacklist`
 pub fn list_blacklisted_users(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/me/blacklist{query}", nil())
+    gamend::rest("GET", "/api/v1/me/blacklist{query}")
 }
 
 /// List users you've blocked
 /// `GET /api/v1/me/blocked`
 pub fn list_blocked_friends(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/me/blocked{query}", nil())
+    gamend::rest("GET", "/api/v1/me/blocked{query}")
 }
 
 /// List pending friend requests (incoming and outgoing)
 /// `GET /api/v1/me/friend_requests`
 pub fn list_friend_requests(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/me/friend_requests{query}", nil())
+    gamend::rest("GET", "/api/v1/me/friend_requests{query}")
 }
 
 /// List current user's friends (returns a paginated set of user objects)
 /// `GET /api/v1/me/friends`
 pub fn list_friends(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/me/friends{query}", nil())
+    gamend::rest("GET", "/api/v1/me/friends{query}")
 }
 
 /// Reject a friend request
 /// `POST /api/v1/friends/{id}/reject`
 pub fn reject_friend_request(id: any) -> any {
-    gamend::rest("POST", "/api/v1/friends/{id}/reject", nil())
+    if id == nil {
+        return core::missing("gamend::friends::reject_friend_request", "id");
+    }
+    gamend::rest("POST", "/api/v1/friends/{id}/reject")
 }
 
 /// Remove/cancel a friendship or request
 /// `DELETE /api/v1/friends/{id}`
 pub fn remove_friendship(id: any) -> any {
-    gamend::rest("DELETE", "/api/v1/friends/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::friends::remove_friendship", "id");
+    }
+    gamend::rest("DELETE", "/api/v1/friends/{id}")
 }
 
 /// Unblock a previously-blocked friendship
 /// `POST /api/v1/friends/{id}/unblock`
 pub fn unblock_friend(id: any) -> any {
-    gamend::rest("POST", "/api/v1/friends/{id}/unblock", nil())
+    if id == nil {
+        return core::missing("gamend::friends::unblock_friend", "id");
+    }
+    gamend::rest("POST", "/api/v1/friends/{id}/unblock")
 }
 
 /// Remove a user from your blacklist
 /// `POST /api/v1/users/{user_id}/unblock`
 pub fn unblock_user(user_id: any) -> any {
-    gamend::rest("POST", "/api/v1/users/{user_id}/unblock", nil())
+    if user_id == nil {
+        return core::missing("gamend::friends::unblock_user", "user_id");
+    }
+    gamend::rest("POST", "/api/v1/users/{user_id}/unblock")
 }

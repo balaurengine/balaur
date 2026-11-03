@@ -50,10 +50,32 @@ fn count_of(count: i64) -> Result<usize> {
         .ok_or_else(|| anyhow!("a multimesh holds 0 to {MAX_INSTANCES} instances, not {count}"))
 }
 
-/// Set an instance's transform from a `Transform3d`, or from a `Transform2d`
-/// in the xy plane. A shear either holds is kept, as a basis.
+/// The transform a list of numbers spells, as a script holds one: the axes
+/// and then the origin, 12 numbers in 3D and 6 in 2D.
+fn columns_of(items: &[Value]) -> Result<Value> {
+    const WHAT: &str = "an instance's transform";
+    let numbers = items
+        .iter()
+        .map(|item| number_of(item, WHAT))
+        .collect::<Result<Vec<f32>>>()?;
+    if let Ok(columns) = <[f32; 12]>::try_from(numbers.as_slice()) {
+        Ok(Value::Transform3d(columns))
+    } else if let Ok(columns) = <[f32; 6]>::try_from(numbers.as_slice()) {
+        Ok(Value::Transform2d(columns))
+    } else {
+        bail!(
+            "{WHAT} is 12 numbers, or 6 on a 2D node, not {}",
+            numbers.len()
+        )
+    }
+}
+
+/// Set an instance's transform from a `Transform3d`, from a `Transform2d` in
+/// the xy plane, or from a list of numbers spelling either. A shear either
+/// holds is kept, as a basis.
 fn place(instance: &mut Instance, transform: &Value) -> Result<()> {
     match transform {
+        Value::List(items) => place(instance, &columns_of(items)?)?,
         Value::Transform3d(columns) => {
             instance.set_local(Mat4::from(Affine3A::from_cols_array(columns)));
         }
@@ -67,7 +89,7 @@ fn place(instance: &mut Instance, transform: &Value) -> Result<()> {
             ));
         }
         other => bail!(
-            "an instance's transform is a Transform3d or a Transform2d, not a {}",
+            "an instance's transform is a list of numbers, not a {}",
             other.type_name()
         ),
     }
@@ -155,10 +177,10 @@ const BOTH: &[&str] = &[MULTIMESH_3D, MULTIMESH_2D];
 /// Godot's `MultiMesh` calls, readers without their `get_`.
 pub(crate) fn install_multimesh_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_instance_transform", BOTH, "", "Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is kept, as the instance's `basis`."),
+        ("set_instance_transform", BOTH, "", "Place one instance with a transform as `instance_transform` answers it: 12 floats, or 6 on a 2D node. A shear is kept, as the instance's `basis`."),
         ("set_instance_region", &[MULTIMESH_2D], "", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
         ("instance_region", &[MULTIMESH_2D], "", "One instance's texture rectangle as `[x, y, w, h]` in pixels, or nil when it draws the whole texture."),
-        ("instance_transform", BOTH, "", "One instance's transform: a `Transform3d`, or a `Transform2d` on a 2D node."),
+        ("instance_transform", BOTH, "", "One instance's transform as a list of floats, the axes and then the origin: 12 of them, or 6 on a 2D node."),
         ("set_instance_color", BOTH, "", "The colour one instance draws in."),
         ("instance_color", BOTH, "", "The colour one instance draws in."),
         ("set_instance_custom_data", BOTH, "", "Four floats a material's shader reads for one instance, as a colour or a list."),

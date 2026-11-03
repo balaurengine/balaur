@@ -14,45 +14,45 @@ use util;
 use viewport;
 
 pub class GizmoState {
-    hover: any,
-    drag: Drag?,
-    in_viewport: bool,
+    internal hover: any,
+    internal drag: Drag?,
+    internal in_viewport: bool,
     key: [any],
-    marquee: any,
+    internal marquee: any,
     drawn: [any],
     lines: [any],
 }
 
 pub struct Camera {
-    eye: [float],
-    forward: [float],
-    right: [float],
-    up: [float],
-    distance: any,
-    fov: any,
-    dpi: any,
-    world_per_pixel: float,
-    matrix: any,
-    ray_origin: [float],
-    ray_direction: [float],
-    rect: Rect,
-    viewport_rect: editor::Viewport,
+    internal eye: [float],
+    internal forward: [float],
+    internal right: [float],
+    internal up: [float],
+    internal distance: any,
+    internal fov: any,
+    internal dpi: any,
+    internal world_per_pixel: float,
+    internal matrix: any,
+    internal ray_origin: [float],
+    internal ray_direction: [float],
+    internal rect: Rect,
+    internal viewport_rect: editor::Viewport,
 }
 
 pub struct Rect {
-    x: float,
-    y: float,
-    width: float,
-    height: float,
+    internal x: float,
+    internal y: float,
+    internal width: float,
+    internal height: float,
 }
 
 pub struct Project {
-    x: float,
-    y: float,
+    internal x: float,
+    internal y: float,
 }
 
 pub struct ExtentsAt {
-    centre: [float],
+    internal centre: [float],
     half: [float],
     basis: [[float]],
 }
@@ -87,11 +87,11 @@ pub struct Face {
 /// What the pointer is over: a `ring`, a `facerect`, a `handle` or a `face`,
 /// with the index, axis and sign that kind names.
 pub struct Part {
-    kind: str,
-    index: int?,
-    axis: int?,
-    sign: float?,
-    signs: [float],
+    internal kind: str,
+    internal index: int?,
+    internal axis: int?,
+    internal sign: float?,
+    internal signs: [float],
 }
 
 fn part(kind: str, index: int?, axis: int?, sign: float?) -> Part {
@@ -107,23 +107,23 @@ pub struct Marquee {
 }
 
 pub struct Drag {
-    part: Part,
-    set: [selection::RootPose],
-    pivot: [float],
-    position: [float],
-    scale: [float],
-    rotation: [float],
-    basis: [[float]],
-    mouse: [float],
-    center: [float],
-    extent: float,
-    world_center: [float],
-    plane_normal: [float],
-    plane_point: [float],
-    anchor: [float]?,
-    angle: float,
-    half_extents: [float],
-    start_angle: float,
+    internal part: Part,
+    internal set: [selection::RootPose],
+    internal pivot: [float],
+    internal position: [float],
+    internal scale: [float],
+    internal rotation: [float],
+    internal basis: [[float]],
+    internal mouse: [float],
+    internal center: [float],
+    internal extent: float,
+    internal world_center: [float],
+    internal plane_normal: [float],
+    internal plane_point: [float],
+    internal anchor: [float]?,
+    internal angle: float,
+    internal half_extents: [float],
+    internal start_angle: float,
 }
 
 /// The gizmo's own state, hung on `state.gizmo`.
@@ -589,7 +589,7 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
     for axis in 0..3 {
         for step in 0..48 {
             if near(camera, ring_point(geometry, axis, step as float / 48.0), pointer_x, pointer_y, reach(state, 12.0)) {
-                return part("ring", nil, axis, nil);
+                return part("ring", nil, axis);
             }
         }
     }
@@ -607,7 +607,7 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
     let all_corners = corners(geometry);
     for index in 0..all_corners.len() {
         if near(camera, all_corners[index].point, pointer_x, pointer_y, reach(state, 18.0)) {
-            return part("handle", index, nil, nil);
+            return part("handle", index);
         }
     }
     // Face surfaces (plane translate): only the faces looking at the
@@ -895,7 +895,7 @@ pub fn fill_marquee(state: editor::State) {
 const MARQUEE: str = "Editor/Marquee";
 
 fn start_gizmo_drag(state: &mut editor::State, camera: Camera, geometry: Geometry3d, part: Part, pointer_x: float, pointer_y: float) {
-    history::record(state, "{part.kind} handle", nil);
+    history::record(state, "{part.kind} handle");
     let found = model::selected_node(state);
     let position = found.transform.position;
     let scale = found.transform.scale;

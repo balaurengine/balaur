@@ -10,7 +10,6 @@ collision = "full"
 
 [tiles.1]
 collision = "full"
-terrain = "grass"
 
 [tiles.3]
 collision = "full"

@@ -125,8 +125,9 @@ pub(crate) struct Syntax {
 const BS: Syntax = Syntax {
     line_comment: "//",
     keywords: &[
-        "fn", "let", "if", "else", "while", "for", "in", "loop", "struct", "impl", "pub", "return",
-        "break", "continue", "const", "async", "await", "true", "false", "as", "extern", "self",
+        "fn", "let", "if", "else", "while", "for", "in", "loop", "struct", "impl", "pub",
+        "internal", "return", "break", "continue", "const", "async", "await", "true", "false",
+        "as", "extern", "self",
     ],
     builtins: &[
         "int",

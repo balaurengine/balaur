@@ -8,15 +8,15 @@ use util;
 
 /// The image a texture asset reads, kept for the file it was read for.
 pub struct Held {
-    rel: str,
-    source: str,
+    internal rel: str,
+    internal source: str,
 }
 
 /// What each target ships of a file: a row a target, its name, its line and
 /// its tooltip.
 pub struct ImportShipped {
-    rel: str,
-    rows: [[str]],
+    internal rel: str,
+    internal rows: [[str]],
 }
 
 /// What the Import tab's head says.
@@ -299,7 +299,7 @@ fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
 }
 
 fn on_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    write(state, data["rel"].as_str(), data["key"].as_str(), nil);
+    write(state, data["rel"].as_str(), data["key"].as_str());
 }
 
 // The rows the selected file offers, empty when nothing is selected or the

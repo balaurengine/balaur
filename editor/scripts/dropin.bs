@@ -19,8 +19,8 @@ pub struct Homes {
 
 /// Every import of a batch added up: files written of files held.
 pub struct JobTotals {
-    done: int,
-    files: int,
+    internal done: int,
+    internal files: int,
 }
 
 /// Where a dropped file of each kind is copied to inside the project.
@@ -86,7 +86,7 @@ pub fn copy_in(state: &mut editor::State, path: str, directory: str) -> str? {
         return nil;
     }
     fs::copy(path, state.game_root + "/" + target);
-    model::forget(state, nil);
+    model::forget(state);
     target
 }
 
@@ -117,7 +117,7 @@ pub fn copy_system_font(state: &mut editor::State, path: str) -> str? {
         log::warn("could not copy " + path);
         return nil;
     }
-    model::forget(state, nil);
+    model::forget(state);
     log::info("added " + target);
     target
 }
@@ -153,7 +153,7 @@ fn drop_image(state: &mut editor::State, path: str) -> Node {
 }
 
 fn place_image(state: &mut editor::State, rel: str, name: str) -> Node {
-    history::record(state, "drop " + rel, nil);
+    history::record(state, "drop " + rel);
     if model::is_2d(state) {
         place(state, name, { "sprite": { "texture": rel } })
     } else {
@@ -178,7 +178,7 @@ fn drop_shader(state: &mut editor::State, path: str) -> Node {
         "type": "material",
         "shader": rel,
     }));
-    model::forget(state, nil);
+    model::forget(state);
     log::info("wrote " + material);
     nil
 }
@@ -197,7 +197,7 @@ fn drop_sky(state: &mut editor::State, path: str) -> Node {
 /// a drop and a library placement both end in. Answers the node that holds
 /// the sky.
 pub fn name_sky(state: &mut editor::State, rel: str, label: str) -> Node {
-    history::record(state, label, nil);
+    history::record(state, label);
     // The last `environment` in tree order wins, so an existing one is
     // retargeted rather than joined by a second.
     for found in state.nodes {
@@ -343,7 +343,7 @@ pub fn report(state: &mut editor::State, event: any) {
     } else if kind == "done" {
         let written = written_by(state, source);
         ended(state, source, "imported");
-        model::forget(state, nil);
+        model::forget(state);
         log::info("imported {file_name(source)} ({written} files)");
         let note = import_event["note"].as_str();
         if note != "" {
@@ -357,7 +357,7 @@ pub fn report(state: &mut editor::State, event: any) {
         ended(state, source, "stopped");
         // This run's count, not one an earlier import of the same file left.
         state.jobs[source]["done"] = written;
-        model::forget(state, nil);
+        model::forget(state);
         log::info("stopped importing {file_name(source)} after {written} files");
     } else if kind == "failed" {
         ended(state, source, "failed");
@@ -382,7 +382,7 @@ pub fn place_file(state: &mut editor::State, rel: str) -> bool {
     } else if kind == "sky" {
         name_sky(state, rel, "drop sky")
     } else if recipes::is_model(rel) && !model::is_2d(state) {
-        history::record(state, "drop " + rel, nil);
+        history::record(state, "drop " + rel);
         place(state, stem_of(rel), { "mesh": { "source": { "source": rel } } })
     } else {
         log::warn("{file_name(rel)} is not a thing to place in the scene");
@@ -399,7 +399,7 @@ pub fn paste_image(state: &mut editor::State) {
     if !ui::save_pasted_image(state.game_root + "/" + rel) {
         return;
     }
-    model::forget(state, nil);
+    model::forget(state);
     log::info("added " + rel);
     place_file(state, rel);
 }

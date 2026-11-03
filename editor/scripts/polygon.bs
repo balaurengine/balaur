@@ -15,12 +15,12 @@ use util;
 use viewport;
 
 pub class PolygonState {
-    hover: int?,
+    internal hover: int?,
     drag: int?,
-    chain: [int]?,
-    mode: str,
+    internal chain: [int]?,
+    internal mode: str,
     texture: Texture?,
-    bone: int?,
+    internal bone: int?,
     radius: float,
     strength: float,
     backdrop: Node,
@@ -365,7 +365,7 @@ pub fn add_vertex(state: &mut editor::State, world_x: float, world_y: float, int
     if frame_or == nil || !editable(state) {
         return nil;
     }
-    begin(state, if internal { "add internal vertex" } else { "add vertex" }, nil);
+    begin(state, if internal { "add internal vertex" } else { "add vertex" });
     let mesh = ensure_mesh(state);
     if mesh == nil {
         return nil;
@@ -385,7 +385,7 @@ pub fn remove_vertex(state: &mut editor::State, at: int) {
     if mesh == nil || at >= mesh["positions"].len() {
         return;
     }
-    begin(state, "remove vertex", nil);
+    begin(state, "remove vertex");
     remove_at(mesh, at);
     write(state);
 }
@@ -433,7 +433,7 @@ pub fn close_loop(state: &mut editor::State) {
         signals::inspector(state);
         return;
     }
-    begin(state, "draw polygon", nil);
+    begin(state, "draw polygon");
     let mesh = mesh(state);
     if mesh["polygons"].kind() != "list" {
         let none: [any] = [];
@@ -451,7 +451,7 @@ pub fn clear_polygons(state: &mut editor::State) {
     if mesh == nil || !mesh.has("polygons") {
         return;
     }
-    begin(state, "clear polygons", nil);
+    begin(state, "clear polygons");
     mesh.remove("polygons");
     write(state);
 }
@@ -513,7 +513,7 @@ pub fn sync_bones(state: &mut editor::State) {
     if paths == nil || !editable(state) {
         return;
     }
-    begin(state, "sync bones to polygon", nil);
+    begin(state, "sync bones to polygon");
     let mesh = ensure_mesh(state);
     if mesh == nil {
         return;
@@ -663,7 +663,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         return;
     }
     let at = picked(state);
-    begin(state, "mirror vertices over {axis}", nil);
+    begin(state, "mirror vertices over {axis}");
     for vertex in at {
         let point = xy(mesh["positions"][vertex]);
         mesh["positions"][vertex] = if axis == "x" { [-point[0], point[1]] } else { [point[0], -point[1]] };
@@ -765,7 +765,7 @@ pub fn trace(state: &mut editor::State) {
         log::warn("{texture} has no opaque pixels at this threshold");
         return;
     }
-    begin(state, "trace polygon", nil);
+    begin(state, "trace polygon");
     let mesh = ensure_mesh(state);
     if mesh == nil {
         return;

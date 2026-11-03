@@ -6,27 +6,32 @@
 // script says `use addons::gamend::admin_ready_checks;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
 /// Force-cancel a pending ready check (admin)
 /// `DELETE /api/v1/admin/ready_checks/{id}`
 pub fn cancel_ready_check(id: any) -> any {
-    gamend::rest("DELETE", "/api/v1/admin/ready_checks/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::admin_ready_checks::cancel_ready_check", "id");
+    }
+    gamend::rest("DELETE", "/api/v1/admin/ready_checks/{id}")
 }
 
 /// List ready checks (admin)
 /// `GET /api/v1/admin/ready_checks`
 pub fn list_ready_checks(options: any) -> any {
     let query = core::query(options, ["status", "kind", "lobby_id", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/ready_checks{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/ready_checks{query}")
 }
 
 /// Ready check outcomes over the last 24 hours (admin)
 /// `GET /api/v1/admin/ready_checks/stats`
 pub fn ready_check_stats() -> any {
-    gamend::rest("GET", "/api/v1/admin/ready_checks/stats", nil())
+    gamend::rest("GET", "/api/v1/admin/ready_checks/stats")
 }

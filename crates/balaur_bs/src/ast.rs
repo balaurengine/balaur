@@ -204,6 +204,8 @@ pub(crate) struct Field {
     pub name: String,
     pub ty: Ty,
     pub public: bool,
+    /// `internal`: every file of its package may name it.
+    pub internal: bool,
     pub default: Option<Expr>,
     pub pos: Pos,
 }
@@ -213,6 +215,8 @@ pub(crate) struct FnDecl {
     pub name: String,
     pub owner: Option<String>,
     pub public: bool,
+    /// `internal`: every file of its package may name it.
+    pub internal: bool,
     pub is_async: bool,
     pub params: Vec<Param>,
     pub ret: Ty,
@@ -251,6 +255,12 @@ pub(crate) struct Program {
     pub decls: Vec<(String, Pos)>,
     /// `use name;`, in order.
     pub uses: Vec<(String, Pos)>,
+    /// Every item declared without `pub`, and whether it is `internal`.
+    pub kept: Vec<(String, bool)>,
+    /// Each linked module's file, by the name it is used as; the root's under "".
+    pub files: Vec<(String, String)>,
+    /// Who may name what, once the modules are linked.
+    pub reach: crate::reach::Reach,
     /// The modules linked in, by the name each is used as.
     pub linked: Vec<String>,
     /// A linked function's key, and the file it came from.

@@ -19,11 +19,11 @@ pub struct Step {
 /// The steps behind and ahead, where the last save sits among them, and the
 /// drag a record may still fold into.
 pub class History {
-    past: [Step],
-    future: [Step],
-    saved: int,
-    key: str?,
-    at: float,
+    internal past: [Step],
+    internal future: [Step],
+    internal saved: int,
+    internal key: str?,
+    internal at: float,
 }
 
 const MAX: int = 100;

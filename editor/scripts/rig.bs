@@ -14,13 +14,13 @@ use util;
 use viewport;
 
 pub class RigState {
-    hover: int?,
+    internal hover: int?,
     drag: int?,
 }
 
 pub struct Geometry {
-    origin: [float],
-    tip: [float],
+    internal origin: [float],
+    internal tip: [float],
 }
 
 pub struct ModifierReach {
@@ -31,9 +31,9 @@ pub struct ModifierReach {
 
 /// The parts of a transform a write sets; an empty one is left alone.
 pub struct Parts {
-    position: [float],
-    rotation_euler: [float],
-    scale: [float],
+    internal position: [float],
+    internal rotation_euler: [float],
+    internal scale: [float],
 }
 
 pub struct Was {
@@ -516,7 +516,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         log::warn("nothing to mirror: this node carries no bones");
         return;
     }
-    history::record(state, "mirror rig over {axis}", nil);
+    history::record(state, "mirror rig over {axis}");
     let base = root.path();
     // Read every rest first: a mirror is a swap, and swapping in place would
     // hand the second bone what the first had already been given.
@@ -621,7 +621,7 @@ pub fn add_bone(state: &mut editor::State, parent_index: int, world_x: float, wo
     if !parent_node.is_valid() {
         return nil;
     }
-    history::record(state, "add bone", nil);
+    history::record(state, "add bone");
     let local_x = 0.0;
     let local_y = 1.0;
     if state.mode2d {
@@ -730,7 +730,7 @@ pub fn physical_bones(state: &mut editor::State) {
     if !found.is_valid() {
         return;
     }
-    history::record(state, "create physical skeleton", nil);
+    history::record(state, "create physical skeleton");
     // Kept in the scene, so they land in the tree and in the file; the rig
     // itself gains the `ragdoll` component that drives its bones from them.
     let options: any = { "parent": state.scene_root.unwrap() };
@@ -745,7 +745,7 @@ pub fn apply_rest(state: &mut editor::State) {
     if !found.is_valid() {
         return;
     }
-    history::record(state, "reset to rest pose", nil);
+    history::record(state, "reset to rest pose");
     skeleton::apply_rest(found);
     sync_bones(state, state.selected, true);
 }
@@ -757,7 +757,7 @@ pub fn overwrite_rest(state: &mut editor::State) {
     if !found.is_valid() {
         return;
     }
-    history::record(state, "overwrite rest pose", nil);
+    history::record(state, "overwrite rest pose");
     skeleton::overwrite_rest(found);
     sync_bones(state, state.selected, false);
 }

@@ -136,10 +136,11 @@ impl balaur_plugin::Plugin for AnimationPlugin {
             retarget::PROFILE_ASSET_DOC,
             |value| Ok(Rc::new(retarget::parse_profile(value)?) as Rc<dyn Any>),
         );
-        reg.register_asset_type(
+        reg.register_checked_asset(
             machine::MACHINE_ASSET_TYPE,
             "animations",
             machine::MACHINE_ASSET_DOC,
+            machine::check,
             |value| Ok(Rc::new(machine::parse(value)?) as Rc<dyn Any>),
         );
         register_animation_component(reg);

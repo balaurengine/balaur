@@ -133,7 +133,7 @@ impl Gamend {
     pub fn fill(payload: any) {
         let host = payload["host"].as_str();
         if gamend::connection().url == "" {
-            gamend::configure(nil());
+            gamend::configure(nil);
         }
         let ed = editor();
         ed.call("kit_bar", host, "head", header(self.node));
@@ -166,7 +166,7 @@ impl Gamend {
             self.cloud_send("claim", "POST", CLAIM_PATH, body, CLAIM_SECONDS);
         }
         if kind == "claim" {
-            self.cloud_link = nil();
+            self.cloud_link = nil;
             if status == 200 {
                 settings::set(CLOUD_TOKEN, data["token"].as_str());
                 editor().call("kit_save_prefs");
@@ -310,9 +310,9 @@ impl Gamend {
             return held;
         }
         if !self.cloud_asked.has("servers") {
-            self.cloud_send("servers", "GET", SERVERS_PATH, nil(), 15.0);
+            self.cloud_send("servers", "GET", SERVERS_PATH, nil, 15.0);
         }
-        nil()
+        nil
     }
 
     /// A request to the person's Gamend Cloud account, with the editor's
@@ -531,11 +531,11 @@ impl Gamend {
             return held;
         }
         if !self.requests.has(key) {
-            let asked = gamend::rest("GET", path, nil());
+            let asked = gamend::rest("GET", path);
             self.requests[key] = asked;
             self.node.call("await_reply", asked);
         }
-        nil()
+        nil
     }
 
     /// Drop one fetched key, so it is asked for again.
@@ -566,7 +566,7 @@ impl Gamend {
         }
         settings::set("gamend/server", name);
         editor().call("kit_save_prefs");
-        gamend::configure(nil());
+        gamend::configure(nil);
         self.forget("");
     }
 
@@ -583,7 +583,7 @@ impl Gamend {
             http::cancel(self.cloud_asked["claim"].as_int());
             self.cloud_asked.remove("claim");
         }
-        self.cloud_link = nil();
+        self.cloud_link = nil;
     }
 
     pub fn cloud_refresh(_data: any, _value: any) {
@@ -603,7 +603,7 @@ impl Gamend {
     pub fn cloud_pick(data: any, _value: any) {
         settings::set("gamend/url", data["url"].as_str());
         editor().call("kit_save_project");
-        gamend::configure(nil());
+        gamend::configure(nil);
         self.forget("");
     }
 
@@ -648,7 +648,7 @@ impl Gamend {
     }
 
     pub fn sign_out(_data: any, _value: any) {
-        gamend::restore(nil());
+        gamend::restore(nil);
         self.forget("");
     }
 
@@ -666,7 +666,7 @@ impl Gamend {
     pub fn kv_typed(_data: any, value: any) {
         let typed = value.as_str();
         if typed == self.kv_draft {
-            self.kv_get(nil(), nil());
+            self.kv_get();
         }
         self.kv_draft = typed;
     }
@@ -896,7 +896,7 @@ fn saved_session() -> any {
             }
         }
     }
-    nil()
+    nil
 }
 
 fn addon_version() -> str {

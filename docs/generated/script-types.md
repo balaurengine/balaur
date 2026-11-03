@@ -19,6 +19,5 @@ Called by name, with no module before them.
 | Function | Signature |
 | --- | --- |
 | `color` | `fn color(r: float, g: float, b: float, a: float) -> Color` |
-| `nil` | `fn nil() -> any` |
 | `vec2` | `fn vec2(x: float, y: float) -> Vec2` |
 | `vec3` | `fn vec3(x: float, y: float, z: float) -> Vec3` |

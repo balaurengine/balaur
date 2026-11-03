@@ -54,7 +54,7 @@ impl Game {
         // remembers its top-level owner so popping a pig pops its whole subtree.
         self.level = [];
         self.pigs = {};
-        self.capture(self.root, nil);
+        self.capture(self.root);
         for entry in self.level {
             if entry.owner.starts_with("Pig") && entry.name == entry.owner {
                 self.pigs[entry.owner] = true;

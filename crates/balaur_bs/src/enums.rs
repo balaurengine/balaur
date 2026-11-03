@@ -25,6 +25,7 @@ pub(crate) fn holder(decl: &EnumDecl) -> Vec<Field> {
         name: TAG.into(),
         ty: Ty::Int,
         public: false,
+        internal: false,
         default: None,
         pos: decl.pos,
     }];
@@ -39,6 +40,7 @@ pub(crate) fn holder(decl: &EnumDecl) -> Vec<Field> {
                 name: slot(&v.name, f),
                 ty,
                 public: false,
+                internal: false,
                 default: None,
                 pos: v.pos,
             });

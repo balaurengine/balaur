@@ -6,9 +6,11 @@
 // script says `use addons::gamend::authentication;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -66,6 +68,9 @@ pub fn link_google_id_token(params: any) -> any {
 /// Link a provider with a code
 /// `POST /api/v1/me/providers/{provider}`
 pub fn link_provider(provider: any, params: any) -> any {
+    if provider == nil {
+        return core::missing("gamend::authentication::link_provider", "provider");
+    }
     if !core::given(params, "code") {
         return core::missing("gamend::authentication::link_provider", "code");
     }
@@ -75,19 +80,25 @@ pub fn link_provider(provider: any, params: any) -> any {
 /// Start linking a provider
 /// `POST /api/v1/me/providers/{provider}/authorize`
 pub fn link_provider_request(provider: any) -> any {
-    gamend::rest("POST", "/api/v1/me/providers/{provider}/authorize", nil())
+    if provider == nil {
+        return core::missing("gamend::authentication::link_provider_request", "provider");
+    }
+    gamend::rest("POST", "/api/v1/me/providers/{provider}/authorize")
 }
 
 /// Poll a provider link
 /// `GET /api/v1/me/providers/sessions/{session_id}`
 pub fn link_session_status(session_id: any) -> any {
-    gamend::rest("GET", "/api/v1/me/providers/sessions/{session_id}", nil())
+    if session_id == nil {
+        return core::missing("gamend::authentication::link_session_status", "session_id");
+    }
+    gamend::rest("GET", "/api/v1/me/providers/sessions/{session_id}")
 }
 
 /// List sign-in providers
 /// `GET /api/v1/auth/providers`
 pub fn list_auth_providers() -> any {
-    gamend::rest("GET", "/api/v1/auth/providers", nil())
+    gamend::rest("GET", "/api/v1/auth/providers")
 }
 
 /// Login
@@ -105,12 +116,15 @@ pub fn login(params: any) -> any {
 /// Logout
 /// `DELETE /api/v1/logout`
 pub fn logout() -> any {
-    gamend::rest("DELETE", "/api/v1/logout", nil())
+    gamend::rest("DELETE", "/api/v1/logout")
 }
 
 /// Sign in with a provider code
 /// `POST /api/v1/auth/{provider}/callback`
 pub fn oauth_api_callback(provider: any, params: any) -> any {
+    if provider == nil {
+        return core::missing("gamend::authentication::oauth_api_callback", "provider");
+    }
     if !core::given(params, "code") {
         return core::missing("gamend::authentication::oauth_api_callback", "code");
     }
@@ -138,13 +152,19 @@ pub fn oauth_google_id_token(params: any) -> any {
 /// Start a provider sign-in
 /// `GET /api/v1/auth/{provider}`
 pub fn oauth_request(provider: any) -> any {
-    gamend::rest("GET", "/api/v1/auth/{provider}", nil())
+    if provider == nil {
+        return core::missing("gamend::authentication::oauth_request", "provider");
+    }
+    gamend::rest("GET", "/api/v1/auth/{provider}")
 }
 
 /// Poll a provider sign-in
 /// `GET /api/v1/auth/session/{session_id}`
 pub fn oauth_session_status(session_id: any) -> any {
-    gamend::rest("GET", "/api/v1/auth/session/{session_id}", nil())
+    if session_id == nil {
+        return core::missing("gamend::authentication::oauth_session_status", "session_id");
+    }
+    gamend::rest("GET", "/api/v1/auth/session/{session_id}")
 }
 
 /// Refresh access token
@@ -177,11 +197,14 @@ pub fn resend_confirmation(params: any) -> any {
 /// Unlink device ID
 /// `DELETE /api/v1/me/device`
 pub fn unlink_device() -> any {
-    gamend::rest("DELETE", "/api/v1/me/device", nil())
+    gamend::rest("DELETE", "/api/v1/me/device")
 }
 
 /// Unlink OAuth provider
 /// `DELETE /api/v1/me/providers/{provider}`
 pub fn unlink_provider(provider: any) -> any {
-    gamend::rest("DELETE", "/api/v1/me/providers/{provider}", nil())
+    if provider == nil {
+        return core::missing("gamend::authentication::unlink_provider", "provider");
+    }
+    gamend::rest("DELETE", "/api/v1/me/providers/{provider}")
 }

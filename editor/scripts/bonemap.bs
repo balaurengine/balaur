@@ -9,7 +9,7 @@ use signals;
 use util;
 
 pub class BonemapState {
-    bones: any,
+    internal bones: any,
     path: str,
     rig: str,
     picking: str?,

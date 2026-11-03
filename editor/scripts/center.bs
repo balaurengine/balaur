@@ -19,19 +19,19 @@ use style;
 use util;
 
 pub struct StageFloor {
-    width: float,
-    height: float,
+    internal width: float,
+    internal height: float,
 }
 
 pub struct RailMetrics {
-    diameter: float,
+    internal diameter: float,
     gap: float,
-    padding: float,
+    internal padding: float,
 }
 
 pub struct RailGrid {
-    rows: float,
-    columns: float,
+    internal rows: float,
+    internal columns: float,
     diameter: float,
     gap: float,
     padding: float,

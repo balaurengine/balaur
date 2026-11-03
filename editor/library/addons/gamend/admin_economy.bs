@@ -6,16 +6,18 @@
 // script says `use addons::gamend::admin_economy;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
 /// Consume items from a user (admin)
 /// `POST /api/v1/admin/economy/consume_item`
 pub fn consume_item() -> any {
-    gamend::rest("POST", "/api/v1/admin/economy/consume_item", nil())
+    gamend::rest("POST", "/api/v1/admin/economy/consume_item")
 }
 
 /// Grant currency to a user (admin)
@@ -52,21 +54,21 @@ pub fn grant_item(params: any) -> any {
 /// `GET /api/v1/admin/economy/items`
 pub fn list_inventory(options: any) -> any {
     let query = core::query(options, ["user_id", "item", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/economy/items{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/economy/items{query}")
 }
 
 /// List ledger entries (admin)
 /// `GET /api/v1/admin/economy/ledger`
 pub fn list_ledger(options: any) -> any {
     let query = core::query(options, ["user_id", "currency", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/economy/ledger{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/economy/ledger{query}")
 }
 
 /// List wallets (admin)
 /// `GET /api/v1/admin/economy/wallets`
 pub fn list_wallets(options: any) -> any {
     let query = core::query(options, ["user_id", "currency", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/economy/wallets{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/economy/wallets{query}")
 }
 
 /// Spend currency from a user (admin)

@@ -78,7 +78,7 @@ impl PlayerFlows {
             await befriending(r, id);
             await partying(r);
             await grouping(r);
-            await goodbye(r, id, nil());
+            await goodbye(r, id);
         }
         if FLOW == "catalog" {
             await catalog(r, id);
@@ -179,7 +179,7 @@ async fn profile(r: Run, me: str) {
     await call1(r, "set_password", users::update_current_user_password, { "password": password });
     await call0(r, "signed_out", users::get_current_user);
     await sign_in(r, second);
-    await call1(r, "delete_refused", users::delete_current_user, nil());
+    await call1(r, "delete_refused", users::delete_current_user);
     await goodbye(r, me, { "current_password": password });
 }
 
@@ -229,7 +229,7 @@ async fn hosting(r: Run, me: str) {
 
     let sent = await call1(r, "chat_send", chat::send_chat_message, { "chat_type": "lobby", "chat_ref_id": id, "content": "gg" });
     let message = sent["id"];
-    let unread = await as_b(r, "unread", "GET", "/api/v1/chat/unread?chat_type=lobby&chat_ref_id={id}", nil());
+    let unread = await as_b(r, "unread", "GET", "/api/v1/chat/unread?chat_type=lobby&chat_ref_id={id}");
     check(r, "b_unread_one", same(unread["unread_count"], 1));
     let history = await call1(r, "chat_list", chat::list_chat_messages, { "chat_type": "lobby", "chat_ref_id": id });
     check(r, "chat_listed", has(history, "id", message));
@@ -273,7 +273,7 @@ async fn hosting(r: Run, me: str) {
     await call0(r, "disband", lobbies::disband_lobby);
     await call1(r, "second_gone", lobbies::get_lobby, second["id"]);
     await call0(r, "stats", lobbies::lobby_stats);
-    await goodbye(r, me, nil());
+    await goodbye(r, me);
 }
 
 async fn befriending(r: Run, me: str) {
@@ -287,7 +287,7 @@ async fn befriending(r: Run, me: str) {
 
     let note = await call1(r, "notify", notifications::send_notification, { "user_id": B_ID, "title": "hello {TAG}", "content": "gg" });
     let note_id = note["id"];
-    let inbox = await as_b(r, "inbox", "GET", "/api/v1/notifications", nil());
+    let inbox = await as_b(r, "inbox", "GET", "/api/v1/notifications");
     check(r, "delivered", has(inbox, "id", note_id));
     let dismissed: [any] = [note_id];
     await as_b(r, "dismiss", "DELETE", "/api/v1/notifications", { "ids": dismissed });
@@ -317,9 +317,9 @@ async fn partying(r: Run) {
     let answer = await as_b(r, "ready", "POST", "/api/v1/me/ready_check", { "ready": true, "scope": "party" });
     check(r, "ready_passed", same(answer["status"], "passed"));
     let made_lobby = await call1(r, "party_lobby", parties::party_create_lobby, { "title": "party {TAG}", "max_users": 4 });
-    let b_me = await as_b(r, "me", "GET", "/api/v1/me", nil());
+    let b_me = await as_b(r, "me", "GET", "/api/v1/me");
     check(r, "b_followed", same(b_me["lobby_id"], made_lobby["id"]));
-    await as_b(r, "leave_lobby", "POST", "/api/v1/lobbies/leave", nil());
+    await as_b(r, "leave_lobby", "POST", "/api/v1/lobbies/leave");
     await call0(r, "leave_lobby", lobbies::leave_lobby);
     await call1(r, "party_kick", parties::kick_party_member, { "target_user_id": B_ID });
     await call0(r, "disband", parties::disband_party);
@@ -330,9 +330,9 @@ async fn grouping(r: Run) {
     let made = await call1(r, "group", groups::create_group, { "title": title, "type": "private" });
     let id = made["id"];
     await call2(r, "group_invite", groups::invite_to_group, id, { "target_user_id": B_ID });
-    let invites = await as_b(r, "invites", "GET", "/api/v1/groups/invitations", nil());
+    let invites = await as_b(r, "invites", "GET", "/api/v1/groups/invitations");
     let invite = first_with(invites, "group_id", id)["id"];
-    await as_b(r, "join_group", "POST", "/api/v1/groups/invitations/{invite}/accept", nil());
+    await as_b(r, "join_group", "POST", "/api/v1/groups/invitations/{invite}/accept");
     let members = await call2(r, "members", groups::list_group_members, id, {});
     check(r, "group_of_two", count(members) == 2);
     let mine = await call1(r, "my_groups", groups::list_my_groups, {});
@@ -345,7 +345,7 @@ async fn grouping(r: Run) {
     check(r, "b_muted", has(mutes, "user_id", B_ID));
     await call2(r, "group_unmute", chat::unmute_group_member, id, { "target_user_id": B_ID });
     await call1(r, "group_chat", chat::send_chat_message, { "chat_type": "group", "chat_ref_id": id, "content": "gm" });
-    let unread = await as_b(r, "unread", "GET", "/api/v1/chat/unread?chat_type=group&chat_ref_id={id}", nil());
+    let unread = await as_b(r, "unread", "GET", "/api/v1/chat/unread?chat_type=group&chat_ref_id={id}");
     check(r, "b_unread_one", same(unread["unread_count"], 1));
     await call2(r, "group_kick", groups::kick_group_member, id, { "target_user_id": B_ID });
     await call1(r, "group_leave", groups::leave_group, id);
@@ -356,11 +356,11 @@ async fn grouping(r: Run) {
     let asked_title = "asked {TAG}";
     let asked = await call1(r, "asked_group", groups::create_group, { "title": asked_title, "type": "private" });
     let asked_id = asked["id"];
-    let request = await as_b(r, "ask", "POST", "/api/v1/groups/{asked_id}/join", nil());
+    let request = await as_b(r, "ask", "POST", "/api/v1/groups/{asked_id}/join");
     let pending = await call2(r, "join_requests", groups::list_join_requests, asked_id, {});
     check(r, "pending", has(pending, "id", request["id"]));
     await call2(r, "approve", groups::approve_join_request, asked_id, request["id"]);
-    await as_b(r, "leave_asked", "POST", "/api/v1/groups/{asked_id}/leave", nil());
+    await as_b(r, "leave_asked", "POST", "/api/v1/groups/{asked_id}/leave");
     await call1(r, "leave_asked", groups::leave_group, asked_id);
     let asked_left = await call1(r, "asked_gone", groups::list_groups, { "title": asked_title });
     check(r, "no_asked_group", count(asked_left) == 0);
@@ -391,7 +391,7 @@ async fn catalog(r: Run, me: str) {
     await call0(r, "party_stats", parties::party_stats);
 
     let boards = await call1(r, "boards", leaderboards::list_leaderboards, {});
-    let board = first_with(boards, "", nil())["id"];
+    let board = first_with(boards, "")["id"];
     await call1(r, "board", leaderboards::get_leaderboard, board);
     await call2(r, "records", leaderboards::list_leaderboard_records, board, {});
     await call2(r, "my_record", leaderboards::get_my_record, board, {});
@@ -400,7 +400,7 @@ async fn catalog(r: Run, me: str) {
     await call1(r, "resolve", leaderboards::resolve_leaderboard_slugs, { "slugs": slugs });
 
     let open = await call1(r, "tournaments", tournaments::list_tournaments, { "state": "registration" });
-    let cup = first_with(open, "", nil())["id"];
+    let cup = first_with(open, "")["id"];
     let entry = await call1(r, "enter", tournaments::join_tournament, cup);
     await call2(r, "entries", tournaments::tournament_entries, cup, {});
     // `my_entry`, not the entries list: that pages oldest first, behind the seeded entries.
@@ -419,7 +419,7 @@ async fn catalog(r: Run, me: str) {
     check(r, "no_ticket", same(ticket["status"], 404) || data(ticket) == nil);
     await call0(r, "cancel", matchmaking::cancel);
     await call0(r, "queues", matchmaking::stats);
-    await goodbye(r, me, nil());
+    await goodbye(r, me);
 }
 
 /// A dropped connection comes back by itself, joins its topics again and
@@ -450,7 +450,7 @@ async fn realtime(r: Run, me: str) {
     let closed = await heard(r, "routed_socket_closed");
     check(r, "closed", closed);
     await call0(r, "leave", lobbies::leave_lobby);
-    await goodbye(r, me, nil());
+    await goodbye(r, me);
 }
 
 /// A player the host kicks loses the lobby's channel, which the server
@@ -479,8 +479,8 @@ async fn kicked(r: Run, me: str) {
     let rejoined = await heard(r, lobby::UPDATED);
     check(r, "not_rejoined", !rejoined);
     client::close(r.socket);
-    await as_b(r, "leave", "POST", "/api/v1/lobbies/leave", nil());
-    await goodbye(r, me, nil());
+    await as_b(r, "leave", "POST", "/api/v1/lobbies/leave");
+    await goodbye(r, me);
 }
 
 /// Whether the socket delivers `kind` within a few seconds.
@@ -507,7 +507,7 @@ async fn heard(r: Run, kind: str) -> bool {
 /// Delete the account and prove it: nobody can look it up any more.
 async fn goodbye(r: Run, me: str, params: any) {
     await call1(r, "delete", users::delete_current_user, params);
-    await send(r, "lookup_deleted", "", "GET", "/api/v1/users/{me}", nil());
+    await send(r, "lookup_deleted", "", "GET", "/api/v1/users/{me}");
 }
 
 /// Sign in, waiting out the server's limit on sign-ins.
@@ -625,7 +625,7 @@ async fn send(r: Run, name: str, token: str, method: str, path: str, payload: an
         tries += 1;
     }
     let text = reply["body"];
-    let body = if text.kind() == "str" && text.as_str() != "" { json::parse(text.as_str()) } else { nil() };
+    let body = if text.kind() == "str" && text.as_str() != "" { json::parse(text.as_str()) } else { nil };
     note(r, name, { "status": reply["status"], "body": body })
 }
 
@@ -663,12 +663,12 @@ fn has(list: any, key: str, value: any) -> bool {
 /// The first row whose `key` is `value`; an empty key takes the first row.
 fn first_with(list: any, key: str, value: any) -> any {
     if list.kind() != "list" {
-        return nil();
+        return nil;
     }
     for row in list {
         if key == "" || same(row[key], value) {
             return row;
         }
     }
-    nil()
+    nil
 }

@@ -398,7 +398,6 @@ source = "#posts"
 /// The instance a script moves every frame reads back where it was put, and
 /// the other node drawing the same asset keeps its own.
 #[test]
-#[ignore = "needs engine: an instance's transform is a Transform3d, which a .bs any cannot hold or build"]
 fn a_script_moves_an_instance_every_frame_and_reads_it_back() {
     let (app, errors, lines) = run_shared(
         r#"pub class Scenario { node: Node }
@@ -516,7 +515,6 @@ impl Scenario {
 
 /// Scenario shear a script hands an instance is kept as its basis.
 #[test]
-#[ignore = "needs engine: an instance's transform is a Transform3d, which a .bs any cannot hold or build"]
 fn a_script_keeps_a_shear() {
     let (app, errors, _) = run_shared(
         r"pub class Scenario { node: Node }
@@ -535,6 +533,82 @@ impl Scenario {
     assert!(
         basis.is_some_and(|b| (b.y_axis.x - 0.5).abs() < 1e-5),
         "{basis:?}"
+    );
+}
+
+#[test]
+fn a_transform_read_off_one_instance_sets_another() {
+    let (app, errors, _) = run_shared(
+        r"pub class Scenario { node: Node }
+impl Scenario {
+    fn init() {
+        let second = self.node.multimesh3d.instance_transform(1);
+        self.node.multimesh3d.set_instance_transform(0, second);
+    }
+}
+",
+        1,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    let a = named(&app, "Scenario");
+    let world = app.engine.world();
+    let multimesh = world.get::<&MultiMesh>(a).unwrap();
+    assert!(near(
+        multimesh.instances[0].position,
+        Vec3::new(1.0, 0.0, 0.0)
+    ));
+}
+
+#[test]
+fn a_2d_instance_reads_and_takes_six_numbers() {
+    let (app, errors, lines) = run_shared_as(
+        "multimesh2d",
+        r#"pub class Scenario { node: Node }
+impl Scenario {
+    fn init() {
+        let second = self.node.multimesh2d.instance_transform(1);
+        log::info("{second.len()} numbers, x at {second[4]}");
+        let turned: [float] = [0.0, 1.0, -1.0, 0.0, 3.0, 4.0];
+        self.node.multimesh2d.set_instance_transform(0, turned);
+    }
+}
+"#,
+        1,
+    );
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert!(
+        lines.iter().any(|l| l.contains("6 numbers, x at 1.0")),
+        "{lines:#?}"
+    );
+    let a = named(&app, "Scenario");
+    let world = app.engine.world();
+    let local = world.get::<&MultiMesh>(a).unwrap().instances[0].local();
+    assert!(near(local.w_axis.truncate(), Vec3::new(3.0, 4.0, 0.0)));
+    assert!(
+        near(local.x_axis.truncate(), Vec3::Y),
+        "x turned onto y: {:?}",
+        local.x_axis
+    );
+}
+
+#[test]
+fn a_transform_of_the_wrong_length_is_an_error_that_names_the_count() {
+    let (_app, errors, _) = run_shared(
+        r"pub class Scenario { node: Node }
+impl Scenario {
+    fn init() {
+        let short: [float] = [1.0, 0.0, 0.0];
+        self.node.multimesh3d.set_instance_transform(0, short);
+    }
+}
+",
+        1,
+    );
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.contains("12 numbers") && e.contains("not 3")),
+        "{errors:#?}"
     );
 }
 

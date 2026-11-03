@@ -9,10 +9,10 @@ use signals;
 use util;
 
 pub class CompleteState {
-    open: bool,
+    internal open: bool,
     items: [script::Completion],
     pick: int,
-    at_index: int,
+    internal at_index: int,
     rel: str,
     x: float,
     y: float,
@@ -23,15 +23,15 @@ pub class CompleteState {
 /// Where the code pane's caret is: its character index into the source, and
 /// its place in design pixels.
 pub struct Caret {
-    index: int,
-    x: float,
-    y: float,
+    internal index: int,
+    internal x: float,
+    internal y: float,
 }
 
 /// A 1-based line and column.
 pub struct LineColumn {
-    line: int,
-    column: int,
+    internal line: int,
+    internal column: int,
 }
 
 /// What the list shows: where it opens, under the caret, its rows, the one

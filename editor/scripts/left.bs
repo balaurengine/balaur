@@ -15,8 +15,8 @@ use util;
 use window;
 
 pub struct TreeCache {
-    key: str,
-    rows: [any],
+    internal key: str,
+    internal rows: [any],
 }
 
 /// The workspace's secondary list: its title and its rows.
@@ -51,8 +51,8 @@ pub struct OutlineView {
 
 /// Where the tree drew a row, in design px.
 pub struct RowSpot {
-    x: float,
-    y: float,
+    internal x: float,
+    internal y: float,
 }
 
 // The Scene tab is its own scene and script (scenes/panels/scene_tree.toml);

@@ -13,9 +13,9 @@ use util;
 /// A rail tool's drag this frame: the pointer's travel in design px and the
 /// selected node it moves.
 pub struct RailDrag {
-    delta_x: float,
-    delta_y: float,
-    node: Node,
+    internal delta_x: float,
+    internal delta_y: float,
+    internal node: Node,
 }
 
 /// Window pixels, as the input snapshot counts them, in design px: `dpi`

@@ -11,7 +11,7 @@ const SRC: &str = "pub class Mover {
 
 impl Mover {
     fn update(dt: float) {
-        let reply: any = nil();
+        let reply: any = nil;
         let label = \"hi\";
         for h in self.hits {
             log(h);

@@ -1,0 +1,9 @@
+// A function with a parameter it may leave out is not a function without it.
+fn add(a: int, b: int?) -> int { a + b.or(100) }
+
+pub fn typed() -> int {
+    let f: fn(int) -> int = add;
+    f(1)
+}
+
+// error: 5:29: expected fn(int) -> int, got fn(int, int?) -> int

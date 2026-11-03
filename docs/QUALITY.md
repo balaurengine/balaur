@@ -146,6 +146,17 @@ three desktop platforms. Beyond `cargo test --workspace`:
   must agree to the bit; `cargo test --workspace` turns all three on. CI
   also runs it on the browser's engine in Node (`--test web`, wasm32).
   `BLESS=1` rewrites the answers from what ran.
+- **The language chapter** — `docs/language/`, which forge's
+  `mix forge.site.sync` copies to the site. Every ```` ```bs ```` fence says what
+  it does in its comments: `// f(x) == v` runs the call, `// f(x) traps` expects
+  a trap, `// error: L:C: message` is the compile errors written out whole, and
+  a first line `// util.bs` names a module other fences on the page `use`. A
+  fence with no item at column 0 compiles inside a function.
+  `tests/suite/chapter.rs` holds it to that;
+  `crates/balaur/tests/suite/chapter.rs` compiles the fences that use the
+  engine against its real API, warnings included. It lives here so a language
+  change and its pages land in one commit, and so CI can read it: forge is a
+  private repository with no workflows.
 - **Broken programs** — `tests/suite/mutants.rs` cuts, splices and seeds
   tokens into every corpus program with a seeded generator, then reads,
   formats, analyses, compiles and runs each under fuel: nothing may panic,

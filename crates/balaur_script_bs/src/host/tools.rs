@@ -31,12 +31,19 @@ impl BsHost {
 
 impl LanguageTools for BsHost {
     fn check(&self, path: &str, source: &str) -> Vec<Diagnostic> {
-        self.check(path, source)
+        let found = self.check(path, source);
+        let severity = if found.is_empty() { "warning" } else { "error" };
+        let found = if found.is_empty() {
+            self.lints(path, source)
+        } else {
+            found
+        };
+        found
             .into_iter()
             .map(|e| Diagnostic {
                 line: e.pos.line as usize,
                 column: e.pos.col as usize,
-                severity: "error",
+                severity,
                 message: e.msg,
             })
             .collect()

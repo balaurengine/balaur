@@ -861,7 +861,7 @@ fn edit_record(state: &mut editor::State, tokens: any, at: AtTop, spec: any, val
     // A record naming a class says which: the rows are its fields, and the
     // script is handed that class back.
     let note = if spec["class"] == nil { "{names.len()} fields" } else { "{spec["class"].as_str()} · {names.len()}" };
-    holder_row(state, tokens, at, spec, note, nil);
+    holder_row(state, tokens, at, spec, note);
     for field in names {
         let of = util::map_or_empty(fields[field]);
         let now = if held.has(field) { held[field] } else { of["default"] };
@@ -1859,7 +1859,7 @@ fn drawn_natively(state: editor::State, spec: any) -> bool {
 fn part_rows(state: &mut editor::State, tokens: any, found: Node, component: str, part: any, warned_here: bool, data: any) -> any {
     if part.has("prop") {
         let property = part["prop"].as_str();
-        let read = if data == nil { util::map_or_empty(found.get_component(component, nil)) } else { data };
+        let read = if data == nil { util::map_or_empty(found.get_component(component)) } else { data };
         property_row(state, tokens, component, property, model::schema(state, component)[property], read);
         return read;
     }
@@ -1916,7 +1916,7 @@ fn on_native_row_edited(state: &mut editor::State, data: any, edit: any) {
 /// An edit a native row heard: the value now at its cursor, or an asset to
 /// embed or save.
 fn inspected(state: &mut editor::State, component: str, edit: any) {
-    let at = at_top(component, edit["property"].as_str(), nil);
+    let at = at_top(component, edit["property"].as_str());
     for step in util::list_or_empty(edit["path"]) {
         at = at_step(at, step, "");
     }

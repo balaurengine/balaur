@@ -14,7 +14,7 @@ pub(crate) struct Fast {
     pub scaled: Vec<(i32, u32)>,
 }
 
-const PURE: [&str; 4] = ["vec2", "vec3", "color", "nil"];
+const PURE: [&str; 3] = ["vec2", "vec3", "color"];
 
 /// What a body does that decides whether its arrays can be hoisted.
 struct Scan<'f, 'g> {

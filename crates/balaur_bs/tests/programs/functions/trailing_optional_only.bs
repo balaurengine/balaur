@@ -1,0 +1,9 @@
+// What is left out is what ends the list. A required parameter is given, and
+// nothing goes past the last.
+fn f(a: int, b: int?, c: int, d: int?) -> int { a + c }
+
+pub fn too_few() -> int { f(1, 2) }
+pub fn too_many() -> int { f(1, 2, 3, 4, 5) }
+
+// error: 5:27: `f` takes 3 to 4 argument(s), 2 given
+// error: 6:28: `f` takes 3 to 4 argument(s), 5 given

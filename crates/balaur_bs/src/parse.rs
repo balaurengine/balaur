@@ -326,9 +326,21 @@ impl Parser {
             prog.uses.push((name, pos));
             return Ok(());
         }
-        let public = self.eat_kw("pub");
+        let (public, internal) = self.reach();
+        let keep = |prog: &mut Program, name: &str| {
+            if !public {
+                prog.kept.push((name.to_string(), internal));
+            }
+        };
         if self.eat_kw("enum") {
-            return self.enum_decl(prog);
+            self.enum_decl(prog)?;
+            let name = prog
+                .enums
+                .last()
+                .map(|e| e.name.clone())
+                .unwrap_or_default();
+            keep(prog, &name);
+            return Ok(());
         }
         let class = self.is_kw("class");
         if self.eat_kw("struct") || self.eat_kw("class") {
@@ -338,38 +350,15 @@ impl Parser {
                 prog.classes.push(name.clone());
             }
             prog.decls.push((name.clone(), at));
-            self.want("{")?;
-            let mut fields = Vec::new();
-            while !self.eat("}") {
-                let public = self.eat_kw("pub");
-                let pos = self.pos();
-                let field = self.ident()?;
-                self.want(":")?;
-                let ty = self.ty()?;
-                let default = if self.eat("=") {
-                    Some(self.expr(false)?)
-                } else {
-                    None
-                };
-                fields.push(Field {
-                    name: field,
-                    ty,
-                    public,
-                    default,
-                    pos,
-                });
-                if !self.eat(",") {
-                    self.want("}")?;
-                    break;
-                }
-            }
+            keep(prog, &name);
+            let fields = self.fields()?;
             prog.structs.push((name, fields));
         } else if self.eat_kw("impl") {
             let owner = self.ident()?;
             self.want("{")?;
             while !self.eat("}") {
-                let public = self.eat_kw("pub");
-                let f = self.func(public, Some(owner.clone()))?;
+                let reach = self.reach();
+                let f = self.func(reach, Some(owner.clone()))?;
                 prog.fns.push(f);
             }
         } else if self.eat_kw("extern") {
@@ -393,6 +382,7 @@ impl Parser {
             let at = self.pos();
             let name = self.ident()?;
             prog.decls.push((name.clone(), at));
+            keep(prog, &name);
             if self.eat(":") {
                 self.ty()?;
             }
@@ -401,10 +391,51 @@ impl Parser {
             self.want(";")?;
             prog.consts.push((name, value));
         } else {
-            let f = self.func(public, None)?;
+            let f = self.func((public, internal), None)?;
+            keep(prog, &f.name);
             prog.fns.push(f);
         }
         Ok(())
+    }
+
+    // `{ pub speed: float = 2.0, node: Node }`.
+    fn fields(&mut self) -> Result<Vec<Field>, Error> {
+        self.want("{")?;
+        let mut fields = Vec::new();
+        while !self.eat("}") {
+            let (public, internal) = self.reach();
+            let pos = self.pos();
+            let field = self.ident()?;
+            self.want(":")?;
+            let ty = self.ty()?;
+            let default = if self.eat("=") {
+                Some(self.expr(false)?)
+            } else {
+                None
+            };
+            fields.push(Field {
+                name: field,
+                ty,
+                public,
+                internal,
+                default,
+                pos,
+            });
+            if !self.eat(",") {
+                self.want("}")?;
+                break;
+            }
+        }
+        Ok(fields)
+    }
+
+    // `pub`, `internal` or neither, before a declaration: a field may be
+    // called `internal`.
+    fn reach(&mut self) -> (bool, bool) {
+        let public = self.eat_kw("pub");
+        let internal =
+            !public && !matches!(self.peek_at(1), Tok::P(":")) && self.eat_kw("internal");
+        (public, internal)
     }
 
     // `enum Shape { Circle(float), Rect { w: float, h: float }, Empty }`,
@@ -532,7 +563,22 @@ impl Parser {
         Ok(ExprKind::Match(Box::new(subject), arms))
     }
 
-    fn func(&mut self, public: bool, owner: Option<String>) -> Result<FnDecl, Error> {
+    fn nil(&mut self) -> Result<ExprKind, Error> {
+        if matches!(self.peek_at(1), Tok::P("(")) {
+            return Err(Error {
+                pos: self.pos(),
+                msg: "`nil` is a value, not a call: write `nil`".into(),
+            });
+        }
+        self.i += 1;
+        Ok(ExprKind::Nil)
+    }
+
+    fn func(
+        &mut self,
+        (public, internal): (bool, bool),
+        owner: Option<String>,
+    ) -> Result<FnDecl, Error> {
         let pos = self.pos();
         let is_async = self.eat_kw("async");
         if !self.eat_kw("fn") {
@@ -546,6 +592,7 @@ impl Parser {
             name,
             owner,
             public,
+            internal,
             is_async,
             params,
             ret,
@@ -926,11 +973,7 @@ impl Parser {
                 self.i += 1;
                 ExprKind::SelfRef
             }
-            // `nil()` is still the empty `any`.
-            Tok::Ident(s) if s == "nil" && !matches!(self.peek_at(1), Tok::P("(")) => {
-                self.i += 1;
-                ExprKind::Nil
-            }
+            Tok::Ident(s) if s == "nil" => self.nil()?,
             Tok::Ident(s) if s == "match" => {
                 self.i += 1;
                 self.match_expr()?
