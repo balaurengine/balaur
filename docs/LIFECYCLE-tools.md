@@ -479,7 +479,7 @@ A breakpoint on the first statement of its line stops in every mode. `should_sto
 
 Starts in `Run`. Never ends.
 
-Refused or ignored: a probe only runs in a file built with probes.
+Refused or ignored: a probe only runs in a file built with probes, and while a call is parked `on_probe` passes every probe by.
 
 ### Debugger stop
 
@@ -514,7 +514,7 @@ Source: `crates/balaur_bs/src/runtime/debugger.rs`, `Debugger.park`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `Runtime::prepare` | build has probes and engine `can_park` | Set before a steppable call. |
+| any | `Runtime::prepare` | a unit of the instance has probes and engine `can_park` | Set before a steppable call. |
 | any | `Runtime::go_on` | `true` | Set before a resumed call goes on. |
 | any | `Runtime::settle`, the call did not park | `false` | Set once the call is over. |
 
@@ -672,18 +672,18 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.debugging`; `crates/balaur
 
 | State | What is true |
 |---|---|
-| key absent | The file builds without probes on `EngineKind::Auto`, unless break on error is on. |
-| key present | The file builds with probes on `EngineKind::Wasmi`. Without the `wasmi` feature it stays on `Auto` and a stop is passed by. |
+| key absent | The file builds without probes, unless break on error is on. |
+| key present | The file builds with probes. Its instance (`Place`) runs on `EngineKind::Wasmi`; without the `wasmi` feature it stays on `Auto` and a stop is passed by. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| absent | `debug_set_breakpoints` with lines | present | `rebuild_key` if the file is loaded. Its scripts hear nothing. |
-| absent | `debug_request_break` | present, every loaded file | `rebuild_key` for each, then `Debugger::pause`. |
-| present | `debug_set_breakpoints` with no lines, no call parked in the file | absent | `rebuild_key` if the file is loaded. Its scripts hear nothing. Break on error still builds it with probes. |
+| absent | `debug_set_breakpoints` with lines | present | `rebuild_instance` if the instance is `stale`. Its scripts hear nothing. |
+| absent | `debug_request_break` | present, every loaded file | `rebuild_stale`, then `Debugger::pause`; one that has to wait is paused as `arm` makes it (`pause_owed`). |
+| present | `debug_set_breakpoints` with no lines, no call parked in the instance | absent | `rebuild_instance` if the instance is `stale`. Its scripts hear nothing. Break on error still builds it with probes. |
 
 Starts absent. Never ends.
 
-Refused or ignored: `debug_set_breakpoints` with no lines keeps the key while a call is parked in the file. `rebuild_key` errors for a parked file.
+Refused or ignored: `debug_set_breakpoints` with no lines keeps the key while a call is parked in its instance. `rebuild_instance` waits, the keys in `rebuild`, while a call is parked in the instance or a script of it runs; a resume asked by a script of the instance waits for `pump_reloads` (`resume_owed`).
 
 ### Break on error
 
@@ -698,7 +698,7 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.break_on_error`.
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
-| any | `debugger.set_break_on_error(on)`, DAP `setExceptionBreakpoints` | `on` | Turning on calls `rebuild_key` on each file without probes. The code did not change, so no script hears `on_hot_reload`. Otherwise it calls `keep_locals(on)` where the runtime is free. |
+| any | `debugger.set_break_on_error(on)`, DAP `setExceptionBreakpoints` | `on` | Turning on calls `rebuild_stale`, each file's unit built with probes. The code did not change, so no script hears `on_hot_reload`. Otherwise it calls `keep_locals(on)` where the runtime is free. |
 | `true` | DAP `disconnect`, `terminate` | `false` | The adapter leaves the game as it found it. |
 
 Starts in `false`. Never ends.

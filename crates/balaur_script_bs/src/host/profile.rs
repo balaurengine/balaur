@@ -5,8 +5,9 @@ use super::BsHost;
 use std::collections::HashMap;
 
 impl BsHost {
-    /// On from off, or off from on: every loaded file is rebuilt between
-    /// frames, its instances carried across. On while on starts the tally
+    /// On from off, or off from on: every instance is made again between
+    /// frames with each file's unit built with counters or without, each
+    /// compiled once, its objects carried across. On while on starts the tally
     /// again, which is how a profiler reads one frame at a time.
     pub(super) fn profile_set(&self, on: bool) {
         let inner = &self.inner;
@@ -61,8 +62,7 @@ impl BsHost {
         out
     }
 
-    /// Each function as `(name, calls, own statements)`, dearest first. A
-    /// module two files use is in both, and counts once for the two.
+    /// Each function as `(name, calls, own statements)`, dearest first.
     pub(super) fn profile_functions(&self) -> Vec<(String, u64, u64)> {
         if !self.inner.profiling.get() {
             return Vec::new();

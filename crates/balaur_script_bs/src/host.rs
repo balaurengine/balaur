@@ -1,7 +1,7 @@
 //! `.bs` scripts behind the seam: every file a unit of the project's one
-//! instance (or, built whole for a debugger or a profiler, an instance of its
-//! own), one host-held object per node, its lifecycle methods called by name
-//! when the script has them.
+//! instance, or of the one beside it for a file from outside the project,
+//! one host-held object per node, its lifecycle methods called by name when
+//! the script has them.
 
 use crate::api::{self, Registry};
 use crate::convert::{from_neutral, to_neutral};
@@ -29,12 +29,9 @@ mod units;
 pub const EXTENSION: &str = "bs";
 /// Under the game's own data folder: what wasmtime compiled, kept across runs.
 const CACHE_DIR: &str = "bs-cache";
-/// The most memory one file's module may grow to: a runaway allocation traps
-/// there rather than taking the game with it.
-const MEMORY_CAP: usize = 256 << 20;
-/// The project's instance, which every file built as units shares: what
-/// grows past this traps rather than taking the game with it.
-const PROJECT_MEMORY_CAP: usize = 1 << 30;
+/// An instance's memory: what grows past this traps rather than taking the
+/// game with it.
+const MEMORY_CAP: usize = 1 << 30;
 /// A browser's engine meters no fuel, so a build for one counts its own.
 const METER: bool = cfg!(all(target_arch = "wasm32", feature = "web"));
 const NODE_FIELD: &str = "node";
@@ -42,21 +39,36 @@ const NODE_FIELD: &str = "node";
 /// linked to it.
 const PROJECT_KEY: &str = "#project";
 
+/// Which instance a file is a unit of.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Place {
+    /// The project's.
+    Project,
+    /// The one beside it: files from outside the project, as the editor reads
+    /// a game's scripts, so stopping them holds nothing of the editor's; and
+    /// a file a native build lacks, until the project has moved off it.
+    Aside,
+}
+
+const PLACES: [Place; 2] = [Place::Project, Place::Aside];
+
 /// Where scripts run: a runtime, and the way into it while it is busy in an
-/// engine call. The project's, which every file built as units shares, or
-/// a file's own.
+/// engine call.
 struct Home {
     rt: RefCell<Runtime>,
     reentry: Reentry,
     /// A loaded native build runs it: only a unit the build has joins it.
     native: bool,
+    /// It runs on the engine a debugger's stop can park a call on.
+    parking: bool,
 }
 
 impl Home {
-    fn new(rt: Runtime) -> Rc<Home> {
+    fn new(rt: Runtime, parking: bool) -> Rc<Home> {
         Rc::new(Home {
             reentry: rt.reentry(),
             native: rt.runs_natively(),
+            parking,
             rt: RefCell::new(rt),
         })
     }
@@ -77,7 +89,9 @@ impl Home {
 
 struct File {
     home: Rc<Home>,
-    /// Its unit in `home`'s instance: 0 for a file with a home of its own.
+    /// The instance `home` is.
+    place: Place,
+    /// Its unit in `home`'s instance.
     unit: usize,
     /// Whether it runs from the native build an export made.
     native: bool,
@@ -105,11 +119,6 @@ impl File {
         if let Err(e) = dropped {
             tracing::error!("{e}");
         }
-    }
-
-    /// Whether it shares the project's instance.
-    fn in_project(&self, project: Option<&Rc<Home>>) -> bool {
-        project.is_some_and(|home| Rc::ptr_eq(home, &self.home))
     }
 
     fn method(&self, name: &str) -> Option<&balaur_bs::FnInfo> {
@@ -150,8 +159,10 @@ struct Inner {
     registry: Rc<Registry>,
     api: RefCell<Option<HostApi>>,
     files: RefCell<BTreeMap<String, Rc<File>>>,
-    /// The instance every file built as units shares, made with the first.
+    /// The instance the project's files share, made with the first.
     project: RefCell<Option<Rc<Home>>>,
+    /// The instance beside it, made with the first file that needs it.
+    aside: RefCell<Option<Rc<Home>>>,
     instances: RefCell<Vec<Rc<Instance>>>,
     /// Instances of a parked scene, and what they await: no pass or call
     /// finds them, and a wake waits in the runtime until they come back.
@@ -175,11 +186,17 @@ struct Inner {
     tasks: RefCell<Vec<Pending>>,
     /// Async methods asked of an instance busy in the call that asked.
     waiting_starts: RefCell<Vec<WaitingStart>>,
-    /// Files built with probes, on an engine that can hold a call at a line.
+    /// Files built with probes, their instance on an engine that can hold a
+    /// call at a line.
     debugging: RefCell<HashSet<String>>,
     /// The lines a debugger asked to stop at, by file, as it asked for them.
     breaks: RefCell<BTreeMap<String, Vec<usize>>>,
     stopped: RefCell<Option<Held>>,
+    /// A script of the stopped instance asked it to go on: between frames.
+    resume_owed: Cell<Option<StepMode>>,
+    /// Every loaded file stops at the next line: asked of the instance its
+    /// probes are built into.
+    pause_owed: Cell<bool>,
     /// Every file built with probes, so a trap stops at its line.
     break_on_error: Cell<bool>,
     /// Files are built with counters (`host/profile.rs`).
@@ -193,9 +210,10 @@ struct Inner {
     /// Files whose code changed, and whose instances are owed `on_hot_reload`
     /// once the build lands.
     reload_owed: RefCell<Vec<String>>,
-    /// Each file built as a unit, by key: a script links the units of the
-    /// modules it uses, each built once for every script ([`BsHost::unit`]).
-    units: RefCell<HashMap<String, Arc<Compiled>>>,
+    /// Each file's unit, by key and how it was built: a script links the
+    /// units of the modules it uses, each built once for every script
+    /// ([`BsHost::unit`]).
+    units: RefCell<HashMap<String, HashMap<units::Build, Arc<Compiled>>>>,
     /// The module files read for their declarations.
     parsed: balaur_bs::Parsed,
     /// Each file's source as last read, or `None` for no such file: a unit
@@ -206,9 +224,8 @@ struct Inner {
     read: RefCell<HashMap<String, String>>,
     /// The engine's API, by hash: a unit kept on disk was built against one.
     api_hash: Cell<Option<String>>,
-    /// A file built as a unit has no module in the loaded native build (it
-    /// changed since the build was made), so the project's instance runs on
-    /// its engine.
+    /// A unit has no module in the loaded native build (it changed since the
+    /// build was made), so the project's instance runs on its engine.
     skip_native: Cell<bool>,
 }
 
@@ -222,10 +239,14 @@ pub(crate) fn key_of(path: &str) -> String {
     path.trim_start_matches("./").replace('\\', "/")
 }
 
-/// A file from outside the project the host runs, as the editor reads a
-/// game's scripts: its key is an absolute path.
-fn outside(key: &str) -> bool {
-    balaur_core::files::rooted(std::path::Path::new(key))
+/// The instance a file belongs in: a file from outside the project the host
+/// runs, as the editor reads a game's scripts, has an absolute path for a key.
+fn place_of(key: &str) -> Place {
+    if balaur_core::files::rooted(std::path::Path::new(key)) {
+        Place::Aside
+    } else {
+        Place::Project
+    }
 }
 
 impl BsHost {
@@ -278,6 +299,7 @@ impl BsHost {
                 api: RefCell::new(None),
                 files: RefCell::default(),
                 project: RefCell::default(),
+                aside: RefCell::default(),
                 instances: RefCell::default(),
                 parked: RefCell::default(),
                 parked_tasks: RefCell::default(),
@@ -294,6 +316,8 @@ impl BsHost {
                 debugging: RefCell::default(),
                 breaks: RefCell::default(),
                 stopped: RefCell::new(None),
+                resume_owed: Cell::new(None),
+                pause_owed: Cell::new(false),
                 break_on_error: Cell::new(false),
                 profiling: Cell::new(false),
                 tally: RefCell::default(),
@@ -357,13 +381,11 @@ impl BsHost {
         String::from_utf8(bytes).with_context(|| format!("{key} is not UTF-8"))
     }
 
-    /// What a runtime's scripts call out to: the engine, and `node.script`,
-    /// which finds a node's object only in the same instance: the project's,
-    /// or with `own` that file's.
-    fn host_fns(&self, own: Option<&str>) -> HostFns {
+    /// What the scripts of the instance at `place` call out to: the engine,
+    /// and `node.script`, which finds a node's object only in that instance.
+    fn host_fns(&self, place: Place) -> HostFns {
         let (engine, registry) = (self.inner.engine.clone(), self.inner.registry.clone());
         let host = Rc::downgrade(&self.inner);
-        let own = own.map(str::to_string);
         HostFns::default()
             .bind_engine(move |key, ret| crate::bind(&engine, &registry, key, ret))
             .scripts(move |node, file, class| {
@@ -377,14 +399,11 @@ impl BsHost {
                 if inst.path != file || inst.gone.get() || balaur_bs::script_class(file) != class {
                     return None;
                 }
-                let same = match &own {
-                    Some(key) => *key == inst.path,
-                    None => inner
-                        .files
-                        .borrow()
-                        .get(file)
-                        .is_some_and(|found| found.in_project(inner.project.borrow().as_ref())),
-                };
+                let same = inner
+                    .files
+                    .borrow()
+                    .get(file)
+                    .is_some_and(|found| found.place == place);
                 same.then(|| inst.pointer.get())
             })
     }
@@ -401,15 +420,6 @@ impl BsHost {
             .borrow_mut()
             .insert(key.to_string(), read.clone());
         read
-    }
-
-    // What runs here: with counters while a profiler wants them, and as
-    // units unless something wants the whole file in one module.
-    fn compile_module(&self, key: &str) -> Result<(Compiled, String)> {
-        if self.as_units(key) {
-            return self.compile_units(key);
-        }
-        self.compile_with(key, &self.source(key)?, self.inner.profiling.get())
     }
 
     /// Where `use name;` in a file finds `name.bs`: beside it, then in each
@@ -504,7 +514,7 @@ impl BsHost {
             return found;
         }
         let key = key_of(rel);
-        match self.compile_module(&key) {
+        match self.compile_units(&key) {
             Ok((_, ty)) if ty.is_empty() => vec![balaur_bs::Error {
                 pos: balaur_bs::Pos { line: 1, col: 1 },
                 msg: no_class(&key),
@@ -515,24 +525,19 @@ impl BsHost {
 
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         let key = key_of(rel);
-        let units = self.as_units(&key);
         let options = self.check_options(&key);
         let found = balaur_bs::errors(source, &options);
         if !found.is_empty() {
             return found;
         }
-        let built = if units {
-            self.unit_of(&key, source)
-                .map(|unit| self.module_errors(&key, &unit))
-        } else {
-            self.compile_source(&key, source).map(|_| vec![])
-        };
-        built.unwrap_or_else(|e| {
-            vec![balaur_bs::Error {
-                pos: balaur_bs::Pos { line: 1, col: 1 },
-                msg: format!("{e:#}"),
-            }]
-        })
+        self.unit_of(&key, source)
+            .map(|unit| self.module_errors(&key, &unit))
+            .unwrap_or_else(|e| {
+                vec![balaur_bs::Error {
+                    pos: balaur_bs::Pos { line: 1, col: 1 },
+                    msg: format!("{e:#}"),
+                }]
+            })
     }
 
     /// What the file's own functions should say otherwise, though they compile.
@@ -540,22 +545,21 @@ impl BsHost {
         balaur_bs::lints(source, &self.check_options(&key_of(rel)))
     }
 
-    // As units, a file's own functions: each module answers for its own.
+    // A file's own functions: each module answers for its own.
     fn check_options(&self, key: &str) -> Options {
-        let units = self.as_units(key);
         Options {
             debug: false,
             host: self.api(),
             modules: Some(self.modules()),
             path: key.to_string(),
-            unit: units,
-            parsed: units.then(|| self.inner.parsed.clone()),
+            unit: true,
+            parsed: Some(self.inner.parsed.clone()),
             ..Options::default()
         }
     }
 
-    // As the whole file would: every error of every module `unit` uses, near
-    // or far, each named by its file. Each module is built once a run.
+    // Every error of every module `unit` uses, near or far, each named by its
+    // file. Each module is built once a run.
     fn module_errors(&self, key: &str, unit: &Compiled) -> Vec<balaur_bs::Error> {
         let mut found = vec![];
         let mut seen: HashSet<String> = HashSet::from([key.to_string()]);
@@ -582,145 +586,39 @@ impl BsHost {
         found
     }
 
-    /// `source` as the file at `key` ships: an export's check and its native
-    /// build never carry a profiler's counters.
-    pub(crate) fn compile_source(&self, key: &str, source: &str) -> Result<(Compiled, String)> {
-        self.compile_with(key, source, false)
-    }
-
-    fn compile_with(&self, key: &str, source: &str, profile: bool) -> Result<(Compiled, String)> {
-        let compiled = balaur_bs::compile(
-            source,
-            &Options {
-                debug: self.probed(key),
-                host: self.api(),
-                meter: METER,
-                profile,
-                memory_max: Some(MEMORY_CAP),
-                // A browser wires the script straight to the engine's exports.
-                direct_imports: METER,
-                modules: Some(self.modules()),
-                path: key.to_string(),
-                ..Options::default()
-            },
-        )
-        .map_err(|e| anyhow!("{key}:{e}"))?;
-        let ty = script_type(key, &compiled.meta);
-        Ok((compiled, ty))
-    }
-
     fn load(&self, key: &str) -> Result<Rc<File>> {
-        let (compiled, ty) = self.compile_module(key)?;
+        let (compiled, ty) = self.compile_units(key)?;
         if ty.is_empty() {
             return Err(anyhow!("{key}: {}", no_class(key)));
         }
         balaur_bs::runtime::cache_compiled_in(
             &balaur_core::engine_api::user_data_dir_of(&self.inner.engine).join(CACHE_DIR),
         );
-        // A unit joins the project's instance, when that can run it.
-        let (compiled, ty) = if compiled.meta.unit.is_some() {
-            let unit = self.unit(key)?;
-            if self.joins_project(key, &unit, &compiled.linked) {
-                return self.join_project(key, &unit, compiled, ty);
-            }
-            // The whole file alone, on its engine.
-            self.compile_with(key, &self.source(key)?, self.inner.profiling.get())?
+        let unit = self.unit(key)?;
+        // A file the project cannot run yet runs beside it until it can.
+        let place = if place_of(key) == Place::Project
+            && !self.joins_project(key, &unit, &compiled.linked)
+        {
+            Place::Aside
         } else {
-            (compiled, ty)
+            place_of(key)
         };
-        // The native build first, so this script's own module can be in it.
-        #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
-        let built = crate::native::load_beside_executable();
-        let native = crate::native::has_native(&compiled.wasm);
-        // A build never holds a file from outside the project.
-        #[cfg(all(feature = "native", not(target_arch = "wasm32")))]
-        if built && !compiled.meta.debug && !native && !outside(key) {
-            tracing::warn!(
-                "{key}: the native build has no module {}; it runs interpreted",
-                balaur_bs::module_hash(&compiled.wasm)
-            );
-        }
-        let mut rt = self.alone(key, &compiled)?;
-        self.arm(key, &compiled, &mut rt);
-        Ok(Rc::new(File {
-            home: Home::new(rt),
-            unit: 0,
-            native,
-            compiled,
-            ty,
-        }))
-    }
-
-    // The unit at `key` linked into the project's instance.
-    fn join_project(
-        &self,
-        key: &str,
-        unit: &Arc<Compiled>,
-        compiled: Compiled,
-        ty: String,
-    ) -> Result<Rc<File>> {
-        let home = self.project()?;
+        let home = self.home(place)?;
         let index = home
             .either(
-                |rt| rt.link(key, unit, &compiled.linked),
-                |re| re.link(key, unit, &compiled.linked),
+                |rt| rt.link(key, &unit, &compiled.linked),
+                |re| re.link(key, &unit, &compiled.linked),
             )
             .map_err(|e| anyhow!("{key}: {e}"))?;
+        self.arm(&home);
         Ok(Rc::new(File {
             native: home.native,
             home,
+            place,
             unit: index,
             compiled,
             ty,
         }))
-    }
-
-    // A runtime of its own for `compiled`, the whole file at `key`.
-    fn alone(&self, key: &str, compiled: &Compiled) -> Result<Runtime> {
-        let limits = Limits {
-            engine: self.engine_for(key),
-            memory_bytes: Some(MEMORY_CAP),
-            ..Limits::default()
-        };
-        Runtime::new(compiled, self.host_fns(Some(key)), limits).map_err(|e| anyhow!("{key}: {e}"))
-    }
-
-    /// `key` built whole into a runtime of its own, as a debugger or a
-    /// profiler wants it, its instances carried across by field name from
-    /// wherever they ran. Nothing changes when it does not build.
-    fn reload_alone(&self, key: &str) -> Result<()> {
-        let old = self
-            .inner
-            .files
-            .borrow()
-            .get(key)
-            .cloned()
-            .ok_or_else(|| anyhow!("{key} is not loaded"))?;
-        if old.home.rt.try_borrow_mut().is_err() {
-            return Err(anyhow!("{key} is running; reload it between frames"));
-        }
-        let (compiled, ty) = self.compile_module(key)?;
-        if ty.is_empty() {
-            return Err(anyhow!(
-                "{key}: it declares no `pub class {}`",
-                balaur_bs::script_class(key)
-            ));
-        }
-        let mut fresh = self.alone(key, &compiled)?;
-        self.carry(&old.home, &mut fresh, |path| (path == key).then_some(0))?;
-        self.forget(key);
-        self.arm(key, &compiled, &mut fresh);
-        self.inner.files.borrow_mut().insert(
-            key.to_string(),
-            Rc::new(File {
-                home: Home::new(fresh),
-                unit: 0,
-                native: crate::native::has_native(&compiled.wasm),
-                compiled,
-                ty,
-            }),
-        );
-        Ok(())
     }
 
     // Every object of the files `unit_of` places, out of `home` and into
@@ -767,31 +665,39 @@ impl BsHost {
         homes
     }
 
-    /// The instance every file built as units shares, made with the first.
-    fn project(&self) -> Result<Rc<Home>> {
-        if let Some(home) = self.inner.project.borrow().as_ref() {
+    fn place_slot(&self, place: Place) -> &RefCell<Option<Rc<Home>>> {
+        match place {
+            Place::Project => &self.inner.project,
+            Place::Aside => &self.inner.aside,
+        }
+    }
+
+    /// The instance at `place`, made with the first file that joins it.
+    fn home(&self, place: Place) -> Result<Rc<Home>> {
+        if let Some(home) = self.place_slot(place).borrow().as_ref() {
             return Ok(home.clone());
         }
-        let home = Home::new(self.project_runtime()?);
-        *self.inner.project.borrow_mut() = Some(home.clone());
+        let home = Home::new(self.instance_runtime(place)?, self.debugged_in(place));
+        *self.place_slot(place).borrow_mut() = Some(home.clone());
         Ok(home)
     }
 
-    /// The unit a project's instance starts from: an empty file.
+    /// The unit an instance starts from: an empty file.
     pub(crate) fn project_unit(&self) -> Result<Compiled> {
-        balaur_bs::compile("", &self.unit_options(PROJECT_KEY))
+        balaur_bs::compile("", &self.options_of(PROJECT_KEY, units::Build::PLAIN))
             .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))
     }
 
-    // A project instance with no file in it yet.
-    fn project_runtime(&self) -> Result<Runtime> {
+    // An instance with no file in it yet, on the engine what it holds asks for.
+    fn instance_runtime(&self, place: Place) -> Result<Runtime> {
         let root = self.project_unit()?;
         let limits = Limits {
-            memory_bytes: Some(PROJECT_MEMORY_CAP),
-            skip_native: self.inner.skip_native.get(),
+            engine: self.engine_of(place),
+            memory_bytes: Some(MEMORY_CAP),
+            skip_native: !self.may_run_native(place),
             ..Limits::default()
         };
-        Runtime::new(&root, self.host_fns(None), limits).map_err(|e| anyhow!("{PROJECT_KEY}: {e}"))
+        Runtime::new(&root, self.host_fns(place), limits).map_err(|e| anyhow!("{PROJECT_KEY}: {e}"))
     }
 
     fn file(&self, path: &str) -> Result<Rc<File>> {
@@ -912,21 +818,11 @@ impl BsHost {
         }
     }
 
-    // `key` built again, with no word to its script: what a reload and a
-    // debugger's or profiler's rebuild share.
+    // `key` read again and its instance made again, with no word to its script.
     pub(crate) fn rebuild_key(&self, key: &str) -> Result<()> {
-        if self.holds_file(key) {
-            return Err(anyhow!(
-                "{key} is stopped at a breakpoint; it reloads once it goes on"
-            ));
-        }
-        // Asked for by name, a reload reads the file again.
         self.invalidate(key);
-        if self.as_units(key) {
-            self.rebuild_project(&[key.to_string()])
-        } else {
-            self.reload_alone(key)
-        }
+        self.rebuild_instance(place_of(key), &[key.to_string()])
+            .map(|_| ())
     }
 
     // `update` and `fixed_update` run every frame, so an async one would
@@ -974,15 +870,15 @@ impl BsHost {
     /// and a method that takes or gives a string, an array or an `any` has no
     /// batch entry.
     fn batch(&self, file: &File, group: &[Rc<Instance>], method: &str, args: &[Value]) -> bool {
-        if file.compiled.meta.debug {
-            return false;
-        }
         let Some(info) = file.method(method) else {
             return false;
         };
         let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
             return false;
         };
+        if rt.steppable() {
+            return false;
+        }
         let mut objs = vec![];
         for inst in group.iter().filter(|inst| !inst.gone.get()) {
             let shared = inst.obj.borrow().as_ref().and_then(|obj| rt.share(obj));
@@ -1049,7 +945,7 @@ impl BsHost {
             drop(rt);
             return self.start(file, inst, method, &args, done);
         }
-        if file.compiled.meta.debug {
+        if rt.steppable() && !self.is_held() {
             drop(rt);
             return self.run_steppable(file, inst, method, &args);
         }

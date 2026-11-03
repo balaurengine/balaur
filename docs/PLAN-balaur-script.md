@@ -120,10 +120,11 @@ a script as from TOML, a component or the engine, so a `Vec3` in a patch works.
   script holds another's object as its class:
   `let tree: scene_tree::SceneTree? = node.script;` is the node's object
   when it runs that file's class, else nil, and a call on it is a direct
-  call. `node.script` read with no class wanted does not compile. A file
-  built whole, for a debugger, a profiler, a browser or a native export,
-  is an instance of its own, where `node.script` finds only its own file's
-  nodes. Two scripts holding each other is a cycle the counts never free.
+  call, under a debugger, a profiler and in a browser as anywhere.
+  `node.script` read with no class wanted does not compile. A file from
+  outside the project, as the editor reads a game's scripts, is a unit of the
+  instance beside it, where `node.script` finds only its nodes. Two scripts
+  holding each other is a cycle the counts never free.
 - The compiler emits `Class.method$batch(base, count, args)` for a public
   method with plain arguments: one host call runs it over `count` objects
   whose pointers sit at `base`, for each run of nodes in scene order sharing
@@ -175,14 +176,15 @@ same on wasmtime, wasmi and a browser.
 
 The editor's debugger and the DAP server reach it through the seam's
 methods. A file is built with probes only once a debugger asks something of
-it, and then runs on wasmi, whose resumable calls let a stop park the call:
-the host freezes the game as for a Rune pause, the frame loop keeps drawing,
-and `resume` carries the call on in a later frame. An async method's poll
-parks the same way, and the task goes back to waiting when it reaches its
-next `await`. A stop on an engine that cannot park a call is passed by.
+it, as a unit that links with the rest (PLAN-bs-linking), and its instance
+then runs on wasmi, whose resumable calls let a stop park the call: the host
+freezes the game as for a Rune pause, the frame loop keeps drawing, and
+`resume` carries the call on in a later frame. An async method's poll parks
+the same way, and the task goes back to waiting when it reaches its next
+`await`. A stop on an engine that cannot park a call is passed by.
 
-Break on error rebuilds every file with probes on the engine it already runs
-on. Flag 2 of `__dbg_flags` spills each frame's variables at every
+Break on error builds every file with probes on the engine its instance
+already runs on. Flag 2 of `__dbg_flags` spills each frame's variables at every
 statement, a store per variable and no host call, so a trap leaves its
 stack with the values it died with; `Runtime::error_stop` hands it over and
 the editor shows it as an error pause, dismissed rather than resumed.
@@ -478,12 +480,12 @@ the table:
    the game it plays.
    Found 2026-10-30, moving the editor's 39 panels onto `editor::Editor?`:
    a build of whole files (the profiler's, the debugger's, the browser's, a
-   native export) makes each file an instance of its own, so the cast is
-   nil there and every panel stops filling; the profiler's rebuild also
-   took 64 s rather than 4, each panel compiling the editor whole. The
-   panels keep `node.call` to the Editor until those builds link a project
-   as units too. A native build does since 2026-10-30 (§7a); the profiler,
-   the debugger and the browser are left.
+   native export) made each file an instance of its own, so the cast was
+   nil there and every panel stopped filling; the profiler's rebuild also
+   took 64 s rather than 4, each panel compiling the editor whole. A native
+   build links units since 2026-10-30 (§7a), and the profiler, the debugger
+   and the browser since 2026-11-03 (PLAN-bs-linking): every build a host
+   runs is one instance per project.
 5. **A stricter language.**
    - An `any` holds data from outside: a file, the network, TOML, JSON, a
      plugin's payload. The engine functions that take or give an options
@@ -519,10 +521,12 @@ the table:
      for it, a class compiled in as the program's own (`crate::maps`); a
      read costs under half an `any` map's, with no call out.
    - A script calls another by its type, never by a method's name in a
-     string. Not built: a debugger's probes, a profiler's counters and a
-     browser's metering compile a file whole, and the compiler builds no
-     unit with them (`Options::unit`), so those builds cannot link a
-     project as units yet (`host/units.rs`, `as_units`).
+     string. Half built, 2026-11-03: the compiler builds a unit with a
+     debugger's probes, a profiler's counters and a browser's metering, and
+     every build a host runs links a project as units, so the cast holds in
+     all of them (`tests/suite/units.rs`, `tests/suite/bs_host.rs`,
+     `tests/web/main.rs`). Left: the editor's 39 panels calling the Editor by
+     its type rather than through `node.call`.
 6. **The derive's index.** `node.c.p` resolves at load to the component and
    the property's index in its schema (PLAN-property-types §5): a read or a
    write of one field. A component or property the schema lacks does not
