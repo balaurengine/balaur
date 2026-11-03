@@ -1,0 +1,11 @@
+// A `fn` value given every argument, the last of them nil: its count is its
+// type's, and that function's nil is read as any other.
+fn add(a: int, b: int?) -> int { a + b.or(100) }
+fn apply(f: fn(int, int?) -> int, x: int) -> int { f(x, nil) }
+
+pub fn through_a_value() -> int {
+    let f = add;
+    f(1, 2) + f(1, nil) + apply(add, 10) + add(1000)
+}
+
+// expect: through_a_value() == 1314

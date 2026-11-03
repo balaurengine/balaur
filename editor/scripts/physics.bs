@@ -11,10 +11,10 @@ use selection;
 /// the properties it sets, and those of the components beside the main one,
 /// by component name.
 pub struct Shape {
-    id: str,
-    tip: str,
-    properties: any,
-    beside: any,
+    internal id: str,
+    internal tip: str,
+    internal properties: any,
+    internal beside: any,
 }
 
 fn shape(id: str, tip: str, properties: any) -> Shape {

@@ -1,0 +1,29 @@
+// A method follows the rule a function does, its receiver no argument.
+pub class Pen { made: str }
+impl Pen {
+    pub fn write(text: str, size: int?, note: any) -> str {
+        let line = "{text} {size.or(12)} {note == nil}";
+        self.made = self.made + line + ";";
+        line
+    }
+    pub fn twice() -> str {
+        self.write("a");
+        self.write("b", 3);
+        self.made
+    }
+}
+
+pub fn from_outside() -> str {
+    let pen = Pen { made: "" };
+    let first = pen.write("x");
+    let second = pen.write("y", 1, "z");
+    "{first}|{second}"
+}
+
+pub fn from_inside() -> str {
+    let pen = Pen { made: "" };
+    pen.twice()
+}
+
+// expect: from_outside() == "x 12 true|y 1 false"
+// expect: from_inside() == "a 12 true;b 3 true;"

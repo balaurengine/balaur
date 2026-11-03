@@ -253,10 +253,20 @@ position = [0.0, 2.0, 0.0]
     assert!(t.position.x.abs() < 1e-6, "the prefab's x was replaced");
 }
 
-/// The prefab may have moved the node an override names. Losing the edit
-/// silently is the one outcome worth ruling out; the scene still loads.
+fn logged_at(level: &str) -> Vec<String> {
+    balaur_core::logbuf::recent(200)
+        .into_iter()
+        .filter(|entry| entry.level == level)
+        .map(|entry| entry.message)
+        .collect()
+}
+
+/// The prefab may have moved the node an override names, so the scene loads
+/// and the file keeps the edit; but it applies to nothing, and a run says so.
 #[test]
-fn an_override_naming_nothing_is_not_fatal() {
+fn an_override_naming_nothing_is_an_error_and_the_scene_still_loads() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
     let (_dir, app) = load(
         r#"
 [[nodes]]
@@ -269,6 +279,92 @@ label = "gone"
 "#,
     );
     assert_eq!(label(&app, "Enemy"), Some(String::from("body")));
+    let errors = logged_at("error");
+    assert!(
+        errors.iter().any(|error| error
+            .contains("override 'Leg' on node 'Enemy' names nothing inside the instance")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn an_override_naming_a_node_logs_nothing() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let (_dir, app) = load(
+        r#"
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+instance = "scenes/enemy.toml"
+
+[nodes.overrides.Arm.marker]
+label = "here"
+"#,
+    );
+    assert_eq!(label(&app, "Enemy/Arm"), Some(String::from("here")));
+    assert_eq!(logged_at("error"), Vec::<String>::new());
+    assert_eq!(logged_at("warn"), Vec::<String>::new());
+}
+
+#[test]
+fn an_override_that_is_not_a_table_is_an_error() {
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let (_dir, _app) = load(
+        r#"
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+instance = "scenes/enemy.toml"
+
+[nodes.overrides]
+Arm = 3
+"#,
+    );
+    let errors = logged_at("error");
+    assert!(
+        errors.iter().any(|error| error.contains("not a table")),
+        "{errors:?}"
+    );
+}
+
+#[test]
+fn an_override_key_nothing_handles_follows_the_scene_key_rule() {
+    let scene = r#"
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+instance = "scenes/enemy.toml"
+
+[nodes.overrides.Arm.cloner]
+count = 3
+"#;
+    let said = "override 'Arm.cloner' on node 'Enemy' has no registered handler";
+    balaur_core::logbuf::capture_for_test();
+    balaur_core::logbuf::clear();
+    let (_dir, _app) = load(scene);
+    assert!(
+        logged_at("error").iter().any(|error| error.contains(said)),
+        "{:?}",
+        logged_at("error")
+    );
+
+    balaur_core::logbuf::clear();
+    let dir = project(&[("scenes/enemy.toml", ENEMY)]);
+    let app = app_in(dir.path());
+    app.engine
+        .insert_resource(balaur_core::project::LacksKeyOwner);
+    let root = app.engine.root();
+    balaur_core::project::instantiate_scene(&app.engine, scene, root, false).unwrap();
+    assert_eq!(logged_at("error"), Vec::<String>::new());
+    assert!(
+        logged_at("warn")
+            .iter()
+            .any(|warning| warning.contains(said)),
+        "{:?}",
+        logged_at("warn")
+    );
 }
 
 #[test]

@@ -8,7 +8,7 @@ use util;
 use window;
 
 pub class ExporterState {
-    rows: [any],
+    internal rows: [any],
     status: any,
     said: any,
     landed: str,

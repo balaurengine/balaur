@@ -228,6 +228,62 @@ impl Machine {
     }
 }
 
+/// The keys a machine takes at the top of its document. A state is a free name.
+const DOCUMENT_KEYS: &[&str] = &[
+    balaur_core::assets::TYPE,
+    k::START,
+    k::STATES,
+    k::TRANSITIONS,
+];
+
+/// The keys a machine nested in a state takes.
+const NESTED_KEYS: &[&str] = &[k::START, k::STATES, k::TRANSITIONS];
+
+const TRANSITION_KEYS: &[&str] = &[
+    k::FROM,
+    k::TO,
+    k::BLEND_TIME,
+    k::EASE,
+    k::BLEND_CURVE,
+    k::ADVANCE_MODE,
+    k::SWITCH_MODE,
+    k::CONDITION,
+    k::CHECK,
+    k::PRIORITY,
+    k::RESET,
+    k::BREAK_LOOP_AT_END,
+];
+
+/// Refuse a key a machine or a transition does not take, at any depth.
+///
+/// # Errors
+/// Naming the key and the state or the transition it was written on.
+pub fn check(value: &toml::Value) -> Result<()> {
+    check_machine(value, DOCUMENT_KEYS)
+}
+
+fn check_machine(value: &toml::Value, closed: &[&str]) -> Result<()> {
+    balaur_core::assets::refuse_keys(value, "a state machine", closed)?;
+    if let Some(states) = value.get(k::STATES).and_then(toml::Value::as_table) {
+        for (name, state) in states {
+            // A clip's name holds no keys; a table is a nested machine.
+            if state.is_table() {
+                check_machine(state, NESTED_KEYS).with_context(|| format!("state `{name}`"))?;
+            }
+        }
+    }
+    let items = value
+        .get(k::TRANSITIONS)
+        .and_then(toml::Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    for (i, item) in items.iter().enumerate() {
+        balaur_core::assets::refuse_keys(item, "a transition", TRANSITION_KEYS)
+            .with_context(|| format!("transition {i}"))?;
+    }
+    Ok(())
+}
+
 /// Parse a `state_machine` document, flattening any machine nested in it.
 ///
 /// # Errors

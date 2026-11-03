@@ -22,14 +22,14 @@ pub struct DisplayType {
 
 /// A node's glyph in the tree and the colour role it is drawn in.
 pub struct NodeIcon {
-    glyph: str,
-    role: str,
+    internal glyph: str,
+    internal role: str,
 }
 
 /// How many nodes the scene has, and how many of them name a script.
 pub struct Stats {
-    nodes: int,
-    scripts: int,
+    internal nodes: int,
+    internal scripts: int,
 }
 
 // Project reads, cached on `state`: four panels read the disk while drawing, so
@@ -668,7 +668,7 @@ fn view_2d() -> Node {
         return found;
     }
     let made = root.add_child(VIEW_2D);
-    made.set_component(CAMERA_2D, nil());
+    made.set_component(CAMERA_2D);
     made
 }
 
@@ -861,7 +861,7 @@ pub fn follow_changes(state: &mut editor::State, entries: any) {
         signals::outline(state);
     } else if whole.len() > 0 || written.len() > 0 {
         for name in whole {
-            inspector::reread_rows(name, nil);
+            inspector::reread_rows(name);
         }
         for name in written.keys() {
             if !util::contains(whole, name) {
@@ -1093,7 +1093,7 @@ pub fn instance_scene(state: &mut editor::State, rel: str) {
         log::warn("a scene cannot instantiate itself");
         return;
     }
-    history::record(state, "instance " + rel, nil);
+    history::record(state, "instance " + rel);
     let made = spawn(state, selected_node(state), prefab_name(rel), {
         "instance": rel,
         TRANSFORM: { "position": [0.0, 0.0, 0.0] },
@@ -1144,7 +1144,7 @@ pub fn move_sibling(state: &mut editor::State, delta: int) {
     if to < 0 || to >= found.parent().children().len() {
         return;
     }
-    history::record(state, "move node", nil);
+    history::record(state, "move node");
     found.set_sibling_index(to);
     reindex(state);
 }
@@ -1160,7 +1160,7 @@ pub fn rename_selected(state: &mut editor::State, name: str) {
     if wanted == found.name() {
         return;
     }
-    history::record(state, "rename node", nil);
+    history::record(state, "rename node");
     found.set_name(unique_name(state, wanted));
 }
 
@@ -1176,7 +1176,7 @@ pub fn add_child(state: &mut editor::State, kind: str?) {
     }
     let parent = selected_node(state);
     let name = if kind != nil { kind_name(kind.unwrap()) } else { "Node" };
-    history::record(state, "add {name}", nil);
+    history::record(state, "add {name}");
     let made = spawn(state, parent, name, { TRANSFORM: { "position": landing(state, parent) } });
     if kind != nil {
         if util::contains(scene::presets(), kind.unwrap()) {
@@ -1264,7 +1264,7 @@ pub fn add_component(state: &mut editor::State, name: str) {
     if !found.is_valid() {
         return;
     }
-    history::record(state, "add {name}", nil);
+    history::record(state, "add {name}");
     found.set_component(name);
     log::info("added {name} to {found.name()}");
 }
@@ -1287,7 +1287,7 @@ pub fn remove_component(state: &mut editor::State, name: str) {
         log::warn("cannot remove {name}: {list} needs it; remove {list} first");
         return;
     }
-    history::record(state, "remove {name}", nil);
+    history::record(state, "remove {name}");
     found.remove_component(name);
 }
 
@@ -1323,7 +1323,7 @@ fn given(_found: Node, properties: any) -> any {
 /// `props_of(node, data)` answers them, or `nil` to leave that node alone. A
 /// shape built from a mesh is built from each node's mesh, not the active one's.
 pub fn set_component_properties_each(state: &mut editor::State, name: str, properties_of: fn(Node, any) -> any, data: any) {
-    history::record(state, "set {name}", nil);
+    history::record(state, "set {name}");
     for row in selection::all(state) {
         let found = node(state, row);
         if !found.is_valid() {
@@ -1363,7 +1363,7 @@ pub fn duplicate_selected(state: &mut editor::State) {
     if refuse_structure(state, "duplicate a node") {
         return;
     }
-    history::record(state, "duplicate node", nil);
+    history::record(state, "duplicate node");
     let made: [Node] = [];
     for row in selection::all(state) {
         let found = node(state, row);
@@ -1399,7 +1399,7 @@ pub fn paste_nodes(state: &mut editor::State, text: str) -> bool {
     if nodes.len() == 0 {
         return false;
     }
-    history::record(state, "paste node", nil);
+    history::record(state, "paste node");
     if !has_selection(state) {
         selection::only(state, 0);
     }
@@ -1435,7 +1435,7 @@ pub fn delete_selected(state: &mut editor::State) {
         }
     }
     let label = if rows.len() > 1 { "delete {rows.len()} nodes" } else { "delete {selected_node(state).name()}" };
-    history::record(state, label, nil);
+    history::record(state, label);
     let after = state.selected;
     for row in rows {
         let found = node(state, row);
@@ -1494,7 +1494,7 @@ pub fn undo_change(state: &mut editor::State, change: any) {
     } else if kind == "script" {
         let was = change["was"];
         if was == nil {
-            found.set_script(nil, nil);
+            found.set_script(nil);
         } else {
             found.set_script(was["source"].as_str(), util::map_or_empty(was["props"]));
         }

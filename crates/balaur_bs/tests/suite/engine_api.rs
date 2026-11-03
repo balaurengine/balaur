@@ -24,9 +24,21 @@ fn options() -> Options {
         ret: Ty::Str,
         is_async: false,
     };
+    let clear = HostSignature {
+        key: "draw::clear".into(),
+        params: vec![Ty::Any],
+        ret: Ty::Void,
+        is_async: false,
+    };
+    let request = HostSignature {
+        key: "http::request".into(),
+        params: vec![Ty::Any],
+        ret: Ty::Any,
+        is_async: false,
+    };
     Options {
         host: HostApi {
-            functions: vec![line],
+            functions: vec![line, clear, request],
             components: vec![],
             constants: vec![
                 ("input::KEY_SPACE".into(), Literal::Str("space".into())),
@@ -64,6 +76,98 @@ fn trailing_optional_arguments_may_be_left_out_and_arrive_as_nil() {
     assert_eq!(call("bare"), Value::Str("1,2,nil,nil".into()));
     assert_eq!(call("colored"), Value::Str("1,2,red,nil".into()));
     assert_eq!(call("tagged"), Value::Str("1,2,red,7".into()));
+}
+
+#[test]
+fn a_trailing_nil_a_call_may_leave_out_is_a_lint() {
+    let lints = |src: &str| {
+        balaur_bs::lints(src, &options())
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        lints("pub fn f() -> str {\n    draw::line(1.0, 2.0, nil)\n}"),
+        ["2:26: leave this `nil` out: `draw::line` reads a missing argument as nil"]
+    );
+    assert!(lints(r#"pub fn f() -> str { draw::line(1.0, 2.0, "red") }"#).is_empty());
+    // Only the last may go: `tag` needs the place before it held.
+    assert!(lints("pub fn f() -> str { draw::line(1.0, 2.0, nil, 7) }").is_empty());
+    assert!(lints("pub fn f() -> str { draw::line(1.0, 2.0) }").is_empty());
+    // Nothing would be left to say what the call does.
+    assert!(lints("pub fn f() { draw::clear(nil); }").is_empty());
+}
+
+#[test]
+fn a_script_call_lints_as_an_engine_call_does() {
+    const DECLARED: &str = "
+fn one(a: int?) {}
+fn two(a: int, b: int?) {}
+fn three(a: int, b: int?, c: any) {}
+fn held(a: int, b: &mut int?) {}
+pub class C { n: int }
+impl C {
+    pub fn m(a: int, b: int?) {}
+}
+";
+    let lints = |body: &str| {
+        let src = format!("{DECLARED}pub fn f() {{ {body} }}\n");
+        balaur_bs::lints(&src, &options())
+            .iter()
+            .map(|e| e.msg.clone())
+            .collect::<Vec<_>>()
+    };
+    let leave =
+        |what: &str| format!("leave this `nil` out: `{what}` reads a missing argument as nil");
+    assert_eq!(lints("two(1, nil);"), [leave("two")]);
+    assert_eq!(lints("three(1, 2, nil);"), [leave("three")]);
+    // Nil before the last holds its place, so only the last is said.
+    assert_eq!(lints("three(1, nil, nil);"), [leave("three")]);
+    assert!(lints(r#"three(1, nil, "x");"#).is_empty());
+    assert!(lints("two(1);").is_empty());
+    // A method, its receiver no argument.
+    assert_eq!(lints("let c = C { n: 0 }; c.m(1, nil);"), [leave("C.m")]);
+    assert!(lints("let c = C { n: 0 }; c.m(1);").is_empty());
+    // Nothing would be left to say what the call does.
+    assert!(lints("one(nil);").is_empty());
+    // A `&mut` place is never one that could go.
+    assert!(lints("let x: int? = nil; held(1, x);").is_empty());
+    // A `fn` value's type says how many it takes.
+    assert!(lints("let g = two; g(1, nil);").is_empty());
+    // A method of the prelude's takes what it says.
+    assert!(lints("let a: any = 1; let b = a.or(nil);").is_empty());
+}
+
+#[test]
+fn an_awaited_script_call_lints_as_any_other() {
+    let src = "
+async fn later(a: int, b: int?) {}
+pub class C { n: int }
+impl C {
+    async fn go(a: int?, b: int?) {}
+    pub async fn run() {
+        await self.go(1, nil);
+        await later(1, nil);
+    }
+}
+";
+    let found: Vec<String> = balaur_bs::lints(src, &options())
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        found,
+        [
+            "7:26: leave this `nil` out: `C.go` reads a missing argument as nil",
+            "8:24: leave this `nil` out: `later` reads a missing argument as nil",
+        ]
+    );
+}
+
+#[test]
+fn a_map_literal_may_open_a_call_that_answers_by_await() {
+    let src = r#"pub fn f() -> any { http::request({ "url": "x" }) }"#;
+    compile(src, &options()).unwrap_or_else(|e| panic!("{e}"));
 }
 
 #[test]

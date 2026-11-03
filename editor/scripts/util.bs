@@ -4,26 +4,26 @@
 
 /// A vector's direction and length.
 pub struct Norm {
-    direction: [float],
-    length: float,
+    internal direction: [float],
+    internal length: float,
 }
 
 /// A colour as unit floats.
 pub struct Rgb {
-    red: float,
-    green: float,
-    blue: float,
+    internal red: float,
+    internal green: float,
+    internal blue: float,
 }
 
 /// The 2D world frame of a node's own space: where its origin sits, the
 /// cosine and sine of its rotation, and its scale.
 pub struct Frame {
-    x: float,
-    y: float,
-    cosine: float,
-    sine: float,
-    scale_x: float,
-    scale_y: float,
+    internal x: float,
+    internal y: float,
+    internal cosine: float,
+    internal sine: float,
+    internal scale_x: float,
+    internal scale_y: float,
 }
 
 /// Texture pixels to one world unit when a component names none.

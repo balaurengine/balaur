@@ -6121,7 +6121,6 @@
   },
   "builtins": {
     "color": "fn color(r: float, g: float, b: float, a: float) -> Color",
-    "nil": "fn nil() -> any",
     "vec2": "fn vec2(x: float, y: float) -> Vec2",
     "vec3": "fn vec3(x: float, y: float, z: float) -> Vec3"
   },
@@ -25051,7 +25050,7 @@
         "instance_count": "How many instances the node holds.",
         "instance_custom_data": "One instance's four floats of custom data, as a colour.",
         "instance_region": "One instance's texture rectangle as `[x, y, w, h]` in pixels, or nil when it draws the whole texture.",
-        "instance_transform": "One instance's transform: a `Transform3d`, or a `Transform2d` on a 2D node.",
+        "instance_transform": "One instance's transform as a list of floats, the axes and then the origin: 12 of them, or 6 on a 2D node.",
         "instances": "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.",
         "is_on_screen": "Whether any of the notifier's box was on screen at the end of the last frame.",
         "material_params": "The material's editable rows, one `{ name, type, value }` per field its linked shader declares; empty when it will not link.",
@@ -25072,7 +25071,7 @@
         "set_instance_count": "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.",
         "set_instance_custom_data": "Four floats a material's shader reads for one instance, as a colour or a list.",
         "set_instance_region": "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance.",
-        "set_instance_transform": "Place one instance with a `Transform3d`, or a `Transform2d` on a 2D node. A shear is kept, as the instance's `basis`.",
+        "set_instance_transform": "Place one instance with a transform as `instance_transform` answers it: 12 floats, or 6 on a 2D node. A shear is kept, as the instance's `basis`.",
         "set_instances": "Replace every instance with a list in the `multimesh` asset's shape.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",

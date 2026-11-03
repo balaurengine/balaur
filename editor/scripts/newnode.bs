@@ -14,13 +14,13 @@ use util;
 use window;
 
 pub struct Entry {
-    name: str,
-    note: str,
-    tags: str,
-    group: str,
-    preset: bool,
-    label: str,
-    parts: any,
+    internal name: str,
+    internal note: str,
+    internal tags: str,
+    internal group: str,
+    internal preset: bool,
+    internal label: str,
+    internal parts: any,
 }
 
 // Group order, each a tag the engine already carries. A row is filed under
@@ -243,7 +243,7 @@ fn tint_of(tokens: any, token: str) -> str {
 }
 
 fn add_empty(state: &mut editor::State, _data: any, _value: any) {
-    model::add_child(state, nil);
+    model::add_child(state);
     close(state);
 }
 

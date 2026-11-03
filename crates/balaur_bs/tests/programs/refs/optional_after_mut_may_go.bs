@@ -1,0 +1,32 @@
+// What follows a `&mut` parameter may still be left out, and the `&mut` is
+// stored back as ever, in a function and in a method.
+fn bump(n: &mut int, by: int?) -> int {
+    n += by.or(1);
+    n
+}
+
+pub class Counter { seen: int }
+impl Counter {
+    pub fn add(n: &mut int, by: int?, tag: any) -> str {
+        n += by.or(1);
+        "{n} {tag == nil}"
+    }
+}
+
+pub fn free() -> str {
+    let n = 10;
+    let a = bump(n);
+    let b = bump(n, 5);
+    "{a} {b} {n}"
+}
+
+pub fn method() -> str {
+    let n = 1;
+    let c = Counter { seen: 0 };
+    let a = c.add(n);
+    let b = c.add(n, 2, "t");
+    "{a}|{b}|{n}"
+}
+
+// expect: free() == "11 16 16"
+// expect: method() == "2 true|4 false|4"

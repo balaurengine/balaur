@@ -383,13 +383,15 @@ fn asset_reference(
         // The empty default means "no asset", and resolving it would be an
         // error about a reference the author never wrote.
         toml::Value::String(text) if text.trim().is_empty() => Ok(None),
-        // Checked so a typo is reported where it was written, but only warned:
-        // a tool must be able to open a scene whose files it cannot reach.
+        // Checked so a typo is reported where it was written. A reference that
+        // reads nothing is only warned: a tool must be able to open a scene
+        // whose files it cannot reach. One that reads is held to its schema.
         toml::Value::String(text) => {
-            if let Err(why) = crate::assets::definition(eng, text)
-                .with_context(|| format!("asset property '{prop}'"))
-            {
-                tracing::warn!("{why:#}");
+            match crate::assets::written(eng, text) {
+                Ok(written) => written
+                    .refuse_unknown_keys(eng, type_name)
+                    .with_context(|| format!("asset property '{prop}' names '{text}'"))?,
+                Err(why) => tracing::warn!("asset property '{prop}': {why:#}"),
             }
             Ok(None)
         }

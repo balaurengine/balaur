@@ -48,6 +48,7 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
         _ => unreachable!("only structs, lists and `T?` convert through a function"),
     };
     FnDecl {
+        internal: false,
         name: format!("any::#{}", if into { "box" } else { "unbox" }),
         owner: None,
         public: false,

@@ -11,14 +11,13 @@ pub(crate) const PRELUDE: [(&str, &[&str]); 3] = [
     ("Color", &["r", "g", "b", "a"]),
 ];
 
-pub(crate) const NATIVES: [(&str, &str); 4] = [
+pub(crate) const NATIVES: [(&str, &str); 3] = [
     ("vec2", "fn vec2(x: float, y: float) -> Vec2"),
     ("vec3", "fn vec3(x: float, y: float, z: float) -> Vec3"),
     (
         "color",
         "fn color(r: float, g: float, b: float, a: float) -> Color",
     ),
-    ("nil", "fn nil() -> any"),
 ];
 
 const ARRAY: [(&str, &str); 5] = [
@@ -132,7 +131,6 @@ impl Scope<'_> {
             "vec2" => Ty::Struct("Vec2".into()),
             "vec3" => Ty::Struct("Vec3".into()),
             "color" => Ty::Struct("Color".into()),
-            "nil" => Ty::Any,
             _ => return None,
         })
     }
@@ -218,13 +216,15 @@ impl Scope<'_> {
         };
         match recv {
             Recv::Ty(Ty::Struct(s)) => {
+                let reach = crate::reach::Reach::of(self.prog);
+                let open = |name: &str| reach.refused("", &format!("{s}.{name}")).is_none();
                 if let Some((_, names)) = PRELUDE.iter().find(|(n, _)| *n == s) {
                     for n in *names {
                         add(n, Kind::Field, "float".into());
                     }
                 }
                 if let Some((_, fields)) = self.prog.structs.iter().find(|(n, _)| n == s) {
-                    for f in fields {
+                    for f in fields.iter().filter(|f| open(&f.name)) {
                         add(&f.name, Kind::Field, show(&f.ty));
                     }
                 }
@@ -235,7 +235,7 @@ impl Scope<'_> {
                     .prog
                     .fns
                     .iter()
-                    .filter(|f| f.owner.as_deref() == Some(s))
+                    .filter(|f| f.owner.as_deref() == Some(s) && open(&f.name))
                 {
                     add(&f.name, Kind::Method, fn_signature(f));
                 }

@@ -10,7 +10,7 @@ use util;
 use viewport;
 
 pub class PenState {
-    hover: int,
+    internal hover: int,
     drag: Drag?,
     path: Loaded?,
     reference: str,
@@ -20,8 +20,8 @@ pub class PenState {
 /// The path being edited: shared with `state.pen`, so an edit to one is an edit
 /// to the cached copy.
 pub class Loaded {
-    points: [[float]],
-    closed: bool,
+    internal points: [[float]],
+    internal closed: bool,
 }
 
 /// The handle being pulled: the anchor it belongs to, and whether the pair
@@ -110,7 +110,7 @@ fn save(state: &mut editor::State) {
     let path = state.pen.path.unwrap();
     let definition: any = { "type": "path2d", "points": path.points, "closed": path.closed };
     assets::save(asset_path(state, found), definition);
-    model::forget(state, nil);
+    model::forget(state);
     // The stroke is drawn from the asset, so the node has to be told the file
     // under it moved; re-applying the component is what re-reads it.
     let stroked = model::selected_node(state);
@@ -142,7 +142,7 @@ pub fn add_anchor(state: &mut editor::State, local_x: float, local_y: float) {
         log::info("this path is closed; open it to add a point");
         return;
     }
-    history::record(state, "add path point", nil);
+    history::record(state, "add path point");
     let points = path.points;
     if points.len() == 0 {
         points.push([local_x, local_y]);
@@ -221,7 +221,7 @@ pub fn remove_anchor(state: &mut editor::State, at: int) {
     if at % 3 != 0 || points.len() <= 2 {
         return;
     }
-    history::record(state, "remove path point", nil);
+    history::record(state, "remove path point");
     // The anchor and the handle on each side of it, clamped at the ends.
     let from = if at == 0 { 0 } else { at - 1 };
     let take = if at == 0 || at == points.len() - 1 { 2 } else { 3 };
@@ -248,7 +248,7 @@ pub fn toggle_closed(state: &mut editor::State) {
         log::info("a path needs three points before it can close");
         return;
     }
-    history::record(state, if path.closed { "open path" } else { "close path" }, nil);
+    history::record(state, if path.closed { "open path" } else { "close path" });
     if path.closed {
         path.closed = false;
         // The closing segment's two handles have no anchor to end on.
@@ -277,8 +277,8 @@ pub fn new_path(state: &mut editor::State) {
     let name = model::unique_name(state, "Path");
     let relative_path = "paths/{name.to_lower()}.toml";
     assets::save(state.game_root + "/" + relative_path, { "type": "path2d", "points": [], "closed": false });
-    model::forget(state, nil);
-    history::record(state, "add path", nil);
+    model::forget(state);
+    history::record(state, "add path");
     let made = model::spawn(state, state.scene_root.unwrap(), name, {
         "transform": { "position": [0.0, 0.0, 0.0] },
         "line2d": { "mesh": relative_path, "width": 0.06 },

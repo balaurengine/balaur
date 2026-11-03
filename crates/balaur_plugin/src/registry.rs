@@ -128,6 +128,20 @@ impl<'a> Registry<'a> {
         self.app.register_asset_type(name, directory, doc, parse);
     }
 
+    /// An asset type with no schema whose closed keys `check` refuses
+    /// (`App::register_checked_asset`).
+    pub fn register_checked_asset(
+        &mut self,
+        name: &str,
+        directory: &str,
+        doc: &'static str,
+        check: balaur_core::assets::AssetCheckFn,
+        parse: fn(&toml::Value) -> Result<std::rc::Rc<dyn std::any::Any>>,
+    ) {
+        self.app
+            .register_checked_asset(name, directory, doc, check, parse);
+    }
+
     /// An asset type whose definition is a record of `schema`'s properties,
     /// drawn and filled in as a component's are (`App::register_record_asset`).
     pub fn register_record_asset(

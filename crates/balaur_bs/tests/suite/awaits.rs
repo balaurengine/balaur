@@ -119,6 +119,60 @@ fn a_free_async_fn_returns_a_value() {
 }
 
 #[test]
+fn an_async_fn_leaves_out_its_trailing_optionals() {
+    const SRC: &str = r#"
+        extern async fn wait(seconds: float);
+        async fn nap(seconds: float, label: str?, tag: any) -> str {
+            await wait(seconds);
+            "{label.or("nap")} {tag == nil}"
+        }
+        pub class Sleeper { naps: int }
+        impl Sleeper {
+            async fn rest(label: str?, tag: any) -> str {
+                self.naps += 1;
+                let said = await nap(0.5, label, tag);
+                "rest {said}"
+            }
+            pub async fn run() -> str {
+                let a = await self.rest();
+                let b = await self.rest("deep");
+                let c = await self.rest("deep", 1);
+                "{a}|{b}|{c}"
+            }
+        }
+        pub async fn free() -> str {
+            let a = await nap(0.5);
+            let b = await nap(0.5, "x");
+            let c = await nap(0.5, "y", "z");
+            "{a}|{b}|{c}"
+        }
+    "#;
+    let mut rt = run_with(SRC, host(Rc::default()), &Options::default());
+    let mut task = rt.start("free", &[]).unwrap();
+    let (v, _, _) = drive(&mut rt, &mut task, None);
+    assert_eq!(v, Value::Str("nap true|x true|y false".into()));
+    assert_eq!(rt.live(), 0);
+    let sleeper = rt.object("Sleeper", &[("naps", Value::Int(0))]).unwrap();
+    let mut task = rt.start("Sleeper.run", &[]).unwrap();
+    let (v, _, _) = drive(&mut rt, &mut task, Some(&sleeper));
+    assert_eq!(
+        v,
+        Value::Str("rest nap true|rest deep true|rest deep false".into())
+    );
+    assert_eq!(rt.get(&sleeper, "naps"), Some(Value::Int(3)));
+    rt.drop_object(sleeper);
+    assert_eq!(rt.live(), 0);
+}
+
+#[test]
+fn an_async_fn_takes_what_it_says() {
+    let e = super::compile_error("async fn f(a: int, b: int?) {}\nasync fn g() { await f(); }");
+    assert!(e.contains("`f` takes 1 to 2 argument(s), 0 given"), "{e}");
+    let e = super::compile_error("async fn f(a: int?) {}\nasync fn g() { await f(1, 2); }");
+    assert!(e.contains("`f` takes 0 to 1 argument(s), 2 given"), "{e}");
+}
+
+#[test]
 fn await_belongs_in_async_functions() {
     let e = super::compile_error("extern async fn wait(s: float);\nfn f() { await wait(1.0); }");
     assert!(e.contains("`await` goes in an `async fn`"), "{e}");

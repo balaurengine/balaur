@@ -12,37 +12,37 @@ use signals;
 use util;
 
 pub class SessionState {
-    recording: str,
+    internal recording: str,
     loaded: str,
     header: any,
-    first: int,
-    last: int,
-    lanes: [Lane],
-    at: int,
+    internal first: int,
+    internal last: int,
+    internal lanes: [Lane],
+    internal at: int,
     list: [Row],
     listed_at: float,
-    verify: bool,
-    demo: selftest::Demo?,
+    internal verify: bool,
+    internal demo: selftest::Demo?,
 }
 
 pub struct Row {
-    name: str,
-    started: str,
-    ticks: int,
-    seconds: float,
-    reason: str,
-    stale: bool,
+    internal name: str,
+    internal started: str,
+    internal ticks: int,
+    internal seconds: float,
+    internal reason: str,
+    internal stale: bool,
 }
 
 pub struct Lane {
     id: str,
-    name: str,
-    marks: [Mark],
+    internal name: str,
+    internal marks: [Mark],
 }
 
 pub struct Mark {
-    tick: any,
-    label: str,
+    internal tick: any,
+    internal label: str,
 }
 
 // How many sessions are kept per game before the oldest is pruned; a kept

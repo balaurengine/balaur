@@ -586,3 +586,107 @@ fn an_ended_machine_stays_ended_across_a_rollback() {
         "restored, it is ended again rather than back at its start"
     );
 }
+
+/// A typo in any closed level, and what it says: each stays a typo however deep
+/// the machine it sits in.
+#[test]
+fn a_key_a_machine_does_not_take_is_refused_at_every_level() {
+    let refused = [
+        (
+            r#"
+strt = "a"
+states = { a = "" }
+"#,
+            "`strt` is not a key of a state machine",
+        ),
+        (
+            r#"
+start = "a"
+states = { a = "", b = "" }
+
+[[transitions]]
+from = "a"
+to = "b"
+fade = 0.5
+"#,
+            "transition 0: `fade` is not a key of a transition",
+        ),
+        (
+            r#"
+start = "a"
+
+[states.a]
+start = "b"
+state = { b = "" }
+"#,
+            "state `a`: `state` is not a key of a state machine",
+        ),
+        (
+            r#"
+start = "a"
+
+[states.a]
+start = "b"
+states = { b = "", c = "" }
+
+[[states.a.transitions]]
+from = "b"
+to = "c"
+fade = 0.5
+"#,
+            "state `a`: transition 0: `fade` is not a key of a transition",
+        ),
+        (
+            r#"
+start = "a"
+
+[states.a]
+type = "state_machine"
+start = "b"
+states = { b = "" }
+"#,
+            "state `a`: `type` is not a key of a state machine",
+        ),
+    ];
+    for (document, said) in refused {
+        let value: toml::Value = toml::from_str(document).unwrap();
+        let why = machine::check(&value).unwrap_err();
+        assert!(format!("{why:#}").contains(said), "{document}: {why:#}");
+    }
+}
+
+/// A state is named by the author, so no name is a typo: not one that spells a
+/// key, and not one holding a whole nested machine.
+#[test]
+fn every_key_a_machine_reads_and_any_state_name_pass() {
+    let document = r#"
+type = "state_machine"
+start = "from"
+
+[states]
+from = ""
+start = "start_clip"
+fade = "fade_clip"
+
+[states.states]
+start = "transitions"
+states = { transitions = "" }
+
+[[transitions]]
+from = "from"
+to = "start"
+blend_time = 0.5
+ease = "linear"
+blend_curve = [[0.0, 0.0], [1.0, 1.0]]
+advance_mode = "auto"
+switch_mode = "at_end"
+condition = "ready"
+check = "can_go"
+priority = 2
+reset = false
+break_loop_at_end = true
+"#;
+    let value: toml::Value = toml::from_str(document).unwrap();
+    machine::check(&value).unwrap();
+    machine::parse(&value).unwrap();
+}

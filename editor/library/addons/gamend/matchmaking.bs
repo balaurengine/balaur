@@ -6,16 +6,18 @@
 // script says `use addons::gamend::matchmaking;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
 /// Leave the matchmaking queue
 /// `DELETE /api/v1/matchmaking/tickets`
 pub fn cancel() -> any {
-    gamend::rest("DELETE", "/api/v1/matchmaking/tickets", nil())
+    gamend::rest("DELETE", "/api/v1/matchmaking/tickets")
 }
 
 /// Join the matchmaking queue
@@ -27,11 +29,11 @@ pub fn join(params: any) -> any {
 /// Get my current ticket
 /// `GET /api/v1/matchmaking/tickets/me`
 pub fn my_ticket() -> any {
-    gamend::rest("GET", "/api/v1/matchmaking/tickets/me", nil())
+    gamend::rest("GET", "/api/v1/matchmaking/tickets/me")
 }
 
 /// Queue statistics
 /// `GET /api/v1/matchmaking/stats`
 pub fn stats() -> any {
-    gamend::rest("GET", "/api/v1/matchmaking/stats", nil())
+    gamend::rest("GET", "/api/v1/matchmaking/stats")
 }

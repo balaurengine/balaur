@@ -25,6 +25,7 @@ pub(super) fn emit(
 ) -> R<(u32, Vec<(usize, String)>)> {
     let selfv = g.self_vts(sig.owner.as_ref());
     let mut fg = FnGen::new(g, 1 + selfv.len(), Mode::Normal { ret: f.ret.clone() });
+    fg.module = crate::reach::module_of(&f.key()).to_string();
     if let Some(o) = &sig.owner {
         fg.self_lv = Some(super::LVal {
             ty: Ty::Struct(o.clone()),
@@ -263,7 +264,7 @@ fn start_child(
     ]);
     fg.patches.push((fg.code.len(), key.clone()));
     fg.emit([I::I32Const(0), I::MemoryFill(0), I::LocalGet(child)]);
-    fg.args(&callee.params, args, call.pos, &key)?;
+    fg.script_args(&callee, callee.least(), args, call.pos, &key)?;
     fg.e(I::Call(callee.idx));
     goto(fg, l, poll);
     fg.br(l.dispatch);

@@ -14,10 +14,10 @@ use window;
 
 pub class SettingsState {
     at: str,
-    dirty: bool,
-    compact: bool,
-    demo: int,
-    target: str,
+    internal dirty: bool,
+    internal compact: bool,
+    internal demo: int,
+    internal target: str,
 }
 
 // The search field this screen filters with; `crate::search` keys its own

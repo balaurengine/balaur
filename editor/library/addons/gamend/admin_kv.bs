@@ -6,9 +6,11 @@
 // script says `use addons::gamend::admin_kv;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -31,25 +33,31 @@ pub fn delete_kv(options: any) -> any {
         return core::missing("gamend::admin_kv::delete_kv", "key");
     }
     let query = core::query(options, ["key", "user_id", "lobby_id"]);
-    gamend::rest("DELETE", "/api/v1/admin/kv{query}", nil())
+    gamend::rest("DELETE", "/api/v1/admin/kv{query}")
 }
 
 /// Delete KV entry by id (admin)
 /// `DELETE /api/v1/admin/kv/entries/{id}`
 pub fn delete_kv_entry(id: any) -> any {
-    gamend::rest("DELETE", "/api/v1/admin/kv/entries/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::admin_kv::delete_kv_entry", "id");
+    }
+    gamend::rest("DELETE", "/api/v1/admin/kv/entries/{id}")
 }
 
 /// List KV entries (admin)
 /// `GET /api/v1/admin/kv/entries`
 pub fn list_kv_entries(options: any) -> any {
     let query = core::query(options, ["page", "page_size", "key", "user_id", "lobby_id", "global_only"]);
-    gamend::rest("GET", "/api/v1/admin/kv/entries{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/kv/entries{query}")
 }
 
 /// Update KV entry by id (admin)
 /// `PATCH /api/v1/admin/kv/entries/{id}`
 pub fn update_kv_entry(id: any, params: any) -> any {
+    if id == nil {
+        return core::missing("gamend::admin_kv::update_kv_entry", "id");
+    }
     gamend::rest("PATCH", "/api/v1/admin/kv/entries/{id}", params)
 }
 

@@ -12,7 +12,7 @@ pub fn given(table: any, key: str) -> bool {
 /// answers nil, which is what a caller sees instead of a request id.
 pub fn missing(call: str, field: str) -> any {
     log::error("gamend: {call} needs `{field}`");
-    nil()
+    nil
 }
 
 /// `?a=1&b=2` for the keys an operation declares, in the order it declares
@@ -78,7 +78,7 @@ pub fn error_of(reply: any) -> str {
 /// where the server wrapped it, and the body itself where it did not.
 pub fn unpack(reply: any) -> any {
     if reply == nil {
-        return { "ok": false, "data": nil(), "error": "gamend: the call sent no reply" };
+        return { "ok": false, "data": nil, "error": "gamend: the call sent no reply" };
     }
     let status = reply["status"];
     let payload = reply["body"];
@@ -88,7 +88,7 @@ pub fn unpack(reply: any) -> any {
         } else {
             "gamend: the call answered " + status.text()
         };
-        return { "ok": false, "data": nil(), "error": message, "status": status };
+        return { "ok": false, "data": nil, "error": message, "status": status };
     }
     let data = if payload.has("data") { payload["data"] } else { payload };
     { "ok": true, "data": data, "error": "", "status": status }

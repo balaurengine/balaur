@@ -259,7 +259,7 @@ fn ask_policy(sink: &mut Sink, node: Node) {
 
 fn policy_came(sink: &mut Sink, reply: any) {
     let status = reply["status"].as_int();
-    let policy = if status == 200 { parsed(reply["body"]) } else { nil() };
+    let policy = if status == 200 { parsed(reply["body"]) } else { nil };
     if policy.kind() != "map" {
         sink.state = "no policy ({describe(reply)}): asking again";
         return;

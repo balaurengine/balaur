@@ -470,13 +470,13 @@ fn click(sequence: Sequence, frame: int, place: any, name: str, data: any) {
     glide(sequence, frame - GLIDE, frame, place);
     at(sequence, frame, pressed_at, { "place": place });
     act_verb(sequence, frame + 3, name, data);
-    at(sequence, frame + 12, release, nil);
+    at(sequence, frame + 12, release);
 }
 
 fn pressed_at(state: &mut editor::State, data: any) {
     let at = place_of(state, data["place"]);
     feed_pointer(state, at[0], at[1]);
-    press(state, nil);
+    press(state);
 }
 
 fn click_row(sequence: Sequence, frame: int, name: str) {
@@ -581,7 +581,7 @@ fn verb(state: &mut editor::State, data: any) {
             shell::resume(state, debugger::CONTINUE);
         }
     } else if name == "record" {
-        history::record(state, data["label"].as_str(), nil);
+        history::record(state, data["label"].as_str());
     } else if name == "seek" {
         anim::seek(state, data["time"].as_float());
     } else if name == "key" {
@@ -668,9 +668,9 @@ fn following(place: any, offset_x: float) -> any {
 // The slingshot: grab the bird, pull down and left, let go.
 fn fling(sequence: Sequence, from: int) {
     glide(sequence, from - GLIDE, from, at_place("world", [-8.0, 2.2]));
-    at(sequence, from + 10, press, nil);
-    over(sequence, from + 10, from + 70, pulling, nil);
-    at(sequence, from + 80, release, nil);
+    at(sequence, from + 10, press);
+    over(sequence, from + 10, from + 70, pulling);
+    at(sequence, from + 80, release);
 }
 
 fn pulling(state: &mut editor::State, data: any, progress: float) {
@@ -725,11 +725,11 @@ fn scenes(state: &mut editor::State, sequence: Sequence) {
     click_row(sequence, 450, "Spinner");
     // A drag on the inspector's scale field, with the button held throughout.
     glide(sequence, 520 - GLIDE, 520, at_place("spot", "scale_x"));
-    at(sequence, 540, press, nil);
+    at(sequence, 540, press);
     at(sequence, 540, verb, { "verb": "record", "label": "scale Spinner" });
-    over_ui(sequence, 540, 620, scaling, nil);
+    over_ui(sequence, 540, 620, scaling);
     over(sequence, 540, 620, follow, following(at_place("spot", "scale_x"), 30.0));
-    at(sequence, 630, release, nil);
+    at(sequence, 630, release);
     chord(sequence, 700, [input::KEY_LEFT_META, input::KEY_Z], "undo");
 }
 
@@ -808,15 +808,15 @@ fn animation(state: &mut editor::State, sequence: Sequence) {
     click(sequence, 20, at_place("spot", "animation_tab"), "workspace", { "id": defs::WORKSPACE_ANIMATION });
     click_row(sequence, 90, "Thigh");
     click(sequence, 150, at_place("spot", "bone_tool"), "bone_tool", {});
-    over_ui(sequence, 200, 340, scrubbing, nil);
+    over_ui(sequence, 200, 340, scrubbing);
     act_verb(sequence, 380, "seek", { "time": 1.0 });
     // Drag the bone itself: the cursor sits on it while it turns.
     glide(sequence, 430 - GLIDE, 430, at_place("selection", true));
-    at(sequence, 430, press, nil);
+    at(sequence, 430, press);
     act_verb(sequence, 434, "record", { "label": "pose Thigh" });
-    over_ui(sequence, 434, 520, posing, nil);
+    over_ui(sequence, 434, 520, posing);
     over(sequence, 434, 520, follow, following(at_place("selection", true), 0.0));
-    at(sequence, 530, release, nil);
+    at(sequence, 530, release);
     click(sequence, 600, at_place("spot", "key"), "key", {});
     click(sequence, 700, at_place("spot", "play"), "play", {});
     // Stopped while the figure is still on its feet: the rig's own script
@@ -853,9 +853,9 @@ fn input_clip(state: &mut editor::State, sequence: Sequence) {
     hold(sequence, 260, 340, [input::KEY_A]);
     hold(sequence, 370, 450, [input::KEY_D]);
     glide(sequence, 470 - GLIDE, 470, at_place("viewport", [0.3, 0.6]));
-    over(sequence, 470, 520, sweeping, nil);
-    at(sequence, 530, press, nil);
-    at(sequence, 545, release, nil);
+    over(sequence, 470, 520, sweeping);
+    at(sequence, 530, press);
+    at(sequence, 545, release);
     tap(sequence, 600, "Space");
     hold(sequence, 650, 710, [input::KEY_LEFT_SHIFT, input::KEY_W]);
 }
@@ -965,17 +965,17 @@ fn theme_editor(state: &mut editor::State, sequence: Sequence) {
     click(sequence, 250, at_place("head", "Duplicate"), "theme_duplicate", {});
     // One source: the fills, the inks and the tints derived from it follow.
     glide(sequence, 330 - GLIDE, 330, { "form": "primary", "at": 0 });
-    at(sequence, 330, press, nil);
-    over_ui(sequence, 335, 455, recolouring, nil);
-    at(sequence, 460, release, nil);
+    at(sequence, 330, press);
+    over_ui(sequence, 335, 455, recolouring);
+    at(sequence, 460, release);
     click(sequence, 540, at_place("centre", SIDE + "/C3"), "theme_page", { "id": "controls" });
     click(sequence, 620, { "form": "chip", "at": 1 }, "theme_role", { "id": "chip" });
     let padding: any = { "form": "  padding_x", "at": 0 };
     glide(sequence, 700 - GLIDE, 700, padding);
-    at(sequence, 700, press, nil);
-    over_ui(sequence, 705, 785, padding_out, nil);
+    at(sequence, 700, press);
+    over_ui(sequence, 705, 785, padding_out);
     over(sequence, 705, 785, follow, following(padding, 40.0));
-    at(sequence, 790, release, nil);
+    at(sequence, 790, release);
     // The bar reads title, spring, Save, close: Save is its third node.
     click(sequence, 870, at_place("centre", "Editor/Sheet/SheetBar/C2"), "theme_save", {});
     click(sequence, 950, at_place("centre", "Editor/Sheet/SheetBar/C3"), "window_hide", {});

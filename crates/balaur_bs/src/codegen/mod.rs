@@ -22,8 +22,8 @@ use crate::{
     Probe, Slot, words,
 };
 mod checks;
-pub(crate) use checks::unknown_type;
 use checks::{check_structs, check_types, defaults};
+pub(crate) use checks::{errors, lints, unknown_type};
 pub(crate) use func::show;
 /// Where a module's static data starts: past the scratch space and the
 /// allocator's free lists. A linked script's units put theirs from here.
@@ -93,6 +93,13 @@ impl Sig {
     }
     pub(crate) fn has_refs(&self) -> bool {
         self.refs.contains(&true)
+    }
+    /// How many arguments a named call must pass: trailing `T?` and `any`
+    /// parameters may be left out, and are nil. A `&mut` one is a place the
+    /// call stores back, so it and all before it are given.
+    pub(crate) fn least(&self) -> usize {
+        let given = self.refs.iter().rposition(|r| *r).map_or(0, |at| at + 1);
+        given + crate::least(&self.params[given..])
     }
 }
 
@@ -180,6 +187,10 @@ pub(crate) struct Gen {
     pub unused: std::collections::HashSet<String>,
     /// The prelude's functions, by key, each given an index by its first call.
     pub lazy: HashMap<String, FnDecl>,
+    /// Who may name what.
+    pub reach: crate::reach::Reach,
+    /// What [`crate::lints`] reports, found as the code is made.
+    pub lints: RefCell<Vec<Error>>,
 }
 
 impl Gen {
@@ -619,6 +630,8 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         probes: RefCell::new(vec![]),
         fn_refs: RefCell::new(vec![]),
         calls_indirect: std::cell::Cell::new(false),
+        reach: prog.reach.clone(),
+        lints: RefCell::new(vec![]),
         unit: options.unit,
         links: plan.links,
         unused: plan.unused,
@@ -771,21 +784,6 @@ struct Emitted {
 }
 
 /// Every function's error, the module's own first: what `balaur check` lists.
-pub(crate) fn errors(prog: &Program, options: &Options) -> Vec<Error> {
-    let g = match layout(prog, options) {
-        Ok(g) => g,
-        Err(e) => return vec![e],
-    };
-    if let Err(e) = defaults(prog) {
-        return vec![e];
-    }
-    let mut found = vec![];
-    if let Err(e) = emit_fns(&g, prog, options.debug, Some(&mut found)) {
-        found.push(e);
-    }
-    found
-}
-
 // `sink`: collect each function's error and go on, rather than stop.
 fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Error>>) -> R<Emitted> {
     let mut out = Emitted::default();
@@ -848,7 +846,7 @@ fn emit_fns(g: &Gen, prog: &Program, debug: bool, mut sink: Option<&mut Vec<Erro
             };
             out.bodies
                 .push((g.type_idx(vec![], vec![ValType::I32]), body));
-            if f.public || f.owner.is_some() {
+            if f.public || f.internal || f.owner.is_some() {
                 out.exports
                     .push((format!("{}{key}{}", words::LINK, words::FRAME), sig.idx + 2));
             }
@@ -898,7 +896,7 @@ fn emit_sync(
     // Every method is exported for the host, bar one with a `&mut` parameter,
     // which no caller outside the module can hand its value back to; a unit's
     // methods are exported for the units that call them, `&mut` or not.
-    if g.unit && (f.public || f.owner.is_some()) {
+    if g.unit && (f.public || f.internal || f.owner.is_some()) {
         out.exports.push((format!("{}{key}", words::LINK), sig.idx));
     }
     if (f.public || f.owner.is_some()) && !sig.has_refs() {
@@ -1114,6 +1112,7 @@ fn sync_fn(
     let (p, _) = g.wasm_sig(sig);
     let mut fg = FnGen::new(g, p.len(), Mode::Normal { ret: f.ret.clone() });
     fg.prelude = crate::prelude::owns(&f.key()) || crate::maps::owns(&f.key());
+    fg.module = crate::reach::module_of(&f.key()).to_string();
     let mut slot = 0u32;
     if let Some(o) = &sig.owner {
         let n = g.slots(&Ty::Struct(o.clone())).len() as u32;

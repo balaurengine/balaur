@@ -233,3 +233,11 @@ fn a_module_the_project_ignores_is_an_error_on_its_user() {
         "{found:?}"
     );
 }
+
+#[test]
+fn a_trailing_nil_a_call_may_leave_out_is_a_warning() {
+    let found = check(r#"self.node.set_component("transform", nil);"#);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].0, "main.bs:4:warning", "{found:?}");
+    assert!(found[0].1.contains("leave this `nil` out"), "{found:?}");
+}

@@ -58,6 +58,10 @@ pub const ID_PREFIX: &str = "id://";
 /// understands.
 pub type AssetParseFn = Box<dyn Fn(&toml::Value) -> Result<Rc<dyn Any>>>;
 
+/// Refuse a key no level of an asset type's definition takes, for a type with
+/// no schema to hold it to.
+pub type AssetCheckFn = fn(&toml::Value) -> Result<()>;
+
 /// What a plugin declares about one asset type.
 pub struct AssetType {
     pub parse: AssetParseFn,
@@ -74,6 +78,9 @@ pub struct AssetType {
     /// filled in and its keys checked against it before `parse` sees it, as
     /// a component's table is before `apply`, and an Inspector draws it.
     pub schema: Option<Rc<crate::components::Schema>>,
+    /// What holds a definition with no schema to its keys, where one names it
+    /// and again before `parse` sees it.
+    pub check: Option<AssetCheckFn>,
 }
 
 /// Asset parsers, appended during plugin build and read-only afterwards:
@@ -100,6 +107,14 @@ impl AssetTypeRegistry {
             .iter()
             .find(|(n, _)| n == type_name)
             .and_then(|(_, t)| t.schema.clone())
+    }
+
+    /// What holds a definition of a type with no schema to its keys.
+    pub fn check(&self, type_name: &str) -> Option<AssetCheckFn> {
+        self.0
+            .iter()
+            .find(|(n, _)| n == type_name)
+            .and_then(|(_, t)| t.check)
     }
 }
 
@@ -171,7 +186,7 @@ impl std::fmt::Display for AssetRef {
 
 /// A definition and the type name that decides which parser reads it.
 #[derive(Clone)]
-struct Definition {
+pub(crate) struct Definition {
     /// From the document's or the block's `type` key. Absent means nothing
     /// said, which is an error at parse time rather than at resolution.
     type_name: Option<String>,
@@ -327,8 +342,13 @@ pub fn resolve(eng: &Engine, reference: &str) -> Result<AssetRef> {
 /// No parser is involved, so this works for an asset type no plugin has
 /// registered: which is what the `assets` script module hands to scripts.
 pub fn definition(eng: &Engine, reference: &str) -> Result<toml::Value> {
+    Ok(written(eng, reference)?.body)
+}
+
+/// The definition a reference resolves to, with the type it declares.
+pub(crate) fn written(eng: &Engine, reference: &str) -> Result<Definition> {
     let key = resolve(eng, reference)?;
-    Ok(cached_definition(eng, &key, reference)?.body)
+    cached_definition(eng, &key, reference)
 }
 
 /// The parsed asset behind a reference, shared with every other holder.
@@ -404,6 +424,27 @@ pub fn font_row_spec(group: &str) -> String {
 
 /// The key naming the file a texture or a font reads.
 pub const SOURCE: &str = "source";
+
+/// The key a definition declares its type in.
+pub const TYPE: &str = "type";
+
+/// Refuse a key of one level of a definition that `closed` does not name, for
+/// an [`AssetCheckFn`]. A value that is no table has no keys to refuse.
+///
+/// # Errors
+/// Naming the key, what it was written on and the keys that level takes.
+pub fn refuse_keys(level: &toml::Value, what: &str, closed: &[&str]) -> Result<()> {
+    let Some(table) = level.as_table() else {
+        return Ok(());
+    };
+    match table.keys().find(|key| !closed.contains(&key.as_str())) {
+        Some(unknown) => Err(anyhow!(
+            "`{unknown}` is not a key of {what}, which takes {}",
+            closed.join(", ")
+        )),
+        None => Ok(()),
+    }
+}
 
 /// The asset a file of another format is of itself, as its definition: an
 /// image is a texture and a face a font, so a property of either type takes
@@ -565,15 +606,19 @@ pub fn define_inline(eng: &Engine, type_name: &str, body: toml::Value) -> Result
     let mut hash = digest_bytes(FNV_OFFSET, type_name.as_bytes());
     hash = digest_value(hash, &body);
     let key = AssetRef::Inline(hash);
+    let state = state(eng)?;
+    if state.borrow().definitions.contains_key(&key) {
+        return Ok(key);
+    }
     let definition = Definition {
         type_name: (!type_name.is_empty()).then(|| type_name.to_string()),
         body,
     };
-    state(eng)?
+    definition.refuse_unknown_keys(eng, type_name)?;
+    state
         .borrow_mut()
         .definitions
-        .entry(key.clone())
-        .or_insert(definition);
+        .insert(key.clone(), definition);
     Ok(key)
 }
 
@@ -615,6 +660,27 @@ pub fn enter_scene_scope(eng: &Engine, source: &str, blocks: &[SceneAsset]) -> R
 pub fn leave_scene_scope(eng: &Engine, previous: Option<u64>) {
     if let Some(state) = eng.try_resource::<AssetState>() {
         state.borrow_mut().current_scope = previous;
+    }
+}
+
+impl Definition {
+    /// Refuse a key its type does not take, where the definition was named: a
+    /// parse waits for the first draw, and a text or a camera only warns then,
+    /// so a typo would apply as nothing. `expected` answers for a definition
+    /// that declares no type.
+    pub(crate) fn refuse_unknown_keys(&self, eng: &Engine, expected: &str) -> Result<()> {
+        let type_name = self.type_name.as_deref().unwrap_or(expected);
+        let Some(registry) = eng.try_resource::<AssetTypeRegistry>() else {
+            return Ok(());
+        };
+        let registry = registry.borrow();
+        if let Some(check) = registry.check(type_name) {
+            check(&self.body)?;
+        }
+        match (registry.schema(type_name), self.body.as_table()) {
+            (Some(schema), Some(table)) => refuse_undeclared(&schema, type_name, table),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -768,6 +834,9 @@ fn parse(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Rc<dyn Any>> {
             registry.names().join(", ")
         )
     })?;
+    if let Some(check) = registry.check(&type_name) {
+        check(&body).with_context(|| format!("parsing asset '{reference}'"))?;
+    }
     parser(&body).with_context(|| format!("parsing asset '{reference}'"))
 }
 
@@ -781,14 +850,24 @@ fn record_body(
     body: &toml::Value,
 ) -> Result<toml::Value> {
     let mut own = body.as_table().cloned().unwrap_or_default();
-    own.remove("type");
-    if let Some(unknown) = own.keys().find(|key| schema.get(key.as_str()).is_none()) {
-        anyhow::bail!(
+    refuse_undeclared(schema, type_name, &own)?;
+    own.remove(TYPE);
+    crate::components::properties(eng, schema, Some(&toml::Value::Table(own)))
+}
+
+fn refuse_undeclared(
+    schema: &crate::components::Schema,
+    type_name: &str,
+    table: &toml::Table,
+) -> Result<()> {
+    let undeclared = |key: &&String| *key != TYPE && schema.get(key.as_str()).is_none();
+    match table.keys().find(undeclared) {
+        Some(unknown) => Err(anyhow!(
             "`{unknown}` is not a property of a {type_name}, which has {}",
             schema.order().join(", ")
-        );
+        )),
+        None => Ok(()),
     }
-    crate::components::properties(eng, schema, Some(&toml::Value::Table(own)))
 }
 
 pub(crate) const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;

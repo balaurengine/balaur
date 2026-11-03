@@ -116,11 +116,11 @@ fn runtime(c: &Compiled, engine: EngineKind) -> Runtime {
 
 const UTIL: &str = r##"
 use defs;
-pub class Rect { w: float, h: float }
+pub class Rect { pub w: float, pub h: float }
 impl Rect {
     pub fn area() -> float { self.w * self.h }
 }
-pub class Bag { items: [str], total: int }
+pub class Bag { pub items: [str], pub total: int }
 impl Bag {
     pub fn add(item: str) { self.items.push(item); self.total += item.len(); }
 }
@@ -137,7 +137,7 @@ pub fn halve() -> fn(int) -> int { half }
 fn half(n: int) -> int { n / 2 }
 "##;
 
-const DEFS: &str = r#"const NAME: str = "defs";
+const DEFS: &str = r#"pub const NAME: str = "defs";
 pub fn shout(s: str) -> str { s.to_upper() }"#;
 
 const MAIN: &str = r#"
@@ -298,6 +298,138 @@ fn an_async_function_of_another_unit_is_awaited() {
     }
 }
 
+const LEFT_OUT: &str = r#"
+use parts;
+pub fn free() -> str {
+    "{parts::label(1)}|{parts::label(2, "x")}|{parts::label(3, "y", 4)}"
+}
+pub fn method() -> str {
+    let pen = parts::Pen { made: 0 };
+    let a = pen.write("a");
+    let b = pen.write("b", 2);
+    let c = pen.write("c", 3, "t");
+    "{a}|{b}|{c}"
+}
+pub fn after_mut() -> str {
+    let n = 1;
+    parts::bump(n);
+    parts::bump(n, 5);
+    "{n}"
+}
+pub async fn later() -> str {
+    let a = await parts::nap(0.25);
+    let b = await parts::nap(0.25, "x");
+    let c = await parts::nap(0.25, "y", 1);
+    "{a}|{b}|{c}"
+}
+"#;
+
+const PARTS: &str = r#"
+extern async fn wait(seconds: float);
+pub fn label(id: int, name: str?, tag: any) -> str {
+    "{id} {name.or("none")} {tag == nil}"
+}
+pub class Pen { pub made: int }
+impl Pen {
+    pub fn write(text: str, size: int?, note: any) -> str {
+        self.made += 1;
+        "{self.made} {text} {size.or(12)} {note == nil}"
+    }
+}
+pub fn bump(n: &mut int, by: int?) {
+    n += by.or(1);
+}
+pub async fn nap(seconds: float, label: str?, tag: any) -> str {
+    await wait(seconds);
+    "{label.or("nap")} {tag == nil}"
+}
+"#;
+
+// The caller only sees what `parts` declares; the nil is made on its side.
+#[test]
+fn a_unit_leaves_out_what_another_unit_declares_optional() {
+    let files = [("scripts/run.bs", LEFT_OUT), ("scripts/parts.bs", PARTS)];
+    let units = linked("scripts/run.bs", &files);
+    let flat = whole("scripts/run.bs", &files);
+    for engine in engines() {
+        for program in [&units, &flat] {
+            native(engine, with_uses(program));
+            let host = HostFns::default().on_async("wait", |args| {
+                let Value::Float(s) = args[0] else { panic!() };
+                (s, Value::Void)
+            });
+            let limits = Limits {
+                engine,
+                ..Limits::default()
+            };
+            let mut rt = Runtime::new(program, host, limits).unwrap_or_else(|e| panic!("{e}"));
+            assert_eq!(
+                rt.call("free", &[]).unwrap(),
+                Value::Str("1 none true|2 x true|3 y false".into()),
+                "{engine:?}"
+            );
+            assert_eq!(
+                rt.call("method", &[]).unwrap(),
+                Value::Str("1 a 12 true|2 b 2 true|3 c 3 false".into()),
+                "{engine:?}"
+            );
+            assert_eq!(
+                rt.call("after_mut", &[]).unwrap(),
+                Value::Str("7".into()),
+                "{engine:?}"
+            );
+            let mut task = rt.start("later", &[]).unwrap();
+            let mut out = None;
+            for _ in 0..1000 {
+                if let Some(v) = rt.poll(&mut task, None).unwrap() {
+                    out = Some(v);
+                    break;
+                }
+                rt.advance(0.125);
+            }
+            assert_eq!(
+                out,
+                Some(Value::Str("nap true|x true|y false".into())),
+                "{engine:?}"
+            );
+            assert_eq!(rt.live(), 0, "{engine:?}");
+        }
+    }
+}
+
+// A unit refuses as the whole file does, from the declaration alone, and says
+// the same of a nil that could go.
+#[test]
+fn a_unit_checks_a_call_against_the_declaration() {
+    let options = |path: &str, files: &[(&str, &str)]| Options {
+        modules: Some(modules(files)),
+        path: path.into(),
+        unit: true,
+        ..Options::default()
+    };
+    let parts = "pub fn f(a: int, b: int?) -> int { a }\n";
+    let few = "use parts;\npub fn g() -> int { parts::f() }\n";
+    let files = [("scripts/run.bs", few), ("scripts/parts.bs", parts)];
+    let e = compile(few, &options("scripts/run.bs", &files))
+        .err()
+        .map_or_else(|| panic!("compiled"), |e| e.to_string());
+    assert!(
+        e.contains("`parts::f` takes 1 to 2 argument(s), 0 given"),
+        "{e}"
+    );
+
+    let lints = "use parts;\npub fn g() -> int { parts::f(1, nil) }\n";
+    let files = [("scripts/run.bs", lints), ("scripts/parts.bs", parts)];
+    let found: Vec<String> = balaur_bs::lints(lints, &options("scripts/run.bs", &files))
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(
+        found,
+        ["2:33: leave this `nil` out: `parts::f` reads a missing argument as nil"]
+    );
+}
+
 #[test]
 fn a_unit_is_made_only_when_it_is_first_called() {
     let main = "use never;\npub fn run() -> int { 1 }\npub fn other() -> int { never::boom() }";
@@ -344,14 +476,14 @@ fn a_unit_reads_a_deeper_module_only_for_the_types_it_meets() {
         ("scripts/main.bs", main),
         (
             "scripts/shapes.bs",
-            "use geo;\nuse unused;\npub class Square { size: geo::Size }\n\
+            "use geo;\nuse unused;\npub class Square { pub size: geo::Size }\n\
              impl Square { pub fn area() -> float { geo::area(self.size) } }\n\
              pub fn square(w: float) -> Square { Square { size: geo::Size { w: w, h: w } } }\n\
              pub fn noise() -> int { unused::n() }",
         ),
         (
             "scripts/geo.bs",
-            "pub struct Size { w: float, h: float }\npub fn area(s: Size) -> float { s.w * s.h }",
+            "pub struct Size { pub w: float, pub h: float }\npub fn area(s: Size) -> float { s.w * s.h }",
         ),
         ("scripts/unused.bs", "pub fn n() -> int { 7 }"),
     ];

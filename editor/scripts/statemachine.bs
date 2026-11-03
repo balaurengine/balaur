@@ -15,7 +15,7 @@ pub class StatemachineState {
     open: int?,
     naming: str,
     file: File?,
-    demo: int,
+    internal demo: int,
 }
 
 /// The machine as it is authored: an inline table, or a file's contents and
@@ -100,7 +100,7 @@ fn write(state: &mut editor::State, found: Source, label: str) {
         state.machine.file = File { path: path, doc: found.doc };
         log::info("{label}: {path}");
     } else {
-        history::record(state, label, nil);
+        history::record(state, label);
         model::selected_node(state).patch_component(COMPONENT, { "machine": found.doc });
         history::commit(state);
     }
@@ -112,7 +112,7 @@ pub fn create(state: &mut editor::State) {
     if !model::has_selection(state) {
         return;
     }
-    history::record(state, "add state machine", nil);
+    history::record(state, "add state machine");
     let machine: any = { "type": MACHINE_TYPE, "start": "", "states": {}, "transitions": [] };
     model::selected_node(state).set_component(COMPONENT, { "machine": machine, "player": "", "active": true });
     history::commit(state);

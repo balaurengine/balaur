@@ -6,9 +6,11 @@
 // script says `use addons::gamend::payments;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -22,14 +24,14 @@ pub fn apple_webhook(params: any) -> any {
 /// `GET /api/v1/payments/catalog`
 pub fn catalog(options: any) -> any {
     let query = core::query(options, ["provider", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/payments/catalog{query}", nil())
+    gamend::rest("GET", "/api/v1/payments/catalog{query}")
 }
 
 /// List current user's active entitlements
 /// `GET /api/v1/payments/entitlements`
 pub fn entitlements(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/payments/entitlements{query}", nil())
+    gamend::rest("GET", "/api/v1/payments/entitlements{query}")
 }
 
 /// Receive Google Play RTDN Pub/Sub push events
@@ -68,5 +70,8 @@ pub fn stripe_webhook(params: any) -> any {
 /// Validate an Apple, Google, or Steam purchase
 /// `POST /api/v1/payments/validate/{provider}`
 pub fn validate_store_purchase(provider: any, params: any) -> any {
+    if provider == nil {
+        return core::missing("gamend::payments::validate_store_purchase", "provider");
+    }
     gamend::rest("POST", "/api/v1/payments/validate/{provider}", params)
 }

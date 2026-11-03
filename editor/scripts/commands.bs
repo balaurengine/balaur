@@ -75,7 +75,7 @@ pub fn run(state: &mut editor::State, name: str) {
     } else if name == "break" {
         debugger::request_break();
     } else if name == "add_child" {
-        model::add_child(state, nil);
+        model::add_child(state);
     } else if name == "attach_script" {
         shell::attach_script(state);
     } else if name == "reload" {

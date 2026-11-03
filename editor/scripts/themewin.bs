@@ -10,23 +10,23 @@ use util;
 use window;
 
 pub class ThemewinState {
-    page: str,
+    internal page: str,
     path: [str],
     table: str,
     own: any,
     dirty: bool,
-    pairs: [any],
+    internal pairs: [any],
     apart: [ui::ColorsApart],
     said: str,
-    demo: int,
-    test: Test,
+    internal demo: int,
+    internal test: Test,
 }
 
 /// What `--state themeeditdemo` keeps to put back: the preferences file as it
 /// was, and the theme it made.
 pub struct Test {
-    kept: str?,
-    name: str,
+    internal kept: str?,
+    internal name: str,
 }
 
 const ID: str = "theme";

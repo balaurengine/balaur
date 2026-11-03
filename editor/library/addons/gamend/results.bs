@@ -6,28 +6,36 @@
 // script says `use addons::gamend::results;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
 /// Get a result
 /// `GET /api/v1/results/{id}`
 pub fn get_result(id: any) -> any {
-    gamend::rest("GET", "/api/v1/results/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::results::get_result", "id");
+    }
+    gamend::rest("GET", "/api/v1/results/{id}")
 }
 
 /// List a result's events
 /// `GET /api/v1/results/{id}/events`
 pub fn list_result_events(id: any, options: any) -> any {
+    if id == nil {
+        return core::missing("gamend::results::list_result_events", "id");
+    }
     let query = core::query(options, ["after", "limit"]);
-    gamend::rest("GET", "/api/v1/results/{id}/events{query}", nil())
+    gamend::rest("GET", "/api/v1/results/{id}/events{query}")
 }
 
 /// List the caller's results
 /// `GET /api/v1/results`
 pub fn list_results(options: any) -> any {
     let query = core::query(options, ["kind", "status", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/results{query}", nil())
+    gamend::rest("GET", "/api/v1/results{query}")
 }

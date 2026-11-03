@@ -6,9 +6,11 @@
 // script says `use addons::gamend::users;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -30,20 +32,23 @@ pub fn delete_current_user(params: any) -> any {
 /// Return current user info
 /// `GET /api/v1/me`
 pub fn get_current_user() -> any {
-    gamend::rest("GET", "/api/v1/me", nil())
+    gamend::rest("GET", "/api/v1/me")
 }
 
 /// Get a user by id
 /// `GET /api/v1/users/{id}`
 pub fn get_user(id: any) -> any {
-    gamend::rest("GET", "/api/v1/users/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::users::get_user", "id");
+    }
+    gamend::rest("GET", "/api/v1/users/{id}")
 }
 
 /// Search users by id, username, or display_name
 /// `GET /api/v1/users`
 pub fn search_users(options: any) -> any {
     let query = core::query(options, ["q", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/users{query}", nil())
+    gamend::rest("GET", "/api/v1/users{query}")
 }
 
 /// Confirm an uploaded avatar
@@ -85,5 +90,5 @@ pub fn update_current_user_username(params: any) -> any {
 /// Player counts
 /// `GET /api/v1/users/stats`
 pub fn user_stats() -> any {
-    gamend::rest("GET", "/api/v1/users/stats", nil())
+    gamend::rest("GET", "/api/v1/users/stats")
 }

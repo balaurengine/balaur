@@ -6,27 +6,35 @@
 // script says `use addons::gamend::admin_groups;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
 /// Delete a group (admin)
 /// `DELETE /api/v1/admin/groups/{id}`
 pub fn delete_group(id: any) -> any {
-    gamend::rest("DELETE", "/api/v1/admin/groups/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::admin_groups::delete_group", "id");
+    }
+    gamend::rest("DELETE", "/api/v1/admin/groups/{id}")
 }
 
 /// List all groups (admin)
 /// `GET /api/v1/admin/groups`
 pub fn list_groups(options: any) -> any {
     let query = core::query(options, ["title", "type", "min_members", "max_members", "sort_by", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/groups{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/groups{query}")
 }
 
 /// Update a group (admin)
 /// `PATCH /api/v1/admin/groups/{id}`
 pub fn update_group(id: any, params: any) -> any {
+    if id == nil {
+        return core::missing("gamend::admin_groups::update_group", "id");
+    }
     gamend::rest("PATCH", "/api/v1/admin/groups/{id}", params)
 }

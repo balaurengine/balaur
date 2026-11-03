@@ -296,6 +296,13 @@ impl Finding {
             message,
         }
     }
+
+    fn warning(file: &str, line: usize, column: usize, message: String) -> Self {
+        Finding {
+            severity: "warning",
+            ..Finding::error(file, line, column, message)
+        }
+    }
 }
 
 /// Every finding in a project: each script a scene attaches, compiled through
@@ -319,11 +326,13 @@ pub fn check_project_using(
     project_root: &std::path::Path,
     extra: ExtraPlugins<'_>,
 ) -> Result<Vec<Finding>> {
+    use balaur_script::ScriptCompiler as _;
     with_host(project_root, extra, |_, host| {
         let ignored = text_of(&project_root.join("project.toml"))
             .map(|manifest| balaur_core::ignore::from_manifest(&manifest))
             .unwrap_or_default();
         let mut found = Vec::new();
+        let mut linted = std::collections::HashSet::new();
         for rel in scene_scripts(project_root) {
             let Some(source) = text_of(&project_root.join(&rel)) else {
                 found.push(Finding::error(
@@ -336,6 +345,16 @@ pub fn check_project_using(
             };
             found.extend(check_script(host, &rel, &source));
             found.extend(ignored_uses(host, &ignored, &rel, &source));
+            // Each file once, however many scripts link it. One from outside
+            // the project, a dependency's, is not this project's to reword.
+            let used = host.uses(&rel, &source).unwrap_or_default();
+            for file in std::iter::once(rel.clone()).chain(used) {
+                if linted.insert(file.clone())
+                    && let Some(text) = text_of(&project_root.join(&file))
+                {
+                    found.extend(lint_script(host, &file, &text));
+                }
+            }
         }
         Ok(found)
     })
@@ -388,6 +407,19 @@ fn check_script(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
     match *host {}
 }
 
+#[cfg(feature = "bs-backend")]
+fn lint_script(host: &balaur_script_bs::BsHost, rel: &str, source: &str) -> Vec<Finding> {
+    host.lints(rel, source)
+        .into_iter()
+        .map(|e| Finding::warning(rel, e.pos.line as usize, e.pos.col as usize, e.msg))
+        .collect()
+}
+
+#[cfg(not(feature = "bs-backend"))]
+fn lint_script(host: &NoScripts, _: &str, _: &str) -> Vec<Finding> {
+    match *host {}
+}
+
 /// Every script path the project's scene files attach, deduplicated and in a
 /// stable order. A scene that will not parse is skipped: it is the scene
 /// loader's error to report, not the checker's.
@@ -434,6 +466,10 @@ pub fn standard_app(mut config: AppConfig) -> Result<App> {
         &balaur_core::ComponentDef::parse_schema("settings.log", LOG_SCHEMA),
     );
     app.engine.insert_resource(configs_from(&asked));
+    if lacks_key_owner(&asked) {
+        app.engine
+            .insert_resource(balaur_core::project::LacksKeyOwner);
+    }
     balaur_plugin::load_all(&mut app, &mut standard_plugins(&asked)?)?;
     drive_ui_focus(&mut app);
     interact::install(&mut app);
@@ -508,6 +544,30 @@ fn standard_plugins(asked: &Selection) -> Result<Vec<Box<dyn balaur_plugin::Plug
             .is_none_or(balaur_core::PluginChoice::wanted)
     }));
     Ok(all)
+}
+
+/// The optional modules with no scene key of their own, so a build or a
+/// project without one still knows every key there is.
+pub const KEYLESS_MODULES: [&str; 6] = [
+    "apple",
+    "browser",
+    "gamend",
+    "http",
+    "multiplayer",
+    "websocket",
+];
+
+/// Whether this build or this project leaves out what may own a scene key:
+/// sound, a physics world, or an extension it turned off by a name it cannot
+/// look inside.
+fn lacks_key_owner(asked: &Selection) -> bool {
+    !cfg!(all(
+        feature = "audio",
+        feature = "physics2d",
+        feature = "physics3d"
+    )) || asked
+        .iter()
+        .any(|(name, choice)| !choice.wanted() && !KEYLESS_MODULES.contains(&name.as_str()))
 }
 
 /// Refuse a project that asked for a plugin nothing registered.

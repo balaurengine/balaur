@@ -25,6 +25,16 @@ fn gamend_addon() -> Vec<(String, String)> {
     files
 }
 
+/// `source` with the SDK addon beside it, run until it has said `markers`.
+fn run_with_addon(source: &str, markers: &[&str], deadline: Duration) -> Vec<String> {
+    let files = gamend_addon();
+    let borrowed: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    run_until_within(&borrowed, source, markers, deadline)
+}
+
 fn modules_under(dir: &std::path::Path, published: &str, files: &mut Vec<(String, String)>) {
     let entries =
         std::fs::read_dir(dir).unwrap_or_else(|e| panic!("cannot read {}: {e}", dir.display()));
@@ -128,13 +138,8 @@ fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
         .replace("@TAG@", &tag)
         .replace("@B_ID@", &b_id)
         .replace("@B_TOKEN@", &b_token);
-    let files = gamend_addon();
-    let borrowed: Vec<(&str, &str)> = files
-        .iter()
-        .map(|(path, text)| (path.as_str(), text.as_str()))
-        .collect();
     let prefix = format!("flow {flow}:");
-    let lines = run_until_within(&borrowed, &source, &[&prefix], Duration::from_secs(600));
+    let lines = run_with_addon(&source, &[&prefix], Duration::from_secs(600));
     let line = &lines[0];
     let reported: Vec<&str> = line[line.find(&prefix).unwrap() + prefix.len()..]
         .split_whitespace()
@@ -147,6 +152,49 @@ fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
         assert_eq!(gone.status, 200, "{}", gone.body);
     }
     leftovers.finished = true;
+}
+
+/// What a call of the addon answers, said as `sent true` or `sent false`. No
+/// server is asked for: a call answers before its request is done, and the
+/// harness stops at the error one refusing logs.
+fn addon_call(call: &str) {
+    let source = format!(
+        r#"
+use addons::gamend::admin_analytics;
+use addons::gamend::users;
+
+pub class Scenario {{ node: Node }}
+impl Scenario {{
+    async fn init() {{
+        let answer = {call};
+        log::info("sent {{answer != nil}}");
+    }}
+}}
+"#
+    );
+    run_with_addon(&source, &["sent true"], Duration::from_secs(20));
+}
+
+#[test]
+#[should_panic(expected = "gamend::users::get_user needs `id`")]
+fn a_call_with_its_path_id_left_out_is_refused() {
+    addon_call("users::get_user()");
+}
+
+#[test]
+#[should_panic(expected = "gamend::users::get_user needs `id`")]
+fn a_call_with_a_nil_path_id_is_refused() {
+    addon_call("users::get_user(nil)");
+}
+
+#[test]
+fn a_call_with_its_path_id_is_sent() {
+    addon_call("users::get_user(7)");
+}
+
+#[test]
+fn a_call_with_nothing_to_say_is_sent() {
+    addon_call("admin_analytics::get_analytics_counts()");
 }
 
 #[test]

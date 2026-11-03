@@ -8,11 +8,11 @@ use util;
 use window;
 
 pub class PopulateState {
-    kind: str,
-    surface: str,
-    count: int,
-    columns: int,
-    rows: int,
+    internal kind: str,
+    internal surface: str,
+    internal count: int,
+    internal columns: int,
+    internal rows: int,
     step: float,
     radius: float,
     rotation: float,
@@ -394,7 +394,7 @@ fn surface_node(state: editor::State) -> Node {
 fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> str {
     let asked = util::map_or_empty(node.authored(name));
     if asked["source"].kind() == "map" {
-        history::record(state, "Populate", nil);
+        history::record(state, "Populate");
         asked["source"]["instances"] = instances;
         node.set_component(name, asked);
         return "this node's asset";
@@ -402,7 +402,7 @@ fn write(state: &mut editor::State, node: Node, name: str, instances: any) -> st
     let source = asked["source"].as_str();
     if source.starts_with("#") {
         let id = source.slice(1, source.len());
-        history::record(state, "Populate", nil);
+        history::record(state, "Populate");
         for block in util::list_or_empty(state.scene_doc["assets"]) {
             if block["id"].as_str() == id {
                 block["instances"] = instances;

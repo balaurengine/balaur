@@ -39,18 +39,18 @@ pub struct Box {
 }
 
 pub struct Floors {
-    width: float,
-    height: float,
+    internal width: float,
+    internal height: float,
 }
 
 pub struct ShellRoom {
-    width: float,
-    height: float,
+    internal width: float,
+    internal height: float,
 }
 
 pub struct Room {
-    width: float,
-    height: float,
+    internal width: float,
+    internal height: float,
 }
 
 // What a timeline, a debugger or a session list needs over the bottom dock's

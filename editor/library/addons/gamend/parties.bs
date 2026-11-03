@@ -6,9 +6,11 @@
 // script says `use addons::gamend::parties;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -48,7 +50,7 @@ pub fn decline_party_invite(params: any) -> any {
 /// Disband the current party (leader only)
 /// `POST /api/v1/parties/disband`
 pub fn disband_party() -> any {
-    gamend::rest("POST", "/api/v1/parties/disband", nil())
+    gamend::rest("POST", "/api/v1/parties/disband")
 }
 
 /// Invite a user to the party (leader only)
@@ -72,21 +74,21 @@ pub fn kick_party_member(params: any) -> any {
 /// Leave the current party
 /// `POST /api/v1/parties/leave`
 pub fn leave_party() -> any {
-    gamend::rest("POST", "/api/v1/parties/leave", nil())
+    gamend::rest("POST", "/api/v1/parties/leave")
 }
 
 /// List pending party invites for the current user
 /// `GET /api/v1/parties/invitations`
 pub fn list_party_invitations(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/parties/invitations{query}", nil())
+    gamend::rest("GET", "/api/v1/parties/invitations{query}")
 }
 
 /// List pending party invites sent by the current leader
 /// `GET /api/v1/parties/invitations/sent`
 pub fn list_sent_party_invitations(options: any) -> any {
     let query = core::query(options, ["page", "page_size"]);
-    gamend::rest("GET", "/api/v1/parties/invitations/sent{query}", nil())
+    gamend::rest("GET", "/api/v1/parties/invitations/sent{query}")
 }
 
 /// Create a lobby with the party (leader only)
@@ -98,19 +100,22 @@ pub fn party_create_lobby(params: any) -> any {
 /// Join a lobby with the party (leader only)
 /// `POST /api/v1/parties/join_lobby/{id}`
 pub fn party_join_lobby(id: any, params: any) -> any {
+    if id == nil {
+        return core::missing("gamend::parties::party_join_lobby", "id");
+    }
     gamend::rest("POST", "/api/v1/parties/join_lobby/{id}", params)
 }
 
 /// Party counts
 /// `GET /api/v1/parties/stats`
 pub fn party_stats() -> any {
-    gamend::rest("GET", "/api/v1/parties/stats", nil())
+    gamend::rest("GET", "/api/v1/parties/stats")
 }
 
 /// Get current party
 /// `GET /api/v1/parties/me`
 pub fn show_party() -> any {
-    gamend::rest("GET", "/api/v1/parties/me", nil())
+    gamend::rest("GET", "/api/v1/parties/me")
 }
 
 /// Update party settings (leader only)

@@ -278,8 +278,9 @@ the node's own, and the root's children become the node's.
 - Every `StableId` inside an instance is prefixed by the instance's id
   (`n_crate_b/n_lid`) and nests. That is what a replay prints and what
   replication will address.
-- A path naming nothing is reported and kept; a self-containing prefab is an
-  error naming the cycle. Scripts attach when the outermost scene finishes.
+- A path naming nothing is an error and is kept, so the file loses no work and
+  a test run fails; a self-containing prefab is an error naming the cycle.
+  Scripts attach when the outermost scene finishes.
 - Overrides name paths from the instance node, `.` for the node itself, so a
   Godot path reads the same here.
 - In the editor: placed from the palette, opened from its row, drawn one shade
@@ -388,6 +389,16 @@ and remove hooks.
   takes free keys says so with `App::accept_keys`: `meta` takes any name,
   `states` a state's, `widget` a screen class's and `mesh` a `morph.`
   weight's.
+- A record asset is held to its schema where it is named, inline or from a
+  file, so a key it does not declare refuses the component naming it. A file
+  that cannot be read only warns, so a tool can still open the scene. A type
+  with no schema can be held the same way: `App::register_checked_asset` takes
+  a check, which closes the levels that are closed and leaves the free names
+  open. `state_machine` and `tileset` have one.
+- A scene key nothing handles is an error and is kept for the build that
+  handles it. A host without sound, a physics world or an extension it turned
+  off inserts `LacksKeyOwner`, and there it only warns: it cannot tell that key
+  from a typo.
 - `meta` is the one component with no schema, so every key on it is the
   author's: values filed on a node for whoever holds the node rather than for
   its own script (Godot's `set_meta`). A scene writes `[nodes.meta]`, a script

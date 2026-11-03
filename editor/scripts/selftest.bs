@@ -1275,7 +1275,7 @@ fn no_selection_frame(state: &mut editor::State, reselect: Reselect) {
 // again so the reselected row still lists what it did.
 fn add_with_nothing_selected(state: &mut editor::State) {
     let rows = state.nodes.len();
-    model::add_child(state, nil);
+    model::add_child(state);
     let made = model::selected_node(state);
     check(state.nodes.len() == rows + 1 && made.parent() == model::node(state, 0), "a node added with nothing selected goes under the root");
     model::delete_selected(state);
@@ -1432,7 +1432,7 @@ pub fn bonemap_panel(state: &mut editor::State) {
 /// file, and everything below is arithmetic on cells.
 pub fn tiles_tool(state: &mut editor::State) {
     let before = state.nodes.len();
-    model::add_child(state, nil);
+    model::add_child(state);
     let node = model::node(state, state.selected);
     // The editor's own cursor image as the atlas: it is there whichever game
     // is open, so the map draws rather than logging a missing texture.
@@ -1569,10 +1569,10 @@ pub fn imports(state: editor::State) {
     importer::write(state, rel, "srgb", false);
     let both = importer::sidecar(state, rel);
     check(both["filter"] == "nearest" && both["srgb"] == false, "a second key joins the first rather than replacing it");
-    importer::write(state, rel, "srgb", nil);
+    importer::write(state, rel, "srgb");
     let one = importer::sidecar(state, rel);
     check(one["srgb"] == nil && one["filter"] == "nearest", "clearing one key leaves the other");
-    importer::write(state, rel, "filter", nil);
+    importer::write(state, rel, "filter");
     check(!fs::exists(side), "clearing the last key removes the sidecar");
     // A number rather than the text the dropdown handed back, or the engine
     // reads no anisotropy at all.
@@ -1586,7 +1586,7 @@ pub fn imports(state: editor::State) {
     check(sampler["repeat"] == "mirror", "and repeat as a word");
     check(sampler["premultiply"] == true, "and premultiply as a flag");
     for key in ["anisotropy", "mipmaps", "repeat", "premultiply"] {
-        importer::write(state, rel, key, nil);
+        importer::write(state, rel, key);
     }
     check(!fs::exists(side), "clearing every key removes the sidecar again");
     check(importer::kind_of("art/logo.svg") == "texture", "an SVG is a texture");
@@ -1595,7 +1595,7 @@ pub fn imports(state: editor::State) {
     check(importer::kind_of("models/crate.obj") == "model", "and a model");
     importer::write(state, rel, "scale", 2.5);
     check(importer::sidecar(state, rel)["scale"] == 2.5, "a number row writes a float");
-    importer::write(state, rel, "scale", nil);
+    importer::write(state, rel, "scale");
     check(export::preview(rel, "web") == nil, "a file that is no picture ships no row, and nothing throws");
     fs::remove(root + rel);
     log::info("selftest imports: done");
@@ -2033,7 +2033,7 @@ fn answer(state: &mut editor::State, purpose: str, extra: any) -> bool {
 /// under `fonts/` with its licence beside it and is named by the row it was
 /// picked for, with Forge's answers stood in.
 pub fn font_catalogue(state: &mut editor::State) {
-    model::add_child(state, nil);
+    model::add_child(state);
     model::add_component(state, "text2d");
     let node = model::node(state, state.selected);
     fonts::open(state, inspector::at_top("text2d", "font", ""));
@@ -2223,7 +2223,7 @@ pub fn instances(state: &mut editor::State) {
     // Structure is the prefab's.
     let before = state.nodes.len();
     expect_warning("cannot add a node inside a prefab");
-    model::add_child(state, nil);
+    model::add_child(state);
     check(state.nodes.len() == before, "adding a node inside an instance is refused");
     expect_warning("cannot delete a node inside a prefab");
     model::delete_selected(state);
@@ -3955,7 +3955,7 @@ fn waited_for_import(state: &mut editor::State) {
 /// Editing a game camera writes what the author set: the editor holds every
 /// game camera off the view without writing its `current`.
 pub fn camera_document(state: &mut editor::State) {
-    model::add_child(state, nil);
+    model::add_child(state);
     let row = state.selected;
     model::add_component(state, model::CAMERA_3D);
     model::hold_game_cameras(state, false);
@@ -4117,7 +4117,7 @@ pub fn change_types(state: &mut editor::State) {
 /// and a refused write that leaves the document as it was and names the
 /// property it was refused on, rather than throwing out of the inspector.
 pub fn warning_marks(state: &mut editor::State) {
-    model::add_child(state, nil);
+    model::add_child(state);
     let row = state.selected;
     model::add_component(state, "body2d");
     state.lint.stale = true;

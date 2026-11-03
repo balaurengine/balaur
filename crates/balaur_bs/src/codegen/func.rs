@@ -82,9 +82,23 @@ pub(crate) struct FnGen<'a> {
     /// A prelude function, which may call the built-ins and the prelude's
     /// others by name.
     pub prelude: bool,
+    /// The module this function is in: "" for the root file.
+    pub module: String,
 }
 
 impl<'a> FnGen<'a> {
+    /// Refuses `item`, a method `T.m` or a field `T.f`, where its file keeps
+    /// it from this one. The converters and the prelude reach every field.
+    pub(crate) fn may_name(&self, item: &str, pos: Pos) -> R<()> {
+        if self.prelude {
+            return Ok(());
+        }
+        match self.g.reach.refused(&self.module, item) {
+            Some(why) => err(pos, why),
+            None => Ok(()),
+        }
+    }
+
     pub(crate) fn new(g: &'a Gen, params: usize, mode: Mode) -> Self {
         FnGen {
             g,
@@ -105,6 +119,7 @@ impl<'a> FnGen<'a> {
             sites: HashMap::new(),
             prof: None,
             prelude: false,
+            module: String::new(),
         }
     }
 
@@ -246,6 +261,7 @@ impl<'a> FnGen<'a> {
         let Ty::Struct(s) = ty else {
             return err(pos, format!("{} has no field `{field}`", show(ty)));
         };
+        self.may_name(&format!("{s}.{field}"), pos)?;
         let mut off = 0;
         for (f, t) in &self.g.structs[s] {
             if f == field {
@@ -413,6 +429,7 @@ impl<'a> FnGen<'a> {
         let Some(s) = self.g.is_class(class) else {
             return err(pos, format!("{} is no class", show(class)));
         };
+        self.may_name(&format!("{s}.{f}"), pos)?;
         let (off, ty) = self.g.class_field(s, f).ok_or_else(|| Error {
             pos,
             msg: format!("class {s} has no field `{f}`"),

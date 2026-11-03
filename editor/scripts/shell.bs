@@ -34,11 +34,11 @@ use util;
 use window;
 
 pub class DebugState {
-    frame: int,
+    internal frame: int,
     breakpoints: any,
-    paused: any,
-    paused_rel: str,
-    demo: int?,
+    internal paused: any,
+    internal paused_rel: str,
+    internal demo: int?,
 }
 
 /// A start-up state written `<prefix><argument>`, and what it runs with the
@@ -49,10 +49,10 @@ pub struct Prefixed {
 }
 
 pub struct Capture {
-    directory: str,
-    from: int,
-    every: int,
-    count: int,
+    internal directory: str,
+    internal from: int,
+    internal every: int,
+    internal count: int,
 }
 
 /// The debugger's own state, hung on `state.debug`. `demo` drives the breakdemo
@@ -519,8 +519,8 @@ pub fn detach_script(state: &mut editor::State) {
     if rel == nil {
         return;
     }
-    history::record(state, "detach script", nil);
-    node.set_script(nil, nil);
+    history::record(state, "detach script");
+    node.set_script(nil);
     close_doc(state, "script");
     log::info("detached " + rel.as_str() + " (undo re-attaches it; the file stays)");
 }
@@ -545,7 +545,7 @@ pub fn set_script_path(state: &mut editor::State, path: str) {
         return;
     }
     let absolute_path = state.game_root + "/" + rel;
-    history::record(state, if was == nil { "attach script" } else { "move script" }, nil);
+    history::record(state, if was == nil { "attach script" } else { "move script" });
     if was != nil {
         let old = was.as_str();
         let old_absolute_path = state.game_root + "/" + old;
@@ -567,7 +567,7 @@ pub fn set_script_path(state: &mut editor::State, path: str) {
     }
     // The node keeps the properties it set over the exports.
     node.set_script(rel, model::script_props(node));
-    model::forget(state, nil);
+    model::forget(state);
     state.script_open = true;
     signals::bars(state);
     lint::run(state);
@@ -814,7 +814,7 @@ pub fn reload_scripts(state: &mut editor::State) {
         }
     }
     session::end(state, "reload");
-    model::forget(state, nil);
+    model::forget(state);
     let done = 0;
     for rel in util::keys_sorted(paths) {
         let failure = engine::reload_script(state.game_root + "/" + rel);

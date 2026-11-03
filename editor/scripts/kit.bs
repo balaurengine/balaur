@@ -286,7 +286,7 @@ fn shown(value: any) -> str {
 /// the caller puts the specs on its host.
 pub fn tree(state: &mut editor::State, id: str, value: any, options: any) -> any {
     let none: [any] = [];
-    let out: any = { "specs": none, "value": value, "changed": false, "write": option(options, "write", nil) };
+    let out: any = { "specs": none, "value": value, "changed": false, "write": option(options, "write") };
     let edit = option(options, "edit", false).as_bool();
     let label = option(options, "label", "").as_str();
     branch(state, out, id, [], label, value, edit, 0);

@@ -18,15 +18,15 @@ use util;
 /// What every plugin added, each entry a table naming its `owner` node and
 /// the method that answers it.
 pub class PluginsState {
-    panels: [any],
-    dialogs: [any],
-    commands: [any],
+    internal panels: [any],
+    internal dialogs: [any],
+    internal commands: [any],
     inspector_sections: [any],
     overlays: [any],
-    property_editors: any,
+    internal property_editors: any,
     startup_states: any,
-    open: any,
-    loaded: [str],
+    internal open: any,
+    internal loaded: [str],
 }
 
 /// The registries, before any plugin has been seen.

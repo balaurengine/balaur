@@ -91,7 +91,76 @@ pub(crate) fn run_test(project_root: &Path, rel: &str, frames: u64) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::{run_test, test_scripts};
+    use super::{run_test, test_project, test_scripts};
+
+    /// What `balaur test` answers for a main scene: a project with one test
+    /// that holds nothing, so only the scene can fail it.
+    fn tests_a_scene(prefab: &str, scene: &str) -> anyhow::Result<()> {
+        balaur::logbuf::capture_for_test();
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, text: &str| std::fs::write(dir.path().join(name), text).unwrap();
+        write(
+            "project.toml",
+            "[application]\nname = \"t\"\nmain_scene = \"main.toml\"\n",
+        );
+        write("main.toml", scene);
+        write("prefab.toml", prefab);
+        std::fs::create_dir_all(dir.path().join("tests")).unwrap();
+        write(
+            "tests/holds.bs",
+            "pub class Holds { node: Node }\nimpl Holds { fn init() {} }\n",
+        );
+        test_project(dir.path(), 1, None)
+    }
+
+    const NODE: &str = "[[nodes]]\nid = \"n\"\nname = \"N\"\n";
+    const PREFAB: &str = "[[nodes]]\nid = \"n_body\"\nname = \"Body\"\n\n[[nodes]]\nid = \"n_arm\"\nname = \"Arm\"\nparent = \"n_body\"\n";
+
+    #[test]
+    fn a_typo_in_a_record_asset_fails_the_run() {
+        let scene = |row: &str| format!("{NODE}\n[nodes.text3d.text_style]\n{row}\n");
+        assert!(tests_a_scene("", &scene("outline_size = 3.0")).is_ok());
+        assert!(tests_a_scene("", &scene("outline_siz = 3.0")).is_err());
+    }
+
+    #[test]
+    fn a_typo_in_a_state_machine_fails_the_run() {
+        let scene = |key: &str| {
+            format!(
+                "{NODE}\n[nodes.state_machine.machine]\nstart = \"a\"\nstates = {{ a = \"\", b = \"\" }}\ntransitions = [{{ from = \"a\", to = \"b\", {key} = 0.5 }}]\n"
+            )
+        };
+        assert!(tests_a_scene("", &scene("blend_time")).is_ok());
+        assert!(tests_a_scene("", &scene("fade")).is_err());
+    }
+
+    #[test]
+    fn a_typo_in_a_tileset_fails_the_run() {
+        let scene = |key: &str| {
+            format!(
+                "{NODE}\n[nodes.tilemap.tileset]\ntexture = \"a.png\"\ntile_size = 16\ncolumns = 1\ntiles = {{ 0 = {{ {key} = true }} }}\n"
+            )
+        };
+        assert!(tests_a_scene("", &scene("one_way")).is_ok());
+        assert!(tests_a_scene("", &scene("one_wya")).is_err());
+    }
+
+    #[test]
+    fn a_scene_key_nothing_handles_fails_the_run() {
+        assert!(tests_a_scene("", &format!("{NODE}\n[nodes.transform]\n")).is_ok());
+        assert!(tests_a_scene("", &format!("{NODE}\n[nodes.camera]\n")).is_err());
+    }
+
+    #[test]
+    fn an_override_naming_nothing_fails_the_run() {
+        let scene = |path: &str| {
+            format!(
+                "{NODE}instance = \"prefab.toml\"\n\n[nodes.overrides.{path}.transform]\nposition = [1.0, 0.0, 0.0]\n"
+            )
+        };
+        assert!(tests_a_scene(PREFAB, &scene("Arm")).is_ok());
+        assert!(tests_a_scene(PREFAB, &scene("Leg")).is_err());
+    }
 
     #[test]
     fn a_bs_test_fails_on_a_logged_error_or_a_trap() {

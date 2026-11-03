@@ -114,6 +114,264 @@ fn app_with_every_component() -> (tempfile::TempDir, balaur::App) {
     (dir, app)
 }
 
+fn logged_at(level: &str) -> Vec<String> {
+    balaur_core::logbuf::recent(500)
+        .into_iter()
+        .filter(|entry| entry.level == level)
+        .map(|entry| entry.message)
+        .collect()
+}
+
+/// A record asset, a component row that names one, and a row its schema declares.
+const RECORD_ASSETS: [(&str, &str, &str, &str); 5] = [
+    ("text_style", "text3d", "text_style", "outline_size = 3.0"),
+    ("font", "text2d", "font", "pixel_snap = true"),
+    (
+        "camera_effects",
+        "camera3d",
+        "effects",
+        "bloom_intensity = 0.5",
+    ),
+    (
+        "physics_material",
+        "collider3d",
+        "physics_material",
+        "friction = 0.9",
+    ),
+    (
+        "soft_material",
+        "softbody3d",
+        "soft_material",
+        "edge_hz = 20.0",
+    ),
+];
+
+/// A scene with one node whose `component` names `row` of its asset, inline
+/// and from a file with and without its `type`.
+fn scenes_naming(
+    dir: &std::path::Path,
+    (asset, component, row, _): (&str, &str, &str, &str),
+    key: &str,
+) -> [String; 3] {
+    std::fs::write(
+        dir.join("typed.toml"),
+        format!("type = \"{asset}\"\n{key}\n"),
+    )
+    .unwrap();
+    std::fs::write(dir.join("bare.toml"), format!("{key}\n")).unwrap();
+    let node = "[[nodes]]\nid = \"n_host\"\nname = \"Host\"\n";
+    [
+        format!("{node}\n[nodes.{component}.{row}]\n{key}\n"),
+        format!("{node}\n[nodes.{component}]\n{row} = \"typed.toml\"\n"),
+        format!("{node}\n[nodes.{component}]\n{row} = \"bare.toml\"\n"),
+    ]
+}
+
+#[test]
+fn every_record_asset_refuses_an_undeclared_key_inline_and_from_a_file() {
+    balaur_core::logbuf::capture_for_test();
+    let (dir, app) = app_with_every_component();
+    let root = app.engine.root();
+    for record in RECORD_ASSETS {
+        for scene in scenes_naming(dir.path(), record, "no_such_row = 3.0") {
+            balaur_core::assets::reload(&app.engine, "typed.toml").unwrap();
+            balaur_core::assets::reload(&app.engine, "bare.toml").unwrap();
+            balaur_core::logbuf::clear();
+            balaur_core::project::instantiate_scene(&app.engine, &scene, root, false).unwrap();
+            let refused = format!("`no_such_row` is not a property of a {}", record.0);
+            let errors = logged_at("error");
+            assert!(
+                errors.iter().any(|error| error.contains(&refused)),
+                "{scene}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_record_asset_takes_a_row_it_declares_inline_and_from_a_file() {
+    balaur_core::logbuf::capture_for_test();
+    let (dir, app) = app_with_every_component();
+    let root = app.engine.root();
+    for record in RECORD_ASSETS {
+        // The file with no `type` has nothing to parse it by; it is only ever
+        // refused, which the test above holds.
+        let [inline, typed, _] = scenes_naming(dir.path(), record, record.3);
+        for scene in [inline, typed] {
+            balaur_core::assets::reload(&app.engine, "typed.toml").unwrap();
+            balaur_core::logbuf::clear();
+            balaur_core::project::instantiate_scene(&app.engine, &scene, root, false).unwrap();
+            assert_eq!(logged_at("error"), Vec::<String>::new(), "{scene}");
+        }
+    }
+}
+
+/// So a record asset added later has to be named above.
+#[test]
+fn the_record_assets_above_are_all_of_them() {
+    let (_dir, app) = app_with_every_component();
+    let registry = app.engine.resource::<balaur_core::AssetTypeRegistry>();
+    let registry = registry.borrow();
+    let mut records: Vec<String> = registry
+        .names()
+        .into_iter()
+        .filter(|name| registry.schema(name).is_some())
+        .collect();
+    records.sort();
+    let mut named: Vec<&str> = RECORD_ASSETS.iter().map(|record| record.0).collect();
+    named.sort_unstable();
+    assert_eq!(records, named);
+}
+
+/// An asset with no schema whose parser's keys are closed, a component row that
+/// names one, and a definition holding only what it reads.
+const CHECKED_ASSETS: [(&str, &str, &str, &str); 2] = [
+    (
+        "state_machine",
+        "state_machine",
+        "machine",
+        "start = \"idle\"\nstates = { idle = \"\" }",
+    ),
+    (
+        "tileset",
+        "tilemap",
+        "tileset",
+        "texture = \"a.png\"\ntile_size = 16\ncolumns = 1",
+    ),
+];
+
+#[test]
+fn every_checked_asset_refuses_another_key_inline_and_from_a_file() {
+    balaur_core::logbuf::capture_for_test();
+    let (dir, app) = app_with_every_component();
+    let root = app.engine.root();
+    for record in CHECKED_ASSETS {
+        let body = format!("{}\nno_such_key = 3.0", record.3);
+        for scene in scenes_naming(dir.path(), record, &body) {
+            balaur_core::assets::reload(&app.engine, "typed.toml").unwrap();
+            balaur_core::assets::reload(&app.engine, "bare.toml").unwrap();
+            balaur_core::logbuf::clear();
+            balaur_core::project::instantiate_scene(&app.engine, &scene, root, false).unwrap();
+            let errors = logged_at("error");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.contains("`no_such_key` is not a key of")),
+                "{scene}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn every_checked_asset_takes_what_it_reads_inline_and_from_a_file() {
+    balaur_core::logbuf::capture_for_test();
+    let (dir, app) = app_with_every_component();
+    let root = app.engine.root();
+    for record in CHECKED_ASSETS {
+        let [inline, typed, _] = scenes_naming(dir.path(), record, record.3);
+        for scene in [inline, typed] {
+            balaur_core::assets::reload(&app.engine, "typed.toml").unwrap();
+            balaur_core::logbuf::clear();
+            balaur_core::project::instantiate_scene(&app.engine, &scene, root, false).unwrap();
+            assert_eq!(logged_at("error"), Vec::<String>::new(), "{scene}");
+        }
+    }
+}
+
+fn app_with_plugins(plugins: &str) -> (tempfile::TempDir, balaur::App) {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("project.toml"),
+        format!("[application]\nname = \"fixture\"\nmain_scene = \"main.toml\"\n\n[plugins]\n{plugins}\n"),
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("main.toml"), "").unwrap();
+    let mut config = AppConfig::dev(dir.path().to_string_lossy().as_ref());
+    config.watch = false;
+    let app = standard_app(config).unwrap();
+    (dir, app)
+}
+
+fn lacks_key_owner(app: &balaur::App) -> bool {
+    app.engine
+        .try_resource::<balaur_core::project::LacksKeyOwner>()
+        .is_some()
+}
+
+fn scene_keys(app: &balaur::App) -> Vec<String> {
+    let keys = app
+        .engine
+        .resource::<balaur_core::project::SceneKeyRegistry>();
+    let mut keys: Vec<String> = keys.borrow().0.iter().map(|(key, _)| key.clone()).collect();
+    keys.sort();
+    keys
+}
+
+/// `KEYLESS_MODULES` is what a typo stays an error beside, so it has to be
+/// true: turning every one of them off takes no scene key away.
+#[test]
+fn a_keyless_module_turned_off_takes_no_key_away() {
+    let off = balaur::KEYLESS_MODULES
+        .map(|module| format!("{module} = false"))
+        .join("\n");
+    let (_whole_dir, whole) = app_with_plugins("");
+    let (_less_dir, less) = app_with_plugins(&off);
+    assert_eq!(scene_keys(&whole), scene_keys(&less));
+    assert!(!lacks_key_owner(&whole));
+    assert!(!lacks_key_owner(&less));
+}
+
+#[test]
+fn a_key_nothing_handles_is_an_error_in_a_whole_build() {
+    balaur_core::logbuf::capture_for_test();
+    let (_dir, app) = app_with_plugins("");
+    let root = app.engine.root();
+    balaur_core::logbuf::clear();
+    balaur_core::project::instantiate_scene(
+        &app.engine,
+        "[[nodes]]\nid = \"n_host\"\nname = \"Host\"\n\n[nodes.cloner]\ncount = 3\n",
+        root,
+        false,
+    )
+    .unwrap();
+    let errors = logged_at("error");
+    assert!(
+        errors
+            .iter()
+            .any(|error| error.contains("scene key 'cloner' on node 'Host'")),
+        "{errors:?}"
+    );
+}
+
+/// A scene with sound still loads where the module is off, and says so only as
+/// a warning: this build cannot tell `sound` from a typo, and the build that
+/// has it can.
+#[test]
+fn a_key_a_module_turned_off_would_own_only_warns() {
+    balaur_core::logbuf::capture_for_test();
+    for off in ["audio = false", "some_extension = false"] {
+        let (_dir, app) = app_with_plugins(off);
+        assert!(lacks_key_owner(&app), "{off}");
+        let root = app.engine.root();
+        balaur_core::logbuf::clear();
+        balaur_core::project::instantiate_scene(
+            &app.engine,
+            "[[nodes]]\nid = \"n_host\"\nname = \"Host\"\n\n[nodes.owned_by_what_is_off]\nvolume = 1.0\n",
+            root,
+            false,
+        )
+        .unwrap();
+        assert_eq!(logged_at("error"), Vec::<String>::new(), "{off}");
+        assert!(
+            logged_at("warn")
+                .iter()
+                .any(|warning| warning.contains("owned_by_what_is_off")),
+            "{off}"
+        );
+    }
+}
+
 fn spawn(app: &balaur::App, name: &str) -> balaur::hecs::Entity {
     let root = app.engine.root();
     balaur::scene::spawn_node(&mut app.engine.world_mut(), name, root)

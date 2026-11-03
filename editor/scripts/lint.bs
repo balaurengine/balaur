@@ -9,13 +9,13 @@ use signals;
 use util;
 
 pub class LintState {
-    found: [any],
-    at: float,
+    internal found: [any],
+    internal at: float,
     due: float,
     roots: str,
     warned: any,
     /// The scene changed since its warnings were asked of the engine.
-    stale: bool,
+    internal stale: bool,
 }
 
 pub struct Finding {
@@ -27,8 +27,8 @@ pub struct Finding {
 }
 
 pub struct Counts {
-    errors: int,
-    warnings: int,
+    internal errors: int,
+    internal warnings: int,
 }
 
 /// The module's own slice of `state`, at `state.lint`.

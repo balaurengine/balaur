@@ -6,9 +6,11 @@
 // script says `use addons::gamend::admin_quests;`.
 //
 // A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them. It
-// answers the id `gamend::rest` answers, to await with `task::wait`, or
-// nil when it refused to send.
+// body and `options` for the query where the operation has them; either
+// may be left out when the call has nothing to put in it. It answers the
+// id `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter or a required field left out it sends nothing, logs which,
+// and answers nil.
 
 use core;
 
@@ -33,7 +35,10 @@ pub fn create_quest(params: any) -> any {
 /// Delete quest and all user progress (admin)
 /// `DELETE /api/v1/admin/quests/{id}`
 pub fn delete_quest(id: any) -> any {
-    gamend::rest("DELETE", "/api/v1/admin/quests/{id}", nil())
+    if id == nil {
+        return core::missing("gamend::admin_quests::delete_quest", "id");
+    }
+    gamend::rest("DELETE", "/api/v1/admin/quests/{id}")
 }
 
 /// Force-complete a quest for a user (admin)
@@ -52,25 +57,31 @@ pub fn grant_quest(params: any) -> any {
 /// `GET /api/v1/admin/quests/progress`
 pub fn list_quest_progress(options: any) -> any {
     let query = core::query(options, ["user_id", "quest_key", "status", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/quests/progress{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/quests/progress{query}")
 }
 
 /// List all quest definitions (admin, includes inactive/hidden)
 /// `GET /api/v1/admin/quests`
 pub fn list_quests(options: any) -> any {
     let query = core::query(options, ["category", "search", "page", "page_size"]);
-    gamend::rest("GET", "/api/v1/admin/quests{query}", nil())
+    gamend::rest("GET", "/api/v1/admin/quests{query}")
 }
 
 /// Per-status progress counts for one quest (admin)
 /// `GET /api/v1/admin/quests/{key}/funnel`
 pub fn quest_funnel(key: any) -> any {
-    gamend::rest("GET", "/api/v1/admin/quests/{key}/funnel", nil())
+    if key == nil {
+        return core::missing("gamend::admin_quests::quest_funnel", "key");
+    }
+    gamend::rest("GET", "/api/v1/admin/quests/{key}/funnel")
 }
 
 /// Request an upload ticket for a quest icon (admin)
 /// `POST /api/v1/admin/quests/{id}/icon/upload_url`
 pub fn quest_icon_upload_url(id: any, params: any) -> any {
+    if id == nil {
+        return core::missing("gamend::admin_quests::quest_icon_upload_url", "id");
+    }
     if !core::given(params, "content_type") {
         return core::missing("gamend::admin_quests::quest_icon_upload_url", "content_type");
     }
@@ -92,6 +103,9 @@ pub fn reset_quest(params: any) -> any {
 /// Confirm an uploaded quest icon (admin)
 /// `POST /api/v1/admin/quests/{id}/icon`
 pub fn set_quest_icon(id: any, params: any) -> any {
+    if id == nil {
+        return core::missing("gamend::admin_quests::set_quest_icon", "id");
+    }
     if !core::given(params, "key") {
         return core::missing("gamend::admin_quests::set_quest_icon", "key");
     }
@@ -101,5 +115,8 @@ pub fn set_quest_icon(id: any, params: any) -> any {
 /// Update quest (admin)
 /// `PATCH /api/v1/admin/quests/{id}`
 pub fn update_quest(id: any, params: any) -> any {
+    if id == nil {
+        return core::missing("gamend::admin_quests::update_quest", "id");
+    }
     gamend::rest("PATCH", "/api/v1/admin/quests/{id}", params)
 }

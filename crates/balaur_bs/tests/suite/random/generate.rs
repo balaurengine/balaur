@@ -349,7 +349,7 @@ impl Gen {
     }
 
     /// Whether to read an `any` here: always when one is in scope, now and
-    /// then from `nil()` or `any_map()` when none is.
+    /// then from `any_nil()` or `any_map()` when none is.
     fn reads_any(&mut self, s: &Scope) -> bool {
         !s.of(T::Any).is_empty() || self.rng.chance(8)
     }

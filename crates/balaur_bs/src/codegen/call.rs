@@ -34,7 +34,8 @@ impl FnGen<'_> {
                 format!("`{name}` is a {}, not a function", show(&f.ty)),
             );
         };
-        // Called as a script function is, `&mut` arguments stored back.
+        // Called as a script function is, `&mut` arguments stored back; its
+        // type says how many it takes, so none is left out.
         let sig = super::Sig {
             idx: 0,
             params: params.clone(),
@@ -43,7 +44,7 @@ impl FnGen<'_> {
             owner: None,
             kind: Kind::Script,
         };
-        let places = self.script_args(&sig, args, pos, name)?;
+        let places = self.script_args(&sig, sig.params.len(), args, pos, name)?;
         self.get_raw(f);
         self.spill();
         let (p, r) = self.g.wasm_sig(&sig);
@@ -100,11 +101,6 @@ impl FnGen<'_> {
             self.e(i);
             return Ok(Ty::Float);
         }
-        if name == "nil" {
-            self.args(&[], args, pos, name)?;
-            self.e(I::I32Const(0));
-            return Ok(Ty::Any);
-        }
         if name == "map" {
             return err(
                 pos,
@@ -151,7 +147,7 @@ impl FnGen<'_> {
                 );
             }
             Kind::Script => {
-                let places = self.script_args(&sig, args, pos, name)?;
+                let places = self.script_args(&sig, sig.least(), args, pos, name)?;
                 self.spill();
                 self.e(I::Call(self.g.callee(name, &sig)));
                 if let Some(r) = self.store_back(places, &sig.ret) {
@@ -165,9 +161,6 @@ impl FnGen<'_> {
     // Why `name` calls nothing.
     fn no_function(&self, name: &str) -> String {
         match name.split_once("::") {
-            Some((m, f)) if self.g.sigs.contains_key(&format!("{m}::#{f}")) => {
-                format!("`{f}` is private to `{m}`: mark it `pub` there")
-            }
             Some((_, f)) => super::dropped::function(name)
                 .or_else(|| self.on_a_component(name, f))
                 .unwrap_or_else(|| format!("the engine has no `{name}`")),
@@ -205,9 +198,8 @@ impl FnGen<'_> {
         else {
             return Ok(());
         };
-        let nil = matches!(&first.kind, ExprKind::Nil)
-            || matches!(&first.kind, ExprKind::Call(callee, _) if callee == "nil");
-        if nil || self.type_of(first)? == Ty::Node {
+        // A map literal has no type until it lands, and that is no node either.
+        if matches!(&first.kind, ExprKind::Nil) || self.type_of(first).ok() == Some(Ty::Node) {
             return err(
                 pos,
                 format!(
@@ -349,6 +341,7 @@ impl FnGen<'_> {
             pos,
             msg: format!("no method `{name}` on {s}"),
         })?;
+        self.may_name(&key, pos)?;
         if sig.kind == Kind::Async {
             return err(
                 pos,
@@ -365,7 +358,7 @@ impl FnGen<'_> {
             (t.clone(), Some(t))
         };
         self.get_raw(&lv);
-        let places = self.script_args(&sig, args, pos, &key)?;
+        let places = self.script_args(&sig, sig.least(), args, pos, &key)?;
         self.spill();
         self.e(I::Call(sig.idx));
         let ret = self.store_back(places, &sig.ret);
@@ -378,30 +371,19 @@ impl FnGen<'_> {
         Ok(sig.ret)
     }
 
-    /// A script call's arguments. A `&mut` one is a variable or a field,
-    /// passed as it is, and no other place the call changes may overlap it:
-    /// each comes back on its own and the last stored would win.
+    /// A script call's arguments, `least` of them at the fewest and the rest
+    /// nil. A `&mut` one is a variable or a field, passed as it is, and no
+    /// other place the call changes may overlap it: each comes back on its
+    /// own and the last stored would win.
     pub(crate) fn script_args(
         &mut self,
         sig: &super::Sig,
+        least: usize,
         args: &[Expr],
         pos: Pos,
         name: &str,
     ) -> R<Vec<RefPlace>> {
-        if !sig.has_refs() {
-            self.args(&sig.params, args, pos, name)?;
-            return Ok(vec![]);
-        }
-        if sig.params.len() != args.len() {
-            return err(
-                pos,
-                format!(
-                    "`{name}` takes {} argument(s), {} given",
-                    sig.params.len(),
-                    args.len()
-                ),
-            );
-        }
+        self.arg_count(least, sig.params.len(), args.len(), args.last(), pos, name)?;
         let mut places: Vec<RefPlace> = vec![];
         for ((want, by_ref), a) in sig.params.iter().zip(&sig.refs).zip(args) {
             if !by_ref {
@@ -449,6 +431,9 @@ impl FnGen<'_> {
             }
             self.get_raw(&lv);
             places.push(RefPlace::Local(lv));
+        }
+        for want in &sig.params[args.len()..] {
+            self.nil_as(want, pos)?;
         }
         Ok(places)
     }
@@ -570,7 +555,7 @@ impl FnGen<'_> {
             refs: sig.refs[1..].to_vec(),
             ..sig.clone()
         };
-        self.script_args(&rest, args, pos, name)?;
+        self.script_args(&rest, rest.params.len(), args, pos, name)?;
         self.spill();
         self.e(I::Call(self.g.callee(&key, &sig)));
         Ok(sig.ret)

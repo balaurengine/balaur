@@ -90,7 +90,7 @@ pub fn resend_confirmation(email: str) -> any {
 /// connection comes back on its own and joins its topics again: `route`
 /// hands the node `on_socket_reconnecting`, then `on_socket_reopened`.
 pub fn connect(node: Node) -> int {
-    gamend::connect(node, nil())
+    gamend::connect(node)
 }
 
 /// Hand an event to the node's own handler for it. A server message goes to
@@ -132,7 +132,7 @@ pub fn join(socket: int, topic: str) -> int {
         held.push(topic);
         script::store(TOPICS_KEY, held);
     }
-    gamend::join(socket, topic, nil())
+    gamend::join(socket, topic)
 }
 
 /// Leave a topic and drop it from the record.
@@ -150,7 +150,7 @@ pub fn joined() -> [str] {
 /// about a failure, which is what the Godot client did.
 pub async fn call(socket: int, name: str, args: any) -> HookReply {
     if socket <= 0 {
-        return HookReply { ok: false, data: nil(), error: "gamend: {name} needs a connection" };
+        return HookReply { ok: false, data: nil, error: "gamend: {name} needs a connection" };
     }
     let reply = await task::wait(gamend::call_hook(socket, plugin(), name, args));
     unpack_hook(name, reply)
@@ -169,13 +169,13 @@ pub fn send(socket: int, name: str, args: any) -> bool {
 /// A hook reply as a `HookReply`.
 pub fn unpack_hook(name: str, reply: any) -> HookReply {
     if reply == nil {
-        return HookReply { ok: false, data: nil(), error: "gamend: {name} sent no reply" };
+        return HookReply { ok: false, data: nil, error: "gamend: {name} sent no reply" };
     }
     let response = reply["response"];
     if response.has("error") {
         let message = response["error"].text();
         log::warn("gamend: hook {name}: {message}");
-        return HookReply { ok: false, data: nil(), error: message };
+        return HookReply { ok: false, data: nil, error: message };
     }
     HookReply { ok: true, data: response["data"], error: "" }
 }
@@ -258,14 +258,14 @@ pub async fn fetch_row(key: str, force: bool) -> any {
     if !force && has_row(key) {
         return row(key);
     }
-    let reply = await task::wait(kv::get_kv(key, nil()).as_int());
+    let reply = await task::wait(kv::get_kv(key).as_int());
     if !core::ok(reply) {
         if reply["status"].as_int() == 404 {
             keep_row(key, {});
             return {};
         }
         log::warn(core::error_of(reply));
-        return nil();
+        return nil;
     }
     let value = core::body(reply);
     keep_row(key, value);
@@ -289,7 +289,7 @@ pub async fn fetch_lobby(lobby_id: any) -> any {
 pub async fn write_deduped(socket: int, key: str, value: any, hook: str, args: any) -> Write {
     let sent = json::encode(value);
     if writes()[key].text() == sent {
-        return Write { skipped: true, reply: HookReply { ok: true, data: nil(), error: "" } };
+        return Write { skipped: true, reply: HookReply { ok: true, data: nil, error: "" } };
     }
     let held = writes();
     held[key] = sent;

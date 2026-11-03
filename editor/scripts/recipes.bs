@@ -12,9 +12,9 @@ use util;
 
 /// A preset the selected node can be changed to, and what the change makes.
 pub struct Target {
-    name: str,
-    note: str,
-    tags: [str],
+    internal name: str,
+    internal note: str,
+    internal tags: [str],
 }
 
 // The keys a recipe reads off the components it converts.
@@ -117,7 +117,7 @@ pub fn soft_body(state: &mut editor::State, index: int) -> bool {
     if parts == nil {
         return false;
     }
-    history::record(state, "make soft body", nil);
+    history::record(state, "make soft body");
     make_soft(state, index, parts)
 }
 
@@ -191,7 +191,7 @@ pub fn change_type(state: &mut editor::State, index: int, name: str) -> bool {
         return false;
     }
     let parts = info.unwrap().parts;
-    history::record(state, "change to " + name, nil);
+    history::record(state, "change to " + name);
     let fresh: [str] = [];
     for component in parts.keys() {
         if !node.has(component) {
@@ -357,7 +357,7 @@ fn to_polygon(state: &mut editor::State, index: int) -> bool {
         return sprite_to_polygon(state, index);
     }
     let shape = node["shape2d"];
-    history::record(state, "make polygon", nil);
+    history::record(state, "make polygon");
     let color = shape[COLOR];
     let polygon: any = {
         "mesh": { "positions": shape_points(shape) },
@@ -467,7 +467,7 @@ fn source_row(label: str, note: str, name: str, parts: any) -> newnode::Entry {
 /// Add a child soft body made from one of `soft_sources`, in one undo step.
 pub fn add_soft_body(state: &mut editor::State, source: newnode::Entry) -> bool {
     let before = state.nodes.len();
-    model::add_child(state, nil);
+    model::add_child(state);
     if state.nodes.len() == before {
         return false;
     }
@@ -478,7 +478,7 @@ pub fn add_soft_body(state: &mut editor::State, source: newnode::Entry) -> bool 
 /// Rebuild row `index` as a soft body made from one of `soft_sources`, in one
 /// undo step: what it drew gives way to the source.
 pub fn give_soft_body(state: &mut editor::State, index: int, source: newnode::Entry) -> bool {
-    history::record(state, "make soft body", nil);
+    history::record(state, "make soft body");
     fill_soft(state, index, source)
 }
 
@@ -561,7 +561,7 @@ pub fn sprite_to_polygon(state: &mut editor::State, index: int) -> bool {
     if polygon == nil {
         return false;
     }
-    history::record(state, "trace sprite", nil);
+    history::record(state, "trace sprite");
     replace(node, [], { "polygon": polygon });
     node.remove("sprite");
     model::write_row(found, node);

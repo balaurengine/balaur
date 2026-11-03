@@ -222,6 +222,9 @@ impl FnGen<'_> {
                 format!("struct {s} has no field `{f}`; it has {}", names.join(", ")),
             );
         }
+        for (f, _) in fields {
+            self.may_name(&format!("{s}.{f}"), pos)?;
+        }
         let ty = Ty::Struct(s.to_string());
         // A class's fields go into a new object, counted once for its holder.
         let obj = self.g.is_class(&ty).is_some().then(|| {
@@ -750,6 +753,41 @@ impl FnGen<'_> {
         Ok(())
     }
 
+    // From `least` arguments to `most`. A last `nil` the call may leave out is
+    // a lint: `set_script(nil)`, the only argument, says what it does, and no
+    // argument at all would not.
+    pub(crate) fn arg_count(
+        &mut self,
+        least: usize,
+        most: usize,
+        given: usize,
+        last_arg: Option<&Expr>,
+        pos: Pos,
+        what: &str,
+    ) -> R<()> {
+        if given < least || given > most {
+            let takes = if least == most {
+                most.to_string()
+            } else {
+                format!("{least} to {most}")
+            };
+            return err(
+                pos,
+                format!("`{what}` takes {takes} argument(s), {given} given"),
+            );
+        }
+        if !self.prelude
+            && given > least.max(1)
+            && let Some(nil) = last_arg.filter(|a| matches!(a.kind, ExprKind::Nil))
+        {
+            self.g.lints.borrow_mut().push(Error {
+                pos: nil.pos,
+                msg: format!("leave this `nil` out: `{what}` reads a missing argument as nil"),
+            });
+        }
+        Ok(())
+    }
+
     // A host call borrows its strings: they are released once it returns.
     // Trailing `T?` and `any` parameters may be left out, and are nil.
     pub(crate) fn host_args(
@@ -759,18 +797,14 @@ impl FnGen<'_> {
         pos: Pos,
         what: &str,
     ) -> R<Vec<LVal>> {
-        let least = crate::least(want);
-        if args.len() < least || args.len() > want.len() {
-            let takes = if least == want.len() {
-                want.len().to_string()
-            } else {
-                format!("{least} to {}", want.len())
-            };
-            return err(
-                pos,
-                format!("`{what}` takes {takes} argument(s), {} given", args.len()),
-            );
-        }
+        self.arg_count(
+            crate::least(want),
+            want.len(),
+            args.len(),
+            args.last().copied(),
+            pos,
+            what,
+        )?;
         let mut borrowed = vec![];
         for (w, a) in want.iter().zip(args) {
             self.expr_as(a, w)?;

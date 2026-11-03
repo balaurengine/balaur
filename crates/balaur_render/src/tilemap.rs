@@ -43,12 +43,18 @@ first_tile = 16
 
 /// The `tileset` asset type: files live in `tilesets/`.
 pub(crate) fn register_tileset_asset(reg: &mut Registry<'_>) {
-    reg.register_asset_type(TILESET_ASSET_TYPE, "tilesets", TILESET_ASSET_DOC, |value| {
-        Ok(
-            std::rc::Rc::new(balaur_geometry::tiles::parse_tileset(value)?)
-                as std::rc::Rc<dyn std::any::Any>,
-        )
-    });
+    reg.register_checked_asset(
+        TILESET_ASSET_TYPE,
+        "tilesets",
+        TILESET_ASSET_DOC,
+        balaur_geometry::tiles::check_tileset,
+        |value| {
+            Ok(
+                std::rc::Rc::new(balaur_geometry::tiles::parse_tileset(value)?)
+                    as std::rc::Rc<dyn std::any::Any>,
+            )
+        },
+    );
 }
 
 /// A grid of tiles from one `tileset` asset, centred on the node. `cells` holds rows of tile ids, or names the `.cells` file holding them; `pixels_per_unit` is tile pixels per world unit.

@@ -4,8 +4,8 @@
 
 /// A component's glyph and the theme token it is drawn in.
 pub struct Component {
-    glyph: str,
-    token: str,
+    internal glyph: str,
+    internal token: str,
 }
 
 /// A viewport tool, by `defs::tools` id.

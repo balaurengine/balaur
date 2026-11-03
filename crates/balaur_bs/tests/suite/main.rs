@@ -2,6 +2,7 @@
 
 mod awaits;
 mod budgets;
+mod chapter;
 mod classes;
 mod debugger;
 mod determinism;

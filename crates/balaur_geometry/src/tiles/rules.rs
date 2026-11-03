@@ -6,8 +6,9 @@
 //! sugar over the same table, so there is one resolver and one thing to
 //! debug — and it is a pure function, so a headless test can assert a corner.
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 
+use balaur_core::assets::refuse_keys;
 use balaur_core::components::as_f64;
 
 /// How a terrain's tiles are chosen.
@@ -301,6 +302,51 @@ fn hash(seed: u64, column: i32, row: i32, rule: u64) -> u64 {
         value = value.rotate_left(31).wrapping_mul(0x94d0_49bb_1331_11eb);
     }
     value ^ (value >> 29)
+}
+
+const TERRAIN_KEYS: &[&str] = &["name", "value", "kind", "first_tile", "quarters"];
+
+const RULE_KEYS: &[&str] = &[
+    "terrain",
+    "pattern",
+    "tile",
+    "tiles",
+    "transforms",
+    "chance",
+    "outside",
+];
+
+const ALTERNATE_KEYS: &[&str] = &["tile", "weight"];
+
+/// Refuse a key a terrain, a rule or one of a rule's alternates does not take.
+///
+/// # Errors
+/// Naming the key and the terrain or the rule it was written on.
+pub(super) fn check_keys(value: &toml::Value) -> Result<()> {
+    let list_at = |key: &str| {
+        value
+            .get(key)
+            .and_then(toml::Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    };
+    for (index, terrain) in list_at("terrains").iter().enumerate() {
+        refuse_keys(terrain, "a terrain", TERRAIN_KEYS)
+            .with_context(|| format!("terrain {index}"))?;
+    }
+    for (index, rule) in list_at("rules").iter().enumerate() {
+        refuse_keys(rule, "a rule", RULE_KEYS).with_context(|| format!("rule {index}"))?;
+        let alternates = rule
+            .get("tiles")
+            .and_then(toml::Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        for alternate in alternates {
+            refuse_keys(alternate, "a rule's alternate", ALTERNATE_KEYS)
+                .with_context(|| format!("rule {index}"))?;
+        }
+    }
+    Ok(())
 }
 
 /// `[[terrains]]` on a tileset.

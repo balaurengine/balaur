@@ -22,6 +22,7 @@ edit this one.
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | physics timings against Godot, written by `scripts/bench_compare.py` |
 | [docs/EDITOR-SCREENS.md](docs/EDITOR-SCREENS.md) | every editor surface: mockup, code, screenshot |
 | [docs/actions.md](docs/actions.md) | the GitHub Actions a game's repository uses |
+| [docs/language/](docs/language/index.md) | the Balaur Script chapter of the site's manual, every example run by the tests; forge copies it |
 | [docs/generated/](docs/generated/README.md) | script API, components, assets, crates, features; `scripts/gen_docs.py` writes it |
 | [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) | every bundled package's licence; `scripts/third_party_notices.py` writes it |
 | [editors/code/README.md](editors/code/README.md) | the VS Code extension over `balaur lsp` |
@@ -57,6 +58,8 @@ These land in the same commit as the code:
 - **The plan** it came from, so `docs/PLAN-*.md` says what is left.
 - **`docs/LIFECYCLE*.md`** when a state, or a way in or out of one, is added or removed.
 - **`docs/generated/`** when the script API moved: `python3 scripts/gen_docs.py`.
+- **`docs/language/`** when the language moved. A page's examples are tested, so
+  a change it no longer describes fails `cargo test -p balaur_bs`.
 - **`THIRD-PARTY-NOTICES.md`** when `Cargo.lock` moved:
   `python3 scripts/third_party_notices.py`.
 - **A devlog post** in forge's `content/blog/` when a user can see the
@@ -106,6 +109,12 @@ A `{` in a string starts an interpolation; `{{` and `}}` write braces.
 A plain method cannot await. To hear a call's reply it starts an async method
 of its own, `self.node.call("await_reply", id)`, which runs once the plain
 method has returned.
+
+Three reaches, for an item, a field or a method: unmarked is the file's own,
+`internal` is its package's (the `addons/<name>` or `deps/<alias>` it sits in,
+else the project), `pub` is everyone's. A `pub` free function is also an entry
+point for the engine, and a `pub` field with a default is what a scene tunes,
+so a field other files only read is `internal`. `crate::reach` holds the rule.
 
 A host function's error **ends the whole script call**, and nothing catches
 it. A typo should: a component or property nothing has, a node that is gone.

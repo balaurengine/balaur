@@ -7,6 +7,7 @@
 mod app_events;
 mod bs;
 mod bs_host;
+mod chapter;
 mod components;
 mod dap;
 mod debug_holds;

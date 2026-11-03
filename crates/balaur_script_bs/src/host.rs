@@ -515,17 +515,8 @@ impl BsHost {
 
     pub fn check(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
         let key = key_of(rel);
-        // As units, a file's own functions: each module answers for its own.
         let units = self.as_units(&key);
-        let options = Options {
-            debug: false,
-            host: self.api(),
-            modules: Some(self.modules()),
-            path: key.clone(),
-            unit: units,
-            parsed: units.then(|| self.inner.parsed.clone()),
-            ..Options::default()
-        };
+        let options = self.check_options(&key);
         let found = balaur_bs::errors(source, &options);
         if !found.is_empty() {
             return found;
@@ -542,6 +533,25 @@ impl BsHost {
                 msg: format!("{e:#}"),
             }]
         })
+    }
+
+    /// What the file's own functions should say otherwise, though they compile.
+    pub fn lints(&self, rel: &str, source: &str) -> Vec<balaur_bs::Error> {
+        balaur_bs::lints(source, &self.check_options(&key_of(rel)))
+    }
+
+    // As units, a file's own functions: each module answers for its own.
+    fn check_options(&self, key: &str) -> Options {
+        let units = self.as_units(key);
+        Options {
+            debug: false,
+            host: self.api(),
+            modules: Some(self.modules()),
+            path: key.to_string(),
+            unit: units,
+            parsed: units.then(|| self.inner.parsed.clone()),
+            ..Options::default()
+        }
     }
 
     // As the whole file would: every error of every module `unit` uses, near

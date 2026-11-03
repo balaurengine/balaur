@@ -28,20 +28,20 @@ pub struct Panels {
 
 /// The active tab's box and the strip it scrolls in.
 pub struct ActiveTabBox {
-    tab: ui::Rect,
-    strip: ui::Rect,
+    internal tab: ui::Rect,
+    internal strip: ui::Rect,
 }
 
 pub struct Handle {
-    shown: bool,
-    icon: str,
-    tooltip: str,
+    internal shown: bool,
+    internal icon: str,
+    internal tooltip: str,
 }
 
 pub struct Handles {
-    left: Handle,
-    right: Handle,
-    bottom: Handle,
+    internal left: Handle,
+    internal right: Handle,
+    internal bottom: Handle,
 }
 
 // The "+N" list that stands for the tabs a narrow dock has no room for.

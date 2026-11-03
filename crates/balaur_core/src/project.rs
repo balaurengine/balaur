@@ -496,6 +496,10 @@ pub type SceneKeyHandler = crate::components::ApplyFn;
 #[derive(Default)]
 pub struct SceneKeyRegistry(pub Vec<(String, SceneKeyHandler)>);
 
+/// Inserted by a host missing a module that owns scene keys: it cannot tell
+/// one of those keys from a typo, so a key nothing handles only warns there.
+pub struct LacksKeyOwner;
+
 /// The manifest's own text, kept because `ProjectManifest` is typed and a
 /// plugin's table is not one of its fields.
 ///

@@ -12,7 +12,7 @@ use util;
 
 /// The animation timeline's own state, hung on `state.anim`.
 pub class AnimState {
-    time: float,
+    internal time: float,
 }
 
 /// The library the Timeline edits, cached for the player at `index`: what
@@ -28,7 +28,7 @@ pub class Clip {
 
 /// The player's node and its row.
 pub struct Player {
-    found: Node,
+    internal found: Node,
     index: int,
 }
 
@@ -180,7 +180,7 @@ pub fn document(state: &mut editor::State) -> any {
             cached.source = library;
             cached.doc = library;
         } else {
-            cache(state, owner.index, library, library, nil);
+            cache(state, owner.index, library, library);
         }
         return library;
     }
@@ -203,7 +203,7 @@ pub fn document(state: &mut editor::State) -> any {
         cache(state, owner.index, library, loaded, path);
         return loaded;
     }
-    cache(state, owner.index, library, nil, nil);
+    cache(state, owner.index, library);
     nil
 }
 
@@ -278,7 +278,7 @@ pub fn arm(state: &mut editor::State) {
     let owner = player(state);
     let animation_component = component(state, owner.found);
     if animation_component == nil {
-        cache(state, owner.index, "", nil, nil);
+        cache(state, owner.index, "");
         return;
     }
     if !owner.found.is_valid() {
@@ -331,7 +331,7 @@ pub fn ensure_clip(state: &mut editor::State) -> any {
     if component(state, found) != nil {
         return definition(state);
     }
-    history::record(state, "create clip", nil);
+    history::record(state, "create clip");
     let name = found.name().to_lower();
     let clips: any = { name: { "length": 2.0, "loop_mode": animation::LOOP_LINEAR } };
     let library: any = { "type": CLIP_TYPE, GROUP: clips };
@@ -402,7 +402,7 @@ pub fn add_key(state: &mut editor::State, time: float) {
         log::warn("{found.name()}: the library has no clip called '{clip_name(state, model::node(state, player_node_index))}'");
         return;
     }
-    history::record(state, "insert keyframe", nil);
+    history::record(state, "insert keyframe");
     let target = target_path(state, player_node_index);
     put_key(track_for(clip_definition, animation::PROPERTY_ROTATION_EULER, target), time, util::xyz(found.transform.rotation_euler));
     if !found.has_component("bone2d") && !found.has_component("bone3d") {
@@ -432,7 +432,7 @@ pub fn key_property(state: &mut editor::State, time: float, property: str, value
         log::warn("the library has no clip called '{clip_name(state, model::node(state, player_node_index))}'");
         return;
     }
-    history::record(state, "key {property}", nil);
+    history::record(state, "key {property}");
     put_key(track_for(clip_definition, property, target_path(state, player_node_index)), time, value);
     if time > length(clip_definition) {
         clip_definition["length"] = time;
@@ -447,7 +447,7 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
     if clip_definition == nil {
         return;
     }
-    history::record(state, "delete keyframe", nil);
+    history::record(state, "delete keyframe");
     let target = target_path(state, player_index(state));
     let kept: [any] = [];
     for track in tracks(clip_definition) {
@@ -490,7 +490,7 @@ pub fn promote(state: &mut editor::State) {
     if animation_component == nil || doc == nil {
         return;
     }
-    history::record(state, "save clip as file", nil);
+    history::record(state, "save clip as file");
     if library_of(animation_component).kind() != "map" {
         log::warn("this clip is already a file");
         return;
@@ -515,7 +515,7 @@ pub fn make_inline(state: &mut editor::State) {
         log::warn("this clip is already embedded");
         return;
     }
-    history::record(state, "embed clip", nil);
+    history::record(state, "embed clip");
     let copy = assets::duplicate(util::engine_path(state.game_root, rel.unwrap()));
     if copy.kind() != "map" {
         log::warn("cannot embed {rel.unwrap()}: {copy}");

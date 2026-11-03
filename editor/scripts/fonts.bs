@@ -241,7 +241,7 @@ pub fn answered(state: &mut editor::State, reply: any) {
         take_face(state, waiting, reply["path"].as_str());
     } else if purpose == "licence" {
         fs::write(state.game_root + "/" + waiting["at"].as_str(), reply["body"].as_str());
-        model::forget(state, nil);
+        model::forget(state);
     }
 }
 

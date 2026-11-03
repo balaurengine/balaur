@@ -1,0 +1,42 @@
+// A script function's trailing `T?` and `any` parameters may be left out, and
+// arrive as nil, as an engine function's do. A string, a list and a struct
+// behind the `?` are released as an explicit nil would be.
+struct Tint { r: int, name: str }
+
+fn label(id: int, name: str?, tag: any) -> str {
+    let n = if name == nil { "none" } else { name.unwrap() };
+    let t = if tag == nil { "untagged" } else { "{tag}" };
+    "{id} {n} {t}"
+}
+
+fn tinted(t: Tint?, list: [int]?) -> str {
+    let shade = if t == nil { -1 } else { t.unwrap().r };
+    let held = if list == nil { -1 } else { list.unwrap().len() };
+    "{shade} {held}"
+}
+
+fn no_arguments_needed(a: int?, b: int?) -> int {
+    a.or(10) + b.or(20)
+}
+
+pub fn every_count() -> str {
+    "{label(1)}|{label(2, "x")}|{label(3, "y", 7)}"
+}
+
+pub fn heap_kinds() -> str {
+    "{tinted()}|{tinted(Tint { r: 5, name: "red" })}|{tinted(Tint { r: 6, name: "a" }, [1, 2])}"
+}
+
+pub fn none_given() -> int {
+    no_arguments_needed() + no_arguments_needed(1) + no_arguments_needed(1, 2)
+}
+
+// An earlier one still takes its place: only what ends the list goes.
+pub fn a_place_held_by_nil() -> str {
+    label(4, nil, "t")
+}
+
+// expect: every_count() == "1 none untagged|2 x untagged|3 y 7"
+// expect: heap_kinds() == "-1 -1|5 -1|6 2"
+// expect: none_given() == 54
+// expect: a_place_held_by_nil() == "4 none t"

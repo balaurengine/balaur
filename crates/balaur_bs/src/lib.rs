@@ -20,6 +20,7 @@ mod maps;
 mod modules;
 mod parse;
 mod prelude;
+mod reach;
 pub mod runtime;
 mod stored;
 pub mod words;
@@ -369,6 +370,7 @@ fn host_structs(host: &HostApi, prog: &ast::Program) -> Vec<(String, Vec<ast::Fi
                     name: name.clone(),
                     ty: ty.clone(),
                     public: true,
+                    internal: false,
                     default: None,
                     pos: Pos::default(),
                 })
@@ -414,6 +416,12 @@ pub fn errors(src: &str, options: &Options) -> Vec<Error> {
     }
 }
 
+/// What `src` should say otherwise, though it compiles: a trailing `nil` a
+/// call may leave out. Empty when it does not compile.
+pub fn lints(src: &str, options: &Options) -> Vec<Error> {
+    front(src, options).map_or_else(|_| vec![], |(prog, _)| codegen::lints(&prog, options))
+}
+
 // The file parsed, its modules linked in, the prelude and the engine's
 // records beside its own structs; the files linked.
 fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Error> {
@@ -429,6 +437,7 @@ fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Er
             options.parsed.as_ref(),
         )?
     };
+    reach::seal(&mut prog)?;
     let mut structs = host_structs(&options.host, &prog);
     structs.append(&mut prog.structs);
     prog.structs = structs;

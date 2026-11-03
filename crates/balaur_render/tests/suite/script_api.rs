@@ -274,7 +274,7 @@ fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
         r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], render::DrawOptions { z_index: 2 });
 render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, render::DrawOptions { z_index: -1 });
-render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
+render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil, render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
         0,
     );
     assert!(errors.is_empty(), "{errors:#?}");
@@ -297,7 +297,7 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil(), render::Te
         "{shapes:?}"
     );
     let why =
-        refused(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil(), render::DrawOptions { z: 1 });");
+        refused(r"render::draw_rect_2d(0.0, 0.0, 1.0, 1.0, nil, render::DrawOptions { z: 1 });");
     assert!(
         why.contains("no field `z`"),
         "a misspelt option does not compile: {why}"
