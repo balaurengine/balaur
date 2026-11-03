@@ -54,3 +54,22 @@ impl Present {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use balaur_core::project::WindowSettings;
+    use kiss3d::window::NumSamples;
+
+    #[test]
+    fn a_run_asks_its_canvas_for_the_sample_count_the_project_names() {
+        let at = |msaa| {
+            super::samples_of(&WindowSettings {
+                msaa,
+                ..WindowSettings::default()
+            })
+        };
+        assert_eq!(at(1), NumSamples::One, "msaa = 1 is off");
+        assert_eq!(at(4), NumSamples::Four);
+        assert_eq!(at(8), NumSamples::Four, "a count it lacks takes four");
+    }
+}
