@@ -231,6 +231,46 @@ fn two_nodes_share_one_asset_and_part_ways_once_one_is_changed() {
     assert!(near(first.instances[0].position, Vec3::new(1.0, 0.0, 0.0)));
 }
 
+/// A saved asset reaches the node holding a copy of it: the component's own
+/// values did not move, only the file under them.
+#[test]
+fn a_saved_asset_copies_its_instances_again() {
+    let (dir, mut app) = app();
+    std::fs::create_dir_all(dir.path().join("multimeshes")).unwrap();
+    let definition = |instances: &str| -> toml::Value {
+        toml::from_str(&format!(
+            "type = \"multimesh\"\nmesh = {{ type = \"mesh\", kind = \"box\" }}\ninstances = [{instances}]"
+        ))
+        .unwrap()
+    };
+    let reference = "multimeshes/posts.toml";
+    balaur_core::assets::save(
+        &app.engine,
+        reference,
+        &definition("{ position = [1.0, 0.0, 0.0] }"),
+    )
+    .unwrap();
+    let row = node(&app, "Row", app.engine.root());
+    add(
+        &app,
+        row,
+        "multimesh3d",
+        "source = \"multimeshes/posts.toml\"",
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(placed(&app, row).len(), 1);
+    balaur_core::assets::save(
+        &app.engine,
+        reference,
+        &definition("{ position = [1.0, 0.0, 0.0] }, { position = [2.0, 0.0, 0.0] }"),
+    )
+    .unwrap();
+    app.tick(1.0 / 60.0);
+    let drawn = placed(&app, row);
+    assert_eq!(drawn.len(), 2, "the saved file's two instances");
+    assert!(near(drawn[1], Vec3::new(2.0, 0.0, 0.0)));
+}
+
 /// Scenario patch of another key keeps what was done to the node's instances; a new
 /// source copies the new asset's.
 #[test]
