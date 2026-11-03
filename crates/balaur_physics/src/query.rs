@@ -54,7 +54,7 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
     ),
     (
         "ShapeQuery",
-        "{ shape: any, origin: vec3?, direction: vec3?, at: vec3?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
+        "{ shape: Shape, origin: vec3?, direction: vec3?, at: vec3?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
         "A shape, in the collider's vocabulary, swept from `origin` along `direction`, or standing `at` a point.",
     ),
     (
@@ -78,9 +78,29 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
         "The collider nearest a point: its node, the point on it, whether the point was inside, and how far.",
     ),
     (
+        "Shape",
+        "{ kind: string, radius: float?, size: Vec3?, edge_radius: float?, height: float?, up_axis: string?, a: Vec3?, b: Vec3?, c: Vec3?, normal: Vec3?, mesh: string?, fix_internal_edges: bool?, two_sided_edges: bool?, edges: string?, fit: string?, heightfield: string?, scale: Vec3?, voxels: string?, voxel_size: float? }",
+        "A shape as `collider3d`'s `shape` spells it: its `kind`, and the rows that kind reads.",
+    ),
+    (
         "ImpactOptions",
-        "{ velocity_a: any, velocity_b: any, max_time: float?, stop_at_penetration: bool? }",
-        "How two colliders move for `time_of_impact`: each one's velocity, and how far ahead to look.",
+        "{ velocity_a: Vec3?, velocity_b: Vec3?, max_time: float?, stop_at_penetration: bool? }",
+        "How two colliders move for `time_of_impact`: each one's velocity, still when left out, and how far ahead to look.",
+    ),
+    (
+        "ClosestPoints",
+        "{ a: Vec3, b: Vec3 }",
+        "The nearest point on each of two colliders.",
+    ),
+    (
+        "Impact",
+        "{ distance: float, point: Vec3, normal: Vec3 }",
+        "Where two moving colliders meet: `distance` is how long they take to, at the velocities given; `point` and `normal` are on the first collider, in its own space.",
+    ),
+    (
+        "Contact",
+        "{ node: node, point: Vec3, normal: Vec3, impulse: float }",
+        "One contact point on a collider: what it touches, where, the normal, and how hard it pushed in the last step.",
     ),
 ];
 
@@ -320,11 +340,11 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
 pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("distance", &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
-        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders."),
+        ("closest_points", &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders."),
         ("intersects", &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
-        ("contacts", &[c::COLLIDER_3D], "", "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("contacts", &[c::COLLIDER_3D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
         ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {

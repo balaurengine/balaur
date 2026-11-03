@@ -196,6 +196,7 @@ pub(crate) fn from_neutral<R: Records>(v: &N, ty: &Ty, records: &R) -> L {
         (Ty::Str, N::Str(s)) => L::Str(s.clone()),
         (Ty::Node, N::Node(x)) => L::Node(x.cast_signed()),
         (Ty::Array(_), N::Nil) => L::Array(vec![]),
+        (Ty::Array(_), N::Bytes(_)) => dynamic(v),
         (Ty::Array(et), N::List(items) | N::Many(items)) => {
             L::Array(items.iter().map(|i| from_neutral(i, et, records)).collect())
         }

@@ -99,7 +99,7 @@ drops Godot's `get_` (NAMING N7).
 | `material_override`, `cast_shadow` | `material` and `cast_shadow` on `multimesh3d`, beside the `light_layers` a `mesh` has | step 1 |
 | `visible_instance_count` | the asset's `visible_instance_count`, -1 for all; `set_visible_instance_count(n)` | step 1, step 2 |
 | `instance_count` | the length of `instances`; `instance_count()`, `set_instance_count(n)` | step 2 |
-| `set_instance_transform`, `set_instance_transform_2d` | `set_instance_transform(i, t)`: the axes and then the origin as a list of floats, 12 on `multimesh3d`, 6 on `multimesh2d` | step 2 |
+| `set_instance_transform`, `set_instance_transform_2d` | `set_instance_transform(i, t)`: a `Transform3d` on `multimesh3d`, a `Transform2d` on `multimesh2d` | step 2 |
 | `get_instance_transform`, `get_instance_transform_2d` | `instance_transform(i)` | step 2 |
 | `set_instance_color`, `get_instance_color` | `set_instance_color(i, c)`, `instance_color(i)` | step 2 |
 | `set_instance_custom_data`, `get_instance_custom_data` | `set_instance_custom_data(i, v)`, `instance_custom_data(i)`; a material reads them with `features = { instance_custom = true }` | step 7 |

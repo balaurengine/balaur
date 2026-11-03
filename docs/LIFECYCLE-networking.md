@@ -470,7 +470,7 @@ stateDiagram-v2
 
 Starts in `CONNECTING`. Ends in `CLOSED`.
 
-Refused or ignored: `send` and `close` answer false once `sockets` has no row, which is every socket during a replay. `close` still marks that row `CLOSING`. `send` is not refused while connecting. The browser backend calls `ws.send_*` and ignores the result. A payload that is not a string or bytes returns an error. An event for a removed id finds no handler and still enters `WebsocketSnapshot`.
+Refused or ignored: `send_text`, `send_bytes` and `close` answer false once `sockets` has no row, which is every socket during a replay. `close` still marks that row `CLOSING`. `send` is not refused while connecting. The browser backend calls `ws.send_*` and ignores the result. A payload that is not a string or bytes returns an error. An event for a removed id finds no handler and still enters `WebsocketSnapshot`.
 
 Held by a pause, a `process` mode or a parked scene: `pump_websocket_system` reads none of them. A handler runs through `call_on`, so a paused node hears it and a parked node, having no instance there, misses it. A task awaiting the id stays suspended until its node can tick.
 

@@ -806,6 +806,12 @@ impl<'a> FnGen<'a> {
             }
             return Ok(());
         }
+        if let (ExprKind::MapLit(_), Some(name)) = (&e.kind, record_wanted(want)) {
+            return err(
+                e.pos,
+                format!("a {name} is written `{name} {{ .. }}`, not as a map"),
+            );
+        }
         let got = self.expr(e)?;
         self.coerce(&got, want, e.pos)
     }
@@ -1087,6 +1093,14 @@ fn map_wanted(want: &Ty) -> Option<&str> {
     match want {
         Ty::Struct(class) if crate::maps::is_map(class) => Some(class),
         Ty::Optional(inner) => map_wanted(inner),
+        _ => None,
+    }
+}
+
+fn record_wanted(want: &Ty) -> Option<&str> {
+    match want {
+        Ty::Struct(name) if !matches!(name.as_str(), "Vec2" | "Vec3" | "Color") => Some(name),
+        Ty::Optional(inner) => record_wanted(inner),
         _ => None,
     }
 }

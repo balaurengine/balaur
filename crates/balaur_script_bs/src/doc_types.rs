@@ -77,10 +77,8 @@ pub(crate) fn schema_ty(t: &str) -> Option<Ty> {
     })
 }
 
-// A documented type: a schema word, a record, `[T]`, a tuple, or `()` for
-// nothing. One that may be nil is a `T?`, so a script passes `nil` where the
-// docs say it may be left out. `bytes` are a list of ints. One of several,
-// `a | b`, reads as nothing: a function has one shape.
+// A documented type: a schema word, a record, `[T]`, a tuple, `()` for nothing
+// or `T?`. `bytes` are a list of ints, and `a | b` reads as nothing (N25).
 fn doc_ty(t: &str, cx: &Cx<'_>) -> Option<Ty> {
     let t = t.trim();
     if let Some(inner) = t.strip_suffix('?') {

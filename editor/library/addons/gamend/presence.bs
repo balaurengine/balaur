@@ -15,8 +15,8 @@ pub fn cache(user: any) {
 }
 
 /// The user this client last saw under that id, or nil.
-pub fn user(id: any) -> any {
-    all()[id.text()]
+pub fn user(id: str) -> any {
+    all()[id]
 }
 
 /// Everyone cached, by id.

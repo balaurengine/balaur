@@ -132,18 +132,18 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>constant_torque()</code></td><td><code>float</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>effective_angular_inertia()</code></td><td><code>float</code></td><td>The inertia the solver turns: zero with rotation locked, and on any body that is not dynamic.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>effective_dominance()</code></td><td><code>float</code></td><td>The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>effective_mass()</code></td><td><code>any</code></td><td>The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>effective_mass()</code></td><td><code>Vec2</code></td><td>The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>is_ccd_active()</code></td><td><code>bool</code></td><td>Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>is_moving()</code></td><td><code>bool</code></td><td>Whether the body is awake and actually going somewhere.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>kinetic_energy()</code></td><td><code>float</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>Vec2</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>local_center_of_mass()</code></td><td><code>any</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>local_center_of_mass()</code></td><td><code>Vec2</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this body took in the last step, zero when nothing touched it.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>next_position()</code></td><td><code>any</code></td><td>The pose a kinematic body has been told to move to, as `{ position, rotation }`.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>next_position()</code></td><td><code>physics2d::Pose</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>potential_energy()</code></td><td><code>float</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>predict_position(float)</code></td><td><code>any</code></td><td>Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>predict_position_with_forces(float)</code></td><td><code>any</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>predict_position(float)</code></td><td><code>physics2d::Pose</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>predict_position_with_forces(float)</code></td><td><code>physics2d::Pose</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_angular_velocity(float)</code></td><td>—</td><td>Set how fast the body spins, in radians per second.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_constant_force(float, float)</code></td><td>—</td><td>Replace the constant force with this one; zero stops the push.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_constant_torque(float)</code></td><td>—</td><td>Replace the constant torque with this one; zero stops the turn.</td><td><code>physics2d</code></td></tr>
@@ -155,7 +155,7 @@ On a node carrying `body2d`, as `node.body2d.<method>`:
 <tr><td><code>total_mass()</code></td><td><code>float</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>velocity_at_point(float, float)</code></td><td><code>Vec2</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>world_center_of_mass()</code></td><td><code>any</code></td><td>Where the body&#x27;s whole mass sits, in world space.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>world_center_of_mass()</code></td><td><code>Vec2</code></td><td>Where the body&#x27;s whole mass sits, in world space.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
@@ -267,7 +267,7 @@ On a node carrying `character2d`, as `node.character2d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>move_character(float, float)</code></td><td><code>any</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>move_character(float, float)</code></td><td><code>physics2d::CharacterMove</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
@@ -325,24 +325,24 @@ On a node carrying `collider2d`, as `node.collider2d.<method>`:
 <tr><td><code>aabb()</code></td><td><code>[float]</code></td><td>The world-space box the collider currently occupies, as its two opposite corners.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>broad_phase_aabb()</code></td><td><code>[float]</code></td><td>The box the broad phase files the collider under, which also reaches ahead by its body&#x27;s speculative_distance.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>collider_mass()</code></td><td><code>float</code></td><td>What this collider weighs, density and size together.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>collider_mass_properties()</code></td><td><code>any</code></td><td>What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia }`.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>collider_mesh()</code></td><td><code>any</code></td><td>A voxel collider&#x27;s outline as points and the segments between them, `{ points, indices }`, for drawing it or for spawning the pieces it broke into.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collider_mass_properties()</code></td><td><code>physics2d::MassProperties</code></td><td>What this collider adds to its body, in its own space.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>collider_mesh()</code></td><td><code>physics2d::ColliderMesh</code></td><td>A voxel collider&#x27;s outline as points and the segments between them, for drawing it or for spawning the pieces it broke into.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>collider_volume()</code></td><td><code>float</code></td><td>How much area the shape encloses.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>collision_aabb()</code></td><td><code>[float]</code></td><td>The box the narrow phase tests the collider in: its shape&#x27;s box grown by its collision_margin and the world&#x27;s prediction distance.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>combine_voxels(Node)</code></td><td>—</td><td>Tell two voxel colliders on one lattice about each other&#x27;s cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>contacts()</code></td><td><code>any</code></td><td>Every contact point on this node&#x27;s collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>contacts()</code></td><td><code>[physics2d::Contact]</code></td><td>Every contact point on this node&#x27;s collider this step. Empty for a sensor, which has no contacts by definition.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>crop_voxels(int, int, int, int)</code></td><td>—</td><td>Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>handles()</code></td><td><code>any</code></td><td>The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier&#x27;s own output.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>handles()</code></td><td><code>physics2d::Handles</code></td><td>The rapier handles behind this node, its body and its colliders. For matching a log line against rapier&#x27;s own output.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>heightfield_hole(int)</code></td><td><code>bool</code></td><td>Whether a heightfield segment has no ground.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>[Node]</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>pose_in_body()</code></td><td><code>any</code></td><td>Where the collider sits in its body&#x27;s frame, as `{ position, rotation }`; nothing for a collider with no body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>pose_in_body()</code></td><td><code>physics2d::Pose?</code></td><td>Where the collider sits in its body&#x27;s frame; nothing for a collider with no body.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_heightfield_hole(int, bool)</code></td><td>—</td><td>Remove or restore one segment of a heightfield&#x27;s ground, numbered from the first height.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel(int, int, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_voxel_size(float, float)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>swept_aabb()</code></td><td><code>[float]</code></td><td>The box the collider covers over the next fixed step, from where it is to where its body&#x27;s velocity and forces carry it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel(int, int)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>voxel_at(float, float)</code></td><td><code>[int]</code></td><td>The cell a world position falls in, as two whole numbers.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>voxel_size()</code></td><td><code>any</code></td><td>How big one cell of a voxel collider is, along each axis.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>voxel_size()</code></td><td><code>Vec2</code></td><td>How big one cell of a voxel collider is, along each axis.</td><td><code>physics2d</code></td></tr>
 </tbody>
 </table>
 
@@ -446,8 +446,8 @@ On a node carrying `joint2d`, as `node.joint2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>joint_force()</code></td><td><code>any</code></td><td>The force and the torque the joint held through the last step, `{ force, torque }`. An articulation has none to read, and says so.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>joint_state()</code></td><td><code>any</code></td><td>What the joint is doing: `{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`, as in 3D: `status` is `enabled`, `disabled`, `body_disabled` or `waiting`; `angle` is a hinge&#x27;s turn in radians; an articulation adds each free axis&#x27;s coordinate and velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>joint_force()</code></td><td><code>physics2d::JointForce</code></td><td>The force and the torque the joint held through the last step. An articulation has none to read, and says so.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>joint_state()</code></td><td><code>physics2d::JointState</code></td><td>What the joint is doing.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>remove_joint()</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_joint_limits(str, float, float)</code></td><td>—</td><td>Set how far one of the joint&#x27;s free axes may travel; equal values lift the limit. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_motor_position(str, float, float, float)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards an angle or a distance, with a spring&#x27;s stiffness and damping. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics2d</code></td></tr>
@@ -930,14 +930,14 @@ On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>add_particle_force(int, any)</code></td><td>—</td><td>Push one particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>add_softbody_force(any)</code></td><td>—</td><td>Push every free particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>apply_particle_impulse(int, any)</code></td><td>—</td><td>Strike one particle.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>apply_softbody_impulse(any)</code></td><td>—</td><td>Change every free particle&#x27;s velocity by `impulse` at once, as a kick to the whole body.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>apply_softbody_impulse_at(any, any, any)</code></td><td>—</td><td>Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>apply_softbody_radial_impulse(any, any, any)</code></td><td>—</td><td>Push the particles within `radius` away from `center`, as a blast does.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>add_particle_force(int, Vec2)</code></td><td>—</td><td>Push one particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>add_softbody_force(Vec2)</code></td><td>—</td><td>Push every free particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_particle_impulse(int, Vec2)</code></td><td>—</td><td>Strike one particle.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_softbody_impulse(Vec2)</code></td><td>—</td><td>Change every free particle&#x27;s velocity by `impulse` at once, as a kick to the whole body.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_softbody_impulse_at(Vec2, Vec2, float)</code></td><td>—</td><td>Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>apply_softbody_radial_impulse(Vec2, float, float)</code></td><td>—</td><td>Push the particles within `radius` away from `center`, as a blast does.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>attach_particle(int, Node)</code></td><td>—</td><td>Tie one particle to a node&#x27;s rigid body where it is now: the body and the particle pull on each other.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>cut_softbody(any)</code></td><td><code>any</code></td><td>Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>cut_softbody([Vec2])</code></td><td><code>[physics2d::SoftTear]</code></td><td>Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>detach_particle(int)</code></td><td><code>bool</code></td><td>Untie one particle from every body it was attached to; answers whether it was attached.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>has_pending_tears()</code></td><td><code>bool</code></td><td>Whether some edge or cell is marked to tear at the end of the next step.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>pin_particle(int)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics2d</code></td></tr>
@@ -946,21 +946,21 @@ On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 <tr><td><code>set_cell_tear_resistance(int, float)</code></td><td>—</td><td>The same for one cell&#x27;s tear strain.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_edge_tear_resistance(int, float)</code></td><td>—</td><td>How many times the material&#x27;s threshold one edge takes to tear; 1 is the material&#x27;s.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>set_particle_damaged(int, bool)</code></td><td>—</td><td>Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_particle_position(int, any)</code></td><td>—</td><td>Put one particle at `at` with no change of velocity.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_particle_target(int, any)</code></td><td>—</td><td>Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>set_particle_velocity(int, any)</code></td><td>—</td><td>Set one particle&#x27;s velocity; a held one keeps moving at it.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_particle_position(int, Vec2)</code></td><td>—</td><td>Put one particle at `at` with no change of velocity.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_particle_target(int, Vec2)</code></td><td>—</td><td>Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>set_particle_velocity(int, Vec2)</code></td><td>—</td><td>Set one particle&#x27;s velocity; a held one keeps moving at it.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_area()</code></td><td><code>float</code></td><td>How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_attachments()</code></td><td><code>any</code></td><td>Every particle tied to a rigid body, as `{ particle, body, anchor, impulse }`: the anchor in the body&#x27;s own space, and the impulse the tie pulled with in the last substep.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_attachments()</code></td><td><code>[physics2d::SoftAttachment]</code></td><td>Every particle tied to a rigid body.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_boundary()</code></td><td><code>[[int]]</code></td><td>The body&#x27;s surface as particle indices: segments in 2D, triangles in 3D.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_cell(int)</code></td><td><code>any</code></td><td>Everything one cell holds: `{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_cell(int)</code></td><td><code>physics2d::SoftCell</code></td><td>Everything one cell holds.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_cells()</code></td><td><code>[[int]]</code></td><td>Every cell as its particle indices: triangles in 2D, tetrahedra in 3D.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_center()</code></td><td><code>any</code></td><td>The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_contacts()</code></td><td><code>any</code></td><td>What the body&#x27;s surface touched in the last step: `{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `{ center, normal, volume }`.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_crossing(any)</code></td><td><code>any</code></td><td>The edges and cells a blade meets, `{ edges, cells }`, without cutting: the blade is a segment&#x27;s two points in 2D, a triangle&#x27;s three in 3D.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_edge(int)</code></td><td><code>any</code></td><td>Everything one edge holds: `{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge&#x27;s own or its kind&#x27;s from the material.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_center()</code></td><td><code>Vec2</code></td><td>The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_contacts()</code></td><td><code>physics2d::SoftContacts</code></td><td>What the body&#x27;s surface touched in the last step.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_crossing([Vec2])</code></td><td><code>physics2d::SoftCrossing</code></td><td>The edges and cells a blade meets, without cutting: the blade is a segment&#x27;s two points in 2D, a triangle&#x27;s three in 3D.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_edge(int)</code></td><td><code>physics2d::SoftEdge</code></td><td>Everything one edge holds.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_edges()</code></td><td><code>[[int]]</code></td><td>Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_mass()</code></td><td><code>float</code></td><td>What the whole body weighs, every piece included.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_particle(int)</code></td><td><code>any</code></td><td>Everything one particle holds: `{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_particle(int)</code></td><td><code>physics2d::SoftParticle</code></td><td>Everything one particle holds.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_particle_radius()</code></td><td><code>float</code></td><td>How thick the particles are: what was asked for, or what the layout worked out.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_particles()</code></td><td><code>int</code></td><td>How many particles the body has, every piece torn off it included: a generator decides, not the author.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_position(int)</code></td><td><code>Vec2</code></td><td>Where one particle is, in world space.</td><td><code>physics2d</code></td></tr>
@@ -968,10 +968,10 @@ On a node carrying `softbody2d`, as `node.softbody2d.<method>`:
 <tr><td><code>softbody_sleeping()</code></td><td><code>bool</code></td><td>Whether the body has come to rest and stopped being simulated.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_stress()</code></td><td><code>[float]</code></td><td>Each edge&#x27;s load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>softbody_velocity(int)</code></td><td><code>Vec2</code></td><td>How fast one particle is moving, in world space.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>softbody_volume_pieces()</code></td><td><code>[any]</code></td><td>Each closed piece of the surface whose volume is held, as `{ particles, rest_volume, volume }`; an open sheet has none.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>softbody_volume_pieces()</code></td><td><code>[physics2d::SoftVolumePiece]</code></td><td>Each closed piece of the surface whose volume is held; an open sheet has none.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>tear_cell(int)</code></td><td>—</td><td>Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>tear_edge(int)</code></td><td>—</td><td>Tear one edge at the end of the next step.</td><td><code>physics2d</code></td></tr>
-<tr><td><code>tear_softbody(any, any)</code></td><td><code>any</code></td><td>Tear the given edges and cells at once; answers a record for each piece it changed: `{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece&#x27;s own; `split_particles` holds `[copy, source]` pairs, `clusters` `{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.</td><td><code>physics2d</code></td></tr>
+<tr><td><code>tear_softbody([int], [int])</code></td><td><code>[physics2d::SoftTear]</code></td><td>Tear the given edges and cells at once; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>unpin_particle(int)</code></td><td>—</td><td>Let a held particle go; it keeps the velocity it had.</td><td><code>physics2d</code></td></tr>
 <tr><td><code>wake_softbody()</code></td><td>—</td><td>Start simulating a resting body again.</td><td><code>physics2d</code></td></tr>
 </tbody>
@@ -1299,19 +1299,19 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>apply_torque_impulse(float, float, float)</code></td><td>—</td><td>Add an instant change in angular momentum, as if the body were spun.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>constant_force()</code></td><td><code>Vec3</code></td><td>The force every step integrates until it is set back to zero.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>constant_torque()</code></td><td><code>Vec3</code></td><td>The torque every step integrates until it is set back to zero.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>effective_angular_inertia()</code></td><td><code>any</code></td><td>The world-space inertia the solver turns, rotation locks applied, as its three rows.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>effective_angular_inertia()</code></td><td><code>[Vec3]</code></td><td>The world-space inertia the solver turns, rotation locks applied, as its three rows.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>effective_dominance()</code></td><td><code>float</code></td><td>The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>effective_mass()</code></td><td><code>any</code></td><td>The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>effective_mass()</code></td><td><code>Vec3</code></td><td>The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>is_ccd_active()</code></td><td><code>bool</code></td><td>Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>is_moving()</code></td><td><code>bool</code></td><td>Whether the body is awake and actually going somewhere.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>is_sleeping()</code></td><td><code>bool</code></td><td>Whether the body is asleep and being skipped.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>kinetic_energy()</code></td><td><code>float</code></td><td>The body&#x27;s kinetic energy, for a rest test the solver agrees with.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>linear_velocity()</code></td><td><code>Vec3</code></td><td>How fast the body is travelling, in units per second.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>local_center_of_mass()</code></td><td><code>any</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>next_position()</code></td><td><code>any</code></td><td>The pose a kinematic body has been told to move to, as `{ position, rotation }`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>local_center_of_mass()</code></td><td><code>Vec3</code></td><td>Where the body&#x27;s whole mass sits, in the body&#x27;s own space.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>next_position()</code></td><td><code>physics3d::Pose</code></td><td>The pose a kinematic body has been told to move to.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>potential_energy()</code></td><td><code>float</code></td><td>The body&#x27;s gravitational potential energy over one step.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>predict_position(float)</code></td><td><code>any</code></td><td>Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>predict_position_with_forces(float)</code></td><td><code>any</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>predict_position(float)</code></td><td><code>physics3d::Pose</code></td><td>Where the body will be after `dt` seconds at its current velocity.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>predict_position_with_forces(float)</code></td><td><code>physics3d::Pose</code></td><td>The same, with the forces already applied taken into account: where a thrust or a spring will have put it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_angular_velocity(float, float, float)</code></td><td>—</td><td>Set how fast the body spins, in radians per second about each axis.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_constant_force(float, float, float)</code></td><td>—</td><td>Replace the constant force with this one; zero stops the push.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_constant_torque(float, float, float)</code></td><td>—</td><td>Replace the constant torque with this one; zero stops the turn.</td><td><code>physics3d</code></td></tr>
@@ -1319,12 +1319,12 @@ On a node carrying `body3d`, as `node.body3d.<method>`:
 <tr><td><code>sleep()</code></td><td>—</td><td>Put the body to sleep now.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>teleport(float, float, float, physics3d::TeleportOptions?)</code></td><td>—</td><td>Move the body to a world position at once, clearing its velocity: what assigning the node&#x27;s position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>time_since_can_sleep()</code></td><td><code>float</code></td><td>Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>total_inertia()</code></td><td><code>any</code></td><td>The body&#x27;s resistance to spin about each of its principal axes, colliders included.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>total_inertia_rotation()</code></td><td><code>any</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians, x first.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_inertia()</code></td><td><code>Vec3</code></td><td>The body&#x27;s resistance to spin about each of its principal axes, colliders included.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>total_inertia_rotation()</code></td><td><code>Vec3</code></td><td>How those principal axes are turned in the body&#x27;s own space, as Euler radians, x first.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>total_mass()</code></td><td><code>float</code></td><td>The body&#x27;s total mass: its `mass` when it states one, or what its colliders weigh.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>velocity_at_point(float, float, float)</code></td><td><code>Vec3</code></td><td>How fast a world point on the body is moving, spin included.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_up()</code></td><td>—</td><td>Wake the body, so the next step moves it.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>world_center_of_mass()</code></td><td><code>any</code></td><td>Where the body&#x27;s whole mass sits, in world space.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>world_center_of_mass()</code></td><td><code>Vec3</code></td><td>Where the body&#x27;s whole mass sits, in world space.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -1370,7 +1370,7 @@ On a node carrying `boolean3d`, as `node.boolean3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>built_mesh()</code></td><td><code>any</code></td><td>The triangles the node&#x27;s boolean settled on, as `{ positions, indices }` ready to be written out as a `mesh` asset; nil when the node draws no built geometry.</td><td><code>render</code></td></tr>
+<tr><td><code>built_mesh()</code></td><td><code>render::BuiltMesh?</code></td><td>The triangles the node&#x27;s boolean settled on, ready to be written out as a `mesh` asset; nil when the node draws no built geometry.</td><td><code>render</code></td></tr>
 </tbody>
 </table>
 
@@ -1453,7 +1453,7 @@ On a node carrying `character3d`, as `node.character3d.<method>`:
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
 <tr><td><code>is_on_floor()</code></td><td><code>bool</code></td><td>Whether the last move ended with ground under the character&#x27;s feet.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>move_character(float, float, float)</code></td><td><code>any</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, z, on_floor, sliding, collisions }`, each collision `{ node, point, normal, own_point, own_normal, position, applied, remaining, distance, status, subshape }`: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle&#x27;s shape it met. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>move_character(float, float, float)</code></td><td><code>physics3d::CharacterMove</code></td><td>Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -1512,25 +1512,25 @@ On a node carrying `collider3d`, as `node.collider3d.<method>`:
 <tr><td><code>aabb()</code></td><td><code>[float]</code></td><td>The world-space box the collider currently occupies, as its two opposite corners.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>broad_phase_aabb()</code></td><td><code>[float]</code></td><td>The box the broad phase files the collider under, which also reaches ahead by its body&#x27;s speculative_distance.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>collider_mass()</code></td><td><code>float</code></td><td>What this collider weighs, density and size together.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>collider_mass_properties()</code></td><td><code>any</code></td><td>What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia, inertia_rotation }`.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>collider_mesh()</code></td><td><code>any</code></td><td>The collider&#x27;s shape as points and triangles, including a voxel grid&#x27;s, for drawing it or for spawning the pieces it broke into.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collider_mass_properties()</code></td><td><code>physics3d::MassProperties</code></td><td>What this collider adds to its body, in its own space.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>collider_mesh()</code></td><td><code>physics3d::ColliderMesh</code></td><td>The collider&#x27;s shape as points and triangles, including a voxel grid&#x27;s, for drawing it or for spawning the pieces it broke into.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>collider_volume()</code></td><td><code>float</code></td><td>How much space the shape encloses.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>collision_aabb()</code></td><td><code>[float]</code></td><td>The box the narrow phase tests the collider in: its shape&#x27;s box grown by its collision_margin and the world&#x27;s prediction distance.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>combine_voxels(Node)</code></td><td>—</td><td>Tell two voxel colliders on one lattice about each other&#x27;s cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>contacts()</code></td><td><code>any</code></td><td>Every contact point on this node&#x27;s collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>contacts()</code></td><td><code>[physics3d::Contact]</code></td><td>Every contact point on this node&#x27;s collider this step. Empty for a sensor, which has no contacts by definition.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>crop_voxels(int, int, int, int, int, int)</code></td><td>—</td><td>Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>handles()</code></td><td><code>any</code></td><td>The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier&#x27;s own output.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>handles()</code></td><td><code>physics3d::Handles</code></td><td>The rapier handles behind this node, its body and its colliders. For matching a log line against rapier&#x27;s own output.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>heightfield_hole(int, int)</code></td><td><code>bool</code></td><td>Whether a heightfield cell has no ground.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>max_contact_impulse()</code></td><td><code>float</code></td><td>The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>overlaps()</code></td><td><code>[Node]</code></td><td>The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>pose_in_body()</code></td><td><code>any</code></td><td>Where the collider sits in its body&#x27;s frame, as `{ position, rotation }`; nothing for a collider with no body.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>pose_in_body()</code></td><td><code>physics3d::Pose?</code></td><td>Where the collider sits in its body&#x27;s frame; nothing for a collider with no body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_heightfield_hole(int, int, bool)</code></td><td>—</td><td>Remove or restore the ground of one heightfield cell, named by the row and column of its first corner.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel(int, int, int, bool)</code></td><td>—</td><td>Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_voxel_size(float, float, float)</code></td><td>—</td><td>Resize every cell of a voxel collider, keeping which cells are filled.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>swept_aabb()</code></td><td><code>[float]</code></td><td>The box the collider covers over the next fixed step, from where it is to where its body&#x27;s velocity and forces carry it.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel(int, int, int)</code></td><td><code>bool</code></td><td>Whether one cell of a voxel collider is filled.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>voxel_at(float, float, float)</code></td><td><code>[int]</code></td><td>The cell a world position falls in, as three whole numbers.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>voxel_size()</code></td><td><code>any</code></td><td>How big one cell of a voxel collider is, along each axis.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>voxel_size()</code></td><td><code>Vec3</code></td><td>How big one cell of a voxel collider is, along each axis.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -1643,8 +1643,8 @@ On a node carrying `joint3d`, as `node.joint3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>joint_force()</code></td><td><code>any</code></td><td>The force and the torque the joint held through the last step, `{ force, torque }`: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>joint_state()</code></td><td><code>any</code></td><td>What the joint is doing: `{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge&#x27;s turn in radians; the impulse maps hold each free axis&#x27;s last limit and motor impulse; an articulation adds each free axis&#x27;s coordinate and velocity.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>joint_force()</code></td><td><code>physics3d::JointForce</code></td><td>The force and the torque the joint held through the last step: what `break_force` and `break_torque` are measured against. An articulation has none to read, and says so.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>joint_state()</code></td><td><code>physics3d::JointState</code></td><td>What the joint is doing.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>remove_joint()</code></td><td>—</td><td>Undo the node&#x27;s joint, leaving both bodies free.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_joint_limits(str, float, float)</code></td><td>—</td><td>Set how far one of the joint&#x27;s free axes may travel, in radians about a rotation axis and units along a linear one; equal values lift the limit. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_motor_position(str, float, float, float)</code></td><td>—</td><td>Drive one of the joint&#x27;s free axes towards an angle or a distance, with a spring&#x27;s stiffness and damping. Rewrites that axis&#x27;s `axes` record.</td><td><code>physics3d</code></td></tr>
@@ -2077,14 +2077,14 @@ On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>add_particle_force(int, any)</code></td><td>—</td><td>Push one particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>add_softbody_force(any)</code></td><td>—</td><td>Push every free particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>apply_particle_impulse(int, any)</code></td><td>—</td><td>Strike one particle.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>apply_softbody_impulse(any)</code></td><td>—</td><td>Change every free particle&#x27;s velocity by `impulse` at once, as a kick to the whole body.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>apply_softbody_impulse_at(any, any, any)</code></td><td>—</td><td>Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>apply_softbody_radial_impulse(any, any, any)</code></td><td>—</td><td>Push the particles within `radius` away from `center`, as a blast does.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_particle_force(int, Vec3)</code></td><td>—</td><td>Push one particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>add_softbody_force(Vec3)</code></td><td>—</td><td>Push every free particle with `force` each step until `reset_softbody_forces`.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_particle_impulse(int, Vec3)</code></td><td>—</td><td>Strike one particle.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_softbody_impulse(Vec3)</code></td><td>—</td><td>Change every free particle&#x27;s velocity by `impulse` at once, as a kick to the whole body.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_softbody_impulse_at(Vec3, Vec3, float)</code></td><td>—</td><td>Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>apply_softbody_radial_impulse(Vec3, float, float)</code></td><td>—</td><td>Push the particles within `radius` away from `center`, as a blast does.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>attach_particle(int, Node)</code></td><td>—</td><td>Tie one particle to a node&#x27;s rigid body where it is now: the body and the particle pull on each other.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>cut_softbody(any)</code></td><td><code>any</code></td><td>Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>cut_softbody([Vec3])</code></td><td><code>[physics3d::SoftTear]</code></td><td>Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>detach_particle(int)</code></td><td><code>bool</code></td><td>Untie one particle from every body it was attached to; answers whether it was attached.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>has_pending_tears()</code></td><td><code>bool</code></td><td>Whether some edge or cell is marked to tear at the end of the next step.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>pin_particle(int)</code></td><td>—</td><td>Hold one particle where it is, which is how a cloth hangs from a hook.</td><td><code>physics3d</code></td></tr>
@@ -2093,22 +2093,22 @@ On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 <tr><td><code>set_cell_tear_resistance(int, float)</code></td><td>—</td><td>The same for one cell&#x27;s tear strain.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_edge_tear_resistance(int, float)</code></td><td>—</td><td>How many times the material&#x27;s threshold one edge takes to tear; 1 is the material&#x27;s.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_particle_damaged(int, bool)</code></td><td>—</td><td>Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_particle_position(int, any)</code></td><td>—</td><td>Put one particle at `at` with no change of velocity.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_particle_target(int, any)</code></td><td>—</td><td>Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>set_particle_velocity(int, any)</code></td><td>—</td><td>Set one particle&#x27;s velocity; a held one keeps moving at it.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_attachments()</code></td><td><code>any</code></td><td>Every particle tied to a rigid body, as `{ particle, body, anchor, impulse }`: the anchor in the body&#x27;s own space, and the impulse the tie pulled with in the last substep.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_particle_position(int, Vec3)</code></td><td>—</td><td>Put one particle at `at` with no change of velocity.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_particle_target(int, Vec3)</code></td><td>—</td><td>Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>set_particle_velocity(int, Vec3)</code></td><td>—</td><td>Set one particle&#x27;s velocity; a held one keeps moving at it.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_attachments()</code></td><td><code>[physics3d::SoftAttachment]</code></td><td>Every particle tied to a rigid body.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_boundary()</code></td><td><code>[[int]]</code></td><td>The body&#x27;s surface as particle indices: segments in 2D, triangles in 3D.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_cell(int)</code></td><td><code>any</code></td><td>Everything one cell holds: `{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_cell(int)</code></td><td><code>physics3d::SoftCell</code></td><td>Everything one cell holds.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_cells()</code></td><td><code>[[int]]</code></td><td>Every cell as its particle indices: triangles in 2D, tetrahedra in 3D.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_center()</code></td><td><code>any</code></td><td>The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_contacts()</code></td><td><code>any</code></td><td>What the body&#x27;s surface touched in the last step: `{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `{ center, normal, volume }`.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_crossing(any)</code></td><td><code>any</code></td><td>The edges and cells a blade meets, `{ edges, cells }`, without cutting: the blade is a segment&#x27;s two points in 2D, a triangle&#x27;s three in 3D.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_dihedral(int)</code></td><td><code>any</code></td><td>Everything one hinge holds: `{ particles, rest_angle, initial_rest_angle, plastic_set }`, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_center()</code></td><td><code>Vec3</code></td><td>The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_contacts()</code></td><td><code>physics3d::SoftContacts</code></td><td>What the body&#x27;s surface touched in the last step.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_crossing([Vec3])</code></td><td><code>physics3d::SoftCrossing</code></td><td>The edges and cells a blade meets, without cutting: the blade is a segment&#x27;s two points in 2D, a triangle&#x27;s three in 3D.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_dihedral(int)</code></td><td><code>physics3d::SoftDihedral</code></td><td>Everything one hinge holds.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_dihedrals()</code></td><td><code>[[int]]</code></td><td>Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_edge(int)</code></td><td><code>any</code></td><td>Everything one edge holds: `{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge&#x27;s own or its kind&#x27;s from the material.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_edge(int)</code></td><td><code>physics3d::SoftEdge</code></td><td>Everything one edge holds.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_edges()</code></td><td><code>[[int]]</code></td><td>Every edge as the two particle indices it joins, in the order `softbody_stress` reports them.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_mass()</code></td><td><code>float</code></td><td>What the whole body weighs, every piece included.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_particle(int)</code></td><td><code>any</code></td><td>Everything one particle holds: `{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_particle(int)</code></td><td><code>physics3d::SoftParticle</code></td><td>Everything one particle holds.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_particle_radius()</code></td><td><code>float</code></td><td>How thick the particles are: what was asked for, or what the layout worked out.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_particles()</code></td><td><code>int</code></td><td>How many particles the body has, every piece torn off it included: a generator decides, not the author.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_position(int)</code></td><td><code>Vec3</code></td><td>Where one particle is, in world space.</td><td><code>physics3d</code></td></tr>
@@ -2117,10 +2117,10 @@ On a node carrying `softbody3d`, as `node.softbody3d.<method>`:
 <tr><td><code>softbody_stress()</code></td><td><code>[float]</code></td><td>Each edge&#x27;s load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_velocity(int)</code></td><td><code>Vec3</code></td><td>How fast one particle is moving, in world space.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>softbody_volume()</code></td><td><code>float</code></td><td>How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>softbody_volume_pieces()</code></td><td><code>[any]</code></td><td>Each closed piece of the surface whose volume is held, as `{ particles, rest_volume, volume }`; an open sheet has none.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>softbody_volume_pieces()</code></td><td><code>[physics3d::SoftVolumePiece]</code></td><td>Each closed piece of the surface whose volume is held; an open sheet has none.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>tear_cell(int)</code></td><td>—</td><td>Tear one cell at the end of the next step: a particle near its middle splits across its main stretch.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>tear_edge(int)</code></td><td>—</td><td>Tear one edge at the end of the next step.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>tear_softbody(any, any)</code></td><td><code>any</code></td><td>Tear the given edges and cells at once; answers a record for each piece it changed: `{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece&#x27;s own; `split_particles` holds `[copy, source]` pairs, `clusters` `{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>tear_softbody([int], [int])</code></td><td><code>[physics3d::SoftTear]</code></td><td>Tear the given edges and cells at once; answers a record for each piece it changed, the one `on_tear` hears.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>unpin_particle(int)</code></td><td>—</td><td>Let a held particle go; it keeps the velocity it had.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>wake_softbody()</code></td><td>—</td><td>Start simulating a resting body again.</td><td><code>physics3d</code></td></tr>
 </tbody>
@@ -2233,7 +2233,7 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 <tr><td><code>set_engine_force(float)</code></td><td>—</td><td>How hard this wheel drives, in newtons; negative reverses.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_steering(float)</code></td><td>—</td><td>Turn this wheel, in radians.</td><td><code>physics3d</code></td></tr>
 <tr><td><code>set_wheel_rotation(float)</code></td><td>—</td><td>Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`.</td><td><code>physics3d</code></td></tr>
-<tr><td><code>wheel_state()</code></td><td><code>any</code></td><td>What the last step did with this wheel: `{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray&#x27;s start, the wheel&#x27;s centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil.</td><td><code>physics3d</code></td></tr>
+<tr><td><code>wheel_state()</code></td><td><code>physics3d::WheelState</code></td><td>What the last step did with this wheel.</td><td><code>physics3d</code></td></tr>
 </tbody>
 </table>
 
@@ -2348,7 +2348,7 @@ The scene's atmosphere: `sky`, `ambient_color`, `fog_mode`, `exposure`, `tonemap
 
 ### `animation`
 
-`animation` · 4 properties · 9 methods
+`animation` · 4 properties · 10 methods
 
 Plays animation clips on the node. `library` is the clip asset, `autoplay` the clip started on load, `speed_scale` the rate; the `animation` module drives playback.
 
@@ -2379,7 +2379,7 @@ On a node carrying `animation`, as `node.animation.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>add_clip(str, any)</code></td><td>—</td><td>Give this node a clip of its own under that name, from a definition table shaped like a scene file&#x27;s.</td><td><code>animation</code></td></tr>
+<tr><td><code>add_clip(str, animation::Clip)</code></td><td>—</td><td>Give this node a clip of its own under that name, shaped like a scene file&#x27;s.</td><td><code>animation</code></td></tr>
 <tr><td><code>current_clip()</code></td><td><code>str?</code></td><td>The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.</td><td><code>animation</code></td></tr>
 <tr><td><code>is_playing()</code></td><td><code>bool</code></td><td>Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.</td><td><code>animation</code></td></tr>
 <tr><td><code>pause()</code></td><td>—</td><td>Hold the playhead where it is, keeping the clip current so `resume` has something to go back to.</td><td><code>animation</code></td></tr>
@@ -2387,6 +2387,7 @@ On a node carrying `animation`, as `node.animation.<method>`:
 <tr><td><code>queue(str)</code></td><td>—</td><td>Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains.</td><td><code>animation</code></td></tr>
 <tr><td><code>resume()</code></td><td>—</td><td>Carry on from where `pause` left off; a stopped, finished or never-started node is left alone.</td><td><code>animation</code></td></tr>
 <tr><td><code>seek(float)</code></td><td>—</td><td>Move the playhead to a number of seconds and pose the node there, even on a paused or ended clip.</td><td><code>animation</code></td></tr>
+<tr><td><code>stop()</code></td><td>—</td><td>End the clip on this node, leaving the pose where it is; `resume` cannot revive it.</td><td><code>animation</code></td></tr>
 <tr><td><code>time()</code></td><td><code>float</code></td><td>Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.</td><td><code>animation</code></td></tr>
 </tbody>
 </table>
@@ -2422,7 +2423,7 @@ On a node carrying `state_machine`, as `node.state_machine.<method>`:
 <table>
 <thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
 <tbody>
-<tr><td><code>current_state()</code></td><td><code>any</code></td><td>The state the machine is in, or nil before it has entered one.</td><td><code>animation</code></td></tr>
+<tr><td><code>current_state()</code></td><td><code>str?</code></td><td>The state the machine is in, or nil before it has entered one.</td><td><code>animation</code></td></tr>
 <tr><td><code>jump(str)</code></td><td>—</td><td>Cut the state machine to the named state on the next step, with no fade.</td><td><code>animation</code></td></tr>
 <tr><td><code>set_condition(str, bool)</code></td><td>—</td><td>Turn on or off a condition that `auto` transitions wait on.</td><td><code>animation</code></td></tr>
 <tr><td><code>travel(str)</code></td><td>—</td><td>Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.</td><td><code>animation</code></td></tr>

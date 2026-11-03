@@ -78,18 +78,10 @@ impl<'a> Opts<'a> {
         }
     }
 
-    /// A vector written as `[x, y, z]`, or the default when absent.
+    /// A vector, or the default when absent.
     pub(crate) fn vec3(&self, name: &str, default: [f32; 3]) -> [f32; 3] {
         match self.get(name) {
             Some(Value::Vec3(v)) => *v,
-            Some(Value::List(items)) => {
-                let at = |i: usize| match items.get(i) {
-                    Some(Value::Num(n)) => *n as f32,
-                    Some(Value::Int(n)) => *n as f32,
-                    _ => default[i],
-                };
-                [at(0), at(1), at(2)]
-            }
             _ => default,
         }
     }
@@ -97,14 +89,6 @@ impl<'a> Opts<'a> {
     pub(crate) fn vec2(&self, name: &str, default: [f32; 2]) -> [f32; 2] {
         match self.get(name) {
             Some(Value::Vec2(v)) => *v,
-            Some(Value::List(items)) => {
-                let at = |i: usize| match items.get(i) {
-                    Some(Value::Num(n)) => *n as f32,
-                    Some(Value::Int(n)) => *n as f32,
-                    _ => default[i],
-                };
-                [at(0), at(1)]
-            }
             _ => default,
         }
     }

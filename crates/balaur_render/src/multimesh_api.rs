@@ -114,15 +114,10 @@ fn number_of(value: &Value, what: &str) -> Result<f32> {
     }
 }
 
-/// Four floats from a colour or a list of numbers.
 fn four(value: &Value, what: &str) -> Result<[f32; 4]> {
     match value {
         Value::Color(c) => Ok(*c),
-        list @ Value::List(_) => crate::draw_2d::color_of(list),
-        other => bail!(
-            "{what} is a colour or a list of four numbers, not a {}",
-            other.type_name()
-        ),
+        other => bail!("{what} is a Color, not a {}", other.type_name()),
     }
 }
 

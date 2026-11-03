@@ -630,7 +630,7 @@ settled. A strip whose inputs did not move is not stated again.
 - A self-test run fills anyway and warns when the controls changed under a
   key that did not, so a key missing an input fails e2e. The 80 states run
   clean on `hello` and `angrynerds`.
-- `ui::edit(node, value)` changes a widget as the reader would. A script's own
+- `ui::edit_text(node, value)` and its siblings change a widget as the reader would. A script's own
   write is not an edit and reaches no `on`, so a self-test types with it.
 - Keyed so far: the menu, the top bar, the status bar, each dock's tab strips,
   and the inspector's foot and form.

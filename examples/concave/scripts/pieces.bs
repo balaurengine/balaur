@@ -9,16 +9,16 @@ pub class Pieces {
     frame: int,
 }
 
-fn TABLE() -> [[float]] {
+fn TABLE() -> [Vec2] {
     [
-        [0.0, 0.0],
-        [0.3, 0.0],
-        [0.3, 1.0],
-        [1.7, 1.0],
-        [1.7, 0.0],
-        [2.0, 0.0],
-        [2.0, 1.2],
-        [0.0, 1.2],
+        vec2(0.0, 0.0),
+        vec2(0.3, 0.0),
+        vec2(0.3, 1.0),
+        vec2(1.7, 1.0),
+        vec2(1.7, 0.0),
+        vec2(2.0, 0.0),
+        vec2(2.0, 1.2),
+        vec2(0.0, 1.2),
     ]
 }
 
@@ -63,10 +63,10 @@ impl Pieces {
 
 // The table's outline where that table stands, so the pieces come back in
 // world space and go straight to the renderer.
-fn table_at(at: [float]) -> [[float]] {
-    let out: [[float]] = [];
+fn table_at(at: [float]) -> [Vec2] {
+    let out: [Vec2] = [];
     for point in TABLE() {
-        out.push([point[0] + at[0], point[1] + at[1]]);
+        out.push(vec2(point.x + at[0], point.y + at[1]));
     }
     out
 }

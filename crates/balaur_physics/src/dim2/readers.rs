@@ -75,13 +75,30 @@ pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
 /// What a 2D collider weighs, how much room it takes, its shape as points, and
 /// the handles rapier knows it by.
 pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
+    m.records(&[
+        (
+            "ColliderMesh",
+            "{ points: [Vec2], indices: [int] }",
+            "A voxel collider's outline as points and the two point indices of each segment, one after the other.",
+        ),
+        (
+            "Handles",
+            "{ body: [int]?, colliders: [[int]] }",
+            "The rapier handles behind a node, each an index and a generation; `body` is nil on a node with no body.",
+        ),
+        (
+            "MassProperties",
+            "{ mass: float, center_of_mass: Vec2, inertia: float }",
+            "What a collider adds to its body, in its own space.",
+        ),
+    ]);
     m.describe(&[
         ("collider_mass", &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
         ("collider_volume", &[c::COLLIDER_2D], "", "How much area the shape encloses."),
-        ("collider_mass_properties", &[c::COLLIDER_2D], "", "What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia }`."),
-        ("collider_mesh", &[c::COLLIDER_2D], "", "A voxel collider's outline as points and the segments between them, `{ points, indices }`, for drawing it or for spawning the pieces it broke into."),
-        ("pose_in_body", &[c::COLLIDER_2D], "", "Where the collider sits in its body's frame, as `{ position, rotation }`; nothing for a collider with no body."),
-        ("handles", &[c::COLLIDER_2D], "", "The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
+        ("collider_mass_properties", &[c::COLLIDER_2D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
+        ("collider_mesh", &[c::COLLIDER_2D], "(node: node) -> ColliderMesh", "A voxel collider's outline as points and the segments between them, for drawing it or for spawning the pieces it broke into."),
+        ("pose_in_body", &[c::COLLIDER_2D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
+        ("handles", &[c::COLLIDER_2D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
     ]);
     m.function("collider_mass", |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| Ok(collider.mass()))

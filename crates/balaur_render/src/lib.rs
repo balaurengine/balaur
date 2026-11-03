@@ -922,6 +922,30 @@ pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result
 #[derive(Default)]
 pub struct RenderPlugin;
 
+fn insert_render_resources(reg: &mut balaur_plugin::Registry<'_>) {
+    reg.insert_resource(CameraConfig3d::default());
+    reg.insert_resource(ClearColorConfig {
+        color: [0.09, 0.098, 0.11],
+        changed: true,
+    });
+    reg.insert_resource(WindowConfig::default());
+    reg.insert_resource(GridConfig::default());
+    reg.insert_resource(DebugLineBuffer3d::default());
+    reg.insert_resource(DebugLineBuffer2d::default());
+    reg.insert_resource(DrawBuffer2d::default());
+    reg.insert_resource(world_text::TextDrawBuffer::default());
+    reg.insert_resource(retained::RetainedDraws::default());
+    reg.insert_resource(CameraConfig2d::default());
+    reg.insert_resource(camera::CurrentCameras::default());
+    reg.insert_resource(camera::HeldCameras::default());
+    reg.insert_resource(PostConfig::default());
+    reg.insert_resource(post::EffectsRead::default());
+    reg.insert_resource(ViewportSnapshot2d::default());
+    reg.insert_resource(ViewportSnapshot3d::default());
+    reg.insert_resource(stats::Stats::default());
+    reg.insert_resource(stats::Measured::default());
+}
+
 impl balaur_plugin::Plugin for RenderPlugin {
     fn name(&self) -> &'static str {
         "render"
@@ -937,27 +961,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
                 &light3d::budget_settings(),
             ),
         );
-        reg.insert_resource(CameraConfig3d::default());
-        reg.insert_resource(ClearColorConfig {
-            color: [0.09, 0.098, 0.11],
-            changed: true,
-        });
-        reg.insert_resource(WindowConfig::default());
-        reg.insert_resource(GridConfig::default());
-        reg.insert_resource(DebugLineBuffer3d::default());
-        reg.insert_resource(DebugLineBuffer2d::default());
-        reg.insert_resource(DrawBuffer2d::default());
-        reg.insert_resource(world_text::TextDrawBuffer::default());
-        reg.insert_resource(retained::RetainedDraws::default());
-        reg.insert_resource(CameraConfig2d::default());
-        reg.insert_resource(camera::CurrentCameras::default());
-        reg.insert_resource(camera::HeldCameras::default());
-        reg.insert_resource(PostConfig::default());
-        reg.insert_resource(post::EffectsRead::default());
-        reg.insert_resource(ViewportSnapshot2d::default());
-        reg.insert_resource(ViewportSnapshot3d::default());
-        reg.insert_resource(stats::Stats::default());
-        reg.insert_resource(stats::Measured::default());
+        insert_render_resources(reg);
         let mut m = reg.script_module("render")?;
         m.module_doc(
             "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",

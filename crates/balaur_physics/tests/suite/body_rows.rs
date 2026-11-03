@@ -303,7 +303,7 @@ collider3d = { shape = { kind = "box" } }
         r"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        self.node.body3d.teleport(1.0, 2.0, 3.0, physics3d::TeleportOptions { rotation: [0.0, 0.5, 0.0] });
+        self.node.body3d.teleport(1.0, 2.0, 3.0, physics3d::TeleportOptions { rotation: vec3(0.0, 0.5, 0.0) });
     }
 }
 ",

@@ -1139,7 +1139,7 @@ impl Panel {
         ui::fill_strip("Panel/Strip", controls);
         if self.frame == 2 {
             let made = scene::get_node("Panel/Strip").children();
-            ui::edit(made[0], "ball");
+            ui::edit_text(made[0], "ball");
             ui::click(made[1]);
         }
     }

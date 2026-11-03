@@ -1,0 +1,4 @@
+struct Hit { damage: int }
+pub fn f() { let h: Hit = {"damage": 1}; }
+
+// error: 2:27: a Hit is written `Hit { .. }`, not as a map

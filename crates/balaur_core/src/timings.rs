@@ -347,10 +347,15 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
         ("stages".to_string(), Value::Map(stages)),
         (
             "spans".to_string(),
-            Value::Map(
+            Value::List(
                 spans
                     .into_iter()
-                    .map(|(name, d)| (name.to_string(), seconds(d)))
+                    .map(|(name, d)| {
+                        Value::Map(vec![
+                            ("name".to_string(), Value::text(name.as_str())),
+                            ("seconds".to_string(), seconds(d)),
+                        ])
+                    })
                     .collect(),
             ),
         ),

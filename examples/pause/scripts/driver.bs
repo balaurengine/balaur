@@ -82,10 +82,10 @@ fn marker(at: [float], angle: float) {
     let c = math::cos(angle) * r;
     let s = math::sin(angle) * r;
     render::draw_polygon_2d([
-        [at[0] + c - s, at[1] + s + c],
-        [at[0] - c - s, at[1] - s + c],
-        [at[0] - c + s, at[1] - s - c],
-        [at[0] + c + s, at[1] + s - c],
+        vec2(at[0] + c - s, at[1] + s + c),
+        vec2(at[0] - c - s, at[1] - s + c),
+        vec2(at[0] - c + s, at[1] - s - c),
+        vec2(at[0] + c + s, at[1] + s - c),
     ], WARM());
 }
 

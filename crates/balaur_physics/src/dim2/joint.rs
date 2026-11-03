@@ -681,13 +681,30 @@ fn body_above(eng: &Engine, entity: Entity) -> Entity {
 }
 
 pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
+    m.records(&[
+        (
+            "AxisValues",
+            "{ x: float?, y: float?, rotation: float? }",
+            "One number for each free axis of a joint that has one.",
+        ),
+        (
+            "JointState",
+            "{ status: string, angle: float?, limit_impulses: AxisValues, motor_impulses: AxisValues, coordinates: AxisValues?, velocities: AxisValues? }",
+            "What the joint is doing. `status` is `enabled`, `disabled`, `body_disabled` (a body at either end is disabled) or `waiting` (its other end is not in the scene yet); `angle` is a hinge's turn in radians; the impulse rows hold each free axis's last limit and motor impulse; an articulation adds each free axis's coordinate and velocity.",
+        ),
+        (
+            "JointForce",
+            "{ force: float, torque: float }",
+            "The force and the torque a joint held through the last step.",
+        ),
+    ]);
     m.describe(&[
         ("remove_joint", &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
         ("set_motor_velocity", &[c::JOINT_2D], "(node: node, axis: string, velocity: float, damping: float)", "Drive one of the joint's free axes towards a speed: how a wheel is powered. Rewrites that axis's `axes` record."),
         ("set_motor_position", &[c::JOINT_2D], "(node: node, axis: string, target: float, stiffness: float, damping: float)", "Drive one of the joint's free axes towards an angle or a distance, with a spring's stiffness and damping. Rewrites that axis's `axes` record."),
         ("set_joint_limits", &[c::JOINT_2D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel; equal values lift the limit. Rewrites that axis's `axes` record."),
-        ("joint_state", &[c::JOINT_2D], "(node: node) -> map", "What the joint is doing: `{ status, angle, limit_impulses, motor_impulses, coordinates, velocities }`, as in 3D: `status` is `enabled`, `disabled`, `body_disabled` or `waiting`; `angle` is a hinge's turn in radians; an articulation adds each free axis's coordinate and velocity."),
-        ("joint_force", &[c::JOINT_2D], "(node: node) -> map", "The force and the torque the joint held through the last step, `{ force, torque }`. An articulation has none to read, and says so."),
+        ("joint_state", &[c::JOINT_2D], "(node: node) -> JointState", "What the joint is doing."),
+        ("joint_force", &[c::JOINT_2D], "(node: node) -> JointForce", "The force and the torque the joint held through the last step. An articulation has none to read, and says so."),
         ("solve_ik", &[c::JOINT_2D], "(node: node, x: float, y: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
     ]);
     m.function("remove_joint", |eng: &Engine, node: NodeId| {

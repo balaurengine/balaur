@@ -1115,7 +1115,7 @@ pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
     m.describe(&[
         ("softbody_area", &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
         ("softbody_rest_area", &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
-        ("softbody_center", &[c::SOFTBODY_2D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
+        ("softbody_center", &[c::SOFTBODY_2D], "(node: node) -> Vec2", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
     ]);
     m.function("softbody_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {

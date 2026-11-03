@@ -276,10 +276,10 @@ fn dependency_view(state: &mut editor::State) -> View {
     let items: [ui::Item] = [];
     let held: any = {};
     for dependency_entry in dependency::list() {
-        if dependency_entry["game"].as_str() != state.game_root {
+        if dependency_entry.game != state.game_root {
             continue;
         }
-        let alias = dependency_entry["alias"].as_str();
+        let alias = dependency_entry.alias;
         let folder = "deps/" + alias;
         let named = catalogue_of(state.game_root + "/" + folder);
         for rel in files_under(state.game_root + "/" + folder, "") {

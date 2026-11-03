@@ -84,22 +84,22 @@ impl Runner {
         self.tick += 1;
         let pad = 7;
         if self.tick == 1 {
-            input::feed_gamepad(pad, {
-                "name": "Fed Pad",
-                "os_name": "Fed OS",
-                "guid": "0300aabb",
-                "vendor": 1,
-                "product": 2,
-                "mapping": input::GAMEPAD_MAPPING_SDL,
-                "rumble": true,
-                "buttons": { "south": true, "left_trigger": 0.3 },
-                "axes": { "left_x": 0.1, "right_x": 1.0 },
-                "power": { "state": input::GAMEPAD_POWER_ON_BATTERY, "level": 0.5 },
-                "touches": [{ "id": 1, "x": 0.25, "y": 0.75 }],
+            input::feed_gamepad(pad, input::PadFeed {
+                name: "Fed Pad",
+                os_name: "Fed OS",
+                guid: "0300aabb",
+                vendor: 1,
+                product: 2,
+                mapping: input::GAMEPAD_MAPPING_SDL,
+                rumble: true,
+                buttons: input::PadButtons { south: 1.0, left_trigger: 0.3 },
+                axes: input::PadAxes { left_x: 0.1, right_x: 1.0 },
+                power: input::GamepadPower { state: input::GAMEPAD_POWER_ON_BATTERY, level: 0.5 },
+                touches: [input::Touch { id: 1, x: 0.25, y: 0.75 }],
             });
         } else if self.tick == 2 {
             let pads = input::gamepads();
-            self.check(pads.len() == 1 && pads[0].as_int() == pad, "the fed pad is listed by its id");
+            self.check(pads.len() == 1 && pads[0] == pad, "the fed pad is listed by its id");
             self.check(input::gamepad_name(pad) == "Fed Pad", "its name");
             let south = input::GAMEPAD_BUTTON_SOUTH;
             self.check(input::gamepad_down(pad, south) && input::gamepad_just_pressed(pad, south), "south down");
@@ -109,30 +109,31 @@ impl Runner {
             self.check(near(input::gamepad_pressure(pad, trigger), 0.3), "trigger pressure");
             self.check(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_LEFT_X), 0.0), "inside the deadzone");
             self.check(near(input::gamepad_axis(pad, input::GAMEPAD_AXIS_RIGHT_X), 1.0), "right x");
-            let info = input::gamepad_info(pad);
-            self.check(info["guid"].as_str() == "0300aabb" && info["vendor"].as_int() == 1 && info["product"].as_int() == 2, "info ids");
-            self.check(info["os_name"].as_str() == "Fed OS" && info["mapping"].as_str() == "sdl", "info names");
+            let info = input::gamepad_info(pad).unwrap();
+            self.check(info.guid == "0300aabb" && info.vendor == 1 && info.product == 2, "info ids");
+            self.check(info.os_name == "Fed OS" && info.mapping == "sdl", "info names");
             let power = input::gamepad_power(pad);
-            self.check(power["state"].as_str() == "on_battery" && near(power["level"].as_float(), 0.5), "power");
-            self.check(near(input::gamepad_touches(pad)[0]["x"].as_float(), 0.25), "touch x");
+            self.check(power.state == "on_battery" && near(power.level, 0.5), "power");
+            self.check(near(input::gamepad_touches(pad)[0].x, 0.25), "touch x");
             self.check(input::gamepad_can_rumble(pad), "can rumble");
-            input::feed_gamepad(pad, { "buttons": { "south": false } });
+            input::feed_gamepad(pad, input::PadFeed { buttons: input::PadButtons { south: 0.0 } });
         } else if self.tick == 3 {
             let south = input::GAMEPAD_BUTTON_SOUTH;
             self.check(input::gamepad_just_released(pad, south) && !input::gamepad_down(pad, south), "south released");
-            input::feed_gamepad(pad, { "buttons": { "east": true } });
-            input::feed_gamepad(pad, { "buttons": { "east": false } });
+            input::feed_gamepad(pad, input::PadFeed { buttons: input::PadButtons { east: 1.0 } });
+            input::feed_gamepad(pad, input::PadFeed { buttons: input::PadButtons { east: 0.0 } });
         } else if self.tick == 4 {
             let east = input::GAMEPAD_BUTTON_EAST;
             self.check(input::gamepad_just_pressed(pad, east), "a tap between frames presses");
             self.check(input::gamepad_just_released(pad, east), "and releases");
             self.check(!input::gamepad_down(pad, east), "east up");
-            input::feed_gamepad(pad, { "connected": false });
+            input::feed_gamepad(pad, input::PadFeed { connected: false });
         } else if self.tick == 5 {
             self.check(input::gamepads().len() == 0, "unplugged");
             self.check(input::gamepad_name(pad) == "" && !input::gamepad_can_rumble(pad), "no name, no rumble");
             let power = input::gamepad_power(pad);
-            self.check(power["state"].as_str() == "unknown" && near(power["level"].as_float(), -1.0), "neutral");
+            self.check(power.state == "unknown" && near(power.level, -1.0), "neutral");
+            self.check(input::gamepad_info(pad) == nil, "and nobody");
             if !self.failed {
                 self.done = 1;
             }
@@ -167,8 +168,8 @@ impl Runner {
     fn update(dt: float) {
         self.tick += 1;
         if self.tick == 1 {
-            input::feed_gamepad(7, { "rumble": true });
-            input::feed_gamepad(8, { "rumble": false });
+            input::feed_gamepad(7, input::PadFeed { rumble: true });
+            input::feed_gamepad(8, input::PadFeed { rumble: false });
         } else if self.tick == 2 {
             let shaped: any = {
                 "strong": 0.02,
@@ -181,8 +182,8 @@ impl Runner {
             if input::gamepad_rumble(7, shaped) { self.started = self.tick; }
             if input::gamepad_rumble(8, nil) { self.refused = 0; }
         } else if self.tick == 20 {
-            input::gamepad_rumble(7, input::RumbleOptions { duration: 1.0, position: [3.0, 0.0, 0.0], falloff: "linear" });
-            input::gamepad_set_listener(7, [0.0, 0.0, 0.0]);
+            input::gamepad_rumble(7, input::RumbleOptions { duration: 1.0, position: vec3(3.0, 0.0, 0.0), falloff: "linear" });
+            input::gamepad_set_listener(7, vec3(0.0, 0.0, 0.0));
         } else if self.tick == 21 {
             input::gamepad_stop_rumble(7);
         }

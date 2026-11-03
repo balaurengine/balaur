@@ -380,7 +380,7 @@ fn display_types() -> [DisplayType] {
 /// A body's kind, nil for a node without that body.
 fn kind_of(found: Node, component: str) -> any {
     if found.is_valid() && found.has_component(component) {
-        found.get_component(component, "kind")
+        found.component_property(component, "kind")
     } else {
         nil
     }
@@ -1599,7 +1599,7 @@ fn restore_keys(found: Node, was: any) {
         found.set_tint(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float());
     }
     if found.z_index() != was["z_index"].as_int() {
-        found.set_z_index(was["z_index"].as_int(), { "z_as_relative": was["z_as_relative"].as_bool() });
+        found.set_z_index(was["z_index"].as_int(), was["z_as_relative"].as_bool());
     }
     if found.process() != was["process"].as_str() {
         found.set_process(was["process"].as_str());

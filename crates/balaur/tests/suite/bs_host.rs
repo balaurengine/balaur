@@ -289,3 +289,28 @@ fn a_plain_method_starts_its_own_async_method_through_its_node() {
         Some(balaur_script::Value::Str("hello".into()))
     );
 }
+
+/// `bytes` are a script's `[int]` both ways across the seam.
+#[test]
+fn bytes_cross_the_seam_as_a_list_of_ints() {
+    use balaur_script::Value::{Bool, Int};
+    let dir = one_script(
+        "Reach",
+        "pub class Reach { node: Node, count: int, second: int, round_trip: bool, text: bool }
+impl Reach {
+    fn init() {
+        let bytes = encoding::from_base64(\"AP8Q/g==\");
+        self.count = bytes.len();
+        self.second = bytes[1];
+        self.round_trip = encoding::base64(bytes) == \"AP8Q/g==\";
+        self.text = encoding::base64_text(\"hello\") == \"aGVsbG8=\";
+    }
+}
+",
+    );
+    let app = booted(dir.path());
+    assert_eq!(field(&app, "Reach", "count"), Some(Int(4)));
+    assert_eq!(field(&app, "Reach", "second"), Some(Int(255)));
+    assert_eq!(field(&app, "Reach", "round_trip"), Some(Bool(true)));
+    assert_eq!(field(&app, "Reach", "text"), Some(Bool(true)));
+}

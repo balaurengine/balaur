@@ -266,30 +266,8 @@ pub struct TextDrawBuffer {
 
 /// The reference an asset option names: its text, or the key its table is
 /// filed under as a component's inline definition is.
-fn asset_option(
-    eng: &Engine,
-    type_name: &str,
-    value: &balaur_script::Value,
-) -> anyhow::Result<Option<String>> {
-    Ok(match value {
-        balaur_script::Value::Str(reference) => Some(reference.clone()),
-        balaur_script::Value::Map(_) => Some(
-            balaur_core::assets::define_inline(
-                eng,
-                type_name,
-                balaur_core::node_api::to_toml(value)?,
-            )?
-            .to_string(),
-        ),
-        _ => None,
-    })
-}
-
 /// A style from a script's options table, over the defaults.
-pub(crate) fn style_of(
-    eng: &Engine,
-    opts: Option<balaur_script::Value>,
-) -> anyhow::Result<TextStyle> {
+pub(crate) fn style_of(opts: Option<balaur_script::Value>) -> anyhow::Result<TextStyle> {
     use balaur_script::Value;
     let mut style = TextStyle::default();
     let Some(Value::Map(entries)) = opts else {
@@ -309,17 +287,13 @@ pub(crate) fn style_of(
             k::MARKUP => style.markup = matches!(value, Value::Bool(true)),
             k::MAX_WIDTH => style.max_width = number(value),
             k::FONT => {
-                if let Some(reference) =
-                    asset_option(eng, balaur_core::assets::FONT_ASSET_TYPE, value)?
-                {
-                    style.font = reference;
+                if let Value::Str(reference) = value {
+                    style.font.clone_from(reference);
                 }
             }
             k::TEXT_STYLE => {
-                if let Some(reference) =
-                    asset_option(eng, balaur_core::assets::TEXT_STYLE_ASSET_TYPE, value)?
-                {
-                    style.text_style = reference;
+                if let Value::Str(reference) = value {
+                    style.text_style.clone_from(reference);
                 }
             }
             k::ALPHA_CUTOFF => {
