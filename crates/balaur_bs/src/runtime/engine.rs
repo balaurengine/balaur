@@ -73,6 +73,14 @@ pub(crate) trait Wasm {
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
     fn set_global(&mut self, name: &str, value: i32);
+    /// Global `name` of unit `unit`'s own, once it is made.
+    fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
+        if unit == 0 { self.global(name) } else { None }
+    }
+    /// Unit `unit` made now, unless it is.
+    fn make(&mut self, _unit: usize) -> Result<(), String> {
+        Ok(())
+    }
     fn set_fuel(&mut self, fuel: u64);
     /// What the engine's fuel has left, on one that meters it.
     fn fuel(&mut self) -> Option<u64> {
@@ -83,15 +91,16 @@ pub(crate) trait Wasm {
     fn can_park(&self) -> bool {
         false
     }
-    /// [`Wasm::call`], except that a debugger stop parks the call for
+    /// [`Wasm::call_in`], except that a debugger stop parks the call for
     /// [`Wasm::resume`] instead of answering it.
     fn call_resumable(
         &mut self,
+        unit: usize,
         name: &str,
         args: &[Raw],
         results: usize,
     ) -> Result<Outcome, String> {
-        self.call(name, args, results).map(Outcome::Done)
+        self.call_in(unit, name, args, results).map(Outcome::Done)
     }
     fn resume(&mut self) -> Result<Outcome, String> {
         Err("this engine cannot carry on a parked call".into())
@@ -122,6 +131,14 @@ pub(crate) trait ImportCtx {
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
     fn set_global(&mut self, name: &str, value: i32);
+    /// [`Wasm::global_in`], as a host function sees the module.
+    fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
+        if unit == 0 { self.global(name) } else { None }
+    }
+    /// [`Wasm::make`], as a host function sees the module.
+    fn make(&mut self, _unit: usize) -> Result<(), String> {
+        Ok(())
+    }
     /// One of the module's own exports, called from inside a host function:
     /// how a host function allocates the string or array it hands back.
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String>;
@@ -201,12 +218,22 @@ pub(crate) struct Setup<'a> {
     pub memory_bytes: Option<usize>,
     /// A unit's file key and the units of the modules it uses.
     #[cfg_attr(
-        not(any(jit, native, feature = "wasmi")),
+        not(any(
+            jit,
+            native,
+            feature = "wasmi",
+            all(target_arch = "wasm32", feature = "web")
+        )),
         allow(dead_code, reason = "only an engine that links units reads it")
     )]
     pub key: &'a str,
     #[cfg_attr(
-        not(any(jit, native, feature = "wasmi")),
+        not(any(
+            jit,
+            native,
+            feature = "wasmi",
+            all(target_arch = "wasm32", feature = "web")
+        )),
         allow(dead_code, reason = "only an engine that links units reads them")
     )]
     pub linked: &'a [(String, std::sync::Arc<crate::Compiled>)],
@@ -218,13 +245,32 @@ pub(crate) struct Setup<'a> {
     pub native: bool,
 }
 
-/// Where each unit of a linked script puts its static data, its own first,
-/// then `linked`'s in order; and where its heap starts after them all.
-#[cfg(any(jit, native, feature = "wasmi"))]
+/// Where a linked script keeps things in its memory.
+#[cfg(any(
+    jit,
+    native,
+    feature = "wasmi",
+    all(target_arch = "wasm32", feature = "web")
+))]
+pub(crate) struct Layout {
+    /// Each unit's static data, its own first, then `linked`'s in order.
+    pub bases: Vec<u32>,
+    /// The shadow stack its debug units share, untouched without one.
+    pub stack: u32,
+    /// Where its heap starts, after them all.
+    pub heap: u32,
+}
+
+#[cfg(any(
+    jit,
+    native,
+    feature = "wasmi",
+    all(target_arch = "wasm32", feature = "web")
+))]
 pub(crate) fn unit_layout(
     meta: &Meta,
     linked: &[(String, std::sync::Arc<crate::Compiled>)],
-) -> (Vec<u32>, u32) {
+) -> Layout {
     let lens = std::iter::once(meta)
         .chain(linked.iter().map(|(_, c)| &c.meta))
         .map(|m| m.unit.as_ref().map_or(0, |u| u.data_len));
@@ -234,7 +280,69 @@ pub(crate) fn unit_layout(
         bases.push(at);
         at = (at + len).next_multiple_of(16);
     }
-    (bases, at)
+    Layout {
+        bases,
+        stack: at,
+        heap: at + crate::codegen::SHADOW_STACK,
+    }
+}
+
+/// Where a global every unit of a linked script shares sits among them, as
+/// an engine makes them: [`crate::words::UNIT_GLOBALS`], then
+/// [`crate::words::COUNT_GLOBALS`].
+#[cfg(any(jit, feature = "wasmi", all(target_arch = "wasm32", feature = "web")))]
+pub(crate) fn shared_global(name: &str) -> Option<usize> {
+    shared_globals().position(|global| global == name)
+}
+
+#[cfg(any(jit, feature = "wasmi", all(target_arch = "wasm32", feature = "web")))]
+fn shared_globals() -> impl Iterator<Item = &'static str> {
+    use crate::words::{COUNT_GLOBALS, UNIT_GLOBALS};
+    UNIT_GLOBALS.into_iter().chain(COUNT_GLOBALS)
+}
+
+/// What each shared global starts at, in [`shared_global`]'s order.
+#[cfg(any(jit, feature = "wasmi", all(target_arch = "wasm32", feature = "web")))]
+pub(crate) fn shared_starts(layout: &Layout) -> Vec<i32> {
+    use crate::words::{BUMP, DBG_BASE, DBG_SP, FUEL};
+    shared_globals()
+        .map(|name| match name {
+            BUMP => layout.heap as i32,
+            DBG_SP | DBG_BASE => layout.stack as i32,
+            FUEL => i32::MAX,
+            _ => 0,
+        })
+        .collect()
+}
+
+/// Where a unit's own parts are in the script it joined.
+#[cfg(any(jit, feature = "wasmi", all(target_arch = "wasm32", feature = "web")))]
+pub(crate) struct Bases {
+    /// Its index in the instance.
+    pub index: u32,
+    /// Its static data, its own `fn` table slots and its link slots.
+    pub memory: u32,
+    pub table: u32,
+    pub link: u32,
+    /// What a direct unit passes the engine's entry points.
+    pub host_ctx: u32,
+}
+
+/// The value of a global that is a unit's own: `None` for one its script's
+/// units share.
+#[cfg(any(jit, feature = "wasmi", all(target_arch = "wasm32", feature = "web")))]
+pub(crate) fn own_global(name: &str, bases: &Bases, unit: &crate::Unit) -> Option<u32> {
+    use crate::words;
+    match name {
+        words::MEMORY_BASE => Some(bases.memory),
+        words::TABLE_BASE => Some(bases.table),
+        words::LINK_BASE => Some(bases.link),
+        words::DBG_BREAKS => Some(bases.memory + unit.breaks_at),
+        words::PROF => Some(bases.memory + unit.rows_at),
+        words::DBG_UNIT => Some(bases.index),
+        words::HOST_CTX => Some(bases.host_ctx),
+        _ => None,
+    }
 }
 
 #[cfg_attr(
@@ -246,35 +354,25 @@ pub(crate) fn unit_layout(
 )]
 pub(crate) fn instantiate(kind: EngineKind, setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     // A unit links with the units it uses: natively when a loaded build has
-    // every one, else on wasmtime or wasmi.
-    if setup.meta.unit.is_some() {
-        #[cfg(native)]
-        if setup.native && matches!(kind, EngineKind::Auto | EngineKind::Native) {
-            if super::native_engine::has_units(&setup) {
-                return super::native_engine::instantiate_linked(setup);
-            }
-            if kind == EngineKind::Native {
-                return Err("no loaded native build has every unit of this script".into());
-            }
+    // every one, else on the engine asked for.
+    #[cfg(native)]
+    if setup.native
+        && setup.meta.unit.is_some()
+        && matches!(kind, EngineKind::Auto | EngineKind::Native)
+    {
+        if super::native_engine::has_units(&setup) {
+            return super::native_engine::instantiate_linked(setup);
         }
-        return match kind {
-            #[cfg(jit)]
-            EngineKind::Wasmtime | EngineKind::Auto => super::wasmtime_engine::instantiate(&setup),
-            #[cfg(feature = "wasmi")]
-            EngineKind::Wasmi => super::wasmi_engine::instantiate(&setup),
-            #[allow(
-                unreachable_patterns,
-                reason = "Auto lands here only when no faster engine is compiled in"
-            )]
-            #[cfg(feature = "wasmi")]
-            EngineKind::Auto => super::wasmi_engine::instantiate(&setup),
-            #[allow(unreachable_patterns, reason = "every engine but these two")]
-            _ => Err("a script built as units runs on wasmtime or wasmi".into()),
-        };
+        if kind == EngineKind::Native {
+            return Err("no loaded native build has every unit of this script".into());
+        }
     }
     // A native build beats every engine, when one has this module.
     #[cfg(native)]
-    if setup.native && matches!(kind, EngineKind::Auto | EngineKind::Native) {
+    if setup.native
+        && setup.meta.unit.is_none()
+        && matches!(kind, EngineKind::Auto | EngineKind::Native)
+    {
         if let Some(module) = super::native_engine::find(setup.wasm) {
             return super::native_engine::instantiate(module, setup);
         }

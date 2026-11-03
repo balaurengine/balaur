@@ -125,9 +125,9 @@ enum Kind {
 pub(crate) struct HostState {
     pub meta: Arc<Meta>,
     kinds: Vec<Kind>,
-    /// A linked script's other units, numbered from 1 in the order they were
-    /// made: each one's own types, and what its imports run.
-    units: Vec<(Arc<crate::Compiled>, Vec<Kind>)>,
+    /// A linked script's other units by their index less one, once made: each
+    /// one's own types, and what its imports run.
+    units: Vec<Option<(Arc<crate::Compiled>, Vec<Kind>)>>,
     /// What a unit made later binds its imports from.
     fns: HostFns,
     /// Each `extern fn` taken out of `fns` so far, by name, and where it went
@@ -153,6 +153,8 @@ pub(crate) struct HostState {
     extra: Raws,
     /// Calls out of the module so far, for a budget to count.
     pub calls: u64,
+    /// A unit of the instance was built with counters.
+    pub(crate) counted: bool,
     /// Which slots of each script struct hold a class, worked out once, or
     /// nil for one that holds a string, list or `any` outside a class and so
     /// cannot be shared ([`super::Runtime::share`]).
@@ -190,8 +192,9 @@ fn math(name: &str) -> Option<Kind> {
 }
 
 impl HostState {
-    pub(crate) fn new(meta: Arc<Meta>, fns: HostFns) -> Result<Self, String> {
-        let debugger = Debugger::new(meta.clone());
+    pub(crate) fn new(key: &str, meta: Arc<Meta>, fns: HostFns) -> Result<Self, String> {
+        let debugger = Debugger::new(key, meta.clone());
+        let meta_profiled = meta.profiled;
         let mut state = HostState {
             meta,
             kinds: vec![],
@@ -208,6 +211,7 @@ impl HostState {
             inside: None,
             extra: Raws::new(),
             calls: 0,
+            counted: meta_profiled,
             shares: vec![],
             releases: vec![],
             now: 0.0,
@@ -222,24 +226,41 @@ impl HostState {
     fn types(&self, unit: usize) -> Types {
         match unit {
             0 => Types::Own(self.meta.clone()),
-            u => Types::Unit(self.units[u - 1].0.clone()),
+            u => Types::Unit(self.made(u).0.clone()),
         }
     }
 
     fn kinds(&self, unit: usize) -> &[Kind] {
         match unit {
             0 => &self.kinds,
-            u => &self.units[u - 1].1,
+            u => &self.made(u).1,
         }
     }
 
-    /// Another unit of a linked script, its imports bound: the number its
-    /// calls are dispatched by.
-    #[cfg(any(jit, native, feature = "wasmi"))]
-    pub(crate) fn bind_unit(&mut self, unit: Arc<crate::Compiled>) -> Result<usize, String> {
+    fn made(&self, unit: usize) -> &(Arc<crate::Compiled>, Vec<Kind>) {
+        self.units[unit - 1]
+            .as_ref()
+            .expect("a unit calls out only once it is made, its imports bound")
+    }
+
+    /// Unit `index` of a linked script, its imports bound.
+    #[cfg(any(
+        jit,
+        native,
+        feature = "wasmi",
+        all(target_arch = "wasm32", feature = "web")
+    ))]
+    pub(crate) fn bind_unit(
+        &mut self,
+        index: usize,
+        unit: Arc<crate::Compiled>,
+    ) -> Result<(), String> {
         let kinds = self.kinds_of(&unit.meta)?;
-        self.units.push((unit, kinds));
-        Ok(self.units.len())
+        if self.units.len() < index {
+            self.units.resize_with(index, || None);
+        }
+        self.units[index - 1] = Some((unit, kinds));
+        Ok(())
     }
 
     // What each of `meta`'s imports runs.
@@ -518,7 +539,7 @@ pub(crate) fn dispatch(
         Kind::Binary(f) => Ok(smallvec::smallvec![Raw::F64(f(f64_at(0), f64_at(1)))]),
         Kind::Probe => {
             drop(h);
-            debugger::on_probe(state, ctx, args[0].i32() as u32);
+            debugger::on_probe(state, ctx, unit, args[0].i32() as u32);
             Ok(Raws::new())
         }
         Kind::Sync(at, sig) => {
@@ -618,15 +639,17 @@ pub(crate) fn direct_arities(meta: &Meta) -> Vec<usize> {
     n
 }
 
-/// A direct module's call to import `index`, its arguments as the bits they
-/// crossed as: the first result back, the rest kept for [`direct_result`].
+/// A direct module's call to import `index` of unit `unit`, its arguments as
+/// the bits they crossed as: the first result back, the rest kept for
+/// [`direct_result`].
 pub(crate) fn direct_call(
     state: &Shared,
     ctx: &mut dyn ImportCtx,
+    unit: usize,
     index: usize,
     bits: &[u64],
 ) -> Result<u64, String> {
-    let meta = state.borrow().meta.clone();
+    let meta = state.borrow().types(unit);
     let import = meta
         .imports
         .get(index)
@@ -637,7 +660,7 @@ pub(crate) fn direct_call(
         .zip(bits)
         .map(|(s, b)| from_bits(*s, *b))
         .collect();
-    let mut out = dispatch(state, ctx, 0, index, &args)?;
+    let mut out = dispatch(state, ctx, unit, index, &args)?;
     let first = out.first().copied().map_or(0, to_bits);
     if out.len() > 1 {
         out.remove(0);

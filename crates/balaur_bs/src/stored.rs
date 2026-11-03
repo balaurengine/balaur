@@ -3,16 +3,17 @@
 // little-endian u32s, a type a tag byte and its parts; `linked` is not kept.
 
 use crate::{
-    Compiled, ExternInfo, FnInfo, HostSignature, Import, Link, Literal, Meta, Slot, Ty, Unit,
+    Compiled, ExternInfo, FnInfo, HostSignature, Import, Link, Literal, Meta, Probe, Slot, Ty,
+    Unit, VarInfo,
 };
 
 /// Changes whenever the layout below does. A build kept by another compiler,
 /// told by the hash of its source, is read as none too.
-const FORMAT: u32 = 1;
+const FORMAT: u32 = 2;
 
 impl Compiled {
-    /// This build as bytes: [`Compiled::from_bytes`] reads it back. A debug
-    /// build's probes are not kept, nor `linked`.
+    /// This build as bytes: [`Compiled::from_bytes`] reads it back. `linked`
+    /// is not kept.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut w = Writer(Vec::with_capacity(self.wasm.len() + 4096));
@@ -45,6 +46,17 @@ impl Compiled {
             w.bool(x.is_async);
         });
         w.list(&m.func_names, |w, n| w.str(n));
+        w.bool(m.debug);
+        w.list(&m.probes, |w, p| {
+            w.u32(p.func);
+            w.u32(p.line);
+            w.u32(p.col);
+            w.list(&p.vars, |w, v| {
+                w.str(&v.name);
+                w.ty(&v.ty);
+                w.u32(v.offset);
+            });
+        });
         w.bool(m.metered);
         w.bool(m.profiled);
         w.bool(m.direct);
@@ -78,6 +90,8 @@ impl Compiled {
                 w.slots(&l.params);
                 w.slots(&l.results);
             });
+            w.u32(u.breaks_at);
+            w.u32(u.rows_at);
         }
         w.0
     }
@@ -115,6 +129,21 @@ impl Compiled {
             })
         })?;
         let func_names = r.list(Reader::str)?;
+        let debug = r.bool()?;
+        let probes = r.list(|r| {
+            Some(Probe {
+                func: r.u32()?,
+                line: r.u32()?,
+                col: r.u32()?,
+                vars: r.list(|r| {
+                    Some(VarInfo {
+                        name: r.str()?,
+                        ty: r.ty()?,
+                        offset: r.u32()?,
+                    })
+                })?,
+            })
+        })?;
         let (metered, profiled, direct) = (r.bool()?, r.bool()?, r.bool()?);
         let uses = r.list(Reader::str)?;
         let imports = r.list(|r| {
@@ -150,6 +179,8 @@ impl Compiled {
                         results: r.slots()?,
                     })
                 })?,
+                breaks_at: r.u32()?,
+                rows_at: r.u32()?,
             })
         } else {
             None
@@ -162,9 +193,9 @@ impl Compiled {
             by_key,
             by_owner,
             externs,
-            probes: vec![],
+            probes,
             func_names,
-            debug: false,
+            debug,
             metered,
             profiled,
             direct,

@@ -1,7 +1,7 @@
 // A script built as units: each file compiled alone, the modules it uses
 // linked in when it runs, and every answer the same as the whole file's.
 
-use balaur_bs::runtime::{EngineKind, HostFns, Limits, Runtime, Value};
+use balaur_bs::runtime::{Command, EngineKind, HostFns, Limits, Object, Runtime, Step, Value};
 use balaur_bs::{Compiled, Modules, Options, Parsed, compile};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -559,21 +559,92 @@ const PROJECT: [(&str, &str); 3] = [
 
 /// Each of `files` built alone as a unit, as a host keeps them.
 fn units_of(files: &[(&str, &str)]) -> HashMap<String, Arc<Compiled>> {
+    built_as(files, |_, _| {})
+}
+
+/// [`units_of`], `build` saying how each file's unit is built.
+fn built_as(
+    files: &[(&str, &str)],
+    build: impl Fn(&str, &mut Options),
+) -> HashMap<String, Arc<Compiled>> {
     let parsed = Parsed::default();
     files
         .iter()
         .map(|(key, source)| {
-            let options = Options {
+            let mut options = Options {
                 modules: Some(modules(files)),
                 path: (*key).into(),
                 unit: true,
                 parsed: Some(parsed.clone()),
                 ..Options::default()
             };
+            build(key, &mut options);
             let unit = compile(source, &options).unwrap_or_else(|e| panic!("{key}: {e}"));
             ((*key).to_string(), Arc::new(unit))
         })
         .collect()
+}
+
+/// [`PROJECT`]'s instance, an editor on node 1 and a panel on node 2.
+struct Linked {
+    rt: Runtime,
+    editor: Object,
+    panel: Object,
+    editor_unit: usize,
+    panel_unit: usize,
+}
+
+fn linked_project(units: &HashMap<String, Arc<Compiled>>, engine: EngineKind) -> Linked {
+    let found: Rc<std::cell::RefCell<Vec<(i64, i32)>>> = Rc::default();
+    let scripts = found.clone();
+    let host = HostFns::default().scripts(move |node, file, class| {
+        let editor = file == "scripts/editor.bs" && class == "Editor";
+        let held = scripts.borrow();
+        held.iter()
+            .find(|(n, _)| *n == node && editor)
+            .map(|(_, pointer)| *pointer)
+    });
+    let limits = Limits {
+        engine,
+        ..Limits::default()
+    };
+    let mut rt = Runtime::new(&units["project.bs"], host, limits).unwrap_or_else(|e| panic!("{e}"));
+    let editor_unit = rt
+        .link("scripts/editor.bs", &units["scripts/editor.bs"], &[])
+        .unwrap();
+    let uses = [(
+        "scripts/editor.bs".to_string(),
+        units["scripts/editor.bs"].clone(),
+    )];
+    let panel_unit = rt
+        .link("scripts/panel.bs", &units["scripts/panel.bs"], &uses)
+        .unwrap();
+    assert_eq!(
+        rt.link("scripts/editor.bs", &units["scripts/editor.bs"], &[]),
+        Ok(editor_unit),
+        "a unit linked twice is the one unit"
+    );
+    let editor = rt
+        .in_unit(editor_unit, |rt| {
+            rt.object("Editor", &[("node", Value::Node(1))])
+        })
+        .unwrap();
+    found.borrow_mut().push((1, Runtime::pointer(&editor)));
+    let panel = rt
+        .in_unit(panel_unit, |rt| {
+            rt.object(
+                "Panel",
+                &[("node", Value::Node(2)), ("editor_node", Value::Node(1))],
+            )
+        })
+        .unwrap();
+    Linked {
+        rt,
+        editor,
+        panel,
+        editor_unit,
+        panel_unit,
+    }
 }
 
 // A project's scripts are units of one instance: a script reaches another
@@ -584,50 +655,12 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
     let units = units_of(&PROJECT);
     for engine in engines() {
         native(engine, units.values().map(AsRef::as_ref));
-        let found: Rc<std::cell::RefCell<Vec<(i64, i32)>>> = Rc::default();
-        let scripts = found.clone();
-        let host = HostFns::default().scripts(move |node, file, class| {
-            let editor = file == "scripts/editor.bs" && class == "Editor";
-            let held = scripts.borrow();
-            held.iter()
-                .find(|(n, _)| *n == node && editor)
-                .map(|(_, pointer)| *pointer)
-        });
-        let limits = Limits {
-            engine,
-            ..Limits::default()
-        };
-        let mut rt =
-            Runtime::new(&units["project.bs"], host, limits).unwrap_or_else(|e| panic!("{e}"));
-        let editor_unit = rt
-            .link("scripts/editor.bs", &units["scripts/editor.bs"], &[])
-            .unwrap();
-        let uses = [(
-            "scripts/editor.bs".to_string(),
-            units["scripts/editor.bs"].clone(),
-        )];
-        let panel_unit = rt
-            .link("scripts/panel.bs", &units["scripts/panel.bs"], &uses)
-            .unwrap();
-        assert_eq!(
-            rt.link("scripts/editor.bs", &units["scripts/editor.bs"], &[]),
-            Ok(editor_unit),
-            "a unit linked twice is the one unit"
-        );
-        let editor = rt
-            .in_unit(editor_unit, |rt| {
-                rt.object("Editor", &[("node", Value::Node(1))])
-            })
-            .unwrap();
-        found.borrow_mut().push((1, Runtime::pointer(&editor)));
-        let panel = rt
-            .in_unit(panel_unit, |rt| {
-                rt.object(
-                    "Panel",
-                    &[("node", Value::Node(2)), ("editor_node", Value::Node(1))],
-                )
-            })
-            .unwrap();
+        let Linked {
+            mut rt,
+            editor,
+            panel,
+            ..
+        } = linked_project(&units, engine);
         assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
         assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(2)));
         assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(2)), "{engine:?}");
@@ -646,6 +679,236 @@ fn a_script_calls_another_script_of_its_instance_as_its_class() {
         rt.drop_object(editor);
         assert_eq!(rt.live(), 0, "{engine:?}");
     }
+}
+
+// The engines a build with probes or counters runs on: a native build holds
+// neither.
+const ENGINES: [EngineKind; 2] = [EngineKind::Wasmi, EngineKind::Auto];
+
+// A profiler's counters are one count across the units a call runs in, and
+// each function's row is in its own unit.
+#[test]
+fn a_typed_call_counts_in_every_unit_it_runs_in() {
+    let units = built_as(&PROJECT, |_, options| options.profile = true);
+    for engine in ENGINES {
+        let Linked {
+            mut rt,
+            editor,
+            panel,
+            ..
+        } = linked_project(&units, engine);
+        let before = rt.steps().expect("a profiled instance counts");
+        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
+        let spent = rt.steps().unwrap().wrapping_sub(before);
+        // `edit`: three statements; `poke`: its `let`, its `if`, its tail.
+        assert_eq!(spent, 6, "{engine:?}");
+        let mut costs = rt.function_costs();
+        costs.sort();
+        assert_eq!(
+            costs,
+            [
+                ("Editor.edit".to_string(), 1, 3),
+                ("Panel.poke".to_string(), 1, 3),
+            ],
+            "{engine:?}"
+        );
+        rt.clear_profile();
+        assert!(rt.function_costs().is_empty());
+        rt.drop_object(panel);
+        rt.drop_object(editor);
+        assert_eq!(rt.live(), 0, "{engine:?}");
+    }
+}
+
+// Only the file asked about has probes. A stop in it, reached by a typed call
+// from a unit without any, parks the whole call; a call made meanwhile runs
+// on and passes the breakpoint by.
+#[test]
+fn a_typed_call_stops_in_the_unit_with_probes() {
+    let units = built_as(&PROJECT, |key, options| {
+        options.debug = key == "scripts/editor.bs";
+    });
+    assert!(units["scripts/editor.bs"].meta.debug);
+    assert!(!units["scripts/panel.bs"].meta.debug);
+    let mut linked = linked_project(&units, EngineKind::Wasmi);
+    let (panel, editor) = (&linked.panel, &linked.editor);
+    let rt = &mut linked.rt;
+    rt.debugger().set_breakpoint_in(linked.editor_unit, 4);
+    let Ok(Step::Paused(stop)) = rt.call_method_steppable(panel, "poke", &[]) else {
+        panic!("the breakpoint stopped the call");
+    };
+    assert_eq!(stop.line, 4);
+    assert_eq!(stop.frames.len(), 1, "a unit with no probes has no frame");
+    assert_eq!(stop.frames[0].func, "Editor.edit");
+    assert_eq!(stop.frames[0].file, "scripts/editor.bs");
+
+    assert_eq!(
+        rt.call_method(panel, "mistaken", &[]),
+        Ok(Value::Bool(true))
+    );
+    assert_eq!(rt.call_method(panel, "poke", &[]), Ok(Value::Int(1)));
+    assert_eq!(rt.get(editor, "edits"), Some(Value::Int(1)));
+    assert!(rt.paused().is_some(), "the stop still holds");
+
+    assert_eq!(rt.resume(Command::Continue), Ok(Step::Done(Value::Int(2))));
+    assert!(rt.paused().is_none());
+    assert_eq!(rt.get(editor, "edits"), Some(Value::Int(2)));
+}
+
+// A stack across units with probes names each frame's file, and a step goes
+// from one unit into the next.
+#[test]
+fn a_stack_across_units_reads_each_frame_by_its_unit() {
+    let units = built_as(&PROJECT, |_, options| options.debug = true);
+    let mut linked = linked_project(&units, EngineKind::Wasmi);
+    let (panel, editor) = (&linked.panel, &linked.editor);
+    let rt = &mut linked.rt;
+    rt.debugger().set_breakpoint_in(linked.panel_unit, 9);
+    let Ok(Step::Paused(stop)) = rt.call_method_steppable(panel, "poke", &[]) else {
+        panic!("the breakpoint stopped the call");
+    };
+    assert_eq!((stop.line, stop.frames.len()), (9, 1));
+    assert_eq!(stop.frames[0].file, "scripts/panel.bs");
+    let Ok(Step::Paused(stop)) = rt.resume(Command::StepInto) else {
+        panic!("stepping in stops in the other unit");
+    };
+    assert_eq!(stop.frames.len(), 2);
+    assert_eq!(stop.frames[0].file, "scripts/editor.bs");
+    assert_eq!(stop.frames[0].func, "Editor.edit");
+    assert_eq!(stop.frames[1].file, "scripts/panel.bs");
+    assert_eq!(stop.frames[1].func, "Panel.poke");
+    assert_eq!(stop.line, 4);
+    assert_eq!(rt.resume(Command::Continue), Ok(Step::Done(Value::Int(1))));
+    assert_eq!(rt.get(editor, "edits"), Some(Value::Int(1)));
+}
+
+const FALLS: [(&str, &str); 3] = [
+    ("project.bs", ""),
+    (
+        "scripts/falls.bs",
+        "pub fn at(i: int) -> int {\n    let items = [1, 2];\n    items[i]\n}\n",
+    ),
+    (
+        "scripts/caller.bs",
+        "use falls;\npub class Caller { n: int }\nimpl Caller {\n    pub fn go() -> int {\n        let reached = 7;\n        falls::at(reached)\n    }\n}\n",
+    ),
+];
+
+// A trap under probes leaves its stack, across units; and a call made while
+// another is parked that traps goes back to the parked call's stack.
+#[test]
+fn a_trap_across_units_leaves_the_stack_it_died_with() {
+    let units = built_as(&FALLS, |_, options| options.debug = true);
+    let limits = Limits {
+        engine: EngineKind::Wasmi,
+        ..Limits::default()
+    };
+    let mut rt = Runtime::new(&units["project.bs"], HostFns::default(), limits).unwrap();
+    let uses = [(
+        "scripts/falls.bs".to_string(),
+        units["scripts/falls.bs"].clone(),
+    )];
+    let caller = rt
+        .link("scripts/caller.bs", &units["scripts/caller.bs"], &uses)
+        .unwrap();
+    let obj = rt.in_unit(caller, |rt| rt.object("Caller", &[])).unwrap();
+    rt.debugger().keep_locals(true);
+    let e = rt.call_method(&obj, "go", &[]).unwrap_err();
+    assert_eq!(e.line, Some(3), "{e}");
+    let stop = rt.error_stop().expect("a debug build leaves its stack");
+    assert_eq!(stop.frames.len(), 2);
+    assert_eq!(stop.frames[0].file, "scripts/falls.bs");
+    assert_eq!(stop.frames[1].file, "scripts/caller.bs");
+    assert!(
+        stop.frames[1]
+            .locals
+            .contains(&("reached".to_string(), Value::Int(7))),
+        "{:?}",
+        stop.frames[1].locals
+    );
+
+    rt.debugger().set_breakpoint_in(caller, 5);
+    let Ok(Step::Paused(_)) = rt.call_method_steppable(&obj, "go", &[]) else {
+        panic!("the breakpoint stopped the call");
+    };
+    assert!(rt.call_method(&obj, "go", &[]).is_err());
+    assert!(rt.paused().is_some(), "the stop still holds");
+    let Err(e) = rt.resume(Command::Continue) else {
+        panic!("the parked call goes on to the same trap");
+    };
+    assert_eq!(e.line, Some(3), "{e}");
+}
+
+// A browser's build: metered, and calling the engine through its entry points.
+#[test]
+fn a_typed_call_runs_metered_and_direct() {
+    let units = built_as(&PROJECT, |_, options| {
+        options.meter = true;
+        options.direct_imports = true;
+    });
+    assert!(
+        units
+            .values()
+            .all(|unit| unit.meta.direct && unit.meta.metered)
+    );
+    for engine in ENGINES {
+        let Linked {
+            mut rt,
+            editor,
+            panel,
+            ..
+        } = linked_project(&units, engine);
+        assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
+        assert_eq!(rt.get(&editor, "edits"), Some(Value::Int(1)), "{engine:?}");
+        assert_eq!(
+            rt.call_method(&panel, "mistaken", &[]),
+            Ok(Value::Bool(true))
+        );
+        rt.drop_object(panel);
+        rt.drop_object(editor);
+        assert_eq!(rt.live(), 0, "{engine:?}");
+    }
+}
+
+// All at once, as a web editor debugging a profiled project builds them; a
+// stop parks through a direct unit's entry point.
+#[test]
+fn a_typed_call_stops_under_every_switch_at_once() {
+    let units = built_as(&PROJECT, |_, options| {
+        options.debug = true;
+        options.profile = true;
+        options.meter = true;
+        options.direct_imports = true;
+    });
+    let mut linked = linked_project(&units, EngineKind::Wasmi);
+    let (panel, editor) = (&linked.panel, &linked.editor);
+    let rt = &mut linked.rt;
+    rt.debugger().set_breakpoint_in(linked.editor_unit, 4);
+    let Ok(Step::Paused(stop)) = rt.call_method_steppable(panel, "poke", &[]) else {
+        panic!("the breakpoint stopped the call");
+    };
+    assert_eq!(stop.frames[0].file, "scripts/editor.bs");
+    assert_eq!(stop.frames[1].file, "scripts/panel.bs");
+    assert_eq!(rt.resume(Command::Continue), Ok(Step::Done(Value::Int(1))));
+    assert_eq!(rt.get(editor, "edits"), Some(Value::Int(1)));
+    assert_eq!(rt.steps(), Some(6));
+}
+
+#[test]
+fn a_unit_kept_as_bytes_keeps_its_probes_and_its_tables() {
+    let units = built_as(&PROJECT, |_, options| {
+        options.debug = true;
+        options.profile = true;
+    });
+    let unit = &units["scripts/editor.bs"];
+    let back = Compiled::from_bytes(&unit.to_bytes()).expect("reads back");
+    assert!(back.meta.debug && back.meta.profiled);
+    assert_eq!(back.meta.probes.len(), unit.meta.probes.len());
+    assert_eq!(back.meta.probes[0].line, unit.meta.probes[0].line);
+    let (kept, built) = (back.meta.unit.unwrap(), unit.meta.unit.clone().unwrap());
+    assert_eq!(kept.breaks_at, built.breaks_at);
+    assert_eq!(kept.rows_at, built.rows_at);
+    assert_eq!(kept.data_len, built.data_len);
 }
 
 #[test]

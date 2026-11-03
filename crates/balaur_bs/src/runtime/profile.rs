@@ -2,16 +2,17 @@
 // function the calls and its own statements, in a table the host gives it.
 
 use super::{RunError, Runtime};
-use crate::words;
+use crate::{Meta, words};
+use std::sync::Arc;
 
 /// Bytes a function's row takes: its calls, then its own statements.
 const ROW: usize = 16;
 
 impl Runtime {
     /// Give a profiled module its table, every row at nothing. A module
-    /// built without counters has none to give.
+    /// built without counters has none to give, and a unit's is in its data.
     pub(super) fn arm_profile(&mut self) -> Result<(), RunError> {
-        if !self.meta.profiled {
+        if !self.meta.profiled || self.meta.unit.is_some() {
             return Ok(());
         }
         let bytes = self.meta.func_names.len() * ROW;
@@ -20,47 +21,56 @@ impl Runtime {
         Ok(())
     }
 
-    /// The statements the module has run, wrapping: the difference across a
-    /// call is what the call cost. Nil for a module built without counters.
+    /// The statements the instance has run, wrapping: the difference across
+    /// a call is what the call cost, in whichever units it ran. Nil for one
+    /// built without counters.
     pub fn steps(&mut self) -> Option<i32> {
-        if !self.meta.profiled {
+        if !self.host.borrow().counted {
             return None;
         }
         self.wasm.global(words::STEPS)
     }
 
-    /// Each function that ran, as `(name, calls, own statements)`.
+    /// Each function that ran, in each unit made, as `(name, calls, own
+    /// statements)`.
     pub fn function_costs(&mut self) -> Vec<(String, u64, u64)> {
-        let Some(at) = self.table() else {
-            return Vec::new();
-        };
-        let bytes = self.wasm.read(at, self.meta.func_names.len() * ROW);
-        let (rows, _) = bytes.as_chunks::<ROW>();
-        self.meta
-            .func_names
-            .iter()
-            .zip(rows)
-            .filter_map(|(name, row)| {
+        let mut costs = vec![];
+        for (unit, meta) in self.profiled_units() {
+            let Some(at) = self.table(unit) else {
+                continue;
+            };
+            let bytes = self.wasm.read(at, meta.func_names.len() * ROW);
+            let (rows, _) = bytes.as_chunks::<ROW>();
+            costs.extend(meta.func_names.iter().zip(rows).filter_map(|(name, row)| {
                 let calls = u64::from_le_bytes(row[..8].try_into().ok()?);
                 let own = i64::from_le_bytes(row[8..].try_into().ok()?);
                 (calls > 0).then(|| (name.clone(), calls, own.max(0).cast_unsigned()))
-            })
-            .collect()
+            }));
+        }
+        costs
     }
 
     /// Every row back to nothing.
     pub fn clear_profile(&mut self) {
-        if let Some(at) = self.table() {
-            self.wasm
-                .write(at, &vec![0; self.meta.func_names.len() * ROW]);
+        for (unit, meta) in self.profiled_units() {
+            if let Some(at) = self.table(unit) {
+                self.wasm.write(at, &vec![0; meta.func_names.len() * ROW]);
+            }
         }
     }
 
-    fn table(&mut self) -> Option<usize> {
-        if !self.meta.profiled {
-            return None;
-        }
-        let at = self.wasm.global(words::PROF)?;
+    fn profiled_units(&self) -> Vec<(usize, Arc<Meta>)> {
+        self.units
+            .borrow()
+            .iter()
+            .enumerate()
+            .filter(|(_, meta)| meta.profiled)
+            .map(|(unit, meta)| (unit, meta.clone()))
+            .collect()
+    }
+
+    fn table(&mut self, unit: usize) -> Option<usize> {
+        let at = self.wasm.global_in(unit, words::PROF)?;
         (at != 0).then_some(at as u32 as usize)
     }
 }
