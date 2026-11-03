@@ -19,6 +19,7 @@ x = 0
 y = 0
 width = 560
 padding = 16
+[nodes.widget_layout]
 gap = [12, 12]
 
 [[nodes]]
@@ -92,6 +93,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 
@@ -134,6 +136,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 

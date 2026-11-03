@@ -20,10 +20,14 @@ use balaur_plugin::Registry;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
-use crate::vocabulary::words as w;
+use crate::vocabulary::{keys as k, words as w};
+use crate::widget::beside_box::{
+    WidgetBox, WidgetChild, WidgetFold, WidgetGrid, WidgetLayout, WidgetTabs,
+};
+use crate::widget::beside_controls::WidgetButton;
 use crate::widget::node::{EguiOptions, Inspecting, Widget};
 use crate::widget::properties::{
-    Alpha, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, NumberFormat, Numeral, Placement,
+    Alpha, Axis, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, NumberFormat, Numeral, Placement,
     Scrollbar, SidePlacement, WidgetProperties,
 };
 
@@ -55,12 +59,12 @@ pub(crate) trait Beside: Component + Clone {
 /// filled: [`Beside::put`] whole, [`Beside::put_row`] the one a write changed.
 macro_rules! puts {
     ($held:ident, $widget:ident; $($row:ident => $write:expr;)*) => {
-        fn put(&self, $widget: &mut Widget) {
+        fn put(&self, $widget: &mut $crate::widget::node::Widget) {
             let $held = self;
             $($write;)*
         }
 
-        fn put_row(&self, $widget: &mut Widget, row: &str) -> bool {
+        fn put_row(&self, $widget: &mut $crate::widget::node::Widget, row: &str) -> bool {
             let $held = self;
             match row {
                 $(stringify!($row) => $write,)*
@@ -70,6 +74,7 @@ macro_rules! puts {
         }
     };
 }
+pub(crate) use puts;
 
 /// The rows a `code` widget reads: what it highlights and its gutter.
 #[derive(Clone, PartialEq, Component)]
@@ -146,10 +151,18 @@ pub(crate) struct WidgetTable {
     pub(crate) titles: Vec<SmolStr>,
     /// Each column's share of the width, in the order `titles` names them: `["2", "1", "1"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back
     pub(crate) widths: Vec<Numeral>,
-    /// The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. The widget's `reverse` takes them the other way round
+    /// The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. `reverse` takes them the other way round
     pub(crate) sort: SmolStr,
     /// Let a click on the header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret
     pub(crate) sortable: bool,
+    /// Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named
+    pub(crate) reverse: bool,
+    /// Draw the strip that names a `table`'s columns. Off, its columns are still `titles`', and a table that names none keeps its first row as a row
+    #[property(default = true)]
+    pub(crate) header: bool,
+    /// How wide a grab the seam between two of a `table`'s columns gets, in design pixels; 0 takes six
+    #[property(min = 0.0)]
+    pub(crate) splitter_width: f32,
 }
 
 impl Beside for WidgetTable {
@@ -162,10 +175,13 @@ impl Beside for WidgetTable {
         widths => widget.widths = held.widths.iter().filter_map(Numeral::share).collect();
         sort => widget.sort = held.sort.clone();
         sortable => widget.sortable = held.sortable;
+        reverse => widget.reverse = held.reverse;
+        header => widget.header = held.header;
+        splitter_width => widget.handle = held.splitter_width;
     }
 }
 
-/// The rows a `window` or a `dialog` reads: its chrome, and what shuts it.
+/// The rows a `window` or a `dialog` reads: whether it is up, its chrome, and what shuts it.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "a property a field: each switch the component offers is one"
@@ -173,6 +189,12 @@ impl Beside for WidgetTable {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_window")]
 pub(crate) struct WidgetWindow {
+    /// Whether a `window` or `dialog` is up; shut, it draws nothing and keeps nothing out
+    #[property(default = true)]
+    pub(crate) open: bool,
+    /// Draw a `window`'s title bar
+    #[property(default = true)]
+    pub(crate) header: bool,
     /// Give a `window`'s title bar an arrow that folds the window to its bar and back
     pub(crate) collapsible: bool,
     /// Whether a `collapsible` window starts unfolded
@@ -200,6 +222,8 @@ impl Beside for WidgetWindow {
     }
 
     puts! { held, widget;
+        open => widget.open = held.open;
+        header => widget.header = held.header;
         collapsible => egui(widget).collapsible = held.collapsible;
         default_open => egui(widget).default_open = held.default_open;
         closable => egui(widget).closable = held.closable;
@@ -238,6 +262,9 @@ pub(crate) struct WidgetSeparator {
     pub(crate) spacing: f32,
     /// How far a `separator`'s line runs past each end of the room it was given, in design pixels; below zero stops it short
     pub(crate) overhang: f32,
+    /// Which line a `separator` draws; `both` leaves it across its parent's direction
+    #[property(default = Axis::new(w::BOTH))]
+    pub(crate) axis: Axis,
 }
 
 impl Beside for WidgetSeparator {
@@ -248,6 +275,7 @@ impl Beside for WidgetSeparator {
     puts! { held, widget;
         spacing => egui(widget).spacing = held.spacing;
         overhang => egui(widget).overhang = held.overhang;
+        axis => widget.axis = held.axis.0.clone();
     }
 }
 
@@ -377,6 +405,9 @@ pub(crate) struct WidgetRange {
     pub(crate) trailing_fill: bool,
     /// Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise
     pub(crate) animate: bool,
+    /// Which way a `slider` runs: up its box under `vertical`, along it otherwise
+    #[property(default = Axis::new(w::BOTH))]
+    pub(crate) axis: Axis,
 }
 
 impl Beside for WidgetRange {
@@ -407,6 +438,7 @@ impl Beside for WidgetRange {
         handle_aspect => egui(widget).handle_aspect = held.handle_aspect;
         trailing_fill => egui(widget).trailing_fill = held.trailing_fill;
         animate => egui(widget).animate = held.animate;
+        axis => widget.axis = held.axis.0.clone();
     }
 }
 
@@ -475,6 +507,9 @@ impl Beside for WidgetField {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_scroll")]
 pub(crate) struct WidgetScroll {
+    /// Which way a `scroll` moves, the other way its contents filling the box it was given
+    #[property(default = Axis::new(w::BOTH))]
+    pub(crate) axis: Axis,
     /// When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box
     #[property(default = Scrollbar::new(w::AUTO))]
     pub(crate) scrollbar: Scrollbar,
@@ -515,6 +550,7 @@ impl Beside for WidgetScroll {
     }
 
     puts! { held, widget;
+        axis => widget.axis = held.axis.0.clone();
         scrollbar => egui(widget).scrollbar = held.scrollbar.0.clone();
         scroll_offset => egui(widget).scroll_offset = held.scroll_offset;
         stick_to_end => egui(widget).stick_to_end = held.stick_to_end;
@@ -569,6 +605,8 @@ impl Beside for WidgetImage {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_list")]
 pub(crate) struct WidgetList {
+    /// How many columns a `list` flows its cards into, in the words a `grid`'s `grid_columns` takes; empty draws a line a row
+    pub(crate) grid_columns: SmolStr,
     /// The picture a `list` cuts its card faces from
     pub(crate) sheet: SmolStr,
     /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go
@@ -588,7 +626,13 @@ impl Beside for WidgetList {
         matches!(kind, w::LIST | w::TREE)
     }
 
+    /// A column that does not read.
+    fn check(&self) -> Result<()> {
+        crate::widget::grid::check_tracks(Self::NAME, k::GRID_COLUMNS, &self.grid_columns)
+    }
+
     puts! { held, widget;
+        grid_columns => widget.layout.grid_columns = held.grid_columns.clone();
         sheet => widget.source = held.sheet.clone();
         draggable => widget.draggable = held.draggable;
         reorderable => widget.reorderable = held.reorderable;
@@ -635,7 +679,14 @@ macro_rules! each_beside {
             WidgetScroll,
             WidgetImage,
             WidgetList,
-            WidgetDropdown
+            WidgetDropdown,
+            WidgetButton,
+            WidgetLayout,
+            WidgetGrid,
+            WidgetFold,
+            WidgetTabs,
+            WidgetBox,
+            WidgetChild
         )
     };
 }

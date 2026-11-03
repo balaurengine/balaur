@@ -590,10 +590,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.height = *height;
             &[k::HEIGHT]
         }
-        Edit::Active(name) => {
-            asked.current_page = name.as_str().into();
-            &[k::CURRENT_PAGE]
-        }
         Edit::Moved([dx, dy]) => {
             let (sx, sy) = crate::widget::window::drag_signs(&asked.anchor.0);
             asked.x += dx * sx;
@@ -604,10 +600,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.text = text.as_str().into();
             &[k::TEXT]
         }
-        Edit::Open(open) => {
-            asked.open = *open;
-            &[k::OPEN]
-        }
         // A dropdown shows what was picked; a menu keeps its caption.
         Edit::Choice(choice) if asked.kind.0 != w::MENU => {
             asked.text = choice.as_str().into();
@@ -617,12 +609,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.text = row.as_str().into();
             asked.selection = rows.iter().map(|row| row.as_str().into()).collect();
             &[k::TEXT, k::SELECTION]
-        }
-        // The column a table's rows are ordered by is the table's
-        // (`widget_table`, in `besides_written`); which way is the widget's.
-        Edit::Sorted(_, reverse) => {
-            asked.reverse = *reverse;
-            &[k::REVERSE]
         }
         _ => &[],
     }
@@ -718,8 +704,21 @@ fn settle_edits(
 /// it changes are a kind's own: a picked colour, a table's column shares
 /// and the column it sorts by. Written down so the scene keeps them.
 fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
-    use crate::widget::beside::{self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable};
+    use crate::widget::beside::{
+        self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable, WidgetWindow,
+    };
+    use crate::widget::beside_box::{WidgetFold, WidgetTabs};
     match edit {
+        Edit::Active(name) => {
+            beside::edit::<WidgetTabs>(eng, entity, &[k::CURRENT_PAGE], |held| {
+                held.current_page = name.as_str().into();
+            });
+        }
+        // Whichever the kind reads: the other leaves the node as it is.
+        Edit::Open(open) => {
+            beside::edit::<WidgetFold>(eng, entity, &[k::OPEN], |held| held.open = *open);
+            beside::edit::<WidgetWindow>(eng, entity, &[k::OPEN], |held| held.open = *open);
+        }
         Edit::Value(value) => {
             beside::edit::<WidgetRange>(eng, entity, &[k::VALUE], |held| held.value = *value);
         }
@@ -740,9 +739,10 @@ fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
         Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, &[k::WIDTHS], |held| {
             held.widths = shares.iter().copied().map(Numeral::of).collect();
         }),
-        Edit::Sorted(column, _) => {
-            beside::edit::<WidgetTable>(eng, entity, &[k::SORT], |held| {
+        Edit::Sorted(column, reverse) => {
+            beside::edit::<WidgetTable>(eng, entity, &[k::SORT, k::REVERSE], |held| {
                 held.sort = column.as_str().into();
+                held.reverse = *reverse;
             });
         }
         _ => {}

@@ -10,6 +10,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 [[nodes]]
@@ -18,9 +19,10 @@ name = "Tools"
 parent = "panel"
 [nodes.widget]
 kind = "row"
+height = 26
+[nodes.widget_layout]
 align_items = "center"
 gap = [6, 0]
-height = 26
 
 [[nodes]]
 id = "headline"

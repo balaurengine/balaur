@@ -667,7 +667,9 @@ fn a_table_without_a_header_draws_every_row() {
             kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 200.0
             items = [{ cells = ["one", "1"] }, { cells = ["two", "2"] }, { cells = ["three", "3"] }]
         };
-        params.insert("header".into(), toml::Value::Boolean(header));
+        let mut rows = toml::Table::new();
+        rows.insert("header".into(), toml::Value::Boolean(header));
+        params.insert("widget_table".into(), rows.into());
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);
@@ -695,7 +697,10 @@ fn a_table_sorts_by_the_column_it_names() {
             .as_table_mut()
             .unwrap()
             .insert("sort".into(), toml::Value::String(sort.into()));
-        params.insert("reverse".into(), toml::Value::Boolean(reverse));
+        params["widget_table"]
+            .as_table_mut()
+            .unwrap()
+            .insert("reverse".into(), toml::Value::Boolean(reverse));
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);
@@ -740,14 +745,14 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
         "the click sorts by the column it landed on"
     );
     assert_eq!(
-        property(&app, entity, "reverse"),
+        beside_property(&app, entity, "widget_table", "reverse"),
         toml::Value::Boolean(false)
     );
     pass(&app, &ctx, press(hit, true));
     pass(&app, &ctx, press(hit, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "reverse"),
+        beside_property(&app, entity, "widget_table", "reverse"),
         toml::Value::Boolean(true),
         "and the same column again turns it round"
     );
@@ -884,9 +889,8 @@ impl Owner {
             "Cards",
             &toml::toml! {
                 kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-                grid_columns = "repeat(3, 1fr)"
                 items = [{ label = "One" }, { label = "Two" }, { label = "Three" }]
-                widget_list = { draggable = true, on_drop = "on_drop" }
+                widget_list = { draggable = true, on_drop = "on_drop", grid_columns = "repeat(3, 1fr)" }
             }
             .into(),
         );

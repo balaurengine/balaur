@@ -58,7 +58,6 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
 /// tables beside them onto the [`Widget`] it built.
 fn apply(eng: &Engine, entity: Entity, params: &toml::Value, whole: &ApplyFn) -> Result<()> {
     check_class_tables(params)?;
-    check_shapes(params)?;
     whole(eng, entity, params)?;
     if let Ok(mut widget) = eng.world().get::<&mut Widget>(entity) {
         widget.classes = classes_of(params);
@@ -128,9 +127,8 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
     true
 }
 
-/// Build the [`Widget`] whole from the properties, refusing what the types
-/// alone cannot judge: a grid track that does not parse, a `submit_key` that
-/// is not a chord.
+/// Build the [`Widget`] whole from the properties and the components beside
+/// them.
 fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     let mut next = {
         let world = eng.world();
@@ -146,7 +144,6 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         next
     };
     dress(eng, &mut next);
-    crate::widget::grid::check(&next.layout)?;
     let inspector = next.kind == w::INSPECTOR;
     eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))?;
@@ -161,21 +158,6 @@ pub(crate) fn told(eng: &Engine, entity: Entity, inspector: bool) {
     if inspector {
         crate::widget::inspector::noticed(eng, entity);
     }
-}
-
-/// Refuse a `gap` written as one number: it is a pair now, and a number read
-/// as one would lay a scene out differently from what it says.
-fn check_shapes(params: &toml::Value) -> Result<()> {
-    let tables = std::iter::once(params).chain(class_tables(params).map(|(_, table)| table));
-    for table in tables {
-        if table
-            .get(k::GAP)
-            .is_some_and(|gap| balaur_core::components::as_f64(gap).is_some())
-        {
-            bail!("widget: `gap` takes [across, down], not one number");
-        }
-    }
-    Ok(())
 }
 
 /// Refuse what a class table could not write: a key it invents, a row no
@@ -340,11 +322,6 @@ fn edges(named: &[Edge]) -> [bool; 4] {
     out
 }
 
-/// Whether `contain` names layout containment, then paint containment.
-fn containment(named: &[crate::widget::properties::Containment]) -> [bool; 2] {
-    [w::contain::LAYOUT, w::contain::PAINT].map(|word| named.iter().any(|held| held.0 == word))
-}
-
 /// Redo the fields of `widget` that `names` fill, each a property with a
 /// field of its own: the event pump writes a reader's edit onto the
 /// properties, and the widget follows them here.
@@ -422,24 +399,7 @@ cache_fields! {
         k::HIDE_SHORTER => widget.hide_shorter = asked.hide_shorter;
         k::HIDE_TALLER => widget.hide_taller = asked.hide_taller;
         k::PADDING => widget.padding = asked.padding.0;
-        k::GAP => widget.gap = asked.gap;
-        k::ALIGN_ITEMS => widget.align = asked.align_items.0.clone();
-        k::JUSTIFY => widget.justify = asked.justify.0.clone();
-        k::ALIGN_CONTENT => widget.layout.align_content = asked.align_content.0.clone();
-        k::WRAP_CHILDREN => widget.layout.wrap_children = asked.wrap_children.0.clone();
-        k::MIN_LINES => widget.layout.min_lines =
-            asked.min_lines.clamp(1, i64::from(u16::MAX)) as u16;
-        k::DIRECTION => widget.layout.direction = asked.direction.0.clone();
-        k::OVERFLOW => widget.layout.overflow = asked.overflow.0.clone();
         k::BORDER => widget.layout.border = asked.border.map(Bits::of);
-        k::BOX_SIZING => widget.layout.box_sizing = asked.box_sizing.0.clone();
-        k::SAFE_ALIGN => widget.layout.safe_align = asked.safe_align;
-        k::CONTAIN => widget.layout.contain = containment(&asked.contain);
-        k::SCROLLBAR_WIDTH => widget.layout.scrollbar_width = Bits::of(asked.scrollbar_width);
-        k::AXIS => widget.axis = asked.axis.0.clone();
-        k::AUTO_FLOW => widget.layout.auto_flow = asked.auto_flow.0.clone();
-        k::HEADER => widget.header = asked.header;
-        k::TITLE_BAR => widget.title_bar = asked.title_bar;
         k::ROW_HEIGHT => widget.row_height = asked.row_height;
         k::THEME => widget.theme = asked.theme.clone();
         k::ROLE => widget.role = asked.role.clone();
@@ -497,9 +457,6 @@ cache_fields! {
         k::WHILE_TYPING => widget.while_typing = asked.while_typing;
         k::TAKES_TYPING => widget.takes_typing = asked.takes_typing;
         k::CONTEXT => widget.context = asked.context.clone();
-        k::OPEN => widget.open = asked.open;
-        k::CURRENT_PAGE => widget.active = asked.current_page.clone();
-        k::KEEP_OPEN => widget.keep_open = asked.keep_open;
         k::CHECKED => widget.checked = asked.checked;
         k::OPTIONS => widget.options.clone_from(&asked.options);
         k::ITEMS => widget.items.clone_from(&asked.items);
@@ -508,22 +465,12 @@ cache_fields! {
         k::RADIO_GROUP => widget.radio_group = asked.radio_group.clone();
         k::TOGGLE => widget.toggle = asked.toggle;
         k::INDETERMINATE => egui(widget).indeterminate = asked.indeterminate;
-        k::SPLITTER_WIDTH => widget.handle = asked.splitter_width;
-        k::REVERSE => widget.reverse = asked.reverse;
     }
     whole [
-        k::KIND, k::GRID_COLUMNS, k::GRID_ROWS, k::AUTO_COLUMNS, k::AUTO_ROWS, k::AREAS, k::ROW,
-        k::COLUMN, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
+        k::KIND, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
         k::TAB_WIDTH,
     ] {
         widget.kind = asked.kind.0.clone();
-        widget.layout.grid_columns = asked.grid_columns.clone();
-        widget.layout.grid_rows = asked.grid_rows.clone();
-        widget.layout.auto_columns = asked.auto_columns.clone();
-        widget.layout.auto_rows = asked.auto_rows.clone();
-        widget.layout.areas.clone_from(&asked.areas);
-        widget.layout.row = asked.row.clone();
-        widget.layout.column = asked.column.clone();
         widget.text_look = Arc::new(TextLook::of(asked));
     }
 }

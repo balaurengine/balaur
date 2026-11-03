@@ -3444,7 +3444,7 @@ pub fn sheet_close_step(state: &mut editor::State) {
         check(window::showing(state, "about"), "the sheet stays up while nothing shuts it");
         let filled = scene::get_node("Editor/Sheet");
         if filled.is_valid() {
-            filled.widget.open = false;
+            filled.widget_window.open = false;
         }
     } else if at == 5 {
         check(!window::showing(state, "about"), "and goes when its dialog is shut from outside");
@@ -3453,7 +3453,7 @@ pub fn sheet_close_step(state: &mut editor::State) {
         check(state.palette, "the palette stays up while nothing shuts it");
         let filled = scene::get_node("Editor/Picker");
         if filled.is_valid() {
-            filled.widget.open = false;
+            filled.widget_window.open = false;
         }
     } else if at == 10 {
         state.window.demo = -1;

@@ -50,10 +50,11 @@ script = { source = "scripts/panels/chips.bs" }
 visible = false
 [nodes.widget]
 kind = "scroll"
-axis = "horizontal"
 absolute = true
 inset = [0.0, 0.0, 0.0, -1.0]
 height = 28
+[nodes.widget_scroll]
+axis = "horizontal"
 
 [[nodes]]
 id = "chips_row"
@@ -61,9 +62,10 @@ name = "Row"
 parent = "chips"
 [nodes.widget]
 kind = "row"
+padding = [6, 0, 6, 0]
+[nodes.widget_layout]
 gap = [6, 6]
 align_items = "center"
-padding = [6, 0, 6, 0]
 
 # A folded side dock's way back, at the edge it folded towards.
 [[nodes]]

@@ -104,7 +104,8 @@ fn a_row_closes_its_menu_unless_it_keeps_it_open() {
         let params = toml::toml! { kind = "menu" text = "Menu" x = 10.0 y = 10.0 };
         let host = add_widget(&app, &params.into());
         let row = toml::toml! {
-            kind = "button" text = "row" width = 173.0 height = 22.0 keep_open = keep
+            kind = "button" text = "row" width = 173.0 height = 22.0
+            widget_child = { keep_open = keep }
         };
         add_child_widget(&app, host, "R0", &row.into());
         let ctx = egui::Context::default();
@@ -166,7 +167,7 @@ fn a_menu_button_holds_its_room_in_a_row() {
     .unwrap();
     let strip = add_widget(
         &app,
-        &toml::toml! { kind = "row" gap = [0.0, 0.0] theme = "themes/row.toml" x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "row" theme = "themes/row.toml" x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let menu = add_child_widget(

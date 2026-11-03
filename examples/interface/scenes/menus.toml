@@ -21,6 +21,7 @@ y = 0
 width = 640
 height = 320
 padding = 14
+[nodes.widget_layout]
 gap = [12, 12]
 
 [[nodes]]
@@ -30,6 +31,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 
@@ -50,6 +52,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 28
+[nodes.widget_layout]
 gap = [4, 4]
 
 [[nodes]]
@@ -137,9 +140,10 @@ parent = "file"
 kind = "button"
 text = "Show grid"
 checked = true
-keep_open = true
 width = 210
 height = 24
+[nodes.widget_child]
+keep_open = true
 
 [[nodes]]
 id = "edit"
@@ -221,11 +225,12 @@ parent = "sheet"
 kind = "panel"
 grow = 1
 padding = 16
-gap = [6, 6]
-align_items = "end"
 text_align = "end"
 context = "canvas_menu"
 tooltip = "Right click, or press and hold"
+[nodes.widget_layout]
+gap = [6, 6]
+align_items = "end"
 
 [[nodes]]
 id = "canvas_text"
@@ -256,9 +261,10 @@ kind = "toast"
 anchor = "top_right"
 x = 18
 y = 18
+padding = 12
+[nodes.widget_layout]
 # Hugging: the two lines decide the card's width, not the screen.
 align_items = "start"
-padding = 12
 gap = [2, 2]
 [nodes.widget_toast]
 duration = 0

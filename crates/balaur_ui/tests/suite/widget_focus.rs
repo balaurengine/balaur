@@ -144,7 +144,7 @@ fn accepting_a_focused_fold_turns_it() {
     let (_dir, mut app) = app();
     let fold = add_widget(
         &app,
-        &toml::toml! { kind = "fold" text = "Advanced" open = false x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "fold" text = "Advanced" x = 0.0 y = 0.0 widget_fold = { open = false } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -152,7 +152,10 @@ fn accepting_a_focused_fold_turns_it() {
     assert_eq!(focused(&app), Some(fold));
     pass(&app, &ctx, key(egui::Key::Enter));
     consume_input(&mut app);
-    assert_eq!(property(&app, fold, "open"), toml::Value::Boolean(true));
+    assert_eq!(
+        beside_property(&app, fold, "widget_fold", "open"),
+        toml::Value::Boolean(true)
+    );
 }
 
 /// Focus exists to activate something, so a widget with nothing to activate

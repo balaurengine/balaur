@@ -54,8 +54,9 @@ kind = "panel"
 anchor = "fill_left"
 width = 360
 padding = 10
-gap = [6, 6]
 text = "Balaur benchmarks"
+[nodes.widget_layout]
+gap = [6, 6]
 
 [[nodes]]
 id = "n_menu_status"

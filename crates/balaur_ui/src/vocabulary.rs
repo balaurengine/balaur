@@ -407,7 +407,6 @@ pub(crate) mod words {
 pub(crate) mod keys {
     /// Which page a `tabs` widget shows.
     pub(crate) const CURRENT_PAGE: &str = "current_page";
-    pub(crate) const ALIGN_ITEMS: &str = "align_items";
     /// A `fold`'s theme: the picture its header draws for the arrow, and the
     /// frame around what it shows while open.
     pub(crate) const ARROW: &str = "arrow";
@@ -444,7 +443,6 @@ pub(crate) mod keys {
     pub(crate) const GAP: &str = "gap";
     pub(crate) const GROW: &str = "grow";
     pub(crate) const GUTTER_COLOR: &str = "gutter_color";
-    pub(crate) const SPLITTER_WIDTH: &str = "splitter_width";
     pub(crate) const HEIGHT: &str = "height";
     pub(crate) const ICON: &str = "icon";
     pub(crate) const ICON_COLOR: &str = "icon_color";
@@ -458,8 +456,6 @@ pub(crate) mod keys {
     pub(crate) const SYNTAX_PUNCTUATION: &str = "syntax_punctuation";
     pub(crate) const SYNTAX_STRING: &str = "syntax_string";
     pub(crate) const SYNTAX_TYPE: &str = "syntax_type";
-    pub(crate) const KEEP_OPEN: &str = "keep_open";
-    pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const WHOLE_WINDOW: &str = "whole_window";
     pub(crate) const TEXT_BACKGROUND: &str = "text_background";
@@ -469,7 +465,6 @@ pub(crate) mod keys {
     pub(crate) const MAX_LINES: &str = "max_lines";
     pub(crate) const TAB_WIDTH: &str = "tab_width";
     pub(crate) const MARKUP: &str = "markup";
-    pub(crate) const AXIS: &str = "axis";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const HIDE_NARROWER: &str = "hide_narrower";
@@ -511,8 +506,6 @@ pub(crate) mod keys {
     /// The row a `fold` event names.
     pub(crate) const ROW: &str = "row";
     pub(crate) const ROW_HEIGHT: &str = "row_height";
-    pub(crate) const TITLE_BAR: &str = "title_bar";
-    pub(crate) const HEADER: &str = "header";
     pub(crate) const REVERSE: &str = "reverse";
     /// The mark a `mark` event names, beside its `row`.
     pub(crate) const MARK: &str = "mark";
@@ -571,25 +564,15 @@ pub(crate) mod keys {
     pub(crate) const ASPECT_RATIO: &str = "aspect_ratio";
     pub(crate) const MARGIN: &str = "margin";
     pub(crate) const BORDER: &str = "border";
-    pub(crate) const BOX_SIZING: &str = "box_sizing";
-    pub(crate) const DIRECTION: &str = "direction";
-    pub(crate) const OVERFLOW: &str = "overflow";
-    pub(crate) const SCROLLBAR_WIDTH: &str = "scrollbar_width";
-    pub(crate) const CONTAIN: &str = "contain";
     pub(crate) const ALIGN_SELF: &str = "align_self";
-    pub(crate) const ALIGN_CONTENT: &str = "align_content";
-    pub(crate) const SAFE_ALIGN: &str = "safe_align";
     pub(crate) const WIDTH_PERCENT: &str = "width_percent";
     pub(crate) const HEIGHT_PERCENT: &str = "height_percent";
-    pub(crate) const WRAP_CHILDREN: &str = "wrap_children";
-    pub(crate) const MIN_LINES: &str = "min_lines";
     pub(crate) const BASIS: &str = "basis";
     pub(crate) const SHRINK: &str = "shrink";
     pub(crate) const GRID_COLUMNS: &str = "grid_columns";
     pub(crate) const GRID_ROWS: &str = "grid_rows";
     pub(crate) const AUTO_COLUMNS: &str = "auto_columns";
     pub(crate) const AUTO_ROWS: &str = "auto_rows";
-    pub(crate) const AUTO_FLOW: &str = "auto_flow";
     pub(crate) const AREAS: &str = "areas";
     /// A grid child's column placement, beside its `row`.
     pub(crate) const COLUMN: &str = "column";

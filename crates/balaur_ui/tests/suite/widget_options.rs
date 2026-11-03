@@ -132,7 +132,7 @@ fn a_vertical_slider_runs_up_its_box() {
     let (_dir, mut app) = app();
     let slider = add_widget(
         &app,
-        &toml::toml! { kind = "slider" axis = "vertical"   width = 30.0 height = 120.0 x = 0.0 y = 0.0 widget_range = { min = 0.0, max = 10.0 } }.into(),
+        &toml::toml! { kind = "slider"   width = 30.0 height = 120.0 x = 0.0 y = 0.0 widget_range = { min = 0.0, max = 10.0, axis = "vertical" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -219,7 +219,7 @@ fn a_separator_takes_the_room_its_spacing_names() {
     let (_dir, app) = app();
     let column = add_widget(
         &app,
-        &toml::toml! { kind = "column" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "column" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let rule = add_child_widget(
         &app,
@@ -370,7 +370,7 @@ fn scroll_of_lines(
 #[test]
 fn a_written_scroll_offset_scrolls_there_and_the_reader_s_scroll_reads_back() {
     let (_dir, mut app, scroll, lines, ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 widget_scroll = { scroll_offset = [-1.0, 60.0] } }.into(),
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { scroll_offset = [-1.0, 60.0] } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let first = balaur_ui::widget_rect(lines[0]).unwrap();
     assert!(
@@ -414,7 +414,7 @@ fn a_written_scroll_offset_scrolls_there_and_the_reader_s_scroll_reads_back() {
 #[test]
 fn a_scroll_that_sticks_to_its_end_shows_its_last_line() {
     let (_dir, _app, scroll, lines, _ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 widget_scroll = { stick_to_end = true } }.into(),
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { stick_to_end = true } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let last = balaur_ui::widget_rect(lines[19]).unwrap();
     let held = balaur_ui::widget_rect(scroll).unwrap();
@@ -535,7 +535,7 @@ fn a_dialog_dims_with_its_backdrop_and_stays_when_it_is_not_dismissable() {
     );
     consume_input(&mut app);
     assert_eq!(
-        property(&app, dialog, "open").as_bool(),
+        beside_property(&app, dialog, "widget_window", "open").as_bool(),
         Some(true),
         "Escape left it open"
     );
@@ -662,7 +662,7 @@ fn a_collapsible_window_folds_to_its_bar_and_back() {
 
 #[test]
 fn a_window_without_a_header_or_a_cross_draws_neither() {
-    let (_dir, app, _, ctx) = window(toml::toml! { header = false });
+    let (_dir, app, _, ctx) = window(toml::toml! { widget_window = { header = false } });
     let bare = pass(&app, &ctx, vec![]);
     assert!(!has_text(&bare, "Debug") && !has_text(&bare, "×"));
     let (_dir, app, _, ctx) = window(toml::toml! { widget_window = { closable = false } });
@@ -720,7 +720,7 @@ fn a_button_that_only_senses_hover_takes_no_click() {
 fn a_button_s_gap_spaces_its_icon_from_its_caption() {
     let wide = |gap: f64| {
         let (_dir, _app, button, _, _) = drawn(
-            &toml::toml! { kind = "button" text = "go" icon = "+" gap = [gap, gap] x = 0.0 y = 0.0 }
+            &toml::toml! { kind = "button" text = "go" icon = "+" x = 0.0 y = 0.0 widget_button = { face_gap = gap } }
                 .into(),
         );
         balaur_ui::widget_rect(button).unwrap().width()
@@ -788,7 +788,7 @@ fn a_number_field_moves_by_its_drag_speed() {
 #[test]
 fn a_scroll_the_wheel_may_not_scroll_stays_put() {
     let (_dir, mut app, scroll, _lines, ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 widget_scroll = { wheel_scroll = false } }.into(),
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { wheel_scroll = false } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let wheel = vec![
         egui::Event::PointerMoved(pos2(100.0, 50.0)),
@@ -812,7 +812,7 @@ fn a_scroll_the_wheel_may_not_scroll_stays_put() {
 fn a_separator_s_overhang_runs_its_line_past_its_room() {
     let span = |overhang: f64| {
         let (_dir, app) = app();
-        let column = add_widget(&app, &toml::toml! { kind = "column" width = 100.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 }.into());
+        let column = add_widget(&app, &toml::toml! { kind = "column" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into());
         add_child_widget(
             &app,
             column,

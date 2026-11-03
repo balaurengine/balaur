@@ -59,7 +59,7 @@ impl Meter {
             table.widget_table.titles = view["titles"];
             table.widget_table.widths = view["widths"];
             table.widget_table.sort = "";
-            table.widget.reverse = false;
+            table.widget_table.reverse = false;
         }
         table.widget.items = view["items"];
         table.set_visible(view["items"].len() > 0);

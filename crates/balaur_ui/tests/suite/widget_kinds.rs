@@ -216,7 +216,7 @@ fn a_grid_places_children_in_rows_of_columns() {
     let (_dir, app) = app();
     let grid = add_widget(
         &app,
-        &toml::toml! { kind = "grid" grid_columns = "1fr 1fr" gap = [0.0, 0.0] x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "grid" x = 0.0 y = 0.0 widget_grid = { grid_columns = "1fr 1fr" } widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let cells: Vec<Entity> = ["a", "b", "c", "d", "e"]
@@ -255,7 +255,7 @@ fn a_flow_wraps_when_the_row_is_full() {
     let (_dir, app) = app();
     let flow = add_widget(
         &app,
-        &toml::toml! { kind = "flow" width = 120.0 gap = [4.0, 4.0] x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "flow" width = 120.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 4.0] } }.into(),
     );
     let buttons: Vec<Entity> = ["alpha", "beta", "gamma", "delta", "epsilon"]
         .into_iter()
@@ -308,7 +308,7 @@ fn a_fold_hides_its_children_until_its_header_is_clicked() {
     let (_dir, mut app) = app();
     let fold = add_widget(
         &app,
-        &toml::toml! { kind = "fold" text = "Advanced" open = false x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "fold" text = "Advanced" x = 0.0 y = 0.0 widget_fold = { open = false } }.into(),
     );
     let inner = add_child_widget(
         &app,
@@ -326,7 +326,10 @@ fn a_fold_hides_its_children_until_its_header_is_clicked() {
     pass(&app, &ctx, press(head, true));
     pass(&app, &ctx, press(head, false));
     consume_input(&mut app);
-    assert_eq!(property(&app, fold, "open"), toml::Value::Boolean(true));
+    assert_eq!(
+        beside_property(&app, fold, "widget_fold", "open"),
+        toml::Value::Boolean(true)
+    );
     settle(&app, &ctx);
     assert!(
         balaur_ui::widget_rect(inner).is_some(),
@@ -339,13 +342,13 @@ fn a_title_bar_child_is_drawn_in_its_fold_s_header_while_the_fold_is_shut() {
     let (_dir, app) = app();
     let fold = add_widget(
         &app,
-        &toml::toml! { kind = "fold" open = false x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "fold" x = 0.0 y = 0.0 widget_fold = { open = false } }.into(),
     );
     let title = add_child_widget(
         &app,
         fold,
         "title",
-        &toml::toml! { kind = "label" text = "Audio" title_bar = true }.into(),
+        &toml::toml! { kind = "label" text = "Audio" widget_child = { title_bar = true } }.into(),
     );
     let inner = add_child_widget(
         &app,
@@ -378,7 +381,9 @@ fn a_fold_wears_its_checked_table_while_open_and_frames_what_it_shows() {
         )
         .unwrap();
         let mut params = toml::toml! { kind = "fold" text = "Sound" theme = "themes/t.toml" x = 0.0 y = 0.0 width = 200.0 };
-        params.insert("open".into(), toml::Value::Boolean(open));
+        let mut rows = toml::Table::new();
+        rows.insert("open".into(), toml::Value::Boolean(open));
+        params.insert("widget_fold".into(), rows.into());
         let fold = add_widget(&app, &params.into());
         add_child_widget(
             &app,
@@ -511,7 +516,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] widget_scroll = { scroll_deadzone = 30.0 } }
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 widget_scroll = { scroll_deadzone = 30.0 } widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let first = add_child_widget(
@@ -916,7 +921,7 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
         }
         consume_input(&mut app);
         assert_eq!(
-            property(&app, dialog, "open"),
+            beside_property(&app, dialog, "widget_window", "open"),
             toml::Value::Boolean(false),
             "by_escape = {by_escape}: the dialog is still open"
         );
@@ -1041,9 +1046,13 @@ fn a_button_s_icon_size_sizes_its_glyph() {
 /// Two buttons of different captions in a column, and the width each drew at.
 fn column_widths(align: Option<&str>) -> (f32, f32) {
     let (_dir, app) = app();
-    let mut params = toml::toml! { kind = "column" gap = [4.0, 4.0] x = 0.0 y = 0.0 };
+    let mut params =
+        toml::toml! { kind = "column" x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 4.0] } };
     if let Some(align) = align {
-        params.insert("align_items".into(), align.into());
+        params["widget_layout"]
+            .as_table_mut()
+            .unwrap()
+            .insert("align_items".into(), align.into());
     }
     let column = add_widget(&app, &params.into());
     let short = add_child_widget(

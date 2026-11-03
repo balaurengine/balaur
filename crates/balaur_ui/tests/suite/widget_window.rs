@@ -75,7 +75,7 @@ fn a_window_moves_with_its_title_bar_and_shuts_on_its_cross() {
     pass(&app, &ctx, press(cross, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, window, "open").as_bool(),
+        crate::support::beside_property(&app, window, "widget_window", "open").as_bool(),
         Some(false),
         "the cross shuts the window"
     );

@@ -44,11 +44,11 @@ name = "Keys"
 parent = "complete"
 [nodes.widget]
 kind = "scroll"
-axis = "horizontal"
 height = 1
 interactive = false
 [nodes.widget_scroll]
 scrollbar = "never"
+axis = "horizontal"
 
 [[nodes]]
 id = "keys_row"

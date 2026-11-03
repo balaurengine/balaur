@@ -6,18 +6,22 @@ use balaur_core::{App, AppConfig};
 use balaur_ui::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
 
 fn registered_options(field: &str) -> Vec<String> {
+    options_of("widget", field)
+}
+
+fn options_of(component: &str, field: &str) -> Vec<String> {
     let mut app = App::new(AppConfig::bare(".")).unwrap();
     balaur_plugin::load(&mut app, &mut balaur_ui::UiPlugin).unwrap();
     let registry = app.engine.resource::<ComponentRegistry>();
     let registry = registry.borrow();
     registry
-        .def("widget")
-        .expect("`widget` is registered")
+        .def(component)
+        .unwrap_or_else(|| panic!("`{component}` is registered"))
         .schema
         .get(field)
         .and_then(|f| f.get("options"))
         .and_then(toml::Value::as_array)
-        .unwrap_or_else(|| panic!("`widget.{field}` declares enum options"))
+        .unwrap_or_else(|| panic!("`{component}.{field}` declares enum options"))
         .iter()
         .filter_map(|v| v.as_str().map(str::to_string))
         .collect()
@@ -40,7 +44,7 @@ fn align_and_font_style_constants_match_the_registered_schema() {
     let aligns: Vec<&str> = ALIGNS.iter().map(|(_, v)| *v).collect();
     assert_eq!(aligns, registered_options("text_align"));
     let items: Vec<&str> = ALIGNS.iter().chain(ITEM_ALIGNS).map(|(_, v)| *v).collect();
-    assert_eq!(items, registered_options("align_items"));
+    assert_eq!(items, options_of("widget_layout", "align_items"));
     let styles: Vec<&str> = FONT_STYLES.iter().map(|(_, v)| *v).collect();
     assert_eq!(styles, registered_options("font_style"));
 }

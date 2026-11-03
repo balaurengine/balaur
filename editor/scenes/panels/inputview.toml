@@ -22,9 +22,10 @@ parent = "view"
 [nodes.widget]
 kind = "row"
 absolute = true
-gap = [4, 4]
 height = 30
 interactive = false
+[nodes.widget_layout]
+gap = [4, 4]
 
 [[nodes]]
 id = "wash0"

@@ -19,6 +19,7 @@ x = 0
 y = 0
 width = 900
 padding = 16
+[nodes.widget_layout]
 gap = [12, 12]
 
 [[nodes]]
@@ -36,8 +37,9 @@ name = "Views"
 parent = "sheet"
 [nodes.widget]
 kind = "row"
-gap = [12, 12]
 height = 300
+[nodes.widget_layout]
+gap = [12, 12]
 
 [[nodes]]
 id = "list_box"
@@ -46,6 +48,7 @@ parent = "views"
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]
@@ -80,6 +83,7 @@ parent = "views"
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]
@@ -111,6 +115,7 @@ parent = "views"
 [nodes.widget]
 kind = "column"
 grow = 1.3
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]

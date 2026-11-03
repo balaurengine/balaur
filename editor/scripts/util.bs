@@ -123,14 +123,14 @@ pub fn fill_beside(id: str, component: str, parameters: any) {
     found.patch_component(component, parameters);
 }
 
-/// One property of a widget node, for a caller reading back what the reader
-/// left on it. The whole table is forty keys, and a view wants one of them.
-pub fn property(id: str, key: str) -> any {
+/// One property of a component on a widget node, for a caller reading back
+/// what the reader left on it.
+pub fn property(id: str, component: str, key: str) -> any {
     let found = scene::get_node(id);
     if !found.is_valid() {
         return nil;
     }
-    found.get_component("widget", key)
+    found.get_component(component, key)
 }
 
 /// Stop drawing a node. Only the dock that owns one may call this: every dock

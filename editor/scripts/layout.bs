@@ -387,6 +387,25 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     found.as_node().set_component("widget", parameters);
 }
 
+/// The space between a box's children, memoised like `size`: a container's,
+/// on `widget_layout`.
+fn spaced(state: editor::State, id: str, gap: float) {
+    let layout_state: any = state.layout;
+    let mark = id + ":gap";
+    let value = [gap, gap];
+    if layout_state["sent"][mark] == value {
+        return;
+    }
+    let found = node(state, id);
+    if util::is_nil(found) {
+        return;
+    }
+    layout_state["sent"][mark] = value;
+    layout_state["quiet"] = 0;
+    let held = found.as_node();
+    held.widget_layout.gap = vec2(gap, gap);
+}
+
 /// Draw a box, or stop drawing it. Memoised like `size`, because a component
 /// written every frame is a widget tree rebuilt every frame.
 fn show(state: editor::State, id: str, on: bool) {
@@ -485,7 +504,7 @@ pub fn compute(state: &mut editor::State) {
     size(state, "shell", "padding", gutter(state));
     let gap = if tight { TIGHT_GAP } else { layout_state["gap"].as_float() };
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
-        size(state, id, "gap", [gap, gap]);
+        spaced(state, id, gap);
     }
     size(state, "left", "width", tree_width);
     size(state, "right", "width", inspector_width);

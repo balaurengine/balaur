@@ -13,6 +13,7 @@ absolute = true
 inset = [-1.0, 16.0, 20.0, -1.0]
 width = 420
 padding = [14, 12, 14, 12]
+[nodes.widget_layout]
 gap = [0, 6]
 
 [[nodes]]
@@ -71,6 +72,7 @@ name = "Verbs"
 parent = "panel"
 [nodes.widget]
 kind = "row"
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]

@@ -31,8 +31,9 @@ name = "Scroll"
 parent = "code"
 [nodes.widget]
 kind = "scroll"
-axis = "vertical"
 grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
 
 [[nodes]]
 id = "editor"
