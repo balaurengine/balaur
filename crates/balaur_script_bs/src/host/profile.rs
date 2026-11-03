@@ -2,6 +2,7 @@
 // frames with counters or without, as a breakpoint rebuilds one with probes.
 
 use super::BsHost;
+use balaur_bs::runtime::{Reentry, Runtime};
 use std::collections::HashMap;
 
 impl BsHost {
@@ -15,9 +16,7 @@ impl BsHost {
         if inner.profiling.get() == on {
             if on {
                 for home in self.homes() {
-                    if let Ok(mut rt) = home.rt.try_borrow_mut() {
-                        rt.clear_profile();
-                    }
+                    home.either(Runtime::clear_profile, Reentry::clear_profile);
                 }
             }
             return;
@@ -69,10 +68,8 @@ impl BsHost {
         }
         let mut summed: HashMap<String, (u64, u64)> = HashMap::new();
         for home in self.homes() {
-            let Ok(mut rt) = home.rt.try_borrow_mut() else {
-                continue;
-            };
-            for (name, calls, own) in rt.function_costs() {
+            let costs = home.either(Runtime::function_costs, Reentry::function_costs);
+            for (name, calls, own) in costs {
                 let cost = summed.entry(name).or_default();
                 cost.0 += calls;
                 cost.1 += own;

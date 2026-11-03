@@ -202,7 +202,8 @@ impl Links {
         }
         // Imported mutable, as every unit imports the shared ones.
         let breaks = own_global(words::DBG_BREAKS, &bases, unit).unwrap_or(0);
-        set(&env, words::DBG_BREAKS, &mutable_global(breaks as i32)?)?;
+        let breaks = mutable_global(breaks as i32)?;
+        set(&env, words::DBG_BREAKS, &breaks)?;
         if meta.direct {
             link_direct(&env, meta)?;
         } else {

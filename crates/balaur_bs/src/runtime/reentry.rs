@@ -33,6 +33,20 @@ impl Reentry {
         RefMut::map(self.host.borrow_mut(), |h| &mut h.debugger)
     }
 
+    /// [`Runtime::function_costs`] from inside the file's engine call.
+    pub fn function_costs(&self) -> Vec<(String, u64, u64)> {
+        self.inside(|rt| Ok(rt.function_costs()))
+            .unwrap_or_default()
+    }
+
+    /// [`Runtime::clear_profile`] from inside the file's engine call.
+    pub fn clear_profile(&self) {
+        let _ = self.inside(|rt| {
+            rt.clear_profile();
+            Ok(())
+        });
+    }
+
     /// [`Runtime::call_method`] from inside the file's engine call.
     pub fn call_method(
         &self,
