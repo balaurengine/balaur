@@ -556,6 +556,9 @@ pub(crate) mod keys {
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
+    pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";
+    pub(crate) const WIDTHS: &str = "widths";
+    pub(crate) const SORT: &str = "sort";
     pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
     pub(crate) const WIDTH: &str = "width";

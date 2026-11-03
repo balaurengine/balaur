@@ -720,22 +720,30 @@ fn settle_edits(
 fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
     use crate::widget::beside::{self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable};
     match edit {
-        Edit::Value(value) => beside::edit::<WidgetRange>(eng, entity, |held| held.value = *value),
+        Edit::Value(value) => {
+            beside::edit::<WidgetRange>(eng, entity, &[k::VALUE], |held| held.value = *value);
+        }
         // Written down as well as heard, so `scroll_offset` reads back where
         // the reader left it.
         Edit::Scrolled(offset) => {
-            beside::edit::<WidgetScroll>(eng, entity, |held| held.scroll_offset = *offset);
+            beside::edit::<WidgetScroll>(eng, entity, &[k::SCROLL_OFFSET], |held| {
+                held.scroll_offset = *offset;
+            });
         }
         Edit::Color(rgba) => {
-            beside::edit::<WidgetColorPicker>(eng, entity, |held| held.picked_color = *rgba);
+            beside::edit::<WidgetColorPicker>(eng, entity, &[k::PICKED_COLOR], |held| {
+                held.picked_color = *rgba;
+            });
         }
         // The chrome a reader dragged, reported to nobody, as a seam between
         // two containers is.
-        Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, |held| {
+        Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, &[k::WIDTHS], |held| {
             held.widths = shares.iter().copied().map(Numeral::of).collect();
         }),
         Edit::Sorted(column, _) => {
-            beside::edit::<WidgetTable>(eng, entity, |held| held.sort = column.as_str().into());
+            beside::edit::<WidgetTable>(eng, entity, &[k::SORT], |held| {
+                held.sort = column.as_str().into();
+            });
         }
         _ => {}
     }

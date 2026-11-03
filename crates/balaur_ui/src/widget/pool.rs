@@ -195,6 +195,21 @@ impl Pool<'_> {
         let Value::Map(entries) = spec else {
             return op(self.eng, &[node.clone(), Value::text(p::WIDGET), spec]).map(|_| ());
         };
+        let named = entries
+            .iter()
+            .find(|(key, _)| key == k::KIND)
+            .map(|(_, kind)| kind.clone());
+        // Asked for once, by a row two components hold for kinds apart.
+        let kind = std::cell::OnceCell::new();
+        let kind = || {
+            kind.get_or_init(
+                || match named.clone().unwrap_or_else(|| self.widget(node, k::KIND)) {
+                    Value::Str(word) => word,
+                    _ => String::new(),
+                },
+            )
+            .clone()
+        };
         let mut own = Vec::new();
         let mut beside: Vec<(&'static str, Vec<(String, Value)>)> = Vec::new();
         for (key, value) in entries {
@@ -203,7 +218,12 @@ impl Pool<'_> {
                 (self.ops.set_visible)(self.eng, &[node.clone(), value])?;
                 continue;
             }
-            match crate::widget::beside::owner_of(&key) {
+            let owner = match crate::widget::beside::owners_of(&key) {
+                [] => None,
+                [one] => Some(one.name),
+                several => crate::widget::beside::owner_for(several, &kind()).map(|one| one.name),
+            };
+            match owner {
                 Some(name) => match beside.iter_mut().find(|(held, _)| *held == name) {
                     Some((_, rows)) => rows.push((key, value)),
                     None => beside.push((name, vec![(key, value)])),

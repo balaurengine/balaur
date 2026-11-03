@@ -178,19 +178,26 @@ fn check_shapes(params: &toml::Value) -> Result<()> {
     Ok(())
 }
 
-/// Refuse a key a class table invents, as the base table's are refused.
+/// Refuse what a class table could not write: a key it invents, a row no
+/// component the widget's kind reads holds, a value of the wrong shape.
 fn check_class_tables(params: &toml::Value) -> Result<()> {
+    let kind = params
+        .get(k::KIND)
+        .and_then(toml::Value::as_str)
+        .unwrap_or(w::LABEL);
     for (word, table) in class_tables(params) {
         let Some(table) = table.as_table() else {
             bail!("widget: `{word}` is a screen class and takes a table of properties");
         };
-        for key in table.keys() {
+        for (key, value) in table {
             if key == k::KIND {
                 bail!("widget: `{word}.{key}` -- a widget cannot change kind with the screen");
             }
-            if !WidgetProperties::NAMES.contains(&key.as_str()) {
-                bail!("widget: `{word}.{key}` is not a widget property");
-            }
+            let written = match WidgetProperties::NAMES.iter().position(|name| name == key) {
+                Some(index) => WidgetProperties::default().write(index, value),
+                None => crate::widget::beside::check_class_row(kind, key, value),
+            };
+            written.map_err(|why| anyhow!("widget: `{word}.{key}` {why}"))?;
         }
     }
     Ok(())
@@ -272,6 +279,9 @@ pub(crate) fn for_classes(
 ) -> Option<Widget> {
     let tables = widget.classes.as_ref()?;
     let mut merged: Option<WidgetProperties> = None;
+    let mut beside: Vec<(&str, &toml::Value)> = Vec::new();
+    let world = eng.world();
+    let held = || world.get::<&WidgetProperties>(entity).ok();
     // Broad to narrow, so the narrowest class named wins the key.
     for (word, table) in tables.iter() {
         if !active.contains(word) {
@@ -279,20 +289,27 @@ pub(crate) fn for_classes(
         }
         for (key, value) in table {
             let Some(index) = WidgetProperties::NAMES.iter().position(|name| name == key) else {
+                beside.push((key.as_str(), value));
                 continue;
             };
             if merged.is_none() {
-                let world = eng.world();
-                let held = world.get::<&WidgetProperties>(entity).ok()?;
-                merged = Some(WidgetProperties::clone(&held));
+                merged = Some(WidgetProperties::clone(&*held()?));
             }
             // A value the property refuses leaves what the widget holds.
             let _ = merged.as_mut()?.write(index, value);
         }
     }
-    let merged = merged?;
+    if merged.is_none() && beside.is_empty() {
+        return None;
+    }
+    let merged = match merged {
+        Some(merged) => merged,
+        None => WidgetProperties::clone(&*held()?),
+    };
     let mut classed = widget_of(&merged);
-    crate::widget::beside::put_all(&eng.world(), entity, &merged, &mut classed);
+    crate::widget::beside::put_all(&world, entity, &merged, &mut classed);
+    crate::widget::beside::put_class_rows(&world, entity, &merged.kind.0, &beside, &mut classed);
+    drop(world);
     classed.classes.clone_from(&widget.classes);
     dress(eng, &mut classed);
     Some(classed)
@@ -344,7 +361,8 @@ pub(crate) fn follow(widget: &mut Widget, asked: &WidgetProperties, names: &[&st
 ///
 /// `alone` is a property with a field of its own; `whole` is one read into a
 /// part built with others, or checked once the widget is built, which a write
-/// of it rebuilds the widget for.
+/// of it rebuilds the widget for: `kind` above all, which decides the
+/// components beside it the widget reads.
 macro_rules! cache_fields {
     (
         $widget:ident, $asked:ident;
@@ -374,7 +392,6 @@ macro_rules! cache_fields {
 cache_fields! {
     widget, asked;
     alone {
-        k::KIND => widget.kind = asked.kind.0.clone();
         k::TEXT => widget.text = asked.text.clone();
         k::ENABLED => widget.disabled = !asked.enabled;
         k::ANCHOR => widget.anchor = asked.anchor.0.clone();
@@ -495,10 +512,11 @@ cache_fields! {
         k::REVERSE => widget.reverse = asked.reverse;
     }
     whole [
-        k::GRID_COLUMNS, k::GRID_ROWS, k::AUTO_COLUMNS, k::AUTO_ROWS, k::AREAS, k::ROW,
+        k::KIND, k::GRID_COLUMNS, k::GRID_ROWS, k::AUTO_COLUMNS, k::AUTO_ROWS, k::AREAS, k::ROW,
         k::COLUMN, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
         k::TAB_WIDTH,
     ] {
+        widget.kind = asked.kind.0.clone();
         widget.layout.grid_columns = asked.grid_columns.clone();
         widget.layout.grid_rows = asked.grid_rows.clone();
         widget.layout.auto_columns = asked.auto_columns.clone();
@@ -507,6 +525,47 @@ cache_fields! {
         widget.layout.row = asked.row.clone();
         widget.layout.column = asked.column.clone();
         widget.text_look = Arc::new(TextLook::of(asked));
+    }
+}
+
+/// A value of property `index` other than what `held` holds, for a test
+/// writing each property in turn.
+#[cfg(test)]
+pub(crate) fn changed_value<F: Fields>(held: &F, index: usize) -> toml::Value {
+    let value = held.read(index).expect("every property reads");
+    let spec = F::specs().swap_remove(index);
+    let options = spec
+        .get("options")
+        .or_else(|| spec.get("of").and_then(|of| of.get("options")))
+        .and_then(toml::Value::as_array);
+    match (&value, options) {
+        (toml::Value::String(word), Some(options)) => options
+            .iter()
+            .find(|option| option.as_str() != Some(word))
+            .cloned()
+            .expect("an enum offers two words"),
+        (toml::Value::Array(_), Some(options)) => toml::Value::Array(vec![options[1].clone()]),
+        (toml::Value::String(_), None) => toml::Value::String("7".into()),
+        (toml::Value::Boolean(flag), _) => toml::Value::Boolean(!flag),
+        (toml::Value::Integer(number), _) => toml::Value::Integer(number + 3),
+        (toml::Value::Float(number), _) => toml::Value::Float(number + 3.0),
+        (toml::Value::Array(items), None) if items.is_empty() => {
+            let of = spec.get("of").and_then(|of| of.get("type"));
+            toml::Value::Array(vec![
+                if of.and_then(toml::Value::as_str) == Some("record") {
+                    toml::Value::Table(toml::map::Map::new())
+                } else {
+                    toml::Value::String("7".into())
+                },
+            ])
+        }
+        (toml::Value::Array(items), None) => toml::Value::Array(
+            items
+                .iter()
+                .map(|item| toml::Value::Float(item.as_float().unwrap_or(0.0) + 0.25))
+                .collect(),
+        ),
+        (other, _) => panic!("no changed value for {other}"),
     }
 }
 
@@ -613,7 +672,7 @@ mod tests {
         for (index, name) in WidgetProperties::NAMES.iter().enumerate() {
             let mut asked = base.clone();
             let mut widget = widget_of(&asked);
-            let changed = changed_value(&asked, index);
+            let changed = changed_value::<WidgetProperties>(&asked, index);
             asked
                 .write(index, &changed)
                 .expect("the value fits the property");
@@ -625,45 +684,6 @@ mod tests {
                 format!("{:?}", widget_of(&asked)),
                 "`{name}` written alone left the widget other than a whole build"
             );
-        }
-    }
-
-    /// A value of property `index` other than what `asked` holds.
-    fn changed_value(asked: &WidgetProperties, index: usize) -> toml::Value {
-        let held = asked.read(index).expect("every property reads");
-        let spec = WidgetProperties::specs().swap_remove(index);
-        let options = spec
-            .get("options")
-            .or_else(|| spec.get("of").and_then(|of| of.get("options")))
-            .and_then(toml::Value::as_array);
-        match (&held, options) {
-            (toml::Value::String(word), Some(options)) => options
-                .iter()
-                .find(|option| option.as_str() != Some(word))
-                .cloned()
-                .expect("an enum offers two words"),
-            (toml::Value::Array(_), Some(options)) => toml::Value::Array(vec![options[1].clone()]),
-            (toml::Value::String(_), None) => toml::Value::String("7".into()),
-            (toml::Value::Boolean(flag), _) => toml::Value::Boolean(!flag),
-            (toml::Value::Integer(number), _) => toml::Value::Integer(number + 3),
-            (toml::Value::Float(number), _) => toml::Value::Float(number + 3.0),
-            (toml::Value::Array(items), None) if items.is_empty() => {
-                let of = spec.get("of").and_then(|of| of.get("type"));
-                toml::Value::Array(vec![
-                    if of.and_then(toml::Value::as_str) == Some("record") {
-                        toml::Value::Table(toml::map::Map::new())
-                    } else {
-                        toml::Value::String("7".into())
-                    },
-                ])
-            }
-            (toml::Value::Array(items), None) => toml::Value::Array(
-                items
-                    .iter()
-                    .map(|item| toml::Value::Float(item.as_float().unwrap_or(0.0) + 0.25))
-                    .collect(),
-            ),
-            (other, _) => panic!("no changed value for {other}"),
         }
     }
 }

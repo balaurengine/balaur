@@ -8,15 +8,16 @@
 //! never names one draws as its kind always did. A write or a removal of one
 //! redoes those fields; a rebuild of the widget reads them all again.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::Result;
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Fields, Written};
+use balaur_core::components::derived::{Component, Fields, Written, to_table};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::warnings::Warning;
 use balaur_plugin::Registry;
+use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
@@ -29,15 +30,45 @@ use crate::widget::properties::{
 /// A component beside `widget`, read by the kinds `reads` names.
 pub(crate) trait Beside: Component + Clone {
     /// Whether a widget of this kind reads the rows.
-    fn reads(asked: &WidgetProperties) -> bool;
+    fn reads(kind: &str) -> bool;
+
+    /// Whether a preset of this kind brings the component. Every kind may
+    /// carry one any kind reads, and a node names it where it asks for a row.
+    fn brought_by(kind: &str) -> bool {
+        Self::reads(kind)
+    }
 
     /// The rows onto the widget the layer reads.
     fn put(&self, widget: &mut Widget);
+
+    /// One row onto the widget, by its name, leaving the others; `false` for
+    /// a name it does not hold.
+    fn put_row(&self, widget: &mut Widget, row: &str) -> bool;
 
     /// Refuse what the types alone cannot judge.
     fn check(&self) -> Result<()> {
         Ok(())
     }
+}
+
+/// Each row's place in the [`Widget`], written once for both ways it is
+/// filled: [`Beside::put`] whole, [`Beside::put_row`] the one a write changed.
+macro_rules! puts {
+    ($held:ident, $widget:ident; $($row:ident => $write:expr;)*) => {
+        fn put(&self, $widget: &mut Widget) {
+            let $held = self;
+            $($write;)*
+        }
+
+        fn put_row(&self, $widget: &mut Widget, row: &str) -> bool {
+            let $held = self;
+            match row {
+                $(stringify!($row) => $write,)*
+                _ => return false,
+            }
+            true
+        }
+    };
 }
 
 /// The rows a `code` widget reads: what it highlights and its gutter.
@@ -63,18 +94,19 @@ pub(crate) struct WidgetCode {
 }
 
 impl Beside for WidgetCode {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::CODE
+    fn reads(kind: &str) -> bool {
+        kind == w::CODE
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.source = self.language.clone();
-        widget.breakpoints = lines(&self.breakpoints);
-        widget.problems = lines(&self.problems);
-        widget.warnings = lines(&self.warnings);
-        widget.current_line = u32::try_from(self.current_line.max(0)).unwrap_or(u32::MAX);
-        widget.gutter_width = self.gutter_width;
-        widget.on_gutter = self.on_gutter.clone();
+    puts! { held, widget;
+        language => widget.source = held.language.clone();
+        breakpoints => widget.breakpoints = lines(&held.breakpoints);
+        problems => widget.problems = lines(&held.problems);
+        warnings => widget.warnings = lines(&held.warnings);
+        current_line => widget.current_line =
+            u32::try_from(held.current_line.max(0)).unwrap_or(u32::MAX);
+        gutter_width => widget.gutter_width = held.gutter_width;
+        on_gutter => widget.on_gutter = held.on_gutter.clone();
     }
 }
 
@@ -94,17 +126,15 @@ pub(crate) struct WidgetInspector {
 }
 
 impl Beside for WidgetInspector {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::INSPECTOR
+    fn reads(kind: &str) -> bool {
+        kind == w::INSPECTOR
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.inspect = Arc::new(Inspecting {
-            target: self.target.clone(),
-            component: self.component.clone(),
-            label_width: self.label_width,
-            relative_to: self.relative_to.clone(),
-        });
+    puts! { held, widget;
+        component => inspecting(widget).component = held.component.clone();
+        target => inspecting(widget).target = held.target.clone();
+        relative_to => inspecting(widget).relative_to = held.relative_to.clone();
+        label_width => inspecting(widget).label_width = held.label_width;
     }
 }
 
@@ -123,15 +153,15 @@ pub(crate) struct WidgetTable {
 }
 
 impl Beside for WidgetTable {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::TABLE
+    fn reads(kind: &str) -> bool {
+        kind == w::TABLE
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.titles.clone_from(&self.titles);
-        widget.widths = self.widths.iter().filter_map(Numeral::share).collect();
-        widget.sort = self.sort.clone();
-        widget.sortable = self.sortable;
+    puts! { held, widget;
+        titles => widget.titles.clone_from(&held.titles);
+        widths => widget.widths = held.widths.iter().filter_map(Numeral::share).collect();
+        sort => widget.sort = held.sort.clone();
+        sortable => widget.sortable = held.sortable;
     }
 }
 
@@ -165,19 +195,18 @@ pub(crate) struct WidgetWindow {
 }
 
 impl Beside for WidgetWindow {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(asked.kind.0.as_str(), w::WINDOW | w::DIALOG)
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::WINDOW | w::DIALOG)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.hide_on_close = self.hide_on_close;
-        let egui = egui(widget);
-        egui.collapsible = self.collapsible;
-        egui.default_open = self.default_open;
-        egui.closable = self.closable;
-        egui.resizable = self.resizable;
-        egui.dismissable = self.dismissable;
-        egui.backdrop_color = self.backdrop_color;
+    puts! { held, widget;
+        collapsible => egui(widget).collapsible = held.collapsible;
+        default_open => egui(widget).default_open = held.default_open;
+        closable => egui(widget).closable = held.closable;
+        hide_on_close => widget.hide_on_close = held.hide_on_close;
+        resizable => egui(widget).resizable = held.resizable;
+        dismissable => egui(widget).dismissable = held.dismissable;
+        backdrop_color => egui(widget).backdrop_color = held.backdrop_color;
     }
 }
 
@@ -191,12 +220,12 @@ pub(crate) struct WidgetToast {
 }
 
 impl Beside for WidgetToast {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::TOAST
+    fn reads(kind: &str) -> bool {
+        kind == w::TOAST
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.duration = self.duration;
+    puts! { held, widget;
+        duration => widget.duration = held.duration;
     }
 }
 
@@ -212,14 +241,13 @@ pub(crate) struct WidgetSeparator {
 }
 
 impl Beside for WidgetSeparator {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::SEPARATOR
+    fn reads(kind: &str) -> bool {
+        kind == w::SEPARATOR
     }
 
-    fn put(&self, widget: &mut Widget) {
-        let egui = egui(widget);
-        egui.spacing = self.spacing;
-        egui.overhang = self.overhang;
+    puts! { held, widget;
+        spacing => egui(widget).spacing = held.spacing;
+        overhang => egui(widget).overhang = held.overhang;
     }
 }
 
@@ -246,22 +274,18 @@ pub(crate) struct WidgetMenu {
 }
 
 impl Beside for WidgetMenu {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::MENU
+    fn reads(kind: &str) -> bool {
+        kind == w::MENU
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.placement = self.placement.0.clone();
-        widget.showing = self.showing;
-        let egui = egui(widget);
-        egui.placement_fallbacks = self
-            .placement_fallbacks
-            .iter()
-            .map(|side| side.0.clone())
-            .collect();
-        egui.popup_gap = self.popup_gap;
-        egui.popup_width = self.popup_width;
-        egui.close_on = self.close_on.0.clone();
+    puts! { held, widget;
+        placement => widget.placement = held.placement.0.clone();
+        placement_fallbacks => egui(widget).placement_fallbacks =
+            held.placement_fallbacks.iter().map(|side| side.0.clone()).collect();
+        popup_gap => egui(widget).popup_gap = held.popup_gap;
+        popup_width => egui(widget).popup_width = held.popup_width;
+        close_on => egui(widget).close_on = held.close_on.0.clone();
+        showing => widget.showing = held.showing;
     }
 }
 
@@ -280,15 +304,14 @@ pub(crate) struct WidgetColorPicker {
 }
 
 impl Beside for WidgetColorPicker {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::COLOR_PICKER
+    fn reads(kind: &str) -> bool {
+        kind == w::COLOR_PICKER
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.color = self.picked_color;
-        let egui = egui(widget);
-        egui.alpha = self.alpha.0.clone();
-        egui.inline = self.inline;
+    puts! { held, widget;
+        picked_color => widget.color = held.picked_color;
+        alpha => egui(widget).alpha = held.alpha.0.clone();
+        inline => egui(widget).inline = held.inline;
     }
 }
 
@@ -357,39 +380,33 @@ pub(crate) struct WidgetRange {
 }
 
 impl Beside for WidgetRange {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(
-            asked.kind.0.as_str(),
-            w::SLIDER | w::NUMBER_FIELD | w::PROGRESS_BAR
-        )
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::SLIDER | w::NUMBER_FIELD | w::PROGRESS_BAR)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.value = self.value;
-        widget.min = self.min;
-        widget.max = self.max;
-        widget.step = self.step;
-        egui(widget).decimals = i32::try_from(self.decimals).unwrap_or(if self.decimals < 0 {
-            i32::MIN
-        } else {
-            i32::MAX
-        });
-        egui(widget).clamp = self.clamp.0.clone();
-        egui(widget).clamp_existing = self.clamp_existing;
-        egui(widget).logarithmic = self.logarithmic;
-        egui(widget).smallest_positive = self.smallest_positive;
-        egui(widget).largest_finite = self.largest_finite;
-        egui(widget).smart_aim = self.smart_aim;
-        egui(widget).show_value = self.show_value;
-        egui(widget).show_percentage = self.show_percentage;
-        egui(widget).number_format = self.number_format.0.clone();
-        egui(widget).drag_speed = self.drag_speed;
-        widget.arrows = self.arrows;
-        egui(widget).update_while_editing = self.update_while_editing;
-        egui(widget).handle = self.handle.0.clone();
-        egui(widget).handle_aspect = self.handle_aspect;
-        egui(widget).trailing_fill = self.trailing_fill;
-        egui(widget).animate = self.animate;
+    puts! { held, widget;
+        value => widget.value = held.value;
+        min => widget.min = held.min;
+        max => widget.max = held.max;
+        step => widget.step = held.step;
+        decimals => egui(widget).decimals = i32::try_from(held.decimals)
+            .unwrap_or(if held.decimals < 0 { i32::MIN } else { i32::MAX });
+        clamp => egui(widget).clamp = held.clamp.0.clone();
+        clamp_existing => egui(widget).clamp_existing = held.clamp_existing;
+        logarithmic => egui(widget).logarithmic = held.logarithmic;
+        smallest_positive => egui(widget).smallest_positive = held.smallest_positive;
+        largest_finite => egui(widget).largest_finite = held.largest_finite;
+        smart_aim => egui(widget).smart_aim = held.smart_aim;
+        show_value => egui(widget).show_value = held.show_value;
+        show_percentage => egui(widget).show_percentage = held.show_percentage;
+        number_format => egui(widget).number_format = held.number_format.0.clone();
+        drag_speed => egui(widget).drag_speed = held.drag_speed;
+        arrows => widget.arrows = held.arrows;
+        update_while_editing => egui(widget).update_while_editing = held.update_while_editing;
+        handle => egui(widget).handle = held.handle.0.clone();
+        handle_aspect => egui(widget).handle_aspect = held.handle_aspect;
+        trailing_fill => egui(widget).trailing_fill = held.trailing_fill;
+        animate => egui(widget).animate = held.animate;
     }
 }
 
@@ -426,11 +443,8 @@ pub(crate) struct WidgetField {
 }
 
 impl Beside for WidgetField {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(
-            asked.kind.0.as_str(),
-            w::TEXT_FIELD | w::TEXT_AREA | w::CODE
-        )
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::TEXT_FIELD | w::TEXT_AREA | w::CODE)
     }
 
     /// A `submit_key` that is not a chord.
@@ -444,16 +458,16 @@ impl Beside for WidgetField {
         Ok(())
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.placeholder = self.placeholder.clone();
-        widget.max_length = self.max_length;
-        widget.numeric = self.numeric;
-        widget.secret = self.secret;
-        egui(widget).editable = self.editable;
-        egui(widget).clip_text = self.clip_text;
-        egui(widget).caret_at_end = self.caret_at_end;
-        egui(widget).tab_inserts = self.tab_inserts;
-        egui(widget).submit_key = self.submit_key.clone();
+    puts! { held, widget;
+        placeholder => widget.placeholder = held.placeholder.clone();
+        max_length => widget.max_length = held.max_length;
+        numeric => widget.numeric = held.numeric;
+        secret => widget.secret = held.secret;
+        editable => egui(widget).editable = held.editable;
+        clip_text => egui(widget).clip_text = held.clip_text;
+        caret_at_end => egui(widget).caret_at_end = held.caret_at_end;
+        tab_inserts => egui(widget).tab_inserts = held.tab_inserts;
+        submit_key => egui(widget).submit_key = held.submit_key.clone();
     }
 }
 
@@ -496,25 +510,22 @@ pub(crate) struct WidgetScroll {
 }
 
 impl Beside for WidgetScroll {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(
-            asked.kind.0.as_str(),
-            w::SCROLL | w::LIST | w::TREE | w::TABLE
-        )
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::SCROLL | w::LIST | w::TREE | w::TABLE)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        egui(widget).scrollbar = self.scrollbar.0.clone();
-        egui(widget).scroll_offset = self.scroll_offset;
-        egui(widget).stick_to_end = self.stick_to_end;
-        egui(widget).animated = self.animated;
-        egui(widget).wheel_scroll = self.wheel_scroll;
-        egui(widget).wheel_speed = self.wheel_speed;
-        egui(widget).drag_scroll = self.drag_scroll.0.clone();
-        egui(widget).drag_cursor = self.drag_cursor.0.clone();
-        widget.deadzone = self.scroll_deadzone;
-        egui(widget).min_scrolled_width = self.min_scrolled_width;
-        egui(widget).min_scrolled_height = self.min_scrolled_height;
+    puts! { held, widget;
+        scrollbar => egui(widget).scrollbar = held.scrollbar.0.clone();
+        scroll_offset => egui(widget).scroll_offset = held.scroll_offset;
+        stick_to_end => egui(widget).stick_to_end = held.stick_to_end;
+        animated => egui(widget).animated = held.animated;
+        wheel_scroll => egui(widget).wheel_scroll = held.wheel_scroll;
+        wheel_speed => egui(widget).wheel_speed = held.wheel_speed;
+        drag_scroll => egui(widget).drag_scroll = held.drag_scroll.0.clone();
+        drag_cursor => egui(widget).drag_cursor = held.drag_cursor.0.clone();
+        scroll_deadzone => widget.deadzone = held.scroll_deadzone;
+        min_scrolled_width => egui(widget).min_scrolled_width = held.min_scrolled_width;
+        min_scrolled_height => egui(widget).min_scrolled_height = held.min_scrolled_height;
     }
 }
 
@@ -540,17 +551,17 @@ pub(crate) struct WidgetImage {
 }
 
 impl Beside for WidgetImage {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::IMAGE
+    fn reads(kind: &str) -> bool {
+        kind == w::IMAGE
     }
 
-    fn put(&self, widget: &mut Widget) {
-        egui(widget).tint = self.tint;
-        widget.fit = self.fit.0.clone();
-        egui(widget).region = self.region;
-        egui(widget).angle_degrees = self.angle_degrees;
-        egui(widget).angle_origin = self.angle_origin;
-        egui(widget).alt_text = self.alt_text.clone();
+    puts! { held, widget;
+        tint => egui(widget).tint = held.tint;
+        fit => widget.fit = held.fit.0.clone();
+        region => egui(widget).region = held.region;
+        angle_degrees => egui(widget).angle_degrees = held.angle_degrees;
+        angle_origin => egui(widget).angle_origin = held.angle_origin;
+        alt_text => egui(widget).alt_text = held.alt_text.clone();
     }
 }
 
@@ -573,17 +584,17 @@ pub(crate) struct WidgetList {
 }
 
 impl Beside for WidgetList {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(asked.kind.0.as_str(), w::LIST | w::TREE)
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::LIST | w::TREE)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.source = self.sheet.clone();
-        widget.draggable = self.draggable;
-        widget.reorderable = self.reorderable;
-        widget.on_drop = self.on_drop.clone();
-        widget.on_move = self.on_move.clone();
-        widget.on_mark = self.on_mark.clone();
+    puts! { held, widget;
+        sheet => widget.source = held.sheet.clone();
+        draggable => widget.draggable = held.draggable;
+        reorderable => widget.reorderable = held.reorderable;
+        on_drop => widget.on_drop = held.on_drop.clone();
+        on_move => widget.on_move = held.on_move.clone();
+        on_mark => widget.on_mark = held.on_mark.clone();
     }
 }
 
@@ -597,12 +608,12 @@ pub(crate) struct WidgetDropdown {
 }
 
 impl Beside for WidgetDropdown {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::DROPDOWN
+    fn reads(kind: &str) -> bool {
+        kind == w::DROPDOWN
     }
 
-    fn put(&self, widget: &mut Widget) {
-        egui(widget).list_height = self.list_height;
+    puts! { held, widget;
+        list_height => egui(widget).list_height = held.list_height;
     }
 }
 
@@ -639,35 +650,122 @@ pub(crate) fn names() -> &'static [&'static str] {
     each_beside!(name_each!())
 }
 
-/// The components beside `widget` a widget of `kind` reads, by name: what a
-/// preset of that kind gives the node beside it.
-pub(crate) fn read_by(kind: &str) -> Vec<&'static str> {
-    let asked = WidgetProperties {
-        kind: crate::widget::properties::Kind::new(kind),
-        ..WidgetProperties::default()
-    };
-    macro_rules! read_each {
-        ($asked:expr; $($beside:ty),*) => {
-            [$((<$beside>::reads($asked), <$beside as Component>::NAME)),*]
+/// The components beside `widget` a preset of `kind` gives the node, by name.
+pub(crate) fn brought_by(kind: &str) -> Vec<&'static str> {
+    macro_rules! bring_each {
+        ($kind:expr; $($beside:ty),*) => {
+            [$((<$beside>::brought_by($kind), <$beside as Component>::NAME)),*]
         };
     }
-    each_beside!(read_each!(&asked))
+    each_beside!(bring_each!(kind))
         .into_iter()
-        .filter_map(|(reads, name)| reads.then_some(name))
+        .filter_map(|(brought, name)| brought.then_some(name))
         .collect()
 }
 
-/// The component beside `widget` that holds the row `key`, if one does.
-pub(crate) fn owner_of(key: &str) -> Option<&'static str> {
-    macro_rules! find_each {
-        ($key:expr; $($beside:ty),*) => {
-            $(if <$beside as Fields>::NAMES.contains(&$key) {
-                return Some(<$beside as Component>::NAME);
+/// A component beside `widget` holding a row, and the kinds it holds it for.
+pub(crate) struct Owner {
+    pub(crate) name: &'static str,
+    pub(crate) reads: fn(&str) -> bool,
+}
+
+/// Every component beside `widget` holding the row `key`: two where their
+/// kinds are apart, as a `scroll`'s and a `slider`'s `axis`. A pooled control
+/// asks for each row of its table, so the answer is looked up, not searched.
+pub(crate) fn owners_of(key: &str) -> &'static [Owner] {
+    static OWNERS: OnceLock<FxHashMap<&'static str, Vec<Owner>>> = OnceLock::new();
+    OWNERS
+        .get_or_init(|| {
+            let mut owners: FxHashMap<&'static str, Vec<Owner>> = FxHashMap::default();
+            macro_rules! own_each {
+                ($owners:expr; $($beside:ty),*) => {
+                    $(for row in <$beside as Fields>::NAMES {
+                        $owners.entry(*row).or_default().push(Owner {
+                            name: <$beside as Component>::NAME,
+                            reads: <$beside>::reads,
+                        });
+                    })*
+                };
+            }
+            each_beside!(own_each!(owners));
+            owners
+        })
+        .get(key)
+        .map_or(&[][..], Vec::as_slice)
+}
+
+/// The component holding the row `key` for a widget of `kind`: the one of its
+/// owners that kind reads, else the first, which then says it is idle there.
+pub(crate) fn owner_for<'a>(owners: &'a [Owner], kind: &str) -> Option<&'a Owner> {
+    owners
+        .iter()
+        .find(|owner| (owner.reads)(kind))
+        .or_else(|| owners.first())
+}
+
+/// Refuse a row of a screen class's table that no component a widget of
+/// `kind` reads could take, or a value the row would refuse.
+pub(crate) fn check_class_row(kind: &str, key: &str, value: &toml::Value) -> Result<()> {
+    macro_rules! try_each {
+        ($key:expr, $value:expr, $kind:expr; $($beside:ty),*) => {
+            $(if <$beside>::reads($kind)
+                && let Some(index) = <$beside as Fields>::NAMES.iter().position(|row| *row == $key)
+            {
+                return <$beside>::default().write(index, $value);
             })*
         };
     }
-    each_beside!(find_each!(key));
-    None
+    each_beside!(try_each!(key, value, kind));
+    match owners_of(key).first() {
+        Some(owner) => anyhow::bail!("a `{kind}` widget reads nothing of `{}`", owner.name),
+        None => anyhow::bail!("is not a widget property"),
+    }
+}
+
+/// Write the rows of the screen class tables in force that a component beside
+/// `widget` holds, over what the node holds, and put them on `widget`.
+pub(crate) fn put_class_rows(
+    world: &World,
+    entity: Entity,
+    kind: &str,
+    rows: &[(&str, &toml::Value)],
+    widget: &mut Widget,
+) {
+    macro_rules! class_each {
+        ($world:expr, $entity:expr, $kind:expr, $rows:expr, $widget:expr; $($beside:ty),*) => {
+            $(class_rows_of::<$beside>($world, $entity, $kind, $rows, $widget);)*
+        };
+    }
+    each_beside!(class_each!(world, entity, kind, rows, widget));
+}
+
+fn class_rows_of<C: Beside>(
+    world: &World,
+    entity: Entity,
+    kind: &str,
+    rows: &[(&str, &toml::Value)],
+    widget: &mut Widget,
+) {
+    if !C::reads(kind) {
+        return;
+    }
+    let mut classed: Option<C> = None;
+    for (key, value) in rows {
+        let Some(index) = C::NAMES.iter().position(|row| row == key) else {
+            continue;
+        };
+        let held = classed.get_or_insert_with(|| {
+            world
+                .get::<&C>(entity)
+                .map(|held| (*held).clone())
+                .unwrap_or_default()
+        });
+        // A value the row refuses leaves what the node holds.
+        let _ = held.write(index, value);
+    }
+    if let Some(classed) = classed {
+        classed.put(widget);
+    }
 }
 
 /// Put every beside component the widget's kind reads on `widget`: the
@@ -693,7 +791,7 @@ fn put_held<C: Beside>(
     asked: &WidgetProperties,
     widget: &mut Widget,
 ) {
-    if !C::reads(asked) {
+    if !C::reads(&asked.kind.0) {
         return;
     }
     match world.get::<&C>(entity) {
@@ -702,24 +800,46 @@ fn put_held<C: Beside>(
     }
 }
 
-/// Write `C` on the node with `change`, the component at its defaults where
-/// the node holds none yet, and the widget's fields after it: an edit the
-/// reader made, kept so a save keeps it.
-pub(crate) fn edit<C: Beside>(eng: &Engine, entity: Entity, change: impl FnOnce(&mut C)) {
-    let held = {
+/// Write `rows` of `C` on the node with `change`, the component at its
+/// defaults where the node holds none yet, and the widget's fields after
+/// them: an edit the reader made, kept so a save keeps it. Nothing where the
+/// widget's kind does not read `C`: a script's `ui.edit` may hand any widget
+/// a value.
+pub(crate) fn edit<C: Beside>(
+    eng: &Engine,
+    entity: Entity,
+    rows: &[&str],
+    change: impl FnOnce(&mut C),
+) {
+    let added = {
         let world = eng.world();
-        let mut held = world
-            .get::<&C>(entity)
-            .map(|held| (*held).clone())
-            .unwrap_or_default();
-        change(&mut held);
-        if let Ok(mut widget) = world.get::<&mut Widget>(entity) {
-            held.put(&mut widget);
+        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
+            return;
+        };
+        if !C::reads(&widget.kind) {
+            return;
         }
-        held
+        if let Ok(mut held) = world.get::<&mut C>(entity) {
+            change(&mut held);
+            for row in rows {
+                let placed = held.put_row(&mut widget, row);
+                debug_assert!(placed, "`{row}` is a row of `{}`", C::NAME);
+            }
+            None
+        } else {
+            let mut held = C::default();
+            change(&mut held);
+            Some(to_table(&held))
+        }
     };
-    let _ = eng.insert_one(entity, held);
-    crate::widget::arena::widget_changed(entity);
+    match added {
+        // Through the registry, so the node says it carries it and a save
+        // keeps it; the write puts it on the widget.
+        Some(table) => {
+            let _ = balaur_core::components::add(eng, entity, C::NAME, Some(&table));
+        }
+        None => crate::widget::arena::widget_changed(entity),
+    }
 }
 
 /// Register every component beside `widget`.
@@ -743,7 +863,7 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
             warnings: Some(Box::new(idle::<C>)),
             remove: Box::new(|eng, entity| {
                 let _ = eng.remove_one::<C>(entity);
-                refresh::<C>(eng, entity);
+                refresh::<C>(eng, entity, None);
                 Ok(())
             }),
             ..ComponentDef::written_by::<C>(Some(written::<C>))
@@ -751,27 +871,36 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
     );
 }
 
-fn written<C: Beside>(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+fn written<C: Beside>(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
     let held = eng.world().get::<&C>(entity).map(|held| held.check());
     if let Ok(Err(why)) = held {
         return Err(why);
     }
-    refresh::<C>(eng, entity);
+    match written {
+        Written::Property(index) => refresh::<C>(eng, entity, C::NAMES.get(index).copied()),
+        Written::Whole => refresh::<C>(eng, entity, None),
+    }
     Ok(())
 }
 
-/// Put `C` on the node's widget again, its defaults where it is gone, and
-/// tell the arena and an inspector it changed.
-fn refresh<C: Beside>(eng: &Engine, entity: Entity) {
+/// Put `row` of `C` on the node's widget again, or every row where it names
+/// none, the defaults where the component is gone, and tell the arena and an
+/// inspector it changed.
+fn refresh<C: Beside>(eng: &Engine, entity: Entity, row: Option<&str>) {
     let inspector = {
         let world = eng.world();
-        let (Ok(asked), Ok(mut widget)) = (
-            world.get::<&WidgetProperties>(entity),
-            world.get::<&mut Widget>(entity),
-        ) else {
+        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
             return;
         };
-        put_held::<C>(&world, entity, &asked, &mut widget);
+        if C::reads(&widget.kind) {
+            match (world.get::<&C>(entity), row) {
+                (Ok(held), Some(row)) => {
+                    held.put_row(&mut widget, row);
+                }
+                (Ok(held), None) => held.put(&mut widget),
+                (Err(_), _) => C::default().put(&mut widget),
+            }
+        }
         widget.kind == w::INSPECTOR
     };
     crate::widget::schema::told(eng, entity, inspector);
@@ -783,7 +912,7 @@ fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
     let Ok(asked) = world.get::<&WidgetProperties>(entity) else {
         return Vec::new();
     };
-    if C::reads(&asked) {
+    if C::reads(&asked.kind.0) {
         return Vec::new();
     }
     vec![Warning::whole(format!(
@@ -795,11 +924,106 @@ fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
 
 /// The egui options of a widget, to write one: a copy where the arena still
 /// shares them.
-fn egui(widget: &mut Widget) -> &mut EguiOptions {
+pub(crate) fn egui(widget: &mut Widget) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
+}
+
+/// What an `inspector` shows, to write one: a copy where the arena still
+/// shares it.
+fn inspecting(widget: &mut Widget) -> &mut Inspecting {
+    Arc::make_mut(&mut widget.inspect)
 }
 
 /// The lines a code widget's gutter property names, counting from 1.
 fn lines(texts: &[Numeral]) -> Vec<u32> {
     texts.iter().filter_map(Numeral::line).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::widget::schema::{changed_value, widget_of};
+
+    /// Each row written alone leaves the widget as putting the component
+    /// whole does: a row the table forgot would be left at its field's zero.
+    fn each_row_fills_what_a_whole_put_fills<C: Beside>(kind: &str) {
+        let asked = WidgetProperties {
+            kind: crate::widget::properties::Kind::new(kind),
+            ..WidgetProperties::default()
+        };
+        for (index, row) in C::NAMES.iter().enumerate() {
+            let mut held = C::default();
+            let mut alone = widget_of(&asked);
+            C::default().put(&mut alone);
+            let changed = changed_value::<C>(&held, index);
+            held.write(index, &changed).expect("the value fits the row");
+            assert!(
+                held.put_row(&mut alone, row),
+                "`{row}` of `{}` has no place",
+                C::NAME
+            );
+            let mut whole = widget_of(&asked);
+            held.put(&mut whole);
+            assert_eq!(
+                format!("{alone:?}"),
+                format!("{whole:?}"),
+                "`{row}` of `{}` written alone is not what a whole put leaves",
+                C::NAME
+            );
+        }
+    }
+
+    #[test]
+    fn a_row_written_alone_fills_what_a_whole_put_fills() {
+        macro_rules! check_each {
+            (; $($beside:ty),*) => {
+                $(each_row_fills_what_a_whole_put_fills::<$beside>(
+                    w::WIDGET_KINDS
+                        .iter()
+                        .find(|kind| <$beside>::reads(kind))
+                        .expect("some kind reads every component"),
+                );)*
+            };
+        }
+        each_beside!(check_each!());
+    }
+
+    /// A pooled control's table says nothing of which component holds a row,
+    /// so no kind may read two that hold the same one.
+    #[test]
+    fn no_kind_reads_two_components_holding_one_row() {
+        macro_rules! rows_of_each {
+            (; $($beside:ty),*) => {
+                [$(<$beside as Fields>::NAMES),*]
+            };
+        }
+        for rows in each_beside!(rows_of_each!()) {
+            for row in rows {
+                for kind in w::WIDGET_KINDS {
+                    let readers: Vec<&str> = owners_of(row)
+                        .iter()
+                        .filter(|owner| (owner.reads)(kind))
+                        .map(|owner| owner.name)
+                        .collect();
+                    assert!(
+                        readers.len() <= 1,
+                        "a `{kind}` reads `{row}` from each of {readers:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// No component holds a row of `widget` itself, or a pooled control's
+    /// table could not say which it meant.
+    #[test]
+    fn no_row_beside_the_widget_is_a_row_of_the_widget() {
+        for row in WidgetProperties::NAMES {
+            assert!(
+                owners_of(row).is_empty(),
+                "`{row}` is on `widget` and on `{}`",
+                owners_of(row)[0].name
+            );
+        }
+    }
 }
