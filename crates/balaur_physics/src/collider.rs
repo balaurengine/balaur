@@ -459,6 +459,7 @@ pub(crate) fn reread_materials(eng: &Engine) {
             .filter(|(_, asked)| {
                 crate::material::is_a_file(&asked.body.physics_material)
                     || crate::material::is_a_file(&asked.body.soft_material)
+                    || crate::shared::softbody::regions_name_a_file(&asked.body.regions)
             })
             .map(|(entity, _)| (*entity, None));
         colliders.chain(soft).collect()
@@ -474,7 +475,7 @@ pub(crate) fn reread_materials(eng: &Engine) {
                 .get(&entity)
                 .cloned();
             params.map_or(Ok(()), |params| {
-                crate::softbody::apply_softbody(eng, entity, &params)
+                crate::softbody::reread_softbody(eng, entity, &params)
             })
         };
         if let Err(why) = rebuilt {
