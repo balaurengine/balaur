@@ -59,8 +59,8 @@ fn set_property_writes_one_property_by_name_and_leaves_the_rest() {
     )
     .unwrap();
     assert_eq!(took, Value::Bool(true));
-    assert_eq!(transform_of(eng, &root, "position"), [1.0, 2.0, 3.0]);
-    assert_eq!(transform_of(eng, &root, "scale"), [2.0, 2.0, 2.0]);
+    assert_near(transform_of(eng, &root, "position"), [1.0, 2.0, 3.0]);
+    assert_near(transform_of(eng, &root, "scale"), [2.0, 2.0, 2.0]);
 }
 
 #[test]

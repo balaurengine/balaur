@@ -245,15 +245,15 @@ fn number_fields(app: &App) -> Vec<Entity> {
     out
 }
 
-fn row_text(app: &App, row: Entity) -> Option<toml::Value> {
+/// The text of a row's first control, "" for a row with none.
+fn row_text(app: &App, row: Entity) -> String {
     let world = app.engine.world();
-    let control = balaur_core::scene::find_node(&world, row, "H/C/C0")?;
+    let control = balaur_core::scene::find_node(&world, row, "H/C/C0");
     drop(world);
-    prop(app, control, "text")
-}
-
-fn text(said: &str) -> Option<toml::Value> {
-    Some(toml::Value::String(said.into()))
+    control
+        .and_then(|control| prop(app, control, "text"))
+        .and_then(|text| text.as_str().map(ToOwned::to_owned))
+        .unwrap_or_default()
 }
 
 /// One row a frame: the third on the first, then the first, then the third
@@ -285,7 +285,7 @@ fn one_row_is_made_with_those_before_it_and_placed_at_its_height() {
     app.tick(1.0 / 60.0);
     let rows = kids(&app);
     assert_eq!(rows.len(), 3, "row 2 needs rows 0 and 1 to stand before it");
-    assert_eq!(row_text(&app, rows[2]), text("third"));
+    assert_eq!(row_text(&app, rows[2]), "third");
     assert_eq!(
         prop(&app, rows[2], "absolute"),
         Some(toml::Value::Boolean(true)),
@@ -305,8 +305,8 @@ fn writing_one_row_leaves_the_others_as_they_are() {
     let rows = kids(&app);
     app.tick(1.0 / 60.0);
     assert_eq!(kids(&app), rows, "the rows are reused, not made again");
-    assert_eq!(row_text(&app, rows[0]), text("first"));
-    assert_eq!(row_text(&app, rows[2]), text("third"), "not asked about");
+    assert_eq!(row_text(&app, rows[0]), "first");
+    assert_eq!(row_text(&app, rows[2]), "third", "not asked about");
 }
 
 #[test]
@@ -324,7 +324,7 @@ fn a_row_given_nothing_is_hidden_and_shows_again_when_it_is_filled() {
     );
     app.tick(1.0 / 60.0);
     assert!(crate::support::own_visible(&app, rows[2]));
-    assert_eq!(row_text(&app, rows[2]), text("back"));
+    assert_eq!(row_text(&app, rows[2]), "back");
 }
 
 /// A row filled, then its text patched, then a fill asking for what it first
@@ -358,9 +358,9 @@ fn a_patch_writes_what_moved_and_the_next_fill_compares_against_it() {
     let (_dir, mut app) = app_with(PATCHED_THEN_FILLED);
     app.tick(1.0 / 60.0);
     let rows = kids(&app);
-    assert_eq!(row_text(&app, rows[0]), text("first"));
+    assert_eq!(row_text(&app, rows[0]), "first");
     app.tick(1.0 / 60.0);
-    assert_eq!(row_text(&app, rows[0]), text("moved"));
+    assert_eq!(row_text(&app, rows[0]), "moved");
     let root =
         balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root").unwrap();
     let flag = |app: &App, name: &str| {
@@ -378,7 +378,7 @@ fn a_patch_writes_what_moved_and_the_next_fill_compares_against_it() {
     app.tick(1.0 / 60.0);
     assert_eq!(
         row_text(&app, rows[0]),
-        text("first"),
+        "first",
         "a fill reads the patch, not what it last wrote itself"
     );
 }
