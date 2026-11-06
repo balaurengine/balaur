@@ -9,4 +9,4 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-balaur_plugin = { path = "../../crates/balaur_plugin", version = "0.2.0" }
+balaur_plugin = { path = "../../crates/balaur_plugin", version = "0.2.0-alpha.1" }
