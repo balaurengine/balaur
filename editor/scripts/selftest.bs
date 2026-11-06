@@ -1826,6 +1826,8 @@ pub fn script_props(state: &mut editor::State) {
     let properties = model::script_props(model::node(state, index));
     check(properties.has(name), "{name} became an override on the node");
     check(util::abs(properties[name].as_float() - (was + 5.0)) < 1e-6, "{name} holds the written value ({properties[name]})");
+    inspector::refill(state);
+    check(inspector::line_named(state, "script.{name}") != nil, "{name} is a row of the `script` component's section");
     // Back to the default: the override is dropped rather than written out,
     // so a later change to the script's default reaches this node again.
     model::set_script_property(state, name, was);
@@ -1915,7 +1917,10 @@ pub fn composite_props(state: &mut editor::State) {
     // Left where a picture of it is worth taking: three entries, the fold
     // they sit in open, and the rest of the schema searched away.
     model::set_component_property(state, component, property, ["ssao", "bloom", "tonemap"]);
-    state.search["inspector"] = property;
+    inspector::fill(state, property);
+    let head = inspector::line_named(state, "{component}.{property}");
+    check(head != nil && head.unwrap().count == 4, "a list's rows are a head and one an entry ({head})");
+    check(inspector::line_named(state, "{component}.{property}/1").unwrap().holder != nil, "and an entry's row can take it out");
     log::info("selftest composites: done");
 }
 
@@ -1975,6 +1980,10 @@ pub fn record_assets(state: &mut editor::State) {
     let inline = node.component_property(component, "physics_material").as_str();
     check(inline.starts_with("#!"), "an edit on no material writes one inline ({inline})");
     check(assets::load(inline)["friction"].as_float() == 0.25, "the inline material holds the edit");
+    inspector::fill(state, "physics_material");
+    let inner = inspector::line_named(state, "{component}.physics_material/friction");
+    check(inner != nil && inner.unwrap().value.as_float() == 0.25, "the asset's own properties are rows under its row ({inner})");
+    inspector::fill(state, "");
     inspector::write_at(state, inspector::at_step(at, "restitution", "Restitution"), 0.5);
     let both = assets::load(node.component_property(component, "physics_material").as_str());
     check(both["friction"].as_float() == 0.25, "a second edit keeps the first ({both})");
@@ -2213,9 +2222,15 @@ pub fn instances(state: &mut editor::State) {
     // component, because the engine patches it over the prefab's.
     check(util::map_or_empty(entry[component]).len() == 1, "and holds only {property} ({util::map_or_empty(entry[component]).len()} keys)");
     check(rows_in_file(state) == file_rows, "and added no row to the file");
+    inspector::fill(state, property);
+    let marked = inspector::line_named(state, "{component}.{property}");
+    check(marked != nil && marked.unwrap().mark == inspector::MARK_OVERRIDE, "and its row wears the mark ({marked})");
     // Back to the prefab's own value: the override has nothing left to say.
     model::set_component_property(state, component, property, was);
     check(!entry_of(state, owner, place).has(component), "a {property} back at the prefab's stops being an override");
+    inspector::fill(state, property);
+    check(inspector::line_named(state, "{component}.{property}").unwrap().mark == "", "and its row no longer does");
+    inspector::fill(state, "");
     // A prefab's nodes are its instance's: none is a row of the file.
     for row in util::list_or_empty(toml::parse(model::node_text(state, state.scene_root.unwrap()))["nodes"]) {
         check(!row["id"].as_str().contains("/"), "{row["name"]} is the file's own, not a prefab's");
@@ -3098,6 +3113,9 @@ pub fn plugin_step(state: &mut editor::State) {
     }
     check(util::contains(labels, "alpha") && util::contains(labels, "beta"), "an opened file's keys are rows under it ({labels})");
     fs::remove(kit::game_data(state) + "/" + PROBE_FILE);
+    selection::only(state, 0);
+    inspector::refill(state);
+    check(inspector::line_named(state, "counter.scripted") != nil, "a plugin's section is its own component's rows");
 }
 
 /// `--state test:palette`: the palette opens on a query, its matches are rows
@@ -4138,6 +4156,11 @@ pub fn warning_marks(state: &mut editor::State) {
         }
     }
     check(util::contains(named, "cells"), "and the warning names the property ({named})");
+    inspector::fill(state, "cells");
+    let marked = inspector::line_named(state, "soft_grid2d.cells");
+    check(marked != nil && marked.unwrap().mark == inspector::MARK_WARNING, "and its row wears the mark, with no line under it ({marked})");
+    check(drawn_label(state, "soft_grid2d.cells").starts_with("⚠"), "the label says so");
+    inspector::fill(state, "");
     model::delete_selected(state);
     log::info("selftest warnings: done");
 }
@@ -4196,6 +4219,155 @@ fn pool_heard(state: &mut editor::State, data: any, value: any) {
     if state.pool_check != nil {
         state.pool_check.unwrap().heard.push(value.as_str());
     }
+}
+
+/// What the pool's row for the line named `key` labels itself.
+fn drawn_label(state: editor::State, key: str) -> str {
+    let row = inspector::row_of_line(state, key);
+    if !row.is_valid() {
+        return "";
+    }
+    row.get_node("L").widget.text
+}
+
+/// A run of `test:inspector_rows`.
+pub class FormCheck {
+    stage: int,
+    waited: int,
+    written: int,
+    past: int,
+}
+
+/// `--state test:inspector_rows`: an edit on a row lands on the property as
+/// one undo entry, a write the log names rewrites that row and no other, a
+/// hidden Inspector does nothing, a section's head carries `enabled`, and a
+/// node of hundreds of rows builds the ones on screen.
+pub fn inspector_rows(state: &mut editor::State) {
+    model::add_child(state);
+    model::add_component(state, "transform");
+    model::add_component(state, "text2d");
+    state.form_check = FormCheck { stage: 0, waited: 0, written: 0, past: 0 };
+    stepping(state, "form_check");
+}
+
+pub fn form_check_step(state: &mut editor::State) {
+    if state.form_check == nil {
+        return;
+    }
+    let run = state.form_check.unwrap();
+    run.waited += 1;
+    if run.waited < SETTLE {
+        return;
+    }
+    run.waited = 0;
+    let node = model::selected_node(state);
+    let stage = run.stage;
+    run.stage = stage + 1;
+    if stage == 0 {
+        let control = inspector::control_of(state, "Text");
+        if !check(control.is_valid(), "a text2d's text is a row on screen") {
+            state.form_check = nil;
+            return;
+        }
+        check(control.widget.kind == "text_field", "whose control is what its type takes");
+        run.past = state.history.past.len();
+        ui::edit_text(control, "typed");
+    } else if stage == 1 {
+        check(node.text2d.text == "typed", "an edit on the row lands on the property ({node.text2d.text})");
+        check(state.history.past.len() == run.past + 1, "as one undo entry ({state.history.past.len()}, was {run.past})");
+        shell::undo(state);
+    } else if stage == 2 {
+        check(node.text2d.text != "typed", "undo takes it back ({node.text2d.text})");
+        check(inspector::control_of(state, "Text").widget.text == node.text2d.text, "and the row follows");
+        run.written = state.inspect.written;
+        node.text2d.text = "engine";
+    } else if stage == 3 {
+        check(inspector::control_of(state, "Text").widget.text == "engine", "a write the log names reaches its row");
+        let wrote = state.inspect.written - run.written;
+        check(wrote == 1, "and rewrites that row alone ({wrote})");
+        inspector::hide_panel();
+        run.written = state.inspect.written;
+        node.text2d.text = "hidden";
+    } else if stage == 4 {
+        check(state.inspect.written == run.written, "a hidden Inspector writes nothing ({state.inspect.written - run.written})");
+        inspector::show_panel(state);
+    } else if stage == 5 {
+        check(inspector::control_of(state, "Text").widget.text == "hidden", "shown again, the row says what the node holds");
+        model::add_component(state, "body2d");
+    } else if stage == 6 {
+        let head = inspector::line_named(state, "body2d.enabled");
+        check(head != nil && head.unwrap().kind == inspector::HEAD, "a section's head carries its component's enabled");
+        ui::edit_bool(inspector::row_of_line(state, "body2d.enabled").get_node("H/C/C2"), false);
+    } else {
+        form_check_rows(state, run, node, stage);
+    }
+}
+
+// The panel's search, which reaches into the folds and stays through a fill.
+fn form_search(text: str) {
+    ui::edit_text(scene::get_node("Editor/Shell/Body/Right/RightSheet/Inspector/Search"), text);
+}
+
+// What each datatype's row does: a set's pill, a vector's channel in the unit
+// it shows, a list's add and take out. Then the window.
+fn form_check_rows(state: &mut editor::State, run: FormCheck, node: Node, stage: int) {
+    if stage == 7 {
+        check(!node.body2d.enabled, "and its switch writes it");
+        model::add_component(state, "character2d");
+        form_search("lock_translation");
+    } else if stage == 8 {
+        let pill = inspector::row_of_line(state, "body2d.lock_translation").get_node("H/C/C0");
+        check(pill.widget.role == "chip_flag", "a set's row is a pill an option");
+        run.past = util::list_or_empty(node.component_property("body2d", "lock_translation")).len();
+        ui::click(pill);
+    } else if stage == 9 {
+        let held = util::list_or_empty(node.component_property("body2d", "lock_translation"));
+        check(held.len() == run.past + 1, "and a pill turns its option round ({held})");
+        form_search("rotation_euler");
+    } else if stage == 10 {
+        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("H/C/C1");
+        ui::edit_number(channel, 90.0);
+    } else if stage == 11 {
+        let held = node.transform.rotation_euler;
+        check(util::abs(held.y - 1.5707963) < 0.001, "a channel shown in degrees is stored in radians ({held})");
+        check(held.x == 0.0 && held.z == 0.0, "and the channels beside it stay");
+        let channel = inspector::row_of_line(state, "transform.rotation_euler").get_node("H/C/C1");
+        check(util::abs(channel.widget_range.value - 90.0) < 0.001, "the row shows degrees ({channel.widget_range.value})");
+        form_search("ignore_nodes");
+    } else if stage == 12 {
+        check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 1, "an empty list is its head alone");
+        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes").get_node("H/C/C1"));
+    } else if stage == 13 {
+        check(node.character2d.ignore_nodes.len() == 1, "a list's chip adds an entry");
+        check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 2, "and the entry is a row");
+        ui::click(inspector::row_of_line(state, "character2d.ignore_nodes/0").get_node("H/C/C2"));
+    } else if stage == 14 {
+        check(node.character2d.ignore_nodes.len() == 0, "the entry's chip takes it out");
+        check(inspector::line_named(state, "character2d.ignore_nodes").unwrap().count == 1, "and its row goes");
+        model::add_component(state, "environment");
+        form_search("e");
+    } else if stage == 15 {
+        form_check_scrolls(state);
+    } else {
+        form_search("");
+        state.form_check = nil;
+        model::delete_selected(state);
+        log::info("selftest inspector rows: done");
+    }
+}
+
+// The window: rows made for what is on screen, and to the end of the form
+// the rows entering are all that is written.
+fn form_check_scrolls(state: &mut editor::State) {
+    let form = state.inspect;
+    check(form.lines.len() > form.capacity, "a node of {form.lines.len()} rows keeps at most {form.capacity}");
+    check(inspector::made_rows() <= form.capacity, "and has made {inspector::made_rows()}");
+    let written = form.written;
+    inspector::scroll_to(state, form.total);
+    check(inspector::made_rows() <= form.capacity, "scrolling to its end makes no more ({inspector::made_rows()})");
+    check(form.last == form.lines.len(), "and the last line is on screen");
+    let wrote = form.written - written;
+    check(wrote > 0 && wrote <= form.capacity, "writing only the rows that entered ({wrote} of {form.lines.len()})");
 }
 
 pub fn rows_step(state: &mut editor::State) {
@@ -4698,6 +4870,8 @@ fn step_one(state: &mut editor::State, name: str) -> bool {
         import_step(state);
     } else if name == "pool_check" {
         pool_check_step(state);
+    } else if name == "form_check" {
+        form_check_step(state);
     } else if name == "machine" {
         statemachine::demo_step(state);
     }
@@ -4746,6 +4920,8 @@ fn under_way(state: editor::State, name: str) -> bool {
         state.import_demo >= 0
     } else if name == "pool_check" {
         state.pool_check != nil
+    } else if name == "form_check" {
+        state.form_check != nil
     } else if name == "machine" {
         state.machine.demo >= 0
     } else {

@@ -1,5 +1,6 @@
-// The Inspector's one script: it answers every control in its scene and has
-// the Editor, which owns the document, fill the form's rows.
+// The Inspector's one script: it answers the head's controls, says when the
+// form must follow, and has the Editor, which owns the document, build the
+// rows. A hidden Inspector does nothing, and is filled when it is shown.
 
 pub class Inspector {
     node: Node,
@@ -13,18 +14,34 @@ impl Inspector {
         self.editor = scene::get_node("Editor");
         events::listen(self.node, "outline_changed", self.editor);
         events::listen(self.node, "inspector_changed", self.editor);
+        events::listen(self.node, "plugins_changed", self.editor);
+        events::listen(self.node, "resized", self.node.get_node("Scroll"));
     }
 
-    /// The document, the selection or what a row shows moved: the native rows
-    /// read their component again too.
+    /// The document or the selection moved.
     pub fn on_outline_changed(_change: any) {
         self.refresh();
-        ui::reread(self.node);
     }
 
+    /// What the form is built from beside them moved, or a frame of play,
+    /// where the rows on screen read their values again and nothing else.
     pub fn on_inspector_changed(_change: any) {
+        if self.node.visible_in_tree() && !self.editor.call("inspector_reread").as_bool() {
+            self.refresh();
+        }
+    }
+
+    pub fn on_plugins_changed(_change: any) {
         self.refresh();
-        ui::reread(self.node);
+    }
+
+    pub fn on_resized(_box: any) {
+        self.editor.call("inspector_resized");
+    }
+
+    /// The form scrolled to `[x, y]`.
+    pub fn scrolled(offset: any) {
+        self.editor.call("inspector_scrolled", offset[1].as_float());
     }
 
     pub fn search_typed(value: any) {
@@ -36,13 +53,16 @@ impl Inspector {
         self.editor.call("inspector_add");
     }
 
-    // A row of the form, whose handler has run and may have moved what the
+    // A plugin's drawer wrote through the Editor and may have moved what the
     // form is built from.
     pub fn refill() {
         self.refresh();
     }
 
     fn refresh() {
+        if !self.node.visible_in_tree() {
+            return;
+        }
         let view = self.editor.call("inspector_view");
         if !(view.kind() == "map") {
             return;

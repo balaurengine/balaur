@@ -1,5 +1,5 @@
 //! Components beside `widget` holding the rows only some of its kinds read:
-//! a `code` widget's gutter, an `inspector`'s target, a `window`'s chrome.
+//! a `code` widget's gutter, a `window`'s chrome.
 //! No property shows on a condition (PLAN-property-types §5), so a row that
 //! applies to one kind is a component of its own on the same node.
 //!
@@ -28,7 +28,7 @@ use crate::widget::beside_box::{
 use crate::widget::beside_controls::{
     WidgetButton, WidgetCheck, WidgetRows, WidgetShortcut, WidgetText, look, tab_stops,
 };
-use crate::widget::node::{EguiOptions, Inspecting, Widget};
+use crate::widget::node::{EguiOptions, Widget};
 use crate::widget::properties::{
     Alpha, Axis, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, LineBreak, NumberFormat, Numeral,
     Placement, Scrollbar, SidePlacement, TextAlign, WidgetProperties,
@@ -115,44 +115,6 @@ impl Beside for WidgetCode {
             u32::try_from(held.current_line.max(0)).unwrap_or(u32::MAX);
         gutter_width => widget.gutter_width = held.gutter_width;
         on_gutter => widget.on_gutter = held.on_gutter.clone();
-    }
-}
-
-/// The rows an `inspector` reads: the node and component it shows.
-#[derive(Clone, PartialEq, Component)]
-#[component(name = "widget_inspector")]
-pub(crate) struct WidgetInspector {
-    /// The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. `options` names the properties and their order. `on_change` hears `{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved
-    pub(crate) component: SmolStr,
-    /// The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it
-    pub(crate) target: SmolStr,
-    /// The folder an `inspector` shows a file's path from: a value under it loses that much of its front
-    pub(crate) relative_to: SmolStr,
-    /// How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead
-    #[property(min = 0.0)]
-    pub(crate) label_width: f32,
-    /// The properties an `inspector` shows, in that order; empty shows them all, sorted
-    pub(crate) options: Vec<SmolStr>,
-    /// How tall an `inspector`'s file rows are, in design pixels, and its chips 4 less; 0 takes 24
-    #[property(min = 0.0)]
-    pub(crate) row_height: f32,
-    /// Put each of an `inspector`'s labels above its control
-    pub(crate) wrap: bool,
-}
-
-impl Beside for WidgetInspector {
-    fn reads(kind: &str) -> bool {
-        kind == w::INSPECTOR
-    }
-
-    puts! { held, widget;
-        component => inspecting(widget).component = held.component.clone();
-        target => inspecting(widget).target = held.target.clone();
-        relative_to => inspecting(widget).relative_to = held.relative_to.clone();
-        label_width => inspecting(widget).label_width = held.label_width;
-        options => widget.options.clone_from(&held.options);
-        row_height => widget.row_height = held.row_height;
-        wrap => widget.wrap = held.wrap;
     }
 }
 
@@ -765,7 +727,6 @@ macro_rules! each_beside {
         $apply!(
             $($args)*;
             WidgetCode,
-            WidgetInspector,
             WidgetTable,
             WidgetWindow,
             WidgetToast,
@@ -1040,10 +1001,10 @@ fn written<C: Beside>(eng: &Engine, entity: Entity, written: Written) -> Result<
 }
 
 /// Put `row` of `C` on the node's widget again, or every row where it names
-/// none, the defaults where the component is gone, and tell the arena and an
-/// inspector it changed.
+/// none, the defaults where the component is gone, and tell the arena it
+/// changed.
 fn refresh<C: Beside>(eng: &Engine, entity: Entity, row: Option<&str>) {
-    let inspector = {
+    {
         let world = eng.world();
         let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
             return;
@@ -1057,9 +1018,8 @@ fn refresh<C: Beside>(eng: &Engine, entity: Entity, row: Option<&str>) {
                 (Err(_), _) => C::default().put(&mut widget),
             }
         }
-        widget.kind == w::INSPECTOR
-    };
-    crate::widget::schema::told(eng, entity, inspector);
+    }
+    crate::widget::arena::widget_changed(entity);
 }
 
 /// What is off about `C` on a widget whose kind reads none of its rows.
@@ -1082,12 +1042,6 @@ fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
 /// shares them.
 pub(crate) fn egui(widget: &mut Widget) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
-}
-
-/// What an `inspector` shows, to write one: a copy where the arena still
-/// shares it.
-fn inspecting(widget: &mut Widget) -> &mut Inspecting {
-    Arc::make_mut(&mut widget.inspect)
 }
 
 /// The lines a code widget's gutter property names, counting from 1.

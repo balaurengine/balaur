@@ -3,7 +3,8 @@
 > kind now places its body the same way and the Profiler and Cost docks are
 > on it, so §2 step 1 is built and still no crate has been added. §2 step 4
 > and §3 step 2, the inspector, built 2026-10-17 as an `inspector` kind, and
-> §0 records that too. §2 step 3 is not built.
+> §0 records that too; that kind went 2026-11-03 (PLAN-editor-as-scene §9.4).
+> §2 step 3 is not built.
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
@@ -67,8 +68,8 @@ Read the spread, not the middle: two runs of the same command differ by up to
 intermittently, and until that is found only the ratios here are safe to
 quote.
 
-**Built 2026-10-17, the inspector on an `inspector` kind; to be removed
-(PLAN-editor-as-scene §9.4, §10 below).** The widget names
+**Built 2026-10-17, the inspector on an `inspector` kind; removed 2026-11-03
+(PLAN-editor-as-scene §9.4, §10 below).** The widget named
 a node and one of its components. Every pass it reads the registry's schema
 and the node and fills the pool's own rows, so `inspector.bs` states one
 control for a run of properties instead of a table a row. An edit comes back
@@ -982,7 +983,7 @@ order, each in the doc that owns it:
    2026-10-28: the engine writes the scene back and keeps what each write
    replaced; `S.doc`, its revision and the mirror rebuild are gone, undo is
    a list of changes and play keeps the scene's text for stop.
-7. The Inspector as a viewer (PLAN-editor-as-scene §9.4).
+7. The Inspector as a viewer (PLAN-editor-as-scene §9.4). Built 2026-11-03.
 8. Order, groups and the derive, a property by its index (PLAN-property-types
    §5, PLAN-balaur-script §9 step 6). Built 2026-10-28: order and groups,
    every schema in PLAN-component-order's order, the Inspector, settings and

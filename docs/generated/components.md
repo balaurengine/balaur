@@ -2515,7 +2515,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>inspector</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>toast</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>toast</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>Label or button caption</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
@@ -2802,25 +2802,6 @@ The rows an `image` reads: its picture, the part of it drawn and how it sits in 
 <tr><td><code>angle_degrees</code></td><td>float</td><td><code>0.0</code></td><td>How far an `image` is turned clockwise about `angle_origin`, in degrees; a turned image keeps square corners</td></tr>
 <tr><td><code>angle_origin</code></td><td>vec2</td><td><code>[0.5, 0.5]</code></td><td>The point an `image` turns about, as fractions of its box from the top left: `[0.5, 0.5]` is its middle</td></tr>
 <tr><td><code>alt_text</code></td><td>string</td><td>—</td><td>Text an `image` draws in place of a picture that will not load</td></tr>
-</tbody>
-</table>
-
-### `widget_inspector`
-
-`ui` · 7 properties
-
-The rows an `inspector` reads: the node and component it shows.
-
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>component</code></td><td>string</td><td>—</td><td>The component an `inspector` shows a row of each property of, read off the registry&#x27;s schema and the node every pass. `options` names the properties and their order. `on_change` hears `{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved</td></tr>
-<tr><td><code>target</code></td><td>string</td><td>—</td><td>The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it</td></tr>
-<tr><td><code>relative_to</code></td><td>string</td><td>—</td><td>The folder an `inspector` shows a file&#x27;s path from: a value under it loses that much of its front</td></tr>
-<tr><td><code>label_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide an `inspector`&#x27;s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead At least 0.0.</td></tr>
-<tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The properties an `inspector` shows, in that order; empty shows them all, sorted</td></tr>
-<tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>How tall an `inspector`&#x27;s file rows are, in design pixels, and its chips 4 less; 0 takes 24 At least 0.0.</td></tr>
-<tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Put each of an `inspector`&#x27;s labels above its control</td></tr>
 </tbody>
 </table>
 

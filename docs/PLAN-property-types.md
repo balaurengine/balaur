@@ -98,6 +98,7 @@ item path and fields, and `Unit::new_struct` builds one from fields by name.
    own spec asks for, with a button to take one out and one to add. Every
    drawer takes a cursor (`comp`, `prop`, `path`) instead of a property name,
    so a write reaches into the value and hands the property back whole. Done.
+   They are `editor/scripts/drawers.bs` since 2026-11-03.
 7. **A class that round-trips, and a map keyed by numbers.** The fork gains
    `Value::struct_parts`, `Unit::new_struct` and a public map constructor,
    which are the three things a host cannot do from outside the crate. An
@@ -123,9 +124,9 @@ is, and a recording has to be plain data. An export is the path that knows.
 
 Planned 2026-10-27. A component is written three times today: its struct;
 its schema, TOML text in its `ComponentDef` (70 of them in 53 files); and its
-`apply` and `get`, which convert between the two by hand. Readers then sort
-the schema by name (`util::keys_sorted`, `sorted_keys` in
-`widget/inspector/form.rs`), so the order a user sees is the alphabet's.
+`apply` and `get`, which convert between the two by hand. Readers then sorted
+the schema by name (`util::keys_sorted`, `sorted_keys` in the `inspector` kind),
+so the order a user saw was the alphabet's.
 `group` exists (`components.rs`) and few properties use it, under names
 that differ for one idea. `Authored` keeps what a scene asked for beside
 every component, for a save, and `PropertyReaders`/`PropertyWriters` give

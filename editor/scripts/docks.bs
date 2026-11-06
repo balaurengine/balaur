@@ -339,7 +339,7 @@ fn body(state: editor::State, id: str) {
     } else if id == "outline" {
         left::show_outline();
     } else if id == "inspector" {
-        inspector::show_panel();
+        inspector::show_panel(state);
     } else if id == "import" {
         util::set_visible("Editor/Shell/Body/Right/RightSheet/Import", true);
     } else {

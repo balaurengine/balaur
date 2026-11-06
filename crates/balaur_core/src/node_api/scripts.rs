@@ -60,6 +60,11 @@ pub(super) fn instance(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(source.map_or(Value::Nil, |source| Value::Str(spelled(eng, e, source))))
 }
 
+pub(super) fn overrides(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    from_toml(&toml::Value::Table(crate::scene_toml::overrides_of(eng, e)))
+}
+
 /// A path read off a node, as the project whose content it plays spells it.
 fn spelled(eng: &Engine, e: Entity, path: String) -> String {
     let mut value = toml::Value::String(path);

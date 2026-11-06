@@ -47,7 +47,6 @@ pub use widget::input::{
     PASTED_IMAGE_EVENT, RESIZED_EVENT, SCROLLED_EVENT, SUBMIT_EVENT, WidgetInputBuffer,
     WidgetInputSnapshot, click, edit, submit,
 };
-pub use widget::inspector::reread;
 pub use widget::node::{Move, UiFocus, Widget, WidgetLayerConfig};
 pub use widget::theme::WidgetTheme;
 
@@ -274,7 +273,6 @@ impl balaur_plugin::Plugin for UiPlugin {
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
         reg.insert_resource(widget::pool::PoolState::default());
-        reg.insert_resource(widget::inspector::InspectorState::default());
         reg.insert_resource(UiFocus::default());
         reg.insert_resource(AccessTree::default());
         reg.insert_resource(routing::UiHits::default());
@@ -421,9 +419,6 @@ fn pass(eng: &Engine, ctx: &egui::Context) {
     apply_long_press(eng, ctx);
     bridge::enter_pass(ctx);
     routing::pass_begins(eng);
-    // An inspector's rows are nodes it fills, so they are filled before the
-    // layer reads the tree.
-    widget::inspector::refresh(eng);
     clipboard::read_paste(ctx);
     widget::layer::draw(eng, ctx);
     // Over everything, for as long as it lasts.

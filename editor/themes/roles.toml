@@ -89,6 +89,14 @@ text_color = "text_subtle"
 [roles.text_label]
 text_color = "text_muted"
 
+# A row's label marked: what the engine says is off about the property, or a
+# value the node changes of its prefab.
+[roles.text_label_warning]
+text_color = "warning_text"
+
+[roles.text_label_override]
+text_color = "primary_text"
+
 [roles.text_mark_picker]
 font_size = 18
 text_color = "primary_text"

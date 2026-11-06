@@ -26,7 +26,7 @@ Measured 2026-09-08, after the migration.
 | the workspace outline, Output, Problems, Cost, Profiler, Docs | one `list` each |
 | Assets, Library, Tiles | one `list` with `grid_columns`, in its card mode |
 | the Debugger | one `tree`: a frame is a row, its locals a level deeper |
-| the Inspector and Import | a row pool: one node a row, made and reused |
+| the Inspector and Import | a row pool: one node a row, made and reused; the Inspector's only for the rows on screen |
 | Timeline, Session, Weights, Bone map | a `draw` node each |
 
 The four `draw` views are the point rather than a shortfall. Lanes with a
@@ -122,9 +122,10 @@ Rune and tooling traps, all avoidable:
 ## 4. The pool
 
 `editor/scripts/pool.bs`, used by the Inspector, Import and every chrome
-strip. Since 2026-09-26 it is `ui::fill_strip` and `ui::fill_rows` in
+strip. Since 2026-09-26 it is `ui::fill_strip`, `ui::fill_rows` and, for a form
+that keeps only the rows on screen, `ui::fill_row` and `ui::patch_row` in
 `crates/balaur_ui/src/widget/pool.rs`, which write through the same node
-operations a script calls; `pool.bs` is the three names in front of them.
+operations a script calls; `pool.bs` is the names in front of them.
 
 - `sync` fills a column with labelled rows; `strip` fills a row with
   controls; a control carrying its own `controls` is a group with no air in
@@ -588,7 +589,7 @@ Planned 2026-10-27:
   structure and names, the Inspector its node. Built 2026-10-28 for a
   property edit (`model::follow_changes`): it sends no `outline_changed`, the
   Inspector rewrites the rows of the properties the log names
-  (`ui::reread` with them), and fills its whole form once a run of edits
+  (`inspector::rows_moved`), and fills its whole form once a run of edits
   stops; a node added, freed, renamed or moved, or a component put on or
   taken off, still wakes the outline.
 - **The Editor's own state says what moved.** The selection, the tool, the
@@ -617,34 +618,67 @@ shows and hides the panel on `docks_changed` (9.5).
 
 ### 9.4 The Inspector
 
-Built 2026-10-18 on the `inspector` widget kind
-(`balaur_ui/src/widget/inspector`): the panel asks the Editor to fill the
-whole form on every word, hidden or not, and every frame while the scene
-plays (PLAN-editor-performance §10).
+Built 2026-11-03: the Inspector is a viewer of components and nothing else.
+The `inspector` widget kind, `widget_inspector` and `ui::reread` are gone. A
+row is ordinary widget nodes off the pool.
 
-Planned 2026-10-27: the Inspector is a viewer of components and nothing
-else. The `inspector` kind and the special sections of
-`editor/scripts/inspector.bs` go.
-
-- **One scene, one script.** For the selected node, a section per
-  component. In it, the component's properties in schema order, folded by
-  `group` (PLAN-property-types §5). A row is a label and one control picked
-  by the property's type, the drawers of PLAN-property-types §2 step 6. The
-  section's head carries the component's `enabled` (PLAN-component-enabled).
-- **An asset property shows its asset's properties** the same way, inline,
-  with where an inherited one comes from (PLAN-inherited-material §4).
-- **A script's exported fields** are the `script` component's properties:
-  rows like any other.
-- **An edit is one property write** by index (PLAN-balaur-script §9 step 6)
-  and one undo entry (§10). The frame's change log rewrites the rows it
-  names and nothing else. A hidden Inspector does nothing.
-- **What is not a property leaves.** Trace outline, populate, soft body,
-  attach script and skeleton go to the node's context menu and the palette.
-  A warning or a prefab override is a mark on its row. The hook chips are
-  the Events view's.
+- **One scene, one script.** `scenes/panels/inspector.toml` holds the head,
+  the search, the form and the verb under it, and `scripts/panels/inspector.bs`
+  says when the form must follow. The Editor owns the model:
+  `scripts/inspector.bs` walks the selection into lines, and
+  `scripts/drawers.bs` builds a line's row.
+- **A section per component.** In it the component's properties in schema
+  order, folded by `group` (PLAN-property-types §5). A row is a label and one
+  control picked by the property's type, the drawers of PLAN-property-types §2
+  step 6. A `variant`, `list`, `map` or `record` is a head row and a row per
+  field or entry, each by its own spec. A section's head carries the
+  component's `enabled` where the schema declares one, so that property has no
+  row. The per-node bit of PLAN-component-enabled is not built; the switch moves
+  to it when it is.
+- **An asset property shows its asset's properties** the same way, inline: a
+  record asset's fields, or a material's shader, features and params. An empty
+  material row says where the inherited one comes from
+  (PLAN-inherited-material §4), and its rows follow.
+- **A script's exported fields** are the `script` component's properties, its
+  file (`source`) first: a section and rows like any other, a value off its
+  default wearing the chip that puts it back. `script` is the Inspector's name
+  and the scene file's key; the engine registers no component by it, since a
+  component's schema is fixed and an export's is the file's. Decided 2026-11-03:
+  `script_schema` builds the schema from `script::exports` per node, and the
+  read and the write are `read_property` and `write`.
+- **A plugin's section is its own component's rows.** A plugin declares
+  `inspector_sections: [{ component, schema, read, write }]` in `register()`;
+  `read` answers the values for a node, or nil for none, and `write` hears a
+  row's edit. The rows are built as a component's are. `editor/plugins/counter.bs`
+  is the worked example. A datatype only a plugin draws stays its
+  `property_editors` entry, the controls of one row.
+- **An edit is one property write by index.** `node.set_property(component,
+  property, value)` goes through `components::place_of` and
+  `set_property_placed`, and `history::record` makes it one undo entry (§10). A
+  control names its line and its handler in `data`, and `Editor.inspector_edit`
+  makes the call without filling the panel.
+- **The frame's change log rewrites only the rows it names.**
+  `model::follow_changes` hands `inspector::rows_moved` the properties, and each
+  row on screen is read again and, where what it shows moved, takes the one
+  value through `ui::patch_row`. A property whose value decides its rows is
+  walked again, and the whole form only where that took another number of them.
+  The form is walked once more when a run of edits stops, for what no log names
+  (`REFILL_AFTER`). A frame of play reads the rows on screen and nothing else.
+- **A hidden Inspector does nothing.** The panel and `rows_moved` ask
+  `visible_in_tree`, and showing it again fills it.
+- **Only the rows on screen are built.** A line is a small record with a known
+  height, so the form's column is as tall as all of them and the window is a
+  search. A line takes pool slot `index % capacity` and sits at its `y`, so a
+  line entering takes the row of one leaving and no other row is written. The
+  capacity is what the view holds at its shortest line and six past each edge.
+- **A warning or a prefab override is a mark on its row**: a glyph on the label,
+  the label's role, and the reason in its tooltip. `node.overrides()` answers
+  what a node changes of its prefab, by the rule a save writes. A warning naming
+  a whole component marks its section's head, and one naming a component the
+  node went without is a single line at the top, cut to the row with the whole
+  of it in its tooltip.
 - **No row shows on a condition.** A component whose properties do not all
   apply together is split in two (PLAN-property-types §5).
-- **A plugin's section** is its own component's rows.
 - Import keeps the right sheet's own form and its drawn head (phase 4).
 
 Built 2026-10-28: what is not a property left. The Inspector is the node's
@@ -659,12 +693,8 @@ tolerance) is in the viewport's strip beside its modes, and a clip's
 length and loop are the Timeline's head. The UI workspace's safe area was
 already a chip, and the hook chips the Events view's.
 
-Still to come, each on what it needs: a row by property index, which the
-derive gives (PLAN-property-types §5), and with it the `inspector` kind's
-end; the `script` component, whose fields are then rows like any other; a
-component split where its rows apply apart (PLAN-component-order §4); a
-plugin section as its own component's rows; and a warning or an override
-as a mark on its row rather than a note under it.
+Still to come: a component split where its rows apply apart
+(PLAN-component-order §4).
 
 ### 9.5 The docks
 
@@ -808,7 +838,8 @@ Built 2026-10-18, phase 8. A plugin's dock subtree carries
 `plugins_changed` (the kit's `changed`), the outline's and the Inspector's
 words, `debugger_changed`, the engine's `saved` and `assets_reloaded`, and
 after one of its own controls; the dock fills it when it shows it. A plugin's
-`draw(S, k, host)` is called on those and never each pass.
+`draw(S, k, host)` is called on those and never each pass. An Inspector section
+is not a dock: it is a component of the plugin's own, rows like any other (9.4).
 
 - **`saved`** is the engine's, from no node, when a save slot was written
   or removed: what the User data dock fills on instead of asking for a

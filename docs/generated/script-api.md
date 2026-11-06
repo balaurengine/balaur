@@ -35,7 +35,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`multimesh2d`](#multimesh2d) | 0 | 0 |
 | [`multimesh3d`](#multimesh3d) | 0 | 0 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 53 | 0 |
+| [`node`](#node) | 55 | 0 |
 | [`physics`](#physics) | 13 | 0 |
 | [`physics2d`](#physics2d) | 17 | 111 |
 | [`physics3d`](#physics3d) | 17 | 118 |
@@ -56,7 +56,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 42 | 66 |
+| [`ui`](#ui) | 43 | 65 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -721,6 +721,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `is_valid` | `(Node) -> bool` |
 | `material` | `(Node) -> str` |
 | `name` | `(Node) -> str` |
+| `overrides` | `(Node) -> any` |
 | `parent` | `(Node) -> Node` |
 | `patch_component` | `(Node, str, any) -> bool` |
 | `path` | `(Node) -> str` |
@@ -736,6 +737,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `set_name` | `(Node, str)` |
 | `set_parent` | `(Node, Node)` |
 | `set_process` | `(Node, str)` |
+| `set_property` | `(Node, str, str, any) -> bool` |
 | `set_script` | `(Node, str?, any)` |
 | `set_sibling_index` | `(Node, int)` |
 | `set_tint` | `(Node, float, float, float, float)` |
@@ -1264,6 +1266,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `edit_color` | `(Node, Color) -> bool` |
 | `edit_number` | `(Node, float) -> bool` |
 | `edit_text` | `(Node, str) -> bool` |
+| `fill_row` | `(Node, int, ui::Row?, float?, bool?) -> bool` |
 | `fill_rows` | `(str, [ui::Row], float?, bool?) -> bool` |
 | `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
@@ -1276,8 +1279,8 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
+| `patch_row` | `(Node, int, [ui::Control]) -> bool` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
-| `reread` | `(Node, str?, [str]?) -> bool` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |
@@ -1295,7 +1298,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (66):
+**Constants** (65):
 
 | Name | Value |
 | --- | --- |
@@ -1324,7 +1327,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 42 more.
+…and 41 more.
 
 ## `websocket`
 

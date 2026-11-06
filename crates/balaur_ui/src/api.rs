@@ -52,7 +52,6 @@ pub const WIDGET_KINDS: &[(&str, &str)] = &[
     ("WIDGET_LIST", w::LIST),
     ("WIDGET_TREE", w::TREE),
     ("WIDGET_TABLE", w::TABLE),
-    ("WIDGET_INSPECTOR", w::INSPECTOR),
     ("WIDGET_SLIDER", w::SLIDER),
     ("WIDGET_NUMBER_FIELD", w::NUMBER_FIELD),
     ("WIDGET_PROGRESS_BAR", w::PROGRESS_BAR),
@@ -113,22 +112,6 @@ pub const MODIFIERS: &[(&str, &str)] = &[
 /// Declare `ui.*`. Takes the `Registry` rather than a module because it opens
 /// the module itself: through the registry, so a scriptless app builds the
 /// plugin instead of panicking.
-// The names a list of strings holds, or nothing for none.
-fn names_of(list: Option<balaur_script::Value>) -> Option<Vec<String>> {
-    match list? {
-        balaur_script::Value::List(names) => Some(
-            names
-                .iter()
-                .filter_map(|name| match name {
-                    balaur_script::Value::Str(name) => Some(name.clone()),
-                    _ => None,
-                })
-                .collect(),
-        ),
-        _ => None,
-    }
-}
-
 pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
     m.module_doc(
         "What a script asks of the UI and tells it: where a `widget` node drew, focus, the screen's classes, the scale, the theme, the clipboard, when a pass runs and the pooled rows. Nothing here draws; a UI is `widget` nodes in a scene.",
@@ -347,8 +330,7 @@ fn install_focus(m: &mut Module<Engine>) {
     }
 }
 
-/// `ui.*` bindings: a widget driven from a script as a reader would drive
-/// it, and an inspector told to read its node again.
+/// `ui.*` bindings: a widget driven from a script as a reader would drive it.
 fn install_driving(m: &mut Module<Engine>) {
     m.describe(&[
         (
@@ -356,12 +338,6 @@ fn install_driving(m: &mut Module<Engine>) {
             &[],
             "(node: node, opts: ClickOptions?) -> bool",
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
-        ),
-        (
-            "reread",
-            &[],
-            "(node: node, component: string?, properties: [string]?) -> bool",
-            "Fill every `inspector` widget at or under the node again from the node it shows, at the next pass: what a script says when it changed those nodes itself, naming one inspector or a whole panel, with `component` only the inspectors showing it, and with `properties` only those properties' rows. An inspector reads nothing back on its own; its widget written or a row edited fills it too. False where there is no inspector.",
         ),
         (
             "edit_number",
@@ -393,22 +369,6 @@ fn install_driving(m: &mut Module<Engine>) {
         "{ hidden: bool? }",
         "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
     )]);
-    m.function(
-        "reread",
-        |eng: &Engine,
-         (node, component, properties): (
-            balaur_script::NodeId,
-            Option<String>,
-            Option<balaur_script::Value>,
-        )| {
-            Ok(crate::widget::inspector::reread(
-                eng,
-                balaur_core::entity_of(node)?,
-                component.as_deref(),
-                names_of(properties).as_deref(),
-            ))
-        },
-    );
     for name in ["edit_number", "edit_text", "edit_color", "edit_bool"] {
         m.function(
             name,
