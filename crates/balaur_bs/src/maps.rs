@@ -38,6 +38,11 @@ pub(crate) fn owns(key: &str) -> bool {
     key.starts_with('{')
 }
 
+/// Whether `key` is a method of a map's class, as `{ str: int }::Table.get`.
+pub(crate) fn is_method(key: &str) -> bool {
+    owns(key) && key.contains('.')
+}
+
 /// The free function `name` of the map whose class is `class`:
 /// `{ str: int }::of`.
 pub(crate) fn function(class: &str, name: &str) -> String {

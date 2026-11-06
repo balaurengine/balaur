@@ -9,6 +9,7 @@ mod func;
 mod hoist;
 mod host;
 mod intrinsics;
+mod lend;
 mod lower;
 mod optional;
 mod releases;
@@ -323,6 +324,12 @@ impl Gen {
     }
     /// The index a call to `key` goes to: its own, or for a prelude function
     /// the one its first call gives it.
+    /// Whether function `key` borrows its heap parameters from its caller,
+    /// who releases them once it returns: a prelude function, and a map's
+    /// method, neither of which a host or a `fn` value calls.
+    pub(crate) fn lends_to(&self, key: &str) -> bool {
+        self.lazy.contains_key(key) || crate::maps::is_method(key)
+    }
     pub(crate) fn callee(&self, key: &str, sig: &Sig) -> u32 {
         if !self.lazy.contains_key(key) {
             return sig.idx;
@@ -1053,6 +1060,7 @@ fn sync_fn(
     let mut fg = FnGen::new(g, p.len(), Mode::Normal { ret: f.ret.clone() });
     fg.prelude = crate::prelude::owns(&f.key()) || crate::maps::owns(&f.key());
     fg.module = crate::reach::module_of(&f.key()).to_string();
+    let lent = g.lends_to(&f.key());
     let mut slot = 0u32;
     if let Some(o) = &sig.owner {
         let n = g.slots(&Ty::Struct(o.clone())).len() as u32;
@@ -1071,6 +1079,8 @@ fn sync_fn(
         // A `&mut` value goes back to its caller, so this call never frees it.
         if prm.by_ref {
             fg.refs.push(lv.clone());
+        } else if lent && prm.ty.is_heap() {
+            fg.lent_slots.extend(&lv.slots);
         } else {
             fg.own(&lv);
         }

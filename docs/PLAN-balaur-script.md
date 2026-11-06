@@ -416,11 +416,10 @@ step 1 is the compiler's suite with the prelude in.
 | `node.text2d.text = s` | 68,000 | |
 | reading `node.text2d.text` | 66,000 | |
 
-After step 1 nothing in the table calls out but the engine rows. What is
-left inside the module is reference counting: a script function owns its
-arguments, so each call into the prelude counts a string up and down, and a
-key is found by comparing every key. Step 5's maps and the compiler not
-counting a borrowed argument take it the rest of the way.
+After step 1 nothing in the table calls out but the engine rows. What was
+left inside the module was reference counting, a prelude call counting each
+string up and down, and a key found by comparing every key; the measurements
+after the targets below are what lending and the scans took off.
 
 Where it goes:
 
@@ -581,6 +580,46 @@ The write is still forty times the target. What is left of it is the engine
 side, a property set as a `toml::Value` and the change log and registry
 looked up by type on each write, and the any map's walk through module
 memory for a patch.
+
+Measured 2026-11-06, `main` at b160b613 against this branch, the dev build on a
+quiet machine. Wasmi fuel per operation (`tests/suite/budgets.rs`, which now
+holds each to what it spent and a quarter more):
+
+| operation | before | after |
+| --- | ---: | ---: |
+| `s.contains(t)` | 2,413 | 229 |
+| `s.find(t)` | 2,408 | 224 |
+| `starts_with` and `ends_with` | 1,622 | 544 |
+| `a["k"].as_int()` on a map of 8 | 1,234 | 266 |
+| `a["k"] = v` | 1,292 | 392 |
+| `a.has(k)`, then `a.len()` | 1,562 | 291 |
+| `typed["e"]` on a `{ str: int }` | 552 | 239 |
+| `s.replace(..)` | 8,147 | 4,404 |
+| `s.split(..)` | 4,704 | 1,676 |
+| an `any` into a struct | 4,412 | 1,639 |
+
+What moved them:
+
+- A prelude function and a map's method borrow their string, list and `any`
+  parameters (`Gen::lends_to`): the caller holds them, so neither counts them
+  up and down. A local is lent as it is, to a host call and a built-in too,
+  unless a later argument could assign it (`codegen/lend.rs`), and a string
+  compare reads a class's field or a list's element where it is held.
+- `==` on strings is `str_same`, which lends both: the same pointer, else the
+  same length, then eight bytes at a time.
+- `__key_index` walks an `any` map's keys passing over one of another length
+  or first byte with two loads, then tries the pointer, then the rest of the
+  bytes. What a near miss goes on to is in a block of its own: wasmi charges a
+  block's fuel on entry, so code a pass skips cost it all the same.
+- `__find` looks for the needle's first byte eight bytes at a time and
+  compares the rest where it finds one; `__same_at` serves `starts_with`.
+- Literals are not interned across units, and an `any` map has no index: its
+  data comes from outside a script now, whose keys share no pointer with a
+  literal, and eight keys walk faster than a hash is made.
+
+The targets are not met. In the module, a map read is still two prelude calls,
+a count up for the value it hands back and one down when the script drops it;
+a search is a call to the prelude and its helper.
 
 ## Open questions
 

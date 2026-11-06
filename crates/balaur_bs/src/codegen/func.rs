@@ -84,6 +84,9 @@ pub(crate) struct FnGen<'a> {
     pub prelude: bool,
     /// The module this function is in: "" for the root file.
     pub module: String,
+    /// The slots of parameters its caller lends (`Gen::lends_to`), which it
+    /// holds no count on and so may not assign.
+    pub lent_slots: Vec<u32>,
 }
 
 impl<'a> FnGen<'a> {
@@ -120,6 +123,7 @@ impl<'a> FnGen<'a> {
             prof: None,
             prelude: false,
             module: String::new(),
+            lent_slots: vec![],
         }
     }
 
@@ -497,6 +501,9 @@ impl<'a> FnGen<'a> {
             self.push_addr(mp.addr);
             self.emit([load(ValType::I32, mp.off), I::LocalSet(l)]);
             return Ok((l, *et, mp.release));
+        }
+        if let Some(array) = self.cell_array_in_hand(arr, pos)? {
+            return Ok(array);
         }
         let t = self.expr(arr)?;
         let Ty::Array(et) = t.clone() else {

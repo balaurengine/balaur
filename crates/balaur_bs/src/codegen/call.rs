@@ -9,7 +9,7 @@ impl FnGen<'_> {
     /// A function's name as a value: its slot in the module's table.
     pub(crate) fn fn_value(&mut self, name: &str, pos: Pos) -> R<Ty> {
         let sig = self.g.sigs[name].clone();
-        if sig.kind != Kind::Script || sig.owner.is_some() {
+        if sig.kind != Kind::Script || sig.owner.is_some() || self.g.lends_to(name) {
             return err(
                 pos,
                 format!(
@@ -145,6 +145,13 @@ impl FnGen<'_> {
                     pos,
                     format!("`{name}` is a method: call it as `self.{name}(..)`"),
                 );
+            }
+            Kind::Script if self.g.lends_to(name) => {
+                let held =
+                    self.host_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, name)?;
+                self.spill();
+                self.e(I::Call(self.g.callee(name, &sig)));
+                self.release_all(held);
             }
             Kind::Script => {
                 let places = self.script_args(&sig, sig.least(), args, pos, name)?;
@@ -362,6 +369,16 @@ impl FnGen<'_> {
             (t.clone(), Some(t))
         };
         self.get_raw(&lv);
+        if self.g.lends_to(&key) {
+            let lent = self.host_args(&sig.params, &args.iter().collect::<Vec<_>>(), pos, &key)?;
+            self.spill();
+            self.e(I::Call(sig.idx));
+            self.release_all(lent);
+            if let Some(t) = held {
+                self.release(&t);
+            }
+            return Ok(sig.ret);
+        }
         let places = self.script_args(&sig, sig.least(), args, pos, &key)?;
         self.spill();
         self.e(I::Call(sig.idx));
@@ -553,24 +570,29 @@ impl FnGen<'_> {
                 ),
             );
         }
-        self.expr_as(base, &sig.params[0])?;
-        let rest = super::Sig {
-            params: sig.params[1..].to_vec(),
-            refs: sig.refs[1..].to_vec(),
-            ..sig.clone()
-        };
-        self.script_args(&rest, rest.params.len(), args, pos, name)?;
+        let all: Vec<&Expr> = std::iter::once(base).chain(args).collect();
+        let held = self.lent(&sig.params, &all, false)?;
         self.spill();
         self.e(I::Call(self.g.callee(&key, &sig)));
+        self.release_all(held);
         Ok(sig.ret)
     }
 
     /// A call to prelude function `key` with its arguments on the stack,
-    /// each owned: the call takes them.
+    /// each owned: held for the call, which borrows them, and released after.
     pub(crate) fn call_prelude(&mut self, key: &str) -> Ty {
         let sig = self.g.sigs[key].clone();
+        let held: Vec<_> = sig.params.iter().map(|ty| self.alloc(ty)).collect();
+        for temp in held.iter().rev() {
+            self.set_raw(temp);
+        }
+        for temp in &held {
+            self.get_raw(temp);
+        }
         self.spill();
         self.e(I::Call(self.g.callee(key, &sig)));
+        let heap = held.into_iter().filter(|temp| temp.ty.is_heap()).collect();
+        self.release_all(heap);
         sig.ret
     }
 
