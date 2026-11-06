@@ -21,10 +21,10 @@ pub struct ImportShipped {
 
 /// What the Import tab's head says.
 pub struct Fill {
-    ready: bool,
-    says: str,
-    name: str,
-    from: str,
+    internal ready: bool,
+    internal says: str,
+    internal name: str,
+    internal from: str,
 }
 
 // The keys each kind offers, in the order they are drawn. `fallback` is what
