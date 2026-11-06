@@ -19,8 +19,8 @@ use tiles;
 use window;
 
 pub struct KeysView {
-    stopped: bool,
-    playing: bool,
+    internal stopped: bool,
+    internal playing: bool,
 }
 
 /// What the keys need to know to say which of them are live.

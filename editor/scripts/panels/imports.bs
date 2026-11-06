@@ -1,17 +1,20 @@
 // The import list's one script: it fills when an import reports, and comes
 // down on its own clock once the last of the batch has been over a while.
 
+use editor;
+
 pub class Imports {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
     until: float,
 }
 
 impl Imports {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         self.until = 0.0;
-        events::listen(self.node, "assets_changed", self.editor);
+        events::listen(self.node, "assets_changed", source);
     }
 
     pub fn on_assets_changed(_change: any) {
@@ -27,17 +30,14 @@ impl Imports {
     }
 
     fn refresh() {
-        let view = self.editor.call("imports_fill");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.set_visible(view["shown"].as_bool());
+        let view = self.editor.unwrap().imports_fill();
+        self.node.set_visible(view.shown);
         let bar = self.node.get_node("Bar");
-        bar.set_visible(view["bar"].as_bool());
-        bar.widget_range.value = view["value"].as_float();
-        self.until = view["until"].as_float();
-        if view["until"].as_float() > 0.0 {
-            ui::request_repaint(ui::RepaintOptions { after: view["until"].as_float() - engine::unix_time() + 0.05 });
+        bar.set_visible(view.bar);
+        bar.widget_range.value = view.value;
+        self.until = view.until;
+        if view.until > 0.0 {
+            ui::request_repaint(ui::RepaintOptions { after: view.until - engine::unix_time() + 0.05 });
         }
     }
 }

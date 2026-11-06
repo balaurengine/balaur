@@ -11,10 +11,10 @@ use util;
 pub const ACTION: str = "action:";
 
 pub struct View {
-    shown: bool,
-    factor: float,
-    chips_x: float,
-    chips_y: float,
+    internal shown: bool,
+    internal factor: float,
+    internal chips_x: float,
+    internal chips_y: float,
 }
 
 // The keys worth a chip; the rest of the key list is media and numpad keys.

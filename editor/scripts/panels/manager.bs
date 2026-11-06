@@ -2,36 +2,39 @@
 // filled by the Editor when what they show moved or the screen was resized.
 // The toolbar's verbs are this panel's own; a row's run their own handlers.
 
+use editor;
+
 pub class Manager {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Manager {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "manager_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "manager_changed", source);
         events::listen(self.node, "resized", self.node.get_node("ManagerBody"));
     }
 
     pub fn on_manager_changed(_change: any) {
-        self.editor.call("manager_fill");
+        self.editor.unwrap().manager_fill();
     }
 
     /// The page's width moved, which decides how many cards go across.
     pub fn on_resized(_box: any) {
-        self.editor.call("manager_fill");
+        self.editor.unwrap().manager_fill();
     }
 
     pub fn filter_typed(value: any) {
-        self.editor.call("manager_filter", value);
+        self.editor.unwrap().manager_filter(value.as_str());
     }
 
     pub fn verb(_value: any, node: Node) {
-        self.editor.call("manager_verb", node.name());
+        self.editor.unwrap().manager_verb(node.name());
     }
 
     pub fn refill() {
-        self.editor.call("manager_fill");
+        self.editor.unwrap().manager_fill();
     }
 }

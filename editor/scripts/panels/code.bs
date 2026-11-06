@@ -2,16 +2,19 @@
 // hands it what is typed, where the caret went and which gutter line was
 // clicked, and writes the text again only when the buffer changed under it.
 
+use editor;
+
 pub class Code {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
     path: str,
     rev: int,
 }
 
 impl Code {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         self.path = "";
         self.rev = -1;
         for word in [
@@ -23,7 +26,7 @@ impl Code {
             "problems_changed",
             "debugger_changed",
         ] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -56,46 +59,43 @@ impl Code {
     }
 
     pub fn typed(value: any) {
-        self.editor.call("code_typed", value);
+        self.editor.unwrap().code_typed(value.as_str());
     }
 
     pub fn caret(value: any) {
-        self.editor.call("code_caret", value);
+        self.editor.unwrap().code_caret(value);
     }
 
     pub fn gutter(value: any) {
-        self.editor.call("code_gutter", value);
+        self.editor.unwrap().code_gutter(value.as_int());
     }
 
     fn refresh() {
-        let view = self.editor.call("code_view");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.set_visible(view["shown"].as_bool());
-        self.node.patch_component("widget", { "inset": view["inset"] });
-        if !view["shown"].as_bool() {
+        let view = self.editor.unwrap().code_view();
+        self.node.set_visible(view.shown);
+        self.node.patch_component("widget", { "inset": view.inset });
+        if !view.shown {
             return;
         }
         let patched = self.node.get_node("Note");
-        patched.set_visible(view["note"].as_str() != "");
-        patched.widget.text = view["note"].as_str();
+        patched.set_visible(view.note != "");
+        patched.widget.text = view.note;
         let scroll = self.node.get_node("Scroll");
-        scroll.set_visible(view["note"].as_str() == "");
-        if view["note"].as_str() != "" {
+        scroll.set_visible(view.note == "");
+        if view.note != "" {
             return;
         }
         let editor = scroll.get_node("Editor");
         // The text only when the buffer moved under the editor: what is typed is
         // the widget's own, and writing it back would put the caret at the end.
-        if view["path"].as_str() != self.path || view["rev"].as_int() != self.rev {
-            editor.widget.text = view["text"].as_str();
-            self.path = view["path"].as_str();
-            self.rev = view["rev"].as_int();
+        if view.path != self.path || view.rev != self.rev {
+            editor.widget.text = view.text.as_str();
+            self.path = view.path;
+            self.rev = view.rev;
         }
-        editor.patch_component("widget_code", view["look"]);
-        if view["scroll_to"].as_float() >= 0.0 {
-            scroll.widget_scroll.scroll_offset = vec2(0.0, view["scroll_to"].as_float());
+        editor.patch_component("widget_code", view.look);
+        if view.scroll_to >= 0.0 {
+            scroll.widget_scroll.scroll_offset = vec2(0.0, view.scroll_to);
         }
     }
 }

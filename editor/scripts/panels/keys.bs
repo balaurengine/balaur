@@ -2,9 +2,11 @@
 // name is the command the Editor runs. F5 is play until a script stops, and
 // then it and the step keys are the debugger's.
 
+use editor;
+
 pub class Keys {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 fn STOPPED() -> [str] {
@@ -13,8 +15,9 @@ fn STOPPED() -> [str] {
 
 impl Keys {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "debugger_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "debugger_changed", source);
     }
 
     /// A script stopped or went on, or play started or stopped.
@@ -23,18 +26,15 @@ impl Keys {
     }
 
     pub fn pressed(_value: any, node: Node) {
-        self.editor.call("command", node.name());
+        self.editor.unwrap().command(node.name());
     }
 
     fn refresh() {
-        let state = self.editor.call("keys_view");
-        if !(state.kind() == "map") {
-            return;
-        }
+        let state = self.editor.unwrap().keys_view();
         for name in STOPPED() {
-            self.node.get_node(name).widget.enabled = state["stopped"].as_bool();
+            self.node.get_node(name).widget.enabled = state.stopped;
         }
-        self.node.get_node("play").widget.enabled = !state["stopped"].as_bool();
-        self.node.get_node("break").widget.enabled = state["playing"].as_bool() && !state["stopped"].as_bool();
+        self.node.get_node("play").widget.enabled = !state.stopped;
+        self.node.get_node("break").widget.enabled = state.playing && !state.stopped;
     }
 }

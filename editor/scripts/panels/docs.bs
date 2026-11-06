@@ -1,18 +1,22 @@
 // The Docs tab's one script: it shows the module the Editor says is picked,
 // filtered by its own search, and tells the Editor a new pick.
 
+use editor;
+
 pub class Docs {
     node: Node,
     query: str,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Docs {
     pub fn init() {
         self.query = "";
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         for word in ["docs_changed", "outline_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -25,7 +29,7 @@ impl Docs {
     }
 
     pub fn module_picked(value: any) {
-        self.editor.call("docs_pick", value);
+        self.editor.unwrap().docs_pick(value.as_str());
         self.refresh();
     }
 
@@ -34,22 +38,26 @@ impl Docs {
         self.refresh();
     }
 
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
+    }
+
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("docs_view", self.query);
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().docs_view(self.query);
         let patched = self.node.get_node("Tools/Module");
-        patched.widget_dropdown.options = view["modules"];
-        patched.widget.text = view["pick"].as_str();
-        self.node.get_node("List").widget_rows.items = view["items"];
+        patched.widget_dropdown.options = view.modules;
+        patched.widget.text = view.pick;
+        self.node.get_node("List").widget_rows.items = view.items;
         let patched = self.node.get_node("Nothing");
-        patched.set_visible(view["says"].as_str() != "");
-        patched.widget.text = view["says"].as_str();
+        patched.set_visible(view.says != "");
+        patched.widget.text = view.says;
     }
 }

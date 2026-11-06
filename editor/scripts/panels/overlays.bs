@@ -1,14 +1,17 @@
 // The viewport lines' one script: the Editor draws them again and keeps them
 // when the document, the selection, the tool, play, the camera or a file moved.
 
+use editor;
+
 pub class Overlays {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Overlays {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         for word in [
             "outline_changed",
             "inspector_changed",
@@ -19,49 +22,49 @@ impl Overlays {
             "plugins_changed",
             "chrome_changed",
         ] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
         events::listen(self.node, "camera_moved");
         events::listen(self.node, "assets_reloaded");
     }
 
     pub fn on_outline_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_inspector_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_stage_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_play_frame(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_timeline_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_recordings_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_plugins_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_chrome_changed(_change: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_camera_moved(_nothing: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 
     pub fn on_assets_reloaded(_generation: any) {
-        self.editor.call("overlays_fill");
+        self.editor.unwrap().overlays_fill();
     }
 }

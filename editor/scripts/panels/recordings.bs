@@ -1,15 +1,19 @@
 // The Recordings tab's one script: it has the Editor fill a row a recording
 // when one is made, kept or dropped, and answers the verify switch.
 
+use editor;
+
 pub class Recordings {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Recordings {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "recordings_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, "recordings_changed", source);
     }
 
     pub fn on_recordings_changed(_change: any) {
@@ -19,12 +23,19 @@ impl Recordings {
     /// The verify switch is this panel's own; a row's verbs have run their
     /// handlers by now, so what is left is to show what they changed.
     pub fn verify() {
-        self.editor.call("recordings_verify");
+        self.editor.unwrap().recordings_verify();
         self.refresh();
     }
 
     pub fn refill() {
         self.refresh();
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
@@ -33,11 +44,8 @@ impl Recordings {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("recordings_fill");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.get_node("Tools/Verify").widget_check.checked = view["verify"].as_bool();
-        self.node.get_node("Nothing").set_visible(view["count"].as_int() == 0);
+        let view = self.editor.unwrap().recordings_fill();
+        self.node.get_node("Tools/Verify").widget_check.checked = view.verify;
+        self.node.get_node("Nothing").set_visible(view.count == 0);
     }
 }

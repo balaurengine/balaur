@@ -1,9 +1,11 @@
 // The Tiles tab's one script: it has the Editor fill its chips and its atlas
 // when the tilemap, the selection or the brush moved, and answers a tile pick.
 
+use editor;
+
 pub class Tiles {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 pub struct Parameters {
@@ -13,9 +15,11 @@ pub struct Parameters {
 
 impl Tiles {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "tiles_changed", self.editor);
-        events::listen(self.node, "outline_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, "tiles_changed", source);
+        events::listen(self.node, "outline_changed", source);
     }
 
     pub fn on_tiles_changed(_change: any) {
@@ -30,11 +34,18 @@ impl Tiles {
     /// A chip has run its own handler by now, so what is left is to show what
     /// it changed; a card is a tile picked.
     pub fn card_clicked(_value: any, node: Node) {
-        self.editor.call("tiles_pick", node.widget.text);
+        self.editor.unwrap().tiles_pick(node.widget.text);
     }
 
     pub fn refill() {
         self.refresh();
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
@@ -43,17 +54,14 @@ impl Tiles {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("tiles_fill");
-        if !(view.kind() == "map") {
-            return;
-        }
-        let cards = view["items"].len() > 0;
+        let view = self.editor.unwrap().tiles_fill();
+        let cards = view.items.len() > 0;
         let list = self.node.get_node("Cards");
         list.set_visible(cards);
-        list.widget_rows.items = view["items"];
-        list.widget.text = view["picked"].as_str();
+        list.widget_rows.items = view.items;
+        list.widget.text = view.picked;
         if cards {
-            list.widget_list.sheet = view["sheet"].as_str();
+            list.widget_list.sheet = view.sheet;
         }
     }
 }

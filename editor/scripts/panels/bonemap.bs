@@ -2,16 +2,20 @@
 // selection moved, and it hands back the verbs. A row's own buttons pick,
 // open and empty it.
 
+use editor;
+
 pub class Bonemap {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Bonemap {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         for word in ["bonemap_changed", "outline_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -24,7 +28,14 @@ impl Bonemap {
     }
 
     pub fn verb(_value: any, node: Node) {
-        self.editor.call("bonemap_verb", node.name());
+        self.editor.unwrap().bonemap_verb(node.name());
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible.
@@ -32,6 +43,6 @@ impl Bonemap {
         if self.node.visible() == false {
             return;
         }
-        self.editor.call("bonemap_fill");
+        self.editor.unwrap().bonemap_fill();
     }
 }

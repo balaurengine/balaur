@@ -1,11 +1,13 @@
 // The Output tab's one script: it fills the log list when the engine says
 // lines arrived, and answers its clear, its levels and its search.
 
+use editor;
+
 pub class Output {
     node: Node,
     level: str,
     query: str,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 fn LEVELS() -> [str] {
@@ -16,9 +18,11 @@ impl Output {
     pub fn init() {
         self.level = "all";
         self.query = "";
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         events::listen(self.node, "logged");
-        events::listen(self.node, "outline_changed", self.editor);
+        events::listen(self.node, "outline_changed", source);
     }
 
     pub fn on_logged(_total: any) {
@@ -31,7 +35,7 @@ impl Output {
     }
 
     pub fn clear() {
-        self.editor.call("output_clear");
+        self.editor.unwrap().output_clear();
         self.refresh();
     }
 
@@ -45,6 +49,13 @@ impl Output {
         self.refresh();
     }
 
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
+    }
+
     /// Fill what shows from the Editor's answer: on a word that it moved, and
     /// from the dock once it has made this panel visible.
     pub fn refresh() {
@@ -52,14 +63,11 @@ impl Output {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("output_view", self.level, self.query);
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.get_node("Log").widget_rows.items = view["items"];
+        let view = self.editor.unwrap().output_view(self.level, self.query);
+        self.node.get_node("Log").widget_rows.items = view.items;
         let patched = self.node.get_node("Nothing");
-        patched.set_visible(view["says"].as_str() != "");
-        patched.widget.text = view["says"].as_str();
+        patched.set_visible(view.says != "");
+        patched.widget.text = view.says;
         let tools = self.node.get_node("Tools");
         for level in LEVELS() {
             let on = level == self.level;

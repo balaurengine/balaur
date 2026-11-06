@@ -2,15 +2,18 @@
 // something to offer, its keys move the pick, accept it or close the list,
 // and a row clicked is accepted.
 
+use editor;
+
 pub class Complete {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Complete {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "complete_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "complete_changed", source);
     }
 
     pub fn on_complete_changed(_change: any) {
@@ -18,30 +21,27 @@ impl Complete {
     }
 
     pub fn key(_value: any, node: Node) {
-        self.editor.call("complete_key", node.name());
+        self.editor.unwrap().complete_key(node.name());
     }
 
     pub fn list_clicked(_value: any, node: Node) {
-        self.editor.call("complete_pick", node.widget.text);
+        self.editor.unwrap().complete_pick(node.widget.text);
     }
 
     fn refresh() {
-        let view = self.editor.call("complete_view");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.set_visible(view["open"].as_bool());
-        self.node.widget.x = view["x"].as_float();
-        self.node.widget.y = view["y"].as_float();
-        if !view["open"].as_bool() {
+        let view = self.editor.unwrap().complete_view();
+        self.node.set_visible(view.open);
+        self.node.widget.x = view.x;
+        self.node.widget.y = view.y;
+        if !view.open {
             return;
         }
         let patched = self.node.get_node("List");
-        patched.widget_rows.items = view["items"];
-        patched.widget.text = view["picked"].as_str();
-        patched.widget.height = view["list_h"].as_float();
+        patched.widget_rows.items = view.items;
+        patched.widget.text = view.picked;
+        patched.widget.height = view.list_h;
         let patched = self.node.get_node("Doc");
-        patched.set_visible(view["doc"].as_str() != "");
-        patched.widget.text = view["doc"].as_str();
+        patched.set_visible(view.doc != "");
+        patched.widget.text = view.doc;
     }
 }
