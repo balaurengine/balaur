@@ -84,7 +84,7 @@ compared.
 - run: never brings the host down, under the fuel limit
 
 Locally `cargo fuzz run` (nightly, `cargo install cargo-fuzz`); in CI
-`fuzz.yml`, twenty minutes a target each night, seeded from the corpus,
+`fuzz.yml` from `runner.yml`'s nightly run, twenty minutes a target, seeded from the corpus,
 never the push gate.
 
 Built 2026-10-30 beside them: `tests/suite/mutants.rs`, the same checks over

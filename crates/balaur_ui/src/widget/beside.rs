@@ -867,7 +867,7 @@ pub(crate) fn check_class_row(kind: &str, key: &str, value: &toml::Value) -> Res
             $(if <$beside>::reads($kind)
                 && let Some(index) = <$beside as Fields>::NAMES.iter().position(|row| *row == $key)
             {
-                return <$beside>::default().write(index, $value);
+                return <$beside>::default().write(index, $value.into());
             })*
         };
     }
@@ -917,7 +917,7 @@ fn class_rows_of<C: Beside>(
                 .unwrap_or_default()
         });
         // A value the row refuses leaves what the node holds.
-        let _ = held.write(index, value);
+        let _ = held.write(index, (*value).into());
     }
     if let Some(classed) = classed {
         classed.put(widget);

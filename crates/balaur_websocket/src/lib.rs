@@ -14,7 +14,7 @@
 //! immediately, and handlers run at [`Stage::First`] of a later tick, in
 //! arrival order, never from an I/O thread.
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, anyhow};
 use balaur_core::handler::{Handler, handler_of, headers_of, id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::wake::Commands;
@@ -462,16 +462,24 @@ fn install_websocket_api(m: &mut Module<Engine>) {
         "A long-lived socket for text or binary frames. Events reach the node's `on_websocket_event` (or `on_event`) as a map with `socket` and `kind`: `open`, `message`, `binary`, `closed` or `error`, each an `EVENT_*` constant. An `error` carries its `reason`, and the HTTP `status` when a server refused the upgrade.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
-    m.records(&[(
-        "ConnectOptions",
-        "{ on_event: string?, compression: bool?, headers: any }",
-        "How `connect` opens a socket: the method that hears its events, whether frames are compressed, and the upgrade request's `headers`.",
-    )]);
+    m.records(&[
+        (
+            "Header",
+            "{ name: string, value: string }",
+            "One header of the upgrade request. A name may repeat.",
+        ),
+        (
+            "ConnectOptions",
+            "{ on_event: string?, compression: bool?, headers: [Header]? }",
+            "How `connect` opens a socket: the method that hears its events, whether frames are compressed, and the upgrade request's `headers`.",
+        ),
+    ]);
     m.describe(&[
-        ("connect", &[], "(node: any, url: string, opts: ConnectOptions?) -> int", "Open a connection and return the id `send` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`."),
-        ("send", &[], "", "Queue a frame on the connection, text for a string and binary for bytes; false when it is already gone."),
-        ("close", &[], "", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
-        ("state", &[], "", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
+        ("connect", &[], "(node: node?, url: string, opts: ConnectOptions?) -> int", "Open a connection and return the id `send_text`, `send_bytes` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`. With no node, only a `task.wait` hears it."),
+        ("send_text", &[], "(socket: int, text: string) -> bool", "Queue a text frame on the connection; false when it is already gone."),
+        ("send_bytes", &[], "(socket: int, data: bytes) -> bool", "Queue a binary frame on the connection; false when it is already gone."),
+        ("close", &[], "(socket: int) -> bool", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
+        ("state", &[], "(socket: int) -> string", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
     ]);
     for word in state::ALL {
         m.constant(
@@ -490,21 +498,25 @@ fn install_websocket_api(m: &mut Module<Engine>) {
             Ok(id_value(id))
         },
     );
-    m.function("send", |eng: &Engine, (socket, payload): (i64, Value)| {
-        let state = eng.resource::<WebsocketState>();
-        let Ok(id) = u64::try_from(socket) else {
-            return Ok(Value::Bool(false));
-        };
-        let sent = match payload {
-            Value::Str(text) => state.borrow_mut().send_text(id, &text),
-            Value::Bytes(bytes) => state.borrow_mut().send_bytes(id, bytes),
-            other => bail!(
-                "websocket.send takes a string or bytes, got {}",
-                other.type_name()
-            ),
-        };
-        Ok(Value::Bool(sent))
-    });
+    m.function(
+        "send_text",
+        |eng: &Engine, (socket, text): (i64, String)| {
+            let state = eng.resource::<WebsocketState>();
+            let sent =
+                u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_text(id, &text));
+            Ok(sent)
+        },
+    );
+    m.function(
+        "send_bytes",
+        |eng: &Engine, (socket, data): (i64, Value)| {
+            let data = balaur_core::handler::bytes_of(&data)?;
+            let state = eng.resource::<WebsocketState>();
+            let sent =
+                u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_bytes(id, data));
+            Ok(sent)
+        },
+    );
     m.function("close", |eng: &Engine, socket: i64| {
         let state = eng.resource::<WebsocketState>();
         let closed = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().close(id));

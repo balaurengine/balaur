@@ -134,6 +134,9 @@ impl FnGen<'_> {
             return Ok(());
         }
         if let Some(lv) = self.place(target)? {
+            if lv.slots.iter().any(|slot| self.lent_slots.contains(slot)) {
+                return err(pos, "a parameter lent to the prelude cannot be assigned");
+            }
             if let Some(op) = op {
                 let b = Expr {
                     kind: ExprKind::Bin(op, Box::new(target.clone()), Box::new(value.clone())),

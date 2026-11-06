@@ -115,7 +115,7 @@ pub struct Softbody2d {
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
-    /// Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body's. Each is a `soft_frame` body joints may attach to
+    /// Parts of the body with a material of their own, each the particles it covers: `soft_material` for its edge spring and shape matching, empty keeping the body's; `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, and `pinned` to hold it still. Each is a `soft_frame` body joints may attach to
     #[property(group = "overrides")]
     pub regions: Vec<SoftRegion>,
     /// Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows', each named by the two particles it joins
@@ -813,6 +813,17 @@ pub(crate) fn apply_softbody_2d(eng: &Engine, entity: Entity, asked: &SoftAsked2
     build_softbody_2d(eng, entity, asked, &materials)
 }
 
+/// A body after a material file moved: in place, unless a region names one,
+/// a region being made with the body.
+pub(crate) fn reread_softbody_2d(eng: &Engine, entity: Entity, asked: &SoftAsked2d) -> Result<()> {
+    if !cap::regions_name_a_file(&asked.body.regions) {
+        return apply_softbody_2d(eng, entity, asked);
+    }
+    let materials =
+        cap::Materials::of(eng, &asked.body.soft_material, &asked.body.physics_material)?;
+    build_softbody_2d(eng, entity, asked, &materials)
+}
+
 /// Build the node's soft body from rest, replacing whatever it had: what a
 /// script's `set_softbody` asks for even when nothing changed.
 fn build_softbody_2d(
@@ -837,16 +848,17 @@ fn build_softbody_2d(
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, asked.clone());
-        let added = add_regions_2d(&mut state.world, handle, &asked.body.regions).and_then(|()| {
-            bind_collision_mesh_2d(
-                &mut state.world,
-                handle,
-                &asked.body,
-                &asked.collision,
-                collision,
-                materials,
-            )
-        });
+        let added =
+            add_regions_2d(eng, &mut state.world, handle, &asked.body.regions).and_then(|()| {
+                bind_collision_mesh_2d(
+                    &mut state.world,
+                    handle,
+                    &asked.body,
+                    &asked.collision,
+                    collision,
+                    materials,
+                )
+            });
         stamp_colliders_2d(&mut state.world, handle, entity);
         added
     };
@@ -1115,7 +1127,7 @@ pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
     m.describe(&[
         ("softbody_area", &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
         ("softbody_rest_area", &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
-        ("softbody_center", &[c::SOFTBODY_2D], "", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
+        ("softbody_center", &[c::SOFTBODY_2D], "(node: node) -> Vec2", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
     ]);
     m.function("softbody_area", |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {

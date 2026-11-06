@@ -627,8 +627,7 @@ fn an_undeclared_key_is_refused_by_add_patch_and_a_scene() {
         "{err:#}"
     );
     // A scene loads the rest of itself and logs the one it refused.
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let scene = "[[nodes]]\nid = \"n_main\"\nname = \"Main\"\n[nodes.marker]\nlable = \"x\"\n";
     let root = app.engine.root();
     balaur_core::project::instantiate_scene(&app.engine, scene, root, false).unwrap();

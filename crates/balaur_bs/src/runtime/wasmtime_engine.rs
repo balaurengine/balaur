@@ -1,7 +1,10 @@
 // wasmtime: Cranelift compiles the module to machine code, near Rust's speed.
 // Desktop and Android; iOS forbids the JIT and the web has its own engine.
 
-use super::engine::{Args, ImportCtx, Raw, Setup, Shared, Wasm, copy_from, read_from, unit_layout};
+use super::engine::{
+    Bases, ImportCtx, Raw, Setup, Shared, Wasm, copy_from, own_global, read_from, shared_global,
+    shared_starts, unit_layout,
+};
 use super::host::dispatch;
 use super::values::float;
 use crate::{Compiled, Slot, words};
@@ -53,6 +56,23 @@ struct LinkUnit {
     inst: Option<Instance>,
 }
 
+// One of the globals every unit of a linked script shares.
+fn shared(cx: impl wasmtime::AsContext<Data = Data>, name: &str) -> Option<Global> {
+    let at = shared_global(name)?;
+    let cx = cx.as_context();
+    let links = cx.data().links.as_ref()?.borrow();
+    Some(links.globals[at])
+}
+
+// Global `name` of unit `unit`, when it is made: an export of its own.
+fn own(mut cx: impl AsContextMut<Data = Data>, unit: usize, name: &str) -> Option<i32> {
+    let inst = {
+        let links = cx.as_context().data().links.clone()?;
+        links.borrow().units.get(unit)?.inst?
+    };
+    inst.get_global(&mut cx, name)?.get(&mut cx).i32()
+}
+
 struct Ctx<'a, 'b>(&'a mut Caller<'b, Data>);
 
 impl Ctx<'_, '_> {
@@ -83,19 +103,31 @@ impl ImportCtx for Ctx<'_, '_> {
             None => out.fill(0),
         }
     }
+    fn memory_bytes(&self) -> Option<&[u8]> {
+        self.0.data().mem.map(|m| m.data(&*self.0))
+    }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         if let Some(m) = self.0.data().mem {
             m.data_mut(&mut *self.0)[at..at + bytes.len()].copy_from_slice(bytes);
         }
     }
     fn global(&mut self, name: &str) -> Option<i32> {
-        let g = self.0.get_export(name).and_then(Extern::into_global)?;
-        g.get(&mut *self.0).i32()
+        let global = shared(&*self.0, name)
+            .or_else(|| self.0.get_export(name).and_then(Extern::into_global))?;
+        global.get(&mut *self.0).i32()
     }
     fn set_global(&mut self, name: &str, value: i32) {
-        if let Some(g) = self.0.get_export(name).and_then(Extern::into_global) {
-            let _ = g.set(&mut *self.0, Val::I32(value));
+        let found = shared(&*self.0, name)
+            .or_else(|| self.0.get_export(name).and_then(Extern::into_global));
+        if let Some(global) = found {
+            let _ = global.set(&mut *self.0, Val::I32(value));
         }
+    }
+    fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
+        own(&mut *self.0, unit, name)
+    }
+    fn make(&mut self, unit: usize) -> Result<(), String> {
+        unit_instance(&mut *self.0, unit).map(|_| ())
     }
     fn alloc(&mut self, size: usize) -> Result<usize, String> {
         let Some(alloc) = self.0.data().alloc.clone() else {
@@ -195,6 +227,9 @@ fn slot_of_vt(val_type: &ValType) -> Slot {
     }
 }
 
+/// The most arguments a call reads into a buffer on the stack.
+const HELD_ARGS: usize = 8;
+
 // An import as wasmtime calls it: its parameters, then its results, in one
 // run of raw slots, with nothing converted but what the host reads.
 fn import_call(
@@ -205,17 +240,26 @@ fn import_call(
 {
     move |mut caller, slots| {
         let host = caller.data().host.clone();
-        let args: Args = params
-            .iter()
-            .zip(slots.iter())
-            // SAFETY: wasmtime fills the first slots with the call's
-            // arguments, of the types the import declares, which `params` are.
-            .map(|(slot, value)| raw_of(*slot, unsafe { value.assume_init_read() }))
-            .collect();
-        let out = dispatch(&host, &mut Ctx(&mut caller), unit, index, &args)
+        // SAFETY: wasmtime fills the first slots with the call's arguments, of
+        // the types the import declares, which `params` are.
+        let read = |(slot, value): (&Slot, &MaybeUninit<ValRaw>)| {
+            raw_of(*slot, unsafe { value.assume_init_read() })
+        };
+        let mut held = [Raw::I32(0); HELD_ARGS];
+        let spilled: Vec<Raw>;
+        let args: &[Raw] = if params.len() <= HELD_ARGS {
+            for (at, given) in held.iter_mut().zip(params.iter().zip(slots.iter())) {
+                *at = read(given);
+            }
+            &held[..params.len()]
+        } else {
+            spilled = params.iter().zip(slots.iter()).map(read).collect();
+            &spilled
+        };
+        let out = dispatch(&host, &mut Ctx(&mut caller), unit, index, args)
             .map_err(wasmtime::Error::msg)?;
-        for (slot, raw) in slots.iter_mut().zip(out) {
-            *slot = MaybeUninit::new(val_raw(raw));
+        for (slot, raw) in slots.iter_mut().zip(&out) {
+            *slot = MaybeUninit::new(val_raw(*raw));
         }
         Ok(())
     }
@@ -376,39 +420,57 @@ fn module_named(
     Ok(m)
 }
 
+// A direct module's entry point for calls of its unit: it stands for every
+// import that takes as many slots.
+fn direct_entry(
+    unit: usize,
+) -> impl Fn(Caller<'_, Data>, &[Val], &mut [Val]) -> wasmtime::Result<()> + Send + Sync + 'static {
+    use super::host::direct_call;
+    move |mut caller, params, results| {
+        let host = caller.data().host.clone();
+        let index = params[1].i32().unwrap_or(0) as usize;
+        let bits: smallvec::SmallVec<[u64; 8]> = params[2..]
+            .iter()
+            .map(|value| value.i64().unwrap_or(0).cast_unsigned())
+            .collect();
+        let first = direct_call(&host, &mut Ctx(&mut caller), unit, index, &bits)
+            .map_err(wasmtime::Error::msg)?;
+        results[0] = Val::I64(first.cast_signed());
+        Ok(())
+    }
+}
+
+// A direct module's way to the second and later results of a call.
+fn direct_answer()
+-> impl Fn(Caller<'_, Data>, &[Val], &mut [Val]) -> wasmtime::Result<()> + Send + Sync + 'static {
+    |caller, params, results| {
+        let which = params[1].i32().unwrap_or(0) as usize;
+        let answer = super::host::direct_result(&caller.data().host, which);
+        results[0] = Val::I64(answer.cast_signed());
+        Ok(())
+    }
+}
+
 // A direct module's entry points, each standing for every import that takes
 // as many slots.
 fn link_direct(eng: &Engine, linker: &mut Linker<Data>, meta: &crate::Meta) -> Result<(), String> {
-    use super::host::{direct_arities, direct_call, direct_result};
-    for n in direct_arities(meta) {
+    for arity in super::host::direct_arities(meta) {
         let mut params = vec![ValType::I32, ValType::I32];
-        params.extend(vec![ValType::I64; n]);
+        params.extend(vec![ValType::I64; arity]);
         let ty = FuncType::new(eng, params, [ValType::I64]);
-        let call = move |mut c: Caller<'_, Data>, params: &[Val], results: &mut [Val]| {
-            let host = c.data().host.clone();
-            let index = params[1].i32().unwrap_or(0) as usize;
-            let bits: smallvec::SmallVec<[u64; 8]> = params[2..]
-                .iter()
-                .map(|v| v.i64().unwrap_or(0).cast_unsigned())
-                .collect();
-            let first =
-                direct_call(&host, &mut Ctx(&mut c), index, &bits).map_err(wasmtime::Error::msg)?;
-            results[0] = Val::I64(first.cast_signed());
-            Ok(())
-        };
-        let name = format!("{}{n}", words::DIRECT_CALL);
+        let name = format!("{}{arity}", words::DIRECT_CALL);
         linker
-            .func_new(words::HOST_MODULE, &name, ty, call)
+            .func_new(words::HOST_MODULE, &name, ty, direct_entry(0))
             .map_err(|e| e.to_string())?;
     }
     let ty = FuncType::new(eng, [ValType::I32, ValType::I32], [ValType::I64]);
-    let result = move |c: Caller<'_, Data>, params: &[Val], results: &mut [Val]| {
-        let k = params[1].i32().unwrap_or(0) as usize;
-        results[0] = Val::I64(direct_result(&c.data().host, k).cast_signed());
-        Ok(())
-    };
     linker
-        .func_new(words::HOST_MODULE, words::DIRECT_RESULT, ty, result)
+        .func_new(
+            words::HOST_MODULE,
+            words::DIRECT_RESULT,
+            ty,
+            direct_answer(),
+        )
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -490,8 +552,13 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     let engine = engine(fuel)?;
     let mut store = store_for(&engine, setup);
     let e = |e: wasmtime::Error| format!("{e:#}");
-    let (bases, heap) = unit_layout(setup.meta, setup.linked);
-    let memory = Memory::new(&mut store, MemoryType::new(heap.div_ceil(65536), None)).map_err(e)?;
+    let layout = unit_layout(setup.meta, setup.linked);
+    let bases = &layout.bases;
+    let memory = Memory::new(
+        &mut store,
+        MemoryType::new(layout.heap.div_ceil(65536), None),
+    )
+    .map_err(e)?;
     let table = Table::new(
         &mut store,
         TableType::new(RefType::FUNCREF, 1, None),
@@ -499,8 +566,7 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     )
     .map_err(e)?;
     let mut globals = vec![];
-    for (k, _) in words::UNIT_GLOBALS.iter().enumerate() {
-        let start = if k == 0 { heap as i32 } else { 0 };
+    for start in shared_starts(&layout) {
         let ty = GlobalType::new(ValType::I32, Mutability::Var);
         globals.push(Global::new(&mut store, ty, Val::I32(start)).map_err(e)?);
     }
@@ -531,7 +597,7 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         stand_ins: FxHashMap::default(),
     })));
     let unit = setup.meta.unit.as_ref().ok_or("not a unit")?;
-    let inst = make_unit(&mut store, 0, setup.wasm, unit, 0, setup.key)?;
+    let inst = make_unit(&mut store, 0, setup.wasm, unit, setup.key)?;
     store.data_mut().alloc = inst.get_typed_func(&mut store, words::ALLOC).ok();
     Ok(Box::new(Wasmtime {
         store,
@@ -622,18 +688,16 @@ fn unit_instance(mut cx: impl AsContextMut<Data = Data>, i: usize) -> Result<Ins
         .as_ref()
         .ok_or_else(|| format!("{} is not built as a unit", compiled.key))?;
     let host = cx.as_context().data().host.clone();
-    let numbered = host.borrow_mut().bind_unit(compiled.clone())?;
-    make_unit(&mut cx, i, &compiled.wasm, unit, numbered, &compiled.key)
+    host.borrow_mut().bind_unit(i, compiled.clone())?;
+    make_unit(&mut cx, i, &compiled.wasm, unit, &compiled.key)
 }
 
-// Instantiates unit `i` from `wasm`, its engine calls dispatched as unit
-// `numbered`, and fills its link slots.
+// Instantiates unit `i` from `wasm` and fills its link slots.
 fn make_unit(
     mut cx: impl AsContextMut<Data = Data>,
     i: usize,
     wasm: &[u8],
     unit: &crate::Unit,
-    numbered: usize,
     key: &str,
 ) -> Result<Instance, String> {
     let e = |e: wasmtime::Error| format!("{key}: {e:#}");
@@ -651,9 +715,11 @@ fn make_unit(
     let module = unit_module(&engine, wasm, fuel)?;
     let table_base = table.size(&cx) as u32;
     let bases = Bases {
+        index: i as u32,
         memory: links.borrow().units[i].base,
         table: table_base,
         link: table_base + unit.refs,
+        host_ctx: 0,
     };
     table
         .grow(
@@ -662,7 +728,7 @@ fn make_unit(
             Ref::Func(None),
         )
         .map_err(e)?;
-    let imports = unit_imports(&mut cx, &links, &module, numbered, &bases, key)?;
+    let imports = unit_imports(&mut cx, &links, &module, &bases, unit, key)?;
     let inst = Instance::new(&mut cx, &module, &imports).map_err(e)?;
     links.borrow_mut().units[i].inst = Some(inst);
     // Every slot that waited for this unit calls it now.
@@ -678,31 +744,32 @@ fn make_unit(
     Ok(inst)
 }
 
-/// Where a unit's static data, own `fn` table slots and link slots start.
-struct Bases {
-    memory: u32,
-    table: u32,
-    link: u32,
-}
-
-// What a unit imports, in its module's order: its engine calls, dispatched as
-// unit `numbered`, and the script's memory, table and globals.
+// What a unit imports, in its module's order: its engine calls and the
+// script's memory, table and globals.
 fn unit_imports(
     mut cx: impl AsContextMut<Data = Data>,
     links: &Rc<RefCell<Links>>,
     module: &wasmtime::Module,
-    numbered: usize,
     bases: &Bases,
+    unit: &crate::Unit,
     key: &str,
 ) -> Result<Vec<Extern>, String> {
     let (memory, table, globals) = {
         let l = links.borrow();
         (l.memory, l.table, l.globals.clone())
     };
+    let numbered = bases.index as usize;
     let mut imports: Vec<Extern> = vec![];
     let mut index = 0usize;
     for imp in module.imports() {
+        let name = imp.name();
         let ext: Extern = match imp.ty() {
+            ExternType::Func(ty) if name == words::DIRECT_RESULT => {
+                Func::new(&mut cx, ty, direct_answer()).into()
+            }
+            ExternType::Func(ty) if name.starts_with(words::DIRECT_CALL) => {
+                Func::new(&mut cx, ty, direct_entry(numbered)).into()
+            }
             ExternType::Func(ty) => {
                 let at = index;
                 index += 1;
@@ -714,23 +781,13 @@ fn unit_imports(
             }
             ExternType::Memory(_) => memory.into(),
             ExternType::Table(_) => table.into(),
-            ExternType::Global(_) => {
-                let at = match imp.name() {
-                    words::MEMORY_BASE => Some(bases.memory),
-                    words::TABLE_BASE => Some(bases.table),
-                    words::LINK_BASE => Some(bases.link),
-                    _ => None,
-                };
-                if let Some(v) = at {
-                    let ty = GlobalType::new(ValType::I32, Mutability::Const);
-                    Global::new(&mut cx, ty, Val::I32(v as i32))
+            ExternType::Global(global) => {
+                if let Some(value) = own_global(name, bases, unit) {
+                    Global::new(&mut cx, global, Val::I32(value as i32))
                         .map_err(|e| format!("{key}: {e:#}"))?
                         .into()
                 } else {
-                    let name = imp.name();
-                    let at = words::UNIT_GLOBALS
-                        .iter()
-                        .position(|g| *g == name)
+                    let at = shared_global(name)
                         .ok_or_else(|| format!("{key}: imports an unknown global `{name}`"))?;
                     globals[at].into()
                 }
@@ -948,13 +1005,32 @@ impl Wasm for Wasmtime {
         }
     }
     fn global(&mut self, name: &str) -> Option<i32> {
-        let g = self.inst.get_global(&mut self.store, name)?;
-        g.get(&mut self.store).i32()
+        let global = match shared(&self.store, name) {
+            Some(global) => global,
+            None => self.inst.get_global(&mut self.store, name)?,
+        };
+        global.get(&mut self.store).i32()
     }
     fn set_global(&mut self, name: &str, value: i32) {
-        if let Some(g) = self.inst.get_global(&mut self.store, name) {
-            let _ = g.set(&mut self.store, Val::I32(value));
+        let found = match shared(&self.store, name) {
+            Some(global) => Some(global),
+            None => self.inst.get_global(&mut self.store, name),
+        };
+        if let Some(global) = found {
+            let _ = global.set(&mut self.store, Val::I32(value));
         }
+    }
+    fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
+        if self.store.data().links.is_none() && unit == 0 {
+            return self.global(name);
+        }
+        own(&mut self.store, unit, name)
+    }
+    fn make(&mut self, unit: usize) -> Result<(), String> {
+        if unit == 0 {
+            return Ok(());
+        }
+        unit_instance(&mut self.store, unit).map(|_| ())
     }
     fn set_fuel(&mut self, fuel: u64) {
         let _ = self.store.set_fuel(fuel);

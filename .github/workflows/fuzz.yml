@@ -4,8 +4,9 @@ name: Fuzz
 # each a night, seeded from the corpus. Never a push gate: a find becomes a
 # corpus program, as the mutation test's first one did.
 on:
-  schedule:
-    - cron: "17 3 * * *"
+  # Runs from .github/workflows/runner.yml, which owns the triggers; kept
+  # dispatchable so it can still be run on its own from the Actions tab.
+  workflow_call:
   workflow_dispatch:
 
 jobs:

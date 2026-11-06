@@ -1,9 +1,33 @@
 # Handover: `editor-followups`
 
-Branch `editor-followups`, on `main` after #66 (c4fc6e85). Worktree used so
-far: `../balaur-native`. Not pushed. Each step is one commit; no backwards
-compatibility anywhere (a renamed key fails by name, every scene in the tree
-is rewritten in the same commit).
+Merged as #67. What follows the next heading is that branch's record; this
+first section is what a check of `main` found left, and where the work on it
+stopped.
+
+## Paused 2026-11-03
+
+Nothing here is merged or pushed. The plan: each branch finishes green, then
+merges into `script-api-types` (the other session's branch, `any` narrowing,
+which owns Forge's language docs and the site sync too) for one PR. Merge
+`fix-followups` first, then rows, Inspector, units, speed, then the panels.
+Rerun `scripts/gen_docs.py` rather than merging `docs/generated/`. Only one
+target directory per job: a shared one kept builds waiting an hour on its lock.
+Scripts that lived in scratch are in `../balaur-paused/`.
+
+| Branch, worktree | State | Left |
+| --- | --- | --- |
+| `fix-followups`, `../balaur-native` | Done, tested: a saved multimesh asset reaches its nodes; a soft-body region names its `soft_material` | The stale docs below |
+| `fix-widget-rows`, `../balaur-optins` | A third done, HEAD is WIP; the CLI builds, 17 dead-code warnings; PLAN-component-order §4.1 describes the finished split | Delete the dead keys; run `stage_c.py`, `stage_d.py` from `../balaur-paused/widget-rows/` with their by-hand edits; add `widget_beside_test.rs`; 61 rows should stay on `widget`; `beside.rs` may need splitting; all checks, e2e |
+| `fix-inspector`, `../balaur-inspector` | One WIP commit, final tree unbuilt; the `inspector` kind and `widget_inspector` are gone, rows are pooled nodes | Build; `check`, `fmt`, `gen_docs`; tests (two `scene_toml` failures looked like log capture between tests, not rerun alone); clippy; e2e, never run; split the commit |
+| `fix-typed-calls`, `../balaur-lang` | Phase 1: every host build links units; e2e passed before the WIP commit; HEAD is uncompiled | Clippy fails (`generate` too long, `Debugger` bools, `take_tables`, `wasmi_engine` borrows, `direct_answer`); cargo test both crates; web clippy; `tests/web`; `editor_native.sh`; `check_web_module.sh`. Then phase 2, not started: the 114 `self.editor.call` in the panels and `dock.bs`'s `refresh`, after rows land |
+| `fix-speed`, `../balaur-allocs` | One WIP commit, the whole never compiled; no target met; fuel so far `a["k"]` 657 from 1,234, `s.contains` 1,169 from 2,413 with lent arguments alone | Compile the typed property path (`derived::Given`, `PropertyPlace`); `every_cost` for the ceilings; `scripts/call_cost.sh`, `edit_cost.sh` against a baseline; split the commit. Baseline per call on `main`: position write 4,025 instructions, read 1,869, `engine::time()` 1,056 |
+| `fix-screen-reader`, `../balaur-access`; kiss3d `balaur-buffers-and-access` | Fork: staging buffers reused, built, 9 GPU tests; adapter commit WIP, never compiled. Engine: tests only, do not build | Finish the adapter and `balaur_ui/src/access.rs`; `kiss3d_backend.rs` is at 1,199 lines. Buffers save about 0.7 to 1 M a frame, not firmly measured, and nothing per edit; 53 of 252 staging samples are egui-wgpu's, so PLAN-editor-performance §10's sentence is wrong. The egui patch (`../balaur-paused/egui/`) measured worse: drop it unless a re-measure disagrees. Pushing needs the user: `git -C ../kiss3d push fork balaur-buffers-and-access` |
+
+Stale docs to fix at the merge: this file's item list below,
+PLAN-property-types §5 (the rows agent has its wording), and PLAN-foundations'
+status, which still lists the pool's specs as left. `../kiss3d`'s scratch
+worktree `kiss3d-c1` holds nothing committed and can go with
+`git -C ../kiss3d worktree remove --force <path>`.
 
 ## On the branch
 
@@ -118,14 +142,12 @@ is rewritten in the same commit).
      and what it cost. The gamend addon's hand-written modules are copies of
      gamend's `clients/balaur_template` and its generated ones
      `sdkgen/balaur.py`'s output: rewritten there too, for the owner to commit.
-   - Typed calls between scripts: blocked. A whole-file build (profiler,
-     debugger, browser) makes each file its own instance, so
-     `let editor: editor::Editor? = node.script;` is nil there; tried on the
-     39 panels and reverted (the profiler rebuild also went from 4 s to 64 s).
-     Needs those builds to link a project as units first
-     (`balaur_script_bs/src/host/units.rs`, `as_units`), and the compiler to
-     build a unit with probes, counters and metering; a native build links
-     units since 2026-10-30. `dock.bs` calling the shown panel's `refresh`
+   - Typed calls between scripts: unblocked 2026-11-03. Every build a host
+     runs links a project as units, so
+     `let editor: editor::Editor? = node.script;` holds under a profiler, a
+     debugger and in a browser (PLAN-bs-linking). Left: the 39 panels calling
+     the Editor by its type, tried once and reverted while those builds made
+     each file its own instance. `dock.bs` calling the shown panel's `refresh`
      by name is the one dynamic dispatch left.
 5. **The editor runs native** (§9 step 7): done. A native build holds
    units and links them; the editor downloads carry the library, and

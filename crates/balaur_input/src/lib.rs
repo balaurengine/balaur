@@ -737,8 +737,8 @@ fn install_gesture_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("pinch", &[], "-> Pinch", "Two fingers moving apart or together as `{ scale, x, y }`: `scale` above 1 is apart, measured against last frame, and `x`/`y` are the point between them. Empty with fewer than two fingers down."),
         ("pan", &[], "-> Pan", "Two or more fingers moving together as `{ x, y }`, the average movement since last frame in the same pixels as `mouse_position`. Zero with fewer than two down."),
-        ("swipe", &[], "", "A finger that travelled far enough before it lifted, as `{ x, y, speed }`: a unit direction and pixels per second. Reported on the frame it lifted and never again; empty otherwise."),
-        ("long_press", &[], "", "Where a finger has been held still past `long_press_seconds`, as `{ x, y }`. Reported once per finger, on the frame the hold passes; empty otherwise."),
+        ("swipe", &[], "() -> Swipe?", "A finger that travelled far enough before it lifted. Reported on the frame it lifted and never again; nil otherwise."),
+        ("long_press", &[], "() -> Vec2?", "Where a finger has been held still past `long_press_seconds`. Reported once per finger, on the frame the hold passes; nil otherwise."),
     ]);
     m.records(&[
         (
@@ -750,6 +750,11 @@ fn install_gesture_api(m: &mut Module<Engine>) {
             "Pan",
             "{ x: float, y: float }",
             "The average movement of two or more fingers since last frame, in the same pixels as the mouse position.",
+        ),
+        (
+            "Swipe",
+            "{ x: float, y: float, speed: float }",
+            "A finger that travelled before it lifted: a unit direction and pixels per second.",
         ),
     ]);
     m.function("pinch", |eng: &Engine, ()| {
@@ -771,7 +776,7 @@ fn install_gesture_api(m: &mut Module<Engine>) {
     });
     m.function("swipe", |eng: &Engine, ()| {
         let Some(swipe) = eng.resource::<Gestures>().borrow().swipe() else {
-            return Ok(Value::Map(Vec::new()));
+            return Ok(Value::Nil);
         };
         Ok(Value::Map(vec![
             ("x".to_string(), Value::Num(f64::from(swipe.direction.0))),
@@ -780,13 +785,8 @@ fn install_gesture_api(m: &mut Module<Engine>) {
         ]))
     });
     m.function("long_press", |eng: &Engine, ()| {
-        let Some((x, y)) = eng.resource::<Gestures>().borrow().long_press() else {
-            return Ok(Value::Map(Vec::new()));
-        };
-        Ok(Value::Map(vec![
-            ("x".to_string(), Value::Num(f64::from(x))),
-            ("y".to_string(), Value::Num(f64::from(y))),
-        ]))
+        let held = eng.resource::<Gestures>().borrow().long_press();
+        Ok(held.map_or(Value::Nil, |(x, y)| Value::Vec2([x, y])))
     });
 }
 
@@ -854,14 +854,19 @@ fn install_feed_api(m: &mut Module<Engine>) {
 /// window backend feeds.
 fn install_touch_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("touches", &[], "", "Every finger on the screen as `{ id, x, y }`, oldest first, in the same pixels as `mouse_position`."),
-        ("touches_just_started", &[], "", "The ids of the fingers that touched down this frame."),
-        ("touches_just_ended", &[], "", "The ids of the fingers that lifted or were cancelled this frame."),
-        ("dropped_files", &[], "", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only. A script hears a drop with `events::listen(this.node, \"files_dropped\")`, as `on_files_dropped(paths)`."),
-        ("typed", &[], "", "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."),
-        ("keyboard_height", &[], "", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
-        ("composing", &[], "", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),
+        ("touches", &[], "() -> [Touch]", "Every finger on the screen, oldest first, in the same pixels as `mouse_position`."),
+        ("touches_just_started", &[], "() -> [int]", "The ids of the fingers that touched down this frame."),
+        ("touches_just_ended", &[], "() -> [int]", "The ids of the fingers that lifted or were cancelled this frame."),
+        ("dropped_files", &[], "() -> [string]", "The absolute paths of files dropped onto the window this frame, in drop order; desktop only. A script hears a drop with `events::listen(this.node, \"files_dropped\")`, as `on_files_dropped(paths)`."),
+        ("typed", &[], "() -> string", "The characters typed this frame, in order: what a text field appends, where `key_just_pressed` says which key went down."),
+        ("keyboard_height", &[], "() -> float", "How much of the window the on-screen keyboard covers, in pixels from the bottom: what a form moves up by. Zero with no keyboard up, and always zero on a desktop."),
+        ("composing", &[], "() -> string", "The text an input method is still composing, for a field to show under its caret; empty once it commits into `typed`, and always empty without an input method."),
     ]);
+    m.records(&[(
+        "Touch",
+        "{ id: int, x: float, y: float }",
+        "One finger: its id and where it is.",
+    )]);
     m.function("composing", |eng: &Engine, ()| {
         let state = eng.resource::<InputSnapshot>();
         let composing = state.borrow().composing().to_string();

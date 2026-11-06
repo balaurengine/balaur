@@ -2,7 +2,7 @@
 // code, memory and globals.
 
 use super::rt::{
-    self, DATA_BASE, DEBUG_STACK, G_BUMP, G_DBG_BASE, G_DBG_BREAKS, G_DBG_FLAGS, G_DBG_SP, G_LIVE,
+    DATA_BASE, DEBUG_STACK, G_BUMP, G_DBG_BASE, G_DBG_BREAKS, G_DBG_FLAGS, G_DBG_SP, G_LIVE,
     G_TABLE_BASE, GLOBALS,
 };
 use super::{Emitted, FuncBody, Gen, show};
@@ -29,7 +29,7 @@ pub(super) fn export_section(
     ex.export(words::LIVE, ExportKind::Global, G_LIVE);
     ex.export(words::DBG_RESET, ExportKind::Func, g.h.dbg_reset + shift);
     if g.meter {
-        ex.export(words::FUEL, ExportKind::Global, rt::G_FUEL);
+        ex.export(words::FUEL, ExportKind::Global, g.fuel);
     }
     if let Some(base) = g.prof_globals {
         ex.export(words::STEPS, ExportKind::Global, base);
@@ -75,11 +75,12 @@ pub(super) fn table_sections(
         if refs.is_empty() {
             return (None, None);
         }
+        let funcs: Vec<u32> = refs.iter().map(|i| i + shift).collect();
         let mut elements = ElementSection::new();
         elements.active(
             Some(0),
             &ConstExpr::global_get(G_TABLE_BASE),
-            Elements::Functions(std::borrow::Cow::Owned(refs.clone())),
+            Elements::Functions(std::borrow::Cow::Owned(funcs)),
         );
         return (None, Some(elements));
     }
@@ -184,8 +185,3 @@ pub(super) fn memory_and_globals(
 /// A profiled module's globals: the statement count, the callees' share of
 /// the call running, and the table's address.
 pub(super) const PROF_GLOBALS: u32 = 3;
-
-// A direct module's instance id, after the fuel and the profile's globals.
-pub(super) fn host_global(options: &Options) -> u32 {
-    GLOBALS as u32 + u32::from(options.meter) + PROF_GLOBALS * u32::from(options.profile)
-}

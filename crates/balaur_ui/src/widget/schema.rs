@@ -176,7 +176,7 @@ fn check_class_tables(params: &toml::Value) -> Result<()> {
                 bail!("widget: `{word}.{key}` -- a widget cannot change kind with the screen");
             }
             let written = match WidgetProperties::NAMES.iter().position(|name| name == key) {
-                Some(index) => WidgetProperties::default().write(index, value),
+                Some(index) => WidgetProperties::default().write(index, value.into()),
                 None => crate::widget::beside::check_class_row(kind, key, value),
             };
             written.map_err(|why| anyhow!("widget: `{word}.{key}` {why}"))?;
@@ -278,7 +278,7 @@ pub(crate) fn for_classes(
                 merged = Some(WidgetProperties::clone(&*held()?));
             }
             // A value the property refuses leaves what the widget holds.
-            let _ = merged.as_mut()?.write(index, value);
+            let _ = merged.as_mut()?.write(index, value.into());
         }
     }
     if merged.is_none() && beside.is_empty() {
@@ -580,7 +580,7 @@ mod tests {
             let mut widget = widget_of(&asked);
             let changed = changed_value::<WidgetProperties>(&asked, index);
             asked
-                .write(index, &changed)
+                .write(index, (&changed).into())
                 .expect("the value fits the property");
             if !put_one(&mut widget, &asked, name) {
                 continue;

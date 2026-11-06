@@ -232,12 +232,12 @@ pub fn fill_rail(state: editor::State) {
     for mark in rail_marks(state) {
         column.push(rail_mark(state, mark, grid.diameter));
         if column.len() as float >= grid.rows {
-            columns.push(ui::Control { kind: "column", gap: [grid.gap, grid.gap], controls: column });
+            columns.push(ui::Control { kind: "column", gap: vec2(grid.gap, grid.gap), controls: column });
             column = [];
         }
     }
     if column.len() > 0 {
-        columns.push(ui::Control { kind: "column", gap: [grid.gap, grid.gap], controls: column });
+        columns.push(ui::Control { kind: "column", gap: vec2(grid.gap, grid.gap), controls: column });
     }
     let filled = scene::get_node(RAIL);
     if filled.is_valid() {
@@ -249,7 +249,7 @@ pub fn fill_rail(state: editor::State) {
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
 fn rail_mark(state: editor::State, mark: str, diameter: float) -> ui::Control {
-    let round: ui::Control = ui::Control { kind: "button", role: "icon_action", text: "", width: diameter, height: diameter, padding: 0, corner_radius: diameter / 2.0 };
+    let round: ui::Control = ui::Control { kind: "button", role: "icon_action", text: "", width: diameter, height: diameter, padding: ui::all_sides(0), corner_radius: diameter / 2.0 };
     if mark == "restore" {
         round.icon = icons::ui("restore");
         round.tooltip = "Show the tools";
@@ -769,11 +769,11 @@ pub fn fill_hooks(state: &mut editor::State) {
                 kind: "panel",
                 fill: tokens["bg_control"],
                 corner_radius: 15,
-                padding: [11, 6, 11, 6],
+                padding: ui::sides(11, 6, 11, 6),
                 controls: [
                     ui::Control {
                         kind: "row",
-                        gap: [4, 4],
+                        gap: vec2(4, 4),
                         align_items: "center",
                         controls: [
                             ui::Control { kind: "row", width: 6, height: 6, corner_radius: 3, fill: if lifecycle { tokens["primary_text"] } else { tokens["secondary_text"] } },

@@ -693,15 +693,22 @@ fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
 pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("teleport", &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
-        ("predict_position", &[c::BODY_3D], "", "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`."),
-        ("predict_position_with_forces", &[c::BODY_3D], "", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
-        ("next_position", &[c::BODY_3D], "", "The pose a kinematic body has been told to move to, as `{ position, rotation }`."),
+        ("predict_position", &[c::BODY_3D], "(node: node, dt: float) -> Pose", "Where the body will be after `dt` seconds at its current velocity."),
+        ("predict_position_with_forces", &[c::BODY_3D], "(node: node, dt: float) -> Pose", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
+        ("next_position", &[c::BODY_3D], "(node: node) -> Pose", "The pose a kinematic body has been told to move to."),
     ]);
-    m.records(&[(
-        "TeleportOptions",
-        "{ rotation: any }",
-        "How `teleport` turns the body as it moves it: Euler radians, x first.",
-    )]);
+    m.records(&[
+        (
+            "Pose",
+            "{ position: Vec3, rotation: Vec3 }",
+            "Where something stands and how it is turned, in Euler radians, x first.",
+        ),
+        (
+            "TeleportOptions",
+            "{ rotation: Vec3? }",
+            "How `teleport` turns the body as it moves it: Euler radians, x first.",
+        ),
+    ]);
     m.function(
         "teleport",
         |eng: &Engine,
@@ -758,12 +765,12 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
 pub(crate) fn install_body_mass_api(m: &mut Module<Engine>) {
     use balaur_script::Value;
     m.describe(&[
-        ("world_center_of_mass", &[c::BODY_3D], "", "Where the body's whole mass sits, in world space."),
-        ("local_center_of_mass", &[c::BODY_3D], "", "Where the body's whole mass sits, in the body's own space."),
-        ("total_inertia", &[c::BODY_3D], "", "The body's resistance to spin about each of its principal axes, colliders included."),
-        ("total_inertia_rotation", &[c::BODY_3D], "", "How those principal axes are turned in the body's own space, as Euler radians, x first."),
-        ("effective_mass", &[c::BODY_3D], "", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
-        ("effective_angular_inertia", &[c::BODY_3D], "", "The world-space inertia the solver turns, rotation locks applied, as its three rows."),
+        ("world_center_of_mass", &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in world space."),
+        ("local_center_of_mass", &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in the body's own space."),
+        ("total_inertia", &[c::BODY_3D], "(node: node) -> Vec3", "The body's resistance to spin about each of its principal axes, colliders included."),
+        ("total_inertia_rotation", &[c::BODY_3D], "(node: node) -> Vec3", "How those principal axes are turned in the body's own space, as Euler radians, x first."),
+        ("effective_mass", &[c::BODY_3D], "(node: node) -> Vec3", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
+        ("effective_angular_inertia", &[c::BODY_3D], "(node: node) -> [Vec3]", "The world-space inertia the solver turns, rotation locks applied, as its three rows."),
     ]);
     m.function("world_center_of_mass", |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {

@@ -347,7 +347,7 @@ struct FieldParts {
     default: Tokens,
     spec: Tokens,
     read: Tokens,
-    vector: Tokens,
+    given: Tokens,
     write: Tokens,
 }
 
@@ -392,9 +392,9 @@ fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
         #toml::Value::Table(spec)
     });
     let read = quote!(#index => ::core::option::Option::Some(#derived::Property::to_value(&self.#field_ident)),);
-    let vector = quote!(#index => #derived::Property::vector(&self.#field_ident, out),);
+    let given = quote!(#index => #derived::Property::given(&self.#field_ident),);
     let write = quote!(#index => {
-        self.#field_ident = #derived::Property::from_value(value)
+        self.#field_ident = #derived::Property::from_given(value)
             .map_err(|why| why.context(#name))?;
     });
     Ok(FieldParts {
@@ -402,7 +402,7 @@ fn field_parts(index: usize, field: &syn::Field) -> syn::Result<FieldParts> {
         default,
         spec,
         read,
-        vector,
+        given,
         write,
     })
 }
@@ -501,7 +501,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
     let mut defaults = Vec::new();
     let mut specs = Vec::new();
     let mut reads = Vec::new();
-    let mut vectors = Vec::new();
+    let mut givens = Vec::new();
     let mut writes = Vec::new();
     for (index, field) in fields.named.iter().enumerate() {
         let parts = field_parts(index, field)?;
@@ -509,7 +509,7 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
         defaults.push(parts.default);
         specs.push(parts.spec);
         reads.push(parts.read);
-        vectors.push(parts.vector);
+        givens.push(parts.given);
         writes.push(parts.write);
     }
     let count = names.len();
@@ -540,14 +540,14 @@ fn expand(input: &DeriveInput, component: bool) -> syn::Result<Tokens> {
                 }
             }
 
-            fn vector(&self, index: usize, out: &mut [f32; 4]) -> ::core::option::Option<usize> {
+            fn given(&self, index: usize) -> ::core::option::Option<#derived::Given<'_>> {
                 match index {
-                    #(#vectors)*
+                    #(#givens)*
                     _ => ::core::option::Option::None,
                 }
             }
 
-            fn write(&mut self, index: usize, value: &#toml::Value) -> #derived::Result<()> {
+            fn write(&mut self, index: usize, value: #derived::Given<'_>) -> #derived::Result<()> {
                 match index {
                     #(#writes)*
                     _ => return ::core::result::Result::Err(#derived::no_property(index)),
@@ -644,6 +644,17 @@ fn expand_enum(input: &DeriveInput) -> syn::Result<Tokens> {
                     #(::core::option::Option::Some(#options) => ::core::result::Result::Ok(Self::#variants),)*
                     _ => ::core::result::Result::Err(#derived::not_an_option(value, Self::OPTIONS)),
                 }
+            }
+
+            fn from_given(given: #derived::Given<'_>) -> #derived::Result<Self> {
+                match given {
+                    #(#derived::Given::Text(#options) => ::core::result::Result::Ok(Self::#variants),)*
+                    other => #derived::from_given(other),
+                }
+            }
+
+            fn given(&self) -> ::core::option::Option<#derived::Given<'_>> {
+                ::core::option::Option::Some(#derived::Given::Text(self.option()))
             }
         }
     })

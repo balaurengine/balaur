@@ -10,16 +10,16 @@ pub class Driver {
     spin: float,
 }
 
-fn INK() -> [float] {
-    [0.94, 0.95, 0.97, 1.0]
+fn INK() -> Color {
+    color(0.94, 0.95, 0.97, 1.0)
 }
 
-fn DIM() -> [float] {
-    [0.58, 0.63, 0.70, 1.0]
+fn DIM() -> Color {
+    color(0.58, 0.63, 0.70, 1.0)
 }
 
-fn WARM() -> [float] {
-    [0.96, 0.72, 0.30, 1.0]
+fn WARM() -> Color {
+    color(0.96, 0.72, 0.30, 1.0)
 }
 
 const PAUSE_AT: int = 60;
@@ -71,7 +71,7 @@ fn tint(n: int) -> str {
     }
 }
 
-fn label(x: float, y: float, text: str, size: float, color: [float]) {
+fn label(x: float, y: float, text: str, size: float, color: Color) {
     render::draw_text_2d(x, y, text, render::TextOptions { font_size: size, color: color, text_align: "center" });
 }
 
@@ -82,10 +82,10 @@ fn marker(at: [float], angle: float) {
     let c = math::cos(angle) * r;
     let s = math::sin(angle) * r;
     render::draw_polygon_2d([
-        [at[0] + c - s, at[1] + s + c],
-        [at[0] - c - s, at[1] - s + c],
-        [at[0] - c + s, at[1] - s - c],
-        [at[0] + c + s, at[1] + s - c],
+        vec2(at[0] + c - s, at[1] + s + c),
+        vec2(at[0] - c - s, at[1] - s + c),
+        vec2(at[0] - c + s, at[1] - s - c),
+        vec2(at[0] + c + s, at[1] + s - c),
     ], WARM());
 }
 

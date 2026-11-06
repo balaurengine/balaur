@@ -20,7 +20,7 @@ script that adds a bool to an int does not start.
 | `{str: V}`, `{int: V}` | a map from keys to `V` | [Maps](maps.md) |
 | `T?` | a `T`, or `nil` | [Optionals and nil](optionals.md) |
 | `any` | a value whose kind is read at run time | [The any type](any.md) |
-| `Vec2`, `Vec3`, `Color` | numbers with named fields | [Vectors and colours](vectors.md) |
+| `Vec2`, `Vec3`, `Color`, `Transform2d`, `Transform3d` | numbers with named fields | [Vectors and colours](vectors.md) |
 | `Node` | a node of the scene | [Nodes and components](../engine/nodes.md) |
 | `fn(A, B) -> R` | a function | [Function values](../functions/values.md) |
 | a `struct` | fields, copied as one value | [Structs](../data/structs.md) |
@@ -82,7 +82,7 @@ Assigning a value, or passing it to a function, does one of two things.
 | Copied | Shared |
 | --- | --- |
 | `int`, `float`, `bool` | `str`, which never changes, so sharing cannot show |
-| `Vec2`, `Vec3`, `Color` | lists and maps |
+| `Vec2`, `Vec3`, `Color`, the transforms | lists and maps |
 | structs and enums | class objects, and what an `any` holds when it is a list or a map |
 
 ```bs

@@ -20,7 +20,7 @@ pub class GizmoState {
     key: [any],
     internal marquee: any,
     drawn: [any],
-    lines: [any],
+    lines: [float],
 }
 
 pub struct Camera {
@@ -625,7 +625,7 @@ fn hit_test(state: editor::State, camera: Camera, geometry: Geometry3d, pointer_
 const STROKE_WIDTH: float = 4.2;
 
 // One segment onto `out`, in `render::draw_lines`' eleven numbers.
-fn line(out: [any], from: [float], to: [float], color: [float], width: float, on_top: bool) {
+fn line(out: [float], from: [float], to: [float], color: [float], width: float, on_top: bool) {
     let top = if on_top { 1.0 } else { 0.0 };
     out.extend([from[0], from[1], from[2], to[0], to[1], to[2], color[0], color[1], color[2], width, top]);
 }
@@ -633,7 +633,7 @@ fn line(out: [any], from: [float], to: [float], color: [float], width: float, on
 // Corner marker in steadyum's open-bracket style: of the mini-cube's 12
 // edges, draw only those with at least one outward face (faces whose sign
 // matches the handle's corner sign), leaving an open bracket.
-fn draw_handle_marker(out: [any], geometry: Geometry3d, signs: [float], half: float, color: [float]) {
+fn draw_handle_marker(out: [float], geometry: Geometry3d, signs: [float], half: float, color: [float]) {
     // Corner offset in the box's local frame.
     let base = [signs[0] * geometry.half_extents[0], signs[1] * geometry.half_extents[1], signs[2] * geometry.half_extents[2]];
     for axis in 0..3 {
@@ -696,7 +696,7 @@ pub fn draw(state: &mut editor::State) {
         render::draw_lines(state.gizmo.lines);
         return;
     }
-    let out: [any] = [];
+    let out: [float] = [];
     let half_extents = geometry.half_extents;
     let hot_face = if hot_is(hot, "face") { hot } else { nil };
     // The 12 box edges, in the node's rotated frame. An edge bounds the

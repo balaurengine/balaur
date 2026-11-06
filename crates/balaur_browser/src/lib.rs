@@ -151,7 +151,7 @@ fn install_web_api(m: &mut Module<Engine>) {
         "The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, \"browser_event\")`, heard as `on_browser_event(payload)`.",
     );
     m.describe(&[
-        ("post_message", &[], "(payload: map) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
+        ("post_message", &[], "(payload: any) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
         ("visible", &[], "() -> bool", "Whether the tab is in front of the player; true off the web."),
         ("user_agent", &[], "() -> string?", "The browser's user agent string, or nil off the web."),
         ("location", &[], "() -> string?", "The page's URL, or nil off the web."),

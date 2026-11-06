@@ -122,8 +122,8 @@ use attached::mark;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
 pub use derived::{Lifecycle, LifecycleFn};
 pub use property::{
-    PropertyPlace, answers_alone, place_of, property, property_at, property_placed, set_property,
-    set_property_at, set_property_placed, vector_placed,
+    PropertyPlace, answers_alone, given_placed, place_of, property, property_at, property_placed,
+    set_property, set_property_at, set_property_placed,
 };
 use schema::hex_rgba;
 pub use schema::{
@@ -272,11 +272,13 @@ pub type GetFn = Box<dyn Fn(&Engine, Entity) -> Option<toml::Value>>;
 pub type WarningsFn = Option<Box<dyn Fn(&Engine, Entity) -> Vec<crate::warnings::Warning>>>;
 /// Read one property by its index in the schema, without the rest.
 pub type ReadFn = Box<dyn Fn(&Engine, Entity, usize) -> Option<toml::Value>>;
-/// Read one vector property's numbers by its index in the schema, and how many.
-pub type ReadVectorFn = Box<dyn Fn(&Engine, Entity, usize, &mut [f32; 4]) -> Option<usize>>;
+/// Hand one property by its index in the schema to the call, with nothing
+/// built. `false` is a node without the component, or a type with no such form.
+pub type ReadGivenFn =
+    Box<dyn Fn(&Engine, Entity, usize, &mut dyn FnMut(derived::Given<'_>)) -> bool>;
 /// Write one property by its index in the schema. `false` is a node without
 /// the component, which a whole [`patch`] then adds.
-pub type WriteFn = Box<dyn Fn(&Engine, Entity, usize, &toml::Value) -> Result<bool>>;
+pub type WriteFn = Box<dyn Fn(&Engine, Entity, usize, derived::Given<'_>) -> Result<bool>>;
 /// Write several properties by their indices, as one write: the component's
 /// hook runs once, and a refusal puts back every one.
 pub type WriteEachFn = Box<dyn Fn(&Engine, Entity, &[(usize, &toml::Value)]) -> Result<bool>>;
@@ -331,8 +333,8 @@ pub struct ComponentDef {
     /// One property by its index, for a component that can answer it alone:
     /// every derived one ([`derived`]). `None` reads the whole table.
     pub read: Option<ReadFn>,
-    /// One vector property read by its index, into numbers rather than a value.
-    pub read_vector: Option<ReadVectorFn>,
+    /// One property read by its index with nothing built, where its type can.
+    pub read_given: Option<ReadGivenFn>,
     /// One property written by its index, the twin of `read`. `None` writes
     /// through a whole [`patch`].
     pub write: Option<WriteFn>,
@@ -369,7 +371,7 @@ impl ComponentDef {
             remove,
             get,
             read: None,
-            read_vector: None,
+            read_given: None,
             write: None,
             write_each: None,
             warnings: None,

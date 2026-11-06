@@ -340,7 +340,7 @@ impl Scenario {
             collide_connected: true,
             drive: "motors",
             stiffness: 40.0,
-            axes: [{ "axis": physics2d::AXIS_ROTATION, "limits": [-0.5, 0.5] }],
+            axes: [physics2d::JointAxis { axis: physics2d::AXIS_ROTATION, limits: [-0.5, 0.5] }],
         });
     }
 }
@@ -420,7 +420,7 @@ fn a_follow_drive_holds_a_limp_rig_on_its_bones() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics2d::ragdoll(self.node, physics2d::RagdollOptions { drive: "follow", follow: { "kind": "pid" } });
+        physics2d::ragdoll(self.node, physics2d::RagdollOptions { drive: "follow", follow: physics2d::FollowOptions { kind: "pid" } });
     }
 }
 "#,

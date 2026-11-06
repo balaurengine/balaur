@@ -259,7 +259,8 @@ Order of the moves, smallest first, one commit each:
    and `world` sizing scales with the view.
 3. `soft_material`: 27 and 33 rows. Built 2026-10-28
    (`crates/balaur_physics/src/soft_material.rs`); a 3D cloth alone reads
-   the woven springs. `regions` naming one per part is still to come.
+   the woven springs. A region names one per part since 2026-11-03: its
+   edge spring and shape matching come from it, empty keeping the body's.
 4. `camera_effects`: `post` and its 51 rows. Built 2026-10-28
    (`crates/balaur_render/src/post.rs`); the camera's `effects` row names
    it, read again when the row or the asset cache moves.

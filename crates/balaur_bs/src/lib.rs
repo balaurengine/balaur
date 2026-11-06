@@ -106,8 +106,9 @@ pub struct Options {
     /// Compile this file alone, as a unit: the modules it uses are read for
     /// their declarations only, and a call into one goes through a link the
     /// runtime fills with that module's own unit, compiled once for every
-    /// script that uses it ([`Compiled::linked`]). Not with `debug`,
-    /// `profile`, `meter` or `direct_imports`, which build the whole file.
+    /// script that uses it ([`Compiled::linked`]). `debug`, `profile`, `meter`
+    /// and `direct_imports` each hold of the unit, and it links with units
+    /// built otherwise.
     pub unit: bool,
     /// The module files read so far, kept across compiles by the caller.
     pub parsed: Option<Parsed>,
@@ -282,6 +283,10 @@ pub struct Unit {
     pub refs: u32,
     /// Each function of another unit it calls, in link slot order.
     pub links: Vec<Link>,
+    /// A debug build's breakpoint table, a byte per probe, in its static data.
+    pub breaks_at: u32,
+    /// A profiled build's table, 16 bytes per function, in its static data.
+    pub rows_at: u32,
 }
 
 /// One function a unit calls in another: the file whose unit has it, the

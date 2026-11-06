@@ -39,7 +39,7 @@ fn push_text(
     };
     let pixels_per_unit = number(crate::vocabulary::keys::PIXELS_PER_UNIT);
     let z_index = number(crate::vocabulary::keys::Z_INDEX).map(|z| z as i32);
-    let style = crate::world_text::style_of(eng, opts)?;
+    let style = crate::world_text::style_of(opts)?;
     let buffer = eng.resource::<crate::world_text::TextDrawBuffer>();
     buffer.borrow_mut().items.push(crate::world_text::TextDraw {
         text,
@@ -288,7 +288,7 @@ fn install_window_api(m: &mut Module<Engine>) {
     m.records(&[
         (
             "AppIconOptions",
-            "{ plate: any }",
+            "{ plate: Color? }",
             "The colour of the disc a macOS dock icon sits on, `plate`; white unless given.",
         ),
         (
@@ -468,18 +468,18 @@ pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
         ("set_grid_colors", &[], "", "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
         ("draw_line_3d", &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
         ("draw_line_2d", &[], "(x1: float, y1: float, x2: float, y2: float, r: float, g: float, b: float, width: float?, opts: DrawOptions?)", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
-        ("draw_lines", &[], "(flat)", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
-        ("draw_box", &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: color)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
-        ("draw_sphere", &[], "(x: float, y: float, z: float, radius: float, color: color)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
-        ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: color)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
-        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` take a reference or a definition table."),
+        ("draw_lines", &[], "(segments: [float])", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
+        ("draw_box", &[], "(x: float, y: float, z: float, hx: float, hy: float, hz: float, color: Color?)", "Draw a wireframe box centred at a point, from its three half-extents in world units, for this frame."),
+        ("draw_sphere", &[], "(x: float, y: float, z: float, radius: float, color: Color?)", "Draw a wireframe sphere centred at a point, as three rings in world units, for this frame."),
+        ("draw_capsule", &[], "(x: float, y: float, z: float, radius: float, height: float, color: Color?)", "Draw a wireframe capsule centred at a point, `height` being the straight part along y, for this frame."),
+        ("draw_text_2d", &[], "(x: float, y: float, text: string, opts: TextOptions?)", "Draw a line of text in 2D world space for this frame, shaped by the engine's fonts. `opts` takes the `text2d` keys (`font_size`, `font_weight`, `font_style`, `color`, `text_align`, `markup`, `max_width`, `font`, `text_style`, …), `pixels_per_unit` and `z_index`; `font` and `text_style` name an asset."),
         ("draw_text_3d", &[], "(x: float, y: float, z: float, text: string, opts: TextOptions?)", "The same in 3D world space, on a quad that faces the camera. `pixels_per_unit` sizes it, so text a metre away reads the same whatever the font size."),
         ("text_size", &[], "(text: string, opts: TextOptions?) -> (float, float)", "The width and height `text` shapes to, in font pixels, with the project's own fonts and never a system face — so a headless run and a windowed one answer the same. A width is presentation: writing one into state puts presentation in the digest."),
     ]);
     m.records(&[(
         "TextOptions",
-        "{ font_size: float?, font_weight: int?, font_style: string?, color: any, text_align: string?, markup: bool?, max_width: float?, max_height: float?, max_lines: int?, line_break: string?, truncate: bool?, truncate_at: string?, tab_width: int?, font: any, text_style: any, alpha_cutoff: float?, pixels_per_unit: float?, z_index: int? }",
-        "How drawn text is shaped and placed: the `text2d` keys, a `font` or `text_style` as a reference or a definition table, `pixels_per_unit` for its size in the world and `z_index` among the nodes of that index.",
+        "{ font_size: float?, font_weight: int?, font_style: string?, color: Color?, text_align: string?, markup: bool?, max_width: float?, max_height: float?, max_lines: int?, line_break: string?, truncate: bool?, truncate_at: string?, tab_width: int?, font: string?, text_style: string?, alpha_cutoff: float?, pixels_per_unit: float?, z_index: int? }",
+        "How drawn text is shaped and placed: the `text2d` keys, a `font` or `text_style` naming an asset, `pixels_per_unit` for its size in the world and `z_index` among the nodes of that index.",
     )]);
     // No reader by design (N8): the `ClearColorConfig` entry already holds
     // the colour; add `background` when a caller needs to read it back.
@@ -573,7 +573,7 @@ fn install_text_api(m: &mut Module<Engine>) {
     m.function(
         "text_size",
         |eng: &Engine, (text, opts): (String, Option<Value>)| {
-            let style = crate::world_text::style_of(eng, opts)?;
+            let style = crate::world_text::style_of(opts)?;
             let [w, h] = crate::world_text::measure(eng, &text, &style)?;
             Ok((w, h))
         },

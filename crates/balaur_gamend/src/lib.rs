@@ -298,6 +298,16 @@ impl GamendState {
         Ok(())
     }
 
+    /// A call nothing will send: it shows as refused, and whatever awaits
+    /// `request` wakes to its `error` on a later tick, as any failure does.
+    pub fn refuse(&mut self, eng: &Engine, request: u64, message: String) {
+        self.activity
+            .started(request, None, "refused", message.clone(), None);
+        self.io.start(eng, |report| {
+            balaur_core::replay::report(report, GamendEvent::Failed { request, message });
+        });
+    }
+
     /// Open the realtime connection. The worker joins the session's own
     /// `user:<id>` topic before reporting `open`, so hooks work immediately.
     pub fn connect(&mut self, eng: &Engine, socket: u64, handler: Option<Handler>) -> Result<()> {
@@ -748,8 +758,9 @@ fn install_gamend_api(m: &mut Module<Engine>) {
         ("configure", &[], "(url: string?) -> string", "Point the plugin at another server and answer its url; with none, the one `server` answers. The first call that reaches a server does this on its own."),
         ("login", &[], "(credentials: Credentials) -> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
         ("register", &[], "(account: Credentials) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
-        ("rest", &[], "", "Call a path on the configured server over HTTP; the result carries the `status` and the decoded `body`."),
-        ("connect", &[], "(node: any, opts: events::ListenOptions?) -> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
+        ("rest", &[], "(method: string, path: string, body: any) -> int", "Call a path on the configured server over HTTP, and return the id whose result carries the `status` and the decoded `body`. The body is the JSON the path takes, or left out for none."),
+        ("refuse", &[], "(message: string) -> int", "Send nothing, and return an id whose `error` result carries the message: what a wrapper over `rest` answers for a call it will not make, so an await on it still resumes."),
+        ("connect", &[], "(node: node?, opts: events::ListenOptions?) -> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
     ]);
     // `gamend.configure(url)` — where the server lives, for a script that
     // names its own.
@@ -799,6 +810,13 @@ fn install_gamend_api(m: &mut Module<Engine>) {
             Ok(int(id))
         },
     );
+    m.function("refuse", |eng: &Engine, message: String| {
+        let id = eng.next_token();
+        eng.resource::<GamendState>()
+            .borrow_mut()
+            .refuse(eng, id, message);
+        Ok(int(id))
+    });
     // `gamend.connect(node|nil, { on_event = "on_gamend_event" })` -> socket
     // id. The worker logs in to the realtime endpoint with the current
     // session and joins the own-user topic before reporting `open`.
@@ -820,11 +838,11 @@ fn install_gamend_api(m: &mut Module<Engine>) {
 /// The per-connection half of `gamend.*`: operations on an open socket.
 fn install_gamend_socket_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("join", &[], "-> int", "Subscribe the socket to a topic and return the id the server's `reply` answers."),
-        ("push", &[], "-> int", "Send an event and its payload to a topic on the socket, returning the id the `reply` answers."),
-        ("leave", &[], "-> int", "Unsubscribe the socket from a topic, returning the id the `reply` answers."),
-        ("call_hook", &[], "-> int", "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`."),
-        ("close", &[], "-> bool", "Shut the socket down; false when the connection was already gone."),
+        ("join", &[], "(socket: int, topic: string, payload: any) -> int", "Subscribe the socket to a topic and return the id the server's `reply` answers."),
+        ("push", &[], "(socket: int, topic: string, event: string, payload: any) -> int", "Send an event and its payload to a topic on the socket, returning the id the `reply` answers."),
+        ("leave", &[], "(socket: int, topic: string) -> int", "Unsubscribe the socket from a topic, returning the id the `reply` answers."),
+        ("call_hook", &[], "(socket: int, plugin: string, function: string, args: any) -> int", "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`."),
+        ("close", &[], "(socket: int) -> bool", "Shut the socket down; false when the connection was already gone."),
         ("interrupt", &[], "(socket: int) -> bool", "Cut the connection as a network failure would, to try a game's reconnect path: the socket reports `reconnecting`, then `reopened`. False when it is already gone."),
     ]);
     // `gamend.join(socket, topic, payload?)` -> id; reply arrives as

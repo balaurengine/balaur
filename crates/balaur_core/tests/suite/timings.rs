@@ -19,16 +19,22 @@ fn spans(app: &App) -> Vec<(String, f64)> {
     let balaur_script::Value::Map(fields) = balaur_core::timings::table(&app.engine) else {
         panic!("timings should be a table");
     };
-    let Some((_, balaur_script::Value::Map(spans))) =
+    let Some((_, balaur_script::Value::List(spans))) =
         fields.into_iter().find(|(k, _)| k == "spans")
     else {
         panic!("no spans in the table");
     };
     spans
         .into_iter()
-        .map(|(name, value)| match value {
-            balaur_script::Value::Num(n) => (name, n),
-            other => panic!("a span is a number, got {}", other.type_name()),
+        .map(|span| match span {
+            balaur_script::Value::Map(fields) => match fields.as_slice() {
+                [
+                    (_, balaur_script::Value::Str(name)),
+                    (_, balaur_script::Value::Num(seconds)),
+                ] => (name.clone(), *seconds),
+                other => panic!("a span is a name and its seconds, got {other:?}"),
+            },
+            other => panic!("a span is a record, got {}", other.type_name()),
         })
         .collect()
 }

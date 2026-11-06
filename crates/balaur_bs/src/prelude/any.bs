@@ -96,28 +96,24 @@ fn get(map: any, key: str) -> any {
     if __tag(map) != MAP {
         return nil;
     }
-    let index = index_of(__keys(map), key);
+    let index = __key_index(map, key);
     if index < 0 {
         nil
     } else {
-        __vals(map)[index]
+        __val_at(map, index)
     }
 }
 
 fn at(list: any, index: int) -> any {
-    if __tag(list) != LIST {
-        return nil;
-    }
-    let items = __items(list);
-    if index < 0 || index >= items.len() {
+    if __tag(list) != LIST || index < 0 || index >= __items(list).len() {
         nil
     } else {
-        items[index]
+        __items(list)[index]
     }
 }
 
 pub fn has(map: any, key: str) -> bool {
-    __tag(map) == MAP && index_of(__keys(map), key) >= 0
+    __tag(map) == MAP && __key_index(map, key) >= 0
 }
 
 pub fn keys(map: any) -> [str] {
@@ -143,14 +139,12 @@ fn set(map: any, key: str, item: any) -> bool {
     if __tag(map) != MAP {
         return false;
     }
-    let keys = __keys(map);
-    let index = index_of(keys, key);
+    let index = __key_index(map, key);
     if index < 0 {
-        keys.push(key);
+        __keys(map).push(key);
         __vals(map).push(item);
     } else {
-        let vals = __vals(map);
-        vals[index] = item;
+        __vals(map)[index] = item;
     }
     true
 }
@@ -168,11 +162,10 @@ fn put(list: any, index: int, item: any) -> bool {
     if __tag(list) != LIST {
         return false;
     }
-    let items = __items(list);
-    if index < 0 || index >= items.len() {
+    if index < 0 || index >= __items(list).len() {
         return false;
     }
-    items[index] = item;
+    __items(list)[index] = item;
     true
 }
 
@@ -204,12 +197,11 @@ pub fn remove(value: any, key: any) -> any {
     if tag != MAP || __tag(key) != STR {
         return nil;
     }
-    let keys = __keys(value);
-    let index = index_of(keys, __str(key));
+    let index = __key_index(value, __str(key));
     if index < 0 {
         return nil;
     }
-    keys.remove(index);
+    __keys(value).remove(index);
     __vals(value).remove(index)
 }
 
@@ -231,17 +223,6 @@ pub fn sorted(list: any) -> any {
     }
     let out: any = merge_sort(items);
     out
-}
-
-fn index_of(keys: [str], key: str) -> int {
-    let index = 0;
-    while index < keys.len() {
-        if keys[index] == key {
-            return index;
-        }
-        index += 1;
-    }
-    return -1;
 }
 
 // A map or a list made again, all the way down; anything else is shared,
@@ -315,15 +296,14 @@ fn same(value: any, other: any) -> bool {
         return true;
     }
     let keys = __keys(value);
-    let other_keys = __keys(other);
-    if keys.len() != other_keys.len() {
+    if keys.len() != __keys(other).len() {
         return false;
     }
     let vals = __vals(value);
     let other_vals = __vals(other);
     let index = 0;
     while index < keys.len() {
-        let found = index_of(other_keys, keys[index]);
+        let found = __key_index(other, keys[index]);
         if found < 0 || !same(vals[index], other_vals[found]) {
             return false;
         }

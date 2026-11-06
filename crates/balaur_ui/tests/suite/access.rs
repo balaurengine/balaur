@@ -86,6 +86,115 @@ fn only_what_changed_is_handed_over_again() {
 }
 
 #[test]
+fn a_first_update_waits_for_a_pass_and_holds_the_whole_tree() {
+    let (_dir, app) = app();
+    let widgets = form(&app);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    balaur_ui::enable_access(&app.engine);
+    assert!(
+        balaur_ui::take_access_update(&app.engine).is_none(),
+        "a reader takes a first update whole, so one with no nodes must wait for the pass"
+    );
+    pass(&app, &ctx, vec![]);
+    let update = balaur_ui::take_access_update(&app.engine).expect("the pass's tree");
+    let root = update.tree.expect("the tree's description").root;
+    let held: std::collections::BTreeMap<NodeId, _> = update.nodes.iter().cloned().collect();
+    let mut reached = vec![root];
+    let mut at = 0;
+    while let Some(id) = reached.get(at).copied() {
+        let node = held.get(&id).expect("every node named is in the update");
+        reached.extend(node.children());
+        at += 1;
+    }
+    assert_eq!(reached.len(), held.len(), "every node hangs from the root");
+    for widget in widgets {
+        assert!(reached.contains(&id(widget)));
+    }
+}
+
+#[test]
+fn a_focus_move_that_changes_no_node_is_handed_over() {
+    let (_dir, app) = app();
+    let widgets = form(&app);
+    balaur_ui::enable_access(&app.engine);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    balaur_ui::take_access_update(&app.engine).expect("a first update");
+    let ask = ActionRequest {
+        action: Action::Focus,
+        target_tree: TreeId::ROOT,
+        target_node: id(widgets[1]),
+        data: None,
+    };
+    balaur_ui::act(&app.engine, &ask);
+    pass(&app, &ctx, vec![]);
+    let update = balaur_ui::take_access_update(&app.engine).expect("the focus moved");
+    assert_eq!(update.focus, id(widgets[1]));
+    assert!(
+        update.tree.is_none(),
+        "only a first update describes the tree"
+    );
+    pass(&app, &ctx, vec![]);
+    assert!(
+        balaur_ui::take_access_update(&app.engine).is_none(),
+        "said once"
+    );
+}
+
+#[test]
+fn a_reader_leaving_stops_the_tree_and_another_gets_it_whole() {
+    let (_dir, app) = app();
+    let widgets = form(&app);
+    balaur_ui::enable_access(&app.engine);
+    assert!(balaur_ui::access_enabled(&app.engine));
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    balaur_ui::take_access_update(&app.engine).expect("a first update");
+
+    balaur_ui::disable_access(&app.engine);
+    assert!(!balaur_ui::access_enabled(&app.engine));
+    let off = toml::toml! { checked = false };
+    balaur::components::patch(&app.engine, widgets[2], "widget_check", &off.into()).unwrap();
+    pass(&app, &ctx, vec![]);
+    assert!(balaur_ui::take_access_update(&app.engine).is_none());
+
+    balaur_ui::enable_access(&app.engine);
+    pass(&app, &ctx, vec![]);
+    let update = balaur_ui::take_access_update(&app.engine).expect("a first update again");
+    assert!(update.tree.is_some(), "a new reader knows nothing");
+    assert!(
+        update.nodes.iter().any(|(at, _)| *at == id(widgets[4])),
+        "and is told about what did not change too"
+    );
+}
+
+#[test]
+fn the_last_widget_going_empties_the_tree() {
+    let (_dir, app) = app();
+    let column = add_widget(
+        &app,
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 }.into(),
+    );
+    balaur_ui::enable_access(&app.engine);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let update = balaur_ui::take_access_update(&app.engine).expect("a first update");
+    let root = update.tree.expect("the tree's description").root;
+    assert!(update.nodes.iter().any(|(at, _)| *at == id(column)));
+
+    balaur_core::scene::free_node(&app.engine, column);
+    pass(&app, &ctx, vec![]);
+    let update = balaur_ui::take_access_update(&app.engine).expect("the widget went");
+    let (_, node) = update
+        .nodes
+        .iter()
+        .find(|(at, _)| *at == root)
+        .expect("the root changed");
+    assert!(node.children().is_empty());
+}
+
+#[test]
 fn nothing_is_built_until_a_reader_asks() {
     let (_dir, app) = app();
     form(&app);

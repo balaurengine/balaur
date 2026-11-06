@@ -923,8 +923,13 @@ pub(crate) mod api {
         m.module_doc(
             "The projects a game imports whole under `deps/<alias>/`, declared in `[dependencies]`. An installed dependency is read-only: `fs.*` and `assets.save` refuse to write into one. A relative path a dependency's script builds reads from that dependency's own folder.",
         );
+        m.records(&[(
+            "Dependency",
+            "{ alias: string, folder: string, game: string, kind: string, project: string, branch: string, tag: string, path: string, rev: string, license: string }",
+            "One installed dependency. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a field that does not apply is empty.",
+        )]);
         m.describe(&[
-            ("list", &[], "() -> [map]", "Every installed dependency: `{ alias, folder, game, kind, project, branch, tag, path, rev, license }`. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a key that does not apply is empty."),
+            ("list", &[], "() -> [Dependency]", "Every installed dependency: its alias, where it sits, where it came from and its licence."),
             ("of", &[], "(path: string) -> string?", "The alias of the dependency a path lies in, or nil for one of the game's own."),
             ("make_local", &[], "(from: string, to: string) -> [string]", "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files."),
             ("move_into", &[], "(paths: [string], alias: string) -> [string]", "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/…`; answers the files rewritten."),

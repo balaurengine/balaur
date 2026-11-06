@@ -30,7 +30,8 @@ fn each_row_fills_what_a_whole_put_fills<C: Beside>(kind: &str) {
         let mut alone = widget_of(&asked);
         C::default().put(&mut alone);
         let changed = changed_value::<C>(&held, index);
-        held.write(index, &changed).expect("the value fits the row");
+        held.write(index, (&changed).into())
+            .expect("the value fits the row");
         assert!(
             held.put_row(&mut alone, row),
             "`{row}` of `{}` has no place",

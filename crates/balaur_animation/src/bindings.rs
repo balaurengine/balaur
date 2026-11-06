@@ -53,7 +53,7 @@ fn install_machine_api(m: &mut Module<Engine>) {
         ("travel", MACHINE, "", "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly."),
         ("jump", MACHINE, "", "Cut the state machine to the named state on the next step, with no fade."),
         ("set_condition", MACHINE, "", "Turn on or off a condition that `auto` transitions wait on."),
-        ("current_state", MACHINE, "", "The state the machine is in, or nil before it has entered one."),
+        ("current_state", MACHINE, "(node: node) -> string?", "The state the machine is in, or nil before it has entered one."),
     ]);
     m.function("travel", |eng: &Engine, (node, to): (NodeId, String)| {
         crate::machine::travel(eng, entity_of(node)?, &to)
@@ -77,16 +77,33 @@ fn install_transport_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("play", &[crate::COMPONENT], "(node: node, name: string, opts: PlayOptions?)", "Start the clip of that name on this node; the trailing options table takes `speed_scale` (a multiplier), `from_start`, `blend_time` (seconds to blend out of the clip before), `ease` (the blend's curve, an `EASE_*` constant), and `retarget` (a `bone_map` reference, so this rig can play another rig's clips)."),
         ("queue", &[crate::COMPONENT], "", "Play the clip of that name once the current one ends; a looping clip never ends, so a queue behind one never drains."),
-        ("stop", &[], "", "End the clip on a node, or the tween a handle names, leaving the pose where it is; `resume` cannot revive it."),
+        ("stop", &[crate::COMPONENT], "", "End the clip on this node, leaving the pose where it is; `resume` cannot revive it."),
         ("pause", &[crate::COMPONENT], "", "Hold the playhead where it is, keeping the clip current so `resume` has something to go back to."),
         ("resume", &[crate::COMPONENT], "", "Carry on from where `pause` left off; a stopped, finished or never-started node is left alone."),
-        ("add_clip", &[crate::COMPONENT], "", "Give this node a clip of its own under that name, from a definition table shaped like a scene file's."),
+        ("add_clip", &[crate::COMPONENT], "(node: node, name: string, clip: Clip)", "Give this node a clip of its own under that name, shaped like a scene file's."),
     ]);
-    m.records(&[(
-        "PlayOptions",
-        "{ speed_scale: float?, from_start: bool?, blend_time: float?, ease: string?, retarget: string? }",
-        "How `play` starts a clip: its speed, whether from the start, the seconds and curve it blends over, and a `bone_map` to retarget another rig's clip.",
-    )]);
+    m.records(&[
+        (
+            "PlayOptions",
+            "{ speed_scale: float?, from_start: bool?, blend_time: float?, ease: string?, retarget: string? }",
+            "How `play` starts a clip: its speed, whether from the start, the seconds and curve it blends over, and a `bone_map` to retarget another rig's clip.",
+        ),
+        (
+            "Clip",
+            "{ length: float?, loop_mode: string?, tracks: [Track]? }",
+            "A clip as a scene file spells one: how long it lasts, the last key's time unless given, how it loops, and its tracks.",
+        ),
+        (
+            "Track",
+            "{ target: string?, property: string?, interpolation: string?, keys: [Key] }",
+            "What one clip track drives: the node path it acts on, the property, or none for a track of method calls, and its keys.",
+        ),
+        (
+            "Key",
+            "{ time: float, value: any, ease: string?, call: string?, args: [any]? }",
+            "One key: its time, and the `value` its track's property takes there, or the method it calls and what with.",
+        ),
+    ]);
     m.function(
         "play",
         |eng: &Engine, (node, name, opts): (NodeId, String, Option<Value>)| {
@@ -123,13 +140,9 @@ fn install_transport_api(m: &mut Module<Engine>) {
         player::queue(eng, entity_of(node)?, &name);
         Ok(())
     });
-    // Takes a node (ends its clip) or a tween handle (ends that tween).
     // Stopping is not pausing: `current_clip` goes nil and `resume` cannot revive it.
-    m.function("stop", |eng: &Engine, what: Value| {
-        match handle_of(&what)? {
-            Stoppable::Node(node) => player::stop(eng, entity_of(node)?),
-            Stoppable::Tween(id) => tween::stop(eng, id),
-        }
+    m.function("stop", |eng: &Engine, node: NodeId| {
+        player::stop(eng, entity_of(node)?);
         Ok(())
     });
     m.function("pause", |eng: &Engine, node: NodeId| {
@@ -212,10 +225,11 @@ fn install_tween_api(m: &mut Module<Engine>) {
     // No component: a tween is generated from the node's current values and
     // kept beside the players, so the node needs no `animation` of its own.
     m.describe(&[
-        ("tween", &[], "(node: node, spec: Tween) -> int", "Generate a clip on the node from a table of steps and run it, returning the handle `stop` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out."),
-        ("is_tween_running", &[], "", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
-        ("tween_value", &[], "(from: number, to: number, seconds: float, ease: string) -> int", "A tween over a number, or a list of up to four, that drives no node: read it each frame with `tween_value_of` and write it wherever you like. Returns a handle `stop` takes."),
-        ("tween_value_of", &[], "(handle: int) -> number", "Where a value tween has got to, in the shape it was started with; nil once it is over."),
+        ("tween", &[], "(node: node, spec: Tween) -> int", "Generate a clip on the node from a table of steps and run it, returning the handle `stop_tween` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out."),
+        ("stop_tween", &[], "(handle: int)", "End the tween a handle names, leaving the pose where it is."),
+        ("is_tween_running", &[], "(handle: int) -> bool", "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip."),
+        ("tween_float", &[], "(from: float, to: float, seconds: float, ease: string?) -> int", "A tween over a number that drives no node: read it each frame with `tween_float_of` and write it wherever you like. Returns a handle `stop_tween` takes."),
+        ("tween_float_of", &[], "(handle: int) -> float?", "Where a number tween has got to; nil once it is over."),
     ]);
     m.records(&[
         (
@@ -225,7 +239,7 @@ fn install_tween_api(m: &mut Module<Engine>) {
         ),
         (
             "Step",
-            "{ property: string?, to: any, by: any, from: any, duration: float?, ease: string?, parallel: bool?, target: string?, call: any, interval: float? }",
+            "{ property: string?, to: any, by: any, from: any, duration: float?, ease: string?, parallel: bool?, target: string?, call: string?, interval: float? }",
             "One step of a tween: a `property` going `to` a value or `by` an offset over `duration` seconds on an `ease`, a `call` of a method, or an `interval` waited; `parallel` runs it beside the step before, `target` names the node it acts on.",
         ),
     ]);
@@ -239,56 +253,32 @@ fn install_tween_api(m: &mut Module<Engine>) {
     // The 90% case without a table: one property, one destination, one
     // duration, and the curve to get there on.
     m.function(
-        "tween_value",
-        |eng: &Engine, (from, to, duration, ease): (Value, Value, f32, Option<String>)| {
-            tween::start_value(
-                eng,
-                &node_api::to_toml(&from)?,
-                &node_api::to_toml(&to)?,
-                duration,
-                ease.as_deref(),
-            )
+        "tween_float",
+        |eng: &Engine, (from, to, duration, ease): (f32, f32, f32, Option<String>)| {
+            tween::start_float(eng, from, to, duration, ease.as_deref())
         },
     );
-    m.function("tween_value_of", |eng: &Engine, what: Value| {
-        Ok(tween::value_of(eng, tween_id(&what)?).unwrap_or(Value::Nil))
+    m.function("tween_float_of", |eng: &Engine, handle: i64| {
+        Ok(tween::float_of(eng, tween_id(handle)?))
+    });
+    m.function("stop_tween", |eng: &Engine, handle: i64| {
+        tween::stop(eng, tween_id(handle)?);
+        Ok(())
     });
     // Whether a tween handle still names something going. A handle whose
     // tween has finished, been stopped, or died with its node names nothing,
     // and answers false.
-    m.function("is_tween_running", |eng: &Engine, what: Value| {
+    m.function("is_tween_running", |eng: &Engine, handle: i64| {
         let state = eng.resource::<crate::AnimationState>();
         let going = state
             .borrow()
             .tweens
-            .get(&tween_id(&what)?)
+            .get(&tween_id(handle)?)
             .is_some_and(|t| t.running);
         Ok(going)
     });
 }
 
-/// What `stop` was handed.
-enum Stoppable {
-    Node(NodeId),
-    Tween(TweenId),
-}
-
-/// A node or a tween handle, told apart by which one the script passed.
-fn handle_of(what: &Value) -> Result<Stoppable> {
-    match what {
-        Value::Node(bits) => Ok(Stoppable::Node(NodeId(*bits))),
-        _ => tween_id(what).map(Stoppable::Tween),
-    }
-}
-
-/// A tween handle, whichever numeric shape the language handed it back in.
-fn tween_id(what: &Value) -> Result<TweenId> {
-    match what {
-        Value::Int(id) if *id >= 0 => Ok(*id as TweenId),
-        Value::Num(id) if *id >= 0.0 => Ok(*id as TweenId),
-        other => Err(anyhow!(
-            "expected a node or a tween handle, got {}",
-            other.type_name()
-        )),
-    }
+fn tween_id(handle: i64) -> Result<TweenId> {
+    TweenId::try_from(handle).map_err(|_| anyhow!("{handle} is no tween handle"))
 }

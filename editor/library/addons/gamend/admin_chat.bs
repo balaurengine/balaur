@@ -5,18 +5,19 @@
 // Admin – Chat: one function per operation, `admin_chat::<name>` once a
 // script says `use addons::gamend::admin_chat;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Add a blocklist word (admin)
 /// `POST /api/v1/admin/chat/filter_words`
-pub fn create_chat_filter_word(params: any) -> any {
+pub fn create_chat_filter_word(params: any) -> int {
     if !core::given(params, "word") {
         return core::missing("gamend::admin_chat::create_chat_filter_word", "word");
     }
@@ -25,7 +26,7 @@ pub fn create_chat_filter_word(params: any) -> any {
 
 /// Delete all messages in a conversation (admin)
 /// `DELETE /api/v1/admin/chat/conversation`
-pub fn delete_chat_conversation(options: any) -> any {
+pub fn delete_chat_conversation(options: any) -> int {
     if !core::given(options, "chat_type") {
         return core::missing("gamend::admin_chat::delete_chat_conversation", "chat_type");
     }
@@ -38,8 +39,8 @@ pub fn delete_chat_conversation(options: any) -> any {
 
 /// Remove a blocklist word (admin)
 /// `DELETE /api/v1/admin/chat/filter_words/{id}`
-pub fn delete_chat_filter_word(id: any) -> any {
-    if id == nil {
+pub fn delete_chat_filter_word(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_chat::delete_chat_filter_word", "id");
     }
     gamend::rest("DELETE", "/api/v1/admin/chat/filter_words/{id}")
@@ -47,7 +48,7 @@ pub fn delete_chat_filter_word(id: any) -> any {
 
 /// Remove an imported word list (admin)
 /// `DELETE /api/v1/admin/chat/filter_words`
-pub fn delete_chat_filter_words_by_lang(options: any) -> any {
+pub fn delete_chat_filter_words_by_lang(options: any) -> int {
     if !core::given(options, "lang") {
         return core::missing("gamend::admin_chat::delete_chat_filter_words_by_lang", "lang");
     }
@@ -57,8 +58,8 @@ pub fn delete_chat_filter_words_by_lang(options: any) -> any {
 
 /// Delete a chat message (admin)
 /// `DELETE /api/v1/admin/chat/{id}`
-pub fn delete_chat_message(id: any) -> any {
-    if id == nil {
+pub fn delete_chat_message(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_chat::delete_chat_message", "id");
     }
     gamend::rest("DELETE", "/api/v1/admin/chat/{id}")
@@ -66,8 +67,8 @@ pub fn delete_chat_message(id: any) -> any {
 
 /// Delete a chat report (admin)
 /// `DELETE /api/v1/admin/chat/reports/{id}`
-pub fn delete_chat_report(id: any) -> any {
-    if id == nil {
+pub fn delete_chat_report(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_chat::delete_chat_report", "id");
     }
     gamend::rest("DELETE", "/api/v1/admin/chat/reports/{id}")
@@ -75,7 +76,7 @@ pub fn delete_chat_report(id: any) -> any {
 
 /// Import a bundled word list (admin)
 /// `POST /api/v1/admin/chat/filter_words/import`
-pub fn import_chat_filter_words(params: any) -> any {
+pub fn import_chat_filter_words(params: any) -> int {
     if !core::given(params, "lang") {
         return core::missing("gamend::admin_chat::import_chat_filter_words", "lang");
     }
@@ -84,35 +85,35 @@ pub fn import_chat_filter_words(params: any) -> any {
 
 /// Languages with a bundled word list (admin)
 /// `GET /api/v1/admin/chat/filter_words/languages`
-pub fn list_chat_filter_languages() -> any {
+pub fn list_chat_filter_languages() -> int {
     gamend::rest("GET", "/api/v1/admin/chat/filter_words/languages")
 }
 
 /// List blocklist words (admin)
 /// `GET /api/v1/admin/chat/filter_words`
-pub fn list_chat_filter_words(options: any) -> any {
+pub fn list_chat_filter_words(options: any) -> int {
     let query = core::query(options, ["word", "severity", "lang", "page", "page_size"]);
     gamend::rest("GET", "/api/v1/admin/chat/filter_words{query}")
 }
 
 /// List all chat messages (admin)
 /// `GET /api/v1/admin/chat`
-pub fn list_chat_messages(options: any) -> any {
+pub fn list_chat_messages(options: any) -> int {
     let query = core::query(options, ["sender_id", "chat_type", "chat_ref_id", "content", "sort_by", "page", "page_size"]);
     gamend::rest("GET", "/api/v1/admin/chat{query}")
 }
 
 /// List chat reports (admin)
 /// `GET /api/v1/admin/chat/reports`
-pub fn list_chat_reports(options: any) -> any {
+pub fn list_chat_reports(options: any) -> int {
     let query = core::query(options, ["status", "reported_user_id", "reporter_id", "page", "page_size"]);
     gamend::rest("GET", "/api/v1/admin/chat/reports{query}")
 }
 
 /// Resolve a chat report (admin)
 /// `POST /api/v1/admin/chat/reports/{id}/resolve`
-pub fn resolve_chat_report(id: any, params: any) -> any {
-    if id == nil {
+pub fn resolve_chat_report(id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::admin_chat::resolve_chat_report", "id");
     }
     if !core::given(params, "status") {
@@ -123,7 +124,7 @@ pub fn resolve_chat_report(id: any, params: any) -> any {
 
 /// Test a phrase against the filter (admin)
 /// `POST /api/v1/admin/chat/filter_words/test`
-pub fn test_chat_phrase(params: any) -> any {
+pub fn test_chat_phrase(params: any) -> int {
     if !core::given(params, "phrase") {
         return core::missing("gamend::admin_chat::test_chat_phrase", "phrase");
     }
@@ -132,8 +133,8 @@ pub fn test_chat_phrase(params: any) -> any {
 
 /// Update a blocklist word (admin)
 /// `PATCH /api/v1/admin/chat/filter_words/{id}`
-pub fn update_chat_filter_word(id: any, params: any) -> any {
-    if id == nil {
+pub fn update_chat_filter_word(id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::admin_chat::update_chat_filter_word", "id");
     }
     gamend::rest("PATCH", "/api/v1/admin/chat/filter_words/{id}", params)

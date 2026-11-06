@@ -5,18 +5,19 @@
 // Parties: one function per operation, `parties::<name>` once a
 // script says `use addons::gamend::parties;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Accept a party invite
 /// `POST /api/v1/parties/invite/accept`
-pub fn accept_party_invite(params: any) -> any {
+pub fn accept_party_invite(params: any) -> int {
     if !core::given(params, "party_id") {
         return core::missing("gamend::parties::accept_party_invite", "party_id");
     }
@@ -25,7 +26,7 @@ pub fn accept_party_invite(params: any) -> any {
 
 /// Cancel a pending party invite (leader only)
 /// `POST /api/v1/parties/invite/cancel`
-pub fn cancel_party_invite(params: any) -> any {
+pub fn cancel_party_invite(params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::parties::cancel_party_invite", "target_user_id");
     }
@@ -34,13 +35,13 @@ pub fn cancel_party_invite(params: any) -> any {
 
 /// Create a party
 /// `POST /api/v1/parties`
-pub fn create_party(params: any) -> any {
+pub fn create_party(params: any) -> int {
     gamend::rest("POST", "/api/v1/parties", params)
 }
 
 /// Decline a party invite
 /// `POST /api/v1/parties/invite/decline`
-pub fn decline_party_invite(params: any) -> any {
+pub fn decline_party_invite(params: any) -> int {
     if !core::given(params, "party_id") {
         return core::missing("gamend::parties::decline_party_invite", "party_id");
     }
@@ -49,13 +50,13 @@ pub fn decline_party_invite(params: any) -> any {
 
 /// Disband the current party (leader only)
 /// `POST /api/v1/parties/disband`
-pub fn disband_party() -> any {
+pub fn disband_party() -> int {
     gamend::rest("POST", "/api/v1/parties/disband")
 }
 
 /// Invite a user to the party (leader only)
 /// `POST /api/v1/parties/invite`
-pub fn invite_to_party(params: any) -> any {
+pub fn invite_to_party(params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::parties::invite_to_party", "target_user_id");
     }
@@ -64,7 +65,7 @@ pub fn invite_to_party(params: any) -> any {
 
 /// Kick a member from the party (leader only)
 /// `POST /api/v1/parties/kick`
-pub fn kick_party_member(params: any) -> any {
+pub fn kick_party_member(params: any) -> int {
     if !core::given(params, "target_user_id") {
         return core::missing("gamend::parties::kick_party_member", "target_user_id");
     }
@@ -73,34 +74,34 @@ pub fn kick_party_member(params: any) -> any {
 
 /// Leave the current party
 /// `POST /api/v1/parties/leave`
-pub fn leave_party() -> any {
+pub fn leave_party() -> int {
     gamend::rest("POST", "/api/v1/parties/leave")
 }
 
 /// List pending party invites for the current user
 /// `GET /api/v1/parties/invitations`
-pub fn list_party_invitations(options: any) -> any {
+pub fn list_party_invitations(options: any) -> int {
     let query = core::query(options, ["page", "page_size"]);
     gamend::rest("GET", "/api/v1/parties/invitations{query}")
 }
 
 /// List pending party invites sent by the current leader
 /// `GET /api/v1/parties/invitations/sent`
-pub fn list_sent_party_invitations(options: any) -> any {
+pub fn list_sent_party_invitations(options: any) -> int {
     let query = core::query(options, ["page", "page_size"]);
     gamend::rest("GET", "/api/v1/parties/invitations/sent{query}")
 }
 
 /// Create a lobby with the party (leader only)
 /// `POST /api/v1/parties/create_lobby`
-pub fn party_create_lobby(params: any) -> any {
+pub fn party_create_lobby(params: any) -> int {
     gamend::rest("POST", "/api/v1/parties/create_lobby", params)
 }
 
 /// Join a lobby with the party (leader only)
 /// `POST /api/v1/parties/join_lobby/{id}`
-pub fn party_join_lobby(id: any, params: any) -> any {
-    if id == nil {
+pub fn party_join_lobby(id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::parties::party_join_lobby", "id");
     }
     gamend::rest("POST", "/api/v1/parties/join_lobby/{id}", params)
@@ -108,18 +109,18 @@ pub fn party_join_lobby(id: any, params: any) -> any {
 
 /// Party counts
 /// `GET /api/v1/parties/stats`
-pub fn party_stats() -> any {
+pub fn party_stats() -> int {
     gamend::rest("GET", "/api/v1/parties/stats")
 }
 
 /// Get current party
 /// `GET /api/v1/parties/me`
-pub fn show_party() -> any {
+pub fn show_party() -> int {
     gamend::rest("GET", "/api/v1/parties/me")
 }
 
 /// Update party settings (leader only)
 /// `PATCH /api/v1/parties`
-pub fn update_party(params: any) -> any {
+pub fn update_party(params: any) -> int {
     gamend::rest("PATCH", "/api/v1/parties", params)
 }

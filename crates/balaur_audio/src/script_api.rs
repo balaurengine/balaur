@@ -1,7 +1,7 @@
 //! `audio.*`: the script bindings over [`AudioState`], the bus mix and the
 //! positional half.
 
-use anyhow::{Result, anyhow};
+use anyhow::bail;
 use balaur_core::glamx::Vec3;
 use balaur_core::{Engine, entity_of};
 use balaur_script::{Module, NodeId, Value};
@@ -23,41 +23,11 @@ fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
     }
 }
 
-/// A number from an options entry, whichever way the language spelled it.
-fn number(value: Option<&Value>) -> Option<f32> {
-    match value {
-        Some(Value::Num(n)) => Some(*n as f32),
-        Some(Value::Int(i)) => Some(*i as f32),
-        _ => None,
-    }
-}
-
-/// A point from a script value: a vector, or a list of two or three numbers
-/// so a 2D game may write `[x, y]` and mean the plane it plays on.
 fn point(value: Option<&Value>) -> Option<Vec3> {
     match value? {
         Value::Vec3([x, y, z]) => Some(Vec3::new(*x, *y, *z)),
-        Value::Vec2([x, y]) => Some(Vec3::new(*x, *y, 0.0)),
-        Value::List(items) if items.len() >= 2 => Some(Vec3::new(
-            number(items.first())?,
-            number(items.get(1))?,
-            number(items.get(2)).unwrap_or(0.0),
-        )),
         _ => None,
     }
-}
-
-/// Three numbers or one vector, so `set_listener(v)` and
-/// `set_listener(x, y, z)` both work: the spelling `node.set_position` takes.
-fn xyz(x: &Value, y: Option<&Value>, z: Option<&Value>) -> Result<Vec3> {
-    if let Some(point) = point(Some(x)) {
-        return Ok(point);
-    }
-    let axis = |value: Option<&Value>, name: &str| {
-        number(value)
-            .ok_or_else(|| anyhow!("expected a vector or three numbers; {name} is not a number"))
-    };
-    Ok(Vec3::new(axis(Some(x), "x")?, axis(y, "y")?, axis(z, "z")?))
 }
 
 /// A script-supplied handle. Negative numbers wrap to values `play` never
@@ -86,7 +56,7 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
         ("stop", &["sound"], "", "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone."),
         ("seek", &["sound"], "", "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone."),
         ("skip", &["sound"], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `finished`."),
-        ("devices", &[], "", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
+        ("devices", &[], "() -> [string]", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
     ]);
     m.function("stop_playback", |eng: &Engine, handle: i64| {
         eng.resource::<AudioState>()
@@ -169,8 +139,8 @@ fn install_mixing_api(m: &mut Module<Engine>) {
         ("buses", &[], "() -> [string]", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
         ("bus_volume_linear", &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
         ("set_bus_volume_linear", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
-        ("bus_limit", &[], "", "One bus's limiter as `[audio.buses]` declares it: `limit`, `limit_threshold_db`, `limit_knee_db`, `limit_attack_time` and `limit_release_time`. Nil for a bus with none."),
-        ("bus_effects", &[], "", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes: `low_pass_hz`, `low_pass_q`, `high_pass_hz`, `high_pass_q`, `distortion_gain`, `distortion_threshold`, `reverb_time`, `reverb_level`, `auto_gain`, `auto_gain_target`, `auto_gain_attack_time`, `auto_gain_release_time`, `auto_gain_max` and `auto_gain_floor`. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
+        ("bus_limit", &[], "(bus: string) -> BusLimit?", "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none."),
+        ("bus_effects", &[], "(bus: string) -> BusEffects?", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
         ("cues", &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
         ("play_cue", &[], "(name: string, options: CueOptions?) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
@@ -181,11 +151,23 @@ fn install_mixing_api(m: &mut Module<Engine>) {
     });
     // The script says *what happened*; the cues file says what that sounds
     // like. Tuning one never touches the other.
-    m.records(&[(
-        "CueOptions",
-        "{ position: any }",
-        "Where `play_cue` places a sound, a `Vec3` or a `Vec2`, heard from the `listener`; unplaced when left out.",
-    )]);
+    m.records(&[
+        (
+            "CueOptions",
+            "{ position: Vec3? }",
+            "Where `play_cue` places a sound, heard from the `listener`; unplaced when left out.",
+        ),
+        (
+            "BusLimit",
+            "{ limit: bool, limit_threshold_db: float, limit_knee_db: float, limit_attack_time: float, limit_release_time: float }",
+            "A bus's limiter, under the keys `[audio.buses]` spells.",
+        ),
+        (
+            "BusEffects",
+            "{ low_pass_hz: float, low_pass_q: float, high_pass_hz: float, high_pass_q: float, distortion_gain: float, distortion_threshold: float, reverb_time: float, reverb_level: float, auto_gain: bool, auto_gain_target: float, auto_gain_attack_time: float, auto_gain_release_time: float, auto_gain_max: float, auto_gain_floor: float }",
+            "A bus's effects, under the keys `[audio.buses]` spells.",
+        ),
+    ]);
     m.function(
         "play_cue",
         |eng: &Engine, (name, opts): (String, Option<Value>)| {
@@ -229,6 +211,10 @@ fn install_mixing_api(m: &mut Module<Engine>) {
             Ok(Value::Int(i64::try_from(handle).unwrap_or(i64::MAX)))
         },
     );
+    install_bus_readers(m);
+}
+
+fn install_bus_readers(m: &mut Module<Engine>) {
     m.function("buses", |eng: &Engine, ()| {
         bus::ensure_loaded(eng);
         let names = eng.resource::<bus::Buses>().borrow().names();
@@ -322,7 +308,7 @@ fn install_positional_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, else the current camera's."),
         ("emitter_position", &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
-        ("set_emitter_position", &[], "(handle: int, x: float, y: float, z: float)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
+        ("set_emitter_position", &[], "(handle: int, position: Vec3)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
         ("distance_gain", &[], "(handle: int) -> float?", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
         ("pan", &[], "(handle: int) -> float?", "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right."),
     ]);
@@ -338,8 +324,13 @@ fn install_positional_api(m: &mut Module<Engine>) {
     });
     m.function(
         "set_emitter_position",
-        |eng: &Engine, (handle, x, y, z): (i64, Value, Option<Value>, Option<Value>)| {
-            let position = xyz(&x, y.as_ref(), z.as_ref())?;
+        |eng: &Engine, (handle, position): (i64, Value)| {
+            let Some(position) = point(Some(&position)) else {
+                bail!(
+                    "an emitter's position is a Vec3, not a {}",
+                    position.type_name()
+                );
+            };
             eng.resource::<AudioState>()
                 .borrow_mut()
                 .set_emitter_position(handle_of(handle), position);

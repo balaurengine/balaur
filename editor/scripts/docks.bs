@@ -403,7 +403,7 @@ fn show_panel(name: str) {
 pub fn toolbar(state: editor::State, path: str, rows: [[ui::Control]]) {
     let groups: [ui::Control] = [];
     for row in rows {
-        groups.push(ui::Control { kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
+        groups.push(ui::Control { kind: "row", role: "toolbar_dock", gap: vec2(6, 6), align_items: "center", controls: row });
     }
     ui::fill_strip(path, groups);
 }
@@ -610,7 +610,7 @@ fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
         kind: "button",
         height: tab_height(state),
         width: tab_height(state),
-        padding: 0,
+        padding: ui::all_sides(0),
         text: "",
         icon: icons::ui(shut_icon(side)),
         role: "icon_action",
@@ -647,7 +647,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             kind: "button",
             height: height,
             text: label,
-            padding: [6, -1, 6, -1],
+            padding: ui::sides(6, -1, 6, -1),
             corner_radius: 4,
             fill: "none",
             role: "tab",

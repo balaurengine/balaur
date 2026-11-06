@@ -343,7 +343,8 @@ pub(crate) fn has_units(setup: &Setup<'_>) -> bool {
 pub(crate) fn instantiate_linked(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     let root = find(setup.wasm).ok_or("no loaded native build has this unit")?;
     let unit = setup.meta.unit.as_ref().ok_or("not a unit")?;
-    let (bases, heap) = super::engine::unit_layout(setup.meta, setup.linked);
+    let layout = super::engine::unit_layout(setup.meta, setup.linked);
+    let (bases, heap) = (layout.bases, layout.heap);
     let host = setup.host.clone();
     let ctx = context(setup.host, root);
     let max = setup.memory_bytes.map_or(u64::MAX, |b| b as u64);
@@ -358,14 +359,15 @@ pub(crate) fn instantiate_linked(setup: Setup<'_>) -> Result<Box<dyn Wasm>, Stri
     unsafe { (*ctx).inst = inst };
     let native = Native { ctx };
     make_unit(ctx, setup.key, root, unit, bases[0], 0)?;
-    for ((key, compiled), base) in setup.linked.iter().zip(&bases[1..]) {
+    for (at, ((key, compiled), base)) in setup.linked.iter().zip(&bases[1..]).enumerate() {
         let module = find(&compiled.wasm).ok_or_else(|| format!("{key}: no native build"))?;
         let unit = compiled
             .meta
             .unit
             .as_ref()
             .ok_or_else(|| format!("{key}: not a unit"))?;
-        let numbered = host.borrow_mut().bind_unit(compiled.clone())?;
+        let numbered = at + 1;
+        host.borrow_mut().bind_unit(numbered, compiled.clone())?;
         make_unit(ctx, key, module, unit, *base, numbered)?;
     }
     Ok(Box::new(native))
@@ -413,7 +415,9 @@ fn link_unit(
         }
         block.next_multiple_of(16)
     };
-    let numbered = host.borrow_mut().bind_unit(compiled.clone())?;
+    // SAFETY: the `Ctx` is live; the read ends with the statement.
+    let numbered = unsafe { (*ctx).units.len() };
+    host.borrow_mut().bind_unit(numbered, compiled.clone())?;
     make_unit(ctx, key, module, unit, base, numbered)
 }
 
@@ -602,6 +606,9 @@ impl ImportCtx for View {
     }
     fn read_into(&self, at: usize, out: &mut [u8]) {
         copy_from(self.memory(), at, out);
+    }
+    fn memory_bytes(&self) -> Option<&[u8]> {
+        Some(self.memory())
     }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         let (module, inst, _) = self.parts();

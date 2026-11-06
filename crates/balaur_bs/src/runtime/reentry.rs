@@ -3,9 +3,9 @@
 // same instance, through the context the engine call holds.
 
 use super::engine::{ImportCtx, Raw, Shared, Wasm};
-use super::{Limits, Object, RunError, Runtime, Task, Value, fail};
+use super::{Debugger, Limits, Object, RunError, Runtime, Task, Value, fail};
 use crate::{Meta, words};
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -28,6 +28,25 @@ impl Runtime {
 }
 
 impl Reentry {
+    /// [`Runtime::debugger`], which holds whether the runtime is busy or not.
+    pub fn debugger(&self) -> RefMut<'_, Debugger> {
+        RefMut::map(self.host.borrow_mut(), |h| &mut h.debugger)
+    }
+
+    /// [`Runtime::function_costs`] from inside the file's engine call.
+    pub fn function_costs(&self) -> Vec<(String, u64, u64)> {
+        self.inside(|rt| Ok(rt.function_costs()))
+            .unwrap_or_default()
+    }
+
+    /// [`Runtime::clear_profile`] from inside the file's engine call.
+    pub fn clear_profile(&self) {
+        let _ = self.inside(|rt| {
+            rt.clear_profile();
+            Ok(())
+        });
+    }
+
     /// [`Runtime::call_method`] from inside the file's engine call.
     pub fn call_method(
         &self,
@@ -185,6 +204,12 @@ impl Wasm for Inside {
     }
     fn set_global(&mut self, name: &str, value: i32) {
         self.ctx().set_global(name, value);
+    }
+    fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
+        self.ctx().global_in(unit, name)
+    }
+    fn make(&mut self, unit: usize) -> Result<(), String> {
+        self.ctx().make(unit)
     }
     fn set_fuel(&mut self, _fuel: u64) {}
 }

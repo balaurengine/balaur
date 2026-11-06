@@ -6,13 +6,13 @@ Tools and processes for ensuring the code quality remains high.
 
 | Workflow | Covers |
 | --- | --- |
-| `runner.yml` | the one push and pull-request trigger; calls the four below |
+| `runner.yml` | the one file with triggers (push, pull request, nightly, release); calls the rest |
 | `lint.yml` | runs format, clippy, house rules and supply chain checks |
 | `docs.yml` | checks if the documentation is generated correctly |
 | `test.yml` | runs the tests |
 | `build.yml` | builds and exports |
 | `channel.yml` | moves a channel's tag when a version is published |
-| `fuzz.yml` | runs the Balaur Script compiler's fuzz targets each night, on a schedule of its own |
+| `fuzz.yml` | runs the Balaur Script compiler's fuzz targets, on the nightly run |
 
 ## Before you push
 

@@ -1,8 +1,9 @@
-// The editor's debugger on `.bs`: a file asked about is rebuilt with probes on
-// an engine that parks a call at a stop, and the game freezes while it does.
+// The editor's debugger on `.bs`: a file asked about is built with probes, and
+// its instance made again on an engine that parks a call at a stop; the rest of
+// the instance keeps the units it has. The game freezes while a call is parked.
 
 use super::tasks::Pending;
-use super::{BsHost, File, Instance, key_of};
+use super::{BsHost, File, Home, Instance, PLACES, Place, key_of, place_of};
 use crate::convert::to_neutral;
 use anyhow::{Result, anyhow};
 use balaur_bs::Compiled;
@@ -20,17 +21,31 @@ pub(super) struct Held {
 }
 
 enum Stop {
-    /// A call parked at a line with the object it took, and the task when
-    /// it is an async method's poll.
-    Parked { obj: Object, task: Option<Pending> },
+    /// A call parked at a line with the object it took, the task when it is
+    /// an async method's poll, and where it stands.
+    Parked {
+        obj: Object,
+        task: Option<Pending>,
+        paused: Paused,
+    },
     /// A call that trapped, with break on error on: its stack, to look at
     /// and dismiss.
     Error { paused: Paused, message: String },
 }
 
 impl BsHost {
-    pub(super) fn engine_for(&self, key: &str) -> EngineKind {
-        if self.inner.debugging.borrow().contains(key) {
+    /// Whether a debugger asked about a file of the instance at `place`.
+    pub(super) fn debugged_in(&self, place: Place) -> bool {
+        self.inner
+            .debugging
+            .borrow()
+            .iter()
+            .any(|key| place_of(key) == place)
+    }
+
+    /// The engine the instance at `place` runs on.
+    pub(super) fn engine_of(&self, place: Place) -> EngineKind {
+        if self.debugged_in(place) {
             parking_engine()
         } else {
             EngineKind::Auto
@@ -43,38 +58,42 @@ impl BsHost {
         self.inner.break_on_error.get() || self.inner.debugging.borrow().contains(key)
     }
 
-    /// The breakpoints asked of `key`, each on the line it lands on, on its
-    /// fresh runtime.
-    pub(super) fn arm(&self, key: &str, compiled: &Compiled, rt: &mut Runtime) {
-        let mut debugger = rt.debugger();
-        debugger.keep_locals(self.inner.break_on_error.get());
-        if let Some(lines) = self.inner.breaks.borrow().get(key) {
-            for line in landed(compiled, lines) {
-                debugger.set_breakpoint(u32::try_from(line).unwrap_or(u32::MAX));
+    /// The breakpoints asked of its files, each on the line it lands on, on a
+    /// fresh instance or one that a file just joined; and a pause owed.
+    pub(super) fn arm(&self, home: &Home) {
+        let breaks = self.inner.breaks.borrow();
+        let on_error = self.inner.break_on_error.get();
+        let mut debugger = home.reentry.debugger();
+        debugger.keep_locals(on_error);
+        if !debugger.probed() {
+            return;
+        }
+        for (key, lines) in breaks.iter() {
+            let Some(unit) = debugger.unit_named(key) else {
+                continue;
+            };
+            let Ok(compiled) = self.unit(key) else {
+                continue;
+            };
+            debugger.clear_breakpoints_in(unit);
+            for line in landed(&compiled, lines) {
+                debugger.set_breakpoint_in(unit, u32::try_from(line).unwrap_or(u32::MAX));
             }
+        }
+        if self.inner.pause_owed.take() {
+            debugger.pause();
         }
     }
 
     /// From here on a trap stops the game at the line that threw. Every
-    /// loaded file is rebuilt with probes, on the engine it runs on.
+    /// loaded file is built with probes, on the engine its instance runs on.
     pub(super) fn debug_set_break_on_error(&self, on: bool) {
         self.inner.break_on_error.set(on);
-        let files: Vec<(String, Rc<File>)> = self
-            .inner
-            .files
-            .borrow()
-            .iter()
-            .map(|(k, f)| (k.clone(), f.clone()))
-            .collect();
-        for (key, file) in files {
-            if on && !file.compiled.meta.debug {
-                drop(file);
-                if let Err(e) = self.rebuild_key(&key) {
-                    tracing::error!("{e:#}");
-                }
-            } else if let Ok(mut rt) = file.home.rt.try_borrow_mut() {
-                rt.debugger().keep_locals(on);
-            }
+        if on {
+            self.rebuild_stale();
+        }
+        for home in self.homes() {
+            home.reentry.debugger().keep_locals(on);
         }
     }
 
@@ -103,15 +122,15 @@ impl BsHost {
     }
 
     /// An async method's poll parked at a stop.
-    pub(super) fn hold_task(&self, obj: Object, p: Pending) {
-        self.hold(p.node, p.path.clone(), obj, Some(p));
+    pub(super) fn hold_task(&self, obj: Object, p: Pending, paused: Paused) {
+        self.hold(p.node, p.path.clone(), obj, Some(p), paused);
     }
 
-    fn hold(&self, node: u64, path: String, obj: Object, task: Option<Pending>) {
+    fn hold(&self, node: u64, path: String, obj: Object, task: Option<Pending>, paused: Paused) {
         *self.inner.stopped.borrow_mut() = Some(Held {
             node,
             path,
-            stop: Stop::Parked { obj, task },
+            stop: Stop::Parked { obj, task, paused },
         });
         self.inner.engine.set_frozen(true);
     }
@@ -120,8 +139,8 @@ impl BsHost {
         self.inner.stopped.borrow().is_some()
     }
 
-    /// Whether the file at `key` has the call a stop holds: its memory takes
-    /// no other call until that one goes on.
+    /// Whether the file at `key` has the call a stop holds: nothing is asked
+    /// of its nodes until that one goes on.
     pub(super) fn stopped_in(&self, key: &str) -> bool {
         self.inner
             .stopped
@@ -130,13 +149,19 @@ impl BsHost {
             .is_some_and(|held| held.path == key)
     }
 
-    /// Whether a call of `key` is parked: its memory cannot be swapped yet.
-    pub(super) fn holds_file(&self, key: &str) -> bool {
-        self.inner
-            .stopped
-            .borrow()
-            .as_ref()
-            .is_some_and(|h| h.path == key && matches!(h.stop, Stop::Parked { .. }))
+    /// Whether a call of the instance at `place` is parked: its memory cannot
+    /// be swapped yet.
+    pub(super) fn holds_instance(&self, place: Place) -> bool {
+        let stopped = self.inner.stopped.borrow();
+        stopped.as_ref().is_some_and(|held| {
+            matches!(held.stop, Stop::Parked { .. })
+                && self
+                    .inner
+                    .files
+                    .borrow()
+                    .get(&held.path)
+                    .is_some_and(|file| file.place == place)
+        })
     }
 
     /// Runs `method` so that a stop holds it; `None` when it stopped.
@@ -157,21 +182,24 @@ impl BsHost {
             .borrow_mut()
             .take()
             .ok_or_else(|| anyhow!("[{}] {method}: the instance is busy", inst.path))?;
-        match rt.call_method_steppable(&obj, method, args) {
-            Ok(Step::Paused(_)) => {
-                self.hold(inst.node, inst.path.clone(), obj, None);
-                Ok(None)
+        // A call back into the node meanwhile is lent a holder of the object,
+        // as one while a plain method runs is.
+        *inst.lent.borrow_mut() = rt.share(&obj);
+        let step = match rt.call_method_steppable(&obj, method, args) {
+            Ok(Step::Paused(paused)) => {
+                self.hold(inst.node, inst.path.clone(), obj, None, paused);
+                return Ok(None);
             }
-            Ok(Step::Done(v)) => {
-                *inst.obj.borrow_mut() = Some(obj);
-                Ok(Some(to_neutral(&v)))
-            }
-            Ok(Step::Waiting) => {
-                *inst.obj.borrow_mut() = Some(obj);
-                Ok(None)
-            }
+            other => other,
+        };
+        *inst.obj.borrow_mut() = Some(obj);
+        if let Some(lent) = inst.lent.borrow_mut().take() {
+            rt.drop_object(lent);
+        }
+        match step {
+            Ok(Step::Done(v)) => Ok(Some(to_neutral(&v))),
+            Ok(Step::Waiting | Step::Paused(_)) => Ok(None),
             Err(e) => {
-                *inst.obj.borrow_mut() = Some(obj);
                 let e = anyhow!("[{}] {method}: {e}", inst.path);
                 self.hold_error(&mut rt, inst.node, &inst.path, &e);
                 Err(e)
@@ -179,28 +207,35 @@ impl BsHost {
         }
     }
 
-    /// Builds `key` with probes from here on, rebuilding it if it is loaded.
+    /// Whether `key` is a unit of a loaded script.
+    fn in_use(&self, key: &str) -> bool {
+        self.inner.files.borrow().iter().any(|(file, loaded)| {
+            file == key || loaded.compiled.linked.iter().any(|(used, _)| used == key)
+        })
+    }
+
+    /// Builds `key` with probes from here on, its instance made again.
     fn debug(&self, key: &str) -> Result<()> {
         if !self.inner.debugging.borrow_mut().insert(key.to_string()) {
             return Ok(());
         }
-        let loaded = self.inner.files.borrow().contains_key(key);
-        if loaded {
-            self.rebuild_key(key)?;
+        if self.stale(place_of(key)) {
+            self.rebuild_instance(place_of(key), &[])?;
         }
         Ok(())
     }
 
     pub(super) fn debug_set_breakpoints(&self, path: &str, lines: &[usize]) -> Result<Vec<usize>> {
         let key = key_of(path);
+        let place = place_of(&key);
         if lines.is_empty() {
             self.inner.breaks.borrow_mut().remove(&key);
             // No probes left to pay for, once nothing runs in them.
-            if !self.holds_file(&key) && self.inner.debugging.borrow_mut().remove(&key) {
-                let loaded = self.inner.files.borrow().contains_key(&key);
-                if loaded {
-                    self.rebuild_key(&key)?;
-                }
+            if !self.holds_instance(place)
+                && self.inner.debugging.borrow_mut().remove(&key)
+                && self.stale(place)
+            {
+                self.rebuild_instance(place, &[])?;
             }
         } else {
             self.inner
@@ -209,15 +244,19 @@ impl BsHost {
                 .insert(key.clone(), lines.to_vec());
             self.debug(&key)?;
         }
-        let Some(file) = self.inner.files.borrow().get(&key).cloned() else {
+        if !self.in_use(&key) {
             return Ok(lines.to_vec());
-        };
-        let landed = landed(&file.compiled, lines);
-        let mut rt = file.home.rt.borrow_mut();
-        let mut debugger = rt.debugger();
-        debugger.clear_breakpoints();
-        for line in &landed {
-            debugger.set_breakpoint(u32::try_from(*line).unwrap_or(u32::MAX));
+        }
+        let landed = landed(&*self.unit(&key)?, lines);
+        let home = self.place_slot(place).borrow().clone();
+        if let Some(home) = home {
+            let mut debugger = home.reentry.debugger();
+            if let Some(unit) = debugger.unit_named(&key) {
+                debugger.clear_breakpoints_in(unit);
+                for line in &landed {
+                    debugger.set_breakpoint_in(unit, u32::try_from(*line).unwrap_or(u32::MAX));
+                }
+            }
         }
         Ok(landed)
     }
@@ -227,35 +266,41 @@ impl BsHost {
         let key = key_of(path);
         let asked = self.inner.breaks.borrow().get(&key).cloned();
         let asked = asked.unwrap_or_default();
-        match self.inner.files.borrow().get(&key) {
-            Some(file) => landed(&file.compiled, &asked),
-            None => asked,
+        if !self.in_use(&key) {
+            return asked;
+        }
+        match self.unit(&key) {
+            Ok(unit) => landed(&unit, &asked),
+            Err(_) => asked,
         }
     }
 
     /// Every loaded file stops at the next line it runs.
     pub(super) fn debug_request_break(&self) {
         let keys: Vec<String> = self.inner.files.borrow().keys().cloned().collect();
-        for key in keys {
-            if let Err(e) = self.debug(&key) {
-                tracing::error!("{e:#}");
-                continue;
-            }
-            if let Some(file) = self.inner.files.borrow().get(&key) {
-                file.home.rt.borrow_mut().debugger().pause();
+        self.inner.debugging.borrow_mut().extend(keys);
+        self.rebuild_stale();
+        // An instance that has to wait to be made again is told when it is.
+        let waiting = PLACES.iter().any(|place| self.stale(*place));
+        self.inner.pause_owed.set(waiting);
+        for home in self.homes() {
+            let mut debugger = home.reentry.debugger();
+            if debugger.probed() {
+                debugger.pause();
             }
         }
     }
 
+    // Nil once asked to go on: a script of the stopped instance asks again
+    // until it does, and it goes on between frames.
     pub(super) fn debug_paused(&self) -> Option<Pause> {
+        if self.inner.resume_owed.get().is_some() {
+            return None;
+        }
         let held = self.inner.stopped.borrow();
         let held = held.as_ref()?;
         match &held.stop {
-            Stop::Parked { .. } => {
-                let file = self.inner.files.borrow().get(&held.path).cloned()?;
-                let paused = file.home.rt.borrow().paused()?;
-                Some(pause_of(held, &paused, String::new()))
-            }
+            Stop::Parked { paused, .. } => Some(pause_of(held, paused, String::new())),
             Stop::Error { paused, message } => Some(pause_of(held, paused, message.clone())),
         }
     }
@@ -264,7 +309,12 @@ impl BsHost {
         let Some(Held { node, path, stop }) = self.inner.stopped.borrow_mut().take() else {
             return;
         };
-        let Stop::Parked { obj, mut task } = stop else {
+        let Stop::Parked {
+            obj,
+            mut task,
+            paused,
+        } = stop
+        else {
             // A trap's stop is dismissed: its call is over.
             self.inner.engine.set_frozen(false);
             return;
@@ -273,15 +323,24 @@ impl BsHost {
             self.inner.engine.set_frozen(false);
             return;
         };
-        let mut rt = file.home.rt.borrow_mut();
+        let Ok(mut rt) = file.home.rt.try_borrow_mut() else {
+            // Asked by a script of the instance: it goes on between frames.
+            *self.inner.stopped.borrow_mut() = Some(Held {
+                node,
+                path,
+                stop: Stop::Parked { obj, task, paused },
+            });
+            self.inner.resume_owed.set(Some(mode));
+            return;
+        };
         let step = match &mut task {
             Some(p) => rt.resume_task(command(mode), &mut p.task),
             None => rt.resume(command(mode)),
         };
         match step {
-            Ok(Step::Paused(_)) => {
+            Ok(Step::Paused(paused)) => {
                 drop(rt);
-                self.hold(node, path, obj, task);
+                self.hold(node, path, obj, task, paused);
                 return;
             }
             Ok(Step::Done(v)) => {
@@ -322,7 +381,12 @@ impl BsHost {
             .find(|i| i.node == node && i.path == path)
             .cloned();
         match inst {
-            Some(inst) => *inst.obj.borrow_mut() = Some(obj),
+            Some(inst) => {
+                *inst.obj.borrow_mut() = Some(obj);
+                if let Some(lent) = inst.lent.borrow_mut().take() {
+                    file.drop_object(lent);
+                }
+            }
             None => file.drop_object(obj),
         }
     }
@@ -365,12 +429,12 @@ fn command(mode: StepMode) -> Command {
 }
 
 fn pause_of(held: &Held, paused: &Paused, message: String) -> Pause {
-    let frames = paused
+    let frames: Vec<Frame> = paused
         .frames
         .iter()
         .map(|f| Frame {
             function: f.func.clone(),
-            path: held.path.clone(),
+            path: f.file.clone(),
             line: f.line as usize,
             locals: f
                 .locals
@@ -381,7 +445,9 @@ fn pause_of(held: &Held, paused: &Paused, message: String) -> Pause {
         .collect();
     Pause {
         node: NodeId(held.node),
-        path: held.path.clone(),
+        path: frames
+            .first()
+            .map_or_else(|| held.path.clone(), |top| top.path.clone()),
         line: paused.line as usize,
         reason: match paused.reason {
             StopReason::Breakpoint => PauseReason::Breakpoint,

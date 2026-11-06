@@ -183,8 +183,8 @@ impl Bench {
         let per = 1000.0 / (t.fixed_steps as float);
         let span = if c.dimensions == 2 { "physics2d/step" } else { "physics3d/step" };
         self.push("step_ms", secs(stages["fixed_update"]) * per);
-        self.push("physics_ms", secs(spans[span]) * per);
-        self.push("script_ms", secs(spans["scripts/fixed_update"]) * per);
+        self.push("physics_ms", span_seconds(spans, span) * per);
+        self.push("script_ms", span_seconds(spans, "scripts/fixed_update") * per);
         self.push("frame_ms", t.frame * 1000.0);
     }
 
@@ -192,15 +192,15 @@ impl Bench {
     /// work lands. `scripts/update` is where a shape case spends itself, the
     /// mirror is where a kind case does, and the two render spans are what
     /// the GPU was asked for.
-    fn sample_load(frame: float, wall: float, stages: any, spans: any) {
+    fn sample_load(frame: float, wall: float, stages: any, spans: [engine::Span]) {
         self.push("frame_ms", frame * 1000.0);
         self.push("update_ms", ms(stages["update"]));
         self.push("sync_ms", ms(stages["scene_sync"]));
-        self.push("script_ms", ms(spans["scripts/update"]));
-        self.push("mirror_ms", ms(spans["scene mirror"]));
-        self.push("ui_ms", ms(spans["ui"]));
-        self.push("render_cpu_ms", ms(spans["render cpu"]));
-        self.push("render_gpu_ms", ms(spans["render gpu"]));
+        self.push("script_ms", span_seconds(spans, "scripts/update") * 1000.0);
+        self.push("mirror_ms", span_seconds(spans, "scene mirror") * 1000.0);
+        self.push("ui_ms", span_seconds(spans, "ui") * 1000.0);
+        self.push("render_cpu_ms", span_seconds(spans, "render cpu") * 1000.0);
+        self.push("render_gpu_ms", span_seconds(spans, "render gpu") * 1000.0);
         self.push("wall_ms", wall * 1000.0);
         // Statements run rather than milliseconds: the same frame runs the
         // same statements on every machine, so this is the half a baseline
@@ -555,6 +555,16 @@ fn ms(value: any) -> float {
     secs(value) * 1000.0
 }
 
+/// One named span's seconds, zero where nothing measured it this frame.
+fn span_seconds(spans: [engine::Span], name: str) -> float {
+    for span in spans {
+        if span.name == name {
+            return span.seconds;
+        }
+    }
+    0.0
+}
+
 /// Drop what the last pass built, in its own frame: a node case leaves a
 /// tree of fifty thousand behind, and the next pass must not measure the
 /// engine walking it.
@@ -591,10 +601,10 @@ fn tune(c: load::Case) {
     }
     physics::set_sleeping_allowed(false);
     if c.dimensions == 2 {
-        physics::set_tuning({ "length_unit": 100.0 });
+        physics::set_tuning(physics::TuningOptions { length_unit: 100.0 });
         physics2d::set_gravity(0.0, -980.0);
     } else {
-        physics::set_tuning({ "length_unit": 1.0 });
+        physics::set_tuning(physics::TuningOptions { length_unit: 1.0 });
         physics3d::set_gravity(0.0, -9.81, 0.0);
     }
 }

@@ -345,7 +345,7 @@ pub(crate) fn install_decompose_api(m: &mut Module<Engine>) {
     m.describe(&[(
         "convex_decomposition",
         &[],
-        "(polygon: list, opts: DecompositionOptions?) -> list",
+        "(polygon: [Vec2], opts: DecompositionOptions?) -> [[Vec2]]",
         "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
     )]);
     m.function(
@@ -370,7 +370,7 @@ pub(crate) fn install_decompose_api(m: &mut Module<Engine>) {
     );
 }
 
-/// A script's list of `[x, y]` pairs or vectors as a ring.
+/// A script's list of `Vec2`s as a ring.
 fn polygon_of(value: &Value) -> Result<Vec<Vector2>> {
     let Value::List(points) = value else {
         return Err(anyhow!("a polygon is a list of points, got {value:?}"));
@@ -378,16 +378,8 @@ fn polygon_of(value: &Value) -> Result<Vec<Vector2>> {
     points
         .iter()
         .map(|point| match point {
-            Value::Vec2([x, y]) | Value::Vec3([x, y, _]) => Ok(Vector2::new(*x, *y)),
-            Value::List(pair) if pair.len() >= 2 => {
-                let at = |value: &Value| match value {
-                    Value::Num(number) => Ok(*number as f32),
-                    Value::Int(number) => Ok(*number as f32),
-                    other => Err(anyhow!("a coordinate should be a number, got {other:?}")),
-                };
-                Ok(Vector2::new(at(&pair[0])?, at(&pair[1])?))
-            }
-            other => Err(anyhow!("a point is [x, y] or a vector, got {other:?}")),
+            Value::Vec2([x, y]) => Ok(Vector2::new(*x, *y)),
+            other => Err(anyhow!("a point is a Vec2, got {other:?}")),
         })
         .collect()
 }

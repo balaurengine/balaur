@@ -28,7 +28,7 @@ A `.bs` file holds items in any order: `fn`, `struct`, `class`, `enum`, `impl`, 
 | `T?` | a `T`, or `nil` | as `T` |
 | `any` | a value of any kind, read at run time | shares a list or a map |
 | `fn(A, B) -> R` | a function, named elsewhere | copies |
-| `Vec2`, `Vec3`, `Color` | numbers with named fields | copies |
+| `Vec2`, `Vec3`, `Color`, `Transform2d`, `Transform3d` | numbers with named fields | copies |
 | a `struct` | fields | copies, shallowly |
 | a `class` | fields and methods | shares the object |
 | an `enum` | one of its variants | copies |

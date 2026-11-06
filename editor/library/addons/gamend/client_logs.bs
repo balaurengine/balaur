@@ -5,24 +5,25 @@
 // Client logs: one function per operation, `client_logs::<name>` once a
 // script says `use addons::gamend::client_logs;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Client log capture policy
 /// `GET /api/v1/client_logs/policy`
-pub fn get_client_log_policy() -> any {
+pub fn get_client_log_policy() -> int {
     gamend::rest("GET", "/api/v1/client_logs/policy")
 }
 
 /// Upload a batch of client log entries
 /// `POST /api/v1/client_logs`
-pub fn upload_client_logs(params: any) -> any {
+pub fn upload_client_logs(params: any) -> int {
     if !core::given(params, "session") {
         return core::missing("gamend::client_logs::upload_client_logs", "session");
     }
