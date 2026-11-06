@@ -85,6 +85,9 @@ pub struct Widget {
     /// the first between its children and the second between wrapped lines.
     /// Below zero on an axis takes the theme's.
     pub gap: [f32; 2],
+    /// The space between a button's picture, icon and caption; below zero
+    /// takes the theme's.
+    pub face_gap: f32,
     /// Cross-axis placement of a container's children.
     pub align: SmolStr,
     /// Which way a `scroll` moves: `horizontal`, `vertical`, or both where it

@@ -416,11 +416,10 @@ step 1 is the compiler's suite with the prelude in.
 | `node.text2d.text = s` | 68,000 | |
 | reading `node.text2d.text` | 66,000 | |
 
-After step 1 nothing in the table calls out but the engine rows. What is
-left inside the module is reference counting: a script function owns its
-arguments, so each call into the prelude counts a string up and down, and a
-key is found by comparing every key. Step 5's maps and the compiler not
-counting a borrowed argument take it the rest of the way.
+After step 1 nothing in the table calls out but the engine rows. What was
+left inside the module was reference counting, a prelude call counting each
+string up and down, and a key found by comparing every key; the measurements
+after the targets below are what lending and the scans took off.
 
 Where it goes:
 
@@ -581,6 +580,88 @@ The write is still forty times the target. What is left of it is the engine
 side, a property set as a `toml::Value` and the change log and registry
 looked up by type on each write, and the any map's walk through module
 memory for a patch.
+
+Measured 2026-11-06, `main` at b160b613 against this branch, the dev build on a
+quiet machine. Wasmi fuel per operation (`tests/suite/budgets.rs`, which now
+holds each to what it spent and a quarter more):
+
+| operation | before | after |
+| --- | ---: | ---: |
+| `s.contains(t)` | 2,413 | 229 |
+| `s.find(t)` | 2,408 | 224 |
+| `starts_with` and `ends_with` | 1,622 | 544 |
+| `a["k"].as_int()` on a map of 8 | 1,234 | 266 |
+| `a["k"] = v` | 1,292 | 392 |
+| `a.has(k)`, then `a.len()` | 1,562 | 291 |
+| `typed["e"]` on a `{ str: int }` | 552 | 239 |
+| `s.replace(..)` | 8,147 | 4,404 |
+| `s.split(..)` | 4,704 | 1,676 |
+| an `any` into a struct | 4,412 | 1,639 |
+
+What moved them:
+
+- A prelude function and a map's method borrow their string, list and `any`
+  parameters (`Gen::lends_to`): the caller holds them, so neither counts them
+  up and down. A local is lent as it is, to a host call and a built-in too,
+  unless a later argument could assign it (`codegen/lend.rs`), and a string
+  compare reads a class's field or a list's element where it is held.
+- `==` on strings is `str_same`, which lends both: the same pointer, else the
+  same length, then eight bytes at a time.
+- `__key_index` walks an `any` map's keys passing over one of another length
+  or first byte with two loads, then tries the pointer, then the rest of the
+  bytes. What a near miss goes on to is in a block of its own: wasmi charges a
+  block's fuel on entry, so code a pass skips cost it all the same.
+- `__find` looks for the needle's first byte eight bytes at a time and
+  compares the rest where it finds one; `__same_at` serves `starts_with`.
+- Literals are not interned across units, and an `any` map has no index: its
+  data comes from outside a script now, whose keys share no pointer with a
+  literal, and eight keys walk faster than a hash is made.
+
+Instructions retired per engine call, wasmtime (`scripts/call_cost.sh`, 200
+frames of a thousand calls, each case after a run that fills the compile cache):
+
+| a call | before | after |
+| --- | ---: | ---: |
+| `engine::time()` | 1,001 | 659 |
+| `self.node.transform.position = vec3(..)` | 3,955 | 1,484 |
+| `let at = self.node.transform.position` | 1,811 | 1,203 |
+| `self.node.transform.skew = step` | 3,568 | 1,378 |
+| `let lean = self.node.transform.skew` | 1,685 | 1,064 |
+| `self.node.widget.text = "text"` | 6,898 | 3,928 |
+| `let text = self.node.widget.text` | 4,428 | 3,727 |
+| `patch_component(transform, { "position": .. })` | 20,260 | 16,322 |
+| `patch_component(widget, { "text": .. })` | 18,440 | 15,547 |
+| `component_property(transform, "position")`, `get_component` before | 34,783 | 33,657 |
+
+One edit in the editor (`scripts/edit_cost.sh`, M instructions, `main` with its
+own editor against this branch with `editor-fixes` merged, at load 40 to 140):
+3.2 and 3.0 before, 2.9, 3.2 and 4.1 after (text); 3.5 and 2.7, 2.7, 3.3 and 3.4
+(colour); 1.4 and 1.2, 1.2, 1.8 and 1.6 (position); 2.7 and 3.5, 2.3, 2.8 and
+3.0 (engine text). That is within what runs differ by.
+
+A property's write and read are typed end to end: the script's slots become a
+`derived::Given` (a number, a flag, a vector's numbers, text), which the derive
+hands each field's `Property::from_given`, and a read hands back what
+`Property::given` says, with no `toml::Value` or neutral value between for
+those kinds. A value of any other kind is still one. `PropertyPlace` holds the
+registry and the change log and ticks (`changes::Feeds`), found once when the
+script binds the property, and a write still logs, stamps, keeps what it
+replaced and runs the component's lifecycle calls and hook.
+
+No target is met, and in this build none of the engine ones can be:
+
+- wasmtime's own call into a host function that does nothing is 144 to 171
+  instructions here; the runtime's dispatch and the arguments' slots add about
+  380 more, and a binding's conversion the rest of `engine::time()`.
+- Of a position write, sampled: wasmtime's glue for a host call, which
+  monomorphises into `balaur_bs` at its `opt-level` of 1, is a fifth; hecs's
+  `World::get`, whose type lookup monomorphises into `balaur_core` at the same
+  level, is a fifth again (`OrderedTypeIdMap::get` alone a seventh); the write
+  path, the change log and the ticks a fifth; the call's arguments the rest.
+  `balaur_bs` at `opt-level` 2 took 60 to 70 more off each call.
+- In the module, a map read is two prelude calls, a count up for the value it
+  hands back and one down when the script drops it; a search is a call to the
+  prelude and its helper.
 
 ## Open questions
 

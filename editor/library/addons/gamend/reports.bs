@@ -5,18 +5,19 @@
 // Reports: one function per operation, `reports::<name>` once a
 // script says `use addons::gamend::reports;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// File a report
 /// `POST /api/v1/reports`
-pub fn create_report(params: any) -> any {
+pub fn create_report(params: any) -> int {
     if !core::given(params, "kind") {
         return core::missing("gamend::reports::create_report", "kind");
     }
@@ -25,6 +26,6 @@ pub fn create_report(params: any) -> any {
 
 /// Report kinds
 /// `GET /api/v1/reports/kinds`
-pub fn list_report_kinds() -> any {
+pub fn list_report_kinds() -> int {
     gamend::rest("GET", "/api/v1/reports/kinds")
 }

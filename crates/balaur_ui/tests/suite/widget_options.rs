@@ -69,11 +69,10 @@ fn picture(dir: &std::path::Path) {
 fn every_option_reads_back_as_it_was_written() {
     let (_dir, app) = app();
     let written = toml::toml! {
-        kind = "slider" sense = "drag" show_tooltip_when_elided = false indeterminate = true
-        prefix = "x"
+        kind = "slider"
         movable = true constrain = true fade_in = true
         widget_separator = { spacing = 9.0, overhang = -2.0 } widget_color_picker = { alpha = "additive", inline = true } widget_menu = { popup_gap = 2.0, popup_width = 140.0, placement_fallbacks = ["above", "right_end"], close_on = "never" } widget_window = { backdrop_color = [1.0, 0.0, 0.0, 0.5], dismissable = false, resizable = true, collapsible = true, closable = false, default_open = false }
-        widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
+        widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true, prefix = "x" } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
     };
     let entity = add_widget(&app, &written.clone().into());
     for (key, value) in &written {
@@ -99,7 +98,7 @@ fn every_option_reads_back_as_it_was_written() {
 fn a_checkbox_can_be_drawn_neither_ticked_nor_clear() {
     let line = |indeterminate: bool| {
         let (_dir, _app, _, _, out) = drawn(
-            &toml::toml! { kind = "checkbox" text = "all" indeterminate = indeterminate x = 0.0 y = 0.0 }.into(),
+            &toml::toml! { kind = "checkbox" text = "all" x = 0.0 y = 0.0 widget_check = { indeterminate = indeterminate } }.into(),
         );
         out.shapes
             .iter()
@@ -113,9 +112,9 @@ fn a_checkbox_can_be_drawn_neither_ticked_nor_clear() {
 fn a_slider_shows_its_number_in_its_decimals_between_prefix_and_suffix() {
     let (_dir, _app, _, _, out) = drawn(
         &toml::toml! {
-            kind = "slider"   prefix = "at" suffix = "m"
+            kind = "slider"
                width = 120.0 x = 0.0 y = 0.0
-            widget_range = { show_value = true, decimals = 2, value = 3.0, min = 0.0, max = 10.0 }
+            widget_range = { show_value = true, decimals = 2, value = 3.0, min = 0.0, max = 10.0, prefix = "at", suffix = "m" }
         }
         .into(),
     );
@@ -132,7 +131,7 @@ fn a_vertical_slider_runs_up_its_box() {
     let (_dir, mut app) = app();
     let slider = add_widget(
         &app,
-        &toml::toml! { kind = "slider" axis = "vertical"   width = 30.0 height = 120.0 x = 0.0 y = 0.0 widget_range = { min = 0.0, max = 10.0 } }.into(),
+        &toml::toml! { kind = "slider"   width = 30.0 height = 120.0 x = 0.0 y = 0.0 widget_range = { min = 0.0, max = 10.0, axis = "vertical" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -219,7 +218,7 @@ fn a_separator_takes_the_room_its_spacing_names() {
     let (_dir, app) = app();
     let column = add_widget(
         &app,
-        &toml::toml! { kind = "column" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "column" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let rule = add_child_widget(
         &app,
@@ -252,7 +251,7 @@ fn a_text_field_draws_what_stands_either_side_of_its_text() {
         &toml::toml! { kind = "text_field" text = "12" width = 160.0 x = 0.0 y = 0.0 }.into(),
     );
     let (_dir, _app, _, _, out) = drawn(
-        &toml::toml! { kind = "text_field" text = "12" prefix = "$" suffix = "kg" width = 160.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "text_field" text = "12" width = 160.0 x = 0.0 y = 0.0 widget_field = { prefix = "$", suffix = "kg" } }.into(),
     );
     let (bare, out) = (glyphs(&bare), glyphs(&out));
     assert_eq!(bare.len(), 2, "control: the number is two glyphs");
@@ -370,7 +369,7 @@ fn scroll_of_lines(
 #[test]
 fn a_written_scroll_offset_scrolls_there_and_the_reader_s_scroll_reads_back() {
     let (_dir, mut app, scroll, lines, ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 widget_scroll = { scroll_offset = [-1.0, 60.0] } }.into(),
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { scroll_offset = [-1.0, 60.0] } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let first = balaur_ui::widget_rect(lines[0]).unwrap();
     assert!(
@@ -414,7 +413,7 @@ fn a_written_scroll_offset_scrolls_there_and_the_reader_s_scroll_reads_back() {
 #[test]
 fn a_scroll_that_sticks_to_its_end_shows_its_last_line() {
     let (_dir, _app, scroll, lines, _ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 widget_scroll = { stick_to_end = true } }.into(),
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { stick_to_end = true } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let last = balaur_ui::widget_rect(lines[19]).unwrap();
     let held = balaur_ui::widget_rect(scroll).unwrap();
@@ -431,8 +430,8 @@ fn an_image_is_tinted_and_cut_to_its_region() {
     add_widget(
         &app,
         &toml::toml! {
-            kind = "image" image = "white.png"   x = 0.0 y = 0.0
-            widget_image = { tint = [0.0, 1.0, 0.0, 1.0], region = [0.0, 0.0, 4.0, 4.0] }
+            kind = "image"   x = 0.0 y = 0.0
+            widget_image = { tint = [0.0, 1.0, 0.0, 1.0], region = [0.0, 0.0, 4.0, 4.0], image = "white.png" }
         }
         .into(),
     );
@@ -467,7 +466,7 @@ fn a_turned_image_is_drawn_turned() {
     picture(dir.path());
     add_widget(
         &app,
-        &toml::toml! { kind = "image" image = "white.png" width = 40.0 height = 40.0  x = 50.0 y = 50.0 widget_image = { angle_degrees = 45.0 } }.into(),
+        &toml::toml! { kind = "image" width = 40.0 height = 40.0  x = 50.0 y = 50.0 widget_image = { angle_degrees = 45.0, image = "white.png" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -486,7 +485,7 @@ fn a_turned_image_is_drawn_turned() {
 #[test]
 fn an_image_that_will_not_load_draws_its_alt_text() {
     let (_dir, _app, _, _, out) = drawn(
-        &toml::toml! { kind = "image" image = "missing.png"  x = 0.0 y = 0.0 widget_image = { alt_text = "no picture" } }.into(),
+        &toml::toml! { kind = "image"  x = 0.0 y = 0.0 widget_image = { alt_text = "no picture", image = "missing.png" } }.into(),
     );
     assert!(has_text(&out, "no picture"), "{:?}", texts(&out));
 }
@@ -495,8 +494,8 @@ fn an_image_that_will_not_load_draws_its_alt_text() {
 fn a_menu_opens_to_the_side_its_placement_names() {
     let (_dir, _app, menu, _, out) = drawn(
         &toml::toml! {
-            kind = "menu" text = "File" options = ["Open", "Save"] x = 20.0 y = 20.0
-            widget_menu = { placement = "right", showing = true }
+            kind = "menu" text = "File" x = 20.0 y = 20.0
+            widget_menu = { placement = "right", showing = true, options = ["Open", "Save"] }
         }
         .into(),
     );
@@ -535,7 +534,7 @@ fn a_dialog_dims_with_its_backdrop_and_stays_when_it_is_not_dismissable() {
     );
     consume_input(&mut app);
     assert_eq!(
-        property(&app, dialog, "open").as_bool(),
+        beside_property(&app, dialog, "widget_window", "open").as_bool(),
         Some(true),
         "Escape left it open"
     );
@@ -662,7 +661,7 @@ fn a_collapsible_window_folds_to_its_bar_and_back() {
 
 #[test]
 fn a_window_without_a_header_or_a_cross_draws_neither() {
-    let (_dir, app, _, ctx) = window(toml::toml! { header = false });
+    let (_dir, app, _, ctx) = window(toml::toml! { widget_window = { header = false } });
     let bare = pass(&app, &ctx, vec![]);
     assert!(!has_text(&bare, "Debug") && !has_text(&bare, "×"));
     let (_dir, app, _, ctx) = window(toml::toml! { widget_window = { closable = false } });
@@ -706,7 +705,7 @@ fn a_button_that_only_senses_hover_takes_no_click() {
     let (_dir, mut app) = app();
     let button = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" sense = "hover" x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { sense = "hover" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -720,7 +719,7 @@ fn a_button_that_only_senses_hover_takes_no_click() {
 fn a_button_s_gap_spaces_its_icon_from_its_caption() {
     let wide = |gap: f64| {
         let (_dir, _app, button, _, _) = drawn(
-            &toml::toml! { kind = "button" text = "go" icon = "+" gap = [gap, gap] x = 0.0 y = 0.0 }
+            &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { face_gap = gap, icon = "+" } }
                 .into(),
         );
         balaur_ui::widget_rect(button).unwrap().width()
@@ -788,7 +787,7 @@ fn a_number_field_moves_by_its_drag_speed() {
 #[test]
 fn a_scroll_the_wheel_may_not_scroll_stays_put() {
     let (_dir, mut app, scroll, _lines, ctx) = scroll_of_lines(
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 widget_scroll = { wheel_scroll = false } }.into(),
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 padding = 0.0 widget_scroll = { wheel_scroll = false } widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let wheel = vec![
         egui::Event::PointerMoved(pos2(100.0, 50.0)),
@@ -812,7 +811,7 @@ fn a_scroll_the_wheel_may_not_scroll_stays_put() {
 fn a_separator_s_overhang_runs_its_line_past_its_room() {
     let span = |overhang: f64| {
         let (_dir, app) = app();
-        let column = add_widget(&app, &toml::toml! { kind = "column" width = 100.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 }.into());
+        let column = add_widget(&app, &toml::toml! { kind = "column" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into());
         add_child_widget(
             &app,
             column,
@@ -842,8 +841,8 @@ fn a_separator_s_overhang_runs_its_line_past_its_room() {
 fn a_slider_s_shown_number_stays_inside_its_box() {
     let (_dir, _app, _, _, out) = drawn(
         &toml::toml! {
-            kind = "slider"  prefix = "at" suffix = "metres"   width = 200.0 x = 0.0 y = 0.0
-            widget_range = { show_value = true, value = 3.0, max = 10.0 }
+            kind = "slider"   width = 200.0 x = 0.0 y = 0.0
+            widget_range = { show_value = true, value = 3.0, max = 10.0, prefix = "at", suffix = "metres" }
         }
         .into(),
     );

@@ -12,6 +12,7 @@ mod fnrefs;
 mod format;
 #[cfg(all(feature = "c", feature = "native"))]
 mod freestanding;
+mod lending;
 mod library;
 mod maps;
 mod memory;

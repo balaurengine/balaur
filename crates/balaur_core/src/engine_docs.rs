@@ -21,8 +21,13 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ),
         (
             "Timings",
-            "{ frame: float, wall: float, fixed_steps: int, stages: Stages, spans: map }",
+            "{ frame: float, wall: float, fixed_steps: int, stages: Stages, spans: [Span] }",
             "What the last frame cost, in seconds, with the spans plugins measured summed by name.",
+        ),
+        (
+            "Span",
+            "{ name: string, seconds: float }",
+            "What one named span a plugin measured cost in the last frame.",
         ),
         (
             "ScriptCost",
@@ -83,8 +88,14 @@ pub(crate) fn document_encoding(m: &mut balaur_script::Module<Engine>) {
         (
             "base64",
             &[],
-            "(data: bytes | string) -> string",
-            "Bytes, or a string's UTF-8, as standard base64 with padding.",
+            "(data: bytes) -> string",
+            "Bytes as standard base64 with padding.",
+        ),
+        (
+            "base64_text",
+            &[],
+            "(text: string) -> string",
+            "A string's UTF-8 as standard base64 with padding.",
         ),
         (
             "from_base64",
@@ -210,7 +221,7 @@ pub(crate) fn document_regex(m: &mut balaur_script::Module<Engine>) {
     );
     m.records(&[(
         "Match",
-        "{ start: int, end: int, text: string, groups: [any] }",
+        "{ start: int, end: int, text: string, groups: [string?] }",
         "One match: its byte offsets, its text and one string per capture group, nil for a group that took no part.",
     )]);
     m.describe(&[

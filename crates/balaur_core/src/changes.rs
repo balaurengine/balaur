@@ -13,10 +13,14 @@
 //! editor's undo, which cannot wait a frame for its step and needs every
 //! write rather than a node's merged (PLAN-editor-as-scene §10.2).
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use balaur_script::Value;
 use smol_str::SmolStr;
 
 use crate::collections::DetHashMap;
+use crate::components::ticks::Ticks;
 use crate::engine::Engine;
 use crate::hecs::Entity;
 use crate::node_api::{CHILD_ADDED_EVENT, CHILD_REMOVED_EVENT, RENAMED_EVENT, REPARENTED_EVENT};
@@ -135,9 +139,7 @@ fn was_value(was: Option<toml::Value>) -> Value {
 /// Whether a change to `node` is kept, so a write reads what it replaces
 /// first; nothing else pays for that read.
 pub(crate) fn keeps(eng: &Engine, node: Entity) -> bool {
-    eng.try_resource::<Changes>()
-        .and_then(|changes| changes.borrow().keeping)
-        .is_some_and(|root| crate::scene::is_within(&eng.world(), node, root))
+    Feeds::of(eng).keeps(eng, node)
 }
 
 /// A place among siblings as a script integer.
@@ -188,28 +190,70 @@ pub(crate) fn component(
     push(eng, || Change::Component { node, index, keys });
 }
 
-/// One property of component `index` of `node` was written over `was`, what
-/// the component held before.
-pub(crate) fn property(
-    eng: &Engine,
-    node: Entity,
-    index: usize,
-    key: &str,
-    was: Option<toml::Value>,
-) {
-    crate::components::ticks::changed(eng, node, index);
-    keep(eng, node, "component", || {
-        vec![
-            ("component".into(), component_name(eng, index)),
-            ("properties".into(), Value::List(vec![Value::text(key)])),
-            ("was".into(), was_value(was)),
-        ]
-    });
-    push(eng, || Change::Component {
-        node,
-        index,
-        keys: Some(vec![SmolStr::new(key)]),
-    });
+/// What a write of one property feeds: the log and the ticks, found once by a
+/// caller that writes again and again.
+pub(crate) struct Feeds {
+    changes: Option<Rc<RefCell<Changes>>>,
+    ticks: Option<Rc<RefCell<Ticks>>>,
+}
+
+impl Feeds {
+    pub(crate) fn of(eng: &Engine) -> Self {
+        Self {
+            changes: eng.try_resource::<Changes>(),
+            ticks: eng.try_resource::<Ticks>(),
+        }
+    }
+
+    /// Whether a change to `node` is kept, so a write reads what it replaces
+    /// first; nothing else pays for that read.
+    pub(crate) fn keeps(&self, eng: &Engine, node: Entity) -> bool {
+        self.changes
+            .as_ref()
+            .and_then(|changes| changes.borrow().keeping)
+            .is_some_and(|root| crate::scene::is_within(&eng.world(), node, root))
+    }
+
+    /// One property of component `index` of `node` was written over `was`,
+    /// what the component held before.
+    pub(crate) fn property(
+        &self,
+        eng: &Engine,
+        node: Entity,
+        index: usize,
+        key: &SmolStr,
+        was: Option<toml::Value>,
+    ) {
+        if let Some(ticks) = &self.ticks {
+            ticks.borrow_mut().changed(eng.change_tick(), node, index);
+        }
+        let Some(changes) = &self.changes else {
+            return;
+        };
+        let (keeping, listening) = {
+            let changes = changes.borrow();
+            (changes.keeping.is_some(), changes.listening)
+        };
+        if keeping {
+            keep(eng, node, "component", || {
+                vec![
+                    ("component".into(), component_name(eng, index)),
+                    (
+                        "properties".into(),
+                        Value::List(vec![Value::text(key.as_str())]),
+                    ),
+                    ("was".into(), was_value(was)),
+                ]
+            });
+        }
+        if listening {
+            changes.borrow_mut().entries.push(Change::Component {
+                node,
+                index,
+                keys: Some(vec![key.clone()]),
+            });
+        }
+    }
 }
 
 /// Component `index` went onto `node`, which had none.

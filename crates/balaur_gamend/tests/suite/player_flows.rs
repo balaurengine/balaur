@@ -154,9 +154,9 @@ fn run_flow(flow: &str, with_b: bool, steps: &[&str]) {
     leftovers.finished = true;
 }
 
-/// What a call of the addon answers, said as `sent true` or `sent false`. No
-/// server is asked for: a call answers before its request is done, and the
-/// harness stops at the error one refusing logs.
+/// Whether a call of the addon was given an id, said as `sent true`. No server
+/// is asked for: a call answers before its request is done, and the harness
+/// stops at the error one refusing logs.
 fn addon_call(call: &str) {
     let source = format!(
         r#"
@@ -166,8 +166,8 @@ use addons::gamend::users;
 pub class Scenario {{ node: Node }}
 impl Scenario {{
     async fn init() {{
-        let answer = {call};
-        log::info("sent {{answer != nil}}");
+        let answer: int = {call};
+        log::info("sent {{answer > 0}}");
     }}
 }}
 "#
@@ -177,19 +177,19 @@ impl Scenario {{
 
 #[test]
 #[should_panic(expected = "gamend::users::get_user needs `id`")]
-fn a_call_with_its_path_id_left_out_is_refused() {
+fn a_call_with_an_empty_path_id_is_refused() {
+    addon_call("users::get_user(\"\")");
+}
+
+#[test]
+#[should_panic(expected = "`users::get_user` takes 1 argument(s), 0 given")]
+fn a_call_with_its_path_id_left_out_does_not_compile() {
     addon_call("users::get_user()");
 }
 
 #[test]
-#[should_panic(expected = "gamend::users::get_user needs `id`")]
-fn a_call_with_a_nil_path_id_is_refused() {
-    addon_call("users::get_user(nil)");
-}
-
-#[test]
 fn a_call_with_its_path_id_is_sent() {
-    addon_call("users::get_user(7)");
+    addon_call("users::get_user(\"7\")");
 }
 
 #[test]

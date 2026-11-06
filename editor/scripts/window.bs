@@ -85,7 +85,7 @@ pub fn hide(state: &mut editor::State) {
     state.window.open = "";
     let filled = scene::get_node(SHEET);
     if filled.is_valid() {
-        filled.widget.open = false;
+        filled.widget_window.open = false;
     }
 }
 
@@ -120,7 +120,7 @@ pub fn fill(state: &mut editor::State) {
 /// The sheet shut itself, on Escape or a click on the dim: the screen that
 /// was up is not any more.
 pub fn closed(state: &mut editor::State) {
-    if state.window.open != "" && util::property(SHEET, "open").as_bool() == false {
+    if state.window.open != "" && util::property(SHEET, "widget_window", "open").as_bool() == false {
         state.window.open = "";
     }
 }
@@ -158,7 +158,7 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
     let box = size(state);
     let filled = scene::get_node(SHEET);
     if filled.is_valid() {
-        filled.widget.open = true;
+        filled.widget_window.open = true;
         filled.widget.width = box.width;
         filled.widget.height = box.height;
     }
@@ -184,7 +184,7 @@ const PICKER: str = "Editor/Picker";
 pub fn picker_shut(state: &mut editor::State) {
     let filled = scene::get_node(PICKER);
     if filled.is_valid() {
-        filled.widget.open = false;
+        filled.widget_window.open = false;
     }
     state.picker_focused = false;
 }
@@ -201,7 +201,7 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     let width = util::min(options["width"].as_float(), util::max(screen.x - 32.0, 240.0));
     let filled = scene::get_node(PICKER);
     if filled.is_valid() {
-        filled.widget.open = true;
+        filled.widget_window.open = true;
         filled.widget.width = width;
     }
     let field: ui::Control = ui::Control {
@@ -256,7 +256,7 @@ pub fn picker_fill(state: &mut editor::State) {
 
 /// The picker shut itself, on Escape or a click on the dim.
 pub fn picker_closed(state: &mut editor::State) {
-    if util::property(PICKER, "open").as_bool() != false {
+    if util::property(PICKER, "widget_window", "open").as_bool() != false {
         return;
     }
     if state.palette {

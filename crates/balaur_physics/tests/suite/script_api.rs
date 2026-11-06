@@ -197,23 +197,23 @@ fn a_component_call_no_driving_module_declares_is_refused() {
 fn every_tuning_key_that_can_be_written_reads_back() {
     run_clean(
         r#"
-        physics::set_tuning({
-            "friction_in_bias_pass": true,
-            "allowed_linear_error": 0.004,
-            "max_corrective_velocity": 12.5,
-            "prediction_distance": 0.006,
-            "max_linear_velocity": 77.0,
-            "static_contact_frequency_hz": 41.0,
-            "static_contact_damping": 3.5,
+        physics::set_tuning(physics::TuningOptions {
+            friction_in_bias_pass: true,
+            allowed_linear_error: 0.004,
+            max_corrective_velocity: 12.5,
+            prediction_distance: 0.006,
+            max_linear_velocity: 77.0,
+            static_contact_frequency_hz: 41.0,
+            static_contact_damping: 3.5,
         });
-        let back = physics::tuning()["2d"];
-        if !back["friction_in_bias_pass"].as_bool() { log::error("friction_in_bias_pass is write-only"); }
-        if back["allowed_linear_error"].as_float() - 0.004 >= 0.0001 { log::error("allowed_linear_error"); }
-        if back["max_corrective_velocity"].as_float() - 12.5 >= 0.0001 { log::error("max_corrective_velocity"); }
-        if back["prediction_distance"].as_float() - 0.006 >= 0.0001 { log::error("prediction_distance"); }
-        if back["max_linear_velocity"].as_float() - 77.0 >= 0.0001 { log::error("max_linear_velocity"); }
-        if back["static_contact_frequency_hz"].as_float() - 41.0 >= 0.0001 { log::error("static_contact_frequency"); }
-        if back["static_contact_damping"].as_float() - 3.5 >= 0.0001 { log::error("static_contact_damping"); }
+        let back = physics::tuning().physics2d;
+        if !back.friction_in_bias_pass.unwrap() { log::error("friction_in_bias_pass is write-only"); }
+        if back.allowed_linear_error.unwrap() - 0.004 >= 0.0001 { log::error("allowed_linear_error"); }
+        if back.max_corrective_velocity.unwrap() - 12.5 >= 0.0001 { log::error("max_corrective_velocity"); }
+        if back.prediction_distance.unwrap() - 0.006 >= 0.0001 { log::error("prediction_distance"); }
+        if back.max_linear_velocity.unwrap() - 77.0 >= 0.0001 { log::error("max_linear_velocity"); }
+        if back.static_contact_frequency_hz.unwrap() - 41.0 >= 0.0001 { log::error("static_contact_frequency"); }
+        if back.static_contact_damping.unwrap() - 3.5 >= 0.0001 { log::error("static_contact_damping"); }
         "#,
     );
 }
@@ -224,9 +224,9 @@ fn every_tuning_key_that_can_be_written_reads_back() {
 #[test]
 fn voxelize_refuses_a_resolution_it_would_never_finish() {
     let errors = run(r#"
-        let mesh: any = {
-            "points": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-            "indices": [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3],
+        let mesh = geometry3d::Mesh {
+            points: [vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0)],
+            indices: [0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3],
         };
         let fine = geometry3d::voxelize(mesh, geometry3d::VoxelizeOptions { resolution: 8 });
         if fine.cells.len() == 0 { log::error("a sane resolution stopped working"); }
@@ -324,24 +324,24 @@ fn apply_force_pushes_for_one_step_and_leaves_no_constant_force() {
 #[test]
 fn each_world_takes_its_own_tuning_over_the_shared_keys() {
     let errors = run(r#"
-        physics::set_tuning({
-            "length_unit": 2.0,
-            "soft_resweep_strain": 0.5,
-            "soft_recovery": { "overlap_split": 5, "overlap_patch_constraints": "keep" },
-            "2d": { "length_unit": 64.0, "soft_recovery": { "overlap_split": 2 } },
+        physics::set_tuning(physics::TuningOptions {
+            length_unit: 2.0,
+            soft_resweep_strain: 0.5,
+            soft_recovery: physics::SoftRecovery { overlap_split: 5, overlap_patch_constraints: "keep" },
+            physics2d: physics::Tuning { length_unit: 64.0, soft_recovery: physics::SoftRecovery { overlap_split: 2 } },
         });
         let both = physics::tuning();
-        let unit3 = both["3d"]["length_unit"].as_float();
+        let unit3 = both.physics3d.length_unit.unwrap();
         if unit3 != 2.0 { log::error("the shared key missed the 3D world: {unit3}"); }
-        let unit2 = both["2d"]["length_unit"].as_float();
+        let unit2 = both.physics2d.length_unit.unwrap();
         if unit2 != 64.0 { log::error("the 2D table lost to the shared key: {unit2}"); }
-        if both["2d"]["soft_resweep_strain"].as_float() != 0.5 { log::error("a shared soft row missed the 2D world"); }
-        if both["3d"]["soft_recovery"]["overlap_split"].as_int() != 5 { log::error("the shared recovery row missed 3D"); }
-        if both["2d"]["soft_recovery"]["overlap_split"].as_int() != 2 { log::error("the 2D recovery row lost"); }
-        if both["2d"]["soft_recovery"]["overlap_patch_constraints"].as_str() != "keep" { log::error("a recovery word was dropped"); }
-        if both["3d"]["friction_model"].as_str() != "simplified" { log::error("the 3D world lost its friction model"); }
+        if both.physics2d.soft_resweep_strain.unwrap() != 0.5 { log::error("a shared soft row missed the 2D world"); }
+        if both.physics3d.soft_recovery.unwrap().overlap_split.unwrap() != 5 { log::error("the shared recovery row missed 3D"); }
+        if both.physics2d.soft_recovery.unwrap().overlap_split.unwrap() != 2 { log::error("the 2D recovery row lost"); }
+        if both.physics2d.soft_recovery.unwrap().overlap_patch_constraints.unwrap() != "keep" { log::error("a recovery word was dropped"); }
+        if both.physics3d.friction_model.unwrap() != "simplified" { log::error("the 3D world lost its friction model"); }
         let counted = physics::counters();
-        if !(counted["physics3d"].has("solver_ms") && counted["physics2d"].has("ccd_substep_count")) { log::error("a counter is missing"); }
+        if !(counted.physics3d.solver_ms >= 0.0 && counted.physics2d.ccd_substep_count >= 0) { log::error("a counter is missing"); }
         log::error("checked: tuning");
     "#);
     assert!(

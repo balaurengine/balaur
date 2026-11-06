@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 2]
 
 # What the player is missing, and the verb that gives it a clip.
@@ -21,10 +22,11 @@ parent = "panel"
 visible = false
 [nodes.widget]
 kind = "row"
-gap = [12, 12]
-align_items = "center"
 height = 30
 padding = [12, 0, 12, 0]
+[nodes.widget_layout]
+gap = [12, 12]
+align_items = "center"
 
 [[nodes]]
 id = "missing_says"
@@ -51,6 +53,7 @@ parent = "panel"
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 2]
 
 [[nodes]]
@@ -60,9 +63,10 @@ parent = "body"
 [nodes.widget]
 kind = "row"
 height = 24
+padding = [8, 0, 8, 0]
+[nodes.widget_layout]
 gap = [4, 4]
 align_items = "center"
-padding = [8, 0, 8, 0]
 
 [[nodes]]
 id = "add"
@@ -72,9 +76,10 @@ parent = "head"
 on_click = "verb"
 kind = "button"
 role = "chip"
-checked = true
 text = "Key"
 tooltip = "Insert keyframe at playhead (or press K)"
+[nodes.widget_check]
+checked = true
 
 [[nodes]]
 id = "delete"
@@ -96,10 +101,10 @@ parent = "head"
 on_change = "clip_changed"
 kind = "number_field"
 width = 72
-suffix = " s"
 tooltip = "How long the clip runs"
 [nodes.widget_range]
 drag_speed = 0.01
+suffix = " s"
 
 [[nodes]]
 id = "loop"
@@ -184,8 +189,9 @@ name = "Scroll"
 parent = "lanes"
 [nodes.widget]
 kind = "scroll"
-axis = "vertical"
 grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
 
 [[nodes]]
 id = "tracks"

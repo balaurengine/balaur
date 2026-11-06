@@ -118,11 +118,11 @@ fn face_of(
     }
 }
 
-/// The space between a button's picture, icon and caption: the first of its
-/// `gap`, else its theme's, else half its font size.
+/// The space between a button's picture, icon and caption: its `face_gap`,
+/// else its theme's, else half its font size.
 pub(crate) fn gap_of(widget: &Widget, style: &Style, font_size: f32) -> f32 {
-    if widget.gap[0] >= 0.0 {
-        widget.gap[0]
+    if widget.face_gap >= 0.0 {
+        widget.face_gap
     } else {
         style.gap.unwrap_or(font_size * 0.5)
     }

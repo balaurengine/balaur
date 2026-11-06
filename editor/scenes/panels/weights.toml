@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 # What a polygon needs before it has weights to show.
@@ -32,6 +33,7 @@ parent = "panel"
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 [[nodes]]
@@ -41,9 +43,10 @@ parent = "body"
 [nodes.widget]
 kind = "row"
 height = 24
+padding = [8, 0, 8, 0]
+[nodes.widget_layout]
 gap = [4, 4]
 align_items = "center"
-padding = [8, 0, 8, 0]
 
 [[nodes]]
 id = "scope"
@@ -129,9 +132,10 @@ parent = "body"
 [nodes.widget]
 kind = "row"
 height = 20
+padding = [8, 0, 8, 0]
+[nodes.widget_layout]
 gap = [0, 0]
 align_items = "center"
-padding = [8, 0, 8, 0]
 
 [[nodes]]
 id = "scroll"
@@ -139,8 +143,9 @@ name = "Scroll"
 parent = "body"
 [nodes.widget]
 kind = "scroll"
-axis = "vertical"
 grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
 
 [[nodes]]
 id = "rows"
@@ -148,5 +153,6 @@ name = "Rows"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
-gap = [0, 1]
 padding = [8, 0, 8, 0]
+[nodes.widget_layout]
+gap = [0, 1]

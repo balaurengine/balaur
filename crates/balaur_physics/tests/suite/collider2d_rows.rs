@@ -293,7 +293,7 @@ impl Scenario {
         let found = [n.collider2d.aabb()[2], n.collider2d.swept_aabb()[2], n.collider2d.collision_aabb()[2],
             n.collider2d.broad_phase_aabb()[2], n.collider2d.collider_mass(), n.collider2d.collider_volume(),
             physics2d::closest_points(n, wall),
-            physics2d::time_of_impact(n, wall, physics2d::ImpactOptions { velocity_a: [6.0, 0.0] }),
+            physics2d::time_of_impact(n, wall, physics2d::ImpactOptions { velocity_a: vec2(6.0, 0.0) }),
             n.collider2d.collider_mass_properties(), n.collider2d.pose_in_body(), n.collider2d.handles(),
             cells.collider2d.collider_mesh(), true];
         n.set_component("collider2d", { "shape": { "kind": "rectangle", "size": [2.0, 2.0] } });

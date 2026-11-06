@@ -90,7 +90,7 @@ impl Ops {
             node: node_op("get_node")?,
             children: node_op("children")?,
             add_child: node_op("add_child")?,
-            get: node_op("get_component")?,
+            get: node_op("component_property")?,
             set: node_op("set_component")?,
             patch: node_op("patch_component")?,
             has: node_op("has_component")?,
@@ -103,7 +103,9 @@ impl Ops {
 
 /// What a control that does not name its own shape gets. A pooled node is
 /// patched rather than set, so a key this pass leaves out would keep the last
-/// one's: a spacer that becomes a label would draw six pixels wide.
+/// one's: a spacer that becomes a label would draw six pixels wide. Only rows
+/// every kind reads: one beside the widget would give each control its
+/// component, and a slot that wore one is set whole when a control drops it.
 fn shapeless() -> Spec {
     Spec::from([
         (k::WIDTH.into(), Value::Int(0)),
@@ -112,11 +114,9 @@ fn shapeless() -> Spec {
         (k::CORNER_RADIUS.into(), Value::Int(-1)),
         (k::FILL.into(), Value::text("")),
         (k::TOOLTIP.into(), Value::text("")),
-        (k::CHECKED.into(), Value::Bool(false)),
         (k::TEXT.into(), Value::text("")),
         (k::ON_CLICK.into(), Value::text("")),
         (k::ON_CHANGE.into(), Value::text("")),
-        (k::ON_SUBMIT.into(), Value::text("")),
     ])
 }
 
@@ -195,15 +195,40 @@ impl Pool<'_> {
         let Value::Map(entries) = spec else {
             return op(self.eng, &[node.clone(), Value::text(p::WIDGET), spec]).map(|_| ());
         };
+        let named = entries
+            .iter()
+            .find(|(key, _)| key == k::KIND)
+            .map(|(_, kind)| kind.clone());
+        // Asked for once, by a row two components hold for kinds apart.
+        let kind = std::cell::OnceCell::new();
+        let kind = || {
+            kind.get_or_init(
+                || match named.clone().unwrap_or_else(|| self.widget(node, k::KIND)) {
+                    Value::Str(word) => word,
+                    _ => String::new(),
+                },
+            )
+            .clone()
+        };
         let mut own = Vec::new();
         let mut beside: Vec<(&'static str, Vec<(String, Value)>)> = Vec::new();
         for (key, value) in entries {
+            let value = if SIDES.contains(&key.as_str()) {
+                four_sides(value)
+            } else {
+                value
+            };
             // A spec's `visible` is the node's, not the widget's.
             if key == p::VISIBLE {
                 (self.ops.set_visible)(self.eng, &[node.clone(), value])?;
                 continue;
             }
-            match crate::widget::beside::owner_of(&key) {
+            let owner = match crate::widget::beside::owners_of(&key) {
+                [] => None,
+                [one] => Some(one.name),
+                several => crate::widget::beside::owner_for(several, &kind()).map(|one| one.name),
+            };
+            match owner {
                 Some(name) => match beside.iter_mut().find(|(held, _)| *held == name) {
                     Some((_, rows)) => rows.push((key, value)),
                     None => beside.push((name, vec![(key, value)])),
@@ -825,6 +850,26 @@ pub(crate) fn fill_rows_at(
 
 /// A pooled control's fields: the pool's own, then the widget rows a script
 /// sets on one, typed as the `widget` schema and those beside it read them.
+// The rows a control gives as a `Sides`, and the widget holds as a `vec4`.
+const SIDE_NAMES: [&str; 4] = ["left", "top", "right", "bottom"];
+const SIDES: [&str; 3] = [k::PADDING, k::MARGIN, k::INSET];
+
+fn four_sides(value: Value) -> Value {
+    let Value::Map(sides) = &value else {
+        return value;
+    };
+    let side = |name: &str| {
+        let found = sides.iter().find(|(key, _)| key == name);
+        found.map_or(Value::Num(0.0), |(_, side)| side.clone())
+    };
+    Value::List(SIDE_NAMES.map(side).to_vec())
+}
+
+fn sides_of(sizes: [f64; 4]) -> Value {
+    let row = |(name, size): (&str, f64)| (name.to_string(), Value::Num(size));
+    Value::Map(SIDE_NAMES.into_iter().zip(sizes).map(row).collect())
+}
+
 const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?, on_change: string?, on_submit: string?, data: any, \
     role: string?, text: string?, tooltip: string?, icon: string?, icon_color: string?, image: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
@@ -833,13 +878,25 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \
     font_size: float?, icon_size: float?, corner_radius: float?, row_height: float?, label_width: float?, \
     min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
-    visible: bool?, enabled: bool?, interactive: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
+    visible: bool?, enabled: bool?, interactive: bool?, focusable: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
-    options: [string]?, items: [Item]?, value: any, text_color: any, picked_color: any, padding: any, inset: any, margin: any, gap: any }";
+    options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2? }";
 
 /// `ui.fill_strip` and `ui.fill_rows`.
 pub(crate) fn install_pool(m: &mut Module<Engine>) {
     m.describe(&[
+        (
+            "sides",
+            &[],
+            "(left: float, top: float, right: float, bottom: float) -> Sides",
+            "A `Sides` for a control's `padding`, `margin` or `inset`.",
+        ),
+        (
+            "all_sides",
+            &[],
+            "(size: float) -> Sides",
+            "A `Sides` the same on every side.",
+        ),
         (
             "fill_strip",
             &[],
@@ -854,6 +911,11 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         ),
     ]);
     m.records(&[
+        (
+            "Sides",
+            "{ left: float, top: float, right: float, bottom: float }",
+            "A control's `padding`, `margin` or `inset`, side by side; -1 is what the theme gives.",
+        ),
         (
             "Control",
             CONTROL,
@@ -879,6 +941,13 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         tracing::error!("the widget pool cannot find the node operations it writes through");
         return;
     };
+    m.function(
+        "sides",
+        |_: &Engine, (left, top, right, bottom): (f64, f64, f64, f64)| {
+            Ok(sides_of([left, top, right, bottom]))
+        },
+    );
+    m.function("all_sides", |_: &Engine, size: f64| Ok(sides_of([size; 4])));
     m.function(
         "fill_strip",
         move |eng: &Engine, (host, controls): (String, Value)| {

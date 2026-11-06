@@ -150,11 +150,11 @@ an `options` table for the query: `gamend::lobbies::quick_join(node,
 #{ title: "duel", max_users: 2 })`, `gamend::quests::my_quests(node,
 #{ category: "daily" })`. With at most two path parameters that is five
 arguments at most.
-Each function checks the body's required fields against the document and
-returns `()` with a logged error naming the field before any I/O; otherwise
-it returns the id `gamend::rest` returns, so a caller awaits it with
-`task::wait` exactly as it awaits `rest`. The 34 no-argument operations
-take the node alone.
+Each function checks the body's required fields against the document and,
+with one missing, logs an error naming the field before any I/O and answers
+an id whose reply is that `error`; otherwise it returns the id `gamend::rest`
+returns. Either way a caller awaits an `int` with `task::wait`, exactly as it
+awaits `rest`. The 34 no-argument operations take the node alone.
 
 **The event table is data, checked in beside the spec.** OpenAPI does not
 describe the socket. `clients/events.json` lists every (channel, event,

@@ -54,8 +54,9 @@ kind = "panel"
 anchor = "fill_left"
 width = 360
 padding = 10
-gap = [6, 6]
 text = "Balaur benchmarks"
+[nodes.widget_layout]
+gap = [6, 6]
 
 [[nodes]]
 id = "n_menu_status"
@@ -75,8 +76,9 @@ parent = "n_menu"
 [nodes.widget]
 kind = "checkbox"
 text = "Draw the shapes"
-checked = true
 on_change = "on_draw"
+[nodes.widget_check]
+checked = true
 
 # A pick queues the case; the script fills the rows with the catalogue.
 [[nodes]]
@@ -86,9 +88,10 @@ parent = "n_menu"
 
 [nodes.widget]
 kind = "list"
-row_height = 22
 height = 600
 on_change = "on_pick"
+[nodes.widget_rows]
+row_height = 22
 
 [[nodes]]
 id = "n_menu_results"

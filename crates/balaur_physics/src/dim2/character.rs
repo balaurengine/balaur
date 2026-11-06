@@ -213,8 +213,20 @@ fn apply_movement(eng: &Engine, entity: Entity, translation: Vector2, grounded: 
 }
 
 pub(crate) fn install_character2d_api(m: &mut Module<Engine>) {
+    m.records(&[
+        (
+            "CharacterCollision",
+            "{ node: node, point: Vec2, normal: Vec2, own_point: Vec2, own_normal: Vec2, position: Vec2, applied: Vec2, remaining: Vec2, distance: float, status: string, subshape: int }",
+            "One thing a move bumped into: the hit on the obstacle and on the character in world space, where the character stood, how much of the move was done and left, how far it swept, how the sweep ended (`converged`, `out_of_iterations`, `failed`, `penetrating`) and which part of the obstacle's shape it met.",
+        ),
+        (
+            "CharacterMove",
+            "{ x: float, y: float, on_floor: bool, sliding: bool, collisions: [CharacterCollision] }",
+            "What a move did: how far the character went, whether it ended on the ground or sliding down a slope, and what it bumped into.",
+        ),
+    ]);
     m.describe(&[
-        ("move_character", &[c::CHARACTER_2D], "", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground: returns `{ x, y, on_floor, sliding, collisions }`, each collision carrying the same fields as in 3D. Every solid collider of the character is swept. Call it from fixed_update."),
+        ("move_character", &[c::CHARACTER_2D], "(node: node, x: float, y: float) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update."),
         ("is_on_floor", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(

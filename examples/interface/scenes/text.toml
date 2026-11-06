@@ -19,6 +19,7 @@ x = 0
 y = 0
 width = 560
 padding = 16
+[nodes.widget_layout]
 gap = [12, 12]
 
 [[nodes]]
@@ -45,9 +46,10 @@ name = "Links"
 parent = "sheet"
 [nodes.widget]
 kind = "label"
+text = "The [b]Sunken Vault[/b] opens at dusk. Read the [url=docs/manual/ui]manual[/url] first, and mind your [hint=a point a second]stamina[/hint]."
+[nodes.widget_text]
 markup = true
 on_link = "open"
-text = "The [b]Sunken Vault[/b] opens at dusk. Read the [url=docs/manual/ui]manual[/url] first, and mind your [hint=a point a second]stamina[/hint]."
 
 [[nodes]]
 id = "links_note"
@@ -73,8 +75,9 @@ name = "Select"
 parent = "sheet"
 [nodes.widget]
 kind = "label"
-selectable = true
 text = "Seed 0x5eed-1f3a. Drag across this line to select it, then copy."
+[nodes.widget_text]
+selectable = true
 
 [[nodes]]
 id = "typing_head"
@@ -92,6 +95,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 
@@ -134,6 +138,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 
@@ -143,8 +148,6 @@ name = "Size"
 parent = "numbers"
 [nodes.widget]
 kind = "number_field"
-prefix = "size"
-suffix = "px"
 width = 140
 [nodes.widget_range]
 value = 12
@@ -153,6 +156,8 @@ max = 96
 step = 1
 drag_speed = 1
 arrows = true
+prefix = "size"
+suffix = "px"
 
 [[nodes]]
 id = "speed"
@@ -160,8 +165,6 @@ name = "Speed"
 parent = "numbers"
 [nodes.widget]
 kind = "number_field"
-prefix = "speed"
-suffix = "m/s"
 width = 150
 [nodes.widget_range]
 value = 4.5
@@ -170,6 +173,8 @@ max = 20
 step = 0.5
 drag_speed = 0.5
 arrows = true
+prefix = "speed"
+suffix = "m/s"
 
 [[nodes]]
 id = "numbers_note"

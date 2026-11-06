@@ -635,6 +635,9 @@ impl FnGen<'_> {
                 (ExprKind::Nil, _) => return self.nil_compare(b, op, pos),
                 _ => {}
             }
+            if self.type_of(a).ok() == Some(Ty::Str) && self.type_of(b).ok() == Some(Ty::Str) {
+                return self.str_compare(op, a, b);
+            }
         }
         let mut ta = self.expr(a)?;
         let mark = self.code.len();
@@ -678,9 +681,8 @@ impl FnGen<'_> {
                 format!("cannot combine {} and {}", show(&ta), show(&tb)),
             );
         }
-        if ta == Ty::Str && op == BinOp::Ne {
-            self.emit([I::Call(self.g.h.str_eq), I::I32Eqz]);
-            return Ok(Ty::Bool);
+        if ta == Ty::Str && matches!(op, BinOp::Eq | BinOp::Ne) {
+            return Ok(self.str_compare_owned(op));
         }
         let (i, out) = self.operator(op, &ta).ok_or(Error {
             pos,
@@ -708,7 +710,6 @@ impl FnGen<'_> {
         use BinOp::{Add, Div, Eq, Ge, Gt, Le, Lt, Mul, Ne, Rem, Sub};
         Some(match (t, op) {
             (Ty::Str, Add) => (I::Call(self.g.h.concat), Ty::Str),
-            (Ty::Str, Eq) => (I::Call(self.g.h.str_eq), Ty::Bool),
             (Ty::Int, Add) => (I::I64Add, Ty::Int),
             (Ty::Int, Sub) => (I::I64Sub, Ty::Int),
             (Ty::Int, Mul) => (I::I64Mul, Ty::Int),
@@ -805,23 +806,11 @@ impl FnGen<'_> {
             pos,
             what,
         )?;
-        let mut borrowed = vec![];
-        for (w, a) in want.iter().zip(args) {
-            self.expr_as(a, w)?;
-            // A literal string lives in the data segment; boxed into an
-            // `any`, it is a fresh cell like any other.
-            let literal = matches!(a.kind, ExprKind::Str(_)) && *w == Ty::Str;
-            if w.is_heap() && !literal {
-                let t = self.temp(w);
-                self.set_raw(&t);
-                self.get_raw(&t);
-                borrowed.push(t);
-            }
-        }
+        let held = self.lent(want, args, false)?;
         for w in &want[args.len()..] {
             self.nil_as(w, pos)?;
         }
-        Ok(borrowed)
+        Ok(held)
     }
 }
 

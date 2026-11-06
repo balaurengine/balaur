@@ -21,6 +21,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+k"
 
 [[nodes]]
@@ -31,6 +32,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+s"
 
 [[nodes]]
@@ -41,6 +43,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+shift+f"
 
 [[nodes]]
@@ -51,6 +54,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+b"
 
 [[nodes]]
@@ -61,6 +65,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+shift+r"
 
 [[nodes]]
@@ -71,6 +76,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+shift+f"
 
 [[nodes]]
@@ -81,6 +87,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+shift+backslash"
 
 [[nodes]]
@@ -91,6 +98,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+backslash"
 
 [[nodes]]
@@ -101,6 +109,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+equals"
 
 [[nodes]]
@@ -111,6 +120,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+minus"
 
 [[nodes]]
@@ -121,6 +131,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+comma"
 
 [[nodes]]
@@ -131,6 +142,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+e"
 
 [[nodes]]
@@ -142,6 +154,7 @@ on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
+[nodes.widget_shortcut]
 shortcut = "shift+f11"
 
 [[nodes]]
@@ -153,6 +166,7 @@ on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
+[nodes.widget_shortcut]
 shortcut = "f5"
 
 [[nodes]]
@@ -164,6 +178,7 @@ on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
+[nodes.widget_shortcut]
 shortcut = "f10"
 
 [[nodes]]
@@ -175,6 +190,7 @@ on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
+[nodes.widget_shortcut]
 shortcut = "f11"
 
 [[nodes]]
@@ -185,6 +201,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "f5"
 while_typing = false
 
@@ -197,6 +214,7 @@ on_click = "pressed"
 kind = "button"
 focusable = false
 enabled = false
+[nodes.widget_shortcut]
 shortcut = "f6"
 while_typing = false
 
@@ -208,6 +226,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+1"
 while_typing = false
 
@@ -219,6 +238,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+2"
 while_typing = false
 
@@ -230,6 +250,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+3"
 while_typing = false
 
@@ -241,6 +262,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+4"
 while_typing = false
 
@@ -252,6 +274,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+5"
 while_typing = false
 
@@ -263,6 +286,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "shift+a"
 while_typing = false
 
@@ -274,6 +298,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+s"
 while_typing = false
 
@@ -285,6 +310,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "shift+r"
 while_typing = false
 
@@ -296,6 +322,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+c"
 while_typing = false
 
@@ -307,6 +334,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "shift+cmd+z"
 while_typing = false
 
@@ -318,6 +346,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+y"
 while_typing = false
 
@@ -329,6 +358,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+z"
 while_typing = false
 
@@ -340,6 +370,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "alt+l"
 while_typing = false
 
@@ -351,6 +382,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+a"
 while_typing = false
 
@@ -362,6 +394,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "shift+cmd+g"
 while_typing = false
 
@@ -373,6 +406,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+g"
 while_typing = false
 
@@ -384,6 +418,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "shift+cmd+l"
 while_typing = false
 
@@ -395,6 +430,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "cmd+l"
 while_typing = false
 
@@ -406,6 +442,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "shift+h"
 while_typing = false
 
@@ -417,6 +454,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "h"
 while_typing = false
 
@@ -428,6 +466,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "slash"
 while_typing = false
 
@@ -439,6 +478,7 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "k"
 while_typing = false
 
@@ -450,5 +490,6 @@ parent = "keys"
 on_click = "pressed"
 kind = "button"
 focusable = false
+[nodes.widget_shortcut]
 shortcut = "escape"
 while_typing = false

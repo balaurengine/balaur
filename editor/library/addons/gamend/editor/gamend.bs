@@ -318,10 +318,13 @@ impl Gamend {
     /// A request to the person's Gamend Cloud account, with the editor's
     /// token when it has one; `await_cloud_reply` takes its reply.
     fn cloud_send(kind: str, method: str, path: str, body: any, seconds: float) {
-        let headers: any = { "content-type": "application/json", "accept": "application/json" };
+        let headers = [
+            http::Header { name: "content-type", value: "application/json" },
+            http::Header { name: "accept", value: "application/json" },
+        ];
         let token = cloud_token();
         if token != "" {
-            headers["authorization"] = "Bearer " + token;
+            headers.push(http::Header { name: "authorization", value: "Bearer " + token });
         }
         let opts: any = { "method": method, "headers": headers, "timeout_seconds": seconds };
         if body != nil {

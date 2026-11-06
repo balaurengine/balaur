@@ -1173,7 +1173,7 @@ fn read_now(state: editor::State, component: str, property: str, fallback: any) 
     if !found.is_valid() {
         return fallback;
     }
-    let value = found.get_component(component, property);
+    let value = found.component_property(component, property);
     if value == nil { fallback } else { value }
 }
 
@@ -1894,7 +1894,7 @@ fn native_row(state: &mut editor::State, found: Node, component: str, properties
             ui::Control {
                 kind: "inspector",
                 grow: 1,
-                gap: [2, 2],
+                gap: vec2(2, 2),
                 target: found.path(),
                 component: component,
                 options: properties,

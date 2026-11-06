@@ -612,13 +612,13 @@ pub(crate) fn install_actions(m: &mut Module<Engine>) {
     use balaur_script::Value;
 
     m.describe(&[
-        ("actions", &[], "", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
+        ("actions", &[], "() -> [string]", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
         ("action_value", &[], "", "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:KeyA,KeyD` the whole range."),
         ("action_down", &[], "", "Whether the action is held down now."),
         ("action_just_pressed", &[], "", "Whether the action went down this frame."),
         ("action_just_released", &[], "", "Whether the action came up this frame."),
-        ("bindings", &[], "", "What the action is bound to now, whether from the project or from the player's own rebinding."),
-        ("bind", &[], "", "Rebind the action to one binding or a list of them, replacing what it had and saving to the user data directory."),
+        ("bindings", &[], "(action: string) -> [string]", "What the action is bound to now, whether from the project or from the player's own rebinding."),
+        ("bind", &[], "(action: string, bindings: [string])", "Rebind the action to a list of bindings, spelled as `[input.actions]` spells them, replacing what it had and saving to the user data directory."),
         ("reset_bindings", &[], "", "Drop every saved rebinding and go back to what the project declared."),
         ("feed_action", &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
     ]);
@@ -668,8 +668,8 @@ pub(crate) fn install_actions(m: &mut Module<Engine>) {
         let list = eng.resource::<InputActions>().borrow().bindings(&name);
         Ok(Value::List(list.into_iter().map(Value::text).collect()))
     });
-    // `input.bind("jump", "gamepad:north")`, or a list for several. Replaces
-    // what the action had and saves to the user data directory.
+    // `input.bind("jump", ["gamepad:north"])`. Replaces what the action had
+    // and saves to the user data directory.
     install_rebinding(m);
 }
 
@@ -710,20 +710,19 @@ fn install_rebinding(m: &mut Module<Engine>) {
     use balaur_script::Value;
 
     m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
-        let bindings = match bindings {
-            Value::Str(one) => vec![one.clone()],
-            Value::List(many) => many
-                .into_iter()
-                .map(|v| match v {
-                    Value::Str(s) => Ok(s.clone()),
-                    other => Err(anyhow::anyhow!(
-                        "a binding is a string, got {}",
-                        other.type_name()
-                    )),
-                })
-                .collect::<anyhow::Result<Vec<_>>>()?,
-            other => anyhow::bail!("a binding is a string or a list, got {}", other.type_name()),
+        let Value::List(many) = bindings else {
+            anyhow::bail!("bindings are a list, got {}", bindings.type_name());
         };
+        let bindings = many
+            .into_iter()
+            .map(|v| match v {
+                Value::Str(s) => Ok(s),
+                other => Err(anyhow::anyhow!(
+                    "a binding is a string, got {}",
+                    other.type_name()
+                )),
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
         let actions = eng.resource::<InputActions>();
         actions
             .borrow_mut()

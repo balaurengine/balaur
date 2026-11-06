@@ -6,12 +6,16 @@
 //! table and reading one key out of it, or to a whole [`super::patch`], which
 //! is what a caller would have done anyway.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use anyhow::{Result, anyhow};
 use hecs::Entity;
+use smol_str::SmolStr;
 
-use super::{get_at, index_of, patch_at, written_at};
+use super::derived::Given;
+use super::{ComponentRegistry, get_at, index_of, patch_at, written_at};
+use crate::changes::Feeds;
 use crate::engine::Engine;
 
 /// Whether the component at `index` answered `key` on its own.
@@ -57,75 +61,92 @@ pub fn set_property_at(
     key: &str,
     value: &toml::Value,
 ) -> Result<()> {
-    set_property_known(eng, entity, index, key, None, value)
+    let registry = eng
+        .try_resource::<ComponentRegistry>()
+        .ok_or_else(|| anyhow!("component registry missing"))?;
+    let write = PropertyWrite {
+        registry: &registry,
+        feeds: &Feeds::of(eng),
+        component: index,
+        position: None,
+        key: &SmolStr::new(key),
+    };
+    write.set(eng, entity, value.into())
 }
 
-/// [`set_property_at`] with the property's place in the schema when the
-/// caller found it before, so the write by index looks nothing up.
-fn set_property_known(
-    eng: &Engine,
-    entity: Entity,
-    index: usize,
-    key: &str,
+/// Where one write goes, each part found before it. What a write owes, it owes
+/// here: the change log, a kept change's old value, the lifecycle calls and the
+/// component's hook.
+struct PropertyWrite<'a> {
+    registry: &'a RefCell<ComponentRegistry>,
+    feeds: &'a Feeds,
+    component: usize,
     position: Option<usize>,
-    value: &toml::Value,
-) -> Result<()> {
-    // A text may name a file, which a node of another project's content names
-    // from that project's root.
-    let content = value
-        .is_str()
-        .then(|| crate::document_paths::written_on(eng, entity, value))
-        .flatten();
-    let value = content.as_ref().unwrap_or(value);
-    // What the component held before the write, for a kept change.
-    let was = crate::changes::keeps(eng, entity)
-        .then(|| written_at(eng, entity, index))
-        .flatten();
-    if !derived_write(eng, entity, index, key, position, value) {
-        let params = toml::Value::Table(toml::map::Map::from_iter([(
-            key.to_string(),
-            value.clone(),
-        )]));
-        return patch_at(eng, entity, index, &params);
-    }
-    crate::changes::property(eng, entity, index, key, was);
-    Ok(())
+    key: &'a SmolStr,
 }
 
-/// Write one property through the component's own write by index, where it
-/// has one. `false` sends the caller to a whole patch: a node without the
-/// component, which the patch adds, or a value the field refuses, which the
-/// patch reports, or one it has to resolve first (an asset's definition).
-fn derived_write(
-    eng: &Engine,
-    entity: Entity,
-    index: usize,
-    key: &str,
-    position: Option<usize>,
-    value: &toml::Value,
-) -> bool {
-    let Some(registry) = eng.try_resource::<super::ComponentRegistry>() else {
-        return false;
-    };
-    let registry = registry.borrow();
-    let Some((_, def)) = registry.at(index) else {
-        return false;
-    };
-    let at = position.or_else(|| def.schema.position(key));
-    let (Some(write), Some(at)) = (&def.write, at) else {
-        return false;
-    };
-    let lifecycle = def.lifecycle;
-    let had = super::attached_of(eng, entity).has(index);
-    if had {
-        super::call(lifecycle.on_replace, eng, entity);
+impl PropertyWrite<'_> {
+    fn set(&self, eng: &Engine, entity: Entity, value: Given<'_>) -> Result<()> {
+        // A text may name a file, which a node of another project's content
+        // names from that project's root.
+        let content = match value {
+            Given::Text(_) if crate::project::in_content(eng, entity) => {
+                crate::document_paths::written_on(eng, entity, &value.to_value())
+            }
+            Given::Value(held) if held.is_str() => {
+                crate::document_paths::written_on(eng, entity, held)
+            }
+            _ => None,
+        };
+        let value = content.as_ref().map_or(value, Given::Value);
+        // What the component held before the write, for a kept change.
+        let was = self
+            .feeds
+            .keeps(eng, entity)
+            .then(|| written_at(eng, entity, self.component))
+            .flatten();
+        if !self.derived(eng, entity, value) {
+            let params = toml::Value::Table(toml::map::Map::from_iter([(
+                self.key.to_string(),
+                value.to_value(),
+            )]));
+            return patch_at(eng, entity, self.component, &params);
+        }
+        self.feeds
+            .property(eng, entity, self.component, self.key, was);
+        Ok(())
     }
-    let written = matches!(write(eng, entity, at, value), Ok(true));
-    // A refused value leaves what the field held, which is written as much.
-    if had {
-        super::call(lifecycle.on_insert, eng, entity);
+
+    /// Write one property through the component's own write by index, where it
+    /// has one. `false` sends the caller to a whole patch: a node without the
+    /// component, which the patch adds, or a value the field refuses, which the
+    /// patch reports, or one it has to resolve first (an asset's definition).
+    fn derived(&self, eng: &Engine, entity: Entity, value: Given<'_>) -> bool {
+        let registry = self.registry.borrow();
+        let Some((_, def)) = registry.at(self.component) else {
+            return false;
+        };
+        let at = self
+            .position
+            .or_else(|| def.schema.position(self.key.as_str()));
+        let (Some(write), Some(at)) = (&def.write, at) else {
+            return false;
+        };
+        let (on_replace, on_insert) = (def.lifecycle.on_replace, def.lifecycle.on_insert);
+        // Asking what the node carries is a lookup of its own, for the
+        // components with a call to make.
+        let had = (on_replace.is_some() || on_insert.is_some())
+            && super::attached_of(eng, entity).has(self.component);
+        if had {
+            super::call(on_replace, eng, entity);
+        }
+        let written = matches!(write(eng, entity, at, value), Ok(true));
+        // A refused value leaves what the field held, which is written as much.
+        if had {
+            super::call(on_insert, eng, entity);
+        }
+        written
     }
-    written
 }
 
 /// One property by the component's own read by index, where it has one.
@@ -136,57 +157,67 @@ fn derived_read(eng: &Engine, entity: Entity, index: usize, key: &str) -> Option
     def.read.as_ref()?(eng, entity, def.schema.position(key)?)
 }
 
-/// Where a property sits: its component's place in the registry and its own
-/// in the schema, found once by a caller that reads or writes it again and
-/// again, as a script's `node.c.p` does (PLAN-balaur-script §9 step 6).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Where a property sits and what a write of it feeds: its component's place
+/// in the registry, its own in the schema, the registry and the change log,
+/// found once by a caller that reads or writes it again and again, as a
+/// script's `node.c.p` does (PLAN-balaur-script §9 step 6).
 pub struct PropertyPlace {
-    pub component: usize,
-    pub position: usize,
+    component: usize,
+    position: usize,
+    key: SmolStr,
+    registry: Rc<RefCell<ComponentRegistry>>,
+    feeds: Feeds,
 }
 
 /// Where `key` of component `name` sits, or `None` for either unknown.
 #[must_use]
 pub fn place_of(eng: &Engine, name: &str, key: &str) -> Option<PropertyPlace> {
-    let registry = eng.try_resource::<super::ComponentRegistry>()?;
-    let registry = registry.borrow();
-    let component = registry.index_of(name)?;
-    let (_, def) = registry.at(component)?;
-    let position = def.schema.position(key)?;
+    let registry = eng.try_resource::<ComponentRegistry>()?;
+    let (component, position) = {
+        let held = registry.borrow();
+        let component = held.index_of(name)?;
+        let (_, def) = held.at(component)?;
+        (component, def.schema.position(key)?)
+    };
     Some(PropertyPlace {
         component,
         position,
+        key: SmolStr::new(key),
+        registry,
+        feeds: Feeds::of(eng),
     })
 }
 
-/// A vector property's numbers at a place found before, and how many: a read
-/// that builds no value. `None` for a node without it or any other type.
-pub fn vector_placed(
+/// What the property at a place found before holds, handed to `out` with
+/// nothing built. `false` for a node without it or a type with no such form,
+/// which [`property_placed`] reads.
+pub fn given_placed(
     eng: &Engine,
     entity: Entity,
-    place: PropertyPlace,
-    out: &mut [f32; 4],
-) -> Option<usize> {
-    let registry = eng.try_resource::<super::ComponentRegistry>()?;
-    let registry = registry.borrow();
-    let (_, def) = registry.at(place.component)?;
-    def.read_vector.as_ref()?(eng, entity, place.position, out)
+    place: &PropertyPlace,
+    out: &mut dyn FnMut(Given<'_>),
+) -> bool {
+    let registry = place.registry.borrow();
+    let Some((_, def)) = registry.at(place.component) else {
+        return false;
+    };
+    def.read_given
+        .as_ref()
+        .is_some_and(|read| read(eng, entity, place.position, out))
 }
 
 /// [`property`] at a place found before: the one field of a derived
 /// component, the whole table's key for any other.
 #[must_use]
-pub fn property_placed(eng: &Engine, entity: Entity, place: PropertyPlace) -> Option<toml::Value> {
-    let key = {
-        let registry = eng.try_resource::<super::ComponentRegistry>()?;
-        let registry = registry.borrow();
+pub fn property_placed(eng: &Engine, entity: Entity, place: &PropertyPlace) -> Option<toml::Value> {
+    {
+        let registry = place.registry.borrow();
         let (_, def) = registry.at(place.component)?;
         if let Some(read) = &def.read {
             return read(eng, entity, place.position);
         }
-        def.schema.order().get(place.position)?.clone()
-    };
-    property_at(eng, entity, place.component, &key)
+    }
+    property_at(eng, entity, place.component, &place.key)
 }
 
 /// [`set_property`] at a place found before.
@@ -196,33 +227,17 @@ pub fn property_placed(eng: &Engine, entity: Entity, place: PropertyPlace) -> Op
 pub fn set_property_placed(
     eng: &Engine,
     entity: Entity,
-    place: PropertyPlace,
-    value: &toml::Value,
+    place: &PropertyPlace,
+    value: Given<'_>,
 ) -> Result<()> {
-    // The schema, not the registry, holds the name: a write may run a hook
-    // that looks a component up.
-    let schema = {
-        let registry = eng
-            .try_resource::<super::ComponentRegistry>()
-            .ok_or_else(|| anyhow!("component registry missing"))?;
-        let registry = registry.borrow();
-        let (_, def) = registry
-            .at(place.component)
-            .ok_or_else(|| anyhow!("no component at {}", place.component))?;
-        Rc::clone(&def.schema)
+    let write = PropertyWrite {
+        registry: &place.registry,
+        feeds: &place.feeds,
+        component: place.component,
+        position: Some(place.position),
+        key: &place.key,
     };
-    let key = schema
-        .order()
-        .get(place.position)
-        .ok_or_else(|| anyhow!("no property at {}", place.position))?;
-    set_property_known(
-        eng,
-        entity,
-        place.component,
-        key,
-        Some(place.position),
-        value,
-    )
+    write.set(eng, entity, value)
 }
 
 /// One property of a component, without building the rest where the component

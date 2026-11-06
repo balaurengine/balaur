@@ -1,6 +1,6 @@
 ---
 title: Vectors and colours
-description: "Vec2, Vec3 and Color in Balaur Script: making them with vec2, vec3 and color, reading and writing fields, and how they behave as values."
+description: "Vec2, Vec3, Color and the transforms in Balaur Script: making them, reading and writing fields, and how they behave as values."
 image: /img/social/scripting.png
 sidebar_position: 9
 ---
@@ -65,10 +65,30 @@ fn by_index(v: Vec3) -> float { v.at(0) }
 // error: 6:34: a Vec3 reads a field by its name, as `v.x`
 ```
 
+## Transforms
+
+Two more hold a placement: the axes, then the origin. They are values too, written with their
+fields.
+
+| Type | Fields |
+| --- | --- |
+| `Transform2d` | `x`, `y`, `origin`, each a `Vec2` |
+| `Transform3d` | `x`, `y`, `z`, `origin`, each a `Vec3` |
+
+```bs
+pub fn placed() -> float {
+    let at = Transform2d { x: vec2(2.0, 0.0), y: vec2(0.0, 2.0), origin: vec2(4.0, 5.0) };
+    at.x.x + at.origin.y
+}
+
+// placed() == 7.0
+```
+
 ## Inside an any
 
-In an `any` a vector is a list of its numbers, the form a scene file and a component use. It
-reads back as a vector at a typed place, from a list or from a map of its fields.
+In an `any` a vector is a list of its numbers, the form a scene file and a component use, and a
+transform is a map of its axes. A vector reads back at a typed place from a list or from a map
+of its fields.
 
 ```bs
 struct Ray { origin: Vec3, tint: Color? }

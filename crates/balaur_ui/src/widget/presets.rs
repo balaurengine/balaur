@@ -81,7 +81,7 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
         // The kind's own rows come with it, so the inspector shows them.
         let mut parts = vec![("widget", Some(params.as_str()))];
         parts.extend(
-            crate::widget::beside::read_by(name)
+            crate::widget::beside::brought_by(name)
                 .into_iter()
                 .map(|beside| (beside, None)),
         );

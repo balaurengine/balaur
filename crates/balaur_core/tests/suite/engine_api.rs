@@ -319,8 +319,7 @@ fn declarations_are_uniquely_named_within_a_module() {
 fn a_script_can_write_to_the_log_it_reads_back() {
     let dir = tempfile::tempdir().unwrap();
     let app = app_in(dir.path());
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
 
     for level in ["info", "warn", "error"] {
         call(
@@ -602,13 +601,29 @@ fn base64_round_trips_bytes_and_sha256_matches_the_known_vector() {
     let encoded = call(
         &app.engine,
         "encoding",
-        "base64",
+        "base64_text",
         &[Value::Str("hello".into())],
     )
     .unwrap();
     assert_eq!(encoded, Value::Str("aGVsbG8=".into()));
     let decoded = call(&app.engine, "encoding", "from_base64", &[encoded]).unwrap();
     assert_eq!(decoded, Value::Bytes(b"hello".to_vec()));
+    let bytes: Vec<Value> = b"hello".iter().map(|b| Value::Int(i64::from(*b))).collect();
+    assert_eq!(
+        call(&app.engine, "encoding", "base64", &[Value::List(bytes)]).unwrap(),
+        Value::Str("aGVsbG8=".into()),
+        "a script's `[int]` is bytes"
+    );
+    assert!(
+        call(
+            &app.engine,
+            "encoding",
+            "base64",
+            &[Value::List(vec![Value::Int(256)])]
+        )
+        .is_err(),
+        "256 is no byte"
+    );
     assert!(
         call(
             &app.engine,

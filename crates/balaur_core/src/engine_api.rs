@@ -14,10 +14,10 @@ use balaur_script::Value;
 use crate::batteries_api::{
     assets_assign_id, assets_directory, assets_duplicate, assets_exists, assets_id,
     assets_invalidate, assets_kind_of, assets_load, assets_path, assets_reload, assets_rename,
-    assets_save, assets_schema, dark_mode, device_id, encoding_base64, encoding_from_base64,
-    environment, focused, hash_sha256, hash_sha256_text, log_clear, log_error, log_file, log_info,
-    log_print, log_recent, log_since, log_warn, platform, rng_int, rng_random, rng_range, rng_seed,
-    rng_uuid, scene_tagged, strings_system_locale, unix_time,
+    assets_save, assets_schema, dark_mode, device_id, encoding_base64, encoding_base64_text,
+    encoding_from_base64, environment, focused, hash_sha256, hash_sha256_text, log_clear,
+    log_error, log_file, log_info, log_print, log_recent, log_since, log_warn, platform, rng_int,
+    rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale, unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -558,6 +558,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             module: "encoding",
             name: "base64",
             call: encoding_base64,
+        },
+        EngineOp {
+            module: "encoding",
+            name: "base64_text",
+            call: encoding_base64_text,
         },
         EngineOp {
             module: "encoding",

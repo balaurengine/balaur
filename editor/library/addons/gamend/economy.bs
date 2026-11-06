@@ -5,30 +5,31 @@
 // Economy: one function per operation, `economy::<name>` once a
 // script says `use addons::gamend::economy;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Current user's item quantities
 /// `GET /api/v1/me/inventory`
-pub fn get_current_user_inventory() -> any {
+pub fn get_current_user_inventory() -> int {
     gamend::rest("GET", "/api/v1/me/inventory")
 }
 
 /// Current user's currency balances
 /// `GET /api/v1/me/wallet`
-pub fn get_current_user_wallet() -> any {
+pub fn get_current_user_wallet() -> int {
     gamend::rest("GET", "/api/v1/me/wallet")
 }
 
 /// Current user's ledger history
 /// `GET /api/v1/me/wallet/ledger`
-pub fn list_current_user_ledger(options: any) -> any {
+pub fn list_current_user_ledger(options: any) -> int {
     let query = core::query(options, ["currency", "page", "page_size"]);
     gamend::rest("GET", "/api/v1/me/wallet/ledger{query}")
 }

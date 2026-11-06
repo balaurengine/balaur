@@ -37,7 +37,7 @@ impl Complete {
             return;
         }
         let patched = self.node.get_node("List");
-        patched.widget.items = view["items"];
+        patched.widget_rows.items = view["items"];
         patched.widget.text = view["picked"].as_str();
         patched.widget.height = view["list_h"].as_float();
         let patched = self.node.get_node("Doc");

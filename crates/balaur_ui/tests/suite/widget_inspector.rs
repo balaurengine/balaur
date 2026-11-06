@@ -23,9 +23,9 @@ fn app_with(component: &str, extra: &str) -> (tempfile::TempDir, App) {
              [[nodes]]\nid = \"shown\"\nname = \"Shown\"\nparent = \"root\"\n\
              widget = {{ kind = \"label\", text = \"hi\", anchor = \"bottom_right\" }}\n\n\
              [[nodes]]\nid = \"form\"\nname = \"Form\"\nparent = \"root\"\n\
-             widget = {{ kind = \"inspector\", anchor = \"fill\", on_change = \"edited\"{extra} }}\n\
-             widget_inspector = {{ label_width = 80, target = \"Root{}\", component = \"{component}\" }}\n",
-            if component == "widget" { "/Shown" } else { "" }
+             widget = {{ kind = \"inspector\", anchor = \"fill\", on_change = \"edited\" }}\n\
+             widget_inspector = {{ label_width = 80, target = \"Root{}\", component = \"{component}\"{extra} }}\n",
+            if component.starts_with("widget") { "/Shown" } else { "" }
         ),
     )
     .unwrap();
@@ -126,7 +126,12 @@ fn an_inspector_draws_a_row_for_every_property_its_component_declares() {
         Some(toml::Value::Float(2.0))
     );
     assert_eq!(
-        prop(&app, control(&app, 0, 1), "prefix"),
+        balaur_core::components::property(
+            &app.engine,
+            control(&app, 0, 1),
+            "widget_range",
+            "prefix"
+        ),
         Some(toml::Value::String("y".into()))
     );
 }
@@ -247,7 +252,7 @@ fn a_set_s_pill_reports_the_set_with_its_option_turned_round() {
 
 #[test]
 fn a_list_s_rows_add_and_take_out_an_entry_at_their_own_path() {
-    let (_dir, mut app) = app_with("widget", ", options = [\"options\"]");
+    let (_dir, mut app) = app_with("widget_dropdown", ", options = [\"options\"]");
     let ctx = egui::Context::default();
     let shown = node(&app, "Root/Shown").unwrap();
     let mut write = toml::map::Map::new();
@@ -255,7 +260,7 @@ fn a_list_s_rows_add_and_take_out_an_entry_at_their_own_path() {
         "options".into(),
         toml::Value::Array(vec!["a".into(), "b".into()]),
     );
-    balaur_core::components::patch(&app.engine, shown, "widget", &write.into()).unwrap();
+    balaur_core::components::patch(&app.engine, shown, "widget_dropdown", &write.into()).unwrap();
     settle(&mut app, &ctx);
     assert_eq!(shown_rows(&app), 3, "the list's note, then its two entries");
     assert_eq!(label(&app, 2), Some(toml::Value::String("1".into())));

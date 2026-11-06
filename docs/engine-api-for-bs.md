@@ -848,7 +848,7 @@ Ranked by references in the editor. Each row is something missing from the `.bs`
 | 4 | not callable | `script::*`: no `.bs` module | 144 | 19 fns: `attempt` 81, `shared` 22, `store` 13, `stored` 5, `symbols` 3, `format` 3, ... |
 | 5 | won't compile as written | node op `call(method, payload)` takes exactly two args | 73 | 68 sites pass no payload, 5 pass 3 args |
 | 6 | not callable | tuple result has no `.bs` type | 57 | 9 fns: `render::camera_pose` 20, `render::camera_2d` 9, `ui::window_size` 8, `input::mouse_position` 7, `input::mouse_delta` 4, `render::texture_size` 3, ... |
-| 7 | won't compile as written | node op `get_component(name, key)` takes one arg | 46 | reading one field of a component |
+| 7 | won't compile as written | node op `component_property(name, key)` takes one arg | 46 | reading one field of a component |
 | 8 | won't compile as written | node op `set_component(name, data)` called with one arg | 1 |  |
 
 The `any`-result functions the editor uses most (result used, so the script reads it through the `any` methods of §2):

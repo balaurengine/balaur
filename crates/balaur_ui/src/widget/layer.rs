@@ -145,8 +145,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         touched,
     } = begin(eng, stamp);
     // Nothing to draw and nothing to focus: a scene with no widgets pays for
-    // the resource lookup and no more.
+    // the resource lookup and no more, and a reader hears an empty window.
     if placed.is_empty() {
+        crate::access::written(eng, ctx, &[], &[], &[]);
         return;
     }
     let surface_of = |widget: &Widget| {

@@ -373,12 +373,12 @@ fn tools(state: editor::State) {
     let filled = scene::get_node(TOOLS() + "/Open");
     if filled.is_valid() {
         filled.set_visible(acting && !state.touchscreen);
-        filled.widget.icon = icons::panel("assets");
+        filled.widget_button.icon = icons::panel("assets");
     }
     let filled = scene::get_node(TOOLS() + "/New");
     if filled.is_valid() {
         filled.set_visible(acting);
-        filled.widget.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui("add");
     }
 }
 
@@ -441,12 +441,12 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
         ui::Control {
             kind: "panel",
             role: "sheet_logo",
-            padding: 2,
+            padding: ui::all_sides(2),
             controls: [ui::Control { kind: "image", image: LOGO, width: 20 }],
         },
         ui::Control {
             kind: "column",
-            padding: 0,
+            padding: ui::all_sides(0),
             controls: [
                 ui::Control {
                     kind: "button",
@@ -473,7 +473,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
         ui::Control {
             kind: "label",
             role: "text_code_quiet",
-            padding: 0,
+            padding: ui::all_sides(0),
             font_size: 11,
             text: row["when"].as_str(),
         },
@@ -535,7 +535,7 @@ fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui
         out.push(ui::Row {
             height: cover_height + 54.0,
             controls: [
-                ui::Control { kind: "row", gap: [SEAM, SEAM], controls: cards },
+                ui::Control { kind: "row", gap: vec2(SEAM, SEAM), controls: cards },
             ],
         });
         start += across;
@@ -579,9 +579,9 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
         kind: "panel",
         fill: tokens["bg_panel"],
         corner_radius: 12,
-        padding: 0,
+        padding: ui::all_sides(0),
         width: width,
-        gap: [0, 2],
+        gap: vec2(0, 2),
         controls: [
             picture,
             ui::Control {
@@ -590,7 +590,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 role: "text_title",
                 font_size: 13,
                 text: row["name"].as_str(),
-                padding: [12, 4, 12, 0],
+                padding: ui::sides(12, 4, 12, 0),
                 truncate: false,
             },
             ui::Control {
@@ -599,7 +599,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 role: "text_code_quiet",
                 font_size: 11,
                 text: row["note"].as_str(),
-                padding: [12, 0, 12, 8],
+                padding: ui::sides(12, 0, 12, 8),
                 truncate: true,
             },
             ui::Control {
@@ -607,7 +607,7 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
                 role: "chip_quiet",
                 text: "",
                 absolute: true,
-                inset: [0.0, 0.0, 0.0, 0.0],
+                inset: ui::sides(0.0, 0.0, 0.0, 0.0),
                 tooltip: "Copy into " + state.manager.parent,
                 on_click: "handle",
                 data: { "fn": on_example_pressed, "id": id },
@@ -649,9 +649,9 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
                     kind: "panel",
                     fill: tokens["bg_panel"],
                     corner_radius: 10,
-                    padding: [12, 6, 12, 6],
+                    padding: ui::sides(12, 6, 12, 6),
                     width: column_width,
-                    gap: [0, 2],
+                    gap: vec2(0, 2),
                     controls: [
                         ui::Control { kind: "label", role: "text_title", font_size: 13, text: project },
                         ui::Control {
@@ -666,7 +666,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
                             role: "chip_quiet",
                             text: "",
                             absolute: true,
-                            inset: [0.0, 0.0, 0.0, 0.0],
+                            inset: ui::sides(0.0, 0.0, 0.0, 0.0),
                             tooltip: "Copy into " + state.manager.parent,
                             on_click: "handle",
                             data: { "fn": copy_forge_project, "project": project },

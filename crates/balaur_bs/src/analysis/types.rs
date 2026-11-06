@@ -5,10 +5,12 @@ use crate::ast::{Expr, ExprKind, FnDecl, Pos, Program, Ty};
 use crate::codegen::show;
 use crate::{HostApi, HostSignature};
 
-pub(crate) const PRELUDE: [(&str, &[&str]); 3] = [
+pub(crate) const PRELUDE: [(&str, &[&str]); 5] = [
     ("Vec2", &["x", "y"]),
     ("Vec3", &["x", "y", "z"]),
     ("Color", &["r", "g", "b", "a"]),
+    ("Transform2d", &["x", "y", "origin"]),
+    ("Transform3d", &["x", "y", "z", "origin"]),
 ];
 
 pub(crate) const NATIVES: [(&str, &str); 3] = [
@@ -89,10 +91,19 @@ pub(crate) fn fn_signature(f: &FnDecl) -> String {
     }
 }
 
+// What each field of a prelude struct holds.
+fn prelude_field(s: &str) -> Ty {
+    match s {
+        "Transform2d" => Ty::Struct("Vec2".into()),
+        "Transform3d" => Ty::Struct("Vec3".into()),
+        _ => Ty::Float,
+    }
+}
+
 impl Scope<'_> {
     pub(crate) fn field(&self, s: &str, f: &str) -> Option<(Ty, Option<Pos>)> {
         if let Some((_, names)) = PRELUDE.iter().find(|(n, _)| *n == s) {
-            return names.contains(&f).then_some((Ty::Float, None));
+            return names.contains(&f).then_some((prelude_field(s), None));
         }
         if let Some(record) = self.host.record(s) {
             let (_, t) = record.iter().find(|(n, _)| n == f)?;
@@ -220,7 +231,7 @@ impl Scope<'_> {
                 let open = |name: &str| reach.refused("", &format!("{s}.{name}")).is_none();
                 if let Some((_, names)) = PRELUDE.iter().find(|(n, _)| *n == s) {
                     for n in *names {
-                        add(n, Kind::Field, "float".into());
+                        add(n, Kind::Field, show(&prelude_field(s)));
                     }
                 }
                 if let Some((_, fields)) = self.prog.structs.iter().find(|(n, _)| n == s) {

@@ -294,30 +294,16 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
     }
 }
 
-// Each `Value` parameter the docs say holds a record, `Options?` or
-// `[Row]`, as that record, when they spell out every parameter.
+// Each `Value` parameter as the docs type it, when they spell out every
+// parameter.
 fn documented_params(rust: Vec<Ty>, documented: Option<(Vec<Ty>, Ty)>) -> Vec<Ty> {
     let Some((doc, _)) = documented.filter(|(doc, _)| doc.len() == rust.len()) else {
         return rust;
     };
     rust.into_iter()
         .zip(doc)
-        .map(|(rust, doc)| {
-            if rust == Ty::Any && names_record(&doc) {
-                doc
-            } else {
-                rust
-            }
-        })
+        .map(|(rust, doc)| if rust == Ty::Any { doc } else { rust })
         .collect()
-}
-
-fn names_record(t: &Ty) -> bool {
-    match t {
-        Ty::Struct(name) => name.contains("::"),
-        Ty::Optional(inner) | Ty::Array(inner) => names_record(inner),
-        _ => false,
-    }
 }
 
 fn holds_any(t: &Ty) -> bool {
@@ -502,7 +488,7 @@ mod tests {
     }
 
     #[test]
-    fn a_value_parameter_is_the_record_its_docs_name() {
+    fn a_value_parameter_is_the_type_its_docs_name() {
         let options = Ty::Optional(Box::new(Ty::Struct("ui::ClickOptions".into())));
         let rust = vec![Ty::Node, Ty::Any];
         assert_eq!(
@@ -520,8 +506,8 @@ mod tests {
         );
         assert_eq!(
             documented_params(rust.clone(), Some((vec![Ty::Node, Ty::Float], Ty::Bool))),
-            rust,
-            "only a record"
+            vec![Ty::Node, Ty::Float],
+            "a documented scalar is as good as a record"
         );
     }
 }

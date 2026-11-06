@@ -83,6 +83,47 @@ impl Root {
     assert!(!crate::support::own_visible(&app, after[2]));
 }
 
+/// A control's one table: each row goes to the component its kind reads, and
+/// a slot that turns into another kind drops what the last one wore.
+#[test]
+fn a_pooled_row_goes_to_the_component_its_kind_reads() {
+    let (_dir, mut app) = app_with(
+        "pub class Root { node: Node, frames: int }
+impl Root {
+    fn update(dt: float) {
+        self.frames += 1;
+        let controls: [any] = [];
+        if self.frames == 1 {
+            controls.push({ \"kind\": \"text_field\", \"prefix\": \"at\" });
+        } else {
+            controls.push({ \"kind\": \"label\", \"text\": \"plain\" });
+        }
+        controls.push({ \"kind\": \"number_field\", \"prefix\": \"at\" });
+        ui::fill_strip(\"Root/Bar\", controls);
+    }
+}
+",
+    );
+    app.tick(1.0 / 60.0);
+    let made = kids(&app);
+    let row = |node, component: &str| {
+        balaur_core::components::property(&app.engine, node, component, "prefix")
+    };
+    let at = Some(toml::Value::String("at".into()));
+    assert_eq!(row(made[0], "widget_field"), at);
+    assert_eq!(row(made[1], "widget_range"), at);
+    assert!(!balaur_core::components::has(
+        &app.engine,
+        made[0],
+        "widget_range"
+    ));
+    app.tick(1.0 / 60.0);
+    assert!(
+        !balaur_core::components::has(&app.engine, made[0], "widget_field"),
+        "a slot that became a label still wears its field's rows"
+    );
+}
+
 #[test]
 fn a_reader_s_click_reaches_its_key_and_a_script_s_write_does_not() {
     let (_dir, mut app) = app_with(
@@ -102,7 +143,7 @@ impl Root {
     app.tick(1.0 / 60.0);
     let boxed = kids(&app)[0];
     assert_eq!(
-        prop(&app, boxed, "checked"),
+        balaur_core::components::property(&app.engine, boxed, "widget_check", "checked"),
         Some(toml::Value::Boolean(false))
     );
 
@@ -110,14 +151,14 @@ impl Root {
     app.tick(1.0 / 60.0);
     assert_eq!(number(&app, "edits"), Some(1.0));
     assert_eq!(
-        prop(&app, boxed, "checked"),
+        balaur_core::components::property(&app.engine, boxed, "widget_check", "checked"),
         Some(toml::Value::Boolean(true))
     );
 
     // A write that is not the reader's is no edit.
     let mut write = toml::map::Map::new();
     write.insert("checked".into(), toml::Value::Boolean(false));
-    balaur_core::components::patch(&app.engine, boxed, "widget", &write.into()).unwrap();
+    balaur_core::components::patch(&app.engine, boxed, "widget_check", &write.into()).unwrap();
     app.tick(1.0 / 60.0);
     assert_eq!(
         number(&app, "edits"),
@@ -125,7 +166,7 @@ impl Root {
         "a script's write is not an edit"
     );
     assert_eq!(
-        prop(&app, boxed, "checked"),
+        balaur_core::components::property(&app.engine, boxed, "widget_check", "checked"),
         Some(toml::Value::Boolean(false)),
         "and the pool writes only what its own spec changed"
     );
@@ -222,7 +263,7 @@ impl Root {
         "the range went with the control that stated it"
     );
     assert_eq!(
-        prop(&app, field[0], "prefix"),
+        balaur_core::components::property(&app.engine, field[0], "widget_range", "prefix"),
         Some(toml::Value::String(String::new())),
         "and so did its letter"
     );

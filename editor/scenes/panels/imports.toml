@@ -13,9 +13,10 @@ anchor = "top_right"
 x = 20.0
 y = 52.0
 padding = [12, 8, 12, 8]
-gap = [2, 2]
 interactive = false
 whole_window = true
+[nodes.widget_layout]
+gap = [2, 2]
 
 [[nodes]]
 id = "lines"
@@ -23,8 +24,9 @@ name = "Lines"
 parent = "imports"
 [nodes.widget]
 kind = "column"
-gap = [0, 0]
 interactive = false
+[nodes.widget_layout]
+gap = [0, 0]
 
 [[nodes]]
 id = "bar"

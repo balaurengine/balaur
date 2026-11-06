@@ -1,9 +1,33 @@
 # Handover: `editor-followups`
 
-Branch `editor-followups`, on `main` after #66 (c4fc6e85). Worktree used so
-far: `../balaur-native`. Not pushed. Each step is one commit; no backwards
-compatibility anywhere (a renamed key fails by name, every scene in the tree
-is rewritten in the same commit).
+Merged as #67. What follows the next heading is that branch's record; this
+first section is what a check of `main` found left, and where the work on it
+stopped.
+
+## Paused 2026-11-03
+
+Nothing here is merged or pushed. The plan: each branch finishes green, then
+merges into `script-api-types` (the other session's branch, `any` narrowing,
+which owns Forge's language docs and the site sync too) for one PR. Merge
+`fix-followups` first, then rows, Inspector, units, speed, then the panels.
+Rerun `scripts/gen_docs.py` rather than merging `docs/generated/`. Only one
+target directory per job: a shared one kept builds waiting an hour on its lock.
+Scripts that lived in scratch are in `../balaur-paused/`.
+
+| Branch, worktree | State | Left |
+| --- | --- | --- |
+| `fix-followups`, `../balaur-native` | Done, tested: a saved multimesh asset reaches its nodes; a soft-body region names its `soft_material` | The stale docs below |
+| `fix-widget-rows`, `../balaur-optins` | A third done, HEAD is WIP; the CLI builds, 17 dead-code warnings; PLAN-component-order §4.1 describes the finished split | Delete the dead keys; run `stage_c.py`, `stage_d.py` from `../balaur-paused/widget-rows/` with their by-hand edits; add `widget_beside_test.rs`; 61 rows should stay on `widget`; `beside.rs` may need splitting; all checks, e2e |
+| `fix-inspector`, `../balaur-inspector` | One WIP commit, final tree unbuilt; the `inspector` kind and `widget_inspector` are gone, rows are pooled nodes | Build; `check`, `fmt`, `gen_docs`; tests (two `scene_toml` failures looked like log capture between tests, not rerun alone); clippy; e2e, never run; split the commit |
+| `fix-typed-calls`, `../balaur-lang` | Phase 1: every host build links units; e2e passed before the WIP commit; HEAD is uncompiled | Clippy fails (`generate` too long, `Debugger` bools, `take_tables`, `wasmi_engine` borrows, `direct_answer`); cargo test both crates; web clippy; `tests/web`; `editor_native.sh`; `check_web_module.sh`. Then phase 2, not started: the 114 `self.editor.call` in the panels and `dock.bs`'s `refresh`, after rows land |
+| `fix-speed`, `../balaur-allocs` | One WIP commit, the whole never compiled; no target met; fuel so far `a["k"]` 657 from 1,234, `s.contains` 1,169 from 2,413 with lent arguments alone | Compile the typed property path (`derived::Given`, `PropertyPlace`); `every_cost` for the ceilings; `scripts/call_cost.sh`, `edit_cost.sh` against a baseline; split the commit. Baseline per call on `main`: position write 4,025 instructions, read 1,869, `engine::time()` 1,056 |
+| `fix-screen-reader`, `../balaur-access`; kiss3d `balaur-buffers-and-access` | Fork: staging buffers reused, built, 9 GPU tests; adapter commit WIP, never compiled. Engine: tests only, do not build | Finish the adapter and `balaur_ui/src/access.rs`; `kiss3d_backend.rs` is at 1,199 lines. Buffers save about 0.7 to 1 M a frame, not firmly measured, and nothing per edit; 53 of 252 staging samples are egui-wgpu's, so PLAN-editor-performance §10's sentence is wrong. The egui patch (`../balaur-paused/egui/`) measured worse: drop it unless a re-measure disagrees. Pushing needs the user: `git -C ../kiss3d push fork balaur-buffers-and-access` |
+
+Stale docs to fix at the merge: this file's item list below,
+PLAN-property-types §5 (the rows agent has its wording), and PLAN-foundations'
+status, which still lists the pool's specs as left. `../kiss3d`'s scratch
+worktree `kiss3d-c1` holds nothing committed and can go with
+`git -C ../kiss3d worktree remove --force <path>`.
 
 ## On the branch
 
@@ -33,9 +57,10 @@ is rewritten in the same commit).
   audio with a fixed schema. Hand-written on purpose: `meta` and `states`
   (every key is the author's), `mesh` (any `morph_*` key) and `material`
   (core's `Appearance` holds it, which scripts and snapshots write directly).
-- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 208
+- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 60
   fields, beside the `Widget` cache; a one-property write updates the one
-  `Widget` field it feeds (`cache_fields!`), 18 properties rebuild whole.
+  `Widget` field it feeds (`cache_fields!`), and `kind` and `text_style`
+  rebuild whole. The 25 components beside it do the same through `puts!`.
   A click, drag or keystroke writes the struct, and `schema::follow`
   redoes the `Widget` fields those properties fill (`input.rs`), so the
   struct is the one source. Core's `PropertyReaders`/`PropertyWriters` are
@@ -52,7 +77,7 @@ is rewritten in the same commit).
   (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
   which half is wrong.
 - Beside components (physics) register before their main component, so a
-  scene builds the main one once, and so do the ones beside `widget`. 100
+  scene builds the main one once, and so do the ones beside `widget`. 111
   components are registered of the 128 `Attached` allows.
 
 ## Left to do, in order
@@ -65,20 +90,17 @@ is rewritten in the same commit).
    definition is `ComponentDef::by_hand(schema, apply, remove, get)`.
 2. **Per-kind rows still applying on a condition** (PLAN-component-order
    §4): no property should.
-   - `widget`: done 2026-10-31. The rows one set of kinds reads are a
-     component beside it (`crates/balaur_ui/src/widget/beside.rs`):
-     `widget_range` (slider, number_field, progress_bar), `widget_field`
-     (text_field, text_area, code), `widget_scroll` (scroll, list, tree,
-     table), `widget_list` (list, tree), `widget_table`, `widget_code`,
-     `widget_inspector`, `widget_menu`, `widget_window` (window, dialog),
-     `widget_color_picker`, `widget_image`, `widget_dropdown`,
-     `widget_separator`, `widget_toast`. Each puts its rows on the `Widget`
-     where the kind reads them, its defaults where the node holds none; a
-     reader's edit (a value, a colour, a scroll, a sort) is written onto
-     it. A pooled control's spec stays one table: the pool sends each row
-     to the component holding it. What stays on `widget` is read by most
-     kinds, or by kinds the clusters cut across (`options`, `checked`,
-     `prefix`, `reverse`, the grid rows a list's cards also read).
+   - `widget`: done 2026-11-03. Every row only some kinds read is on a
+     component beside it, 25 in all (`crates/balaur_ui/src/widget/beside.rs`,
+     `beside_box.rs`, `beside_controls.rs`), audited row by row in
+     PLAN-component-order §4.1; `widget` keeps the 60 most kinds read. A row
+     may sit on two components whose kinds are apart (`axis` on the scroll's,
+     the range's and the separator's), and a pooled control's one table goes
+     to the one its kind reads; a screen class's table names any of them.
+     Each puts its rows on the `Widget` where the kind reads them, its
+     defaults where the node holds none, and a write of one row puts that row
+     alone; a reader's edit (a value, a tick, a pick, a page) is written onto
+     it.
    - The primitives' dimensions: done 2026-10-31. A `variant` property
      type holds a kind and that kind's rows; `shape2d`, `shape3d`,
      `collider2d` and `collider3d` each hold one `shape`.

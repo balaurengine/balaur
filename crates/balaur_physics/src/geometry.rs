@@ -7,12 +7,12 @@
 //! the destruction toolkit: slice a crate, spawn each piece as a body with a
 //! `convex_decomposition` collider, dig the voxel terrain underneath.
 //!
-//! A mesh crosses the seam as `{ points, indices }`: a list of positions and
-//! a flat list of triangle corners. A `mesh` asset's name works anywhere one
-//! is taken, so a script rarely builds one by hand.
+//! A mesh crosses the seam as a `geometry3d::Mesh`: a list of positions and a
+//! flat list of triangle corners. `load_mesh` reads one from a `mesh` asset,
+//! so a script rarely builds one by hand.
 
 use crate::rapier3d::parry::shape::{TriMesh, TriMeshFlags};
-use crate::scalar::{self, Pose, Real, Vector};
+use crate::scalar::{self, Pose, Vector};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_script::{Module, Value};
@@ -25,54 +25,34 @@ use crate::vocabulary::{Opts, keys as k, map};
 /// of work: 512 is a third of a second, and above it a typo hangs the game.
 const MAX_VOXEL_RESOLUTION: u32 = 512;
 
-/// Points and triangles, however the caller spelled them: a `mesh` asset's
-/// name, or a table of the two lists.
-fn mesh_of(eng: &Engine, value: Option<&Value>) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
-    match value {
-        Some(Value::Str(reference)) => {
-            let definition =
-                balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, reference)?;
-            let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
-            Ok((
-                mesh.positions.iter().map(|p| scalar::v3a(*p)).collect(),
-                mesh.indices.clone(),
-            ))
-        }
-        Some(value @ Value::Map(_)) => {
-            let opts = Opts(Some(value));
-            let points = opts
-                .list(k::POINTS)
-                .ok_or_else(|| anyhow!("a mesh table needs a `points` list"))?
-                .iter()
-                .map(|p| match p {
-                    Value::Vec3(v) => scalar::v3a(*v),
-                    Value::List(items) => {
-                        let at = |i: usize| match items.get(i) {
-                            Some(Value::Num(n)) => *n as Real,
-                            Some(Value::Int(n)) => *n as Real,
-                            _ => 0.0,
-                        };
-                        Vector::new(at(0), at(1), at(2))
-                    }
-                    _ => Vector::ZERO,
-                })
-                .collect::<Vec<_>>();
-            let flat: Vec<u32> = opts
-                .list(k::INDICES)
-                .ok_or_else(|| anyhow!("a mesh table needs an `indices` list"))?
-                .iter()
-                .map(|i| match i {
-                    Value::Int(i) => *i as u32,
-                    Value::Num(n) => *n as u32,
-                    _ => 0,
-                })
-                .collect();
-            Ok((points, flat.as_chunks::<3>().0.to_vec()))
-        }
-        _ => Err(anyhow!(
-            "expected a mesh: an asset name, or a table of `points` and `indices`"
-        )),
-    }
+/// A `geometry3d::Mesh`'s points and triangles.
+fn mesh_of(mesh: &Value) -> Result<(Vec<Vector>, Vec<[u32; 3]>)> {
+    let opts = Opts(Some(mesh));
+    let points = opts
+        .list(k::POINTS)
+        .ok_or_else(|| anyhow!("a mesh needs a `points` list"))?
+        .iter()
+        .map(|p| match p {
+            Value::Vec3(v) => Ok(scalar::v3a(*v)),
+            other => Err(anyhow!(
+                "a mesh's point is a Vec3, not a {}",
+                other.type_name()
+            )),
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let flat = opts
+        .list(k::INDICES)
+        .ok_or_else(|| anyhow!("a mesh needs an `indices` list"))?
+        .iter()
+        .map(|i| match i {
+            Value::Int(i) => Ok(*i as u32),
+            other => Err(anyhow!(
+                "a mesh's index is an int, not a {}",
+                other.type_name()
+            )),
+        })
+        .collect::<Result<Vec<u32>>>()?;
+    Ok((points, flat.as_chunks::<3>().0.to_vec()))
 }
 
 /// The shape every function here returns.
@@ -97,6 +77,11 @@ fn mesh_value(points: &[Vector], indices: &[[u32; 3]]) -> Value {
 /// The tables this module's mesh operations take and give.
 const RECORDS: &[balaur_script::RecordDoc] = &[
     (
+        "Mesh",
+        "{ points: [Vec3], indices: [int] }",
+        "A triangle mesh: its positions, and a flat list of three corners a triangle.",
+    ),
+    (
         "DecompositionOptions",
         "{ resolution: int?, max_concavity: float?, max_convex_hulls: int? }",
         "How V-HACD cuts a mesh: the voxel resolution it works at, the concavity a piece may keep, and the most pieces it makes.",
@@ -108,28 +93,36 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
     ),
     (
         "Voxels",
-        "{ size: vec3, cells: [[int]] }",
+        "{ size: Vec3, cells: [[int]] }",
         "A voxel grid: one cell's size, and every filled cell as its column, row and layer.",
     ),
     (
         "Plane",
-        "{ point: vec3?, normal: vec3? }",
+        "{ point: Vec3?, normal: Vec3? }",
         "A plane through a point, facing along a normal.",
     ),
 ];
 
 pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.",
+        "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection, on a `Mesh` that `load_mesh` reads from an asset or a script builds.",
     );
     m.describe(&[
-        ("convex_hull", &[], "(mesh: any) -> map", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
-        ("convex_decomposition", &[], "(mesh: any, opts: DecompositionOptions?) -> [map]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
-        ("voxelize", &[], "(mesh: any, opts: VoxelizeOptions?) -> Voxels", "The mesh as a voxel grid (`size` and `cells`, ready to be a `voxels` asset) so a model can become destructible terrain."),
+        ("load_mesh", &[], "(reference: string) -> Mesh", "A `mesh` asset's points and triangles."),
+        ("convex_hull", &[], "(mesh: Mesh) -> Mesh", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
+        ("convex_decomposition", &[], "(mesh: Mesh, opts: DecompositionOptions?) -> [Mesh]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
+        ("voxelize", &[], "(mesh: Mesh, opts: VoxelizeOptions?) -> Voxels", "The mesh as a voxel grid (`size` and `cells`, ready to be a `voxels` asset) so a model can become destructible terrain."),
     ]);
     m.records(RECORDS);
-    m.function("convex_hull", |eng: &Engine, mesh: Value| {
-        let (points, _) = mesh_of(eng, Some(&mesh))?;
+    m.function("load_mesh", |eng: &Engine, reference: String| {
+        let definition =
+            balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, &reference)?;
+        let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
+        let points: Vec<Vector> = mesh.positions.iter().map(|p| scalar::v3a(*p)).collect();
+        Ok(mesh_value(&points, &mesh.indices))
+    });
+    m.function("convex_hull", |_: &Engine, mesh: Value| {
+        let (points, _) = mesh_of(&mesh)?;
         let (hull_points, hull_indices) =
             crate::rapier3d::parry::transformation::try_convex_hull(&points)
                 .map_err(|e| anyhow!("those points have no hull: {e:?}"))?;
@@ -137,8 +130,8 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
     });
     m.function(
         "convex_decomposition",
-        |eng: &Engine, (mesh, opts): (Value, Option<Value>)| {
-            let (points, indices) = mesh_of(eng, Some(&mesh))?;
+        |_: &Engine, (mesh, opts): (Value, Option<Value>)| {
+            let (points, indices) = mesh_of(&mesh)?;
             let opts = Opts(opts.as_ref());
             let mut params =
                 crate::rapier3d::parry::transformation::vhacd::VHACDParameters::default();
@@ -161,8 +154,8 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
     );
     m.function(
         "voxelize",
-        |eng: &Engine, (mesh, opts): (Value, Option<Value>)| {
-            let (points, indices) = mesh_of(eng, Some(&mesh))?;
+        |_: &Engine, (mesh, opts): (Value, Option<Value>)| {
+            let (points, indices) = mesh_of(&mesh)?;
             let opts = Opts(opts.as_ref());
             let resolution = opts.f32(k::RESOLUTION, 32.0).max(1.0) as u32;
             if resolution > MAX_VOXEL_RESOLUTION {
@@ -218,12 +211,12 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
 /// Split from [`install_geometry_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("split", &[], "(mesh: any, plane: Plane) -> [any]", "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it."),
-        ("intersect", &[], "(a: any, b: any) -> map?", "The mesh both meshes have in common, or nothing when they do not overlap."),
-        ("pieces", &[], "(mesh: any) -> [map]", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
+        ("split", &[], "(mesh: Mesh, plane: Plane) -> [Mesh?]", "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it."),
+        ("intersect", &[], "(a: Mesh, b: Mesh) -> Mesh?", "The mesh both meshes have in common, or nothing when they do not overlap."),
+        ("pieces", &[], "(mesh: Mesh) -> [Mesh]", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
     ]);
-    m.function("split", |eng: &Engine, (mesh, opts): (Value, Value)| {
-        let (points, indices) = mesh_of(eng, Some(&mesh))?;
+    m.function("split", |_: &Engine, (mesh, opts): (Value, Value)| {
+        let (points, indices) = mesh_of(&mesh)?;
         let opts = Opts(Some(&opts));
         let normal = scalar::v3a(opts.vec3(k::NORMAL, [0.0, 1.0, 0.0]));
         let normal = if normal.length_squared() < 1.0e-12 {
@@ -256,9 +249,9 @@ pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
             }
         })
     });
-    m.function("intersect", |eng: &Engine, (a, b): (Value, Value)| {
-        let (points_a, indices_a) = mesh_of(eng, Some(&a))?;
-        let (points_b, indices_b) = mesh_of(eng, Some(&b))?;
+    m.function("intersect", |_: &Engine, (a, b): (Value, Value)| {
+        let (points_a, indices_a) = mesh_of(&a)?;
+        let (points_b, indices_b) = mesh_of(&b)?;
         let first = TriMesh::new(points_a, indices_a)
             .map_err(|e| anyhow!("the first mesh is not one: {e}"))?;
         let second = TriMesh::new(points_b, indices_b)
@@ -276,8 +269,8 @@ pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
             mesh_value(mesh.vertices(), mesh.indices())
         }))
     });
-    m.function("pieces", |eng: &Engine, mesh: Value| {
-        let (points, indices) = mesh_of(eng, Some(&mesh))?;
+    m.function("pieces", |_: &Engine, mesh: Value| {
+        let (points, indices) = mesh_of(&mesh)?;
         let trimesh = TriMesh::with_flags(
             points,
             indices,

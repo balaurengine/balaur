@@ -607,6 +607,9 @@ impl ImportCtx for View {
     fn read_into(&self, at: usize, out: &mut [u8]) {
         copy_from(self.memory(), at, out);
     }
+    fn memory_bytes(&self) -> Option<&[u8]> {
+        Some(self.memory())
+    }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         let (module, inst, _) = self.parts();
         let mut len = 0u64;

@@ -84,6 +84,9 @@ pub(crate) struct FnGen<'a> {
     pub prelude: bool,
     /// The module this function is in: "" for the root file.
     pub module: String,
+    /// The slots of parameters its caller lends (`Gen::lends_to`), which it
+    /// holds no count on and so may not assign.
+    pub lent_slots: Vec<u32>,
 }
 
 impl<'a> FnGen<'a> {
@@ -120,6 +123,7 @@ impl<'a> FnGen<'a> {
             prof: None,
             prelude: false,
             module: String::new(),
+            lent_slots: vec![],
         }
     }
 
@@ -498,6 +502,9 @@ impl<'a> FnGen<'a> {
             self.emit([load(ValType::I32, mp.off), I::LocalSet(l)]);
             return Ok((l, *et, mp.release));
         }
+        if let Some(array) = self.cell_array_in_hand(arr, pos)? {
+            return Ok(array);
+        }
         let t = self.expr(arr)?;
         let Ty::Array(et) = t.clone() else {
             return err(pos, format!("{} cannot be indexed", show(&t)));
@@ -806,6 +813,12 @@ impl<'a> FnGen<'a> {
             }
             return Ok(());
         }
+        if let (ExprKind::MapLit(_), Some(name)) = (&e.kind, record_wanted(want)) {
+            return err(
+                e.pos,
+                format!("a {name} is written `{name} {{ .. }}`, not as a map"),
+            );
+        }
         let got = self.expr(e)?;
         self.coerce(&got, want, e.pos)
     }
@@ -1092,6 +1105,14 @@ fn map_wanted(want: &Ty) -> Option<&str> {
     match want {
         Ty::Struct(class) if crate::maps::is_map(class) => Some(class),
         Ty::Optional(inner) => map_wanted(inner),
+        _ => None,
+    }
+}
+
+fn record_wanted(want: &Ty) -> Option<&str> {
+    match want {
+        Ty::Struct(name) if !matches!(name.as_str(), "Vec2" | "Vec3" | "Color") => Some(name),
+        Ty::Optional(inner) => record_wanted(inner),
         _ => None,
     }
 }

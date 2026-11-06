@@ -19,6 +19,7 @@ x = 0
 y = 0
 width = 520
 padding = 16
+[nodes.widget_layout]
 gap = [12, 12]
 
 [[nodes]]
@@ -45,6 +46,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 32
+[nodes.widget_layout]
 gap = [10, 10]
 
 [[nodes]]

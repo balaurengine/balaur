@@ -120,7 +120,7 @@ pub struct Softbody3d {
     /// How hard a contact must be before on_contact_force is called
     #[property(group = "events", min = 0.0)]
     pub contact_force_threshold: f32,
-    /// Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body's. Each is a `soft_frame` body joints may attach to
+    /// Parts of the body with a material of their own, each the particles it covers: `soft_material` for its edge spring and shape matching, empty keeping the body's; `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, and `pinned` to hold it still. Each is a `soft_frame` body joints may attach to
     #[property(group = "overrides")]
     pub regions: Vec<SoftRegion>,
     /// Edges with a spring of their own, its frequency in hertz and its damping ratio, instead of the edge or bend rows', each named by the two particles it joins
@@ -850,6 +850,17 @@ pub(crate) fn apply_softbody(eng: &Engine, entity: Entity, asked: &SoftAsked3d) 
     build_softbody(eng, entity, asked, &materials)
 }
 
+/// A body after a material file moved: in place, unless a region names one,
+/// a region being made with the body.
+pub(crate) fn reread_softbody(eng: &Engine, entity: Entity, asked: &SoftAsked3d) -> Result<()> {
+    if !cap::regions_name_a_file(&asked.body.regions) {
+        return apply_softbody(eng, entity, asked);
+    }
+    let materials =
+        cap::Materials::of(eng, &asked.body.soft_material, &asked.body.physics_material)?;
+    build_softbody(eng, entity, asked, &materials)
+}
+
 /// Build the node's soft body from rest, replacing whatever it had.
 pub(super) fn build_softbody(
     eng: &Engine,
@@ -873,16 +884,17 @@ pub(super) fn build_softbody(
         );
         state.soft_bodies.insert(entity, handle);
         state.soft_params.insert(entity, asked.clone());
-        let added = add_regions(&mut state.world, handle, &asked.body.regions).and_then(|()| {
-            bind_collision_mesh(
-                &mut state.world,
-                handle,
-                &asked.body,
-                &asked.collision,
-                collision,
-                materials,
-            )
-        });
+        let added =
+            add_regions(eng, &mut state.world, handle, &asked.body.regions).and_then(|()| {
+                bind_collision_mesh(
+                    &mut state.world,
+                    handle,
+                    &asked.body,
+                    &asked.collision,
+                    collision,
+                    materials,
+                )
+            });
         stamp_colliders(&mut state.world, handle, entity);
         balaur_core::events::hearers_may_have_changed(eng, entity);
         added

@@ -685,20 +685,20 @@ fn a_keyed_read_answers_one_property() {
 
                 let text = "text";
                 let kind = "kind";
-                let checked_key = "checked";
-                self.check(n.get_component("widget", text).as_str() == "hi", "widget text");
-                self.check(n.get_component("widget", kind).as_str() == "button", "widget kind");
-                let checked = n.get_component("widget", checked_key);
-                self.check(checked.kind() == "bool" && !checked.as_bool(), "widget checked");
+                let enabled_key = "enabled";
+                self.check(n.component_property("widget", text).as_str() == "hi", "widget text");
+                self.check(n.component_property("widget", kind).as_str() == "button", "widget kind");
+                let enabled = n.component_property("widget", enabled_key);
+                self.check(enabled.kind() == "bool" && enabled.as_bool(), "widget enabled");
                 let table = n.get_component("widget");
-                self.check(n.get_component("widget", "value") == table["value"], "same as the table");
+                self.check(n.component_property("widget", "value") == table["value"], "same as the table");
 
                 // No fast path: the table is read and indexed.
                 let shape = "shape";
-                self.check(n.get_component("collider3d", shape)["kind"].as_str() == "sphere", "collider kind");
+                self.check(n.component_property("collider3d", shape)["kind"].as_str() == "sphere", "collider kind");
 
-                self.check(n.get_component("widget", "no_such_property") == nil, "unknown property");
-                self.check(n.get_component("body3d", kind) == nil, "component the node lacks");
+                self.check(n.component_property("widget", "no_such_property") == nil, "unknown property");
+                self.check(n.component_property("body3d", kind) == nil, "component the node lacks");
 
                 if !self.failed {
                     self.done = 1;

@@ -9,13 +9,19 @@ use balaur_core::logbuf;
 /// at once clear each other's entries.
 static CAPTURE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-#[test]
-fn events_carry_their_structured_fields() {
-    let _guard = CAPTURE
+/// The buffer to itself and emptied, for a test that reads what it logged.
+pub(crate) fn hold_the_log() -> std::sync::MutexGuard<'static, ()> {
+    let held = CAPTURE
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     logbuf::capture_for_test();
     logbuf::clear();
+    held
+}
+
+#[test]
+fn events_carry_their_structured_fields() {
+    let _guard = hold_the_log();
 
     tracing::info!(script = "pig.bs", nodes = 24, "reloaded");
 
@@ -31,11 +37,7 @@ fn events_carry_their_structured_fields() {
 
 #[test]
 fn the_buffer_is_bounded_and_keeps_the_newest() {
-    let _guard = CAPTURE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    logbuf::capture_for_test();
-    logbuf::clear();
+    let _guard = hold_the_log();
 
     for i in 0..600 {
         tracing::info!(seq = i, "tick");

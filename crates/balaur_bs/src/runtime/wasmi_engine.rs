@@ -113,6 +113,9 @@ impl ImportCtx for Ctx<'_, '_> {
             None => out.fill(0),
         }
     }
+    fn memory_bytes(&self) -> Option<&[u8]> {
+        self.0.data().mem.map(|m| m.data(&*self.0))
+    }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         if let Some(m) = self.0.data().mem {
             m.data_mut(&mut *self.0)[at..at + bytes.len()].copy_from_slice(bytes);

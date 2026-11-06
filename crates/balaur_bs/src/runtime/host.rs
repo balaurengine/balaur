@@ -1,7 +1,7 @@
 // Every import a module makes, answered in one place whichever engine runs it:
 // the script's `extern fn`s, the engine's functions, and the built-ins.
 
-use super::args::{CallArgs, Slots};
+use super::args::{CallArgs, Params, Slots, vector_width};
 use super::debugger::{self, Debugger};
 use super::engine::{ImportCtx, Raw, Raws, Shared};
 use super::values::{Reader, Value, encode_plain, width};
@@ -87,28 +87,35 @@ impl HostFns {
     }
 }
 
-/// An import's key, parameters and result, shared so a call clones nothing,
-/// and where each parameter's slots start.
+/// An import's key, parameters and result, shared so a call clones nothing.
 struct Sig {
     key: String,
-    params: Vec<Ty>,
+    params: Params,
     ret: Ty,
-    at: Vec<usize>,
 }
 
 fn sig(meta: &Meta, key: &str, params: &[Ty], ret: &Ty) -> Rc<Sig> {
     Rc::new(Sig {
         key: key.to_string(),
-        params: params.to_vec(),
+        params: Params::of(meta, params),
         ret: ret.clone(),
-        at: super::args::offsets(meta, params),
     })
+}
+
+/// One engine function as a module imports it, whole, so a call counts one
+/// reference and looks nothing up.
+struct EngineCall {
+    sig: Rc<Sig>,
+    bound: Bound,
+    types: Types,
+    /// How many floats its result is when one of the engine's vectors.
+    answers_vector: usize,
 }
 
 enum Kind {
     Sync(usize, Rc<Sig>),
     Async(usize, Rc<Sig>),
-    Engine(Rc<Sig>, Bound),
+    Engine(Rc<EngineCall>),
     EngineAsync(Rc<Sig>, Bound),
     FmtF64,
     ParseF64,
@@ -218,7 +225,7 @@ impl HostState {
             debugger,
         };
         let own = state.meta.clone();
-        state.kinds = state.kinds_of(&own)?;
+        state.kinds = state.kinds_of(&own, &Types::Own(own.clone()))?;
         Ok(state)
     }
 
@@ -255,7 +262,7 @@ impl HostState {
         index: usize,
         unit: Arc<crate::Compiled>,
     ) -> Result<(), String> {
-        let kinds = self.kinds_of(&unit.meta)?;
+        let kinds = self.kinds_of(&unit.meta, &Types::Unit(unit.clone()))?;
         if self.units.len() < index {
             self.units.resize_with(index, || None);
         }
@@ -264,7 +271,7 @@ impl HostState {
     }
 
     // What each of `meta`'s imports runs.
-    fn kinds_of(&mut self, meta: &Meta) -> Result<Vec<Kind>, String> {
+    fn kinds_of(&mut self, meta: &Meta, types: &Types) -> Result<Vec<Kind>, String> {
         let mut kinds = vec![];
         for imp in &meta.imports {
             let name = imp.name.as_str();
@@ -300,7 +307,12 @@ impl HostState {
                 if f.is_async {
                     Kind::EngineAsync(signature, bind(&f.key, &Ty::Int)?)
                 } else {
-                    Kind::Engine(signature, bind(&f.key, &f.ret)?)
+                    Kind::Engine(Rc::new(EngineCall {
+                        sig: signature,
+                        bound: bind(&f.key, &f.ret)?,
+                        types: types.clone(),
+                        answers_vector: usize::from(vector_width(&f.ret)),
+                    }))
                 }
             } else if let Some(m) = name.strip_prefix(words::MATH_PREFIX) {
                 math(m).ok_or_else(missing)?
@@ -337,7 +349,7 @@ impl Reader for CtxReader<'_> {
 /// A host call's arguments, kept inline: a call allocates nothing for them.
 // An `extern fn`'s arguments, each read whole.
 fn values_of(meta: &Meta, ctx: &dyn ImportCtx, sig: &Sig, raw: &[Raw]) -> Vec<Value> {
-    Slots::read(meta, ctx, &sig.params, &sig.at, raw).into_values()
+    Slots::read(meta, ctx, &sig.params, raw).into_values()
 }
 
 /// `v` as a value of `ty` the script owns: a string or array is allocated in
@@ -348,15 +360,8 @@ pub(crate) fn encode_owned(
     ty: &Ty,
     v: &Value,
 ) -> Result<Raws, String> {
-    // What nearly every call returns, with nothing to allocate.
-    match (ty, v) {
-        (Ty::Void, _) => return Ok(Raws::new()),
-        (Ty::Int, Value::Int(x)) | (Ty::Node, Value::Node(x) | Value::Int(x)) => {
-            return Ok(smallvec::smallvec![Raw::I64(*x)]);
-        }
-        (Ty::Float, Value::Float(x)) => return Ok(smallvec::smallvec![Raw::F64(*x)]),
-        (Ty::Bool, Value::Bool(b)) => return Ok(smallvec::smallvec![Raw::I32(i32::from(*b))]),
-        _ => {}
+    if let Some(out) = scalar(ty, v) {
+        return Ok(out);
     }
     Ok(match (ty, v) {
         (Ty::Str, Value::Str(_) | Value::Void) => {
@@ -443,12 +448,27 @@ pub(crate) fn encode_owned(
     })
 }
 
+/// What nearly every call answers, a number, a flag, a node or nothing, as its
+/// slots: nothing to allocate.
+fn scalar(ty: &Ty, v: &Value) -> Option<Raws> {
+    Some(match (ty, v) {
+        (Ty::Void, _) => Raws::new(),
+        (Ty::Int, Value::Int(x)) | (Ty::Node, Value::Node(x) | Value::Int(x)) => {
+            smallvec::smallvec![Raw::I64(*x)]
+        }
+        (Ty::Float, Value::Float(x)) => smallvec::smallvec![Raw::F64(*x)],
+        (Ty::Bool, Value::Bool(b)) => smallvec::smallvec![Raw::I32(i32::from(*b))],
+        _ => return None,
+    })
+}
+
 fn write_text(ctx: &mut dyn ImportCtx, out: i32, text: &str) -> Raws {
     ctx.write(out as u32 as usize, text.as_bytes());
     smallvec::smallvec![Raw::I32(text.len() as i32)]
 }
 
 /// The types a call is read and answered by: the script's own, or a unit's.
+#[derive(Clone)]
 enum Types {
     Own(Arc<Meta>),
     Unit(Arc<crate::Compiled>),
@@ -503,7 +523,6 @@ pub(crate) fn dispatch(
     };
     let mut h = state.borrow_mut();
     h.calls += 1;
-    let meta = h.types(unit);
     let resolved = |h: &HostState| h.resolved.get(&i64_at(0)).cloned().unwrap_or(Value::Void);
     let kind = &h.kinds(unit)[index];
     match kind {
@@ -544,6 +563,7 @@ pub(crate) fn dispatch(
         }
         Kind::Sync(at, sig) => {
             let (at, sig) = (*at, sig.clone());
+            let meta = h.types(unit);
             let values = values_of(&meta, ctx, &sig, args);
             let v = (h.sync[at])(&values);
             drop(h);
@@ -551,6 +571,7 @@ pub(crate) fn dispatch(
         }
         Kind::AwaitHeap => {
             let handle = i64_at(0);
+            let meta = h.types(unit);
             let v = resolved(&h);
             let ty = h.heap_awaits.remove(&handle).unwrap_or(Ty::Void);
             drop(h);
@@ -558,6 +579,7 @@ pub(crate) fn dispatch(
         }
         Kind::Async(at, sig) => {
             let (at, sig) = (*at, sig.clone());
+            let meta = h.types(unit);
             let values = values_of(&meta, ctx, &sig, args);
             let (delay, v) = (h.asynch[at])(&values);
             h.next_handle += 1;
@@ -568,22 +590,18 @@ pub(crate) fn dispatch(
             }
             Ok(smallvec::smallvec![Raw::I64(handle)])
         }
-        // The engine may run other scripts before it answers, so the state is
-        // not held across the call.
-        Kind::Engine(sig, bound) => {
-            let (sig, bound) = (sig.clone(), bound.clone());
-            let slots = Slots::read(&meta, ctx, &sig.params, &sig.at, args);
+        Kind::Engine(call) => {
+            let call = call.clone();
             let outer = h.inside.replace(erase(ctx));
             drop(h);
-            let answer = bound(&slots);
-            state.borrow_mut().inside = outer;
-            encode_owned(ctx, &meta, &sig.ret, &answer?)
+            engine_call(state, ctx, &call, args, outer)
         }
         // The engine answers with a token it wakes later; the script awaits a
         // handle of its own, so a token never collides with an extern's.
         Kind::EngineAsync(sig, bound) => {
             let (sig, bound) = (sig.clone(), bound.clone());
-            let slots = Slots::read(&meta, ctx, &sig.params, &sig.at, args);
+            let meta = h.types(unit);
+            let slots = Slots::read(&meta, ctx, &sig.params, args);
             let outer = h.inside.replace(erase(ctx));
             drop(h);
             let out = engine_async(state, &bound, &sig.key, &slots, sig.ret.clone());
@@ -591,6 +609,33 @@ pub(crate) fn dispatch(
             out
         }
     }
+}
+
+// The engine may run other scripts before it answers, so the state is not
+// held across the call.
+fn engine_call(
+    state: &Shared,
+    ctx: &mut dyn ImportCtx,
+    call: &EngineCall,
+    args: &[Raw],
+    outer: Option<*mut (dyn ImportCtx + 'static)>,
+) -> Result<Raws, String> {
+    let answer = {
+        let slots = Slots::read(&call.types, ctx, &call.sig.params, args);
+        (call.bound)(&slots)
+    };
+    state.borrow_mut().inside = outer;
+    let answer = answer?;
+    if let Some(out) = scalar(&call.sig.ret, &answer) {
+        return Ok(out);
+    }
+    if let (Value::Vector(numbers), 1..) = (&answer, call.answers_vector) {
+        return Ok(numbers[..call.answers_vector]
+            .iter()
+            .map(|number| Raw::F64(*number))
+            .collect());
+    }
+    encode_owned(ctx, &call.types, &call.sig.ret, &answer)
 }
 
 fn engine_async(

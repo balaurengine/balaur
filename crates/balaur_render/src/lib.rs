@@ -156,6 +156,8 @@ mod device;
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use appearance::keep_android_app;
 #[cfg(feature = "window")]
+mod access;
+#[cfg(feature = "window")]
 mod boot_cost;
 #[cfg(feature = "window")]
 mod frame_group;
@@ -922,6 +924,30 @@ pub(crate) fn set_color(eng: &Engine, entity: Entity, color: [f32; 4]) -> Result
 #[derive(Default)]
 pub struct RenderPlugin;
 
+fn insert_render_resources(reg: &mut balaur_plugin::Registry<'_>) {
+    reg.insert_resource(CameraConfig3d::default());
+    reg.insert_resource(ClearColorConfig {
+        color: [0.09, 0.098, 0.11],
+        changed: true,
+    });
+    reg.insert_resource(WindowConfig::default());
+    reg.insert_resource(GridConfig::default());
+    reg.insert_resource(DebugLineBuffer3d::default());
+    reg.insert_resource(DebugLineBuffer2d::default());
+    reg.insert_resource(DrawBuffer2d::default());
+    reg.insert_resource(world_text::TextDrawBuffer::default());
+    reg.insert_resource(retained::RetainedDraws::default());
+    reg.insert_resource(CameraConfig2d::default());
+    reg.insert_resource(camera::CurrentCameras::default());
+    reg.insert_resource(camera::HeldCameras::default());
+    reg.insert_resource(PostConfig::default());
+    reg.insert_resource(post::EffectsRead::default());
+    reg.insert_resource(ViewportSnapshot2d::default());
+    reg.insert_resource(ViewportSnapshot3d::default());
+    reg.insert_resource(stats::Stats::default());
+    reg.insert_resource(stats::Measured::default());
+}
+
 impl balaur_plugin::Plugin for RenderPlugin {
     fn name(&self) -> &'static str {
         "render"
@@ -937,27 +963,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
                 &light3d::budget_settings(),
             ),
         );
-        reg.insert_resource(CameraConfig3d::default());
-        reg.insert_resource(ClearColorConfig {
-            color: [0.09, 0.098, 0.11],
-            changed: true,
-        });
-        reg.insert_resource(WindowConfig::default());
-        reg.insert_resource(GridConfig::default());
-        reg.insert_resource(DebugLineBuffer3d::default());
-        reg.insert_resource(DebugLineBuffer2d::default());
-        reg.insert_resource(DrawBuffer2d::default());
-        reg.insert_resource(world_text::TextDrawBuffer::default());
-        reg.insert_resource(retained::RetainedDraws::default());
-        reg.insert_resource(CameraConfig2d::default());
-        reg.insert_resource(camera::CurrentCameras::default());
-        reg.insert_resource(camera::HeldCameras::default());
-        reg.insert_resource(PostConfig::default());
-        reg.insert_resource(post::EffectsRead::default());
-        reg.insert_resource(ViewportSnapshot2d::default());
-        reg.insert_resource(ViewportSnapshot3d::default());
-        reg.insert_resource(stats::Stats::default());
-        reg.insert_resource(stats::Measured::default());
+        insert_render_resources(reg);
         let mut m = reg.script_module("render")?;
         m.module_doc(
             "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
@@ -973,9 +979,8 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_check(&mut m);
         material::install_material_params(&mut m);
         boolean::install_boolean_api(&mut m);
-        multimesh_api::install_multimesh_api(&mut m);
-        multimesh_api::install_multimesh_list_api(&mut m);
-        populate::install_populate_api(&mut m);
+        multimesh_api::install_multimesh_records(&mut m);
+        populate::install_populate_records(&mut m);
         light::install_occluder_api(&mut m);
         stats::install_stats_api(&mut m);
         script_api::install_sprite_api(&mut m);
@@ -987,6 +992,13 @@ impl balaur_plugin::Plugin for RenderPlugin {
         tilemap::install_tilemap_terrain_api(&mut m);
         notifier::install_notifier_api(&mut m);
         script_api::register_window_module(reg)?;
+        for handle in &multimesh_api::HANDLES {
+            let mut multimesh = reg.script_module(handle.component)?;
+            multimesh.module_doc(handle.doc);
+            multimesh_api::install_multimesh_api(&mut multimesh, handle);
+            multimesh_api::install_multimesh_list_api(&mut multimesh, handle);
+            populate::install_populate_api(&mut multimesh, handle);
+        }
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);
         shape::register_line2d_component(reg);

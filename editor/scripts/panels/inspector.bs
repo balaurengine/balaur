@@ -62,10 +62,10 @@ impl Inspector {
         }
         let patched = head.get_node("Name");
         patched.widget.text = view["name"].as_str();
-        patched.widget.icon = view["icon"].as_str();
-        patched.widget.icon_color = view["icon_color"].as_str();
+        patched.widget_button.icon = view["icon"].as_str();
+        patched.widget_button.icon_color = view["icon_color"].as_str();
         head.get_node("Type").widget.text = view["kind"].as_str();
-        self.node.get_node("Foot").get_node("Add").widget.icon = view["add_icon"].as_str();
+        self.node.get_node("Foot").get_node("Add").widget_button.icon = view["add_icon"].as_str();
         self.editor.call("inspector_fill", self.query);
     }
 }

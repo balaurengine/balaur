@@ -12,6 +12,7 @@ kind = "row"
 absolute = true
 inset = [0.0, -1.0, 0.0, 0.0]
 height = 28
+[nodes.widget_layout]
 align_items = "center"
 
 [[nodes]]
@@ -31,9 +32,10 @@ name = "Row"
 parent = "axes"
 [nodes.widget]
 kind = "row"
+interactive = false
+[nodes.widget_layout]
 gap = [6, 6]
 align_items = "center"
-interactive = false
 
 [[nodes]]
 id = "x"
@@ -91,6 +93,7 @@ name = "Row"
 parent = "zoom"
 [nodes.widget]
 kind = "row"
+[nodes.widget_layout]
 gap = [2, 2]
 align_items = "center"
 

@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 [[nodes]]
@@ -20,9 +21,10 @@ parent = "panel"
 [nodes.widget]
 kind = "row"
 role = "toolbar_dock"
+height = 30
+[nodes.widget_layout]
 align_items = "center"
 gap = [6, 6]
-height = 30
 
 # Nothing stops on the click: the next line a script runs is where.
 [[nodes]]

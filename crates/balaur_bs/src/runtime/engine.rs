@@ -128,6 +128,11 @@ pub(crate) trait ImportCtx {
     fn read_into(&self, at: usize, out: &mut [u8]) {
         out.copy_from_slice(&self.read(at, out.len()));
     }
+    /// The module's memory in one slice, where the engine can lend one: what a
+    /// value read out of it walks, with no call per word.
+    fn memory_bytes(&self) -> Option<&[u8]> {
+        None
+    }
     fn write(&mut self, at: usize, bytes: &[u8]);
     fn global(&mut self, name: &str) -> Option<i32>;
     fn set_global(&mut self, name: &str, value: i32);

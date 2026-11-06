@@ -322,8 +322,7 @@ pub fn box_node(state: editor::State, id: str) -> any {
 pub fn animating(state: editor::State) -> bool {
     let tweens = state.layout["tweens"];
     for mark in tweens.keys() {
-        let handle = tweens[mark];
-        if animation::is_tween_running(handle) {
+        if animation::is_tween_running(tweens[mark].as_int()) {
             return true;
         }
     }
@@ -336,8 +335,7 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
     let mark = id + ":" + key;
     let running = layout_state["tweens"][mark];
     if running != nil {
-        let handle = running;
-        if animation::is_tween_running(handle) {
+        if animation::is_tween_running(running.as_int()) {
             return;
         }
     }
@@ -376,8 +374,7 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     if settled && eased(mark) {
         let running = layout_state["tweens"][mark];
         if running != nil {
-            let handle = running;
-            animation::stop(handle);
+            animation::stop_tween(running.as_int());
         }
         layout_state["tweens"][mark] = animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] });
         return;
@@ -385,6 +382,25 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     let parameters = util::map_or_empty(found.as_node().get_component("widget"));
     parameters[key] = value;
     found.as_node().set_component("widget", parameters);
+}
+
+/// The space between a box's children, memoised like `size`: a container's,
+/// on `widget_layout`.
+fn spaced(state: editor::State, id: str, gap: float) {
+    let layout_state: any = state.layout;
+    let mark = id + ":gap";
+    let value = [gap, gap];
+    if layout_state["sent"][mark] == value {
+        return;
+    }
+    let found = node(state, id);
+    if util::is_nil(found) {
+        return;
+    }
+    layout_state["sent"][mark] = value;
+    layout_state["quiet"] = 0;
+    let held = found.as_node();
+    held.widget_layout.gap = vec2(gap, gap);
 }
 
 /// Draw a box, or stop drawing it. Memoised like `size`, because a component
@@ -485,7 +501,7 @@ pub fn compute(state: &mut editor::State) {
     size(state, "shell", "padding", gutter(state));
     let gap = if tight { TIGHT_GAP } else { layout_state["gap"].as_float() };
     for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
-        size(state, id, "gap", [gap, gap]);
+        spaced(state, id, gap);
     }
     size(state, "left", "width", tree_width);
     size(state, "right", "width", inspector_width);

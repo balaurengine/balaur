@@ -133,12 +133,29 @@ fn a_filter_excludes_the_node_it_names() {
 }
 
 #[test]
+fn two_colliders_answer_their_closest_points_and_when_they_meet() {
+    run_clean(
+        r#"
+        let far = scene::get_node("World/Far");
+        let points = physics3d::closest_points(self.node, far).unwrap();
+        if math::abs(points.a.y - 5.5) > 0.001 { log::error("the near ball's point is at {points.a.y}"); }
+        if math::abs(points.b.y - 2.5) > 0.001 { log::error("the far ball's point is at {points.b.y}"); }
+        let moving = physics3d::ImpactOptions { velocity_a: vec3(0.0, -6.0, 0.0), max_time: 2.0 };
+        let met = physics3d::time_of_impact(self.node, far, moving).unwrap();
+        if math::abs(met.distance - 0.5) > 0.001 { log::error("they met after {met.distance}"); }
+        if math::abs(met.point.y + 0.5) > 0.001 { log::error("the near ball's own point is at {met.point.y}"); }
+        if physics3d::time_of_impact(self.node, far, physics3d::ImpactOptions { max_time: 2.0 }) != nil { log::error("two still balls met"); }
+        "#,
+    );
+}
+
+#[test]
 fn a_shape_query_finds_what_it_overlaps() {
     run_clean(
         r#"
         let hits = physics3d::overlap_shape(physics3d::ShapeQuery {
             at: vec3(0.0, 6.0, 0.0),
-            shape: { "kind": "sphere", "radius": 1.0 },
+            shape: physics3d::Shape { kind: "sphere", radius: 1.0 },
         });
         if hits.len() < 1 { log::error("a ball at the near ball's position found nothing"); }
         "#,
@@ -165,7 +182,7 @@ fn a_shapecast_stops_at_the_first_thing_in_the_way() {
             origin: vec3(0.0, 10.0, 0.0),
             direction: vec3(0.0, -1.0, 0.0),
             max_distance: 100.0,
-            shape: { "kind": "sphere", "radius": 0.25 },
+            shape: physics3d::Shape { kind: "sphere", radius: 0.25 },
         });
         if hit == nil { log::error("the swept ball hit nothing"); }
         let distance = hit.unwrap().distance;

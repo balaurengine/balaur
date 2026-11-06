@@ -9,6 +9,7 @@ visible = false
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 [[nodes]]
@@ -46,8 +47,9 @@ name = "Scroll"
 parent = "panel"
 [nodes.widget]
 kind = "scroll"
-axis = "vertical"
 grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
 
 # A form whose fields change with the file, so the pool makes them.
 [[nodes]]
@@ -56,4 +58,5 @@ name = "Form"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
+[nodes.widget_layout]
 gap = [2, 2]
