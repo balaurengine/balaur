@@ -33,9 +33,10 @@ is rewritten in the same commit).
   audio with a fixed schema. Hand-written on purpose: `meta` and `states`
   (every key is the author's), `mesh` (any `morph_*` key) and `material`
   (core's `Appearance` holds it, which scripts and snapshots write directly).
-- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 208
+- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 60
   fields, beside the `Widget` cache; a one-property write updates the one
-  `Widget` field it feeds (`cache_fields!`), 18 properties rebuild whole.
+  `Widget` field it feeds (`cache_fields!`), and `kind` and `text_style`
+  rebuild whole. The 25 components beside it do the same through `puts!`.
   A click, drag or keystroke writes the struct, and `schema::follow`
   redoes the `Widget` fields those properties fill (`input.rs`), so the
   struct is the one source. Core's `PropertyReaders`/`PropertyWriters` are
@@ -52,7 +53,7 @@ is rewritten in the same commit).
   (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
   which half is wrong.
 - Beside components (physics) register before their main component, so a
-  scene builds the main one once, and so do the ones beside `widget`. 100
+  scene builds the main one once, and so do the ones beside `widget`. 111
   components are registered of the 128 `Attached` allows.
 
 ## Left to do, in order
@@ -65,20 +66,17 @@ is rewritten in the same commit).
    definition is `ComponentDef::by_hand(schema, apply, remove, get)`.
 2. **Per-kind rows still applying on a condition** (PLAN-component-order
    §4): no property should.
-   - `widget`: done 2026-10-31. The rows one set of kinds reads are a
-     component beside it (`crates/balaur_ui/src/widget/beside.rs`):
-     `widget_range` (slider, number_field, progress_bar), `widget_field`
-     (text_field, text_area, code), `widget_scroll` (scroll, list, tree,
-     table), `widget_list` (list, tree), `widget_table`, `widget_code`,
-     `widget_inspector`, `widget_menu`, `widget_window` (window, dialog),
-     `widget_color_picker`, `widget_image`, `widget_dropdown`,
-     `widget_separator`, `widget_toast`. Each puts its rows on the `Widget`
-     where the kind reads them, its defaults where the node holds none; a
-     reader's edit (a value, a colour, a scroll, a sort) is written onto
-     it. A pooled control's spec stays one table: the pool sends each row
-     to the component holding it. What stays on `widget` is read by most
-     kinds, or by kinds the clusters cut across (`options`, `checked`,
-     `prefix`, `reverse`, the grid rows a list's cards also read).
+   - `widget`: done 2026-11-03. Every row only some kinds read is on a
+     component beside it, 25 in all (`crates/balaur_ui/src/widget/beside.rs`,
+     `beside_box.rs`, `beside_controls.rs`), audited row by row in
+     PLAN-component-order §4.1; `widget` keeps the 60 most kinds read. A row
+     may sit on two components whose kinds are apart (`axis` on the scroll's,
+     the range's and the separator's), and a pooled control's one table goes
+     to the one its kind reads; a screen class's table names any of them.
+     Each puts its rows on the `Widget` where the kind reads them, its
+     defaults where the node holds none, and a write of one row puts that row
+     alone; a reader's edit (a value, a tick, a pick, a page) is written onto
+     it.
    - The primitives' dimensions: done 2026-10-31. A `variant` property
      type holds a kind and that kind's rows; `shape2d`, `shape3d`,
      `collider2d` and `collider3d` each hold one `shape`.

@@ -165,9 +165,9 @@ Nothing left to do: `animation`, `bindings`, `body2d`, `body3d`, `bone2d`, `bone
 
 ### 4.1 The rows of `widget`
 
-Audited 2026-11-03 by reading where each `Widget` field is read, against the 31 kinds. A row most kinds read stays; every other row moved. `widget` went from 130 rows to 61.
+Audited 2026-11-03 by reading where each `Widget` field is read, against the 31 kinds. A row most kinds read stays; every other row moved. `widget` went from 130 rows to 60, beside 25 components.
 
-Stays: `kind`, `text` (17 kinds), `enabled`, every `placement` row (any child or root), `padding`, `border`, `theme`, `role`, `fill`, `stroke`, `text_color`, `corner_radius`, `dashed`, `fade_in`, the `font` group (21 kinds), `text_key`, `tooltip`, `on_click`, `on_change` (17 kinds), `on_focus`, `on_blur`, `on_double_click`, `interactive`, `focusable`, `neighbour_*`, `cursor`, `context` (any kind).
+Stays: `kind`, `text` (17 kinds), `enabled`, every `placement` row (any child or root), `padding`, `border`, `theme`, `role`, `fill`, `stroke`, `text_color`, `corner_radius`, `dashed`, `fade_in`, `font`, `font_size`, `font_weight`, `font_style` and `text_style` (21 kinds), `text_key`, `tooltip`, `on_click`, `on_change` (17 kinds), `on_focus`, `on_blur`, `on_double_click`, `interactive`, `focusable`, `neighbour_*`, `cursor`, `context` (any kind).
 
 | Rows | Read by | Now on |
 | --- | --- | --- |
@@ -213,7 +213,7 @@ Decided with the audit:
 - A component any kind may carry (`widget_box`, `widget_child`, `widget_shortcut`) is read by every kind and brought by no preset: a node names it where it asks for a row. A preset brings the rest of what its kind reads.
 - A screen class's table stays `[nodes.widget.<class>]`, and names any row of the widget or of a component its kind reads. It is one table of what the widget is under that class; a row the kind reads nothing of, or a value of the wrong shape, is refused.
 - `keep_open` on a `dropdown` is `close_on`, as on a `menu`, whose default for a dropdown is `click`. A button's `gap` is `face_gap`, since a `menu` is a container and a button both.
-- `checked` drew the `checked` look on any kind. It is read by the four above now, so a `label` wears a look of its own role instead.
+- `checked` drew the `checked` look on any kind. It is read by the four above now; the one `label` in the tree that wore it, the state machine's chip, is a `button` nothing can click or focus.
 - `kind` written alone rebuilds the widget, since it decides which components beside it the widget reads.
 
 ## 5. How the moves land
