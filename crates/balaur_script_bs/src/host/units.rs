@@ -288,6 +288,36 @@ impl BsHost {
     /// every object of them carried across by field name. Nothing changes
     /// when a file does not build. False when it has to wait: a script of the
     /// instance runs or is stopped, and it is built between frames.
+    /// A fresh instance at `place` with each of `built` linked into it, and
+    /// the unit each became.
+    fn linked_fresh(
+        &self,
+        place: Place,
+        built: &[(String, Compiled, String)],
+    ) -> Result<(balaur_bs::runtime::Runtime, Vec<usize>)> {
+        let unit_builds = built
+            .iter()
+            .map(|(key, ..)| self.unit(key))
+            .collect::<Result<Vec<_>>>()?;
+        let joining: Vec<&Compiled> =
+            unit_builds
+                .iter()
+                .map(|unit| &**unit)
+                .chain(built.iter().flat_map(|(_, compiled, _)| {
+                    compiled.linked.iter().map(|(_, linked)| &**linked)
+                }))
+                .collect();
+        let mut fresh = self.instance_runtime(place, &joining)?;
+        let mut units = vec![];
+        for ((key, compiled, _), unit) in built.iter().zip(&unit_builds) {
+            let index = fresh
+                .link(key, unit, &compiled.linked)
+                .map_err(|e| anyhow!("{key}: {e}"))?;
+            units.push(index);
+        }
+        Ok((fresh, units))
+    }
+
     pub(super) fn rebuild_instance(&self, place: Place, changed: &[String]) -> Result<bool> {
         let members: Vec<(String, Rc<File>)> = self
             .inner
@@ -334,15 +364,7 @@ impl BsHost {
             }
             built.push((key.clone(), compiled, ty));
         }
-        let mut fresh = self.instance_runtime(place)?;
-        let mut units = vec![];
-        for (key, compiled, _) in &built {
-            let unit = self.unit(key)?;
-            let index = fresh
-                .link(key, &unit, &compiled.linked)
-                .map_err(|e| anyhow!("{key}: {e}"))?;
-            units.push(index);
-        }
+        let (mut fresh, units) = self.linked_fresh(place, &built)?;
         let unit_of = |path: &str| {
             built
                 .iter()

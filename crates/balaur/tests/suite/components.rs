@@ -115,7 +115,7 @@ fn app_with_every_component() -> (tempfile::TempDir, balaur::App) {
 }
 
 fn logged_at(level: &str) -> Vec<String> {
-    balaur_core::logbuf::recent(500)
+    balaur_core::logbuf::heard()
         .into_iter()
         .filter(|entry| entry.level == level)
         .map(|entry| entry.message)

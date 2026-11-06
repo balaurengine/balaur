@@ -604,7 +604,10 @@ impl BsHost {
         } else {
             place_of(key)
         };
-        let home = self.home(place)?;
+        let joining: Vec<&Compiled> = std::iter::once(&*unit)
+            .chain(compiled.linked.iter().map(|(_, linked)| &**linked))
+            .collect();
+        let home = self.home(place, &joining)?;
         let index = home
             .either(
                 |rt| rt.link(key, &unit, &compiled.linked),
@@ -673,12 +676,16 @@ impl BsHost {
         }
     }
 
-    /// The instance at `place`, made with the first file that joins it.
-    fn home(&self, place: Place) -> Result<Rc<Home>> {
+    /// The instance at `place`, made with the first file that joins it:
+    /// `joining`, its unit and the units it uses.
+    fn home(&self, place: Place, joining: &[&Compiled]) -> Result<Rc<Home>> {
         if let Some(home) = self.place_slot(place).borrow().as_ref() {
             return Ok(home.clone());
         }
-        let home = Home::new(self.instance_runtime(place)?, self.debugged_in(place));
+        let home = Home::new(
+            self.instance_runtime(place, joining)?,
+            self.debugged_in(place),
+        );
         *self.place_slot(place).borrow_mut() = Some(home.clone());
         Ok(home)
     }
@@ -689,13 +696,17 @@ impl BsHost {
             .map_err(|e| anyhow!("{PROJECT_KEY}:{e}"))
     }
 
-    // An instance with no file in it yet, on the engine what it holds asks for.
-    fn instance_runtime(&self, place: Place) -> Result<Runtime> {
+    // An instance with no file in it yet, on the engine what it holds asks for;
+    // native only when a loaded build has every unit of `joining`.
+    fn instance_runtime(&self, place: Place, joining: &[&Compiled]) -> Result<Runtime> {
         let root = self.project_unit()?;
+        let all_native = joining
+            .iter()
+            .all(|unit| crate::native::has_native(&unit.wasm));
         let limits = Limits {
             engine: self.engine_of(place),
             memory_bytes: Some(MEMORY_CAP),
-            skip_native: !self.may_run_native(place),
+            skip_native: !(self.may_run_native(place) && all_native),
             ..Limits::default()
         };
         Runtime::new(&root, self.host_fns(place), limits).map_err(|e| anyhow!("{PROJECT_KEY}: {e}"))
