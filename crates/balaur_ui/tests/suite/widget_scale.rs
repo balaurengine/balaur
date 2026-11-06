@@ -115,6 +115,44 @@ mod classes {
         });
     }
 
+    /// A class table names a row of a component beside the widget as it
+    /// names the widget's own: a narrow screen spaces a column's children out.
+    #[test]
+    fn a_class_table_writes_a_row_beside_the_widget() {
+        let second_at = |width: f32| {
+            let (_dir, app) = app();
+            let column = add_widget(
+                &app,
+                &toml::toml! {
+                    kind = "column" x = 0.0 y = 0.0 width = 100.0 padding = 0.0
+                    widget_layout = { gap = [0.0, 0.0] }
+                    [narrow]
+                    gap = [0.0, 30.0]
+                }
+                .into(),
+            );
+            let label = toml::toml! { kind = "label" text = "a" height = 10.0 };
+            crate::support::add_child_widget(&app, column, "first", &label.clone().into());
+            let second = crate::support::add_child_widget(&app, column, "second", &label.into());
+            screen(&app, width, 900.0);
+            let ctx = egui::Context::default();
+            settle(&app, &ctx);
+            pass(&app, &ctx, vec![]);
+            balaur_ui::widget_rect(second)
+                .expect("the second label drew")
+                .top()
+                - balaur_ui::widget_rect(column)
+                    .expect("the column drew")
+                    .top()
+        };
+        let wide = second_at(1200.0);
+        let narrow = second_at(390.0);
+        assert!(
+            (narrow - wide - 30.0).abs() < 0.5,
+            "the narrow gap was not taken: {wide} wide, {narrow} narrow"
+        );
+    }
+
     /// The commonest thing a narrow screen asks for: a row that is not worth
     /// drawing when there is no room for it.
     #[test]

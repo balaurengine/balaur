@@ -38,8 +38,7 @@ fn a_slider_commits_its_value_when_the_press_lets_go() {
 #[test]
 fn a_dropdown_says_when_its_list_opens_and_shuts() {
     let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "dropdown" text = "One" options = ["One", "Two"] x = 0.0 y = 0.0 };
+    let params = toml::toml! { kind = "dropdown" text = "One" x = 0.0 y = 0.0 widget_dropdown = { options = ["One", "Two"] } };
     let dropdown = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -66,7 +65,7 @@ fn a_double_clicked_row_is_activated() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 120.0
-        items = [{ label = "First" }, { label = "Second" }]
+        widget_rows = { items = [{ label = "First" }, { label = "Second" }] }
     };
     let list = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -93,7 +92,7 @@ fn a_tree_row_says_when_its_caret_folds_it() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 120.0
-        items = [{ label = "Root" }, { label = "Child", depth = 1 }]
+        widget_rows = { items = [{ label = "Root" }, { label = "Child", depth = 1 }] }
     };
     let tree = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -127,7 +126,7 @@ fn a_scroll_says_where_it_moved_to() {
     let (_dir, mut app) = app();
     let scroll = add_widget(
         &app,
-        &toml::toml! { kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] }
+        &toml::toml! { kind = "scroll" x = 0.0 y = 0.0 width = 200.0 height = 100.0 widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     for i in 0..20 {
@@ -184,7 +183,7 @@ fn a_window_that_keeps_itself_open_only_asks_to_close() {
     pass(&app, &ctx, press(cross, false));
     consume_input(&mut app);
     assert_eq!(heard(&app, window, "close_request"), vec![Value::Nil]);
-    let open = balaur::components::get(&app.engine, window, "widget")
+    let open = balaur::components::get(&app.engine, window, "widget_window")
         .and_then(|w| w.get("open").and_then(toml::Value::as_bool));
     assert_eq!(open, Some(true), "the script decides whether it shuts");
 }

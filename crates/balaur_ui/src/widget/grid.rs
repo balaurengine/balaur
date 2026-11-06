@@ -6,6 +6,7 @@
 //! `minmax(80, 1fr)` and `repeat(3, 1fr)`, whose count may be `auto_fill` or
 //! `auto_fit`. A placement is a line, `1 / 3`, `span 2` or an area's name.
 
+use smol_str::SmolStr;
 use taffy::geometry::Line;
 use taffy::style::{
     GridPlacement, GridTemplateArea, GridTemplateAreas, GridTemplateComponent,
@@ -14,23 +15,45 @@ use taffy::style::{
 
 use crate::vocabulary::words::AUTO;
 use crate::vocabulary::words::track as t;
-use crate::widget::node::Layout;
 
-/// Refuse a layout whose grid words do not read, saying which and why.
+/// Refuse a template row whose words do not read, saying whose and why.
 ///
 /// # Errors
-/// The first key that does not read.
-pub(crate) fn check(layout: &Layout) -> anyhow::Result<()> {
-    use crate::vocabulary::keys as k;
-    let named = |key: &str, why: String| anyhow::anyhow!("widget: `{key}`: {why}");
-    template(&layout.grid_columns).map_err(|why| named(k::GRID_COLUMNS, why))?;
-    template(&layout.grid_rows).map_err(|why| named(k::GRID_ROWS, why))?;
-    auto_tracks(&layout.auto_columns).map_err(|why| named(k::AUTO_COLUMNS, why))?;
-    auto_tracks(&layout.auto_rows).map_err(|why| named(k::AUTO_ROWS, why))?;
-    areas(&layout.areas).map_err(|why| named(k::AREAS, why))?;
-    placement(&layout.row).map_err(|why| named(k::ROW, why))?;
-    placement(&layout.column).map_err(|why| named(k::COLUMN, why))?;
-    Ok(())
+/// The row, named with the component holding it.
+pub(crate) fn check_tracks(component: &str, row: &str, words: &str) -> anyhow::Result<()> {
+    template(words)
+        .map(|_| ())
+        .map_err(|why| anyhow::anyhow!("{component}: `{row}`: {why}"))
+}
+
+/// [`check_tracks`] for a row of tracks a grid adds past its template.
+///
+/// # Errors
+/// The row, named with the component holding it.
+pub(crate) fn check_auto(component: &str, row: &str, words: &str) -> anyhow::Result<()> {
+    auto_tracks(words)
+        .map(|_| ())
+        .map_err(|why| anyhow::anyhow!("{component}: `{row}`: {why}"))
+}
+
+/// [`check_tracks`] for a grid's named areas.
+///
+/// # Errors
+/// The row, named with the component holding it.
+pub(crate) fn check_areas(component: &str, row: &str, named: &[SmolStr]) -> anyhow::Result<()> {
+    areas(named)
+        .map(|_| ())
+        .map_err(|why| anyhow::anyhow!("{component}: `{row}`: {why}"))
+}
+
+/// [`check_tracks`] for a child's line, span or area.
+///
+/// # Errors
+/// The row, named with the component holding it.
+pub(crate) fn check_placement(component: &str, row: &str, words: &str) -> anyhow::Result<()> {
+    placement(words)
+        .map(|_| ())
+        .map_err(|why| anyhow::anyhow!("{component}: `{row}`: {why}"))
 }
 
 /// The words split at spaces outside brackets, which is where one track ends.

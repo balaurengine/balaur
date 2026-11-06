@@ -8,37 +8,76 @@
 //! never names one draws as its kind always did. A write or a removal of one
 //! redoes those fields; a rebuild of the widget reads them all again.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::Result;
 use balaur_core::Engine;
 use balaur_core::components::ComponentDef;
-use balaur_core::components::derived::{Component, Fields, Written};
+use balaur_core::components::derived::{Component, Fields, Written, to_table};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::warnings::Warning;
 use balaur_plugin::Registry;
+use balaur_text::vocabulary::words as tw;
+use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
-use crate::vocabulary::words as w;
+use crate::vocabulary::{keys as k, words as w};
+use crate::widget::beside_box::{
+    WidgetBox, WidgetChild, WidgetFold, WidgetGrid, WidgetLayout, WidgetTabs,
+};
+use crate::widget::beside_controls::{
+    WidgetButton, WidgetCheck, WidgetRows, WidgetShortcut, WidgetText, look, tab_stops,
+};
 use crate::widget::node::{EguiOptions, Widget};
 use crate::widget::properties::{
-    Alpha, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, NumberFormat, Numeral, Placement,
-    Scrollbar, SidePlacement, WidgetProperties,
+    Alpha, Axis, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, LineBreak, NumberFormat, Numeral,
+    Placement, Scrollbar, SidePlacement, TextAlign, WidgetProperties,
 };
 
 /// A component beside `widget`, read by the kinds `reads` names.
 pub(crate) trait Beside: Component + Clone {
     /// Whether a widget of this kind reads the rows.
-    fn reads(asked: &WidgetProperties) -> bool;
+    fn reads(kind: &str) -> bool;
+
+    /// Whether a preset of this kind brings the component. Every kind may
+    /// carry one any kind reads, and a node names it where it asks for a row.
+    fn brought_by(kind: &str) -> bool {
+        Self::reads(kind)
+    }
 
     /// The rows onto the widget the layer reads.
     fn put(&self, widget: &mut Widget);
+
+    /// One row onto the widget, by its name, leaving the others; `false` for
+    /// a name it does not hold.
+    fn put_row(&self, widget: &mut Widget, row: &str) -> bool;
 
     /// Refuse what the types alone cannot judge.
     fn check(&self) -> Result<()> {
         Ok(())
     }
 }
+
+/// Each row's place in the [`Widget`], written once for both ways it is
+/// filled: [`Beside::put`] whole, [`Beside::put_row`] the one a write changed.
+macro_rules! puts {
+    ($held:ident, $widget:ident; $($row:ident => $write:expr;)*) => {
+        fn put(&self, $widget: &mut $crate::widget::node::Widget) {
+            let $held = self;
+            $($write;)*
+        }
+
+        fn put_row(&self, $widget: &mut $crate::widget::node::Widget, row: &str) -> bool {
+            let $held = self;
+            match row {
+                $(stringify!($row) => $write,)*
+                _ => return false,
+            }
+            true
+        }
+    };
+}
+pub(crate) use puts;
 
 /// The rows a `code` widget reads: what it highlights and its gutter.
 #[derive(Clone, PartialEq, Component)]
@@ -63,18 +102,19 @@ pub(crate) struct WidgetCode {
 }
 
 impl Beside for WidgetCode {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::CODE
+    fn reads(kind: &str) -> bool {
+        kind == w::CODE
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.source = self.language.clone();
-        widget.breakpoints = lines(&self.breakpoints);
-        widget.problems = lines(&self.problems);
-        widget.warnings = lines(&self.warnings);
-        widget.current_line = u32::try_from(self.current_line.max(0)).unwrap_or(u32::MAX);
-        widget.gutter_width = self.gutter_width;
-        widget.on_gutter = self.on_gutter.clone();
+    puts! { held, widget;
+        language => widget.source = held.language.clone();
+        breakpoints => widget.breakpoints = lines(&held.breakpoints);
+        problems => widget.problems = lines(&held.problems);
+        warnings => widget.warnings = lines(&held.warnings);
+        current_line => widget.current_line =
+            u32::try_from(held.current_line.max(0)).unwrap_or(u32::MAX);
+        gutter_width => widget.gutter_width = held.gutter_width;
+        on_gutter => widget.on_gutter = held.on_gutter.clone();
     }
 }
 
@@ -86,26 +126,41 @@ pub(crate) struct WidgetTable {
     pub(crate) titles: Vec<SmolStr>,
     /// Each column's share of the width, in the order `titles` names them: `["2", "1", "1"]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back
     pub(crate) widths: Vec<Numeral>,
-    /// The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. The widget's `reverse` takes them the other way round
+    /// The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. `reverse` takes them the other way round
     pub(crate) sort: SmolStr,
     /// Let a click on the header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret
     pub(crate) sortable: bool,
+    /// Take a `table`'s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named
+    pub(crate) reverse: bool,
+    /// Draw the strip that names a `table`'s columns. Off, its columns are still `titles`', and a table that names none keeps its first row as a row
+    #[property(default = true)]
+    pub(crate) header: bool,
+    /// How wide a grab the seam between two of a `table`'s columns gets, in design pixels; 0 takes six
+    #[property(min = 0.0)]
+    pub(crate) splitter_width: f32,
+    /// Where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right
+    #[property(default = TextAlign::new(w::START))]
+    pub(crate) text_align: TextAlign,
 }
 
 impl Beside for WidgetTable {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::TABLE
+    fn reads(kind: &str) -> bool {
+        kind == w::TABLE
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.titles.clone_from(&self.titles);
-        widget.widths = self.widths.iter().filter_map(Numeral::share).collect();
-        widget.sort = self.sort.clone();
-        widget.sortable = self.sortable;
+    puts! { held, widget;
+        titles => widget.titles.clone_from(&held.titles);
+        widths => widget.widths = held.widths.iter().filter_map(Numeral::share).collect();
+        sort => widget.sort = held.sort.clone();
+        sortable => widget.sortable = held.sortable;
+        reverse => widget.reverse = held.reverse;
+        header => widget.header = held.header;
+        splitter_width => widget.handle = held.splitter_width;
+        text_align => widget.text_align = held.text_align.0.clone();
     }
 }
 
-/// The rows a `window` or a `dialog` reads: its chrome, and what shuts it.
+/// The rows a `window` or a `dialog` reads: whether it is up, its chrome, and what shuts it.
 #[allow(
     clippy::struct_excessive_bools,
     reason = "a property a field: each switch the component offers is one"
@@ -113,6 +168,12 @@ impl Beside for WidgetTable {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_window")]
 pub(crate) struct WidgetWindow {
+    /// Whether a `window` or `dialog` is up; shut, it draws nothing and keeps nothing out
+    #[property(default = true)]
+    pub(crate) open: bool,
+    /// Draw a `window`'s title bar
+    #[property(default = true)]
+    pub(crate) header: bool,
     /// Give a `window`'s title bar an arrow that folds the window to its bar and back
     pub(crate) collapsible: bool,
     /// Whether a `collapsible` window starts unfolded
@@ -132,22 +193,32 @@ pub(crate) struct WidgetWindow {
     /// What a `dialog` dims the screen behind it with
     #[property(color, default = [0.0, 0.0, 0.0, 0.549])]
     pub(crate) backdrop_color: [f32; 4],
+    /// Script method called when a `window` or `dialog` comes up, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_opened: SmolStr,
+    /// Script method called when a `window` or `dialog` goes away, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_closed: SmolStr,
+    /// Script method called when a `window`'s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_close_request: SmolStr,
 }
 
 impl Beside for WidgetWindow {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(asked.kind.0.as_str(), w::WINDOW | w::DIALOG)
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::WINDOW | w::DIALOG)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.hide_on_close = self.hide_on_close;
-        let egui = egui(widget);
-        egui.collapsible = self.collapsible;
-        egui.default_open = self.default_open;
-        egui.closable = self.closable;
-        egui.resizable = self.resizable;
-        egui.dismissable = self.dismissable;
-        egui.backdrop_color = self.backdrop_color;
+    puts! { held, widget;
+        open => widget.open = held.open;
+        header => widget.header = held.header;
+        collapsible => egui(widget).collapsible = held.collapsible;
+        default_open => egui(widget).default_open = held.default_open;
+        closable => egui(widget).closable = held.closable;
+        hide_on_close => widget.hide_on_close = held.hide_on_close;
+        resizable => egui(widget).resizable = held.resizable;
+        dismissable => egui(widget).dismissable = held.dismissable;
+        backdrop_color => egui(widget).backdrop_color = held.backdrop_color;
+        on_opened => widget.on_opened = held.on_opened.clone();
+        on_closed => widget.on_closed = held.on_closed.clone();
+        on_close_request => widget.on_close_request = held.on_close_request.clone();
     }
 }
 
@@ -161,12 +232,12 @@ pub(crate) struct WidgetToast {
 }
 
 impl Beside for WidgetToast {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::TOAST
+    fn reads(kind: &str) -> bool {
+        kind == w::TOAST
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.duration = self.duration;
+    puts! { held, widget;
+        duration => widget.duration = held.duration;
     }
 }
 
@@ -179,17 +250,20 @@ pub(crate) struct WidgetSeparator {
     pub(crate) spacing: f32,
     /// How far a `separator`'s line runs past each end of the room it was given, in design pixels; below zero stops it short
     pub(crate) overhang: f32,
+    /// Which line a `separator` draws; `both` leaves it across its parent's direction
+    #[property(default = Axis::new(w::BOTH))]
+    pub(crate) axis: Axis,
 }
 
 impl Beside for WidgetSeparator {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::SEPARATOR
+    fn reads(kind: &str) -> bool {
+        kind == w::SEPARATOR
     }
 
-    fn put(&self, widget: &mut Widget) {
-        let egui = egui(widget);
-        egui.spacing = self.spacing;
-        egui.overhang = self.overhang;
+    puts! { held, widget;
+        spacing => egui(widget).spacing = held.spacing;
+        overhang => egui(widget).overhang = held.overhang;
+        axis => widget.axis = held.axis.0.clone();
     }
 }
 
@@ -213,25 +287,30 @@ pub(crate) struct WidgetMenu {
     pub(crate) close_on: CloseOn,
     /// Holds a menu's rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there
     pub(crate) showing: bool,
+    /// The words a `menu` of strings offers, its `text` being the button's caption; `on_change` hears every pick
+    pub(crate) options: Vec<SmolStr>,
+    /// Script method called when a `menu`'s popup comes up, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_opened: SmolStr,
+    /// Script method called when a `menu`'s popup goes away, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_closed: SmolStr,
 }
 
 impl Beside for WidgetMenu {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::MENU
+    fn reads(kind: &str) -> bool {
+        kind == w::MENU
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.placement = self.placement.0.clone();
-        widget.showing = self.showing;
-        let egui = egui(widget);
-        egui.placement_fallbacks = self
-            .placement_fallbacks
-            .iter()
-            .map(|side| side.0.clone())
-            .collect();
-        egui.popup_gap = self.popup_gap;
-        egui.popup_width = self.popup_width;
-        egui.close_on = self.close_on.0.clone();
+    puts! { held, widget;
+        placement => widget.placement = held.placement.0.clone();
+        placement_fallbacks => egui(widget).placement_fallbacks =
+            held.placement_fallbacks.iter().map(|side| side.0.clone()).collect();
+        popup_gap => egui(widget).popup_gap = held.popup_gap;
+        popup_width => egui(widget).popup_width = held.popup_width;
+        close_on => egui(widget).close_on = held.close_on.0.clone();
+        showing => widget.showing = held.showing;
+        options => widget.options.clone_from(&held.options);
+        on_opened => widget.on_opened = held.on_opened.clone();
+        on_closed => widget.on_closed = held.on_closed.clone();
     }
 }
 
@@ -247,18 +326,20 @@ pub(crate) struct WidgetColorPicker {
     pub(crate) alpha: Alpha,
     /// Draw a `color_picker`'s picker in place, rather than behind a swatch that opens it
     pub(crate) inline: bool,
+    /// Script method called with the colour once a drag that changed it is over, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_commit: SmolStr,
 }
 
 impl Beside for WidgetColorPicker {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::COLOR_PICKER
+    fn reads(kind: &str) -> bool {
+        kind == w::COLOR_PICKER
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.color = self.picked_color;
-        let egui = egui(widget);
-        egui.alpha = self.alpha.0.clone();
-        egui.inline = self.inline;
+    puts! { held, widget;
+        picked_color => widget.color = held.picked_color;
+        alpha => egui(widget).alpha = held.alpha.0.clone();
+        inline => egui(widget).inline = held.inline;
+        on_commit => widget.on_commit = held.on_commit.clone();
     }
 }
 
@@ -324,42 +405,49 @@ pub(crate) struct WidgetRange {
     pub(crate) trailing_fill: bool,
     /// Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise
     pub(crate) animate: bool,
+    /// Which way a `slider` runs: up its box under `vertical`, along it otherwise
+    #[property(default = Axis::new(w::BOTH))]
+    pub(crate) axis: Axis,
+    /// Text drawn before a `number_field`'s or a shown `slider`'s number with a space between
+    pub(crate) prefix: SmolStr,
+    /// Units drawn after a `number_field`'s or a shown `slider`'s number with a space between
+    pub(crate) suffix: SmolStr,
+    /// Script method called with the number once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_commit: SmolStr,
 }
 
 impl Beside for WidgetRange {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(
-            asked.kind.0.as_str(),
-            w::SLIDER | w::NUMBER_FIELD | w::PROGRESS_BAR
-        )
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::SLIDER | w::NUMBER_FIELD | w::PROGRESS_BAR)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.value = self.value;
-        widget.min = self.min;
-        widget.max = self.max;
-        widget.step = self.step;
-        egui(widget).decimals = i32::try_from(self.decimals).unwrap_or(if self.decimals < 0 {
-            i32::MIN
-        } else {
-            i32::MAX
-        });
-        egui(widget).clamp = self.clamp.0.clone();
-        egui(widget).clamp_existing = self.clamp_existing;
-        egui(widget).logarithmic = self.logarithmic;
-        egui(widget).smallest_positive = self.smallest_positive;
-        egui(widget).largest_finite = self.largest_finite;
-        egui(widget).smart_aim = self.smart_aim;
-        egui(widget).show_value = self.show_value;
-        egui(widget).show_percentage = self.show_percentage;
-        egui(widget).number_format = self.number_format.0.clone();
-        egui(widget).drag_speed = self.drag_speed;
-        widget.arrows = self.arrows;
-        egui(widget).update_while_editing = self.update_while_editing;
-        egui(widget).handle = self.handle.0.clone();
-        egui(widget).handle_aspect = self.handle_aspect;
-        egui(widget).trailing_fill = self.trailing_fill;
-        egui(widget).animate = self.animate;
+    puts! { held, widget;
+        value => widget.value = held.value;
+        min => widget.min = held.min;
+        max => widget.max = held.max;
+        step => widget.step = held.step;
+        decimals => egui(widget).decimals = i32::try_from(held.decimals)
+            .unwrap_or(if held.decimals < 0 { i32::MIN } else { i32::MAX });
+        clamp => egui(widget).clamp = held.clamp.0.clone();
+        clamp_existing => egui(widget).clamp_existing = held.clamp_existing;
+        logarithmic => egui(widget).logarithmic = held.logarithmic;
+        smallest_positive => egui(widget).smallest_positive = held.smallest_positive;
+        largest_finite => egui(widget).largest_finite = held.largest_finite;
+        smart_aim => egui(widget).smart_aim = held.smart_aim;
+        show_value => egui(widget).show_value = held.show_value;
+        show_percentage => egui(widget).show_percentage = held.show_percentage;
+        number_format => egui(widget).number_format = held.number_format.0.clone();
+        drag_speed => egui(widget).drag_speed = held.drag_speed;
+        arrows => widget.arrows = held.arrows;
+        update_while_editing => egui(widget).update_while_editing = held.update_while_editing;
+        handle => egui(widget).handle = held.handle.0.clone();
+        handle_aspect => egui(widget).handle_aspect = held.handle_aspect;
+        trailing_fill => egui(widget).trailing_fill = held.trailing_fill;
+        animate => egui(widget).animate = held.animate;
+        axis => widget.axis = held.axis.0.clone();
+        prefix => egui(widget).prefix = held.prefix.clone();
+        suffix => widget.suffix = held.suffix.clone();
+        on_commit => widget.on_commit = held.on_commit.clone();
     }
 }
 
@@ -393,14 +481,28 @@ pub(crate) struct WidgetField {
     pub(crate) tab_inserts: bool,
     /// The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says
     pub(crate) submit_key: SmolStr,
+    /// Text drawn before a `text_field`'s or `text_area`'s text
+    pub(crate) prefix: SmolStr,
+    /// Text drawn after a `text_field`'s or `text_area`'s text
+    pub(crate) suffix: SmolStr,
+    /// Script method called with a `text_field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_submit: SmolStr,
+    /// Script method called with `{ x, y, index }` when a `code` widget's caret moves, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_caret: SmolStr,
+    /// Where what a `text_field` or `text_area` edits sits in its width
+    #[property(default = TextAlign::new(w::START))]
+    pub(crate) text_align: TextAlign,
+    /// Where a `text_area`'s wrapped line may break
+    #[property(default = LineBreak::new(tw::WORD_OR_GLYPH))]
+    pub(crate) line_break: LineBreak,
+    /// Spaces between a `text_field`'s or `text_area`'s tab stops
+    #[property(default = 8, min = 1, max = 64)]
+    pub(crate) tab_width: i64,
 }
 
 impl Beside for WidgetField {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(
-            asked.kind.0.as_str(),
-            w::TEXT_FIELD | w::TEXT_AREA | w::CODE
-        )
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::TEXT_FIELD | w::TEXT_AREA | w::CODE)
     }
 
     /// A `submit_key` that is not a chord.
@@ -414,16 +516,24 @@ impl Beside for WidgetField {
         Ok(())
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.placeholder = self.placeholder.clone();
-        widget.max_length = self.max_length;
-        widget.numeric = self.numeric;
-        widget.secret = self.secret;
-        egui(widget).editable = self.editable;
-        egui(widget).clip_text = self.clip_text;
-        egui(widget).caret_at_end = self.caret_at_end;
-        egui(widget).tab_inserts = self.tab_inserts;
-        egui(widget).submit_key = self.submit_key.clone();
+    puts! { held, widget;
+        placeholder => widget.placeholder = held.placeholder.clone();
+        max_length => widget.max_length = held.max_length;
+        numeric => widget.numeric = held.numeric;
+        secret => widget.secret = held.secret;
+        editable => egui(widget).editable = held.editable;
+        clip_text => egui(widget).clip_text = held.clip_text;
+        caret_at_end => egui(widget).caret_at_end = held.caret_at_end;
+        tab_inserts => egui(widget).tab_inserts = held.tab_inserts;
+        submit_key => egui(widget).submit_key = held.submit_key.clone();
+        prefix => egui(widget).prefix = held.prefix.clone();
+        suffix => widget.suffix = held.suffix.clone();
+        on_submit => widget.on_submit = held.on_submit.clone();
+        on_caret => widget.on_caret = held.on_caret.clone();
+        text_align => widget.text_align = held.text_align.0.clone();
+        line_break => look(widget).options.line_break =
+            balaur_text::LineBreak::of(&held.line_break.0);
+        tab_width => look(widget).options.tab_width = tab_stops(held.tab_width);
     }
 }
 
@@ -431,6 +541,9 @@ impl Beside for WidgetField {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_scroll")]
 pub(crate) struct WidgetScroll {
+    /// Which way a `scroll` moves, the other way its contents filling the box it was given
+    #[property(default = Axis::new(w::BOTH))]
+    pub(crate) axis: Axis,
     /// When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box
     #[property(default = Scrollbar::new(w::AUTO))]
     pub(crate) scrollbar: Scrollbar,
@@ -463,35 +576,41 @@ pub(crate) struct WidgetScroll {
     /// The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui's
     #[property(min = 0.0)]
     pub(crate) min_scrolled_height: f32,
+    /// Script method called with the offset, `[x, y]`, when a `scroll`, `list`, `tree` or `table` moves, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_scrolled: SmolStr,
 }
 
 impl Beside for WidgetScroll {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(
-            asked.kind.0.as_str(),
-            w::SCROLL | w::LIST | w::TREE | w::TABLE
-        )
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::SCROLL | w::LIST | w::TREE | w::TABLE)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        egui(widget).scrollbar = self.scrollbar.0.clone();
-        egui(widget).scroll_offset = self.scroll_offset;
-        egui(widget).stick_to_end = self.stick_to_end;
-        egui(widget).animated = self.animated;
-        egui(widget).wheel_scroll = self.wheel_scroll;
-        egui(widget).wheel_speed = self.wheel_speed;
-        egui(widget).drag_scroll = self.drag_scroll.0.clone();
-        egui(widget).drag_cursor = self.drag_cursor.0.clone();
-        widget.deadzone = self.scroll_deadzone;
-        egui(widget).min_scrolled_width = self.min_scrolled_width;
-        egui(widget).min_scrolled_height = self.min_scrolled_height;
+    puts! { held, widget;
+        axis => widget.axis = held.axis.0.clone();
+        scrollbar => egui(widget).scrollbar = held.scrollbar.0.clone();
+        scroll_offset => egui(widget).scroll_offset = held.scroll_offset;
+        stick_to_end => egui(widget).stick_to_end = held.stick_to_end;
+        animated => egui(widget).animated = held.animated;
+        wheel_scroll => egui(widget).wheel_scroll = held.wheel_scroll;
+        wheel_speed => egui(widget).wheel_speed = held.wheel_speed;
+        drag_scroll => egui(widget).drag_scroll = held.drag_scroll.0.clone();
+        drag_cursor => egui(widget).drag_cursor = held.drag_cursor.0.clone();
+        scroll_deadzone => widget.deadzone = held.scroll_deadzone;
+        min_scrolled_width => egui(widget).min_scrolled_width = held.min_scrolled_width;
+        min_scrolled_height => egui(widget).min_scrolled_height = held.min_scrolled_height;
+        on_scrolled => widget.on_scrolled = held.on_scrolled.clone();
     }
 }
 
-/// The rows an `image` reads: the part of the picture drawn and how it sits in its box.
+/// The rows an `image` reads: its picture, the part of it drawn and how it sits in its box.
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_image")]
 pub(crate) struct WidgetImage {
+    /// The project-relative picture an `image` draws
+    pub(crate) image: SmolStr,
+    /// Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture
+    #[property(default = [0.0, 0.0, 0.0, 0.0])]
+    pub(crate) slice: [f32; 4],
     /// What an `image` is multiplied by; white draws it as it is
     #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
     pub(crate) tint: [f32; 4],
@@ -510,17 +629,19 @@ pub(crate) struct WidgetImage {
 }
 
 impl Beside for WidgetImage {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::IMAGE
+    fn reads(kind: &str) -> bool {
+        kind == w::IMAGE
     }
 
-    fn put(&self, widget: &mut Widget) {
-        egui(widget).tint = self.tint;
-        widget.fit = self.fit.0.clone();
-        egui(widget).region = self.region;
-        egui(widget).angle_degrees = self.angle_degrees;
-        egui(widget).angle_origin = self.angle_origin;
-        egui(widget).alt_text = self.alt_text.clone();
+    puts! { held, widget;
+        image => widget.source = held.image.clone();
+        slice => widget.slice = held.slice;
+        tint => egui(widget).tint = held.tint;
+        fit => widget.fit = held.fit.0.clone();
+        region => egui(widget).region = held.region;
+        angle_degrees => egui(widget).angle_degrees = held.angle_degrees;
+        angle_origin => egui(widget).angle_origin = held.angle_origin;
+        alt_text => egui(widget).alt_text = held.alt_text.clone();
     }
 }
 
@@ -528,6 +649,8 @@ impl Beside for WidgetImage {
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_list")]
 pub(crate) struct WidgetList {
+    /// How many columns a `list` flows its cards into, in the words a `grid`'s `grid_columns` takes; empty draws a line a row
+    pub(crate) grid_columns: SmolStr,
     /// The picture a `list` cuts its card faces from
     pub(crate) sheet: SmolStr,
     /// Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go
@@ -540,39 +663,61 @@ pub(crate) struct WidgetList {
     pub(crate) on_move: SmolStr,
     /// Script method called with `{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing
     pub(crate) on_mark: SmolStr,
+    /// Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_fold: SmolStr,
 }
 
 impl Beside for WidgetList {
-    fn reads(asked: &WidgetProperties) -> bool {
-        matches!(asked.kind.0.as_str(), w::LIST | w::TREE)
+    fn reads(kind: &str) -> bool {
+        matches!(kind, w::LIST | w::TREE)
     }
 
-    fn put(&self, widget: &mut Widget) {
-        widget.source = self.sheet.clone();
-        widget.draggable = self.draggable;
-        widget.reorderable = self.reorderable;
-        widget.on_drop = self.on_drop.clone();
-        widget.on_move = self.on_move.clone();
-        widget.on_mark = self.on_mark.clone();
+    /// A column that does not read.
+    fn check(&self) -> Result<()> {
+        crate::widget::grid::check_tracks(Self::NAME, k::GRID_COLUMNS, &self.grid_columns)
+    }
+
+    puts! { held, widget;
+        grid_columns => widget.layout.grid_columns = held.grid_columns.clone();
+        sheet => widget.source = held.sheet.clone();
+        draggable => widget.draggable = held.draggable;
+        reorderable => widget.reorderable = held.reorderable;
+        on_drop => widget.on_drop = held.on_drop.clone();
+        on_move => widget.on_move = held.on_move.clone();
+        on_mark => widget.on_mark = held.on_mark.clone();
+        on_fold => widget.on_fold = held.on_fold.clone();
     }
 }
 
-/// The row a `dropdown` reads: how tall its list grows.
+/// The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it.
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_dropdown")]
 pub(crate) struct WidgetDropdown {
+    /// The words a `dropdown` offers; `text` is the one picked, and `on_change` hears every pick
+    pub(crate) options: Vec<SmolStr>,
     /// The tallest a `dropdown`'s list grows before it scrolls, in design pixels; 0 takes egui's
     #[property(min = 0.0)]
     pub(crate) list_height: f32,
+    /// What shuts a `dropdown`'s list: any click, a pick included, a click outside it, or nothing but Escape
+    #[property(default = CloseOn::new(w::CLICK))]
+    pub(crate) close_on: CloseOn,
+    /// Script method called when a `dropdown`'s list comes up, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_opened: SmolStr,
+    /// Script method called when a `dropdown`'s list goes away, on this node or the nearest ancestor whose script declares it
+    pub(crate) on_closed: SmolStr,
 }
 
 impl Beside for WidgetDropdown {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::DROPDOWN
+    fn reads(kind: &str) -> bool {
+        kind == w::DROPDOWN
     }
 
-    fn put(&self, widget: &mut Widget) {
-        egui(widget).list_height = self.list_height;
+    puts! { held, widget;
+        options => widget.options.clone_from(&held.options);
+        list_height => egui(widget).list_height = held.list_height;
+        close_on => egui(widget).close_on = held.close_on.0.clone();
+        on_opened => widget.on_opened = held.on_opened.clone();
+        on_closed => widget.on_closed = held.on_closed.clone();
     }
 }
 
@@ -593,10 +738,24 @@ macro_rules! each_beside {
             WidgetScroll,
             WidgetImage,
             WidgetList,
-            WidgetDropdown
+            WidgetDropdown,
+            WidgetCheck,
+            WidgetRows,
+            WidgetButton,
+            WidgetText,
+            WidgetLayout,
+            WidgetGrid,
+            WidgetFold,
+            WidgetTabs,
+            WidgetBox,
+            WidgetChild,
+            WidgetShortcut
         )
     };
 }
+
+#[cfg(test)]
+pub(crate) use each_beside;
 
 /// Every component beside `widget`, by name.
 pub(crate) fn names() -> &'static [&'static str] {
@@ -608,35 +767,122 @@ pub(crate) fn names() -> &'static [&'static str] {
     each_beside!(name_each!())
 }
 
-/// The components beside `widget` a widget of `kind` reads, by name: what a
-/// preset of that kind gives the node beside it.
-pub(crate) fn read_by(kind: &str) -> Vec<&'static str> {
-    let asked = WidgetProperties {
-        kind: crate::widget::properties::Kind::new(kind),
-        ..WidgetProperties::default()
-    };
-    macro_rules! read_each {
-        ($asked:expr; $($beside:ty),*) => {
-            [$((<$beside>::reads($asked), <$beside as Component>::NAME)),*]
+/// The components beside `widget` a preset of `kind` gives the node, by name.
+pub(crate) fn brought_by(kind: &str) -> Vec<&'static str> {
+    macro_rules! bring_each {
+        ($kind:expr; $($beside:ty),*) => {
+            [$((<$beside>::brought_by($kind), <$beside as Component>::NAME)),*]
         };
     }
-    each_beside!(read_each!(&asked))
+    each_beside!(bring_each!(kind))
         .into_iter()
-        .filter_map(|(reads, name)| reads.then_some(name))
+        .filter_map(|(brought, name)| brought.then_some(name))
         .collect()
 }
 
-/// The component beside `widget` that holds the row `key`, if one does.
-pub(crate) fn owner_of(key: &str) -> Option<&'static str> {
-    macro_rules! find_each {
-        ($key:expr; $($beside:ty),*) => {
-            $(if <$beside as Fields>::NAMES.contains(&$key) {
-                return Some(<$beside as Component>::NAME);
+/// A component beside `widget` holding a row, and the kinds it holds it for.
+pub(crate) struct Owner {
+    pub(crate) name: &'static str,
+    pub(crate) reads: fn(&str) -> bool,
+}
+
+/// Every component beside `widget` holding the row `key`: two where their
+/// kinds are apart, as a `scroll`'s and a `slider`'s `axis`. A pooled control
+/// asks for each row of its table, so the answer is looked up, not searched.
+pub(crate) fn owners_of(key: &str) -> &'static [Owner] {
+    static OWNERS: OnceLock<FxHashMap<&'static str, Vec<Owner>>> = OnceLock::new();
+    OWNERS
+        .get_or_init(|| {
+            let mut owners: FxHashMap<&'static str, Vec<Owner>> = FxHashMap::default();
+            macro_rules! own_each {
+                ($owners:expr; $($beside:ty),*) => {
+                    $(for row in <$beside as Fields>::NAMES {
+                        $owners.entry(*row).or_default().push(Owner {
+                            name: <$beside as Component>::NAME,
+                            reads: <$beside>::reads,
+                        });
+                    })*
+                };
+            }
+            each_beside!(own_each!(owners));
+            owners
+        })
+        .get(key)
+        .map_or(&[][..], Vec::as_slice)
+}
+
+/// The component holding the row `key` for a widget of `kind`: the one of its
+/// owners that kind reads, else the first, which then says it is idle there.
+pub(crate) fn owner_for<'a>(owners: &'a [Owner], kind: &str) -> Option<&'a Owner> {
+    owners
+        .iter()
+        .find(|owner| (owner.reads)(kind))
+        .or_else(|| owners.first())
+}
+
+/// Refuse a row of a screen class's table that no component a widget of
+/// `kind` reads could take, or a value the row would refuse.
+pub(crate) fn check_class_row(kind: &str, key: &str, value: &toml::Value) -> Result<()> {
+    macro_rules! try_each {
+        ($key:expr, $value:expr, $kind:expr; $($beside:ty),*) => {
+            $(if <$beside>::reads($kind)
+                && let Some(index) = <$beside as Fields>::NAMES.iter().position(|row| *row == $key)
+            {
+                return <$beside>::default().write(index, $value.into());
             })*
         };
     }
-    each_beside!(find_each!(key));
-    None
+    each_beside!(try_each!(key, value, kind));
+    match owners_of(key).first() {
+        Some(owner) => anyhow::bail!("a `{kind}` widget reads nothing of `{}`", owner.name),
+        None => anyhow::bail!("is not a widget property"),
+    }
+}
+
+/// Write the rows of the screen class tables in force that a component beside
+/// `widget` holds, over what the node holds, and put them on `widget`.
+pub(crate) fn put_class_rows(
+    world: &World,
+    entity: Entity,
+    kind: &str,
+    rows: &[(&str, &toml::Value)],
+    widget: &mut Widget,
+) {
+    macro_rules! class_each {
+        ($world:expr, $entity:expr, $kind:expr, $rows:expr, $widget:expr; $($beside:ty),*) => {
+            $(class_rows_of::<$beside>($world, $entity, $kind, $rows, $widget);)*
+        };
+    }
+    each_beside!(class_each!(world, entity, kind, rows, widget));
+}
+
+fn class_rows_of<C: Beside>(
+    world: &World,
+    entity: Entity,
+    kind: &str,
+    rows: &[(&str, &toml::Value)],
+    widget: &mut Widget,
+) {
+    if !C::reads(kind) {
+        return;
+    }
+    let mut classed: Option<C> = None;
+    for (key, value) in rows {
+        let Some(index) = C::NAMES.iter().position(|row| row == key) else {
+            continue;
+        };
+        let held = classed.get_or_insert_with(|| {
+            world
+                .get::<&C>(entity)
+                .map(|held| (*held).clone())
+                .unwrap_or_default()
+        });
+        // A value the row refuses leaves what the node holds.
+        let _ = held.write(index, (*value).into());
+    }
+    if let Some(classed) = classed {
+        classed.put(widget);
+    }
 }
 
 /// Put every beside component the widget's kind reads on `widget`: the
@@ -662,7 +908,7 @@ fn put_held<C: Beside>(
     asked: &WidgetProperties,
     widget: &mut Widget,
 ) {
-    if !C::reads(asked) {
+    if !C::reads(&asked.kind.0) {
         return;
     }
     match world.get::<&C>(entity) {
@@ -671,24 +917,46 @@ fn put_held<C: Beside>(
     }
 }
 
-/// Write `C` on the node with `change`, the component at its defaults where
-/// the node holds none yet, and the widget's fields after it: an edit the
-/// reader made, kept so a save keeps it.
-pub(crate) fn edit<C: Beside>(eng: &Engine, entity: Entity, change: impl FnOnce(&mut C)) {
-    let held = {
+/// Write `rows` of `C` on the node with `change`, the component at its
+/// defaults where the node holds none yet, and the widget's fields after
+/// them: an edit the reader made, kept so a save keeps it. Nothing where the
+/// widget's kind does not read `C`: a script's `ui.edit` may hand any widget
+/// a value.
+pub(crate) fn edit<C: Beside>(
+    eng: &Engine,
+    entity: Entity,
+    rows: &[&str],
+    change: impl FnOnce(&mut C),
+) {
+    let added = {
         let world = eng.world();
-        let mut held = world
-            .get::<&C>(entity)
-            .map(|held| (*held).clone())
-            .unwrap_or_default();
-        change(&mut held);
-        if let Ok(mut widget) = world.get::<&mut Widget>(entity) {
-            held.put(&mut widget);
+        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
+            return;
+        };
+        if !C::reads(&widget.kind) {
+            return;
         }
-        held
+        if let Ok(mut held) = world.get::<&mut C>(entity) {
+            change(&mut held);
+            for row in rows {
+                let placed = held.put_row(&mut widget, row);
+                debug_assert!(placed, "`{row}` is a row of `{}`", C::NAME);
+            }
+            None
+        } else {
+            let mut held = C::default();
+            change(&mut held);
+            Some(to_table(&held))
+        }
     };
-    let _ = eng.insert_one(entity, held);
-    crate::widget::arena::widget_changed(entity);
+    match added {
+        // Through the registry, so the node says it carries it and a save
+        // keeps it; the write puts it on the widget.
+        Some(table) => {
+            let _ = balaur_core::components::add(eng, entity, C::NAME, Some(&table));
+        }
+        None => crate::widget::arena::widget_changed(entity),
+    }
 }
 
 /// Register every component beside `widget`.
@@ -712,7 +980,7 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
             warnings: Some(Box::new(idle::<C>)),
             remove: Box::new(|eng, entity| {
                 let _ = eng.remove_one::<C>(entity);
-                refresh::<C>(eng, entity);
+                refresh::<C>(eng, entity, None);
                 Ok(())
             }),
             ..ComponentDef::written_by::<C>(Some(written::<C>))
@@ -720,27 +988,36 @@ fn register<C: Beside>(reg: &mut Registry<'_>) {
     );
 }
 
-fn written<C: Beside>(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
+fn written<C: Beside>(eng: &Engine, entity: Entity, written: Written) -> Result<()> {
     let held = eng.world().get::<&C>(entity).map(|held| held.check());
     if let Ok(Err(why)) = held {
         return Err(why);
     }
-    refresh::<C>(eng, entity);
+    match written {
+        Written::Property(index) => refresh::<C>(eng, entity, C::NAMES.get(index).copied()),
+        Written::Whole => refresh::<C>(eng, entity, None),
+    }
     Ok(())
 }
 
-/// Put `C` on the node's widget again, its defaults where it is gone, and
-/// tell the arena it changed.
-fn refresh<C: Beside>(eng: &Engine, entity: Entity) {
+/// Put `row` of `C` on the node's widget again, or every row where it names
+/// none, the defaults where the component is gone, and tell the arena it
+/// changed.
+fn refresh<C: Beside>(eng: &Engine, entity: Entity, row: Option<&str>) {
     {
         let world = eng.world();
-        let (Ok(asked), Ok(mut widget)) = (
-            world.get::<&WidgetProperties>(entity),
-            world.get::<&mut Widget>(entity),
-        ) else {
+        let Ok(mut widget) = world.get::<&mut Widget>(entity) else {
             return;
         };
-        put_held::<C>(&world, entity, &asked, &mut widget);
+        if C::reads(&widget.kind) {
+            match (world.get::<&C>(entity), row) {
+                (Ok(held), Some(row)) => {
+                    held.put_row(&mut widget, row);
+                }
+                (Ok(held), None) => held.put(&mut widget),
+                (Err(_), _) => C::default().put(&mut widget),
+            }
+        }
     }
     crate::widget::arena::widget_changed(entity);
 }
@@ -751,7 +1028,7 @@ fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
     let Ok(asked) = world.get::<&WidgetProperties>(entity) else {
         return Vec::new();
     };
-    if C::reads(&asked) {
+    if C::reads(&asked.kind.0) {
         return Vec::new();
     }
     vec![Warning::whole(format!(
@@ -763,7 +1040,7 @@ fn idle<C: Beside>(eng: &Engine, entity: Entity) -> Vec<Warning> {
 
 /// The egui options of a widget, to write one: a copy where the arena still
 /// shares them.
-fn egui(widget: &mut Widget) -> &mut EguiOptions {
+pub(crate) fn egui(widget: &mut Widget) -> &mut EguiOptions {
     Arc::make_mut(&mut widget.egui)
 }
 

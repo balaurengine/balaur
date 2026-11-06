@@ -59,7 +59,7 @@ impl Screen {
     fn fill(name: str, items: [ui::Item]) {
         let found = self.node.get_node(name);
         if found.is_valid() {
-            found.widget.items = items;
+            found.widget_rows.items = items;
         }
     }
 
@@ -324,7 +324,7 @@ impl Screen {
         }
         let pages = self.node.get_node(PAGES);
         if pages.is_valid() {
-            pages.patch_component("widget", { "active": name });
+            pages.widget_tabs.current_page = name;
         }
     }
 }

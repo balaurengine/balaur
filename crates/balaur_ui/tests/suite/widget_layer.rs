@@ -127,7 +127,7 @@ fn a_row_lays_its_children_out_along_its_own_direction() {
     let (_dir, in_a_row) = app();
     let row = add_widget(
         &in_a_row,
-        &toml::toml! { kind = "row" x = 0.0 y = 0.0 gap = [10.0, 10.0] }.into(),
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 widget_layout = { gap = [10.0, 10.0] } }.into(),
     );
     for label in ["one", "two", "three"] {
         add_child_widget(
@@ -147,7 +147,8 @@ fn a_row_lays_its_children_out_along_its_own_direction() {
     let (_dir2, app2) = app();
     let column = add_widget(
         &app2,
-        &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = [10.0, 10.0] }.into(),
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 widget_layout = { gap = [10.0, 10.0] } }
+            .into(),
     );
     for label in ["one", "two", "three"] {
         add_child_widget(
@@ -181,7 +182,8 @@ fn the_gap_widens_a_row() {
         let (_dir, app) = app();
         let row = add_widget(
             &app,
-            &toml::toml! { kind = "row" x = 0.0 y = 0.0 gap = [gap, gap] }.into(),
+            &toml::toml! { kind = "row" x = 0.0 y = 0.0 widget_layout = { gap = [gap, gap] } }
+                .into(),
         );
         for label in ["a", "b", "c"] {
             add_child_widget(
@@ -237,7 +239,7 @@ fn a_button_inside_a_container_still_takes_its_click() {
     let (_dir, mut app) = app();
     let column = add_widget(
         &app,
-        &toml::toml! { kind = "column" x = 0.0 y = 0.0 padding = 0.0 gap = [0.0, 0.0] }.into(),
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 padding = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let button = add_child_widget(
         &app,
@@ -301,7 +303,7 @@ fn grow_divides_what_the_fixed_children_leave() {
     let (_dir, app) = app();
     let column = add_widget(
         &app,
-        &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = [0.0, 0.0] width = 300.0 height = 400.0 }
+        &toml::toml! { kind = "column" x = 0.0 y = 0.0 width = 300.0 height = 400.0 widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let bar = add_child_widget(
@@ -403,7 +405,7 @@ fn a_container_sizes_to_a_label_that_changed_this_frame() {
     let (_dir, app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 60.0 gap = [0.0, 0.0] }
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 60.0 widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let label = add_child_widget(
@@ -458,8 +460,11 @@ fn a_scroll_keeps_its_box_however_long_its_contents() {
         let (_dir, app) = app();
         let holder = add_widget(
             &app,
-            &toml::toml! { kind = kind x = 0.0 y = 0.0 width = 200.0 height = 120.0 gap = [0.0, 0.0] }
-                .into(),
+            &toml::toml! {
+                kind = kind x = 0.0 y = 0.0 width = 200.0 height = 120.0
+                widget_layout = { gap = [0.0, 0.0] }
+            }
+            .into(),
         );
         for n in 0..40 {
             let text = format!("line {n}");
@@ -511,7 +516,7 @@ fn a_one_way_scroll_fills_the_other_way() {
             &app,
             sheet,
             "scroll",
-            &toml::toml! { kind = "scroll" grow = 1.0 axis = axis }.into(),
+            &toml::toml! { kind = "scroll" grow = 1.0 widget_scroll = { axis = axis } }.into(),
         );
         let column = add_child_widget(
             &app,
@@ -559,7 +564,7 @@ fn a_tab_shows_the_page_it_names_and_only_that_one() {
         let (_dir, app) = app();
         let tabs = add_widget(
             &app,
-            &toml::toml! { kind = "tabs" x = 0.0 y = 0.0 width = 300.0 height = 200.0 current_page = active }
+            &toml::toml! { kind = "tabs" x = 0.0 y = 0.0 width = 300.0 height = 200.0 widget_tabs = { current_page = active } }
                 .into(),
         );
         for label in ["First", "Second"] {
@@ -609,7 +614,7 @@ fn a_handle_is_only_a_grab_where_a_neighbour_states_a_size() {
     let (_dir, mut app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = [8.0, 8.0] splitter_width = 8.0 }
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 widget_layout = { gap = [8.0, 8.0], splitter_width = 8.0 } }
             .into(),
     );
     let fixed = add_child_widget(
@@ -666,7 +671,7 @@ fn a_seam_asks_the_pointer_to_look_like_a_resize() {
     let (_dir, app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 gap = [8.0, 8.0] splitter_width = 8.0 }
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 width = 400.0 height = 100.0 widget_layout = { gap = [8.0, 8.0], splitter_width = 8.0 } }
             .into(),
     );
     add_child_widget(
@@ -741,13 +746,15 @@ fn a_containers_own_padding_is_measured_as_well_as_drawn() {
         let (_dir, app) = app();
         let column = add_widget(
             &app,
-            &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = [0.0, 0.0] }.into(),
+            &toml::toml! { kind = "column" x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }
+                .into(),
         );
         let row = add_child_widget(
             &app,
             column,
             "row",
-            &toml::toml! { kind = "row" padding = padding gap = [0.0, 0.0] }.into(),
+            &toml::toml! { kind = "row" padding = padding widget_layout = { gap = [0.0, 0.0] } }
+                .into(),
         );
         add_child_widget(
             &app,
@@ -836,7 +843,7 @@ fn clicking_a_tab_writes_the_pages_node_name_and_says_so() {
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
-    let active = balaur::components::get(&app.engine, tabs, "widget")
+    let active = balaur::components::get(&app.engine, tabs, "widget_tabs")
         .and_then(|w| {
             w.get("current_page")
                 .and_then(|v| v.as_str().map(str::to_owned))
@@ -941,7 +948,8 @@ fn a_hidden_child_leaves_its_room_to_the_others() {
         let (_dir, app) = app();
         let column = add_widget(
             &app,
-            &toml::toml! { kind = "column" x = 0.0 y = 0.0 gap = [0.0, 0.0] }.into(),
+            &toml::toml! { kind = "column" x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }
+                .into(),
         );
         let first = toml::toml! { kind = "label" text = "First" height = 60.0 };
         let first = add_child_widget(&app, column, "First", &first.into());

@@ -103,7 +103,9 @@ impl Ops {
 
 /// What a control that does not name its own shape gets. A pooled node is
 /// patched rather than set, so a key this pass leaves out would keep the last
-/// one's: a spacer that becomes a label would draw six pixels wide.
+/// one's: a spacer that becomes a label would draw six pixels wide. Only rows
+/// every kind reads: one beside the widget would give each control its
+/// component, and a slot that wore one is set whole when a control drops it.
 fn shapeless() -> Spec {
     Spec::from([
         (k::WIDTH.into(), Value::Int(0)),
@@ -112,11 +114,9 @@ fn shapeless() -> Spec {
         (k::CORNER_RADIUS.into(), Value::Int(-1)),
         (k::FILL.into(), Value::text("")),
         (k::TOOLTIP.into(), Value::text("")),
-        (k::CHECKED.into(), Value::Bool(false)),
         (k::TEXT.into(), Value::text("")),
         (k::ON_CLICK.into(), Value::text("")),
         (k::ON_CHANGE.into(), Value::text("")),
-        (k::ON_SUBMIT.into(), Value::text("")),
     ])
 }
 
@@ -195,6 +195,21 @@ impl Pool<'_> {
         let Value::Map(entries) = spec else {
             return op(self.eng, &[node.clone(), Value::text(p::WIDGET), spec]).map(|_| ());
         };
+        let named = entries
+            .iter()
+            .find(|(key, _)| key == k::KIND)
+            .map(|(_, kind)| kind.clone());
+        // Asked for once, by a row two components hold for kinds apart.
+        let kind = std::cell::OnceCell::new();
+        let kind = || {
+            kind.get_or_init(
+                || match named.clone().unwrap_or_else(|| self.widget(node, k::KIND)) {
+                    Value::Str(word) => word,
+                    _ => String::new(),
+                },
+            )
+            .clone()
+        };
         let mut own = Vec::new();
         let mut beside: Vec<(&'static str, Vec<(String, Value)>)> = Vec::new();
         for (key, value) in entries {
@@ -208,7 +223,12 @@ impl Pool<'_> {
                 (self.ops.set_visible)(self.eng, &[node.clone(), value])?;
                 continue;
             }
-            match crate::widget::beside::owner_of(&key) {
+            let owner = match crate::widget::beside::owners_of(&key) {
+                [] => None,
+                [one] => Some(one.name),
+                several => crate::widget::beside::owner_for(several, &kind()).map(|one| one.name),
+            };
+            match owner {
                 Some(name) => match beside.iter_mut().find(|(held, _)| *held == name) {
                     Some((_, rows)) => rows.push((key, value)),
                     None => beside.push((name, vec![(key, value)])),
@@ -851,7 +871,7 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \
     font_size: float?, icon_size: float?, corner_radius: float?, row_height: float?, \
     min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
-    visible: bool?, enabled: bool?, interactive: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
+    visible: bool?, enabled: bool?, interactive: bool?, focusable: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
     options: [string]?, items: [Item]?, value: any, text_color: string?, picked_color: Color?, padding: Sides?, inset: Sides?, margin: Sides?, gap: Vec2? }";
 

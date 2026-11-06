@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 [[nodes]]
@@ -27,8 +28,9 @@ name = "Rows"
 parent = "panel"
 [nodes.widget]
 kind = "scroll"
-axis = "vertical"
 grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
 
 [[nodes]]
 id = "column"

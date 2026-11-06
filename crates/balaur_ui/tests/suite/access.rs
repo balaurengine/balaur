@@ -12,7 +12,7 @@ fn form(app: &balaur_core::App) -> Vec<Entity> {
     [
         toml::toml! { kind = "label" text = "Score" },
         toml::toml! { kind = "button" text = "Play" tooltip = "Start a round" },
-        toml::toml! { kind = "checkbox" text = "Sound" checked = true },
+        toml::toml! { kind = "checkbox" text = "Sound" widget_check = { checked = true } },
         toml::toml! {
             kind = "slider" text = "Volume"
             widget_range = { value = 0.25, min = 0.0, max = 1.0, step = 0.05 }
@@ -77,7 +77,7 @@ fn only_what_changed_is_handed_over_again() {
         "a pass that changed nothing hands nothing over"
     );
     let off = toml::toml! { checked = false };
-    balaur::components::patch(&app.engine, widgets[2], "widget", &off.into()).unwrap();
+    balaur::components::patch(&app.engine, widgets[2], "widget_check", &off.into()).unwrap();
     pass(&app, &ctx, vec![]);
     let update = balaur_ui::take_access_update(&app.engine).expect("the change");
     let ids: Vec<NodeId> = update.nodes.iter().map(|(at, _)| *at).collect();
@@ -155,7 +155,7 @@ fn a_reader_leaving_stops_the_tree_and_another_gets_it_whole() {
     balaur_ui::disable_access(&app.engine);
     assert!(!balaur_ui::access_enabled(&app.engine));
     let off = toml::toml! { checked = false };
-    balaur::components::patch(&app.engine, widgets[2], "widget", &off.into()).unwrap();
+    balaur::components::patch(&app.engine, widgets[2], "widget_check", &off.into()).unwrap();
     pass(&app, &ctx, vec![]);
     assert!(balaur_ui::take_access_update(&app.engine).is_none());
 

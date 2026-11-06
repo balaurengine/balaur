@@ -52,7 +52,7 @@ impl Library {
         }
         let kinds = self.node.get_node("Kinds");
         for kind in KINDS() {
-            kinds.get_node(kind).widget.checked = kind == view["kind"].as_str();
+            kinds.get_node(kind).widget_check.checked = kind == view["kind"].as_str();
         }
         let patched = self.node.get_node("Note");
         patched.set_visible(view["says"].as_str() != "");
@@ -61,9 +61,9 @@ impl Library {
         let table = view["templates"].as_bool() && view["items"].len() > 0;
         let patched = self.node.get_node("Cards");
         patched.set_visible(cards);
-        patched.widget.items = if cards { view["items"] } else { [] };
+        patched.widget_rows.items = if cards { view["items"] } else { [] };
         let patched = self.node.get_node("Table");
         patched.set_visible(table);
-        patched.widget.items = if table { view["items"] } else { [] };
+        patched.widget_rows.items = if table { view["items"] } else { [] };
     }
 }

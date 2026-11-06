@@ -241,7 +241,7 @@ pub fn fill_rail(state: editor::State) {
     }
     let filled = scene::get_node(RAIL);
     if filled.is_valid() {
-        filled.widget.gap = vec2(grid.gap, grid.gap);
+        filled.widget_layout.gap = vec2(grid.gap, grid.gap);
         filled.patch_component("widget", { "padding": grid.padding });
     }
     ui::fill_strip(RAIL, columns);

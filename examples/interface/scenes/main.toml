@@ -26,6 +26,7 @@ x = 0
 y = 0
 width = 940
 padding = 14
+[nodes.widget_layout]
 gap = [10, 10]
 
 # The header: a title, a caption, then two buttons against the far edge.
@@ -36,6 +37,7 @@ parent = "sheet"
 [nodes.widget]
 kind = "row"
 height = 30
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 
@@ -65,10 +67,11 @@ parent = "head"
 [nodes.widget]
 kind = "button"
 text = "Shuffle"
-# A glyph from the theme's icon family, drawn before the caption.
-icon = "\ue3ee"
 tooltip = "Re-order the cards"
 on_click = "shuffle"
+[nodes.widget_button]
+# A glyph from the theme's icon family, drawn before the caption.
+icon = "\ue3ee"
 
 [[nodes]]
 id = "apply"
@@ -94,6 +97,7 @@ name = "Body"
 parent = "sheet"
 [nodes.widget]
 kind = "row"
+[nodes.widget_layout]
 # No `grow`: the sheet hugs, so there is no leftover to divide and the row
 # takes what its two columns measure.
 gap = [14, 14]
@@ -106,6 +110,7 @@ parent = "body"
 [nodes.widget]
 kind = "column"
 width = 440
+[nodes.widget_layout]
 gap = [8, 8]
 
 [[nodes]]
@@ -115,6 +120,7 @@ parent = "body"
 [nodes.widget]
 kind = "column"
 width = 440
+[nodes.widget_layout]
 gap = [8, 8]
 
 [[nodes]]
@@ -133,6 +139,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 24
+[nodes.widget_layout]
 gap = [12, 12]
 align_items = "center"
 
@@ -178,8 +185,9 @@ name = "TMarkup"
 parent = "left"
 [nodes.widget]
 kind = "label"
-markup = true
 text = "markup: [b]bold[/b], [i]italic[/i], [color=#6fa4d8]a colour[/color]"
+[nodes.widget_text]
+markup = true
 
 [[nodes]]
 id = "f_field"
@@ -217,6 +225,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 26
+[nodes.widget_layout]
 gap = [6, 6]
 align_items = "center"
 
@@ -244,6 +253,7 @@ parent = "b_row"
 [nodes.widget]
 kind = "button"
 text = "icon"
+[nodes.widget_button]
 icon = "\ue24a"
 
 [[nodes]]
@@ -263,6 +273,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 26
+[nodes.widget_layout]
 gap = [8, 8]
 align_items = "center"
 
@@ -273,6 +284,7 @@ parent = "c_row"
 [nodes.widget]
 kind = "checkbox"
 text = "check"
+[nodes.widget_check]
 checked = true
 
 [[nodes]]
@@ -282,6 +294,7 @@ parent = "c_row"
 [nodes.widget]
 kind = "dropdown"
 text = "high"
+[nodes.widget_dropdown]
 options = ["low", "medium", "high"]
 
 [[nodes]]
@@ -290,11 +303,11 @@ name = "CDrag"
 parent = "c_row"
 [nodes.widget]
 kind = "number_field"
-prefix = "x"
 grow = 1
 [nodes.widget_range]
 value = 1.5
 drag_speed = 0.05
+prefix = "x"
 
 [[nodes]]
 id = "c_color"
@@ -313,6 +326,7 @@ parent = "left"
 [nodes.widget]
 kind = "row"
 height = 24
+[nodes.widget_layout]
 gap = [10, 10]
 align_items = "center"
 
@@ -354,9 +368,11 @@ name = "Pages"
 parent = "right"
 [nodes.widget]
 kind = "tabs"
-current_page = "Cards"
 height = 232
+[nodes.widget_layout]
 gap = [8, 8]
+[nodes.widget_tabs]
+current_page = "Cards"
 
 [[nodes]]
 id = "cards"
@@ -365,11 +381,13 @@ parent = "pages"
 [nodes.widget]
 text = "Cards"
 kind = "list"
-# Given columns, the rows flow into a grid of cards: `ItemList` in its icon mode.
-grid_columns = "repeat(4, 1fr)"
+height = 196
+[nodes.widget_rows]
 # A card's own height; the width is the room divided by the columns.
 row_height = 60
-height = 196
+[nodes.widget_list]
+# Given columns, the rows flow into a grid of cards: `ItemList` in its icon mode.
+grid_columns = "repeat(4, 1fr)"
 
 [[nodes]]
 id = "outline"
@@ -409,9 +427,11 @@ name = "Grid"
 parent = "left"
 [nodes.widget]
 kind = "grid"
-grid_columns = "repeat(3, 1fr)"
-gap = [6, 6]
 height = 56
+[nodes.widget_layout]
+gap = [6, 6]
+[nodes.widget_grid]
+grid_columns = "repeat(3, 1fr)"
 
 [[nodes]]
 id = "g0"
@@ -467,6 +487,7 @@ name = "Chips"
 parent = "left"
 [nodes.widget]
 kind = "flow"
+[nodes.widget_layout]
 gap = [5, 5]
 
 [[nodes]]
@@ -593,9 +614,10 @@ parent = "n_screen"
 visible = false
 [nodes.widget]
 kind = "image"
-image = "assets/cursor.png"
 anchor = "top_left"
 x = 0
 y = 0
 width = 20
 height = 20
+[nodes.widget_image]
+image = "assets/cursor.png"

@@ -3145,7 +3145,7 @@ pub fn palette_step(state: &mut editor::State) {
     for row in host.children() {
         if row.visible() == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
-            shown.push(slot.widget.checked == true);
+            shown.push(slot.widget_check.checked == true);
         }
     }
     check(shown.len() > 1, "the query narrowed the list to its matches ({shown.len()})");
@@ -3462,7 +3462,7 @@ pub fn sheet_close_step(state: &mut editor::State) {
         check(window::showing(state, "about"), "the sheet stays up while nothing shuts it");
         let filled = scene::get_node("Editor/Sheet");
         if filled.is_valid() {
-            filled.widget.open = false;
+            filled.widget_window.open = false;
         }
     } else if at == 5 {
         check(!window::showing(state, "about"), "and goes when its dialog is shut from outside");
@@ -3471,7 +3471,7 @@ pub fn sheet_close_step(state: &mut editor::State) {
         check(state.palette, "the palette stays up while nothing shuts it");
         let filled = scene::get_node("Editor/Picker");
         if filled.is_valid() {
-            filled.widget.open = false;
+            filled.widget_window.open = false;
         }
     } else if at == 10 {
         state.window.demo = -1;
@@ -4377,7 +4377,10 @@ pub fn rows_step(state: &mut editor::State) {
         log::info("selftest rowsdemo: no shell in this run, skipped");
         return;
     }
-    let widget = util::map_or_empty(tree.get_component("widget"));
+    // The tree's rows, with the two rows of the widget's own these checks read.
+    let widget = util::map_or_empty(tree.get_component("widget_rows"));
+    widget["text"] = tree.widget.text;
+    widget["context"] = tree.widget.context;
     let rows = util::list_or_empty(widget["items"]);
     if rows.len() == 0 {
         state.rows_waited = state.rows_waited + 1;

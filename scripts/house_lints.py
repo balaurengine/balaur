@@ -794,7 +794,9 @@ def check_themes() -> list[Finding]:
     api = ROOT / "docs" / "generated" / "api.json"
     if not api.exists():
         return []
-    widget = set(json.loads(api.read_text())["components"].get("widget", {}))
+    components = json.loads(api.read_text())["components"]
+    widget = {key for name, schema in components.items()
+               if name == "widget" or name.startswith("widget_") for key in schema}
     out = []
     for path in theme_files():
         text = path.read_text()

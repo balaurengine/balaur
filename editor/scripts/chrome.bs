@@ -255,9 +255,9 @@ pub fn fill(state: &mut editor::State) {
     let mark = brand(state);
     let node = scene::get_node(BRAND_NODE);
     if node.is_valid() {
-        node.widget.image = mark.logo;
+        node.widget_button.image = mark.logo;
         node.widget.text = mark.name;
-        node.widget.trailing = icons::ui("caret-down");
+        node.widget_button.trailing = icons::ui("caret-down");
         node.widget.height = row_height(state) - 4.0;
         node.widget_menu.showing = state.menu_open;
     }

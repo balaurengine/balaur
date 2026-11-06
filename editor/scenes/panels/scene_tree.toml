@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 # The search, and the "+" that adds a child to the selection beside it.
@@ -20,6 +21,7 @@ name = "Find"
 parent = "panel"
 [nodes.widget]
 kind = "row"
+[nodes.widget_layout]
 align_items = "center"
 gap = [4, 0]
 
@@ -57,6 +59,7 @@ on_change = "facet_picked"
 kind = "dropdown"
 role = "choice"
 text = "All nodes"
+[nodes.widget_dropdown]
 options = ["All nodes", "3D", "2D", "Physics", "Rendering", "UI", "Script"]
 
 # What a filter that left nothing says instead of an empty tree.
@@ -77,11 +80,12 @@ parent = "panel"
 on_change = "tree_picked"
 kind = "tree"
 grow = 1
+# A right click or a long press picks the row it lands on and opens these.
+context = "tree_menu"
+[nodes.widget_rows]
 # The row a click landed on, which the script reads once and clears.
 multi_select = true
 row_height = 23
-# A right click or a long press picks the row it lands on and opens these.
-context = "tree_menu"
 [nodes.widget_list]
 on_mark = "tree_mark"
 

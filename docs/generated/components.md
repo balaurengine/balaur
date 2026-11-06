@@ -2508,7 +2508,7 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 130 properties
+`ui` · 60 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
 
@@ -2546,31 +2546,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>hide_shorter</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is shorter than this many design pixels. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>hide_taller</code></td><td>float</td><td><code>0.0</code></td><td>Not drawn while the room is this tall or taller, in design pixels. Zero is no line At least 0.0.</td></tr>
 <tr><td><code>padding</code></td><td>vec4</td><td><code>[-1.0, -1.0, -1.0, -1.0]</code></td><td>Space inside the widget&#x27;s edge, in design pixels: one number for every side, or left, top, right and bottom. A container keeps it round its children, a `button` and a `label` round their text, and every other kind in its box. A side below zero takes the theme&#x27;s (`padding_x` across and `padding_y` down, else `padding`), else 8 round a `panel`, 12 either side of a `button`&#x27;s or `menu`&#x27;s caption and 0 elsewhere; a stated zero is no space at all. On a `text_field`, `text_area` or `code` it is the margin round the text, where below zero takes egui&#x27;s</td></tr>
-<tr><td><code>gap</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Space between a container&#x27;s children, across and down, in design pixels: a row puts the first between its children and the second between the lines it wraps onto, a column the second between its children, and a grid the first between its columns and the second between its rows. On a `button` the first is the space between its picture, icon and caption. Below zero on an axis takes the theme&#x27;s own, which is 8 where it says nothing and half the font size on a button, and a stated zero puts them edge to edge</td></tr>
-<tr><td><code>align_items</code></td><td>enum</td><td><code>stretch</code></td><td>Where a container puts its children across its own direction, and a `grid` each child in its cell down: `stretch` makes each as wide (or tall) as the container, `baseline` lines up their first lines of text, the others keep each child&#x27;s own size One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
-<tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes, and a `grid` its columns: `stretch` grows a grid&#x27;s `auto` columns into the room, and in a row or a column is `start` One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
-<tr><td><code>align_content</code></td><td>enum</td><td><code>stretch</code></td><td>How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
-<tr><td><code>wrap_children</code></td><td>enum</td><td><code>auto</code></td><td>Whether a container&#x27;s children run onto more lines when they do not fit: `auto` wraps a `flow` and keeps every other container on one line; `balance` evens the lines out over at least `min_lines`; a `_reverse` word stacks the lines the other way One of <code>auto</code>, <code>none</code>, <code>wrap</code>, <code>wrap_reverse</code>, <code>balance</code>, <code>balance_reverse</code>.</td></tr>
-<tr><td><code>min_lines</code></td><td>int</td><td><code>1</code></td><td>How many lines a wrapping container divides its children between at least: `balance` evens them over this many, and any wrap shares a known cross size among them At least 1.</td></tr>
-<tr><td><code>direction</code></td><td>enum</td><td><code>left_to_right</code></td><td>Which way a row and a grid&#x27;s columns run: `right_to_left` starts them at the right edge One of <code>left_to_right</code>, <code>right_to_left</code>.</td></tr>
-<tr><td><code>overflow</code></td><td>enum</td><td><code>visible</code></td><td>What the layout keeps for content past this widget&#x27;s box: `scroll` keeps `scrollbar_width` clear inside its edge, the others nothing. Layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), a `scroll` kind is what scrolls, and each kind clips as it draws One of <code>visible</code>, <code>clip</code>, <code>hidden</code>, <code>scroll</code>.</td></tr>
 <tr><td><code>border</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The width of this widget&#x27;s outline on each side, left, top, right and bottom, in design pixels: the layout keeps it clear inside the edge as it keeps `padding`, and the `stroke` is painted in exactly that band. All zero leaves the stroke at the theme&#x27;s `stroke_width`, over the padding</td></tr>
-<tr><td><code>box_sizing</code></td><td>enum</td><td><code>border</code></td><td>What `width` and `height` measure: `border`, the whole box, or `content`, the box inside `padding` and `border` One of <code>border</code>, <code>content</code>.</td></tr>
-<tr><td><code>safe_align</code></td><td>bool</td><td><code>false</code></td><td>Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container&#x27;s start, put it at the start instead, so the start stays in view</td></tr>
-<tr><td><code>contain</code></td><td>flags</td><td><code>[]</code></td><td>Containment: `layout` or `paint` makes the box lay out on its own, and `layout` also gives it no baseline for a parent&#x27;s `baseline` alignment One of <code>layout</code>, <code>paint</code>.</td></tr>
-<tr><td><code>scrollbar_width</code></td><td>float</td><td><code>0.0</code></td><td>The room a box with `overflow = &quot;scroll&quot;` keeps clear inside its edge for a bar, in design pixels At least 0.0.</td></tr>
-<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a scroll moves, the other way its contents filling the box it was given. A `slider` runs up its box under `vertical`, and a `separator` draws the line it names, `both` leaving it across its parent&#x27;s direction One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
-<tr><td><code>grid_columns</code></td><td>string</td><td>—</td><td>A `grid`&#x27;s columns, left to right and space-separated: design pixels (`120`), a share of what is left (`1fr`), a percentage (`25%`), `auto`, `min_content`, `max_content`, `fit_content(120)`, `minmax(80, 1fr)`, and `repeat(3, 1fr)`, whose count may be `auto_fill` or `auto_fit`. Empty is two equal columns. A `list` flows its cards into as many columns as this names, and draws a line a row where it is empty; a `table`&#x27;s columns are its `titles`</td></tr>
-<tr><td><code>grid_rows</code></td><td>string</td><td>—</td><td>A `grid`&#x27;s rows, top to bottom, in the words `grid_columns` takes; empty makes each row as tall as what is in it</td></tr>
-<tr><td><code>areas</code></td><td>list of string</td><td><code>[]</code></td><td>A `grid`&#x27;s named areas, one string a row of space-separated names with `.` for a cell in none: `[&quot;head head&quot;, &quot;side main&quot;]`. A child names one in `row` and `column`</td></tr>
-<tr><td><code>auto_flow</code></td><td>enum</td><td><code>row</code></td><td>The order a `grid` fills cells with the children that name none: along each row, or down each column; a `_dense` order goes back to fill a hole a bigger child left One of <code>row</code>, <code>column</code>, <code>row_dense</code>, <code>column_dense</code>.</td></tr>
-<tr><td><code>auto_columns</code></td><td>string</td><td>—</td><td>The size of each column a `grid` adds past `grid_columns`, for a child placed beyond them or flowing down under `auto_flow = &quot;column&quot;`, in the words `grid_columns` takes without `repeat`; several take turns. Empty is `auto`</td></tr>
-<tr><td><code>auto_rows</code></td><td>string</td><td>—</td><td>The size of each row a `grid` adds past `grid_rows`, in the words `auto_columns` takes; empty is `auto`</td></tr>
-<tr><td><code>row</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the rows it covers, as a line counted from 1 (`2`, or from the end below zero), a first and last line (`1 / 3`), a span (`span 2`, `2 / span 2`), or the name of one of the grid&#x27;s `areas`. Empty puts it in the next free cell</td></tr>
-<tr><td><code>column</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the columns it covers, in the words `row` takes</td></tr>
-<tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw the strip that names a `table`&#x27;s columns, and a `window`&#x27;s title bar. Off, a table&#x27;s columns are still `titles`&#x27;, and a table that names none keeps its first row as a row</td></tr>
-<tr><td><code>title_bar</code></td><td>bool</td><td><code>false</code></td><td>On a `fold`&#x27;s child: drawn in the fold&#x27;s header after its arrow and caption, as Godot&#x27;s title bar control is</td></tr>
-<tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list` or `tree` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
 <tr><td><code>theme</code></td><td>asset · <code>widget_theme</code></td><td>—</td><td>How this widget and everything under it is drawn; inherited from the nearest ancestor that names one</td></tr>
 <tr><td><code>role</code></td><td>string</td><td>—</td><td>A `[roles.&lt;name&gt;]` entry of the widget&#x27;s theme, taken over its kind&#x27;s own style; the one place a look is named rather than spelled</td></tr>
 <tr><td><code>fill</code></td><td>string</td><td>—</td><td>What is painted behind this widget, an `image`&#x27;s picture included, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the theme&#x27;s own</td></tr>
@@ -2579,72 +2555,26 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>corner_radius</code></td><td>float</td><td><code>-1.0</code></td><td>Corner radius in design pixels, a `progress_bar`&#x27;s and an `image`&#x27;s included; below zero takes the theme&#x27;s own, which for a button is as round as its text is tall</td></tr>
 <tr><td><code>dashed</code></td><td>bool</td><td><code>false</code></td><td>Draw the outline in dashes, as a guide over a picture is drawn, rather than whole; square at the corners</td></tr>
 <tr><td><code>fade_in</code></td><td>bool</td><td><code>false</code></td><td>Fade a root in as it appears, over egui&#x27;s fade time</td></tr>
-<tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
-<tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
-<tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
-<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption&#x27;s height</td></tr>
-<tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
-<tr><td><code>text_background</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>A wash behind the text of the kinds egui draws; alpha 0 is none</td></tr>
 <tr><td><code>font</code></td><td>asset · <code>font</code></td><td>—</td><td>The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme&#x27;s default font</td></tr>
 <tr><td><code>font_size</code></td><td>float</td><td><code>0.0</code></td><td>Text size in design pixels; 0 takes the size the role or the kind carries At least 0.0.</td></tr>
 <tr><td><code>font_weight</code></td><td>int</td><td><code>400</code></td><td>Weight on the CSS scale, resolved against the faces the project ships: 400 regular, 700 bold Range 100–900.</td></tr>
 <tr><td><code>font_style</code></td><td>enum</td><td><code>normal</code></td><td>Upright, the family&#x27;s italic face, or the upright face slanted; a family with no italic is slanted either way One of <code>normal</code>, <code>italic</code>, <code>oblique</code>.</td></tr>
 <tr><td><code>text_style</code></td><td>asset · <code>text_style</code></td><td>—</td><td>How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
-<tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
-<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given, what a `text_field` or `text_area` edits included, and where every cell of a `table` sits in its column; a column whose name ends in `&gt;` pins its own to the right One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
-<tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text</td></tr>
-<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text</td></tr>
-<tr><td><code>truncate_at</code></td><td>enum</td><td><code>end</code></td><td>Which part of a cut caption the ellipsis stands in for One of <code>end</code>, <code>start</code>, <code>middle</code>.</td></tr>
-<tr><td><code>show_tooltip_when_elided</code></td><td>bool</td><td><code>true</code></td><td>Show a `label`&#x27;s whole text when the pointer rests on it and `truncate` cut it short</td></tr>
-<tr><td><code>max_lines</code></td><td>int</td><td><code>0</code></td><td>The most lines a wrapped label keeps; zero keeps every line At least 0.</td></tr>
-<tr><td><code>line_break</code></td><td>enum</td><td><code>word_or_glyph</code></td><td>Where a wrapped line may break One of <code>word_or_glyph</code>, <code>word</code>, <code>glyph</code>.</td></tr>
-<tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
-<tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between, and before a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
-<tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between, and after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
-<tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why</td></tr>
-<tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_double_click</code></td><td>string</td><td>—</td><td>Script method called on a double click, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_blur</code></td><td>string</td><td>—</td><td>Script method called when focus leaves, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_commit</code></td><td>string</td><td>—</td><td>Script method called with the value once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_caret</code></td><td>string</td><td>—</td><td>Script method called with `{ x, y, index }` when a text widget&#x27;s caret moves, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_activate</code></td><td>string</td><td>—</td><td>Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_fold</code></td><td>string</td><td>—</td><td>Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_opened</code></td><td>string</td><td>—</td><td>Script method called when a popup, dialog or window comes up, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_closed</code></td><td>string</td><td>—</td><td>Script method called when a popup, dialog or window goes away, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_scrolled</code></td><td>string</td><td>—</td><td>Script method called with the offset, `[x, y]`, when a `scroll` moves, on this node or the nearest ancestor whose script declares it</td></tr>
-<tr><td><code>on_close_request</code></td><td>string</td><td>—</td><td>Script method called when a `window`&#x27;s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>interactive</code></td><td>bool</td><td><code>true</code></td><td>Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this</td></tr>
 <tr><td><code>focusable</code></td><td>bool</td><td><code>true</code></td><td>Let focus land here. A widget nothing can activate is never focused whatever this says; set it false to skip one that could be</td></tr>
 <tr><td><code>neighbour_up</code></td><td>string</td><td>—</td><td>The widget focus goes to when an arrow, a stick or a d-pad points up from this one, by node name; empty leaves it to where the widgets were drawn</td></tr>
 <tr><td><code>neighbour_down</code></td><td>string</td><td>—</td><td>The same pointing down</td></tr>
 <tr><td><code>neighbour_left</code></td><td>string</td><td>—</td><td>The same pointing left</td></tr>
 <tr><td><code>neighbour_right</code></td><td>string</td><td>—</td><td>The same pointing right</td></tr>
-<tr><td><code>sense</code></td><td>enum</td><td><code>click</code></td><td>What the pointer may do to a `button`: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui&#x27;s drag distance is a drag and no click; `drag` and `hover` never click One of <code>click</code>, <code>click_and_drag</code>, <code>drag</code>, <code>hover</code>.</td></tr>
 <tr><td><code>cursor</code></td><td>enum</td><td><code>arrow</code></td><td>The pointer&#x27;s shape while it is over the widget: `hand` over anything that opens on a click, `none` to hide it; `arrow` is the platform&#x27;s own One of <code>arrow</code>, <code>none</code>, <code>hand</code>, <code>text</code>, <code>vertical_text</code>, <code>cross</code>, <code>cell</code>, <code>wait</code>, <code>progress</code>, <code>help</code>, <code>context_menu</code>, <code>move</code>, <code>grab</code>, <code>grabbing</code>, <code>alias</code>, <code>copy</code>, <code>no_drop</code>, <code>forbidden</code>, <code>all_scroll</code>, <code>resize_x</code>, <code>resize_y</code>, <code>resize_n</code>, <code>resize_e</code>, <code>resize_s</code>, <code>resize_w</code>, <code>resize_ne</code>, <code>resize_nw</code>, <code>resize_se</code>, <code>resize_sw</code>, <code>resize_nesw</code>, <code>resize_nwse</code>, <code>resize_col</code>, <code>resize_row</code>, <code>zoom_in</code>, <code>zoom_out</code>.</td></tr>
-<tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
-<tr><td><code>while_typing</code></td><td>bool</td><td><code>true</code></td><td>Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`</td></tr>
-<tr><td><code>takes_typing</code></td><td>bool</td><td><code>false</code></td><td>Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list&#x27;s arrows, Enter and Escape while it is up</td></tr>
 <tr><td><code>context</code></td><td>string</td><td>—</td><td>Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own</td></tr>
-<tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
-<tr><td><code>current_page</code></td><td>string</td><td>—</td><td>Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page&#x27;s name</td></tr>
-<tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>A menu row that leaves its menu open when clicked, as a toggle does; any other row closes it. A `dropdown` with it stays open past a pick until a click outside it</td></tr>
-<tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look</td></tr>
-<tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The words a `dropdown` or `menu` offers; `text` is the one picked, except on a `menu` where it is the button caption. `on_change` hears every pick</td></tr>
-<tr><td><code>items</code></td><td>list of record · <code>cells, depth, icon, key, label, marks, note, tint</code></td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key</td></tr>
-<tr><td><code>selection</code></td><td>list of string</td><td><code>[]</code></td><td>The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the key where it holds one</td></tr>
-<tr><td><code>multi_select</code></td><td>bool</td><td><code>false</code></td><td>Let a `list`, `tree` or `table` hold more than one row: the platform&#x27;s command key toggles a row and shift takes the run from the last one clicked</td></tr>
-<tr><td><code>radio_group</code></td><td>string</td><td>—</td><td>A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
-<tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
-<tr><td><code>indeterminate</code></td><td>bool</td><td><code>false</code></td><td>Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`</td></tr>
-<tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one. On a `table` it is the grab between two columns, which is six pixels where it says nothing At least 0.0.</td></tr>
-<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Take a `table`&#x27;s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named. A `row`, `column` or `flow` lays its children out from its far end</td></tr>
 </tbody>
 </table>
 
@@ -2676,6 +2606,74 @@ Announced from a node carrying `widget`:
 </tbody>
 </table>
 
+### `widget_box`
+
+`ui` · 5 properties
+
+The rarer words about a box, which any kind may carry: what its size measures, what it keeps for what runs past it, and how it lays out on its own.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>box_sizing</code></td><td>enum</td><td><code>border</code></td><td>What `width` and `height` measure: `border`, the whole box, or `content`, the box inside `padding` and `border` One of <code>border</code>, <code>content</code>.</td></tr>
+<tr><td><code>overflow</code></td><td>enum</td><td><code>visible</code></td><td>What the layout keeps for content past this widget&#x27;s box: `scroll` keeps `scrollbar_width` clear inside its edge, the others nothing. Layout only: a container never gives a child a floor of its own content here (`min_width` is that floor), a `scroll` kind is what scrolls, and each kind clips as it draws One of <code>visible</code>, <code>clip</code>, <code>hidden</code>, <code>scroll</code>.</td></tr>
+<tr><td><code>scrollbar_width</code></td><td>float</td><td><code>0.0</code></td><td>The room a box with `overflow = &quot;scroll&quot;` keeps clear inside its edge for a bar, in design pixels At least 0.0.</td></tr>
+<tr><td><code>contain</code></td><td>flags</td><td><code>[]</code></td><td>Containment: `layout` or `paint` makes the box lay out on its own, and `layout` also gives it no baseline for a parent&#x27;s `baseline` alignment One of <code>layout</code>, <code>paint</code>.</td></tr>
+<tr><td><code>safe_align</code></td><td>bool</td><td><code>false</code></td><td>Where `align_items`, `align_self`, `align_content` or `justify` would push a child past its container&#x27;s start, put it at the start instead, so the start stays in view</td></tr>
+</tbody>
+</table>
+
+### `widget_button`
+
+`ui` · 7 properties
+
+The rows a `button` or `menu` reads: what its face holds beside its caption, and what the pointer may do to it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>icon</code></td><td>string</td><td>—</td><td>A glyph from the theme&#x27;s icon family, drawn before `text`</td></tr>
+<tr><td><code>icon_color</code></td><td>string</td><td>—</td><td>What that glyph is tinted with, as `#rrggbb` or a name from the theme&#x27;s `[colors]`; empty takes the role&#x27;s own</td></tr>
+<tr><td><code>icon_size</code></td><td>float</td><td><code>-1.0</code></td><td>That glyph&#x27;s size in design pixels; below zero takes the caption&#x27;s</td></tr>
+<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture drawn before the caption at the caption&#x27;s height</td></tr>
+<tr><td><code>face_gap</code></td><td>float</td><td><code>-1.0</code></td><td>The space between its picture, icon and caption, in design pixels; below zero takes the theme&#x27;s own, else half the font size</td></tr>
+<tr><td><code>trailing</code></td><td>string</td><td>—</td><td>Text drawn against its far edge, dimmer than its caption: a shortcut, or a menu&#x27;s caret</td></tr>
+<tr><td><code>sense</code></td><td>enum</td><td><code>click</code></td><td>What the pointer may do to it: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui&#x27;s drag distance is a drag and no click; `drag` and `hover` never click One of <code>click</code>, <code>click_and_drag</code>, <code>drag</code>, <code>hover</code>.</td></tr>
+</tbody>
+</table>
+
+### `widget_check`
+
+`ui` · 4 properties
+
+The rows a `checkbox`, `switch` or `button` reads: whether it is on, and what a click does to that.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>checked</code></td><td>bool</td><td><code>false</code></td><td>Whether a `checkbox` or `switch` is on, every click flipping it and calling `on_change` with the new state; a checked `button` or `menu` is held down, wearing its pressed look</td></tr>
+<tr><td><code>toggle</code></td><td>bool</td><td><code>false</code></td><td>A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot&#x27;s toggle mode</td></tr>
+<tr><td><code>radio_group</code></td><td>string</td><td>—</td><td>A name this `checkbox`, `switch` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own</td></tr>
+<tr><td><code>indeterminate</code></td><td>bool</td><td><code>false</code></td><td>Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`</td></tr>
+</tbody>
+</table>
+
+### `widget_child`
+
+`ui` · 4 properties
+
+What a child says to the parent it sits in, whatever its own kind: a `grid`'s cell, a `fold`'s header, a `menu`'s row.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>row</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the rows it covers, as a line counted from 1 (`2`, or from the end below zero), a first and last line (`1 / 3`), a span (`span 2`, `2 / span 2`), or the name of one of the grid&#x27;s `areas`. Empty puts it in the next free cell</td></tr>
+<tr><td><code>column</code></td><td>string</td><td>—</td><td>On a `grid`&#x27;s child: the columns it covers, in the words `row` takes</td></tr>
+<tr><td><code>title_bar</code></td><td>bool</td><td><code>false</code></td><td>On a `fold`&#x27;s child: drawn in the fold&#x27;s header after its arrow and caption, as Godot&#x27;s title bar control is</td></tr>
+<tr><td><code>keep_open</code></td><td>bool</td><td><code>false</code></td><td>On a `menu`&#x27;s row: leave the menu open when clicked, as a toggle does; any other row closes it</td></tr>
+</tbody>
+</table>
+
 ### `widget_code`
 
 `ui` · 7 properties
@@ -2697,7 +2695,7 @@ The rows a `code` widget reads: what it highlights and its gutter.
 
 ### `widget_color_picker`
 
-`ui` · 3 properties
+`ui` · 4 properties
 
 The rows a `color_picker` reads: the colour it holds and what it offers.
 
@@ -2707,25 +2705,30 @@ The rows a `color_picker` reads: the colour it holds and what it offers.
 <tr><td><code>picked_color</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What a `color_picker` holds; `on_change` hears the new one</td></tr>
 <tr><td><code>alpha</code></td><td>enum</td><td><code>blend</code></td><td>What a `color_picker` offers for alpha: `none` keeps the colour opaque, `blend` offers transparency, `additive` that and additive blending One of <code>none</code>, <code>blend</code>, <code>additive</code>.</td></tr>
 <tr><td><code>inline</code></td><td>bool</td><td><code>false</code></td><td>Draw a `color_picker`&#x27;s picker in place, rather than behind a swatch that opens it</td></tr>
+<tr><td><code>on_commit</code></td><td>string</td><td>—</td><td>Script method called with the colour once a drag that changed it is over, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 
 ### `widget_dropdown`
 
-`ui` · 1 property
+`ui` · 5 properties
 
-The row a `dropdown` reads: how tall its list grows.
+The rows a `dropdown` reads: what it offers, how tall its list grows and what shuts it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The words a `dropdown` offers; `text` is the one picked, and `on_change` hears every pick</td></tr>
 <tr><td><code>list_height</code></td><td>float</td><td><code>0.0</code></td><td>The tallest a `dropdown`&#x27;s list grows before it scrolls, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>close_on</code></td><td>enum</td><td><code>click</code></td><td>What shuts a `dropdown`&#x27;s list: any click, a pick included, a click outside it, or nothing but Escape One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
+<tr><td><code>on_opened</code></td><td>string</td><td>—</td><td>Script method called when a `dropdown`&#x27;s list comes up, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_closed</code></td><td>string</td><td>—</td><td>Script method called when a `dropdown`&#x27;s list goes away, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 
 ### `widget_field`
 
-`ui` · 9 properties
+`ui` · 16 properties
 
 The rows a `text_field`, `text_area` or `code` reads: what may be typed and how the editor behaves.
 
@@ -2741,18 +2744,58 @@ The rows a `text_field`, `text_area` or `code` reads: what may be typed and how 
 <tr><td><code>caret_at_end</code></td><td>bool</td><td><code>true</code></td><td>Put the caret at the end of a `text_field`, `text_area` or `code`&#x27;s text when it first takes focus; off, at the start</td></tr>
 <tr><td><code>tab_inserts</code></td><td>bool</td><td><code>false</code></td><td>Let Tab type a tab into a `text_field`, `text_area` or `code` rather than move focus on</td></tr>
 <tr><td><code>submit_key</code></td><td>string</td><td>—</td><td>The chord that submits a `text_field`, as `enter` or `cmd+enter`; empty is Enter. A `text_area` submits when focus leaves it whatever this says</td></tr>
+<tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
+<tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Text drawn after a `text_field`&#x27;s or `text_area`&#x27;s text</td></tr>
+<tr><td><code>on_submit</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_caret</code></td><td>string</td><td>—</td><td>Script method called with `{ x, y, index }` when a `code` widget&#x27;s caret moves, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where what a `text_field` or `text_area` edits sits in its width One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>line_break</code></td><td>enum</td><td><code>word_or_glyph</code></td><td>Where a `text_area`&#x27;s wrapped line may break One of <code>word_or_glyph</code>, <code>word</code>, <code>glyph</code>.</td></tr>
+<tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between a `text_field`&#x27;s or `text_area`&#x27;s tab stops Range 1–64.</td></tr>
+</tbody>
+</table>
+
+### `widget_fold`
+
+`ui` · 1 property
+
+The row a `fold` reads: whether it shows what is under its header.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `fold` shows its children; its header flips it and calls `on_change` with the new state</td></tr>
+</tbody>
+</table>
+
+### `widget_grid`
+
+`ui` · 6 properties
+
+The rows a `grid` reads: its tracks and its named areas.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>grid_columns</code></td><td>string</td><td>—</td><td>A `grid`&#x27;s columns, left to right and space-separated: design pixels (`120`), a share of what is left (`1fr`), a percentage (`25%`), `auto`, `min_content`, `max_content`, `fit_content(120)`, `minmax(80, 1fr)`, and `repeat(3, 1fr)`, whose count may be `auto_fill` or `auto_fit`. Empty is two equal columns</td></tr>
+<tr><td><code>grid_rows</code></td><td>string</td><td>—</td><td>A `grid`&#x27;s rows, top to bottom, in the words `grid_columns` takes; empty makes each row as tall as what is in it</td></tr>
+<tr><td><code>areas</code></td><td>list of string</td><td><code>[]</code></td><td>A `grid`&#x27;s named areas, one string a row of space-separated names with `.` for a cell in none: `[&quot;head head&quot;, &quot;side main&quot;]`. A child names one in `row` and `column`</td></tr>
+<tr><td><code>auto_flow</code></td><td>enum</td><td><code>row</code></td><td>The order a `grid` fills cells with the children that name none: along each row, or down each column; a `_dense` order goes back to fill a hole a bigger child left One of <code>row</code>, <code>column</code>, <code>row_dense</code>, <code>column_dense</code>.</td></tr>
+<tr><td><code>auto_columns</code></td><td>string</td><td>—</td><td>The size of each column a `grid` adds past `grid_columns`, for a child placed beyond them or flowing down under `auto_flow = &quot;column&quot;`, in the words `grid_columns` takes without `repeat`; several take turns. Empty is `auto`</td></tr>
+<tr><td><code>auto_rows</code></td><td>string</td><td>—</td><td>The size of each row a `grid` adds past `grid_rows`, in the words `auto_columns` takes; empty is `auto`</td></tr>
 </tbody>
 </table>
 
 ### `widget_image`
 
-`ui` · 6 properties
+`ui` · 8 properties
 
-The rows an `image` reads: the part of the picture drawn and how it sits in its box.
+The rows an `image` reads: its picture, the part of it drawn and how it sits in its box.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>image</code></td><td>string</td><td>—</td><td>The project-relative picture an `image` draws</td></tr>
+<tr><td><code>slice</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>Left, top, right and bottom borders of an `image` kept unstretched, in the picture&#x27;s own pixels; all zero stretches the whole picture</td></tr>
 <tr><td><code>tint</code></td><td>color</td><td><code>[1.0, 1.0, 1.0, 1.0]</code></td><td>What an `image` is multiplied by; white draws it as it is</td></tr>
 <tr><td><code>fit</code></td><td>enum</td><td>—</td><td>How an `image` sits in the box it was given: `contain` and `cover` keep its shape, `fill` stretches, `none` leaves it its own size, centred. Empty lets the picture decide the box instead One of <code></code>, <code>contain</code>, <code>cover</code>, <code>fill</code>, <code>none</code>.</td></tr>
 <tr><td><code>region</code></td><td>vec4</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>The part of an `image` drawn, as left, top, width and height in the picture&#x27;s own pixels, which is how an atlas shows one tile; a zero width or height draws the whole picture. `ui.image` takes it too</td></tr>
@@ -2762,27 +2805,50 @@ The rows an `image` reads: the part of the picture drawn and how it sits in its 
 </tbody>
 </table>
 
+### `widget_layout`
+
+`ui` · 9 properties
+
+The rows a container reads: how it lays out what is in it.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>gap</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Space between a container&#x27;s children, across and down, in design pixels: a row puts the first between its children and the second between the lines it wraps onto, a column the second between its children, and a grid the first between its columns and the second between its rows. Below zero on an axis takes the theme&#x27;s own, which is 8 where it says nothing, and a stated zero puts them edge to edge</td></tr>
+<tr><td><code>align_items</code></td><td>enum</td><td><code>stretch</code></td><td>Where a container puts its children across its own direction, and a `grid` each child in its cell down: `stretch` makes each as wide (or tall) as the container, `baseline` lines up their first lines of text, the others keep each child&#x27;s own size One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>baseline</code>.</td></tr>
+<tr><td><code>justify</code></td><td>enum</td><td><code>start</code></td><td>How a container spreads its children along its own direction once they have their sizes, and a `grid` its columns: `stretch` grows a grid&#x27;s `auto` columns into the room, and in a row or a column is `start` One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
+<tr><td><code>align_content</code></td><td>enum</td><td><code>stretch</code></td><td>How a container that wraps spreads its lines across its direction, and a `grid` its rows, where they leave room: `stretch` shares the room among them One of <code>start</code>, <code>center</code>, <code>end</code>, <code>stretch</code>, <code>between</code>, <code>around</code>, <code>evenly</code>.</td></tr>
+<tr><td><code>wrap_children</code></td><td>enum</td><td><code>auto</code></td><td>Whether a container&#x27;s children run onto more lines when they do not fit: `auto` wraps a `flow` and keeps every other container on one line; `balance` evens the lines out over at least `min_lines`; a `_reverse` word stacks the lines the other way One of <code>auto</code>, <code>none</code>, <code>wrap</code>, <code>wrap_reverse</code>, <code>balance</code>, <code>balance_reverse</code>.</td></tr>
+<tr><td><code>min_lines</code></td><td>int</td><td><code>1</code></td><td>How many lines a wrapping container divides its children between at least: `balance` evens them over this many, and any wrap shares a known cross size among them At least 1.</td></tr>
+<tr><td><code>direction</code></td><td>enum</td><td><code>left_to_right</code></td><td>Which way a row and a grid&#x27;s columns run: `right_to_left` starts them at the right edge One of <code>left_to_right</code>, <code>right_to_left</code>.</td></tr>
+<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Lay a `row`, `column` or `flow`&#x27;s children out from its far end</td></tr>
+<tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seams between this container&#x27;s children get, in design pixels; 0 leaves them fixed. A drag writes the new size onto the neighbour that states one At least 0.0.</td></tr>
+</tbody>
+</table>
+
 ### `widget_list`
 
-`ui` · 6 properties
+`ui` · 8 properties
 
 The rows a `list` or `tree` reads: its card faces, and what a drag or a mark on a row does.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>grid_columns</code></td><td>string</td><td>—</td><td>How many columns a `list` flows its cards into, in the words a `grid`&#x27;s `grid_columns` takes; empty draws a line a row</td></tr>
 <tr><td><code>sheet</code></td><td>string</td><td>—</td><td>The picture a `list` cuts its card faces from</td></tr>
 <tr><td><code>draggable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag carry a card of a `list` with `grid_columns` out of it, drawn under the pointer; `on_drop` says where it was let go</td></tr>
 <tr><td><code>reorderable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag move a row of a `list` or a `tree`. The kind moves nothing itself: it draws where the row would land and calls `on_move`, and the rows are the script&#x27;s to reorder</td></tr>
 <tr><td><code>on_drop</code></td><td>string</td><td>—</td><td>Script method called with the card a drag let go outside the list, on this node or the nearest ancestor whose script declares it; the pointer is where it landed</td></tr>
 <tr><td><code>on_move</code></td><td>string</td><td>—</td><td>Script method called when a dragged row is dropped, with the row moved, the row it landed on, and `before`, `after` or `into`, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_mark</code></td><td>string</td><td>—</td><td>Script method called with `{ row, mark }` when a mark at the right of a `list` or `tree` row is clicked, on this node or the nearest ancestor whose script declares it. The click picks nothing</td></tr>
+<tr><td><code>on_fold</code></td><td>string</td><td>—</td><td>Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 
 ### `widget_menu`
 
-`ui` · 6 properties
+`ui` · 9 properties
 
 The rows a `menu` reads: where its popup opens and what shuts it.
 
@@ -2795,12 +2861,15 @@ The rows a `menu` reads: where its popup opens and what shuts it.
 <tr><td><code>popup_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a `menu`&#x27;s popup starts, in design pixels; 0 sizes it to its rows At least 0.0.</td></tr>
 <tr><td><code>close_on</code></td><td>enum</td><td><code>click_outside</code></td><td>What shuts a `menu`&#x27;s popup besides a row: a click outside it, any click at all, or nothing but Escape One of <code>click_outside</code>, <code>click</code>, <code>never</code>.</td></tr>
 <tr><td><code>showing</code></td><td>bool</td><td><code>false</code></td><td>Holds a menu&#x27;s rows up from the scene, as a click would; for an offscreen run or a tutorial, since nothing can click there</td></tr>
+<tr><td><code>options</code></td><td>list of string</td><td><code>[]</code></td><td>The words a `menu` of strings offers, its `text` being the button&#x27;s caption; `on_change` hears every pick</td></tr>
+<tr><td><code>on_opened</code></td><td>string</td><td>—</td><td>Script method called when a `menu`&#x27;s popup comes up, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_closed</code></td><td>string</td><td>—</td><td>Script method called when a `menu`&#x27;s popup goes away, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 
 ### `widget_range`
 
-`ui` · 21 properties
+`ui` · 25 properties
 
 The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in its range, how it moves and how it is drawn.
 
@@ -2828,18 +2897,40 @@ The rows a `slider`, `number_field` or `progress_bar` reads: where it stands in 
 <tr><td><code>handle_aspect</code></td><td>float</td><td><code>0.5</code></td><td>How wide a `rect` handle is against its height At least 0.0.</td></tr>
 <tr><td><code>trailing_fill</code></td><td>bool</td><td><code>false</code></td><td>Fill a `slider`&#x27;s track from its start up to the handle</td></tr>
 <tr><td><code>animate</code></td><td>bool</td><td><code>false</code></td><td>Shimmer a `progress_bar` that is short of full, with a spinner at its end unless it states a `corner_radius`. It repaints every frame while it is on screen and short of full, and never otherwise</td></tr>
+<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a `slider` runs: up its box under `vertical`, along it otherwise One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
+<tr><td><code>prefix</code></td><td>string</td><td>—</td><td>Text drawn before a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between</td></tr>
+<tr><td><code>suffix</code></td><td>string</td><td>—</td><td>Units drawn after a `number_field`&#x27;s or a shown `slider`&#x27;s number with a space between</td></tr>
+<tr><td><code>on_commit</code></td><td>string</td><td>—</td><td>Script method called with the number once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it</td></tr>
+</tbody>
+</table>
+
+### `widget_rows`
+
+`ui` · 5 properties
+
+The rows a `list`, `tree` or `table` reads: what it holds and what is picked.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>items</code></td><td>list of record · <code>cells, depth, icon, key, label, marks, note, tint</code></td><td><code>[]</code></td><td>The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key</td></tr>
+<tr><td><code>selection</code></td><td>list of string</td><td><code>[]</code></td><td>The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the key where it holds one</td></tr>
+<tr><td><code>multi_select</code></td><td>bool</td><td><code>false</code></td><td>Let a `list`, `tree` or `table` hold more than one row: the platform&#x27;s command key toggles a row and shift takes the run from the last one clicked</td></tr>
+<tr><td><code>row_height</code></td><td>float</td><td><code>0.0</code></td><td>The pitch of a `list`, `tree` or `table` row, in design pixels; 0 takes the font&#x27;s own line height At least 0.0.</td></tr>
+<tr><td><code>on_activate</code></td><td>string</td><td>—</td><td>Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 
 ### `widget_scroll`
 
-`ui` · 11 properties
+`ui` · 13 properties
 
 The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scrolled to and what scrolls it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which way a `scroll` moves, the other way its contents filling the box it was given One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
 <tr><td><code>scrollbar</code></td><td>enum</td><td><code>auto</code></td><td>When a `scroll`, `list`, `tree` or `table` has its bars: while its content runs past it, always, or never. The bars float, so one shows once the pointer is over the box One of <code>auto</code>, <code>always</code>, <code>never</code>.</td></tr>
 <tr><td><code>scroll_offset</code></td><td>vec2</td><td><code>[-1.0, -1.0]</code></td><td>Where a `scroll`, `list`, `tree` or `table` is scrolled to, across and down, in design pixels: written as the reader scrolls, and a new one written by the scene or a script scrolls it there. Below zero on an axis leaves that axis where it is; `ui.scroll` takes it too</td></tr>
 <tr><td><code>stick_to_end</code></td><td>bool</td><td><code>false</code></td><td>Keep a `scroll`, `list`, `tree` or `table` at its end as content arrives, until the reader scrolls away from it; `ui.scroll` takes it too</td></tr>
@@ -2851,12 +2942,13 @@ The rows a `scroll`, `list`, `tree` or `table` reads: its bars, where it is scro
 <tr><td><code>scroll_deadzone</code></td><td>float</td><td><code>0.0</code></td><td>How far a finger drags a `scroll` before it scrolls, in design pixels, so a tap on a child still lands; 0 scrolls at once At least 0.0.</td></tr>
 <tr><td><code>min_scrolled_width</code></td><td>float</td><td><code>0.0</code></td><td>The narrowest a `scroll`, `list`, `tree` or `table` draws while its content runs past it sideways, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
 <tr><td><code>min_scrolled_height</code></td><td>float</td><td><code>0.0</code></td><td>The shortest a `scroll`, `list`, `tree` or `table` draws while its content runs past it downwards, in design pixels; 0 takes egui&#x27;s At least 0.0.</td></tr>
+<tr><td><code>on_scrolled</code></td><td>string</td><td>—</td><td>Script method called with the offset, `[x, y]`, when a `scroll`, `list`, `tree` or `table` moves, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 
 ### `widget_separator`
 
-`ui` · 2 properties
+`ui` · 3 properties
 
 The rows a `separator` reads: the room it takes and how far its line runs.
 
@@ -2865,12 +2957,28 @@ The rows a `separator` reads: the room it takes and how far its line runs.
 <tbody>
 <tr><td><code>spacing</code></td><td>float</td><td><code>-1.0</code></td><td>The room a `separator` takes across its line, in design pixels, the line drawn down its middle; below zero is 6</td></tr>
 <tr><td><code>overhang</code></td><td>float</td><td><code>0.0</code></td><td>How far a `separator`&#x27;s line runs past each end of the room it was given, in design pixels; below zero stops it short</td></tr>
+<tr><td><code>axis</code></td><td>enum</td><td><code>both</code></td><td>Which line a `separator` draws; `both` leaves it across its parent&#x27;s direction One of <code>both</code>, <code>horizontal</code>, <code>vertical</code>.</td></tr>
+</tbody>
+</table>
+
+### `widget_shortcut`
+
+`ui` · 3 properties
+
+The rows of a chord that clicks a widget, which any kind may carry.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>shortcut</code></td><td>string</td><td>—</td><td>A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`</td></tr>
+<tr><td><code>while_typing</code></td><td>bool</td><td><code>true</code></td><td>Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`</td></tr>
+<tr><td><code>takes_typing</code></td><td>bool</td><td><code>false</code></td><td>Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list&#x27;s arrows, Enter and Escape while it is up</td></tr>
 </tbody>
 </table>
 
 ### `widget_table`
 
-`ui` · 4 properties
+`ui` · 8 properties
 
 The rows a `table` reads: its columns and how they sort.
 
@@ -2879,8 +2987,49 @@ The rows a `table` reads: its columns and how they sort.
 <tbody>
 <tr><td><code>titles</code></td><td>list of string</td><td><code>[]</code></td><td>A `table`&#x27;s column names, in order, and with them how many columns it has: a name ending in `&gt;` draws its column against the right edge, which is what a column of numbers wants. None takes the first row as the names</td></tr>
 <tr><td><code>widths</code></td><td>list of string</td><td><code>[]</code></td><td>Each column&#x27;s share of the width, in the order `titles` names them: `[&quot;2&quot;, &quot;1&quot;, &quot;1&quot;]` gives the first half and the other two a quarter each. Numbers and the text of them both; empty divides the width evenly, and a drag on a seam in the header writes the shares back</td></tr>
-<tr><td><code>sort</code></td><td>string</td><td>—</td><td>The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. The widget&#x27;s `reverse` takes them the other way round</td></tr>
+<tr><td><code>sort</code></td><td>string</td><td>—</td><td>The column the rows are ordered by, by the name in `titles`; empty leaves them in the order they were given. A cell that starts with a number sorts as one, so `12 KB` follows `3 KB`. `reverse` takes them the other way round</td></tr>
 <tr><td><code>sortable</code></td><td>bool</td><td><code>false</code></td><td>Let a click on the header sort by that column, and the next click on the same one turn it round; the column sorted by carries a caret</td></tr>
+<tr><td><code>reverse</code></td><td>bool</td><td><code>false</code></td><td>Take a `table`&#x27;s rows the other way round: the `sort` descending, or the order they were given bottom to top where none is named</td></tr>
+<tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw the strip that names a `table`&#x27;s columns. Off, its columns are still `titles`&#x27;, and a table that names none keeps its first row as a row</td></tr>
+<tr><td><code>splitter_width</code></td><td>float</td><td><code>0.0</code></td><td>How wide a grab the seam between two of a `table`&#x27;s columns gets, in design pixels; 0 takes six At least 0.0.</td></tr>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where every cell of a `table` sits in its column; a column whose name ends in `&gt;` pins its own to the right One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+</tbody>
+</table>
+
+### `widget_tabs`
+
+`ui` · 1 property
+
+The row a `tabs` reads: which child it shows.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>current_page</code></td><td>string</td><td>—</td><td>Which child a `tabs` shows, by node name; empty shows the first. A click on the strip writes it and calls `on_change` with the page&#x27;s name</td></tr>
+</tbody>
+</table>
+
+### `widget_text`
+
+`ui` · 12 properties
+
+The rows a kind drawing a caption reads: how its lines sit, break and are cut, and what the reader may do to them.
+
+<table>
+<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>text_align</code></td><td>enum</td><td><code>start</code></td><td>Where text sits in the width the widget was given One of <code>start</code>, <code>center</code>, <code>end</code>.</td></tr>
+<tr><td><code>markup</code></td><td>bool</td><td><code>false</code></td><td>Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text</td></tr>
+<tr><td><code>wrap</code></td><td>bool</td><td><code>false</code></td><td>Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text</td></tr>
+<tr><td><code>truncate</code></td><td>bool</td><td><code>false</code></td><td>Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text</td></tr>
+<tr><td><code>truncate_at</code></td><td>enum</td><td><code>end</code></td><td>Which part of a cut caption the ellipsis stands in for One of <code>end</code>, <code>start</code>, <code>middle</code>.</td></tr>
+<tr><td><code>show_tooltip_when_elided</code></td><td>bool</td><td><code>true</code></td><td>Show a `label`&#x27;s whole text when the pointer rests on it and `truncate` cut it short</td></tr>
+<tr><td><code>max_lines</code></td><td>int</td><td><code>0</code></td><td>The most lines a wrapped label keeps; zero keeps every line At least 0.</td></tr>
+<tr><td><code>line_break</code></td><td>enum</td><td><code>word_or_glyph</code></td><td>Where a wrapped line may break One of <code>word_or_glyph</code>, <code>word</code>, <code>glyph</code>.</td></tr>
+<tr><td><code>tab_width</code></td><td>int</td><td><code>8</code></td><td>Spaces between tab stops Range 1–64.</td></tr>
+<tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
+<tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>text_background</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>A wash behind the text of the kinds egui draws, a `checkbox`, `dropdown`, `menu`, `tabs`, `panel` and the like, where a `label` and a `button` shape their own; alpha 0 is none</td></tr>
 </tbody>
 </table>
 
@@ -2899,13 +3048,15 @@ The row a `toast` reads: how long it stays.
 
 ### `widget_window`
 
-`ui` · 7 properties
+`ui` · 12 properties
 
-The rows a `window` or a `dialog` reads: its chrome, and what shuts it.
+The rows a `window` or a `dialog` reads: whether it is up, its chrome, and what shuts it.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
+<tr><td><code>open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `window` or `dialog` is up; shut, it draws nothing and keeps nothing out</td></tr>
+<tr><td><code>header</code></td><td>bool</td><td><code>true</code></td><td>Draw a `window`&#x27;s title bar</td></tr>
 <tr><td><code>collapsible</code></td><td>bool</td><td><code>false</code></td><td>Give a `window`&#x27;s title bar an arrow that folds the window to its bar and back</td></tr>
 <tr><td><code>default_open</code></td><td>bool</td><td><code>true</code></td><td>Whether a `collapsible` window starts unfolded</td></tr>
 <tr><td><code>closable</code></td><td>bool</td><td><code>true</code></td><td>Draw a `window`&#x27;s cross</td></tr>
@@ -2913,6 +3064,9 @@ The rows a `window` or a `dialog` reads: its chrome, and what shuts it.
 <tr><td><code>resizable</code></td><td>bool</td><td><code>false</code></td><td>Give a `window` a grip in its bottom-right corner that a drag resizes it by, writing `width` and `height` within `min_width`, `min_height`, `max_width` and `max_height`</td></tr>
 <tr><td><code>dismissable</code></td><td>bool</td><td><code>true</code></td><td>Let Escape or a click on the dim shut a `dialog`; off, only the scene does</td></tr>
 <tr><td><code>backdrop_color</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.549]</code></td><td>What a `dialog` dims the screen behind it with</td></tr>
+<tr><td><code>on_opened</code></td><td>string</td><td>—</td><td>Script method called when a `window` or `dialog` comes up, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_closed</code></td><td>string</td><td>—</td><td>Script method called when a `window` or `dialog` goes away, on this node or the nearest ancestor whose script declares it</td></tr>
+<tr><td><code>on_close_request</code></td><td>string</td><td>—</td><td>Script method called when a `window`&#x27;s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it</td></tr>
 </tbody>
 </table>
 

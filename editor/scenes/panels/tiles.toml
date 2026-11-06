@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 4]
 
 # A column, because a mode may want more than one row of chips.
@@ -31,7 +32,8 @@ visible = false
 on_click = "card_clicked"
 kind = "list"
 grow = 1
-grid_columns = "repeat(8, 1fr)"
 
 [nodes.widget.touch]
 row_height = 33
+[nodes.widget_list]
+grid_columns = "repeat(8, 1fr)"

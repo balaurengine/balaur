@@ -144,9 +144,9 @@ every component, for a save, and `PropertyReaders`/`PropertyWriters` give
 - **Groups are one vocabulary.** A component uses the shared name when the
   idea is the one the name means (PLAN-component-order §1).
 - **No property shows on a condition.** Properties that apply only beside
-  one value of another are a component of their own: `widget` is one
-  component per kind (PLAN-widgets), and the rest are listed in
-  PLAN-component-order §4.
+  one value of another are a component of their own: the rows only some
+  of `widget`'s kinds read are components beside it, and the rest are
+  listed in PLAN-component-order §4.
 - **Derived state is a system's cache**, keyed on the change log, never a
   field: a shaped text, a built mesh.
 - **What goes**: each component's hand-written `apply` and `get`, the
@@ -167,9 +167,11 @@ Every component of core, physics, render, input, animation and audio with a
 fixed schema is on it, each schema proven unchanged; what a system works
 out stays a cache beside the struct. `meta` and `states` (every key the
 author's), `mesh` (any `morph_*` key) and `material` (core's `Appearance`)
-stay hand-written. `widget` is `WidgetProperties` beside the `Widget` the UI
-reads, a one-property write updating the one field it feeds; its split into
-a component per kind is still to come.
+stay hand-written. `widget` is `WidgetProperties`, the 60 rows most kinds
+read, beside the `Widget` the UI reads, a one-property write updating the one
+field it feeds. The rows only some kinds read are 25 components beside it
+(`balaur_ui/src/widget/beside*.rs`, PLAN-component-order §4.1), absent
+meaning their defaults, a row of one written onto its one field the same way.
 
 A component's order is what a user changes most first, then its groups.
 PLAN-component-order lists all 55 components, 1,429 properties, in that

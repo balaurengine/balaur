@@ -45,9 +45,9 @@ impl Docs {
             return;
         }
         let patched = self.node.get_node("Tools/Module");
-        patched.widget.options = view["modules"];
+        patched.widget_dropdown.options = view["modules"];
         patched.widget.text = view["pick"].as_str();
-        self.node.get_node("List").widget.items = view["items"];
+        self.node.get_node("List").widget_rows.items = view["items"];
         let patched = self.node.get_node("Nothing");
         patched.set_visible(view["says"].as_str() != "");
         patched.widget.text = view["says"].as_str();

@@ -685,11 +685,11 @@ fn a_keyed_read_answers_one_property() {
 
                 let text = "text";
                 let kind = "kind";
-                let checked_key = "checked";
+                let enabled_key = "enabled";
                 self.check(n.component_property("widget", text).as_str() == "hi", "widget text");
                 self.check(n.component_property("widget", kind).as_str() == "button", "widget kind");
-                let checked = n.component_property("widget", checked_key);
-                self.check(checked.kind() == "bool" && !checked.as_bool(), "widget checked");
+                let enabled = n.component_property("widget", enabled_key);
+                self.check(enabled.kind() == "bool" && enabled.as_bool(), "widget enabled");
                 let table = n.get_component("widget");
                 self.check(n.component_property("widget", "value") == table["value"], "same as the table");
 

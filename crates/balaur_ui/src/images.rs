@@ -47,7 +47,7 @@ pub(crate) type Decoding = (
 
 /// [`balaur_core::preload`]'s hand-off for a `widget`: its picture queued for
 /// [`settle`] to decode off the frame, so the screen that draws it finds it up.
-pub(crate) fn preload_widget(eng: &Engine, widget: &toml::Value) {
+pub(crate) fn preload_picture(eng: &Engine, widget: &toml::Value) {
     if let Some(path) = widget.get("image").and_then(toml::Value::as_str)
         && let Some(state) = eng.try_resource::<UiState>()
     {
@@ -55,9 +55,9 @@ pub(crate) fn preload_widget(eng: &Engine, widget: &toml::Value) {
     }
 }
 
-/// [`balaur_core::preload`]'s other half for a `widget`: its picture let go.
+/// [`balaur_core::preload`]'s other half for a widget: its picture let go.
 /// A draw still naming it reads it again.
-pub(crate) fn unload_widget(eng: &Engine, widget: &toml::Value) {
+pub(crate) fn unload_picture(eng: &Engine, widget: &toml::Value) {
     let Some(path) = widget.get("image").and_then(toml::Value::as_str) else {
         return;
     };
@@ -263,7 +263,7 @@ mod tests {
         let _ = upload(&state, &ctx, "a.png", pixel(), egui::TextureOptions::LINEAR);
         let _ = upload(&state, &ctx, "b.png", pixel(), egui::TextureOptions::LINEAR);
         let widget = toml::toml! { image = "a.png" };
-        unload_widget(&eng, &toml::Value::Table(widget));
+        unload_picture(&eng, &toml::Value::Table(widget));
         assert!(!state.borrow().textures.contains_key("a.png"));
         assert!(state.borrow().textures.contains_key("b.png"));
     }

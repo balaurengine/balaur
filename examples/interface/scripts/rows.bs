@@ -27,10 +27,11 @@ fn asked() -> str {
 const LIST: str = "Sheet/Views/ListBox/List";
 
 impl Rows {
-    fn fill(name: str, params: any) {
+    fn fill(name: str, rows: any, text: str) {
         let found = self.node.get_node(name);
         if found.is_valid() {
-            found.patch_component("widget", params);
+            found.patch_component("widget_rows", rows);
+            found.widget.text = text;
         }
     }
 
@@ -43,10 +44,9 @@ impl Rows {
         self.fill(LIST, {
             "items": self.cards,
             "selection": [self.cards[1].label.unwrap(), self.cards[2].label.unwrap()],
-            "text": self.cards[2].label.unwrap(),
-        });
-        self.fill("Sheet/Views/TreeBox/Outline", { "items": screen::outline() });
-        self.fill("Sheet/Views/TableBox/Table", { "items": screen::table() });
+        }, self.cards[2].label.unwrap());
+        self.fill("Sheet/Views/TreeBox/Outline", { "items": screen::outline() }, "");
+        self.fill("Sheet/Views/TableBox/Table", { "items": screen::table() }, "");
     }
 
     /// A row dropped somewhere else in the list, which the kind reports and this
@@ -77,7 +77,7 @@ impl Rows {
             }
         }
         self.cards = out;
-        self.fill(LIST, { "items": out, "text": moved, "selection": [moved] });
+        self.fill(LIST, { "items": out, "selection": [moved] }, moved);
     }
 
     // Late enough that the layout has settled and the rows are in.

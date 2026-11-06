@@ -197,15 +197,10 @@ pub(crate) fn dropdown(
     } else {
         ui.spacing().combo_height
     };
-    let close = if widget.keep_open {
-        egui::PopupCloseBehavior::CloseOnClickOutside
-    } else {
-        egui::PopupCloseBehavior::CloseOnClick
-    };
     let up = egui::Popup::menu(&button)
         .id(popup)
         .width(button.rect.width())
-        .close_behavior(close)
+        .close_behavior(closing(&widget.egui.close_on))
         .show(|ui| {
             ui.set_min_width(ui.available_width());
             egui::ScrollArea::vertical()
@@ -423,6 +418,15 @@ pub(crate) fn menu(
     }
 }
 
+/// What a `close_on` word asks of a popup.
+fn closing(word: &str) -> egui::PopupCloseBehavior {
+    match word {
+        w::CLICK => egui::PopupCloseBehavior::CloseOnClick,
+        w::NEVER => egui::PopupCloseBehavior::IgnoreClicks,
+        _ => egui::PopupCloseBehavior::CloseOnClickOutside,
+    }
+}
+
 /// The side a placement word names against the button, or `None` for the
 /// two that are no side: the pointer and the middle of the screen.
 fn side_of(placement: &str) -> Option<egui::RectAlign> {
@@ -467,11 +471,7 @@ fn dropped<'a>(
     // The rows decide for themselves unless `close_on` says otherwise: egui's
     // default closes on any click inside, which would shut the menu under a
     // toggle that keeps it open.
-    let mut popup = egui::Popup::menu(response).close_behavior(match o.close_on.as_str() {
-        w::CLICK => egui::PopupCloseBehavior::CloseOnClick,
-        w::NEVER => egui::PopupCloseBehavior::IgnoreClicks,
-        _ => egui::PopupCloseBehavior::CloseOnClickOutside,
-    });
+    let mut popup = egui::Popup::menu(response).close_behavior(closing(&o.close_on));
     if o.popup_gap >= 0.0 {
         popup = popup.gap(o.popup_gap);
     }

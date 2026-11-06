@@ -644,7 +644,7 @@ pub fn timeline_fill(state: &mut editor::State) {
         util::set_text(TIMELINE + "/Missing/Says", missing);
         let filled = scene::get_node(TIMELINE + "/Missing/Create");
         if filled.is_valid() {
-            filled.widget.icon = icons::ui("add");
+            filled.widget_button.icon = icons::ui("add");
         }
         util::set_visible(TIMELINE + "/Body", false);
         return;
@@ -659,7 +659,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let name = anim::clip_name(state, node);
     let filled = scene::get_node(TIMELINE + "/Body/Head/AddKey");
     if filled.is_valid() {
-        filled.widget.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui("add");
     }
     let library = anim::library_path(state, node);
     let clip = if name == "" { "unnamed" } else { name };
@@ -673,7 +673,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let filled = scene::get_node(TIMELINE + "/Body/Head/Loop");
     if filled.is_valid() {
         filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
-        filled.widget.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
+        filled.widget_dropdown.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
     }
     // The ruler carries the scale the lanes are read against: a label and a
     // rule per tick straight down through the lanes.

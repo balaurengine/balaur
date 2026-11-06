@@ -18,7 +18,7 @@ Lowercase, one or two words, spaces between words. `primary` is not a group: it 
 | Group | Holds | Used by | Origin |
 | --- | --- | --- | --- |
 | `placement` | Where the drawing or control sits and how big, against its node or parent: offset, size, centered, anchor, x/y, width/height, pixels_per_unit | multimesh2d, polygon, sprite, text2d, text3d, tilemap, touch_button, touch_stick, widget | widget's; now shared |
-| `layout` | How a container lays out its children (padding, gap, flex/grid rows) | widget | widget's |
+| `layout` | The box's own edges: padding and border. How a container lays out its children is `widget_layout` | widget | widget's |
 | `shape` | A primitive's or collider's own dimensions, tessellation and offset; a soft body's layout | collider2d, collider3d, shape2d, shape3d, softbody2d, softbody3d, tile_collision | physics; collider rows that read an asset left for `mesh` |
 | `mesh` | A shape built from an asset (mesh, heightfield, voxels) and how the asset is read | collider2d, collider3d | new (split from `shape`) |
 | `mesh cleanup` | Tidying generated geometry before it is used | boolean2d, mesh_collider2d, mesh_collider3d | physics; the colliders' moved beside them |
@@ -27,7 +27,7 @@ Lowercase, one or two words, spaces between words. `primary` is not a group: it 
 | `region` | Which part of the texture draws: atlas cell, nine-slice margins | sprite | new |
 | `cells` | A tilemap's painted data | tilemap | new |
 | `font` | The `font` asset row, size/weight/style kept on the node, the `text_style` row | text2d, text3d, widget | new; was widget `type` |
-| `text` | Where the text comes from and how it wraps: text_key, markup, max_width, truncate, line_break; widget's prefix/suffix/tooltip | text2d, text3d, widget | new; was widget `type` |
+| `text` | Where the text comes from and how it wraps: text_key, markup, max_width, truncate, line_break; on a widget its text_key and tooltip, the rest `widget_text` | text2d, text3d, widget | new; was widget `type` |
 | `paint` | Secondary look past the primary colour: extra colours, images, sizes of drawn parts | particles2d, particles3d, touch_button, touch_stick, widget | widget's; now shared |
 | `shadows` | Casting and receiving shadows, and shadow settings | boolean3d, environment, light2d, light3d, mesh, multimesh3d, particles3d, shape3d, text3d | new |
 | `layers` | Render, light and segmentation masks | boolean3d, camera3d, light3d, mesh, multimesh3d, particles3d, shape3d, text3d | new; camera3d's render_layers left `lens` |
@@ -137,7 +137,7 @@ Nothing left to do: `animation`, `bindings`, `body2d`, `body3d`, `bone2d`, `bone
 
 ## 4. Findings
 
-- **widget**: 31 kinds in one component. `value` (60 rows) and `events` (35) are per-kind grab bags: code-only (language, breakpoints, problems, warnings, current_line, gutter_width, on_gutter), table-only (titles, widths, sort, reverse, sortable, header), inspector-only (component, target, relative_to, label_width, gone with the `inspector` kind, PLAN-editor-as-scene §9.4), menu-only (placement*, popup_*, close_on, keep_open, showing, context). With no conditional rows, a label shows about 200 dead rows. The rare kinds (code, table, inspector, menu) are candidates for sub-components. Resolved 2026-10-31: components beside `widget`, each the rows a set of kinds reads (`widget_range`, `widget_field`, `widget_scroll`, `widget_list`, `widget_table`, `widget_code`, `widget_menu`, `widget_window`, `widget_color_picker`, `widget_image`, `widget_dropdown`, `widget_separator`, `widget_toast`); `reverse`, `header`, `keep_open` and `context` stay, a row or a widget of any kind reading them.
+- **widget**: 31 kinds in one component. `value` (60 rows) and `events` (35) are per-kind grab bags: code-only (language, breakpoints, problems, warnings, current_line, gutter_width, on_gutter), table-only (titles, widths, sort, reverse, sortable, header), inspector-only (component, target, relative_to, label_width, gone with the `inspector` kind, PLAN-editor-as-scene §9.4), menu-only (placement*, popup_*, close_on, keep_open, showing, context). With no conditional rows, a label shows about 200 dead rows. The rare kinds (code, table, inspector, menu) are candidates for sub-components. Resolved 2026-10-31: fourteen components beside `widget`, each the rows a set of kinds reads (`widget_range`, `widget_field`, `widget_scroll`, `widget_list`, `widget_table`, `widget_code`, `widget_inspector` (gone with its kind 2026-11-03), `widget_menu`, `widget_window`, `widget_color_picker`, `widget_image`, `widget_dropdown`, `widget_separator`, `widget_toast`). Resolved 2026-11-03: what those left behind is eleven more, audited in [§4.1](#41-the-rows-of-widget).
 - **shape2d**: 7 kinds. The 9 `line` rows describe a different thing, a stroked path (Godot's Line2D), and are a candidate `line2d` component. The `shape` rows are per-kind: points/inner_radius are star-only, sides ngon-only, corner_radius rectangle-only. Resolved 2026-10-30: the stroked path is `line2d` (its `mesh`, tint, texture, material, the stroke rows and a `gradient` group), and `polyline` left `kind`. Resolved 2026-10-31 for the shapes: a `variant` property type (one of several records, named by `kind`), and `shape3d`/`shape2d` hold their primitive in one `shape` row whose fields are that kind's. The colliders followed the same day: `collider2d`/`collider3d` hold one `shape` variant, each kind its dimensions or its source asset (`mesh`, `heightfield`, `voxels`) and the rows only it reads (`edge_radius` on the shapes it rounds, `up_axis` and the ends on a capsule, `fix_internal_edges` on a mesh or heightfield), and `fit`, `edges` and 2D `keep_collinear` moved from the components beside it into their kinds; `convex_decomposition2d`'s `method` holds `overlap` on `exact` and the tuning on `vhacd` and `voxels`.
 - **collider2d/3d**: 16/18 kinds. a/b/c, normal, the `mesh` rows (12/10), 6 `mesh cleanup` rows and the `decomposition` rows (10/9) apply to a few kinds each, so about 30 rows are dead for a box. Grouping keeps them at the bottom, in reading order. Resolved 2026-10-30: `mesh_collider2d`/`mesh_collider3d` hold how a mesh becomes the shape (`fit`, `edges`, `oriented`, 2D `keep_collinear`, `fill`, `fill_cavities`, 2D `fix_self_intersections`, then `mesh cleanup`), read by triangle_mesh, polyline, fit, voxelized_mesh, convex_decomposition and 2D convex_polygon; `convex_decomposition2d`/`convex_decomposition3d` hold the `decomposition` rows, read by convex_decomposition and a 3D fit. The collider keeps the dimensions and the source assets.
 - **softbody2d/3d**: 9/8 kinds. `shape` (17/24 rows) is per-kind: cells for grid, radius for circle, a/b for rope, *_indices for custom. softbody3d files shear/warp/weft springs under `shape` though they are stiffness. `color` (a render row) and `enabled` sit in the physics `surface` group. Resolved 2026-10-30: one component per set of rows a kind reads, the kind's word after `soft_`: 2D `soft_grid2d` (size, cells), `soft_circle2d` (radius, particle_count), `soft_rope2d` (particle_count, a, b), `soft_outline2d` (points), `soft_polyline2d` (edges), `soft_volumetric2d` (cell_size, min_angle), `soft_custom2d` (points, the index lists); 3D `soft_grid3d` (box and cloth: size, cells), `soft_sphere3d`, `soft_cloth_tube3d`, `soft_rope3d`, `soft_volumetric3d`, `soft_custom3d`. `mesh` and `seams` stay: most kinds read them. shear/warp/weft went with `soft_material` (2026-10-28). Resolved 2026-10-31: `skin` and `skin_collision` are `soft_skin2d`/`soft_skin3d`, read by the kinds with cells (2D grid, 3D box, volumetric, custom).
@@ -162,6 +162,59 @@ Nothing left to do: `animation`, `bindings`, `body2d`, `body3d`, `bone2d`, `bone
 - **physics `surface` vs material `[surface]`**: one word for friction and for rasterization. Resolved by the `physics_material` move (2026-10-28).
 - **tile_collision**: `fit` and `edge_radius` apply only to tiles whose tileset collision is polygons; whole cells read neither. Resolved 2026-10-31: both are `tile_shapes` beside it.
 - **tilemap** cells/terrain/flags are string-encoded grids painted by the tile editor, not values anyone types in an inspector row. Resolved 2026-10-31: `cells` is a variant, `inline` (its `rows`) or `file` (a `.cells` file's `path`), and `terrain` and `flags` are rows of whole numbers.
+
+### 4.1 The rows of `widget`
+
+Audited 2026-11-03 by reading where each `Widget` field is read, against the 31 kinds. A row most kinds read stays; every other row moved. `widget` went from 130 rows to 60, beside 25 components.
+
+Stays: `kind`, `text` (17 kinds), `enabled`, every `placement` row (any child or root), `padding`, `border`, `theme`, `role`, `fill`, `stroke`, `text_color`, `corner_radius`, `dashed`, `fade_in`, `font`, `font_size`, `font_weight`, `font_style` and `text_style` (21 kinds), `text_key`, `tooltip`, `on_click`, `on_change` (17 kinds), `on_focus`, `on_blur`, `on_double_click`, `interactive`, `focusable`, `neighbour_*`, `cursor`, `context` (any kind).
+
+| Rows | Read by | Now on |
+| --- | --- | --- |
+| `gap`, `align_items`, `justify`, `align_content`, `wrap_children`, `min_lines`, `direction` | the 14 kinds `lays_out` names | `widget_layout` |
+| `reverse` | `row`, `column`, `flow`; `table` | `widget_layout`; `widget_table` |
+| `splitter_width` | containers; `table` | `widget_layout`; `widget_table` |
+| `box_sizing`, `overflow`, `scrollbar_width`, `contain`, `safe_align` | every kind through `style_of`, used where a node asks | `widget_box`, any kind |
+| `grid_rows`, `areas`, `auto_flow`, `auto_columns`, `auto_rows` | `grid` | `widget_grid` |
+| `grid_columns` | `grid`; `list` | `widget_grid`; `widget_list` |
+| `row`, `column` | any child of a `grid` | `widget_child`, any kind |
+| `title_bar` | any child of a `fold` | `widget_child` |
+| `keep_open` | any row of a `menu` | `widget_child` |
+| `axis` | `scroll`; `slider`; `separator` | `widget_scroll`; `widget_range`; `widget_separator` |
+| `header` | `table`; `window` | `widget_table`; `widget_window` |
+| `open` | `fold`; `window`, `dialog` | `widget_fold`; `widget_window` |
+| `current_page` | `tabs` | `widget_tabs` |
+| `checked`, `toggle`, `radio_group`, `indeterminate` | `checkbox`, `switch`, `button`, `menu` | `widget_check` |
+| `options` | `dropdown`; `menu` | `widget_dropdown`; `widget_menu` |
+| `items`, `selection`, `multi_select`, `on_activate` | `list`, `tree`, `table` | `widget_rows` |
+| `row_height` | `list`, `tree`, `table` | `widget_rows` |
+| `prefix`, `suffix` | `slider`, `number_field`; `text_field`, `text_area` | `widget_range`; `widget_field` |
+| `on_commit` | `slider`, `number_field`; `color_picker` | `widget_range`; `widget_color_picker` |
+| `on_submit` | `text_field`, `text_area` | `widget_field` |
+| `on_caret` | `code` | `widget_field` |
+| `on_scrolled` | `scroll`, `list`, `tree`, `table` | `widget_scroll` |
+| `on_fold` | `tree` | `widget_list` |
+| `on_opened`, `on_closed` | `dropdown`; `menu`; `window`, `dialog` | `widget_dropdown`; `widget_menu`; `widget_window` |
+| `on_close_request` | `window` | `widget_window` |
+| `markup`, `truncate_at`, `max_lines` | `label`, `button`, `menu` | `widget_text` |
+| `wrap`, `truncate` | `label`, `button`, `menu`, `dropdown` | `widget_text` |
+| `selectable`, `on_link`, `show_tooltip_when_elided` | `label` | `widget_text` |
+| `text_align` | `label`, `button`, `menu`; `text_field`, `text_area`; `table` | `widget_text`; `widget_field`; `widget_table` |
+| `line_break`, `tab_width` | `label`, `button`, `menu`; `text_field`, `text_area` | `widget_text`; `widget_field` |
+| `text_background` | `checkbox`, `dropdown`, `menu`, `tabs`, `panel`, `dialog`, `toast`, `progress_bar` | `widget_text` |
+| `icon`, `icon_color`, `icon_size`, `trailing`, `sense` | `button`, `menu` | `widget_button` |
+| `image` | `image`; `button`, `menu` | `widget_image`; `widget_button` |
+| `slice` | `image` | `widget_image` |
+| `shortcut`, `while_typing`, `takes_typing` | any kind a click does something for | `widget_shortcut`, any kind |
+
+Decided with the audit:
+
+- A row keeps one key across the kinds that read it, and sits on the component each of them reads: `axis` on `widget_scroll`, `widget_range` and `widget_separator`. No kind reads two components holding one row, which a test holds, so a pooled control's one table still says one place.
+- A component any kind may carry (`widget_box`, `widget_child`, `widget_shortcut`) is read by every kind and brought by no preset: a node names it where it asks for a row. A preset brings the rest of what its kind reads.
+- A screen class's table stays `[nodes.widget.<class>]`, and names any row of the widget or of a component its kind reads. It is one table of what the widget is under that class; a row the kind reads nothing of, or a value of the wrong shape, is refused.
+- `keep_open` on a `dropdown` is `close_on`, as on a `menu`, whose default for a dropdown is `click`. A button's `gap` is `face_gap`, since a `menu` is a container and a button both.
+- `checked` drew the `checked` look on any kind. It is read by the four above now; the one `label` in the tree that wore it, the state machine's chip, is a `button` nothing can click or focus.
+- `kind` written alone rebuilds the widget, since it decides which components beside it the widget reads.
 
 ## 5. How the moves land
 
