@@ -2,8 +2,8 @@
 // Desktop and Android; iOS forbids the JIT and the web has its own engine.
 
 use super::engine::{
-    Args, Bases, ImportCtx, Raw, Setup, Shared, Wasm, copy_from, own_global, read_from,
-    shared_global, shared_starts, unit_layout,
+    Bases, ImportCtx, Raw, Setup, Shared, Wasm, copy_from, own_global, read_from, shared_global,
+    shared_starts, unit_layout,
 };
 use super::host::dispatch;
 use super::values::float;
@@ -102,6 +102,9 @@ impl ImportCtx for Ctx<'_, '_> {
             Some(m) => copy_from(m.data(&*self.0), at, out),
             None => out.fill(0),
         }
+    }
+    fn memory_bytes(&self) -> Option<&[u8]> {
+        self.0.data().mem.map(|m| m.data(&*self.0))
     }
     fn write(&mut self, at: usize, bytes: &[u8]) {
         if let Some(m) = self.0.data().mem {
@@ -224,6 +227,9 @@ fn slot_of_vt(val_type: &ValType) -> Slot {
     }
 }
 
+/// The most arguments a call reads into a buffer on the stack.
+const HELD_ARGS: usize = 8;
+
 // An import as wasmtime calls it: its parameters, then its results, in one
 // run of raw slots, with nothing converted but what the host reads.
 fn import_call(
@@ -234,17 +240,26 @@ fn import_call(
 {
     move |mut caller, slots| {
         let host = caller.data().host.clone();
-        let args: Args = params
-            .iter()
-            .zip(slots.iter())
-            // SAFETY: wasmtime fills the first slots with the call's
-            // arguments, of the types the import declares, which `params` are.
-            .map(|(slot, value)| raw_of(*slot, unsafe { value.assume_init_read() }))
-            .collect();
-        let out = dispatch(&host, &mut Ctx(&mut caller), unit, index, &args)
+        // SAFETY: wasmtime fills the first slots with the call's arguments, of
+        // the types the import declares, which `params` are.
+        let read = |(slot, value): (&Slot, &MaybeUninit<ValRaw>)| {
+            raw_of(*slot, unsafe { value.assume_init_read() })
+        };
+        let mut held = [Raw::I32(0); HELD_ARGS];
+        let spilled: Vec<Raw>;
+        let args: &[Raw] = if params.len() <= HELD_ARGS {
+            for (at, given) in held.iter_mut().zip(params.iter().zip(slots.iter())) {
+                *at = read(given);
+            }
+            &held[..params.len()]
+        } else {
+            spilled = params.iter().zip(slots.iter()).map(read).collect();
+            &spilled
+        };
+        let out = dispatch(&host, &mut Ctx(&mut caller), unit, index, args)
             .map_err(wasmtime::Error::msg)?;
-        for (slot, raw) in slots.iter_mut().zip(out) {
-            *slot = MaybeUninit::new(val_raw(raw));
+        for (slot, raw) in slots.iter_mut().zip(&out) {
+            *slot = MaybeUninit::new(val_raw(*raw));
         }
         Ok(())
     }
