@@ -1,16 +1,16 @@
-> **Status:** planned 2026-10-30; where each workstream stands, 2026-10-31:
+> **Status:** planned 2026-10-30; where each workstream stands, 2026-11-06:
 > the core split and the ECS are built (PLAN-core-split, PLAN-ecs); the
 > script tests are built, random programs with `any`, passing and shrinking
 > included, but for step 2's last files and forge's build-size page
-> (PLAN-script-tests §2, §9); of the editor follow-ups, the derive is finished, the per-kind
-> splits are done for primitives, colliders, joints and soft bodies, and
-> every physics builder reads typed components, and `widget` is split into
-> components beside it (HANDOVER-editor-followups); the stricter language's
-> engine records are built and `map()` and `with` are gone, with typed calls
-> between scripts and the pool's specs as records left (2026-10-31); the UI
-> gaps are built, text fields, one layout owner, directional focus and
-> accessibility, but for the screen reader's platform adapter, which waits on
-> a push to the kiss3d fork (PLAN-ui-gaps).
+> (PLAN-script-tests §2, §9); the editor follow-ups are done
+> (HANDOVER-editor-followups): the derive, every per-kind split, `widget`
+> split into the components beside it, the Inspector as pooled rows, and
+> every physics builder reading typed components; the stricter language is
+> built, engine records, `map()` and `with` gone, the pool's specs as
+> records, every build linking units and the panels calling the Editor by
+> type, with enums and `match` left; the UI gaps are built, text fields, one
+> layout owner, directional focus and accessibility, the screen reader's
+> platform adapter included (PLAN-ui-gaps).
 
 # Plan: foundations
 
@@ -122,7 +122,7 @@ stop, open a pull request and merge before going on.
 | 4 | Per-kind splits: `widget`, `shape2d` to `line2d`, the collider groups, softbody and joint rows, tilemap grids; then delete the old readers, writers and `Authored` | handover 3, 1 |
 | 5 | The PR gates, and the `editor-followups` pull request | handover 8; **PR boundary** |
 | 6 | Script corpus, every engine, errors as written, fuzzing; CI over the big corpus, the editor native, the budget gate | PLAN-script-tests 1 to 7, handover 5 and 6 |
-| 7 | A stricter language: engine records and `map()` and `with` out, built 2026-10-31; every build linking units, built 2026-11-03; the panels calling by type, and the pool's specs as records, left; then enums and `match` | handover 4, PLAN-script-tests 10; **PR boundary** |
+| 7 | A stricter language: engine records and `map()` and `with` out, built 2026-10-31; the pool's specs as records, built 2026-11-01; every build linking units, built 2026-11-03; the panels calling by type, built 2026-11-06; then enums and `match` | handover 4, PLAN-script-tests 10; **PR boundary** |
 | 8 | The core split | PLAN-core-split; **PR boundary** |
 | 9 | One door, ticks, change detection, lifecycle calls | PLAN-ecs 1 to 4 |
 | 10 | Observers, messages, commands, relationships, required components; the scene tree on relationships | PLAN-ecs 5 to 9 |

@@ -1117,9 +1117,9 @@ The sample after puts 2.6 % there: 41 of its 107 samples are egui-wgpu's
 vertex and index upload, the rest new `GPUVec` buffers for the 2D text a
 reshape makes. `edit_cost.sh` moves no more than its noise, about 1 M
 between runs at the load these ran at, since it subtracts an idle frame
-that pays the same writes. Putting egui-wgpu's upload through a belt too, a change to
-the egui fork, measured 23.2 and 23.3 M idle and 26.9 and 27.0 M editing,
-two runs each.
+that pays the same writes. egui-wgpu's upload goes through a belt too, on the
+egui fork's `balaur-zeno-glyphs` since 2026-11-06: 23.2 and 23.3 M idle and
+26.9 and 27.0 M editing, two runs each.
 
 ## 11. What a frame allocates
 

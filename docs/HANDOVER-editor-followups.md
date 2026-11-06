@@ -4,30 +4,25 @@ Merged as #67. What follows the next heading is that branch's record; this
 first section is what a check of `main` found left, and where the work on it
 stopped.
 
-## Paused 2026-11-03
+## Fixed on `editor-fixes`, 2026-11-06
 
-Nothing here is merged or pushed. The plan: each branch finishes green, then
-merges into `script-api-types` (the other session's branch, `any` narrowing,
-which owns Forge's language docs and the site sync too) for one PR. Merge
-`fix-followups` first, then rows, Inspector, units, speed, then the panels.
-Rerun `scripts/gen_docs.py` rather than merging `docs/generated/`. Only one
-target directory per job: a shared one kept builds waiting an hour on its lock.
-Scripts that lived in scratch are in `../balaur-paused/`.
+Every item a check of `main` found left is on `editor-fixes`, one branch for
+one PR: each fix branch was merged into it green, and the gates in item 9
+pass on the merged tree.
 
-| Branch, worktree | State | Left |
-| --- | --- | --- |
-| `fix-followups`, `../balaur-native` | Done, tested: a saved multimesh asset reaches its nodes; a soft-body region names its `soft_material` | The stale docs below |
-| `fix-widget-rows`, `../balaur-optins` | A third done, HEAD is WIP; the CLI builds, 17 dead-code warnings; PLAN-component-order §4.1 describes the finished split | Delete the dead keys; run `stage_c.py`, `stage_d.py` from `../balaur-paused/widget-rows/` with their by-hand edits; add `widget_beside_test.rs`; 61 rows should stay on `widget`; `beside.rs` may need splitting; all checks, e2e |
-| `fix-inspector`, `../balaur-inspector` | Done: the Inspector is rows of pooled widget nodes, the `inspector` kind and `widget_inspector` gone; `editor-fixes` and `fix-widget-rows` merged in; clippy, tests and e2e pass | A devlog post in forge |
-| `fix-typed-calls`, `../balaur-lang` | Phase 1: every host build links units; e2e passed before the WIP commit; HEAD is uncompiled | Clippy fails (`generate` too long, `Debugger` bools, `take_tables`, `wasmi_engine` borrows, `direct_answer`); cargo test both crates; web clippy; `tests/web`; `editor_native.sh`; `check_web_module.sh`. Then phase 2, not started: the 114 `self.editor.call` in the panels and `dock.bs`'s `refresh`, after rows land |
-| `fix-speed`, `../balaur-allocs` | One WIP commit, the whole never compiled; no target met; fuel so far `a["k"]` 657 from 1,234, `s.contains` 1,169 from 2,413 with lent arguments alone | Compile the typed property path (`derived::Given`, `PropertyPlace`); `every_cost` for the ceilings; `scripts/call_cost.sh`, `edit_cost.sh` against a baseline; split the commit. Baseline per call on `main`: position write 4,025 instructions, read 1,869, `engine::time()` 1,056 |
-| `fix-screen-reader`, `../balaur-access`; kiss3d `balaur-buffers-and-access` | Fork: staging buffers reused, built, 9 GPU tests; adapter commit WIP, never compiled. Engine: tests only, do not build | Finish the adapter and `balaur_ui/src/access.rs`; `kiss3d_backend.rs` is at 1,199 lines. Buffers save about 0.7 to 1 M a frame, not firmly measured, and nothing per edit; 53 of 252 staging samples are egui-wgpu's, so PLAN-editor-performance §10's sentence is wrong. The egui patch (`../balaur-paused/egui/`) measured worse: drop it unless a re-measure disagrees. Pushing needs the user: `git -C ../kiss3d push fork balaur-buffers-and-access` |
-
-Stale docs to fix at the merge: this file's item list below,
-PLAN-property-types §5 (the rows agent has its wording), and PLAN-foundations'
-status, which still lists the pool's specs as left. `../kiss3d`'s scratch
-worktree `kiss3d-c1` holds nothing committed and can go with
-`git -C ../kiss3d worktree remove --force <path>`.
+| Fix | What is now true |
+| --- | --- |
+| Multimesh reload | a saved multimesh asset copies its instances to its nodes again |
+| Soft regions | a soft-body region names its `soft_material` and is made of it |
+| Widget split | `widget` keeps 60 rows; the rest are on 25 components beside it, absent meaning defaults; a moved row written on `widget` is refused by name (PLAN-component-order §4.1) |
+| Inspector | rows of pooled widget nodes; the `inspector` kind, `widget_inspector` and `ui::reread` are gone; `node.set_property`, `node.overrides`, a plugin's `inspector_sections` |
+| Units | the debugger, the profiler and the browser link one instance per project; `as_units` and `BALAUR_BS_UNITS` are gone; a game's files run in a second instance beside it |
+| Typed calls | every panel holds `editor::Editor?` and calls it by type; no `self.editor.call` is left |
+| Speed | `a["k"]` 266 fuel from 1,234, `s.contains` 229 from 2,413; a position write 1,484 instructions from 3,955, `engine::time()` 659 from 1,001. No target is met; PLAN-balaur-script §9 says what stands in the way |
+| kiss3d and egui | buffer writes reuse their staging buffers in both forks (kiss3d de534f50, egui 12e09bb9) |
+| Screen reader | a window opens with its platform's accesskit adapter on macOS, Windows, Linux and iOS; none on the web or Android |
+| CI | `runner.yml` is the one file with triggers; fuzz and channel are called from it |
+| Native race | an instance runs native only when the loaded build holds every unit joining it |
 
 ## On the branch
 
@@ -70,9 +65,9 @@ worktree `kiss3d-c1` holds nothing committed and can go with
   a `removed` hook on `ComponentDef::of` would say it once.
 - Physics' builders read typed structs (item 7); a script call's table is
   read into the struct first, and a snapshot converts at its edges.
-- `refresh_multimeshes_system` re-applies through `get` + `patch` of the same
-  table, which `patch` reads as unchanged, so a reload never re-copies the
-  instances. It was so before the derive.
+- `refresh_multimeshes_system` lays a reloaded asset's instances out again:
+  the component's own values did not move, so a write of them would read as
+  unchanged.
 - Script `node.c.p` binds to its property's place at load
   (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
   which half is wrong.
@@ -162,9 +157,10 @@ worktree `kiss3d-c1` holds nothing committed and can go with
    build from `SoftAsked3d`/`SoftAsked2d` (the component and those beside
    it) and a typed `SoftMaterial`, done 2026-10-31; a body already built
    from `Body3d`/`Body2d`, its snapshot rows the one table left.
-8. **Not without the user**: reusing Metal buffers in the kiss3d fork
-   (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
-   the render's 2.4 M instructions an edit; it needs a push to that fork.
+8. **Staging buffers in the forks**: done 2026-11-06. kiss3d's
+   `balaur-wrapped-surface` writes buffers through a staging belt, and egui's
+   `balaur-zeno-glyphs` reuses egui-wgpu's; the share of a frame spent making
+   staging buffers fell from 6.3% to 2.6%, and an edit costs no less.
 9. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
    --workspace --all-targets -- -D warnings`, the wasm clippy
    (`scripts/precommit.sh`), `cargo test --workspace --no-fail-fast`,
@@ -184,6 +180,10 @@ colour 4.4 M, position 2.8 M, engine text 3.8 M once `widget` was derived
 §10). An edit patches 2 of 608 widgets and the editor's scripts are about 0.3 M of it; the rest is the
 egui pass (about 2 M) and the render (about 2.4 M). Time is noise on this
 Mac under load; count instructions (`/usr/bin/time -l`).
+
+On `editor-fixes`, 2026-11-06, with the clocks frozen: text 2.76 M, colour
+2.87 M, position 0.87 M, engine text 2.39 M (2.98, 3.05, 1.41 and 2.64 on
+`main`). Plain `edit_cost.sh` varies by 0.3 to 1 M a run.
 
 ## Moving a component onto the derive
 

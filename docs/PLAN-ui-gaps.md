@@ -3,8 +3,8 @@
 > gradients and stops past two on 2026-10-31. Built 2026-10-31: §1's
 > wiring, so every text kind types through the shaper and `egui::TextEdit`
 > has no caller; §2; §4 whole; and §3's tree, actions and colour check.
-> Built 2026-11-06: §3's platform adapter, on the kiss3d fork's
-> `balaur-buffers-and-access` until the engine pins it.
+> Built 2026-11-06: §3's platform adapter, from the kiss3d fork's
+> `balaur-wrapped-surface` at de534f50.
 
 # Plan: the UI's gaps
 
