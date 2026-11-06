@@ -26,7 +26,7 @@ Built, and not built for this:
 | A signed iOS `.app` and an assembled, signed APK | `bundle.rs::export_bundle`, `balaur_export::{sign, android}`, `docs/PLAN-actions.md` |
 | A web build that links and packages, headless | `scripts/package_runtime.sh web`, the `build-platforms` job |
 | Templates fetched, checksum-verified, and an install that updates itself | `templates.rs`, `update.rs`, `balaur update` |
-| CI artifacts turned into a release draft on every push and tag | `scripts/draft_release.sh` |
+| CI artifacts put on the nightly at every push and on a release once it is published | `scripts/release.sh` |
 | Work off the frame landing on a tick boundary, recorded and replayable | `ExternalIo`, `Stage::First`, `balaur_core::handler` |
 | An editor that is a game, whose every command is a script | `editor/scripts/*.rn`, `palette.bs` |
 | A project checked without running it, every finding with a line | `balaur check --strict` |

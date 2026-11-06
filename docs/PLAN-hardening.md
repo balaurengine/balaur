@@ -72,9 +72,9 @@ switch enables both scalar widths. Each is in its phase below with the line.
 
 1. The six fixes in the table above, one commit each, verified by the run.
 2. **Not planned:** branch protection on `main`. Asked for and declined on
-   2026-09-04; a red push stays allowed. `draft-release` still runs only on a
+   2026-09-04; a red push stays allowed. `release` still runs only on a
    push, so a `workflow_dispatch` from a side branch cannot move the rolling
-   `nightly` tag (`draft_release.sh` deletes and recreates it).
+   `nightly` tag (`release.sh` deletes and recreates it).
 3. `scripts/lint.sh` and `lint.yml` become one list: `api_lints.py` and
    `third_party_notices.py --check` join CI; the `window`, `extensions` and
    out-of-tree clippy passes join the script. A `pre-push` hook under
@@ -135,7 +135,7 @@ nothing says which stage `move_character` may run in. Cache the last move's
 | `crates/balaur_input/Cargo.toml:3`, `balaur_http/src/lib.rs:12`, `balaur_gamend/src/lib.rs:12`, `balaur_ui/src/immediate/mod.rs`, `docs/NAMING.md:312, 408`, `docs/generated/behaviour.md:665` | Luau left on 2026-09-02; these still say Lua (the input crate's description reaches the website's Crates page) | delete |
 | `crates/balaur_script_rune/src/task.rs:138-141`, `pack.rs:78-82` | Saving a file pulled in by `mod name;` does not hot reload — only keys in `state.scripts` are queued and a submodule is folded into its root's unit; `balaur export` compiles every `.rn` as a root, so a submodule naming `super::` fails the export and one that compiles ships twice. No test or example uses `mod` | record each unit's source set; map a change to its roots; export only roots; an example with one `mod` |
 | `crates/balaur_cli/src/main.rs:79`, `crates/balaur_export/src/lib.rs:32`, `scripts/package.sh:9` — *verified* | `macos-arm64` is documented as a target; CI builds and `update.rs` expects `macos-universal`, so the flag always ends in "no runtime template" | one name |
-| `scripts/package.sh:37, 44` | The shipped editor is built without `extensions`, while `draft_release.sh` and `include/balaur_extension.h:8-10` invite you to drop a C extension into `extensions/` | build with it, or drop the promise |
+| `scripts/package.sh:37, 44` | The shipped editor is built without `extensions`, while `release.sh` and `include/balaur_extension.h:8-10` invite you to drop a C extension into `extensions/` | build with it, or drop the promise |
 | `README.md:121` | The quickstart's export line cannot succeed from a source checkout: `templates.rs:278-287` refuses to download for a source build | `--template target/release/balaur` in the line |
 | `THIRD-PARTY-NOTICES.md` — *verified stale* | `third_party_notices.py --check` fails, no workflow runs it, and licence checking is off in `deny.toml`, so it is the only licence artefact | phase 0 step 3 |
 | `Cargo.lock` | 739 packages, 57 names at two or more versions: `windows-sys` ×5, `objc2` and its whole family ×2, `thiserror` ×2, `base64` ×4, `rand` 0.9 (this tree's own `balaur_websocket`) beside 0.10 | bump the ones this tree controls; `multiple-versions = "warn"` stays |

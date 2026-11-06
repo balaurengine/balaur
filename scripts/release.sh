@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Publish the build's artifacts as a release.
+# Put the build's artifacts on a release.
 #
-# A push to main refreshes the rolling `nightly` as a prerelease, since only a
-# published release's assets are fetchable without a token. A `v*` tag drafts
-# that version instead, for a human to press the button on.
+# A push to main refreshes the rolling `nightly` as a prerelease. A release
+# published on GitHub gets this build's files attached to it: the release is
+# the person's, made on the website with its tag; this only adds the downloads.
 #
-# Usage: draft_release.sh <dist-dir>     (needs GH_TOKEN and the gh CLI)
+# Usage: release.sh <dist-dir>     (needs GH_TOKEN and the gh CLI)
 set -euo pipefail
 
 dist=${1:-dist}
@@ -71,17 +71,22 @@ assets+=("$dist/VERSION")
 (cd "$dist" && sha256sum "${assets[@]/#"$dist"\//}" >SHA256SUMS)
 assets+=("$dist/SHA256SUMS")
 
-printf 'drafting %s with %s asset(s):\n' "$tag" "${#assets[@]}"
+printf 'releasing %s with %s asset(s):\n' "$tag" "${#assets[@]}"
 printf '  %s\n' "${assets[@]}"
 
-# Replace the previous draft rather than appending to it, so the assets always
-# match one build. The rolling tag is ours to move; a version tag is the
-# user's, so that one is left alone.
-if [ "$rolling" = true ]; then
-  gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-else
-  gh release delete "$tag" --yes 2>/dev/null || true
+# A version's release is the one published on GitHub: its files go on it,
+# replacing any a rerun put there before.
+if [ "$rolling" = false ]; then
+  gh release upload "$tag" "${assets[@]}" --clobber
+  printf '\nrelease %s has its files\n' "$tag"
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    printf 'released=true\n' >>"$GITHUB_OUTPUT"
+  fi
+  exit 0
 fi
+
+# The nightly is ours to move: replace it whole, so its files match one build.
+gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
 
 notes=$(
   cat <<'EOF'
@@ -99,23 +104,15 @@ notes=$(
 EOF
 )
 
-title="Balaur $tag"
-[ "$rolling" = true ] && title="Balaur nightly (${GITHUB_SHA:0:7})"
-
 # The nightly is published, never latest: `latest` is the last version a
-# human released. Its tag was just cleaned up, so say where it goes.
-if [ "$rolling" = true ]; then
-  kind=(--prerelease --latest=false --target "${GITHUB_SHA:-$(git rev-parse HEAD)}")
-else
-  kind=(--draft)
-fi
+# person released. Its tag was just cleaned up, so say where it goes.
 gh release create "$tag" \
-  "${kind[@]}" \
-  --title "$title" \
+  --prerelease --latest=false --target "${GITHUB_SHA:-$(git rev-parse HEAD)}" \
+  --title "Balaur nightly (${GITHUB_SHA:0:7})" \
   --notes "$notes" \
   "${assets[@]}"
 
-printf '\nrelease %s created (%s)\n' "$tag" "${kind[0]#--}"
+printf '\nrelease %s created\n' "$tag"
 
 # What the engine image is published on: an image and a release of different
 # builds break every export that fuses one onto the other's runtime. The

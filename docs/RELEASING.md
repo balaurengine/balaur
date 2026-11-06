@@ -1,13 +1,12 @@
 # Releasing
 
-Builds are created by `.github/workflows/build.yml`
-and published by `scripts/draft_release.sh`.
+Builds are created by `.github/workflows/build.yml`, and
+`scripts/release.sh` puts their files on a release.
 
-| | Tag | When | State |
+| | Tag | When | Who makes the release |
 | --- | --- | --- | --- |
-| Nightly | `nightly`, moved every time | every push to `main` | published prerelease, never `latest` |
-| Version | `v<major>.<minor>.<patch>[-<channel>.<n>]`, permanent | a `v*` tag is pushed | draft, until a human publishes it |
-| Channel | `alpha`, `beta`, `rc`, pointed at the newest of that line | a version on it is published | published prerelease, never `latest` |
+| Nightly | `nightly`, moved every time | every push to `main` | CI, a prerelease, never `latest` |
+| Version | `v<major>.<minor>.<patch>[-<channel>.<n>]`, permanent | you publish a release on GitHub | you; CI attaches the files |
 
 ## Creating a release
 
@@ -19,21 +18,17 @@ and published by `scripts/draft_release.sh`.
    say the new version in its opening.
 3. `python3 scripts/gen_docs.py`, so `docs/generated/` matches what shipped.
 4. Commit, push, and wait for CI to go green on `main`.
-5. Tag and push the tag:
-
-   ```sh
-   git tag v0.1.0 && git push origin v0.1.0
-   ```
-6. Read the draft, write what a patch fixed into its notes, and press publish.
-   Publishing is what puts the assets behind a fetchable URL; a draft's are not
-   reachable without a token. For a prerelease, then point its line's rolling
-   tag at it: `GH_TOKEN=$(gh auth token) scripts/move_channel.sh v0.1.0-alpha.1`.
-   A stable release needs nothing; it follows GitHub's `latest`.
+5. On GitHub, **Releases → Draft a new release**: a new tag such as `v0.1.0`
+   on `main`, the notes, the pre-release box ticked for a suffixed version
+   (`v0.2.0-alpha.1`), and **Publish**.
+6. Publishing runs `runner.yml`, which builds every platform from that tag and
+   attaches the files to the release, about an hour later. Until then the
+   release has no downloads.
 7. **Deploy the site** if `/play` and `/editor` should run what was just
    published. The Download and Releases pages follow by themselves. See below.
 
-The tag has to match `Cargo.toml`: `draft_release.sh` fails when it does not,
-and the version is compiled into each binary. For the same reason `nightly`
+The tag has to match `Cargo.toml`: `release.sh` fails when it does not, and
+the version is compiled into each binary. For the same reason `nightly`
 cannot be retagged as a version, only built from its own tag.
 
 ## The site
@@ -63,7 +58,7 @@ reference and the roadmap page.
 The Download and Releases pages read GitHub while the site runs
 (`Forge.Site.Releases`), cached for ten minutes, so **a published release shows
 up by itself within ten minutes**. A draft has no fetchable assets and does not
-appear.
+appear, and a release whose files CI has not attached yet shows none.
 
 `/play` and `/editor` are different: the engine's web build
 (`balaur-play.tar.gz`) is fetched when forge's image is built, so the site runs
@@ -95,11 +90,11 @@ that:
 checkbox, and not a setting on the machine: a binary reads its own version and
 knows which line it is on, with nothing to configure.
 
-| Version | Channel | Rolling tag |
+| Version | Channel | An update finds it by |
 | --- | --- | --- |
-| `0.2.0-alpha.3` | alpha | `alpha` |
-| `0.2.0-beta.1` | beta | `beta` |
-| `0.2.0-rc.1` | rc | `rc` |
+| `0.2.0-alpha.3` | alpha | the newest `-alpha` release in the release list |
+| `0.2.0-beta.1` | beta | the newest `-beta` release in the release list |
+| `0.2.0-rc.1` | rc | the newest `-rc` release in the release list |
 | `0.2.0` | stable | GitHub's `latest` |
 
 These are ordinary SemVer prerelease identifiers and Cargo takes them:
@@ -136,20 +131,13 @@ which is a build tree a release would bury. The editor's Engine tab and About
 sheet are the same code. They say which it is before offering a press, and a
 bundle gets the release's zipped app instead.
 
-Discovery reuses what `nightly` already does rather than asking the API: each
-channel has a rolling tag pointed at the newest release on that line, so an
-update is a fetch of `releases/download/<channel>/VERSION` and there is no rate
-limit to run into. `scripts/move_channel.sh` writes that pointer, run by hand
-once a prerelease is published (step 6). The Engine tab's list is
-the one API read: the release feed, unauthenticated, once per check, against
-GitHub's 60 an hour.
-
-A channel release carries that one asset. VERSION names the version release,
-and the archives are fetched from there, so a channel is a pointer rather than
-a second copy of every download. The exception is `nightly`, whose VERSION
-names a build rather than a tag: its assets sit on the `nightly` release
-itself. Stable has no pointer of its own, because GitHub's `latest` is one
-already.
+Stable and the nightly need no API: an update fetches
+`releases/latest/download/VERSION` or `releases/download/nightly/VERSION`, and
+every release carries its VERSION. A prerelease line has no tag of its own to
+fetch, so its update reads the release feed once, unauthenticated, against
+GitHub's 60 an hour, and takes the newest release whose tag names the line. The
+Engine tab's list is the same read. The nightly's VERSION names a build rather
+than a tag, so its files sit on the `nightly` release itself.
 
 A stable build with no stable release to find fails, and should. Falling back
 to a prerelease would hand somebody an alpha they did not ask for. The failure

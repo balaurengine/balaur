@@ -38,7 +38,7 @@ Built, and load-bearing here:
 | An Android layout assembled and signed, when the SDK is on the machine | `balaur export --bundle apk`, `crates/balaur_export/src/android.rs` (`aapt2`, `zipalign`, `apksigner`) |
 | Templates fetched from the release this build came from, verified against `SHA256SUMS`, cached per user per build id; `--download` and `--no-download` so a runner never prompts | `crates/balaur_cli/src/templates.rs`, `version.rs` |
 | Export as a library with the network stack, the prompt and the cache left to the caller, so an editor can link it | `balaur_export::{Options, ObtainTemplate, default_roots}` |
-| The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_check.sh` proves the iOS, Android and web bundle shapes; `draft_release.sh` drafts `nightly` and `v*` | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
+| The engine's CI: four reusable workflows behind one entry point; `package.sh` builds, stages, exports a game onto the template it just built and *runs* it; `export_check.sh` proves the iOS, Android and web bundle shapes; `release.sh` refreshes `nightly` and puts the files on a published release | `.github/workflows/{runner,build,lint,test,docs}.yml`, `scripts/` |
 | A settings sheet grouped by category and searchable; a command palette every editor verb goes through | `editor/scripts/settings.bs`, `palette.bs` |
 | Work off the frame that lands on a tick, so a minutes-long job can report progress without blocking a draw | `ExternalIo`, `balaur_core::handler`, `docs/PLAN-deploy.md` "Progress is an event" |
 

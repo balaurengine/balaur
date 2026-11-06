@@ -141,10 +141,8 @@ jobs:
           path: target/determinism/traces.txt
 
 
-  # The Balaur Script compiler's cargo-fuzz targets (crates/balaur_bs/fuzz),
-  # twenty minutes each, seeded from the corpus: the compiler never panics and
-  # every module it writes validates, and a run never brings the host down. A
-  # find is uploaded and becomes a corpus program.
+  # The Balaur Script compiler's fuzz targets, twenty minutes each, seeded from
+  # the corpus (docs/PLAN-script-tests.md); a find is uploaded as a program.
   script:
     name: balaur script tests · ${{ matrix.target }}
     runs-on: ubuntu-latest

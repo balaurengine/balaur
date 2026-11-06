@@ -74,10 +74,10 @@ pub(crate) fn is_downgrade(published: &str, installed: &str) -> bool {
     order(published, installed) == Some(std::cmp::Ordering::Less)
 }
 
-/// Whether a tag is a prerelease line's rolling pointer, which holds only a
-/// VERSION naming a release listed under its own tag.
-pub(crate) fn is_pointer(tag: &str) -> bool {
-    CHANNELS[..PRERELEASE_LINES].contains(&tag)
+/// Whether a channel is a prerelease line, named by its tags' suffix
+/// (`v0.2.0-alpha.3`), rather than stable or the nightly.
+pub(crate) fn is_line(channel: &str) -> bool {
+    CHANNELS[..PRERELEASE_LINES].contains(&channel)
 }
 
 /// Sort key for a version tag: the three numbers, then the prerelease rank
@@ -135,14 +135,11 @@ mod tests {
     }
 
     #[test]
-    fn a_line_name_is_a_pointer_and_a_version_is_not() {
-        assert!(super::is_pointer("alpha"));
-        assert!(super::is_pointer("rc"));
-        assert!(
-            !super::is_pointer("nightly"),
-            "the nightly holds its own assets"
-        );
-        assert!(!super::is_pointer("v0.2.0-alpha.3"));
+    fn a_prerelease_suffix_is_a_line_and_stable_and_nightly_are_not() {
+        assert!(super::is_line("alpha"));
+        assert!(super::is_line("rc"));
+        assert!(!super::is_line(super::STABLE));
+        assert!(!super::is_line(super::NIGHTLY));
     }
 
     #[test]
