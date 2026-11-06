@@ -520,14 +520,18 @@ the table:
      for it, a class compiled in as the program's own (`crate::maps`); a
      read costs under half an `any` map's, with no call out.
    - A script calls another by its type, never by a method's name in a
-     string. Half built, 2026-11-03: the compiler builds a unit with a
-     debugger's probes, a profiler's counters and a browser's metering, and
-     every build a host runs links a project as units, so the cast holds in
-     all of them (`tests/suite/units.rs`, `tests/suite/bs_host.rs`,
-     `tests/web/main.rs`). With the panels holding the Editor, the profiler's
-     rebuild is 10 s where it was 287, and warm 1.7 s where it was 137
-     (PLAN-bs-linking has the measure). Left: the editor's 39 panels calling
-     the Editor by its type rather than through `node.call`.
+     string. Built 2026-11-06: the compiler builds a unit with a debugger's
+     probes, a profiler's counters and a browser's metering, every build a
+     host runs links a project as units (`tests/suite/units.rs`,
+     `tests/suite/bs_host.rs`, `tests/web/main.rs`), and the editor's
+     panels hold `editor::Editor?` and call it as a link: 114 calls by name
+     are typed, what the Editor answers is read as its struct, and the scene
+     tree's search is asked of its panel by class. A panel that fills itself
+     hears `docks_changed` after its dock, its parent, has shown it, where
+     the dock called `refresh` by name. What stays by name is between the
+     editor and its plugins (the kit, `register`), a pooled control's
+     `refill`, a widget kit's `method` given as data, and `fonts.bs` starting
+     the Editor's async `await_font_reply`. PLAN-bs-linking has the cost.
 6. **The derive's index.** `node.c.p` resolves at load to the component and
    the property's index in its schema (PLAN-property-types §5): a read or a
    write of one field. A component or property the schema lacks does not

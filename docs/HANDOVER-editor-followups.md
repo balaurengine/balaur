@@ -142,13 +142,10 @@ worktree `kiss3d-c1` holds nothing committed and can go with
      and what it cost. The gamend addon's hand-written modules are copies of
      gamend's `clients/balaur_template` and its generated ones
      `sdkgen/balaur.py`'s output: rewritten there too, for the owner to commit.
-   - Typed calls between scripts: unblocked 2026-11-03. Every build a host
-     runs links a project as units, so
-     `let editor: editor::Editor? = node.script;` holds under a profiler, a
-     debugger and in a browser (PLAN-bs-linking). Left: the 39 panels calling
-     the Editor by its type, tried once and reverted while those builds made
-     each file its own instance. `dock.bs` calling the shown panel's `refresh`
-     by name is the one dynamic dispatch left.
+   - Typed calls between scripts: done 2026-11-06. Every build a host runs
+     links a project as units, and every panel holds `editor::Editor?` and
+     calls it by type; a self-filling panel hears `docks_changed` where the
+     dock called its `refresh` by name (PLAN-balaur-script §9 step 5).
 5. **The editor runs native** (§9 step 7): done. A native build holds
    units and links them; the editor downloads carry the library, and
    `scripts/editor_native.sh` runs the editor's states on it in CI.
