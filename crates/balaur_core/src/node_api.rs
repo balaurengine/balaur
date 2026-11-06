@@ -20,7 +20,7 @@ use crate::scene::{self, Appearance, Children, GlobalTransform, Name, NodeScript
 mod scripts;
 use scripts::{
     attach_script, authored, call, call_async, detach_script, emit, free, has_method, instance,
-    queue_free, script_field, script_path, script_props, set_script,
+    overrides, queue_free, script_field, script_path, script_props, set_script,
 };
 
 /// One node operation: what a script calls, what the reference says of it, and
@@ -71,6 +71,7 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("sibling_index", &[], "() -> int", "Where the node sits among its parent's children, counting from zero; 0 at the root.", sibling_index),
     op("set_sibling_index", &[], "(index: int)", "Move the node to that place among its siblings, clamped to the end. Order is draw order in a `row` or a `column`, and tree order in the digest.", set_sibling_index),
     op("set_component", &[], "(component: string, params: any)", "Give the node the named component, built from the given table over the component's schema defaults. Every property the table leaves out goes back to its default; `patch_component` is the one that changes a property and leaves the rest. A script hears every write to the scene, this one and a node added, freed, renamed or moved, with `events::listen(this.node, \"changed\")`, as `on_changed(entries)` at the top of the next frame.", set_component),
+    op("set_property", &[], "(component: string, property: string, value: any) -> bool", "Write one property, by its place in the component: what `node.component.property` writes, for a name known only at run time. Answers whether the component took the value, as `patch_component` does.", set_property),
     op("patch_component", &[], "(component: string, params: any) -> bool", "Change the properties the table names and leave the rest of the component where they were. On a node without the component this adds it, the schema defaults being what it currently holds. Answers whether the component took the values: one it refuses goes to the log with its reason, and the script goes on. A component or property nothing has, or a node that is gone, is an error.", patch_component),
     op("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.", go_to_state),
     op("state", &["states"], "() -> string", "The state the node is in, or \"\" for the pose the scene gave it.", current_state),
@@ -81,6 +82,7 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("stable_id", &[], "() -> string", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not.", stable_id),
     op("descendants", &[], "() -> [node]", "Every node under this one, in tree order, the node itself excluded.", descendants),
     op("script_path", &[], "() -> string", "The path of the script the node names, nil when it names none; named whether or not it runs.", script_path),
+    op("overrides", &[], "() -> any", "What the node changes of what the prefab that built it asks: a table by component of the properties it sets differently, and its script's under `script`. Empty for a node no prefab built.", overrides),
     op("script_props", &[], "() -> any", "What the node sets over its script's exported defaults, as a table; empty when it sets nothing.", script_props),
     op("set_script", &[], "(path: string?, props: any)", "Name the node's script and what it sets, without running it: what a scene's `script` key says and `attach_script` also starts. Nil takes the script off.", set_script),
     op("instance", &[], "() -> string?", "The prefab file the node instances, nil when it instances none.", instance),
@@ -645,6 +647,34 @@ fn patch_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let Err(why) = patched(eng, e, name, &params) else {
         return Ok(Value::Bool(true));
     };
+    if names_nothing(eng, e, name, &params) {
+        return Err(why);
+    }
+    let node = scene::node_path(&eng.world(), e);
+    tracing::warn!(node, "write refused: {why:#}");
+    Ok(Value::Bool(false))
+}
+
+/// One property by name, through its place: `patch_component` for one key,
+/// with no table made for it.
+fn set_property(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    let name = text(args, 1)?;
+    let key = text(args, 2)?;
+    let value = args
+        .get(3)
+        .ok_or_else(|| anyhow!("set_property needs the value"))?;
+    let written = match crate::components::place_of(eng, name, key) {
+        Some(place) => set_property_placed(eng, e, place, value),
+        None => crate::components::set_property(eng, e, name, key, &to_toml(value)?),
+    };
+    let Err(why) = written else {
+        return Ok(Value::Bool(true));
+    };
+    let params = toml::Value::Table(toml::map::Map::from_iter([(
+        key.to_string(),
+        to_toml(value)?,
+    )]));
     if names_nothing(eng, e, name, &params) {
         return Err(why);
     }

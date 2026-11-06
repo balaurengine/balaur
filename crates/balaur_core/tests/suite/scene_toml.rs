@@ -283,6 +283,47 @@ label = "box"
 }
 
 #[test]
+fn a_node_says_what_it_changes_of_the_prefab_that_built_it() {
+    let dir = project(&[("scenes/enemy.toml", ENEMY)]);
+    let app = load(
+        dir.path(),
+        r#"
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+parent = "n_scene"
+instance = "scenes/enemy.toml"
+
+[nodes.overrides.Arm.marker]
+size = 5.0
+"#,
+    );
+    let (scene, arm, hand) = {
+        let world = app.engine.world();
+        (
+            scene_root(&app),
+            find_node(&world, scene_root(&app), "Enemy/Arm").unwrap(),
+            find_node(&world, scene_root(&app), "Enemy/Arm/Hand").unwrap(),
+        )
+    };
+    let said = balaur_core::scene_toml::overrides_of(&app.engine, arm);
+    assert_eq!(said["marker"]["size"].as_float(), Some(5.0));
+    assert_eq!(said["marker"].as_table().unwrap().len(), 1);
+    assert!(
+        balaur_core::scene_toml::overrides_of(&app.engine, hand).is_empty(),
+        "what is as the prefab asks is no override"
+    );
+    assert!(
+        balaur_core::scene_toml::overrides_of(&app.engine, scene).is_empty(),
+        "no prefab built the scene's own node"
+    );
+}
+
+#[test]
 fn a_prefab_is_written_as_its_instance_and_what_it_changed() {
     let dir = project(&[("scenes/enemy.toml", ENEMY)]);
     let app = load(
