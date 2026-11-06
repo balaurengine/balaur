@@ -559,9 +559,9 @@ fn on_size_changed(state: &mut editor::State, data: any, value: any) {
     edit(state, ["sizes"], data["name"].as_str(), whole(value));
 }
 
-fn rgba_of(hex: str) -> [float] {
-    let color = util::hex_to_rgb(hex);
-    [color.red, color.green, color.blue, 1.0]
+fn rgba_of(hex: str) -> Color {
+    let rgb = util::hex_to_rgb(hex);
+    color(rgb.red, rgb.green, rgb.blue, 1.0)
 }
 
 fn is_hex(text: str) -> bool {

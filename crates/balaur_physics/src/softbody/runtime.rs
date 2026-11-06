@@ -23,48 +23,60 @@ macro_rules! runtime_api {
         array = $array:path
     ) => {
         pub(crate) fn $install(m: &mut balaur_script::Module<balaur_core::Engine>) {
+            m.records(&[
+                ("SoftParticle", concat!("{ position: Vec", $N, ", velocity: Vec", $N, ", force: Vec", $N, ", target: Vec", $N, "?, rest_position: Vec", $N, ", initial_rest_position: Vec", $N, ", mass: float, inverse_mass: float, pinned: bool, damaged: bool, on_surface: bool }"), "Everything one particle holds. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held."),
+                ("SoftAttachment", concat!("{ particle: int, body: node?, anchor: Vec", $N, ", impulse: Vec", $N, " }"), "A particle tied to a rigid body: the anchor in the body's own space, and the impulse the tie pulled with in the last substep."),
+                ("SoftEdge", "{ particles: [int], kind: string, rest_length: float, initial_rest_length: float, plastic_strain: float, tension_only: bool, softness_hz: float, softness_damping_ratio: float, tear_resistance: float, impulse: float, stress: float }", "Everything one edge holds. `kind` is `structural` or `bending`, and the softness is the edge's own or its kind's from the material."),
+                ("SoftCell", concat!("{ particles: [int], rest_volume: float, stiffness_scale: float, tear_resistance: float, stress: float, plastic_stretch: [Vec", $N, "] }"), "Everything one cell holds. `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape."),
+                ("SoftVolumePiece", "{ particles: [int], rest_volume: float, volume: float }", "One closed piece of a soft body's surface whose volume is held."),
+                ("SoftVolumeContact", concat!("{ center: Vec", $N, ", normal: Vec", $N, ", volume: float }"), "A soft body's surface overlapping another volume: where, facing which way and by how much."),
+                ("SoftContacts", concat!("{ edges: [[Vec", $N, "]], vertices: [[Vec", $N, "]], volumes: [SoftVolumeContact] }"), "What a soft body's surface touched in the last step. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses."),
+                ("SoftCrossing", "{ edges: [int], cells: [int] }", "The edges and cells a blade meets."),
+                ("SoftCluster", "{ source: int, cluster: int, keeps_proxy: bool }", "A region a tear split off another."),
+                ("SoftTear", "{ pieces: int, edges: [[int]], cells: [[int]], removed_edges: [[int]], split_particles: [[int]], inserted_particles: [int], piece_particles: [[int]], clusters: [SoftCluster], moved_joints: [node] }", "What a tear or a cut did to one piece, the record `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, and `moved_joints` the joint nodes a cluster split moved."),
+            ]);
             m.describe(&[
-                ("softbody_particles", &[$component], "() -> int", "How many particles the body has, every piece torn off it included: a generator decides, not the author."),
-                ("softbody_position", &[$component], concat!("(index: int) -> vec", $N), "Where one particle is, in world space."),
-                ("softbody_velocity", &[$component], concat!("(index: int) -> vec", $N), "How fast one particle is moving, in world space."),
-                ("softbody_particle", &[$component], "(index: int) -> map", "Everything one particle holds: `{ position, velocity, force, target, rest_position, initial_rest_position, mass, inverse_mass, pinned, damaged, on_surface }`. `force` is what `add_particle_force` keeps on it, `target` where a held particle is going (nil when none), the two rest positions are relative to the rest centre of mass, before and after plastic flow, and `inverse_mass` is 0 while it is held."),
-                ("pin_particle", &[$component], "(index: int)", "Hold one particle where it is, which is how a cloth hangs from a hook."),
-                ("unpin_particle", &[$component], "(index: int)", "Let a held particle go; it keeps the velocity it had."),
-                ("set_particle_target", &[$component], "(index: int, at: vec)", "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged."),
-                ("set_particle_position", &[$component], "(index: int, at: vec)", "Put one particle at `at` with no change of velocity."),
-                ("set_particle_velocity", &[$component], "(index: int, velocity: vec)", "Set one particle's velocity; a held one keeps moving at it."),
-                ("set_particle_damaged", &[$component], "(index: int, damaged: bool)", "Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts."),
-                ("attach_particle", &[$component], "(index: int, body: node)", "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other."),
-                ("detach_particle", &[$component], "(index: int) -> bool", "Untie one particle from every body it was attached to; answers whether it was attached."),
-                ("softbody_attachments", &[$component], "() -> list", "Every particle tied to a rigid body, as `{ particle, body, anchor, impulse }`: the anchor in the body's own space, and the impulse the tie pulled with in the last substep."),
-                ("add_softbody_force", &[$component], "(force: vec)", "Push every free particle with `force` each step until `reset_softbody_forces`."),
-                ("add_particle_force", &[$component], "(index: int, force: vec)", "Push one particle with `force` each step until `reset_softbody_forces`."),
-                ("reset_softbody_forces", &[$component], "()", "Take back every force `add_softbody_force` and `add_particle_force` gave the body."),
-                ("apply_softbody_impulse", &[$component], "(impulse: vec)", "Change every free particle's velocity by `impulse` at once, as a kick to the whole body."),
-                ("apply_particle_impulse", &[$component], "(index: int, impulse: vec)", "Strike one particle."),
-                ("apply_softbody_impulse_at", &[$component], "(impulse: vec, point: vec, radius: float)", "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all."),
-                ("apply_softbody_radial_impulse", &[$component], "(center: vec, magnitude: float, radius: float)", "Push the particles within `radius` away from `center`, as a blast does."),
-                ("softbody_edges", &[$component], "() -> [[int]]", "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them."),
-                ("softbody_stress", &[$component], "() -> [float]", "Each edge's load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set."),
-                ("softbody_edge", &[$component], "(index: int) -> map", "Everything one edge holds: `{ particles, kind, rest_length, initial_rest_length, plastic_strain, tension_only, softness_hz, softness_damping_ratio, tear_resistance, impulse, stress }`; `kind` is `structural` or `bending`, and the softness is the edge's own or its kind's from the material."),
-                ("softbody_cells", &[$component], "() -> [[int]]", "Every cell as its particle indices: triangles in 2D, tetrahedra in 3D."),
-                ("softbody_cell", &[$component], "(index: int) -> map", "Everything one cell holds: `{ particles, rest_volume, stiffness_scale, tear_resistance, stress, plastic_stretch }`; `stress` is its strain as a fraction of `tear_strain`, `plastic_stretch` the rows of the permanent stretch of its rest shape."),
-                ("softbody_boundary", &[$component], "() -> [[int]]", "The body's surface as particle indices: segments in 2D, triangles in 3D."),
-                ("softbody_volume_pieces", &[$component], "() -> [map]", "Each closed piece of the surface whose volume is held, as `{ particles, rest_volume, volume }`; an open sheet has none."),
-                ("softbody_particle_radius", &[$component], "() -> float", "How thick the particles are: what was asked for, or what the layout worked out."),
-                ("softbody_mass", &[$component], "() -> float", "What the whole body weighs, every piece included."),
-                ("softbody_contacts", &[$component], "() -> map", "What the body's surface touched in the last step: `{ edges, vertices, volumes }`. Each edge and vertex contact with another soft body or itself is a pair of world points, the two witnesses; each volume contact is `{ center, normal, volume }`."),
-                ("tear_edge", &[$component], "(index: int)", "Tear one edge at the end of the next step."),
-                ("tear_cell", &[$component], "(index: int)", "Tear one cell at the end of the next step: a particle near its middle splits across its main stretch."),
-                ("has_pending_tears", &[$component], "() -> bool", "Whether some edge or cell is marked to tear at the end of the next step."),
-                ("set_edge_tear_resistance", &[$component], "(index: int, resistance: float)", "How many times the material's threshold one edge takes to tear; 1 is the material's."),
-                ("set_cell_tear_resistance", &[$component], "(index: int, resistance: float)", "The same for one cell's tear strain."),
-                ("softbody_crossing", &[$component], "(blade: list) -> map", "The edges and cells a blade meets, `{ edges, cells }`, without cutting: the blade is a segment's two points in 2D, a triangle's three in 3D."),
-                ("cut_softbody", &[$component], "(blade: list) -> list", "Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears."),
-                ("tear_softbody", &[$component], "(edges: list, cells: list) -> list", "Tear the given edges and cells at once; answers a record for each piece it changed: `{ pieces, edges, cells, removed_edges, split_particles, inserted_particles, piece_particles, clusters, moved_joints }`, the one `on_tear` hears. Particle indices are the torn piece's own; `split_particles` holds `[copy, source]` pairs, `clusters` `{ source, cluster, keeps_proxy }`, and `moved_joints` the joint nodes a cluster split moved."),
-                ("reset_plasticity", &[$component], "()", "Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is."),
-                ("softbody_sleeping", &[$component], "() -> bool", "Whether the body has come to rest and stopped being simulated."),
-                ("wake_softbody", &[$component], "()", "Start simulating a resting body again."),
+                ("softbody_particles", &[$component], "(node: node) -> int", "How many particles the body has, every piece torn off it included: a generator decides, not the author."),
+                ("softbody_position", &[$component], concat!("(node: node, index: int) -> Vec", $N), "Where one particle is, in world space."),
+                ("softbody_velocity", &[$component], concat!("(node: node, index: int) -> Vec", $N), "How fast one particle is moving, in world space."),
+                ("softbody_particle", &[$component], "(node: node, index: int) -> SoftParticle", "Everything one particle holds."),
+                ("pin_particle", &[$component], "(node: node, index: int)", "Hold one particle where it is, which is how a cloth hangs from a hook."),
+                ("unpin_particle", &[$component], "(node: node, index: int)", "Let a held particle go; it keeps the velocity it had."),
+                ("set_particle_target", &[$component], concat!("(node: node, index: int, at: Vec", $N, ")"), "Move a held particle to `at` over the next step, with the velocity that takes, which is how a cloth is dragged."),
+                ("set_particle_position", &[$component], concat!("(node: node, index: int, at: Vec", $N, ")"), "Put one particle at `at` with no change of velocity."),
+                ("set_particle_velocity", &[$component], concat!("(node: node, index: int, velocity: Vec", $N, ")"), "Set one particle's velocity; a held one keeps moving at it."),
+                ("set_particle_damaged", &[$component], "(node: node, index: int, damaged: bool)", "Mark one particle as damaged or mend it: a damaged particle tears as an outside one does, which seeds where a crack starts."),
+                ("attach_particle", &[$component], "(node: node, index: int, body: node)", "Tie one particle to a node's rigid body where it is now: the body and the particle pull on each other."),
+                ("detach_particle", &[$component], "(node: node, index: int) -> bool", "Untie one particle from every body it was attached to; answers whether it was attached."),
+                ("softbody_attachments", &[$component], "(node: node) -> [SoftAttachment]", "Every particle tied to a rigid body."),
+                ("add_softbody_force", &[$component], concat!("(node: node, force: Vec", $N, ")"), "Push every free particle with `force` each step until `reset_softbody_forces`."),
+                ("add_particle_force", &[$component], concat!("(node: node, index: int, force: Vec", $N, ")"), "Push one particle with `force` each step until `reset_softbody_forces`."),
+                ("reset_softbody_forces", &[$component], "(node: node)", "Take back every force `add_softbody_force` and `add_particle_force` gave the body."),
+                ("apply_softbody_impulse", &[$component], concat!("(node: node, impulse: Vec", $N, ")"), "Change every free particle's velocity by `impulse` at once, as a kick to the whole body."),
+                ("apply_particle_impulse", &[$component], concat!("(node: node, index: int, impulse: Vec", $N, ")"), "Strike one particle."),
+                ("apply_softbody_impulse_at", &[$component], concat!("(node: node, impulse: Vec", $N, ", point: Vec", $N, ", radius: float)"), "Strike the particles within `radius` of `point`, less the further they are; a radius of 0 strikes them all."),
+                ("apply_softbody_radial_impulse", &[$component], concat!("(node: node, center: Vec", $N, ", magnitude: float, radius: float)"), "Push the particles within `radius` away from `center`, as a blast does."),
+                ("softbody_edges", &[$component], "(node: node) -> [[int]]", "Every edge as the two particle indices it joins, in the order `softbody_stress` reports them."),
+                ("softbody_stress", &[$component], "(node: node) -> [float]", "Each edge's load as a fraction of its tear threshold, smoothed over `tear_smoothing`: 0 slack, 1 tearing; the larger of its stretch over `tear_strain` and its force over `tear_force`, and 0 while neither is set."),
+                ("softbody_edge", &[$component], "(node: node, index: int) -> SoftEdge", "Everything one edge holds."),
+                ("softbody_cells", &[$component], "(node: node) -> [[int]]", "Every cell as its particle indices: triangles in 2D, tetrahedra in 3D."),
+                ("softbody_cell", &[$component], "(node: node, index: int) -> SoftCell", "Everything one cell holds."),
+                ("softbody_boundary", &[$component], "(node: node) -> [[int]]", "The body's surface as particle indices: segments in 2D, triangles in 3D."),
+                ("softbody_volume_pieces", &[$component], "(node: node) -> [SoftVolumePiece]", "Each closed piece of the surface whose volume is held; an open sheet has none."),
+                ("softbody_particle_radius", &[$component], "(node: node) -> float", "How thick the particles are: what was asked for, or what the layout worked out."),
+                ("softbody_mass", &[$component], "(node: node) -> float", "What the whole body weighs, every piece included."),
+                ("softbody_contacts", &[$component], "(node: node) -> SoftContacts", "What the body's surface touched in the last step."),
+                ("tear_edge", &[$component], "(node: node, index: int)", "Tear one edge at the end of the next step."),
+                ("tear_cell", &[$component], "(node: node, index: int)", "Tear one cell at the end of the next step: a particle near its middle splits across its main stretch."),
+                ("has_pending_tears", &[$component], "(node: node) -> bool", "Whether some edge or cell is marked to tear at the end of the next step."),
+                ("set_edge_tear_resistance", &[$component], "(node: node, index: int, resistance: float)", "How many times the material's threshold one edge takes to tear; 1 is the material's."),
+                ("set_cell_tear_resistance", &[$component], "(node: node, index: int, resistance: float)", "The same for one cell's tear strain."),
+                ("softbody_crossing", &[$component], concat!("(node: node, blade: [Vec", $N, "]) -> SoftCrossing"), "The edges and cells a blade meets, without cutting: the blade is a segment's two points in 2D, a triangle's three in 3D."),
+                ("cut_softbody", &[$component], concat!("(node: node, blade: [Vec", $N, "]) -> [SoftTear]"), "Cut the body along a blade at once, as `softbody_crossing` reads it; answers a record for each piece it changed, the one `on_tear` hears."),
+                ("tear_softbody", &[$component], "(node: node, edges: [int], cells: [int]) -> [SoftTear]", "Tear the given edges and cells at once; answers a record for each piece it changed, the one `on_tear` hears."),
+                ("reset_plasticity", &[$component], "(node: node)", "Undo every permanent set the body took: rest lengths, rest angles and rest shapes go back to how it was built, and it springs back from where it is."),
+                ("softbody_sleeping", &[$component], "(node: node) -> bool", "Whether the body has come to rest and stopped being simulated."),
+                ("wake_softbody", &[$component], "(node: node)", "Start simulating a resting body again."),
             ]);
             held(m);
             pushed(m);
@@ -184,14 +196,6 @@ macro_rules! runtime_api {
                 }
                 Ok(balaur_script::Value::List(out))
             })
-        }
-
-        fn at(value: &balaur_script::Value) -> anyhow::Result<crate::scalar::Real> {
-            match value {
-                balaur_script::Value::Num(n) => Ok(*n as crate::scalar::Real),
-                balaur_script::Value::Int(n) => Ok(*n as crate::scalar::Real),
-                _ => anyhow::bail!("expected a number"),
-            }
         }
 
         fn number(x: crate::scalar::Real) -> balaur_script::Value {
@@ -417,18 +421,16 @@ macro_rules! runtime_api {
             );
             m.function(
                 "apply_softbody_impulse_at",
-                |eng: &Engine, (node, impulse, point, radius): (NodeId, Value, Value, Value)| {
+                |eng: &Engine, (node, impulse, point, radius): (NodeId, Value, Value, f32)| {
                     let impulse = $vector(vector_arg::<$N>(&impulse)?);
                     let point = $vector(vector_arg::<$N>(&point)?);
-                    let radius = at(&radius)?;
                     on_every(eng, node, |body| body.apply_impulse_at_point(impulse, point, radius, true))
                 },
             );
             m.function(
                 "apply_softbody_radial_impulse",
-                |eng: &Engine, (node, center, magnitude, radius): (NodeId, Value, Value, Value)| {
+                |eng: &Engine, (node, center, magnitude, radius): (NodeId, Value, f32, f32)| {
                     let center = $vector(vector_arg::<$N>(&center)?);
-                    let (magnitude, radius) = (at(&magnitude)?, at(&radius)?);
                     on_every(eng, node, |body| body.apply_radial_impulse(center, magnitude, radius, true))
                 },
             );
@@ -741,7 +743,7 @@ macro_rules! runtime_api {
                     .joints
                     .iter()
                     .find(|(_, r)| matches!(r.handle, $Joint(h) if h == handle))
-                    .map_or(Value::Nil, |(e, _)| Value::Node(e.to_bits().get()))
+                    .map(|(e, _)| Value::Node(e.to_bits().get()))
             };
             table(vec![
                 (k::PIECES, Value::Int(i64::try_from(event.pieces.len()).unwrap_or(i64::MAX))),
@@ -775,7 +777,7 @@ macro_rules! runtime_api {
                 ),
                 (
                     k::MOVED_JOINTS,
-                    Value::List(event.moved_joints.iter().map(|moved| joint_node(moved.joint)).collect()),
+                    Value::List(event.moved_joints.iter().filter_map(|moved| joint_node(moved.joint)).collect()),
                 ),
             ])
         }

@@ -268,7 +268,11 @@ impl FnGen<'_> {
                 "a value becomes text as `\"{x}\"`, not `x.as_str()`".to_string()
             }
             (from @ (Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node), _) if read => {
-                format!("`{name}` reads an `any`, and this is a {}", show(from))
+                let article = if *from == Ty::Int { "an" } else { "a" };
+                format!(
+                    "`{name}` reads an `any`, and this is {article} {}",
+                    show(from)
+                )
             }
             _ => return Ok(()),
         };

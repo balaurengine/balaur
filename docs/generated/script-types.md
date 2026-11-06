@@ -11,6 +11,8 @@ builds by field. Read from a booted engine.
 | `Vec2` | `x`, `y` |
 | `Vec3` | `x`, `y`, `z` |
 | `Color` | `r`, `g`, `b`, `a` |
+| `Transform2d` | `x`, `y`, `origin` |
+| `Transform3d` | `x`, `y`, `z`, `origin` |
 
 ## Built-in functions
 

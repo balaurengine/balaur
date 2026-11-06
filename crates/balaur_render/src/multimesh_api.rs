@@ -50,32 +50,10 @@ fn count_of(count: i64) -> Result<usize> {
         .ok_or_else(|| anyhow!("a multimesh holds 0 to {MAX_INSTANCES} instances, not {count}"))
 }
 
-/// The transform a list of numbers spells, as a script holds one: the axes
-/// and then the origin, 12 numbers in 3D and 6 in 2D.
-fn columns_of(items: &[Value]) -> Result<Value> {
-    const WHAT: &str = "an instance's transform";
-    let numbers = items
-        .iter()
-        .map(|item| number_of(item, WHAT))
-        .collect::<Result<Vec<f32>>>()?;
-    if let Ok(columns) = <[f32; 12]>::try_from(numbers.as_slice()) {
-        Ok(Value::Transform3d(columns))
-    } else if let Ok(columns) = <[f32; 6]>::try_from(numbers.as_slice()) {
-        Ok(Value::Transform2d(columns))
-    } else {
-        bail!(
-            "{WHAT} is 12 numbers, or 6 on a 2D node, not {}",
-            numbers.len()
-        )
-    }
-}
-
-/// Set an instance's transform from a `Transform3d`, from a `Transform2d` in
-/// the xy plane, or from a list of numbers spelling either. A shear either
-/// holds is kept, as a basis.
+/// Set an instance's transform from a `Transform3d`, or from a `Transform2d`
+/// in the xy plane. A shear either holds is kept, as a basis.
 fn place(instance: &mut Instance, transform: &Value) -> Result<()> {
     match transform {
-        Value::List(items) => place(instance, &columns_of(items)?)?,
         Value::Transform3d(columns) => {
             instance.set_local(Mat4::from(Affine3A::from_cols_array(columns)));
         }
@@ -89,7 +67,7 @@ fn place(instance: &mut Instance, transform: &Value) -> Result<()> {
             ));
         }
         other => bail!(
-            "an instance's transform is a list of numbers, not a {}",
+            "an instance's transform is a Transform3d or a Transform2d, not a {}",
             other.type_name()
         ),
     }
@@ -136,15 +114,10 @@ fn number_of(value: &Value, what: &str) -> Result<f32> {
     }
 }
 
-/// Four floats from a colour or a list of numbers.
 fn four(value: &Value, what: &str) -> Result<[f32; 4]> {
     match value {
         Value::Color(c) => Ok(*c),
-        list @ Value::List(_) => crate::draw_2d::color_of(list),
-        other => bail!(
-            "{what} is a colour or a list of four numbers, not a {}",
-            other.type_name()
-        ),
+        other => bail!("{what} is a Color, not a {}", other.type_name()),
     }
 }
 
@@ -171,20 +144,60 @@ pub(crate) fn instance_value(instance: &Instance) -> Value {
     )
 }
 
-const BOTH: &[&str] = &[MULTIMESH_3D, MULTIMESH_2D];
+/// One of the two handles. Each is a module of its own, as each answers its
+/// own transform.
+pub(crate) struct Handle {
+    pub(crate) component: &'static str,
+    pub(crate) on: &'static [&'static str],
+    pub(crate) doc: &'static str,
+    set_transform: &'static str,
+    transform: &'static str,
+}
 
-/// One instance at a time on `node.multimesh3d` and `node.multimesh2d`:
-/// Godot's `MultiMesh` calls, readers without their `get_`.
-pub(crate) fn install_multimesh_api(m: &mut Module<Engine>) {
+pub(crate) const HANDLES: [Handle; 2] = [
+    Handle {
+        component: MULTIMESH_3D,
+        on: &[MULTIMESH_3D],
+        doc: "Thousands of copies of one mesh in one draw, each with its own transform, colour and custom data, through `node.multimesh3d`.",
+        set_transform: "(node: node, index: int, transform: Transform3d)",
+        transform: "(node: node, index: int) -> Transform3d",
+    },
+    Handle {
+        component: MULTIMESH_2D,
+        on: &[MULTIMESH_2D],
+        doc: "Thousands of copies of one sprite in one draw, each with its own transform, colour and custom data, through `node.multimesh2d`.",
+        set_transform: "(node: node, index: int, transform: Transform2d)",
+        transform: "(node: node, index: int) -> Transform2d",
+    },
+];
+
+/// What `instances()` hands over and `set_instances` takes: the `multimesh`
+/// asset's own keys.
+pub(crate) fn install_multimesh_records(m: &mut Module<Engine>) {
+    m.records(&[(
+        "MultimeshInstance",
+        "{ position: Vec3?, rotation_euler: Vec3?, scale: Vec3?, basis: [float]?, color: Color?, custom: Color?, region_origin: Vec2?, region_size: Vec2? }",
+        "One instance as a `multimesh` asset spells it. `basis` stands in for `rotation_euler` and `scale` when the instance is sheared.",
+    ), (
+        "InstanceRegion",
+        "{ origin: Vec2, size: Vec2 }",
+        "The rectangle of a texture one instance draws, in pixels.",
+    )]);
+}
+
+/// One instance at a time on a multimesh handle: Godot's `MultiMesh` calls,
+/// readers without their `get_`.
+pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
+    let on = handle.on;
     m.describe(&[
-        ("set_instance_transform", BOTH, "", "Place one instance with a transform as `instance_transform` answers it: 12 floats, or 6 on a 2D node. A shear is kept, as the instance's `basis`."),
-        ("set_instance_region", &[MULTIMESH_2D], "", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
-        ("instance_region", &[MULTIMESH_2D], "", "One instance's texture rectangle as `[x, y, w, h]` in pixels, or nil when it draws the whole texture."),
-        ("instance_transform", BOTH, "", "One instance's transform as a list of floats, the axes and then the origin: 12 of them, or 6 on a 2D node."),
-        ("set_instance_color", BOTH, "", "The colour one instance draws in."),
-        ("instance_color", BOTH, "", "The colour one instance draws in."),
-        ("set_instance_custom_data", BOTH, "", "Four floats a material's shader reads for one instance, as a colour or a list."),
-        ("instance_custom_data", BOTH, "", "One instance's four floats of custom data, as a colour."),
+        ("set_instance_transform", on, handle.set_transform, "Place one instance. A shear is kept, as the instance's `basis`."),
+        ("set_instance_region", &[MULTIMESH_2D], "(node: node, index: int, origin: Vec2, size: Vec2)", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
+        ("instance_region", &[MULTIMESH_2D], "(node: node, index: int) -> render::InstanceRegion?", "One instance's texture rectangle in pixels, or nil when it draws the whole texture."),
+        ("instance_transform", on, handle.transform, "One instance's transform."),
+        ("set_instance_color", on, "(node: node, index: int, color: Color)", "The colour one instance draws in."),
+        ("instance_color", on, "(node: node, index: int) -> Color", "The colour one instance draws in."),
+        ("set_instance_custom_data", on, "(node: node, index: int, data: Color)", "Four floats a material's shader reads for one instance, as a colour."),
+        ("instance_custom_data", on, "(node: node, index: int) -> Color", "One instance's four floats of custom data, as a colour."),
     ]);
     m.function(
         "set_instance_transform",
@@ -212,9 +225,14 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>) {
         |eng: &Engine, (node, index): (NodeId, i64)| {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
-                Ok(multimesh.instances[at].region.map_or(Value::Nil, |r| {
-                    Value::List(r.iter().map(|v| Value::Num(f64::from(*v))).collect())
-                }))
+                Ok(multimesh.instances[at]
+                    .region
+                    .map_or(Value::Nil, |[x, y, w, h]| {
+                        Value::Map(vec![
+                            (k::ORIGIN.into(), Value::Vec2([x, y])),
+                            (k::SIZE.into(), Value::Vec2([w, h])),
+                        ])
+                    }))
             })
         },
     );
@@ -270,16 +288,17 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>) {
 }
 
 /// The counts and every instance at once, as a list or Godot's flat buffer.
-pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>) {
+pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle) {
+    let on = handle.on;
     m.describe(&[
-        ("set_instance_count", BOTH, "", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
-        ("instance_count", BOTH, "", "How many instances the node holds."),
-        ("set_visible_instance_count", BOTH, "", "How many instances draw, from the first; -1 draws them all."),
-        ("visible_instance_count", BOTH, "", "How many instances draw; -1 is all of them."),
-        ("instances", BOTH, "", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
-        ("set_instances", BOTH, "", "Replace every instance with a list in the `multimesh` asset's shape."),
-        ("buffer", BOTH, "", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
-        ("set_buffer", BOTH, "", "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance."),
+        ("set_instance_count", on, "(node: node, count: int)", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
+        ("instance_count", on, "(node: node) -> int", "How many instances the node holds."),
+        ("set_visible_instance_count", on, "(node: node, count: int)", "How many instances draw, from the first; -1 draws them all."),
+        ("visible_instance_count", on, "(node: node) -> int", "How many instances draw; -1 is all of them."),
+        ("instances", on, "(node: node) -> [render::MultimeshInstance]", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
+        ("set_instances", on, "(node: node, instances: [render::MultimeshInstance])", "Replace every instance with a list in the `multimesh` asset's shape."),
+        ("buffer", on, "(node: node) -> [float]", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
+        ("set_buffer", on, "(node: node, buffer: [float])", "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance."),
     ]);
     m.function("buffer", |eng: &Engine, node: NodeId| {
         with_multimesh(eng, node, |multimesh| {

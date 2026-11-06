@@ -507,14 +507,21 @@ fn install_http_api(m: &mut Module<Engine>) {
         "HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and `save_to` options. `task::wait` on the id answers a map whose `kind` is `response`, with `status`, `headers` and `body`, or `error`; a `save_to` download reports as the `http_progress` event with `kind` `progress`, and a body over 256 KB going out with `kind` `upload`, natively; a browser's fetch does not report one. Each kind is an `EVENT_*` constant.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
-    m.records(&[(
-        "RequestOptions",
-        "{ method: string?, headers: any, body: any, timeout_seconds: float?, save_to: string? }",
-        "One request: its `method`, `headers` and `body`, how long it may take, and the file under the user directory a download is written to.",
-    )]);
+    m.records(&[
+        (
+            "Header",
+            "{ name: string, value: string }",
+            "One HTTP header. A name may repeat.",
+        ),
+        (
+            "RequestOptions",
+            "{ method: string?, headers: [Header]?, body: string?, timeout_seconds: float?, save_to: string? }",
+            "One request: its `method` and `headers`, its `body`, how long it may take, and the file under the user directory a download is written to.",
+        ),
+    ]);
     m.describe(&[
         ("request", &[], "(url: string, opts: RequestOptions?) -> int", "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."),
-        ("cancel", &[], "", "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished."),
+        ("cancel", &[], "(request: int) -> bool", "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished."),
     ]);
     m.function("cancel", |eng: &Engine, request: i64| {
         let state = eng.resource::<HttpState>();

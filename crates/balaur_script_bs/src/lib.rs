@@ -31,7 +31,7 @@ use std::rc::Rc;
 
 const GET: &str = "get";
 const SET: &str = "set";
-const GET_COMPONENT: &str = "get_component";
+const COMPONENT_PROPERTY: &str = "component_property";
 const PATCH_COMPONENT: &str = "patch_component";
 
 fn node_op(name: &str) -> anyhow::Result<&'static balaur_core::node_api::NodeOp> {
@@ -109,7 +109,7 @@ pub(crate) fn bind(
         }
         let (comp, prop) = (Value::text(comp), prop.to_string());
         if dir == GET {
-            let op = node_op(GET_COMPONENT).map_err(|e| format!("{e:#}"))?;
+            let op = node_op(COMPONENT_PROPERTY).map_err(|e| format!("{e:#}"))?;
             let prop = Value::text(prop);
             return Ok(Rc::new(move |args: &dyn CallArgs| {
                 let node = convert::to_neutral(&args.value(0));

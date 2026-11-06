@@ -64,8 +64,8 @@ const COMMAND_WIDTH: float = 118.0;
 const COMMAND_WIDTH_COMPACT: float = 26.0;
 
 // The dock plate under the dark mark: the mark's own dark ink, #14181d.
-fn DARK_PLATE() -> [float] {
-    [0.078, 0.094, 0.114]
+fn DARK_PLATE() -> Color {
+    color(0.078, 0.094, 0.114, 1.0)
 }
 
 // One document tab, as the showcase's pointer estimates it.
@@ -375,7 +375,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         kind: "button",
         height: row_height(state),
         width: icon_width(state),
-        padding: 0,
+        padding: ui::all_sides(0),
         role: "item_bar",
         text: "",
         icon: if tokens["dark"].as_bool() { icons::ui("dark") } else { icons::ui("light") },
@@ -389,7 +389,7 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
         height: row_height(state),
         role: "item_bar",
         width: if named { 0.0 } else { icon_width(state) },
-        padding: if named { -1.0 } else { 0.0 },
+        padding: ui::all_sides(if named { -1.0 } else { 0.0 }),
         text: if named { "Run a command" } else { "" },
         icon: icons::ui("search"),
         tooltip: "⌘K",
@@ -465,7 +465,7 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
         checked: active,
         corner_radius: 0,
         fill: "none",
-        padding: [7, -1, 7, -1],
+        padding: ui::sides(7, -1, 7, -1),
         on_click: "handle",
         data: { "fn": on_doc_picked, "id": id },
     });
@@ -474,7 +474,7 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
             kind: "button",
             height: height,
             width: 13,
-            padding: 0,
+            padding: ui::all_sides(0),
             text: "",
             icon: icons::ui("close"),
             role: role,
@@ -525,7 +525,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             icon: icons::ui("play"),
             height: row_height(state),
             width: icon_width(state),
-            padding: 0,
+            padding: ui::all_sides(0),
             icon_size: PLAY_SIZE,
             role: "icon_action_primary",
             checked: state.playing,
@@ -540,7 +540,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             enabled: running,
             height: row_height(state),
             width: icon_width(state),
-            padding: 0,
+            padding: ui::all_sides(0),
             icon_size: STEP_SIZE,
             role: "icon_action_primary",
             checked: paused,
@@ -561,7 +561,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             enabled: running,
             height: row_height(state),
             width: icon_width(state),
-            padding: 0,
+            padding: ui::all_sides(0),
             icon_size: STEP_SIZE,
             role: "icon_action_primary",
             tooltip: if running { "Stop" } else { "Nothing is running" },

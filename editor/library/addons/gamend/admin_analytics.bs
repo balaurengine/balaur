@@ -5,32 +5,33 @@
 // Admin – Analytics: one function per operation, `admin_analytics::<name>` once a
 // script says `use addons::gamend::admin_analytics;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Daily counters by key or prefix (admin)
 /// `GET /api/v1/admin/analytics/counts`
-pub fn get_analytics_counts(options: any) -> any {
+pub fn get_analytics_counts(options: any) -> int {
     let query = core::query(options, ["key", "days"]);
     gamend::rest("GET", "/api/v1/admin/analytics/counts{query}")
 }
 
 /// Per-day active / new users and cohort retention (admin)
 /// `GET /api/v1/admin/analytics/daily`
-pub fn get_analytics_daily(options: any) -> any {
+pub fn get_analytics_daily(options: any) -> int {
     let query = core::query(options, ["days", "segment"]);
     gamend::rest("GET", "/api/v1/admin/analytics/daily{query}")
 }
 
 /// Currency granted / spent per day per ledger reason (admin)
 /// `GET /api/v1/admin/analytics/economy`
-pub fn get_analytics_economy(options: any) -> any {
+pub fn get_analytics_economy(options: any) -> int {
     let query = core::query(options, ["days", "currency"]);
     gamend::rest("GET", "/api/v1/admin/analytics/economy{query}")
 }
@@ -38,13 +39,13 @@ pub fn get_analytics_economy(options: any) -> any {
 /// Live counters: players, lobbies, parties, quests, matchmaking,
 /// tournaments (admin)
 /// `GET /api/v1/admin/analytics/snapshot`
-pub fn get_analytics_snapshot() -> any {
+pub fn get_analytics_snapshot() -> int {
     gamend::rest("GET", "/api/v1/admin/analytics/snapshot")
 }
 
 /// DAU / WAU / MAU, D1 / D7 / D30 and payer conversion (admin)
 /// `GET /api/v1/admin/analytics`
-pub fn get_analytics_summary(options: any) -> any {
+pub fn get_analytics_summary(options: any) -> int {
     let query = core::query(options, ["segment"]);
     gamend::rest("GET", "/api/v1/admin/analytics{query}")
 }

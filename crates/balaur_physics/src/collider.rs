@@ -790,18 +790,38 @@ pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
     );
 }
 
+/// The tables a collider's readers answer.
+const READER_RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "ColliderMesh",
+        "{ points: [Vec3], indices: [int] }",
+        "A collider's shape as points and the three point indices of each triangle, one after the other.",
+    ),
+    (
+        "Handles",
+        "{ body: [int]?, colliders: [[int]] }",
+        "The rapier handles behind a node, each an index and a generation; `body` is nil on a node with no body.",
+    ),
+    (
+        "MassProperties",
+        "{ mass: float, center_of_mass: Vec3, inertia: Vec3, inertia_rotation: Vec3 }",
+        "What a collider adds to its body, in its own space: its mass and where it sits, its inertia about each principal axis, and how those axes are turned, in Euler radians, x first.",
+    ),
+];
+
 /// What a collider weighs, how much space it takes, where it is, and the
 /// handles rapier knows it by.
 ///
 /// Split from [`install_collider_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
+    m.records(READER_RECORDS);
     m.describe(&[
-        ("collider_mesh", &[c::COLLIDER_3D], "", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
+        ("collider_mesh", &[c::COLLIDER_3D], "(node: node) -> ColliderMesh", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
         ("collider_mass", &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
         ("collider_volume", &[c::COLLIDER_3D], "", "How much space the shape encloses."),
         ("swept_aabb", &[c::COLLIDER_3D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
-        ("handles", &[c::COLLIDER_3D], "", "The rapier handles behind this node, its body and its colliders, as `{ body, colliders }` of index and generation pairs. For matching a log line against rapier's own output."),
-        ("collider_mass_properties", &[c::COLLIDER_3D], "", "What this collider adds to its body, in its own space: `{ mass, center_of_mass, inertia, inertia_rotation }`."),
+        ("handles", &[c::COLLIDER_3D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
+        ("collider_mass_properties", &[c::COLLIDER_3D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
         ("aabb", &[c::COLLIDER_3D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
     ]);
     m.function("collider_mesh", |eng: &Engine, node: NodeId| {

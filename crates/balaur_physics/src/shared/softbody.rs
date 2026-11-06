@@ -411,17 +411,9 @@ pub(crate) use surface;
 /// which the first `N` are read.
 pub(crate) fn vector_arg<const N: usize>(value: &balaur_script::Value) -> anyhow::Result<[f32; N]> {
     use balaur_script::Value;
-    let numbers: Vec<f32> = match value {
-        Value::Vec2(v) => v.to_vec(),
-        Value::Vec3(v) => v.to_vec(),
-        Value::List(items) => items
-            .iter()
-            .map(|item| match item {
-                Value::Num(n) => Ok(*n as f32),
-                Value::Int(n) => Ok(*n as f32),
-                _ => Err(anyhow::anyhow!("a vector holds numbers only")),
-            })
-            .collect::<anyhow::Result<_>>()?,
+    let numbers: &[f32] = match value {
+        Value::Vec2(v) => v,
+        Value::Vec3(v) => v,
         _ => anyhow::bail!("expected a vector of {N} numbers"),
     };
     anyhow::ensure!(

@@ -146,7 +146,7 @@ decision, not an oversight.
 | Pinch | Have: `input.pinch()` as `{ scale, x, y }`, from the two oldest fingers, against last frame |
 | Two-finger pan | Have: `input.pan()` as `{ x, y }`, the average movement of every finger down |
 | Swipe | Have: `input.swipe()` as `{ x, y, speed }` on the frame the finger lifts, past `swipe_pixels` |
-| Long press | Have: `input.long_press()` as `{ x, y }`, once per finger, past `long_press_seconds` and inside `long_press_slop_pixels` |
+| Long press | Have: `input.long_press()` as a `Vec2`, once per finger, past `long_press_seconds` and inside `long_press_slop_pixels` |
 | Gesture thresholds | Have: `swipe_pixels`, `long_press_seconds` and `long_press_slop_pixels` in `[input]`, read into `InputConfig` |
 | Rotate | Not planned. Nothing has asked, and two angles are a line of script |
 | A touch button | Have: the `touch_button` component: the `action` it feeds, a `shape` of `rect` or `circle`, `visibility`, and two colours. The finger that pressed it keeps it when it slides off |

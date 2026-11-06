@@ -223,7 +223,7 @@ fn a_missing_app_icon_does_not_take_the_frame_down() {
 #[test]
 fn an_app_icon_keeps_the_plate_a_script_names() {
     let (app, errors) = run(
-        r#"window::set_app_icon("project.toml", window::AppIconOptions { plate: [0.1, 0.2, 0.3] });"#,
+        r#"window::set_app_icon("project.toml", window::AppIconOptions { plate: color(0.1, 0.2, 0.3, 1.0) });"#,
     );
     assert!(errors.is_empty(), "{errors:#?}");
     let icon = app.engine.resource::<balaur_render::AppIconConfig>();
@@ -255,16 +255,16 @@ fn a_node_with_no_shape_says_so() {
 #[test]
 fn immediate_shapes_are_accepted_from_a_script() {
     run_clean(
-        r#"render::draw_box(0.0, 0.0, 0.0, 0.5, 0.5, 0.5, [1.0, 1.0, 1.0]);
-render::draw_sphere(1.0, 0.0, 0.0, 0.5, [0.0, 1.0, 0.0]);
-render::draw_capsule(2.0, 0.0, 0.0, 0.25, 1.0, [0.0, 0.0, 1.0]);
-let triangle: [any] = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
-render::draw_polygon_2d(triangle, [1.0, 1.0, 0.0, 1.0]);
-render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0]);
+        r#"render::draw_box(0.0, 0.0, 0.0, 0.5, 0.5, 0.5, color(1.0, 1.0, 1.0, 1.0));
+render::draw_sphere(1.0, 0.0, 0.0, 0.5, color(0.0, 1.0, 0.0, 1.0));
+render::draw_capsule(2.0, 0.0, 0.0, 0.25, 1.0, color(0.0, 0.0, 1.0, 1.0));
+let triangle = [vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(1.0, 1.0)];
+render::draw_polygon_2d(triangle, color(1.0, 1.0, 0.0, 1.0));
+render::draw_circle_2d(0.0, 0.0, 1.0, color(1.0, 0.0, 0.0, 1.0));
 render::draw_rect_2d(0.5, 0.5, 2.0, 1.0);
 render::draw_arc_2d(0.0, 0.0, 1.0, 0.0, math::PI / 2.0, 2.0);
-let line: [any] = [[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]];
-render::draw_polyline_2d(line, 1.0, [0.0, 1.0, 0.0, 1.0]);
+let line = [vec2(0.0, 0.0), vec2(1.0, 1.0), vec2(2.0, 0.0)];
+render::draw_polyline_2d(line, 1.0, color(0.0, 1.0, 0.0, 1.0));
 render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
     );
 }
@@ -272,7 +272,7 @@ render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0);"#,
 #[test]
 fn a_shape_drawn_at_a_z_index_carries_it_and_a_picture_its_region() {
     let (app, errors, _) = run_frames(
-        r#"render::draw_circle_2d(0.0, 0.0, 1.0, [1.0, 0.0, 0.0], render::DrawOptions { z_index: 2 });
+        r#"render::draw_circle_2d(0.0, 0.0, 1.0, color(1.0, 0.0, 0.0, 1.0), render::DrawOptions { z_index: 2 });
 render::draw_line_2d(0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, render::DrawOptions { z_index: -1 });
 render::draw_texture_2d("art/missing.png", 0.0, 0.0, 1.0, 1.0, nil, render::TextureOptions { region_origin: vec2(8.0, 0.0), region_size: vec2(8.0, 8.0) });"#,
         0,
@@ -415,11 +415,7 @@ fn a_traced_island_winds_counter_clockwise_and_a_hole_clockwise() {
         r#"fn windings(loops: [[Vec2]]) -> [str] {
     let out: [str] = [];
     for found in loops {
-        let points: [any] = [];
-        for p in found {
-            points.push([p.x, p.y]);
-        }
-        out.push(if geometry2d::is_clockwise(points) { "cw" } else { "ccw" });
+        out.push(if geometry2d::is_clockwise(found) { "cw" } else { "ccw" });
     }
     return out;
 }

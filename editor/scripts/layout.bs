@@ -322,8 +322,7 @@ pub fn box_node(state: editor::State, id: str) -> any {
 pub fn animating(state: editor::State) -> bool {
     let tweens = state.layout["tweens"];
     for mark in tweens.keys() {
-        let handle = tweens[mark];
-        if animation::is_tween_running(handle) {
+        if animation::is_tween_running(tweens[mark].as_int()) {
             return true;
         }
     }
@@ -336,8 +335,7 @@ fn dragged(state: editor::State, id: str, key: str, into: str) {
     let mark = id + ":" + key;
     let running = layout_state["tweens"][mark];
     if running != nil {
-        let handle = running;
-        if animation::is_tween_running(handle) {
+        if animation::is_tween_running(running.as_int()) {
             return;
         }
     }
@@ -376,8 +374,7 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     if settled && eased(mark) {
         let running = layout_state["tweens"][mark];
         if running != nil {
-            let handle = running;
-            animation::stop(handle);
+            animation::stop_tween(running.as_int());
         }
         layout_state["tweens"][mark] = animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] });
         return;

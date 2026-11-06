@@ -387,6 +387,117 @@ def check_hooks(api: dict) -> list[Finding]:
     return out
 
 
+# N25: the only script functions that take or answer `any`, each with the
+# signature it was reviewed at, so a changed one is reviewed in turn.
+FROM_OUTSIDE = "data from outside the engine: its shape is whoever wrote it"
+CALLERS_OWN = "the caller's own value, passed through for it"
+BY_NAME = "its shape follows a name given at run time; `node.<component>.<property>` is the typed way"
+SPEC = "a property spec: `of`, `fields` and `variants` nest, and a record cannot hold itself"
+THEME = "a theme table: its keys are the roles the theme names"
+ANY_ALLOWED = {
+    "assets::duplicate": ("(str) -> any", BY_NAME),
+    "assets::load": ("(str) -> any", BY_NAME),
+    "assets::save": ("(str, any)", BY_NAME),
+    "assets::schema": ("(str) -> any", SPEC),
+    "browser::post_message": ("(any) -> bool", FROM_OUTSIDE),
+    "events::emit": ("(str, any)", CALLERS_OWN),
+    "gamend::call_hook": ("(int, str, str, any) -> int", FROM_OUTSIDE),
+    "gamend::join": ("(int, str, any) -> int", FROM_OUTSIDE),
+    "gamend::push": ("(int, str, str, any) -> int", FROM_OUTSIDE),
+    "gamend::reply": ("(int) -> any", FROM_OUTSIDE),
+    "gamend::rest": ("(str, str, any) -> int", FROM_OUTSIDE),
+    "json::encode": ("(any) -> str", FROM_OUTSIDE),
+    "json::parse": ("(str) -> any", FROM_OUTSIDE),
+    "multiplayer::set_input": ("(any)", CALLERS_OWN),
+    "multiplayer::set_input_for": ("(int, any)", CALLERS_OWN),
+    "node.attach_script": ("(Node, str, any)", BY_NAME),
+    "node.authored": ("(Node, str) -> any", BY_NAME),
+    "node.call": ("(Node, str, any, any, any, any) -> any", CALLERS_OWN),
+    "node.call_async": ("(Node, str, any, any, any, any) -> int", CALLERS_OWN),
+    "node.component_property": ("(Node, str, str) -> any", BY_NAME),
+    "node.emit": ("(Node, str, any)", CALLERS_OWN),
+    "node.get_component": ("(Node, str) -> any", BY_NAME),
+    "node.patch_component": ("(Node, str, any) -> bool", BY_NAME),
+    "node.script_field": ("(Node, str) -> any", BY_NAME),
+    "node.script_props": ("(Node) -> any", BY_NAME),
+    "node.set_component": ("(Node, str, any)", BY_NAME),
+    "node.set_script": ("(Node, str?, any)", BY_NAME),
+    "node.tilemap.tile_data": ("(Node, int, int) -> any", CALLERS_OWN),
+    "rollback::input": ("(int) -> any", CALLERS_OWN),
+    "save::read": ("(str) -> any", FROM_OUTSIDE),
+    "save::write": ("(str, any)", FROM_OUTSIDE),
+    "scene::component_properties": ("(str, any) -> any", BY_NAME),
+    "scene::component_schema": ("(str) -> any", SPEC),
+    "scene::set_variable": ("(str, any)", BY_NAME),
+    "scene::variable": ("(str) -> any", BY_NAME),
+    "script::exports": ("(str) -> any", SPEC),
+    "script::store": ("(str, any)", CALLERS_OWN),
+    "script::stored": ("(str) -> any", CALLERS_OWN),
+    "settings::base": ("(str) -> any", BY_NAME),
+    "settings::define": ("(str, any)", SPEC),
+    "settings::get": ("(str) -> any", BY_NAME),
+    "settings::set": ("(str, any)", BY_NAME),
+    "strings::tr": ("(str, any) -> str", CALLERS_OWN),
+    "task::wait": ("(int) -> any", CALLERS_OWN),
+    "toml::encode": ("(any) -> str", FROM_OUTSIDE),
+    "toml::parse": ("(str) -> any", FROM_OUTSIDE),
+    "toml::patch": ("(str, any) -> str", FROM_OUTSIDE),
+    "ui::colors_apart": ("(any) -> [ui::ColorsApart]", THEME),
+    "ui::complete_theme": ("(any) -> any", THEME),
+    "ui::contrast_pairs": ("(any, str) -> [ui::ContrastPair]", THEME),
+    "ui::set_theme": ("(any)", THEME),
+}
+
+# The same for a record's fields, `Record.field`.
+ANY_FIELDS = {
+    "animation::Key.args": CALLERS_OWN,
+    "animation::Key.value": BY_NAME,
+    "animation::Step.by": BY_NAME,
+    "animation::Step.from": BY_NAME,
+    "animation::Step.to": BY_NAME,
+    "debugger::Frame.locals": CALLERS_OWN,
+    "gamend::Entry.args": FROM_OUTSIDE,
+    "gamend::Entry.reply": FROM_OUTSIDE,
+    "render::Param.value": BY_NAME,
+    "replay::Event.data": FROM_OUTSIDE,
+    "replay::Mark.values": FROM_OUTSIDE,
+    "scene::Change.properties": BY_NAME,
+    "scene::Change.was": BY_NAME,
+    "scene::Preset.parts": BY_NAME,
+    "scene::Variable.value": BY_NAME,
+    "settings::Setting.spec": SPEC,
+    "ui::Control.data": CALLERS_OWN,
+    "ui::Control.value": "a control's value follows its `kind`: a number, text, a flag or a colour",
+}
+
+
+def check_any(api: dict) -> list[Finding]:
+    out = []
+    bs = api.get("bs", {})
+    named = re.compile(r"\bany\b")
+    functions = {k: f["signature"] for k, f in bs.get("functions", {}).items()}
+    for key, signature in functions.items():
+        allowed = ANY_ALLOWED.get(key)
+        if allowed is None and named.search(signature):
+            out.append(Finding(key, "any", f"`{signature}` takes or answers `any`: name its type, "
+                               "or list it in ANY_ALLOWED with why it has none (N25)", "ERROR"))
+        elif allowed is not None and allowed[0] != signature:
+            out.append(Finding(key, "any", f"is `{signature}`, reviewed as `{allowed[0]}`: name its "
+                               "type, or update ANY_ALLOWED with why it has none", "ERROR"))
+    for key in ANY_ALLOWED.keys() - functions.keys():
+        out.append(Finding(key, "any", "in ANY_ALLOWED, but no such function", "ERROR"))
+    fields = {f"{record}.{field}": ty for record, row in bs.get("structs", {}).items()
+              for field, ty in row.items()}
+    for key, ty in fields.items():
+        if named.search(ty) and key not in ANY_FIELDS:
+            out.append(Finding(key, "any", f"this field is `{ty}`: name its type, or list it in "
+                               "ANY_FIELDS with why it has none", "ERROR"))
+    for key in ANY_FIELDS:
+        if not named.search(fields.get(key, "")):
+            out.append(Finding(key, "any", "in ANY_FIELDS, but it is no `any` field", "ERROR"))
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fail-on-error", action="store_true")
@@ -396,7 +507,7 @@ def main() -> int:
 
     api = script_api(args.api_json)
     findings = (check_modules(api) + check_functions(api, declaration_sites())
-                + check_schemas() + check_documented(api) + check_hooks(api))
+                + check_schemas() + check_documented(api) + check_hooks(api) + check_any(api))
 
     errors = [f for f in findings if f.severity == "ERROR"]
     reports = [f for f in findings if f.severity == "REPORT"]

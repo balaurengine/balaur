@@ -66,6 +66,8 @@ pub(crate) fn to_neutral(v: &L) -> N {
                 "Vec2" => N::Vec2([f(0), f(1)]),
                 "Vec3" => N::Vec3([f(0), f(1), f(2)]),
                 "Color" => N::Color([f(0), f(1), f(2), f(3)]),
+                "Transform2d" => N::Transform2d(columns(fields)),
+                "Transform3d" => N::Transform3d(columns(fields)),
                 // A record's nil field is one it leaves out, as a table would.
                 _ => N::Map(
                     fields
@@ -79,13 +81,49 @@ pub(crate) fn to_neutral(v: &L) -> N {
     }
 }
 
+// A transform's axes and origin, one after the other, as the seam holds them.
+fn columns<const N: usize>(axes: &[(SmolStr, L)]) -> [f32; N] {
+    let mut out = [0.0; N];
+    let numbers = axes.iter().flat_map(|(_, axis)| match axis {
+        L::Struct(_, fields) => fields.as_slice(),
+        _ => &[],
+    });
+    for (slot, (_, number)) in out.iter_mut().zip(numbers) {
+        if let L::Float(x) = number {
+            *slot = *x as f32;
+        }
+    }
+    out
+}
+
+// The seam's transform as a script's, or `None` when `v` is not that one.
+fn transform(name: &str, v: &N) -> Option<L> {
+    let (columns, axes, vector, width): (&[f32], &[&str], &str, usize) = match (name, v) {
+        ("Transform2d", N::Transform2d(c)) => (c, &["x", "y", "origin"], "Vec2", 2),
+        ("Transform3d", N::Transform3d(c)) => (c, &["x", "y", "z", "origin"], "Vec3", 3),
+        _ => return None,
+    };
+    let (_, names) = VEC.iter().find(|(n, _)| *n == vector)?;
+    let fields = axes
+        .iter()
+        .zip(columns.chunks(width))
+        .map(|(axis, numbers)| {
+            let numbers = names
+                .iter()
+                .zip(numbers)
+                .map(|(n, x)| (SmolStr::new(n), L::Float(f64::from(*x))))
+                .collect();
+            (SmolStr::new(axis), L::Struct(SmolStr::new(vector), numbers))
+        })
+        .collect();
+    Some(L::Struct(SmolStr::new(name), fields))
+}
+
 fn numbers(v: &N) -> Option<Vec<f64>> {
     match v {
         N::Vec2(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
         N::Vec3(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
         N::Color(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
-        N::Transform2d(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
-        N::Transform3d(a) => Some(a.iter().map(|x| f64::from(*x)).collect()),
         N::List(items) | N::Many(items) => items
             .iter()
             .map(|i| match i {
@@ -98,7 +136,8 @@ fn numbers(v: &N) -> Option<Vec<f64>> {
     }
 }
 
-/// `v` as what an `any` holds: a vector or a transform is a list of its numbers.
+/// `v` as what an `any` holds: a vector is a list of its numbers, and a
+/// transform a map of its axes, which reads back as a `Transform3d`.
 pub(crate) fn dynamic(v: &N) -> L {
     match v {
         N::Bool(b) => L::Bool(*b),
@@ -114,6 +153,29 @@ pub(crate) fn dynamic(v: &N) -> L {
                 .map(|(k, v)| (SmolStr::from(k.as_str()), dynamic(v)))
                 .collect(),
         ),
+        N::Transform2d(_) | N::Transform3d(_) => {
+            let name = if matches!(v, N::Transform2d(_)) {
+                "Transform2d"
+            } else {
+                "Transform3d"
+            };
+            let Some(L::Struct(_, axes)) = transform(name, v) else {
+                return L::Void;
+            };
+            L::Map(
+                axes.into_iter()
+                    .map(|(axis, value)| {
+                        let L::Struct(_, numbers) = value else {
+                            return (axis, L::Void);
+                        };
+                        (
+                            axis,
+                            L::Array(numbers.into_iter().map(|(_, x)| x).collect()),
+                        )
+                    })
+                    .collect(),
+            )
+        }
         _ => numbers(v).map_or(L::Void, |xs| {
             L::Array(xs.into_iter().map(L::Float).collect())
         }),
@@ -134,10 +196,14 @@ pub(crate) fn from_neutral<R: Records>(v: &N, ty: &Ty, records: &R) -> L {
         (Ty::Str, N::Str(s)) => L::Str(s.clone()),
         (Ty::Node, N::Node(x)) => L::Node(x.cast_signed()),
         (Ty::Array(_), N::Nil) => L::Array(vec![]),
+        (Ty::Array(_), N::Bytes(_)) => dynamic(v),
         (Ty::Array(et), N::List(items) | N::Many(items)) => {
             L::Array(items.iter().map(|i| from_neutral(i, et, records)).collect())
         }
         (Ty::Struct(name), v) => {
+            if let Some(value) = transform(name, v) {
+                return value;
+            }
             if let Some((_, fields)) = VEC.iter().find(|(n, _)| n == name)
                 && let Some(xs) = numbers(v)
             {

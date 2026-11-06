@@ -597,13 +597,13 @@ fn reflect_rest(data: any, axis: str) -> any {
 // The bone's name at its origin, for the one under the pointer and the one
 // selected. Every bone at once is a wall of text; the Rig tool names them
 // all, because placing one is when the chain's shape is the question.
-fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, color: [float]) {
+fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, ink: [float]) {
     if state.tool != "bone" && state.rig.hover != row && row != state.selected {
         return;
     }
     let options = render::TextOptions {
         font_size: 28.0,
-        color: color,
+        color: color(ink[0], ink[1], ink[2], 1.0),
         text_align: "center",
         pixels_per_unit: LABEL_PIXELS_PER_UNIT,
     };
@@ -733,8 +733,12 @@ pub fn physical_bones(state: &mut editor::State) {
     history::record(state, "create physical skeleton");
     // Kept in the scene, so they land in the tree and in the file; the rig
     // itself gains the `ragdoll` component that drives its bones from them.
-    let options: any = { "parent": state.scene_root.unwrap() };
-    let made = if state.mode2d { physics2d::ragdoll(found, options) } else { physics3d::ragdoll(found, options) };
+    let root = state.scene_root.unwrap();
+    let made = if state.mode2d {
+        physics2d::ragdoll(found, physics2d::RagdollOptions { parent: root })
+    } else {
+        physics3d::ragdoll(found, physics3d::RagdollOptions { parent: root })
+    };
     model::reindex(state);
     log::info("{util::list_or_empty(made).len()} physical bones built");
 }

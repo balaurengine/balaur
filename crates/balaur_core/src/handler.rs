@@ -60,22 +60,54 @@ pub fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
     }
 }
 
-/// The `headers` table of an options value, as string pairs.
+/// The `headers` list of an options value, each row a `{ name, value }`, as
+/// string pairs. A name may repeat.
 ///
 /// # Errors
-/// When `headers` is not a table, or a value in it is not a string.
+/// When `headers` is not a list, or a row is not two strings.
 pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
     match opt(opts, "headers") {
-        Some(Value::Map(pairs)) => pairs
+        Some(Value::List(rows)) => rows
             .iter()
-            .map(|(k, v)| match v {
-                Value::Str(s) => Ok((k.clone(), s.clone())),
-                other => Err(anyhow!("header `{k}` should be a string, got {other:?}")),
+            .map(|row| {
+                let text = |key| match opt(Some(row), key) {
+                    Some(Value::Str(s)) => Ok(s.clone()),
+                    other => Err(anyhow!(
+                        "a header's `{key}` should be a string, got {other:?}"
+                    )),
+                };
+                Ok((text("name")?, text("value")?))
             })
             .collect(),
-        Some(other) => Err(anyhow!("headers should be a table, got {other:?}")),
-        None => Ok(Vec::new()),
+        Some(Value::Nil) | None => Ok(Vec::new()),
+        Some(other) => Err(anyhow!("headers should be a list, got {other:?}")),
     }
+}
+
+/// The bytes a script's `[int]` holds, each one 0 to 255.
+///
+/// # Errors
+/// When `value` is not a list of ints, or one is past a byte.
+pub fn bytes_of(value: &Value) -> Result<Vec<u8>> {
+    let items = match value {
+        Value::Bytes(bytes) => return Ok(bytes.clone()),
+        Value::List(items) => items,
+        other => {
+            return Err(anyhow!(
+                "bytes are a list of ints, got {}",
+                other.type_name()
+            ));
+        }
+    };
+    items
+        .iter()
+        .map(|item| match item {
+            Value::Int(byte) => {
+                u8::try_from(*byte).map_err(|_| anyhow!("{byte} is not a byte: 0 to 255"))
+            }
+            other => Err(anyhow!("bytes hold ints, not a {}", other.type_name())),
+        })
+        .collect()
 }
 
 /// Wake whatever awaits each finished call's token, with its value. Called

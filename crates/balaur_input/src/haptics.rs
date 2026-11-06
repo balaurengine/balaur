@@ -198,7 +198,7 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
         ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected."),
         ("gamepad_rumble", &[], "(id: int, opts: RumbleOptions?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),
         ("gamepad_stop_rumble", &[], "", "Silence the pad now, without the `on_gamepad_rumble_finished` a rumble's natural end sends."),
-        ("gamepad_set_listener", &[], "(id: int, position: vec3)", "Where the pad's player is, for a rumble given a `position`; until set, a placed rumble plays at full strength."),
+        ("gamepad_set_listener", &[], "(id: int, position: Vec3)", "Where the pad's player is, for a rumble given a `position`; until set, a placed rumble plays at full strength."),
         ("vibrate", &[], "(seconds: float)", "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
     ]);
     for falloff in w::FALLOFFS {
@@ -218,7 +218,7 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
     });
     m.records(&[(
         "RumbleOptions",
-        "{ strong: float?, weak: float?, duration: float?, delay: float?, pulse: float?, gap: float?, attack: float?, attack_level: float?, fade: float?, fade_level: float?, position: any, min_distance: float?, max_distance: float?, falloff: string?, rolloff: float? }",
+        "{ strong: float?, weak: float?, duration: float?, delay: float?, pulse: float?, gap: float?, attack: float?, attack_level: float?, fade: float?, fade_level: float?, position: Vec3?, min_distance: float?, max_distance: float?, falloff: string?, rolloff: float? }",
         "One rumble: the two motors, how long and when, its beat and the shape of each pulse, and a `position` that weakens it with distance from `gamepad_set_listener`.",
     )]);
     m.function(
@@ -249,7 +249,7 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
         "gamepad_set_listener",
         |eng: &Engine, (id, position): (i64, Value)| {
             let Some(position) = vec3(&position) else {
-                anyhow::bail!("gamepad_set_listener takes a vec3 or a vec2 position");
+                anyhow::bail!("gamepad_set_listener takes a Vec3");
             };
             eng.resource::<GamepadState>()
                 .borrow_mut()
@@ -268,7 +268,7 @@ fn spec_of(opts: Option<&Value>) -> anyhow::Result<Spec> {
         None => None,
         Some(value) => {
             let Some(position) = vec3(value) else {
-                anyhow::bail!("a rumble's position is a vec3 or a vec2");
+                anyhow::bail!("a rumble's position is a Vec3");
             };
             let falloff = match field(opts, k::FALLOFF) {
                 None => Falloff::Inverse,
@@ -320,11 +320,9 @@ pub(crate) fn number(opts: Option<&Value>, key: &str) -> Option<f32> {
     }
 }
 
-/// A position a script gave: a vec3, or a vec2 on the plane z = 0.
 pub(crate) fn vec3(value: &Value) -> Option<[f32; 3]> {
     match value {
         Value::Vec3(v) => Some(*v),
-        Value::Vec2([x, y]) => Some([*x, *y, 0.0]),
         _ => None,
     }
 }

@@ -265,8 +265,7 @@ fn logged_at(level: &str) -> Vec<String> {
 /// and the file keeps the edit; but it applies to nothing, and a run says so.
 #[test]
 fn an_override_naming_nothing_is_an_error_and_the_scene_still_loads() {
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let (_dir, app) = load(
         r#"
 [[nodes]]
@@ -289,8 +288,7 @@ label = "gone"
 
 #[test]
 fn an_override_naming_a_node_logs_nothing() {
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let (_dir, app) = load(
         r#"
 [[nodes]]
@@ -309,8 +307,7 @@ label = "here"
 
 #[test]
 fn an_override_that_is_not_a_table_is_an_error() {
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let (_dir, _app) = load(
         r#"
 [[nodes]]
@@ -341,8 +338,7 @@ instance = "scenes/enemy.toml"
 count = 3
 "#;
     let said = "override 'Arm.cloner' on node 'Enemy' has no registered handler";
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let (_dir, _app) = load(scene);
     assert!(
         logged_at("error").iter().any(|error| error.contains(said)),

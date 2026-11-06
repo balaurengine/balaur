@@ -587,57 +587,58 @@ fn two_dimensional(s: &DebugRenderStyle) -> crate::rapier2d::pipeline::DebugRend
 /// `physics.set_debug_draw` / `physics.debug_draw`: world-spanning, so they
 /// live in `physics` rather than in either dimension (D5).
 pub(crate) fn install_debug_api(m: &mut Module<Engine>) {
+    m.records(&[(
+        "DebugDraw",
+        "{ enabled: bool?, colliders: bool?, aabbs: bool?, axes: bool?, impulse_joints: bool?, multibody_joints: bool?, contacts: bool?, solver_contacts: bool?, soft_bodies: bool?, pseudo_normals: bool?, soft_volume_contacts: bool?, soft_stress: bool?, nodes: [node]? }",
+        "What the debug renderer draws: one flag per mode, `soft_stress` being soft-body edges coloured by load, with `nodes`, the nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `enabled` left out is whether any mode is named.",
+    )]);
     m.describe(&[
-        ("set_debug_draw", &[], "", "Draw the physics world over the scene: `true` for the usual shapes, or a table naming modes (`{ colliders = true, impulse_joints = true }`): `colliders`, `aabbs`, `axes`, `impulse_joints`, `multibody_joints`, `contacts`, `solver_contacts`, `soft_bodies`, `pseudo_normals`, `soft_volume_contacts`, `soft_stress` (soft-body edges coloured by load), with `nodes`, a list of nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `[physics.debug]` holds the colours and lengths."),
-        ("debug_draw", &[], "", "What the debug renderer is drawing now, as a table of `enabled`, one flag per mode and `nodes`."),
+        ("set_debug_draw", &[], "(modes: DebugDraw)", "Draw the physics world over the scene, as `modes` names it; `debug_draw_defaults()` is the usual shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths."),
+        ("debug_draw", &[], "() -> DebugDraw", "What the debug renderer is drawing now, every flag and `nodes` given."),
+        ("debug_draw_defaults", &[], "() -> DebugDraw", "The usual shapes, for `set_debug_draw`."),
     ]);
-    // Takes `true`/`false` for "the usual thing", or a table naming the modes
-    // when a caller wants more than shapes. One entry point rather than a
-    // setter per flag.
-    m.function("set_debug_draw", |eng: &Engine, value: Value| {
+    m.function("set_debug_draw", |eng: &Engine, modes: Value| {
         let config = eng.resource::<PhysicsDebugConfig>();
         let mut config = config.borrow_mut();
-        match value {
-            Value::Bool(on) => config.enabled = on,
-            Value::Map(_) => {
-                let opts = Opts(Some(&value));
-                let mut mode = DebugRenderMode::empty();
-                for (name, flag) in DEBUG_MODES {
-                    if opts.boolean(name, false) {
-                        mode |= *flag;
-                    }
-                }
-                config.mode = mode;
-                config.enabled = opts.boolean(k::ENABLED, !mode.is_empty());
-                config.nodes = opts
-                    .list(k::NODES)
-                    .unwrap_or_default()
-                    .iter()
-                    .filter_map(|item| match item {
-                        Value::Node(bits) => Some(*bits),
-                        _ => None,
-                    })
-                    .collect();
-            }
-            other => {
-                return Err(anyhow::anyhow!(
-                    "set_debug_draw takes true, false or a table of modes, not {}",
-                    other.type_name()
-                ));
+        let opts = Opts(Some(&modes));
+        let mut mode = DebugRenderMode::empty();
+        for (name, flag) in DEBUG_MODES {
+            if opts.boolean(name, false) {
+                mode |= *flag;
             }
         }
+        config.mode = mode;
+        config.enabled = opts.boolean(k::ENABLED, !mode.is_empty());
+        config.nodes = opts
+            .list(k::NODES)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|item| match item {
+                Value::Node(bits) => Some(*bits),
+                _ => None,
+            })
+            .collect();
         Ok(())
     });
     // Reads back what the setter wrote, `enabled` and `nodes` included (N8).
     m.function("debug_draw", |eng: &Engine, ()| {
         let config = eng.resource::<PhysicsDebugConfig>();
         let config = config.borrow();
-        let mut out = vec![(k::ENABLED.to_string(), Value::Bool(config.enabled))];
-        for (name, flag) in DEBUG_MODES {
-            out.push((name.to_string(), Value::Bool(config.mode.contains(*flag))));
-        }
-        let nodes = config.nodes.iter().map(|bits| Value::Node(*bits)).collect();
-        out.push((k::NODES.to_string(), Value::List(nodes)));
-        Ok(Value::Map(out))
+        Ok(debug_draw_value(config.enabled, config.mode, &config.nodes))
     });
+    m.function("debug_draw_defaults", |_eng: &Engine, ()| {
+        let usual = PhysicsDebugConfig::default();
+        Ok(debug_draw_value(true, usual.mode, &usual.nodes))
+    });
+}
+
+/// The renderer's switch, modes and nodes as a `DebugDraw`.
+fn debug_draw_value(enabled: bool, mode: DebugRenderMode, nodes: &[u64]) -> Value {
+    let mut out = vec![(k::ENABLED.to_string(), Value::Bool(enabled))];
+    for (name, flag) in DEBUG_MODES {
+        out.push((name.to_string(), Value::Bool(mode.contains(*flag))));
+    }
+    let nodes = nodes.iter().map(|bits| Value::Node(*bits)).collect();
+    out.push((k::NODES.to_string(), Value::List(nodes)));
+    Value::Map(out)
 }

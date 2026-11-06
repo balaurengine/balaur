@@ -80,7 +80,7 @@ pub(crate) fn install_debug_view_api(m: &mut Module<Engine>) {
         ("debug_views", &[], "-> [string]", "Every channel name `set_debug_view` accepts, as a list."),
         ("set_shader_preview", &[], "", "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back."),
         ("set_shader_probe", &[], "", "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later."),
-        ("shader_probe", &[], "", "The four channels the previewed line wrote at the probed pixel, or `()` when nothing has been read yet."),
+        ("shader_probe", &[], "() -> Color?", "The four channels the previewed line wrote at the probed pixel, as a colour, or nil when nothing has been read yet."),
     ]);
     // Draw one channel of the scene instead of its colour: "normals", "uv",
     // "depth", "albedo", or "" for the scene as it is.
@@ -135,13 +135,7 @@ pub(crate) fn install_debug_view_api(m: &mut Module<Engine>) {
         Ok(eng
             .try_resource::<ProbeReading>()
             .map_or(balaur_script::Value::Nil, |reading| {
-                let value = reading.borrow().value;
-                balaur_script::Value::List(
-                    value
-                        .iter()
-                        .map(|v| balaur_script::Value::Num(f64::from(*v)))
-                        .collect(),
-                )
+                balaur_script::Value::Color(reading.borrow().value)
             }))
     });
 }

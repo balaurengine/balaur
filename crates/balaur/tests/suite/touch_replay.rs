@@ -155,8 +155,8 @@ impl Runner {
         let pan = input::pan();
         zoom += pan.x * 0.0;
         let swipe = input::swipe();
-        if swipe[\"x\"] != nil { zoom += swipe[\"x\"].as_float(); }
-        if input::long_press()[\"x\"] != nil { zoom = 1.0; }
+        if swipe != nil { zoom += swipe.unwrap().x; }
+        if input::long_press() != nil { zoom = 1.0; }
         input::feed_action(\"reached\", 1.0);
     }
     fn fixed_update(dt: float) {

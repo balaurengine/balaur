@@ -43,7 +43,7 @@ impl Scenario {
     fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
-        n.softbody3d.set_particle_target(0, [2.0, 1.0, 0.0]);
+        n.softbody3d.set_particle_target(0, vec3(2.0, 1.0, 0.0));
     }
 
     fn fixed_update(dt: float) {
@@ -69,7 +69,7 @@ impl Scenario {
     fn init() {
         let n = self.node;
         n.set_component("soft_rope3d", { "particle_count": 8 }); n.set_component("softbody3d", { "kind": physics3d::SOFT_ROPE, "pinned_particles": [0] });
-        n.softbody3d.apply_softbody_impulse([0.0, 20.0, 0.0]);
+        n.softbody3d.apply_softbody_impulse(vec3(0.0, 20.0, 0.0));
         self.first = n.softbody3d.softbody_position(7).y;
     }
 
@@ -134,7 +134,7 @@ impl Scenario {
         let blob = self.node.get_node("Blob2d");
         blob.set_component("soft_rope2d", { "particle_count": 6 }); blob.set_component("softbody2d", { "kind": physics2d::SOFT_ROPE });
         blob.softbody2d.pin_particle(0);
-        blob.softbody2d.apply_softbody_radial_impulse([0.0, 0.0], 5.0, 0.0);
+        blob.softbody2d.apply_softbody_radial_impulse(vec2(0.0, 0.0), 5.0, 0.0);
     }
 
     fn fixed_update(dt: float) {
@@ -143,6 +143,9 @@ impl Scenario {
             let blob = self.node.get_node("Blob2d");
             if blob.softbody2d.softbody_edges().len() != blob.softbody2d.softbody_stress().len() { log::error("the edges and their stress do not line up"); }
             if blob.softbody2d.softbody_sleeping() { log::error("a body just struck is asleep"); }
+            let held = blob.softbody2d.softbody_particle(0);
+            if !held.pinned { log::error("the pinned particle reads free"); }
+            if held.position.x != blob.softbody2d.softbody_position(0).x { log::error("the particle's row is elsewhere"); }
             log::error("checked: 2d");
         }
     }

@@ -543,29 +543,27 @@ shape = {{ kind = "sphere", radius = 0.3 }}
 fn a_collision_reports_where_the_sweep_met_the_obstacle() {
     let (_dir, _app, errors) = boot(
         &wall_and_player(CAPSULE, ""),
-        r#"fn x(v: any) -> float { v[0].as_float() }
-
-pub class Scenario { node: Node, done: bool }
+        r#"pub class Scenario { node: Node, done: bool }
 impl Scenario {
     fn fixed_update(dt: float) {
         let moved = self.node.character3d.move_character(0.2, 0.0, 0.0);
-        if !self.done && moved["collisions"].len() > 0 {
-            let hit = moved["collisions"][0];
-            let point = x(hit["point"]);
+        if !self.done && moved.collisions.len() > 0 {
+            let hit = moved.collisions[0];
+            let point = hit.point.x;
             if point <= 1.4 || point >= 1.6 { log::error("the wall was met at {point}"); }
-            let own = x(hit["own_point"]);
+            let own = hit.own_point.x;
             if own <= 1.3 || own >= 1.6 { log::error("the capsule was met at {own}"); }
-            let normal = x(hit["own_normal"]);
+            let normal = hit.own_normal.x;
             if normal <= 0.9 { log::error("the capsule's normal points {normal}"); }
-            let distance = hit["distance"].as_float();
+            let distance = hit.distance;
             if distance < 0.0 || distance > 0.2 { log::error("it swept {distance}"); }
-            let stood = x(hit["position"]);
+            let stood = hit.position.x;
             if stood + 0.4 >= 1.6 { log::error("the character stood at {stood}"); }
-            let applied = x(hit["applied"]);
+            let applied = hit.applied.x;
             if applied < 0.0 { log::error("applied {applied}"); }
-            let status = hit["status"].as_str();
+            let status = hit.status;
             if status != physics3d::SWEEP_CONVERGED && status != physics3d::SWEEP_OUT_OF_ITERATIONS { log::error("status {status}"); }
-            let subshape = hit["subshape"].as_int();
+            let subshape = hit.subshape;
             if subshape != 0 { log::error("a box has no parts: {subshape}"); }
             self.done = true;
             log::error("checked: collision record");
@@ -713,10 +711,7 @@ wheel3d = { radius = 0.4 }
 fn speed_and_wheel_state_read_the_kept_controller() {
     let (_dir, _app, errors) = boot(
         DRIVEWAY,
-        r#"fn x(v: any) -> float { v[0].as_float() }
-fn y(v: any) -> float { v[1].as_float() }
-
-pub class Scenario { node: Node, ticks: int }
+        r#"pub class Scenario { node: Node, ticks: int }
 impl Scenario {
     fn init() {
         self.node.body3d.set_linear_velocity(0.0, 0.0, 4.0);
@@ -727,30 +722,30 @@ impl Scenario {
         let wheel = self.node.get_node("Wheel");
         if self.ticks == 3 {
             wheel.wheel3d.set_wheel_rotation(1.5);
-            if math::abs(wheel.wheel3d.wheel_state()["rotation"].as_float() - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
+            if math::abs(wheel.wheel3d.wheel_state().rotation - 1.5) >= 0.0001 { log::error("the rotation was not set"); }
         }
         if self.ticks == 10 {
             let speed = self.node.vehicle3d.vehicle_speed();
             if math::abs(speed + 4.0) >= 0.5 { log::error("a car rolling backwards read {speed}"); }
             let state = wheel.wheel3d.wheel_state();
-            if !state["in_contact"].as_bool() { log::error("the wheel is off the ground"); }
-            let ground = state["ground"];
-            if ground.as_node() != scene::get_node("World/Ground") { log::error("the ray hit {ground}"); }
-            let contact = y(state["contact_point"]);
+            if !state.in_contact { log::error("the wheel is off the ground"); }
+            let ground = state.ground.unwrap();
+            if ground != scene::get_node("World/Ground") { log::error("the ray hit {ground}"); }
+            let contact = state.contact_point.y;
             if math::abs(contact) >= 0.05 { log::error("the ray met the ground at {contact}"); }
-            let normal = y(state["contact_normal"]);
+            let normal = state.contact_normal.y;
             if normal <= 0.9 { log::error("the ground's normal points {normal}"); }
-            let origin = y(state["ray_origin"]);
+            let origin = state.ray_origin.y;
             if math::abs(origin - 0.6) >= 0.05 { log::error("the ray started at {origin}"); }
-            let length = state["suspension_length"].as_float();
+            let length = state.suspension_length;
             if length <= 0.0 || length >= 0.31 { log::error("suspension {length}"); }
-            let suspension = y(state["suspension"]);
+            let suspension = state.suspension.y;
             if suspension >= -0.9 { log::error("the suspension points {suspension}"); }
-            let axle = x(state["axle"]);
+            let axle = state.axle.x;
             if math::abs(axle) <= 0.9 { log::error("the axle points {axle}"); }
-            let center = y(state["center"]);
+            let center = state.center.y;
             if center >= 0.6 { log::error("the wheel's centre is at {center}"); }
-            let rotation = state["rotation"].as_float();
+            let rotation = state.rotation;
             if math::abs(rotation) <= 1.6 { log::error("the wheel stopped turning after the set: {rotation}"); }
             log::error("checked: wheel state");
         }
