@@ -427,20 +427,6 @@ fn apply_system(eng: &Engine, _dt: f32) {
     let signals = settle_clicks(eng, &clicked, &mut typed, &mut emitted);
     // The pool's controls hear their edits and clicks here, before any named
     // handler, so a strip nobody refilled still answers.
-    let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
-    // An inspector's rows are heard as one edit from the inspector itself.
-    for (entity, value) in crate::widget::inspector::heard(eng, &emitted, &hit) {
-        let method = eng
-            .world()
-            .get::<&Widget>(entity)
-            .ok()
-            .map(|widget| widget.on_change.to_string())
-            .filter(|method| !method.is_empty());
-        if let Some(method) = method {
-            typed.push((entity, method, value.clone()));
-        }
-        emitted.push((entity, CHANGE_EVENT, value));
-    }
     crate::widget::pool::heard(eng, &emitted);
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.

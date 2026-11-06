@@ -919,6 +919,7 @@ fn states() -> any {
         "test:events": selftest::eventviews,
         "test:library": selftest::librarydemo,
         "test:rows": selftest::row_views,
+        "test:inspector_rows": selftest::inspector_rows,
         "test:pool": selftest::pool_kinds,
         "test:camera_document": selftest::camera_document,
         "test:picture": selftest::picture,

@@ -244,3 +244,141 @@ fn number_fields(app: &App) -> Vec<Entity> {
     }
     out
 }
+
+fn row_text(app: &App, row: Entity) -> Option<toml::Value> {
+    let world = app.engine.world();
+    let control = balaur_core::scene::find_node(&world, row, "H/C/C0")?;
+    drop(world);
+    prop(app, control, "text")
+}
+
+fn text(said: &str) -> Option<toml::Value> {
+    Some(toml::Value::String(said.into()))
+}
+
+/// One row a frame: the third on the first, then the first, then the third
+/// hidden, then the third again.
+const ONE_ROW_A_FRAME: &str = "pub class Root { node: Node, frame: int }
+fn row(said: str, y: float) -> any {
+    { \"label\": \"L\", \"y\": y, \"controls\": [{ \"kind\": \"label\", \"text\": said }] }
+}
+impl Root {
+    fn update(dt: float) {
+        self.frame += 1;
+        let host = scene::get_node(\"Root/Bar\");
+        if self.frame == 1 {
+            ui::fill_row(host, 2, row(\"third\", 20.0), 40.0, false);
+        } else if self.frame == 2 {
+            ui::fill_row(host, 0, row(\"first\", 0.0), 40.0, false);
+        } else if self.frame == 3 {
+            ui::fill_row(host, 2, nil);
+        } else if self.frame == 4 {
+            ui::fill_row(host, 2, row(\"back\", 20.0), 40.0, false);
+        }
+    }
+}
+";
+
+#[test]
+fn one_row_is_made_with_those_before_it_and_placed_at_its_height() {
+    let (_dir, mut app) = app_with(ONE_ROW_A_FRAME);
+    app.tick(1.0 / 60.0);
+    let rows = kids(&app);
+    assert_eq!(rows.len(), 3, "row 2 needs rows 0 and 1 to stand before it");
+    assert_eq!(row_text(&app, rows[2]), text("third"));
+    assert_eq!(
+        prop(&app, rows[2], "absolute"),
+        Some(toml::Value::Boolean(true)),
+        "a row with a `y` is placed by hand"
+    );
+    let inset = prop(&app, rows[2], "inset").expect("its inset");
+    assert_eq!(
+        balaur_core::components::as_f64(&inset.as_array().unwrap()[1]),
+        Some(20.0)
+    );
+}
+
+#[test]
+fn writing_one_row_leaves_the_others_as_they_are() {
+    let (_dir, mut app) = app_with(ONE_ROW_A_FRAME);
+    app.tick(1.0 / 60.0);
+    let rows = kids(&app);
+    app.tick(1.0 / 60.0);
+    assert_eq!(kids(&app), rows, "the rows are reused, not made again");
+    assert_eq!(row_text(&app, rows[0]), text("first"));
+    assert_eq!(row_text(&app, rows[2]), text("third"), "not asked about");
+}
+
+#[test]
+fn a_row_given_nothing_is_hidden_and_shows_again_when_it_is_filled() {
+    let (_dir, mut app) = app_with(ONE_ROW_A_FRAME);
+    app.tick(1.0 / 60.0);
+    app.tick(1.0 / 60.0);
+    let rows = kids(&app);
+    assert!(crate::support::own_visible(&app, rows[2]));
+    app.tick(1.0 / 60.0);
+    assert!(!crate::support::own_visible(&app, rows[2]));
+    assert!(
+        crate::support::own_visible(&app, rows[0]),
+        "the other stays"
+    );
+    app.tick(1.0 / 60.0);
+    assert!(crate::support::own_visible(&app, rows[2]));
+    assert_eq!(row_text(&app, rows[2]), text("back"));
+}
+
+/// A row filled, then its text patched, then a fill asking for what it first
+/// held.
+const PATCHED_THEN_FILLED: &str =
+    "pub class Root { node: Node, frame: int, wrote: bool, again: bool }
+fn row(said: str) -> any {
+    { \"label\": \"L\", \"controls\": [{ \"kind\": \"label\", \"text\": said }] }
+}
+impl Root {
+    fn update(dt: float) {
+        self.frame += 1;
+        let host = scene::get_node(\"Root/Bar\");
+        if self.frame == 1 {
+            ui::fill_row(host, 0, row(\"first\"), 40.0, false);
+        } else if self.frame == 2 {
+            let patches: [any] = [{ \"text\": \"moved\" }];
+            self.wrote = ui::patch_row(host, 0, patches);
+        } else if self.frame == 3 {
+            let patches: [any] = [{ \"text\": \"moved\" }];
+            self.again = ui::patch_row(host, 0, patches);
+        } else if self.frame == 4 {
+            ui::fill_row(host, 0, row(\"first\"), 40.0, false);
+        }
+    }
+}
+";
+
+#[test]
+fn a_patch_writes_what_moved_and_the_next_fill_compares_against_it() {
+    let (_dir, mut app) = app_with(PATCHED_THEN_FILLED);
+    app.tick(1.0 / 60.0);
+    let rows = kids(&app);
+    assert_eq!(row_text(&app, rows[0]), text("first"));
+    app.tick(1.0 / 60.0);
+    assert_eq!(row_text(&app, rows[0]), text("moved"));
+    let root =
+        balaur_core::scene::find_node(&app.engine.world(), app.engine.root(), "Root").unwrap();
+    let flag = |app: &App, name: &str| {
+        app.engine
+            .script_host()
+            .and_then(|host| host.script_field(balaur_core::node_id_of(root), name))
+    };
+    assert_eq!(flag(&app, "wrote"), Some(balaur_script::Value::Bool(true)));
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        flag(&app, "again"),
+        Some(balaur_script::Value::Bool(false)),
+        "what it holds already is not written"
+    );
+    app.tick(1.0 / 60.0);
+    assert_eq!(
+        row_text(&app, rows[0]),
+        text("first"),
+        "a fill reads the patch, not what it last wrote itself"
+    );
+}

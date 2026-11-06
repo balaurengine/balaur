@@ -34,7 +34,11 @@ impl Counter {
             "panels": [{ "id": "counter", "title": "Counter", "draw": "panel" }],
             "dialogs": [{ "id": "counter-window", "title": "Counter", "rows": "dialog" }],
             "commands": [{ "title": "Count scripted nodes", "icon": "Σ", "shortcut": "", "run": "count" }],
-            "inspector_sections": ["section"],
+            "inspector_sections": [{
+                "component": "counter",
+                "schema": { "scripted": { "type": "int", "readonly": true, "default": 0, "description": "How many nodes named a script at the last count" } },
+                "read": "section",
+            }],
             "startup_states": { "test:plugin_docks": "selftest" },
         }
     }
@@ -65,12 +69,13 @@ impl Counter {
         [{ "controls": [{ "kind": "label", "role": "text_caption", "wrap": true, "text": said }] }]
     }
 
-    /// An inspector section: the rows it adds after the built-in ones.
+    /// An inspector section's values: a component of the plugin's own, whose
+    /// rows the Inspector draws like any other. Nil until there is a count.
     pub fn section(payload: any) -> any {
         if self.shown < 0 {
-            return [];
+            return nil;
         }
-        return [{ "controls": [{ "kind": "label", "role": "text_note", "text": "counter: {self.shown}" }] }];
+        { "scripted": self.shown }
     }
 
     /// `--state test:plugin_docks`: the plugin seam, asserted the way the

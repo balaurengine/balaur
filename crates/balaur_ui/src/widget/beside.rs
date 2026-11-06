@@ -1,5 +1,5 @@
 //! Components beside `widget` holding the rows only some of its kinds read:
-//! a `code` widget's gutter, an `inspector`'s target, a `window`'s chrome.
+//! a `code` widget's gutter, a `window`'s chrome.
 //! No property shows on a condition (PLAN-property-types §5), so a row that
 //! applies to one kind is a component of its own on the same node.
 //!
@@ -20,7 +20,7 @@ use balaur_plugin::Registry;
 use smol_str::SmolStr;
 
 use crate::vocabulary::words as w;
-use crate::widget::node::{EguiOptions, Inspecting, Widget};
+use crate::widget::node::{EguiOptions, Widget};
 use crate::widget::properties::{
     Alpha, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, NumberFormat, Numeral, Placement,
     Scrollbar, SidePlacement, WidgetProperties,
@@ -75,36 +75,6 @@ impl Beside for WidgetCode {
         widget.current_line = u32::try_from(self.current_line.max(0)).unwrap_or(u32::MAX);
         widget.gutter_width = self.gutter_width;
         widget.on_gutter = self.on_gutter.clone();
-    }
-}
-
-/// The rows an `inspector` reads: the node and component it shows.
-#[derive(Clone, PartialEq, Component)]
-#[component(name = "widget_inspector")]
-pub(crate) struct WidgetInspector {
-    /// The component an `inspector` shows a row of each property of, read off the registry's schema and the node every pass. The widget's `options` names the properties and their order; empty shows them all, sorted. `on_change` hears `{ property, path, value }` for an edit, `path` being the steps into a list, map or record, and `verb` in place of `value` where an asset is to be embedded or saved
-    pub(crate) component: SmolStr,
-    /// The node an `inspector` shows, by path: as `scene.get_node` takes it, or as `node.path()` spells it
-    pub(crate) target: SmolStr,
-    /// The folder an `inspector` shows a file's path from: a value under it loses that much of its front
-    pub(crate) relative_to: SmolStr,
-    /// How wide an `inspector`'s label column is, in design pixels; 0 takes a third of its width. Under `wrap` each label goes above its control instead
-    #[property(min = 0.0)]
-    pub(crate) label_width: f32,
-}
-
-impl Beside for WidgetInspector {
-    fn reads(asked: &WidgetProperties) -> bool {
-        asked.kind.0 == w::INSPECTOR
-    }
-
-    fn put(&self, widget: &mut Widget) {
-        widget.inspect = Arc::new(Inspecting {
-            target: self.target.clone(),
-            component: self.component.clone(),
-            label_width: self.label_width,
-            relative_to: self.relative_to.clone(),
-        });
     }
 }
 
@@ -612,7 +582,6 @@ macro_rules! each_beside {
         $apply!(
             $($args)*;
             WidgetCode,
-            WidgetInspector,
             WidgetTable,
             WidgetWindow,
             WidgetToast,
@@ -761,9 +730,9 @@ fn written<C: Beside>(eng: &Engine, entity: Entity, _: Written) -> Result<()> {
 }
 
 /// Put `C` on the node's widget again, its defaults where it is gone, and
-/// tell the arena and an inspector it changed.
+/// tell the arena it changed.
 fn refresh<C: Beside>(eng: &Engine, entity: Entity) {
-    let inspector = {
+    {
         let world = eng.world();
         let (Ok(asked), Ok(mut widget)) = (
             world.get::<&WidgetProperties>(entity),
@@ -772,9 +741,8 @@ fn refresh<C: Beside>(eng: &Engine, entity: Entity) {
             return;
         };
         put_held::<C>(&world, entity, &asked, &mut widget);
-        widget.kind == w::INSPECTOR
-    };
-    crate::widget::schema::told(eng, entity, inspector);
+    }
+    crate::widget::arena::widget_changed(entity);
 }
 
 /// What is off about `C` on a widget whose kind reads none of its rows.

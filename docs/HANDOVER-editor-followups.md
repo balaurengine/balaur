@@ -70,7 +70,7 @@ is rewritten in the same commit).
      `widget_range` (slider, number_field, progress_bar), `widget_field`
      (text_field, text_area, code), `widget_scroll` (scroll, list, tree,
      table), `widget_list` (list, tree), `widget_table`, `widget_code`,
-     `widget_inspector`, `widget_menu`, `widget_window` (window, dialog),
+     `widget_menu`, `widget_window` (window, dialog),
      `widget_color_picker`, `widget_image`, `widget_dropdown`,
      `widget_separator`, `widget_toast`. Each puts its rows on the `Widget`
      where the kind reads them, its defaults where the node holds none; a

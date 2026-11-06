@@ -220,7 +220,7 @@ fn role_of(widget: &Widget) -> Role {
         w::WINDOW => Role::Window,
         w::TOAST => Role::Status,
         w::SEPARATOR => Role::Splitter,
-        w::FOLD | w::INSPECTOR => Role::Group,
+        w::FOLD => Role::Group,
         _ => Role::GenericContainer,
     }
 }

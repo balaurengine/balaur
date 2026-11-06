@@ -111,7 +111,7 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
     let Some(name) = WidgetProperties::NAMES.get(index) else {
         return false;
     };
-    let inspector = {
+    {
         let world = eng.world();
         let (Ok(asked), Ok(mut widget)) = (
             world.get::<&WidgetProperties>(entity),
@@ -122,9 +122,8 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
         if !put_one(&mut widget, &asked, name) {
             return false;
         }
-        widget.kind == w::INSPECTOR
-    };
-    told(eng, entity, inspector);
+    }
+    crate::widget::arena::widget_changed(entity);
     true
 }
 
@@ -147,20 +146,10 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     };
     dress(eng, &mut next);
     crate::widget::grid::check(&next.layout)?;
-    let inspector = next.kind == w::INSPECTOR;
     eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))?;
-    told(eng, entity, inspector);
-    Ok(())
-}
-
-/// Tell the arena that a widget was written, and the inspectors' state where
-/// the widget is one.
-pub(crate) fn told(eng: &Engine, entity: Entity, inspector: bool) {
     crate::widget::arena::widget_changed(entity);
-    if inspector {
-        crate::widget::inspector::noticed(eng, entity);
-    }
+    Ok(())
 }
 
 /// Refuse a `gap` written as one number: it is a pair now, and a number read

@@ -34,7 +34,6 @@ pub(crate) mod words {
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
     pub(crate) const TOAST: &str = "toast";
-    pub(crate) const INSPECTOR: &str = "inspector";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL,
@@ -55,7 +54,6 @@ pub(crate) mod words {
         LIST,
         TREE,
         TABLE,
-        INSPECTOR,
         SLIDER,
         NUMBER_FIELD,
         PROGRESS_BAR,
@@ -424,7 +422,6 @@ pub(crate) mod keys {
     pub(crate) const CHECKED: &str = "checked";
     pub(crate) const RADIO_GROUP: &str = "radio_group";
     pub(crate) const TOGGLE: &str = "toggle";
-    pub(crate) const PICKED_COLOR: &str = "picked_color";
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
     pub(crate) const DASHED: &str = "dashed";
@@ -499,7 +496,6 @@ pub(crate) mod keys {
     pub(crate) const PADDING: &str = "padding";
     pub(crate) const PADDING_X: &str = "padding_x";
     pub(crate) const PADDING_Y: &str = "padding_y";
-    pub(crate) const PLACEHOLDER: &str = "placeholder";
     pub(crate) const PREFIX: &str = "prefix";
     pub(crate) const PROBLEM_COLOR: &str = "problem_color";
     pub(crate) const CORNER_RADIUS: &str = "corner_radius";
@@ -555,7 +551,6 @@ pub(crate) mod keys {
     pub(crate) const TRAILING: &str = "trailing";
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const TRUNCATE: &str = "truncate";
-    pub(crate) const VALUE: &str = "value";
     pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
     pub(crate) const WIDTH: &str = "width";
@@ -595,7 +590,6 @@ pub(crate) mod keys {
     pub(crate) const SENSE: &str = "sense";
     pub(crate) const SHOW_TOOLTIP_WHEN_ELIDED: &str = "show_tooltip_when_elided";
     pub(crate) const INDETERMINATE: &str = "indeterminate";
-    pub(crate) const DRAG_SPEED: &str = "drag_speed";
     /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";
     pub(crate) const CONSTRAIN: &str = "constrain";
@@ -617,63 +611,13 @@ pub(crate) mod pool {
     pub(crate) const LABEL: &str = "label";
     pub(crate) const LABEL_ROLE: &str = "label_role";
     pub(crate) const SLOT_ROLE: &str = "slot_role";
+    /// A row placed at a height of its own in a host laid out by hand.
+    pub(crate) const TOP: &str = "y";
+    /// Where a row keeps its controls, from the row.
+    pub(crate) const CELLS_PATH: &str = "H/C";
     /// The roles a row wears where its spec names none.
     pub(crate) const TEXT_LABEL: &str = "text_label";
     pub(crate) const LAYOUT_CELLS: &str = "layout_cells";
-}
-
-/// What an `inspector` reads off a property's spec, the datatypes it draws,
-/// and what its `change` event carries.
-pub(crate) mod inspect {
-    pub(crate) const TYPE: &str = "type";
-    pub(crate) const DEFAULT: &str = "default";
-    pub(crate) const MIN: &str = "min";
-    pub(crate) const MAX: &str = "max";
-    pub(crate) const STEP: &str = "step";
-    pub(crate) const UNIT: &str = "unit";
-    pub(crate) const DESCRIPTION: &str = "description";
-    pub(crate) const READONLY: &str = "readonly";
-    pub(crate) const OPTIONS: &str = "options";
-    pub(crate) const ASSET: &str = "asset";
-    pub(crate) const OF: &str = "of";
-    pub(crate) const FIELDS: &str = "fields";
-    pub(crate) const KEY: &str = "key";
-    pub(crate) const CLASS: &str = "class";
-    pub(crate) const DECIMALS: &str = "decimals";
-    pub(crate) const DEGREES: &str = "degrees";
-
-    pub(crate) const FLOAT: &str = "float";
-    pub(crate) const INT: &str = "int";
-    pub(crate) const BOOL: &str = "bool";
-    pub(crate) const ENUM: &str = "enum";
-    pub(crate) const VEC2: &str = "vec2";
-    pub(crate) const VEC3: &str = "vec3";
-    pub(crate) const VEC4: &str = "vec4";
-    pub(crate) const COLOR: &str = "color";
-    pub(crate) const FLAGS: &str = "flags";
-    pub(crate) const LIST: &str = "list";
-    pub(crate) const MAP: &str = "map";
-    pub(crate) const RECORD: &str = "record";
-
-    /// What a `change` event's table holds: the property, the steps into
-    /// its value, the value now there, and a verb in place of a value.
-    pub(crate) const PROPERTY: &str = "property";
-    pub(crate) const PATH: &str = "path";
-    pub(crate) const VALUE: &str = "value";
-    pub(crate) const VERB: &str = "verb";
-    /// An inline asset written to a file, and a file copied inline.
-    pub(crate) const SAVE: &str = "save";
-    pub(crate) const EMBED: &str = "embed";
-
-    /// The theme entries a row's parts wear.
-    pub(crate) const CHIP: &str = "chip";
-    pub(crate) const CHIP_FLAG: &str = "chip_flag";
-    pub(crate) const INPUT: &str = "input";
-    pub(crate) const TEXT_CAPTION: &str = "text_caption";
-    pub(crate) const TEXT_CODE_QUIET: &str = "text_code_quiet";
-    pub(crate) const TEXT_HINT: &str = "text_hint";
-    pub(crate) const ACTION_DOCK_SECONDARY: &str = "action_dock_secondary";
-    pub(crate) const LAYOUT_ACTIONS: &str = "layout_actions";
 }
 
 /// The state tables a theme entry holds, by CSS's words. `checked` answers

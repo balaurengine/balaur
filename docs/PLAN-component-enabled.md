@@ -86,7 +86,9 @@ not part of it.
    the components are applied, and written back by `authored`.
 4. **The inspector's switch.** A toggle in each component section's heading
    row, beside the ✕, writing through `set_enabled`. A disabled section draws
-   its rows dimmed rather than hiding them.
+   its rows dimmed rather than hiding them. The switch is there since
+   2026-11-03 for a component declaring `enabled` (PLAN-editor-as-scene §9.4);
+   it moves to this bit, and every section gets one, when step 1 lands.
 5. **The nine.** Their own `enabled` properties are documented as "what the
    system does with it while the component is on", so the two are not read as
    the same switch.

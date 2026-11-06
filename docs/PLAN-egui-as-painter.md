@@ -217,7 +217,7 @@ draws.
   `complete_theme`, `contrast`, `contrast_pairs`, `set_focus`,
   `focus_next`, `focus_previous`, `activate_focused`, `focused_widget`,
   `edit`, `set_clipboard`, `pasted_text`,
-  `reread`, `fill_rows`, `fill_strip`,
+  `fill_rows`, `fill_row`, `patch_row`, `fill_strip`,
   `set_widget_layer`, `set_widget_surface`, `wants_pointer`,
   `wants_keyboard`, `takes_pointer_at`, `set_load_progress`,
   `finish_loading`, and `click` for the tests.

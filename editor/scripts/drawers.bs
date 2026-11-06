@@ -1,0 +1,948 @@
+// The Inspector's rows: one drawer a datatype, and the handler that writes what
+// its control heard. A control's `data` names its line, which holds the rest.
+
+use editor;
+use fonts;
+use icons;
+use inspector;
+use model;
+use plugins;
+use shell;
+use signals;
+use util;
+
+/// The row `line` draws, holding `value`.
+pub fn row_of(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    if line.kind == inspector::FIXED {
+        return line.row.unwrap();
+    }
+    if line.kind == inspector::HEAD {
+        return head_row(state, line, value);
+    }
+    if line.kind == inspector::FOLD {
+        return fold_row(state, line);
+    }
+    let spec = line.spec;
+    if spec["readonly"].as_bool() {
+        return readonly_row(line, spec, value);
+    }
+    let datatype = spec["type"].as_str();
+    // A plugin's drawer for this datatype wins over the built-in; its controls
+    // write with `on_change: "inspector_write"` and `data: { at }`, the `at` it got.
+    let controls = plugins::property_controls(state, datatype, spec, value, line.at);
+    if controls != nil {
+        return labelled(state, line, util::list_or_empty(controls));
+    }
+    if datatype == "float" {
+        float_row(state, line, spec, value)
+    } else if datatype == "int" {
+        int_row(state, line, spec, value)
+    } else if datatype == "vec2" || datatype == "vec3" || datatype == "vec4" {
+        vector_row(state, line, spec, value)
+    } else if datatype == "bool" {
+        bool_row(state, line, value)
+    } else if datatype == "enum" {
+        enum_row(state, line, spec, value)
+    } else if datatype == "color" {
+        color_row(state, line, value)
+    } else if datatype == "asset" {
+        asset_row(state, line, spec, value)
+    } else if datatype == "flags" {
+        flags_row(state, line, spec, value)
+    } else if datatype == "node" {
+        node_row(state, line, value)
+    } else if datatype == "list" {
+        list_row(state, line, spec, value)
+    } else if datatype == "map" {
+        map_row(state, line, spec, value)
+    } else if datatype == "record" {
+        record_row(state, line, spec)
+    } else if datatype == "material" {
+        material_row(state, line, spec, value)
+    } else if datatype == "script_path" {
+        script_path_row(state, line, value)
+    } else {
+        text_row(state, line, value)
+    }
+}
+
+/// What moved of `line`'s row now it holds `value`, a table for each of its
+/// controls, or nil for a row that has to be built: one whose controls follow
+/// from the value, or a line that is not one value.
+pub fn patches_of(state: editor::State, line: inspector::Line, value: any) -> any {
+    if line.kind != inspector::VALUE || line.at.component == inspector::SCRIPT {
+        return nil;
+    }
+    let spec = line.spec;
+    if spec["readonly"].as_bool() {
+        return [{ "text": readonly_text(spec, value) }];
+    }
+    let datatype = spec["type"].as_str();
+    if state.registry.property_editors.has(datatype) {
+        return nil;
+    }
+    if datatype == "float" {
+        [{ "value": shown_as(spec, number_of(value)) }]
+    } else if datatype == "int" {
+        [{ "value": number_of(value) }]
+    } else if datatype == "vec2" || datatype == "vec3" || datatype == "vec4" {
+        vector_patches(spec, value)
+    } else if datatype == "bool" {
+        [{ "checked": value.as_bool() }]
+    } else if datatype == "enum" {
+        [{ "text": inspector::as_text(value) }]
+    } else if datatype == "color" {
+        let held = util::list_or_empty(value);
+        [{ "picked_color": held }, { "text": color_text(held) }]
+    } else if datatype == "string" || datatype == "" {
+        [{ "text": model::relative_file(state, inspector::as_text(value)).as_str() }]
+    } else {
+        nil
+    }
+}
+
+fn vector_patches(spec: any, value: any) -> any {
+    let held = util::list_or_empty(value);
+    let datatype = spec["type"].as_str();
+    let count = if datatype == "vec4" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+    let out: [any] = [];
+    for slot in 0..count {
+        out.push({ "value": shown_as(spec, channel(held, slot, 0.0)) });
+    }
+    out
+}
+
+fn edit_of(line: inspector::Line, handler: fn(&mut editor::State, inspector::Line, any, any)) -> any {
+    { "line": line.key, "fn": handler }
+}
+
+// A row's label, with what its line is marked by in front.
+fn label_of(line: inspector::Line) -> str {
+    if line.mark == inspector::MARK_WARNING {
+        "⚠ " + line.at.label
+    } else if line.mark == inspector::MARK_OVERRIDE {
+        icons::ui("instance") + " " + line.at.label
+    } else {
+        line.at.label
+    }
+}
+
+fn label_role_of(line: inspector::Line) -> str {
+    if line.mark == inspector::MARK_WARNING {
+        "text_label_warning"
+    } else if line.mark == inspector::MARK_OVERRIDE {
+        "text_label_override"
+    } else {
+        "text_label"
+    }
+}
+
+/// A row's label, what its spec says it is, and what its mark says.
+fn tip_of(line: inspector::Line) -> str {
+    let description = line.spec["description"].as_str();
+    let tip = if description == "" { line.at.label } else { line.at.label + "\n" + description };
+    if line.why == "" { tip } else { tip + "\n" + line.why }
+}
+
+// A row of the form: the line's label and these controls, with what the line
+// takes on the end of them.
+fn labelled(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> ui::Row {
+    add_tail(state, line, controls);
+    ui::Row {
+        height: line.height,
+        label: label_of(line),
+        label_role: label_role_of(line),
+        tooltip: tip_of(line),
+        controls: controls,
+    }
+}
+
+// The same for controls that sit apart, as a row of verbs does.
+fn apart(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> ui::Row {
+    let row = labelled(state, line, controls);
+    row.slot_role = "layout_actions";
+    row
+}
+
+// The chip that takes an entry out of its list, or a script's property back to
+// the default the file gives it.
+fn add_tail(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) {
+    if line.holder != nil {
+        controls.push(ui::Control {
+            kind: "button",
+            text: icons::ui("close"),
+            role: "chip",
+            width: 22,
+            height: inspector::control_height(state),
+            tooltip: "Take this one out",
+            on_click: "inspector_edit",
+            data: edit_of(line, on_entry_removed),
+        });
+    }
+    if line.at.component == inspector::SCRIPT && line.at.path.len() == 0 && line.at.property != inspector::SCRIPT_SOURCE {
+        if model::script_props(state.inspect.node).has(line.at.property) {
+            controls.push(ui::Control {
+                kind: "button",
+                height: inspector::control_height(state),
+                text: "reset",
+                role: "chip",
+                width: 52,
+                tooltip: "Back to the script's default",
+                on_click: "inspector_edit",
+                data: edit_of(line, on_script_property_reset),
+            });
+        }
+    }
+}
+
+fn on_entry_removed(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
+    inspector::drop_entry(state, line.holder.unwrap(), line.step);
+}
+
+fn on_script_property_reset(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
+    model::set_script_property(state, line.at.property, line.spec["default"]);
+}
+
+// A theme token's colour, or the muted ink where the theme has none.
+fn ink(tokens: any, token: str) -> str {
+    if tokens[token] == nil { tokens["text_muted"].as_str() } else { tokens[token].as_str() }
+}
+
+// A fold's two nodes, the caret and the title that toggles it. `role` names
+// the three theme entries the row takes, so a section and a subsection differ
+// by their theme and nothing else.
+fn fold_controls(line: inspector::Line, role: str, text: str, icon: str, icon_color: str) -> [ui::Control] {
+    [
+        ui::Control {
+            kind: "label",
+            role: "text_caret_" + role,
+            text: if line.spec["open"].as_bool() { icons::ui("caret-open") } else { icons::ui("caret-shut") },
+        },
+        ui::Control {
+            kind: "button",
+            role: "action_" + role,
+            grow: 1,
+            text: text,
+            icon: icon,
+            icon_color: icon_color,
+            tooltip: line.why,
+            on_click: "inspector_edit",
+            data: edit_of(line, on_folded),
+        },
+    ]
+}
+
+fn on_folded(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
+    inspector::fold(state, line);
+}
+
+// A section's head: what folds it, the component's `enabled`, and the verb that
+// takes the component off. What the engine says of it is a mark on the title.
+fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> ui::Row {
+    let name = line.at.component;
+    let mark = icons::component(name);
+    let title = if line.mark == inspector::MARK_WARNING { name.to_upper() + "  ⚠" } else { name.to_upper() };
+    let controls = fold_controls(line, "section", title, mark.glyph, ink(state.theme, mark.token));
+    if line.spec["enabled"].as_bool() {
+        controls.push(ui::Control {
+            kind: "switch",
+            role: "switch_form",
+            checked: enabled.as_bool(),
+            tooltip: line.root["description"].as_str(),
+            on_change: "inspector_edit",
+            data: edit_of(line, on_enabled_toggled),
+        });
+    }
+    if line.spec["removable"].as_bool() {
+        controls.push(ui::Control {
+            kind: "button",
+            role: "icon_action_form",
+            text: icons::ui("close"),
+            tooltip: "Remove component",
+            on_click: "inspector_edit",
+            data: edit_of(line, on_component_removed),
+        });
+    }
+    ui::Row { height: line.height, slot_role: "layout_section", controls: controls }
+}
+
+fn on_enabled_toggled(state: &mut editor::State, line: inspector::Line, _data: any, on: any) {
+    inspector::write_at(state, line.at, on);
+}
+
+fn on_component_removed(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
+    model::remove_component(state, line.at.component);
+}
+
+fn fold_row(state: &mut editor::State, line: inspector::Line) -> ui::Row {
+    let text = "{util::property_label(line.at.property)} · {line.spec["count"].as_int()}";
+    ui::Row { height: line.height, slot_role: "layout_subsection", controls: fold_controls(line, "subsection", text, "", "") }
+}
+
+/// A property's value as its row draws it. `unit` is display only: the
+/// component, the scene file and a script all hold what the schema declares,
+/// and `min`, `max` and `step` are written in the unit shown.
+fn shown_as(spec: any, value: float) -> float {
+    if spec["unit"].as_str() == "degrees" { math::to_degrees(value) } else { value }
+}
+
+/// The inverse of `shown_as`, for the value a row writes back.
+fn stored_as(spec: any, value: float) -> float {
+    if spec["unit"].as_str() == "degrees" { math::to_radians(value) } else { value }
+}
+
+// The schema's `min` and `max` as the write must respect them. The control
+// itself drags free: a clamp on the widget makes a value unreachable by
+// typing, which is how a range is escaped when a scene wants one.
+fn clamped(spec: any, value: float) -> float {
+    let out = value;
+    if spec["min"] != nil {
+        out = util::max(spec["min"].as_float(), out);
+    }
+    if spec["max"] != nil {
+        out = util::min(spec["max"].as_float(), out);
+    }
+    out
+}
+
+fn number_of(value: any) -> float {
+    if value == nil { 0.0 } else { value.as_float() }
+}
+
+fn channel(values: any, index: int, fallback: float) -> float {
+    let entry = values[index];
+    if entry == nil { fallback } else { entry.as_float() }
+}
+
+fn float_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    labelled(state, line, [
+        ui::Control {
+            kind: "number_field",
+            grow: 1,
+            value: shown_as(spec, number_of(value)),
+            drag_speed: if spec["step"] == nil { 0.02 } else { spec["step"].as_float() },
+            on_change: "inspector_edit",
+            data: edit_of(line, on_float_edited),
+        },
+    ])
+}
+
+fn on_float_edited(state: &mut editor::State, line: inspector::Line, _data: any, value: any) {
+    inspector::write_at(state, line.at, stored_as(line.spec, clamped(line.spec, value.as_float())));
+}
+
+fn int_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    labelled(state, line, [
+        ui::Control {
+            kind: "number_field",
+            grow: 1,
+            value: number_of(value),
+            drag_speed: if spec["step"] == nil { 1.0 } else { spec["step"].as_float() },
+            on_change: "inspector_edit",
+            data: edit_of(line, on_int_edited),
+        },
+    ])
+}
+
+fn on_int_edited(state: &mut editor::State, line: inspector::Line, _data: any, value: any) {
+    inspector::write_at(state, line.at, math::round(clamped(line.spec, value.as_float())) as int);
+}
+
+// One number a channel, lettered.
+fn vector_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    let held = util::list_or_empty(value);
+    let datatype = spec["type"].as_str();
+    let count = if datatype == "vec4" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+    let letters = ["x", "y", "z", "w"];
+    let speed = if spec["step"] == nil { 0.02 } else { spec["step"].as_float() };
+    let controls: [ui::Control] = [];
+    for slot in 0..count {
+        controls.push(ui::Control {
+            kind: "number_field",
+            grow: 1,
+            value: shown_as(spec, channel(held, slot, 0.0)),
+            drag_speed: speed,
+            prefix: letters[slot],
+            on_change: "inspector_edit",
+            data: { "line": line.key, "fn": on_vector_edited, "slot": slot, "count": count },
+        });
+    }
+    labelled(state, line, controls)
+}
+
+// The vector as it stands now, so writing one channel keeps the others: the
+// row was built before the edit and holds the value the reader started from.
+fn on_vector_edited(state: &mut editor::State, line: inspector::Line, data: any, value: any) {
+    let held = util::list_or_empty(inspector::held_now(state, line.at, []));
+    let out: [float] = [];
+    for index in 0..data["count"].as_int() {
+        out.push(channel(held, index, 0.0));
+    }
+    out[data["slot"].as_int()] = stored_as(line.spec, value.as_float());
+    inspector::write_at(state, line.at, out);
+}
+
+fn bool_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    labelled(state, line, [
+        ui::Control {
+            kind: "checkbox",
+            text: "",
+            checked: value.as_bool(),
+            on_change: "inspector_edit",
+            data: edit_of(line, on_value_taken),
+        },
+    ])
+}
+
+// A value the control holds as the property does: a bool, a pick, a colour,
+// text, a path.
+fn on_value_taken(state: &mut editor::State, line: inspector::Line, _data: any, value: any) {
+    inspector::write_at(state, line.at, value);
+}
+
+fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    labelled(state, line, [
+        ui::Control {
+            kind: "dropdown",
+            grow: 1,
+            text: inspector::as_text(value),
+            options: util::list_or_empty(spec["options"]),
+            on_change: "inspector_edit",
+            data: edit_of(line, on_value_taken),
+        },
+    ])
+}
+
+// A swatch that opens the picker, and the channels beside it: a colour is the
+// one vector nobody reads as numbers.
+fn color_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    let held = util::list_or_empty(value);
+    labelled(state, line, [
+        ui::Control { kind: "color_picker", width: 34, picked_color: held, on_change: "inspector_edit", data: edit_of(line, on_value_taken) },
+        ui::Control { kind: "label", grow: 1, text: color_text(held), role: "text_caption" },
+    ])
+}
+
+fn color_text(held: any) -> str {
+    "{util::fixed(channel(held, 0, 1.0), 2)} {util::fixed(channel(held, 1, 1.0), 2)} {util::fixed(channel(held, 2, 1.0), 2)} {util::fixed(channel(held, 3, 1.0), 2)}"
+}
+
+// Anything with no drawer of its own: its text, straight through.
+fn text_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    labelled(state, line, [
+        ui::Control {
+            kind: "text_field",
+            grow: 1,
+            role: "input",
+            text: model::relative_file(state, inspector::as_text(value)).as_str(),
+            placeholder: "— empty —",
+            on_change: "inspector_edit",
+            data: edit_of(line, on_value_taken),
+        },
+    ])
+}
+
+// A set drawn from the schema's `options`: one pill per option, filled when
+// held. A checkbox grid in everything but the shape of the control.
+fn flags_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    let held = util::list_or_empty(value);
+    let controls: [ui::Control] = [];
+    for option in util::list_or_empty(spec["options"]) {
+        let name = option.as_str();
+        let on = false;
+        for one in held {
+            if one.as_str() == name {
+                on = true;
+            }
+        }
+        controls.push(ui::Control {
+            kind: "button",
+            text: name,
+            role: "chip_flag",
+            checked: on,
+            on_click: "inspector_edit",
+            data: { "line": line.key, "fn": on_flag_toggled, "name": name },
+        });
+    }
+    labelled(state, line, controls)
+}
+
+fn on_flag_toggled(state: &mut editor::State, line: inspector::Line, data: any, _value: any) {
+    let name = data["name"].as_str();
+    let next: [any] = [];
+    let was = false;
+    for other in util::list_or_empty(inspector::held_now(state, line.at, [])) {
+        if other.as_str() == name {
+            was = true;
+        } else {
+            next.push(other);
+        }
+    }
+    if !was {
+        next.push(name);
+    }
+    inspector::write_at(state, line.at, next);
+}
+
+// Another node, by path. The field takes what a scene file takes; the
+// dropdown lists every node in the document as an absolute path, which is
+// what a leading `/` means to the engine's resolver.
+fn node_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    let paths = ["— none —"];
+    for node in state.nodes {
+        paths.push("/" + model::path_in_scene(state, node));
+    }
+    apart(state, line, [
+        ui::Control {
+            kind: "text_field",
+            grow: 1,
+            text: inspector::as_text(value),
+            placeholder: "— none —",
+            on_submit: "inspector_edit",
+            data: edit_of(line, on_value_taken),
+        },
+        ui::Control {
+            kind: "dropdown",
+            role: "choice",
+            text: "pick",
+            options: paths,
+            on_change: "inspector_edit",
+            data: edit_of(line, on_node_picked),
+        },
+    ])
+}
+
+fn on_node_picked(state: &mut editor::State, line: inspector::Line, _data: any, picked: any) {
+    inspector::write_at(state, line.at, if picked.as_str() == "— none —" { "" } else { picked.as_str() });
+}
+
+// What a list says before its rows, and the chip that adds one at the spec's
+// own default.
+fn list_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    let of = util::map_or_empty(spec["of"]);
+    let what = if of["type"] == nil { "?" } else { of["type"].as_str() };
+    holder_row(state, line, "{what} · {util::list_or_empty(value).len()}", true)
+}
+
+fn map_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    let of = util::map_or_empty(spec["of"]);
+    let what = if of["type"] == nil { "?" } else { of["type"].as_str() };
+    holder_row(state, line, "{what} · {util::map_or_empty(value).len()}", true)
+}
+
+// A record naming a class says which: the rows are its fields, and the script
+// is handed that class back.
+fn record_row(state: &mut editor::State, line: inspector::Line, spec: any) -> ui::Row {
+    let count = util::map_or_empty(spec["fields"]).len();
+    holder_row(state, line, if spec["class"] == nil { "{count} fields" } else { "{spec["class"].as_str()} · {count}" }, false)
+}
+
+fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds: bool) -> ui::Row {
+    let controls: [ui::Control] = [ui::Control { kind: "label", grow: 1, text: note, role: "text_caption" }];
+    if adds {
+        controls.push(ui::Control {
+            kind: "button",
+            text: icons::ui("add"),
+            role: "chip",
+            width: 22,
+            height: inspector::control_height(state),
+            tooltip: "Add one",
+            on_click: "inspector_edit",
+            data: edit_of(line, on_entry_added),
+        });
+    }
+    labelled(state, line, controls)
+}
+
+fn on_entry_added(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
+    let spec = line.spec;
+    let key = "";
+    if spec["type"].as_str() == "map" {
+        key = fresh_key(util::map_or_empty(inspector::held_now(state, line.at, {})), spec["key"].as_str() == "int");
+    }
+    inspector::add_entry(state, line.at, util::map_or_empty(spec["of"]), key);
+}
+
+/// A key no entry of this map holds yet, so adding twice adds two.
+fn fresh_key(held: any, numbered: bool) -> str {
+    let count = 0;
+    let key = if numbered { "0" } else { "key" };
+    while held.has(key) {
+        count += 1;
+        key = if numbered { "{count}" } else { "key{count}" };
+    }
+    key
+}
+
+// The script a node names: the path is a field, where typing a name moves the
+// file, and the picker beside it names one that already exists. Attaching,
+// opening and detaching are the palette's and the tree menu's.
+fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    apart(state, line, [
+        ui::Control {
+            kind: "text_field",
+            role: "input_path",
+            grow: 1,
+            text: inspector::as_text(value),
+            placeholder: "scripts/name.bs",
+            on_submit: "inspector_edit",
+            data: edit_of(line, on_value_taken),
+        },
+        ui::Control {
+            kind: "dropdown",
+            role: "choice",
+            text: "pick",
+            options: shell::script_files(state),
+            on_change: "inspector_edit",
+            data: edit_of(line, on_value_taken),
+        },
+    ])
+}
+
+// A reference, or an inline definition the engine reports as a `#!` digest. A
+// type that declares no directory cannot be promoted, so it gets no button.
+fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    let asset_type = spec["asset"].as_str();
+    let own = inspector::as_text(value);
+    let reference = model::relative_file(state, own).as_str();
+    let inline = reference.starts_with("#!");
+    let directory = if asset_type != "" { assets::directory(asset_type) } else { "" };
+    let controls: [ui::Control] = [
+        if inline {
+            ui::Control { kind: "label", role: "text_code_quiet", grow: 1, text: "— embedded —" }
+        } else {
+            ui::Control {
+                kind: "text_field",
+                grow: 1,
+                text: reference,
+                placeholder: asset_placeholder(state, asset_type, own),
+                on_submit: "inspector_edit",
+                data: edit_of(line, on_value_taken),
+            }
+        },
+    ];
+    if asset_type == "font" && !inline {
+        controls.push(ui::Control {
+            kind: "dropdown",
+            role: "choice",
+            text: "pick",
+            options: fonts::choices(state),
+            on_change: "inspector_edit",
+            data: edit_of(line, on_font_picked),
+        });
+    }
+    if directory != "" {
+        controls.push(ui::Control {
+            kind: "button",
+            role: "action_dock_secondary",
+            text: if inline { "save to file" } else { "embed" },
+            tooltip: if inline {
+                "Write this {asset_type} to {directory}/ and reference it"
+            } else {
+                "Copy this file's definition onto the node"
+            },
+            on_click: "inspector_edit",
+            data: { "line": line.key, "fn": on_asset_embed_or_save, "inline": inline, "reference": reference },
+        });
+    }
+    apart(state, line, controls)
+}
+
+// An empty material draws with the nearest one up, so the field says which
+// and where from: `red ← Rig`.
+fn asset_placeholder(state: editor::State, asset_type: str, own: str) -> str {
+    if asset_type != "material" || own != "" {
+        return "— none —";
+    }
+    let from = inspector::inherited_material(state);
+    if from.material == "" {
+        return "— none —";
+    }
+    "{inherited_label(state, from.material)} ← {util::last_segment(from.node)}"
+}
+
+/// What the placeholder calls an inherited material: its file's stem.
+fn inherited_label(state: editor::State, reference: str) -> str {
+    let file = model::relative_file(state, reference);
+    if file.as_str().starts_with("#!") {
+        "inline"
+    } else {
+        util::last_segment(file.as_str()).replace(".toml", "")
+    }
+}
+
+/// A pick under a font row: the font, or a face to fetch first.
+fn on_font_picked(state: &mut editor::State, line: inspector::Line, _data: any, picked: any) {
+    fonts::pick(state, line.at, picked.as_str());
+}
+
+fn on_asset_embed_or_save(state: &mut editor::State, line: inspector::Line, data: any, _value: any) {
+    let reference = data["reference"].as_str();
+    if data["inline"].as_bool() {
+        let asset_type = line.spec["asset"].as_str();
+        promote_asset(state, line.at, asset_type, assets::directory(asset_type), reference);
+    } else {
+        inline_asset(state, line.at, reference);
+    }
+}
+
+// Write an inline definition to its type's directory and point the property at
+// the project-relative path — an absolute one would not survive another machine.
+fn promote_asset(state: &mut editor::State, at: inspector::AtTop, asset_type: str, directory: str, reference: str) {
+    let node = model::selected_node(state);
+    let definition = assets::load(reference);
+    if definition.kind() != "map" {
+        log::warn("cannot read the embedded {asset_type}: {definition}");
+        return;
+    }
+    definition["type"] = asset_type;
+    let rel = "{directory}/{node.name().to_lower()}.toml";
+    assets::save(state.game_root + "/" + rel, definition);
+    inspector::write_at(state, at, rel);
+    log::info("saved {rel}");
+}
+
+// Copy a file's definition onto the node, so the scene owns it outright.
+// `duplicate` reads past the cache, which is what makes the copy private
+// rather than a second name for the shared one.
+fn inline_asset(state: &mut editor::State, at: inspector::AtTop, reference: str) {
+    let copy = assets::duplicate(state.game_root + "/" + reference);
+    if copy.kind() != "map" {
+        log::warn("cannot embed {reference}: {copy}");
+        return;
+    }
+    inspector::write_at(state, at, copy);
+    log::info("{reference} is now embedded in {model::selected_node(state).name()}");
+}
+
+// One row under a material: its shader, a feature the shader declares, or a
+// value it takes.
+fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+    let datatype = spec["datatype"].as_str();
+    if datatype == "shader" {
+        return shader_row(state, line, value);
+    }
+    if datatype == "feature" {
+        return labelled(state, line, [
+            ui::Control {
+                kind: "switch",
+                role: "switch_form",
+                checked: value.as_bool(),
+                on_change: "inspector_edit",
+                data: edit_of(line, on_feature_toggled),
+            },
+        ]);
+    }
+    if datatype == "color" {
+        // `material_params` hands a colour back as its four channels.
+        let channels = util::list_or_empty(value);
+        if value.kind() == "map" {
+            channels = [value["r"].as_float(), value["g"].as_float(), value["b"].as_float(), value["a"].as_float()];
+        }
+        return labelled(state, line, [
+            ui::Control { kind: "color_picker", width: 34, picked_color: channels, on_change: "inspector_edit", data: edit_of(line, on_parameter_taken) },
+        ]);
+    }
+    if datatype == "float" {
+        return labelled(state, line, [
+            ui::Control { kind: "number_field", grow: 1, value: value.as_float(), drag_speed: 0.001, on_change: "inspector_edit", data: edit_of(line, on_parameter_taken) },
+        ]);
+    }
+    if datatype == "texture" {
+        return texture_row(state, line, value);
+    }
+    let count = if datatype == "vec2" { 2 } else { 3 };
+    let letters = ["x", "y", "z"];
+    let held = util::list_or_empty(value);
+    let cells: [ui::Control] = [];
+    for slot in 0..count {
+        cells.push(ui::Control {
+            kind: "number_field",
+            grow: 1,
+            drag_speed: 0.02,
+            prefix: letters[slot],
+            value: channel(held, slot, 0.0),
+            on_change: "inspector_edit",
+            data: { "line": line.key, "fn": on_parameter_channel, "slot": slot, "count": count },
+        });
+    }
+    labelled(state, line, [ui::Control { grow: 1, controls: cells }])
+}
+
+// A slot names an image, or nothing: the picker is over what the project has
+// under `art/`, plus the choice of no map at all.
+fn texture_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+    let current = if value.kind() == "str" { value.as_str() } else { "" };
+    let choices = ["none"];
+    for file in model::list(state, "art") {
+        if !file["is_dir"].as_bool() {
+            choices.push("art/" + file["name"].as_str());
+        }
+    }
+    labelled(state, line, [
+        ui::Control {
+            kind: "dropdown",
+            grow: 1,
+            text: if current == "" { "none" } else { current },
+            options: choices,
+            on_change: "inspector_edit",
+            data: edit_of(line, on_texture_picked),
+        },
+    ])
+}
+
+/// Which `.wesl` the material draws with: a picker over the project's own
+/// shaders, and a click on the name opens it in the code pane.
+fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> ui::Row {
+    // By leaf: an inlined material's `shader` is the absolute path the mirror
+    // resolved, and what a person picks from is the file's name.
+    let choices: [str] = [];
+    for file in model::list(state, "shaders") {
+        if !file["is_dir"].as_bool() && file["name"].as_str().ends_with(".wesl") {
+            choices.push(file["name"].as_str());
+        }
+    }
+    let current = util::last_segment(shader.as_str());
+    if !util::contains(choices, current) {
+        choices.insert(0, current);
+    }
+    let row = labelled(state, line, [
+        ui::Control {
+            kind: "button",
+            role: "icon_action_form_secondary",
+            text: icons::ui("open"),
+            tooltip: "Edit " + current,
+            on_click: "inspector_edit",
+            data: edit_of(line, on_shader_opened),
+        },
+        ui::Control {
+            kind: "dropdown",
+            grow: 1,
+            text: current,
+            options: choices,
+            on_change: "inspector_edit",
+            data: { "line": line.key, "fn": on_shader_picked, "current": current },
+        },
+    ]);
+    row.slot_role = "layout_shader";
+    row
+}
+
+fn on_shader_opened(state: &mut editor::State, line: inspector::Line, _data: any, _value: any) {
+    state.shader_rel = model::relative_file(state, line.value.as_str()).as_str();
+    state.doctab = "script";
+    signals::inspector(state);
+}
+
+fn on_shader_picked(state: &mut editor::State, line: inspector::Line, data: any, picked: any) {
+    if picked.as_str() == data["current"].as_str() {
+        return;
+    }
+    let definition = assets::load(line.spec["reference"].as_str());
+    if definition.kind() != "map" {
+        log::warn("cannot read the material {line.spec["reference"].as_str()}");
+        return;
+    }
+    definition["shader"] = "shaders/" + picked.as_str();
+    save_material(state, line, definition);
+}
+
+fn on_feature_toggled(state: &mut editor::State, line: inspector::Line, _data: any, on: any) {
+    let definition = assets::load(line.spec["reference"].as_str());
+    if definition.kind() != "map" {
+        return;
+    }
+    let features = util::map_or_empty(definition["features"]);
+    features[line.spec["name"].as_str()] = on;
+    definition["features"] = features;
+    save_material(state, line, definition);
+}
+
+fn on_parameter_taken(state: &mut editor::State, line: inspector::Line, _data: any, value: any) {
+    write_parameter(state, line, value);
+}
+
+fn on_texture_picked(state: &mut editor::State, line: inspector::Line, _data: any, picked: any) {
+    write_parameter(state, line, if picked.as_str() == "none" { "" } else { picked.as_str() });
+}
+
+fn on_parameter_channel(state: &mut editor::State, line: inspector::Line, data: any, value: any) {
+    let slot = data["slot"].as_int();
+    let out: [float] = [];
+    for index in 0..data["count"].as_int() {
+        out.push(if index == slot { value.as_float() } else { channel(line.value, index, 0.0) });
+    }
+    write_parameter(state, line, out);
+}
+
+// Write one value into the material's `[params]` table. Saving is what
+// relinks it, so a dragged value shows in the viewport.
+fn write_parameter(state: &mut editor::State, line: inspector::Line, value: any) {
+    let reference = line.spec["reference"].as_str();
+    let name = line.spec["name"].as_str();
+    let definition = assets::load(reference);
+    if definition.kind() != "map" {
+        log::warn("cannot read the material {reference}: {definition}");
+        return;
+    }
+    let parameters: any = if definition["params"].kind() == "map" { definition["params"] } else { {} };
+    // An empty texture slot is cleared rather than written as "": a param
+    // naming no file is not a param.
+    if value.kind() == "str" && value.as_str() == "" {
+        parameters.remove(name);
+    } else {
+        parameters[name] = value;
+    }
+    definition["params"] = parameters;
+    save_material(state, line, definition);
+}
+
+// A material is a file: nothing in the log names it, so the rows are told.
+fn save_material(state: &mut editor::State, line: inspector::Line, definition: any) {
+    assets::save(line.spec["reference"].as_str(), definition);
+    inspector::rows_moved(state, line.at.component, [line.at.property]);
+}
+
+// A `readonly` property is engine output: a write here would be overwritten
+// next frame, so it renders as a plain value with nothing to focus.
+fn readonly_text(spec: any, value: any) -> str {
+    let datatype = spec["type"].as_str();
+    if datatype == "float" {
+        let decimals = if spec["decimals"] == nil { 2 } else { spec["decimals"].as_int() };
+        util::fixed(shown_as(spec, number_of(value)), decimals)
+    } else if datatype == "bool" {
+        if value.as_bool() { "true" } else { "false" }
+    } else if datatype == "vec2" || datatype == "vec3" || datatype == "color" {
+        let count = if datatype == "color" { 4 } else if datatype == "vec2" { 2 } else { 3 };
+        let fallback = if datatype == "color" { 1.0 } else { 0.0 };
+        let held = util::list_or_empty(value);
+        let parts: [str] = [];
+        for index in 0..count {
+            parts.push(util::fixed(shown_as(spec, channel(held, index, fallback)), 2));
+        }
+        util::join(parts, ", ")
+    } else {
+        inspector::as_text(value)
+    }
+}
+
+// A read-only value is whatever the component reports, a joined list included:
+// it gets the column, and is cut off at its end.
+fn readonly_row(line: inspector::Line, spec: any, value: any) -> ui::Row {
+    ui::Row {
+        height: line.height,
+        label: label_of(line),
+        label_role: label_role_of(line),
+        tooltip: tip_of(line),
+        controls: [
+            ui::Control {
+                kind: "label",
+                role: "text_code_quiet",
+                grow: 1,
+                truncate: true,
+                text: readonly_text(spec, value),
+            },
+            ui::Control { kind: "label", role: "text_hint", truncate: false, text: "read-only" },
+        ],
+    }
+}

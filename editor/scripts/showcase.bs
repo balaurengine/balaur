@@ -15,6 +15,7 @@ use docks;
 use dropin;
 use editor;
 use history;
+use inspector;
 use left;
 use lint;
 use manager;
@@ -363,12 +364,16 @@ fn centre_of(path: str) -> [float] {
 // the pool answers where it drew the row, so a section moving does not move
 // the pointer off it. Nothing before the form has drawn.
 fn form_spot(state: editor::State, label: str) -> [float] {
-    for index in 0..state.form.len() {
-        if state.form[index].label == label {
-            return centre_of("Editor/Shell/Body/Right/RightSheet/Inspector/Scroll/Form/R{index}/C/C0");
-        }
+    let control = inspector::control_of(state, label);
+    if !control.is_valid() {
+        return [];
     }
-    return [];
+    let rect = ui::widget_rect(control);
+    if rect == nil {
+        return [];
+    }
+    let box = rect.unwrap();
+    return [box.x + box.width / 2.0, box.y + box.height / 2.0];
 }
 
 // A row of the node tree, by document index: the tree answers where it drew

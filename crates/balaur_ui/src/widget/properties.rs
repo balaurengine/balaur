@@ -411,7 +411,7 @@ pub(crate) struct WidgetProperties {
     /// On a `fold`'s child: drawn in the fold's header after its arrow and caption, as Godot's title bar control is
     #[property(group = "layout")]
     pub(crate) title_bar: bool,
-    /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height. An `inspector`'s file rows are this tall and its chips 4 less, 24 where it is 0
+    /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height
     #[property(min = 0.0, group = "layout")]
     pub(crate) row_height: f32,
     /// How this widget and everything under it is drawn; inherited from the nearest ancestor that names one
@@ -480,7 +480,7 @@ pub(crate) struct WidgetProperties {
     /// Where text sits in the width the widget was given, what a `text_field` or `text_area` edits included, and where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right
     #[property(default = TextAlign::new(w::START), group = "text")]
     pub(crate) text_align: TextAlign,
-    /// Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text, and an `inspector` puts each label above its control
+    /// Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text
     #[property(group = "text")]
     pub(crate) wrap: bool,
     /// Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text
@@ -609,7 +609,7 @@ pub(crate) struct WidgetProperties {
     /// Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look
     #[property(group = "value")]
     pub(crate) checked: bool,
-    /// The words a `dropdown` or `menu` offers; `text` is the one picked, except on a `menu` where it is the button caption. `on_change` hears every pick. An `inspector` shows the properties it names, in that order
+    /// The words a `dropdown` or `menu` offers; `text` is the one picked, except on a `menu` where it is the button caption. `on_change` hears every pick
     #[property(group = "value")]
     pub(crate) options: Vec<SmolStr>,
     /// The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key

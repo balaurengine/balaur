@@ -274,7 +274,7 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     } else {
         ui::Control { kind: "label", text: source, role: "text_caption", width: 52 }
     };
-    inspector::form_row(state, key, [control, note]);
+    state.form.push(ui::Row { label: key, controls: [control, note] });
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
@@ -406,15 +406,15 @@ pub fn fill(state: &mut editor::State) -> Fill {
     } else {
         "no settings file yet"
     };
-    inspector::open_pool(state);
+    state.form = [];
     for spec in specs {
         row(state, tokens, rel, kind, spec);
     }
     if kind == "texture" || kind == "audio" {
         for pair in shipped(state, image) {
-            inspector::form_row(state, pair[0], [ui::Control { kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }]);
+            state.form.push(ui::Row { label: pair[0], controls: [ui::Control { kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }] });
         }
     }
-    inspector::close_pool_into(state, FORM);
+    ui::fill_rows(FORM, state.form, inspector::label_width(state), inspector::stacked(state));
     Fill { ready: true, says: "", name: util::last_segment(rel), from: "{kind}  ·  {from}" }
 }

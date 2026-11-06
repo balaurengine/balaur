@@ -306,9 +306,7 @@ impl Pool<'_> {
         // clamps the next number. Setting drops them.
         let swapped = match spec.get(k::KIND) {
             Some(kind) => {
-                let was = self.widget(node, k::KIND);
-                self.inspector_swapped(node, kind, &was);
-                *kind != was
+                *kind != self.widget(node, k::KIND)
                     || spec
                         .get(k::ROLE)
                         .cloned()
@@ -345,29 +343,37 @@ impl Pool<'_> {
         self.write(self.ops.patch, node, moved)
     }
 
-    /// An `inspector` fills its own children with rows, so a slot turning
-    /// into one or out of one starts with none: anything else would read the
-    /// rows as its controls, or leave them anchored on their own.
-    fn inspector_swapped(&self, node: &Value, kind: &Value, was: &Value) {
-        let inspector = Value::text(w::INSPECTOR);
-        if kind == was || (*kind != inspector && *was != inspector) {
-            return;
+    /// Write what `patch` names on a control and note it, so the next fill
+    /// compares against what the control holds. What it holds already is not
+    /// written; true when something was.
+    fn patch_held(&self, key: &str, node: &Value, patch: &Value) -> Result<bool> {
+        let Value::Map(entries) = patch else {
+            return Err(anyhow!("a control's patch is a table, got {patch:?}"));
+        };
+        let mark = format!("{key}#");
+        let moved = self.with_memo(|memo| {
+            // An edit forgot it: the next fill writes it whole.
+            let Some(Value::Map(held)) = memo.written.get_mut(&mark) else {
+                return entries.clone();
+            };
+            let mut moved = Vec::with_capacity(entries.len());
+            for (name, value) in entries {
+                match held.iter_mut().find(|(was, _)| was == name) {
+                    Some((_, written)) if written == value => {}
+                    Some((_, written)) => {
+                        written.clone_from(value);
+                        moved.push((name.clone(), value.clone()));
+                    }
+                    None => moved.push((name.clone(), value.clone())),
+                }
+            }
+            moved
+        });
+        if moved.is_empty() {
+            return Ok(false);
         }
-        let kids: Vec<balaur_core::hecs::Entity> = self
-            .children(node)
-            .iter()
-            .filter_map(|kid| match kid {
-                Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
-                _ => None,
-            })
-            .collect();
-        if !kids.is_empty() {
-            balaur_core::scene::free_nodes(self.eng, &kids);
-            self.forget();
-        }
-        if let Value::Node(id) = node {
-            crate::widget::inspector::forget(self.eng, *id);
-        }
+        self.write(self.ops.patch, node, Value::Map(moved))?;
+        Ok(true)
     }
 
     /// Whether `value` differs from what `mark` was last written with, noted
@@ -534,16 +540,25 @@ impl Pool<'_> {
             h
         };
         let prefix = format!("r{i}");
-        self.patched(
-            &prefix,
-            row,
-            &table(&[
-                (p::VISIBLE, Value::Bool(true)),
-                (k::KIND, Value::text(if stack { w::COLUMN } else { w::ROW })),
-                (k::GAP, both(if stack { 2 } else { 6 })),
-                (k::HEIGHT, Value::Num(tall)),
-            ]),
-        )?;
+        let mut boxed = table(&[
+            (p::VISIBLE, Value::Bool(true)),
+            (k::KIND, Value::text(if stack { w::COLUMN } else { w::ROW })),
+            (k::GAP, both(if stack { 2 } else { 6 })),
+            (k::HEIGHT, Value::Num(tall)),
+        ]);
+        if let Some(top) = spec.get(p::TOP) {
+            boxed.insert(k::ABSOLUTE.into(), Value::Bool(true));
+            boxed.insert(
+                k::INSET.into(),
+                Value::List(vec![
+                    Value::Num(0.0),
+                    Value::Num(number(Some(top), 0.0)),
+                    Value::Num(0.0),
+                    Value::Num(-1.0),
+                ]),
+            );
+        }
+        self.patched(&prefix, row, &boxed)?;
         let label = self.child(row, "L");
         if label != Value::Nil {
             let width = if stack {
@@ -602,6 +617,19 @@ impl Pool<'_> {
         Ok(())
     }
 
+    /// The row node at `slot`, made with any before it that are missing.
+    fn row_at(&self, host: &Value, slot: usize) -> Result<Value> {
+        let name = format!("R{slot}");
+        let held = self.child(host, &name);
+        if held != Value::Nil {
+            return Ok(held);
+        }
+        for index in self.children(host).len()..=slot {
+            self.make_row(host, index)?;
+        }
+        Ok(self.child(host, &name))
+    }
+
     /// Put one row a spec on the host's children, making what is missing and
     /// hiding what is spare; true when a control's table changed.
     fn rows(&self, host: &Value, specs: &[Value], label_w: &Value, stacked: bool) -> Result<bool> {
@@ -620,23 +648,6 @@ impl Pool<'_> {
             }
         }
         Ok(self.changed.get())
-    }
-
-    /// The control nodes under each of the host's first `rows` rows, in the
-    /// order their specs named them.
-    fn controls_of(&self, host: &Value, rows: usize) -> Vec<Vec<Value>> {
-        self.children(host)
-            .iter()
-            .take(rows)
-            .map(|row| {
-                let column = self.child(row, "H");
-                let slot = self.child(&column, "C");
-                if slot == Value::Nil {
-                    return Vec::new();
-                }
-                self.children(&slot)
-            })
-            .collect()
     }
 }
 
@@ -752,75 +763,51 @@ fn fill_rows(
     pool.rows(&host, list(Some(specs)), label_w, stacked)
 }
 
-/// The node operations, resolved once for every caller in the crate.
-fn ops() -> Option<Ops> {
-    static OPS: std::sync::OnceLock<Option<Ops>> = std::sync::OnceLock::new();
-    *OPS.get_or_init(Ops::resolve)
-}
-
-/// `ui.fill_rows` for a host node in hand, and the control nodes each row
-/// holds after it, for a kind that fills its own children.
-pub(crate) fn fill_rows_on(
+/// One row of a host a script lays out by hand: the row at `slot`, or that
+/// row hidden for no spec. A node of hundreds of rows keeps those on screen.
+fn fill_row(
     eng: &Engine,
-    host: balaur_core::hecs::Entity,
-    specs: &[Value],
+    ops: Ops,
+    host: Value,
+    slot: usize,
+    spec: Option<&Value>,
     label_w: f64,
     stacked: bool,
-) -> Result<Vec<Vec<balaur_core::hecs::Entity>>> {
-    let ops = ops().ok_or_else(|| anyhow!("the pool cannot find the node operations"))?;
-    let node = Value::Node(balaur_core::node_id_of(host).0);
-    let Some((pool, host)) = open_node(eng, ops, node)? else {
-        return Ok(Vec::new());
+) -> Result<bool> {
+    let Some((pool, host)) = open_node(eng, ops, host)? else {
+        return Ok(false);
     };
-    pool.rows(&host, specs, &Value::Num(label_w), stacked)?;
-    let entity = |node: &Value| match node {
-        Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
-        _ => None,
-    };
-    Ok(pool
-        .controls_of(&host, specs.len())
-        .iter()
-        .map(|row| row.iter().filter_map(entity).collect())
-        .collect())
-}
-
-/// [`fill_rows_on`] for some of the rows a fill made: each spec written to
-/// the row at its index, and the control nodes under each. A row past what
-/// was made is an error, which the caller answers with a whole fill.
-pub(crate) fn fill_rows_at(
-    eng: &Engine,
-    host: balaur_core::hecs::Entity,
-    rows: &[(usize, Value)],
-    label_w: f64,
-    stacked: bool,
-) -> Result<Vec<Vec<balaur_core::hecs::Entity>>> {
-    let ops = ops().ok_or_else(|| anyhow!("the pool cannot find the node operations"))?;
-    let node = Value::Node(balaur_core::node_id_of(host).0);
-    let Some((pool, host)) = open_node(eng, ops, node)? else {
-        return Ok(Vec::new());
-    };
-    let made = pool.children(&host);
-    let label_w = Value::Num(label_w);
-    let entity = |node: &Value| match node {
-        Value::Node(id) => balaur_core::entity_of(balaur_script::NodeId(*id)).ok(),
-        _ => None,
-    };
-    let mut controls = Vec::with_capacity(rows.len());
-    for (index, spec) in rows {
-        let row = made
-            .get(*index)
-            .ok_or_else(|| anyhow!("row {index} was never made"))?;
-        pool.row(*index, row, spec, &label_w, stacked)?;
-        let column = pool.child(row, "H");
-        let slot = pool.child(&column, "C");
-        let under = if slot == Value::Nil {
-            Vec::new()
-        } else {
-            pool.children(&slot)
-        };
-        controls.push(under.iter().filter_map(entity).collect());
+    let row = pool.row_at(&host, slot)?;
+    match spec {
+        Some(spec) => pool.row(slot, &row, spec, &Value::Num(label_w), stacked)?,
+        None => pool.hidden(&format!("r{slot}"), &row)?,
     }
-    Ok(controls)
+    Ok(pool.changed.get())
+}
+
+/// What moved of a row a fill made: each table of `patches` written to the
+/// control at its place, nil for one that stands. False where the row is not
+/// there, which a whole fill answers.
+fn patch_row(eng: &Engine, ops: Ops, host: Value, slot: usize, patches: &[Value]) -> Result<bool> {
+    let Some((pool, host)) = open_node(eng, ops, host)? else {
+        return Ok(false);
+    };
+    let cells = pool.child(&pool.child(&host, &format!("R{slot}")), p::CELLS_PATH);
+    if cells == Value::Nil {
+        return Ok(false);
+    }
+    let mut wrote = false;
+    for (index, patch) in patches.iter().enumerate() {
+        if *patch == Value::Nil {
+            continue;
+        }
+        let control = pool.child(&cells, &format!("C{index}"));
+        if control == Value::Nil {
+            return Ok(false);
+        }
+        wrote |= pool.patch_held(&format!("{slot}:{index}"), &control, patch)?;
+    }
+    Ok(wrote)
 }
 
 /// A pooled control's fields: the pool's own, then the widget rows a script
@@ -829,9 +816,8 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
     role: string?, text: string?, tooltip: string?, icon: string?, icon_color: string?, image: string?, \
     font: string?, prefix: string?, trailing: string?, placeholder: string?, fill: string?, stroke: string?, \
     align_items: string?, justify: string?, text_align: string?, anchor: string?, fit: string?, \
-    target: string?, component: string?, relative_to: string?, \
     grow: float?, width: float?, height: float?, min_width: float?, x: float?, y: float?, \
-    font_size: float?, icon_size: float?, corner_radius: float?, row_height: float?, label_width: float?, \
+    font_size: float?, icon_size: float?, corner_radius: float?, row_height: float?, \
     min: float?, max: float?, step: float?, drag_speed: float?, font_weight: int?, decimals: int?, \
     visible: bool?, enabled: bool?, interactive: bool?, checked: bool?, wrap: bool?, truncate: bool?, \
     absolute: bool?, keep_open: bool?, secret: bool?, arrows: bool?, \
@@ -852,6 +838,18 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             "(host: string, rows: [Row], label_width: float?, stacked: bool?) -> bool",
             "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. A row with no `label` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         ),
+        (
+            "fill_row",
+            &[],
+            "(host: node, slot: int, row: Row?, label_width: float?, stacked: bool?) -> bool",
+            "One row of `fill_rows`, on the row node at `slot` under `host`, made with any before it that are missing, or that node hidden for nil. The others are left as they are, so a form of hundreds of rows writes the few on screen and, as they scroll, the ones entering: a row's `y` places it at that height in a host as tall as the whole form.",
+        ),
+        (
+            "patch_row",
+            &[],
+            "(host: node, slot: int, patches: [any]) -> bool",
+            "What moved of a row `fill_row` made: each table of `patches` written to the control at its place in the row, nil for one that stands, and remembered, so the next fill compares against it. For a value that follows the node: what does not move of the row is not asked about. False where the row is not there or nothing moved.",
+        ),
     ]);
     m.records(&[
         (
@@ -861,8 +859,8 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         ),
         (
             "Row",
-            "{ label: string?, controls: [Control], height: float?, tooltip: string?, label_role: string?, slot_role: string? }",
-            "One row of a form: its `label` and `controls`, with no label across both columns, `height` and `tooltip`, and the roles that dress the label and the control column.",
+            "{ label: string?, controls: [Control], height: float?, tooltip: string?, label_role: string?, slot_role: string?, y: float? }",
+            "One row of a form: its `label` and `controls`, with no label across both columns, `height` and `tooltip`, the roles that dress the label and the control column, and `y`, the height it sits at where its host is laid out by hand.",
         ),
         (
             "Item",
@@ -891,6 +889,39 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
               (host, rows, label_w, stacked): (String, Value, Option<f64>, Option<bool>)| {
             let label_w = Value::Num(label_w.unwrap_or(0.0));
             fill_rows(eng, ops, &host, &rows, &label_w, stacked.unwrap_or(false))
+        },
+    );
+    m.function(
+        "fill_row",
+        move |eng: &Engine,
+              (host, slot, row, label_w, stacked): (
+            balaur_script::NodeId,
+            i64,
+            Option<Value>,
+            Option<f64>,
+            Option<bool>,
+        )| {
+            fill_row(
+                eng,
+                ops,
+                Value::Node(host.0),
+                usize::try_from(slot)?,
+                row.as_ref(),
+                label_w.unwrap_or(0.0),
+                stacked.unwrap_or(false),
+            )
+        },
+    );
+    m.function(
+        "patch_row",
+        move |eng: &Engine, (host, slot, patches): (balaur_script::NodeId, i64, Value)| {
+            patch_row(
+                eng,
+                ops,
+                Value::Node(host.0),
+                usize::try_from(slot)?,
+                list(Some(&patches)),
+            )
         },
     );
 }
