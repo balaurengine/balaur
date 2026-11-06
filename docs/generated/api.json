@@ -15685,27 +15685,17 @@
       },
       "regions": {
         "default": [],
-        "description": "Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body's. Each is a `soft_frame` body joints may attach to",
+        "description": "Parts of the body with a material of their own, each the particles it covers: `soft_material` for its edge spring and shape matching, empty keeping the body's; `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, and `pinned` to hold it still. Each is a `soft_frame` body joints may attach to",
         "group": "overrides",
         "of": {
           "default": {
-            "damping": 1.0,
-            "hz": 0.0,
             "particles": [],
             "pinned": false,
-            "shape_matching": false,
+            "soft_material": "",
             "stiffness_scale": 1.0,
             "tear_resistance": 1.0
           },
           "fields": {
-            "damping": {
-              "default": 1.0,
-              "type": "float"
-            },
-            "hz": {
-              "default": 0.0,
-              "type": "float"
-            },
             "particles": {
               "default": [],
               "of": {
@@ -15718,9 +15708,10 @@
               "default": false,
               "type": "bool"
             },
-            "shape_matching": {
-              "default": false,
-              "type": "bool"
+            "soft_material": {
+              "asset": "soft_material",
+              "default": "",
+              "type": "asset"
             },
             "stiffness_scale": {
               "default": 1.0,
@@ -16223,27 +16214,17 @@
       },
       "regions": {
         "default": [],
-        "description": "Parts of the body with a material of their own, each the particles it covers: `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, `shape_matching` towards its own frame, `pinned` to hold it still, and an edge spring of `hz` and `damping`, 0 hz keeping the body's. Each is a `soft_frame` body joints may attach to",
+        "description": "Parts of the body with a material of their own, each the particles it covers: `soft_material` for its edge spring and shape matching, empty keeping the body's; `stiffness_scale` on the cells wholly inside, `tear_resistance` on its edges and cells, and `pinned` to hold it still. Each is a `soft_frame` body joints may attach to",
         "group": "overrides",
         "of": {
           "default": {
-            "damping": 1.0,
-            "hz": 0.0,
             "particles": [],
             "pinned": false,
-            "shape_matching": false,
+            "soft_material": "",
             "stiffness_scale": 1.0,
             "tear_resistance": 1.0
           },
           "fields": {
-            "damping": {
-              "default": 1.0,
-              "type": "float"
-            },
-            "hz": {
-              "default": 0.0,
-              "type": "float"
-            },
             "particles": {
               "default": [],
               "of": {
@@ -16256,9 +16237,10 @@
               "default": false,
               "type": "bool"
             },
-            "shape_matching": {
-              "default": false,
-              "type": "bool"
+            "soft_material": {
+              "asset": "soft_material",
+              "default": "",
+              "type": "asset"
             },
             "stiffness_scale": {
               "default": 1.0,

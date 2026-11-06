@@ -11,7 +11,7 @@
 //! words, and a vocabulary list is the one place each is spelled.
 
 use balaur_core::components::derived::{
-    Component, Property, Record, Result, describe_enum, not_an_option, toml,
+    Component, Given, Property, Record, Result, describe_enum, from_given, not_an_option, toml,
 };
 use balaur_text::vocabulary::words as tw;
 use smol_str::SmolStr;
@@ -100,6 +100,17 @@ macro_rules! words {
                     return Err(not_an_option(value, $options));
                 }
                 Ok(Self::new(word))
+            }
+
+            fn from_given(given: Given<'_>) -> Result<Self> {
+                match given {
+                    Given::Text(word) if $options.contains(&word) => Ok(Self::new(word)),
+                    other => from_given(other),
+                }
+            }
+
+            fn given(&self) -> Option<Given<'_>> {
+                Some(Given::Text(&self.0))
             }
         }
     )*};

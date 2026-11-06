@@ -617,9 +617,51 @@ What moved them:
   data comes from outside a script now, whose keys share no pointer with a
   literal, and eight keys walk faster than a hash is made.
 
-The targets are not met. In the module, a map read is still two prelude calls,
-a count up for the value it hands back and one down when the script drops it;
-a search is a call to the prelude and its helper.
+Instructions retired per engine call, wasmtime (`scripts/call_cost.sh`, 200
+frames of a thousand calls, each case after a run that fills the compile cache):
+
+| a call | before | after |
+| --- | ---: | ---: |
+| `engine::time()` | 1,001 | 659 |
+| `self.node.transform.position = vec3(..)` | 3,955 | 1,484 |
+| `let at = self.node.transform.position` | 1,811 | 1,203 |
+| `self.node.transform.skew = step` | 3,568 | 1,378 |
+| `let lean = self.node.transform.skew` | 1,685 | 1,064 |
+| `self.node.widget.text = "text"` | 6,898 | 3,928 |
+| `let text = self.node.widget.text` | 4,428 | 3,727 |
+| `patch_component(transform, { "position": .. })` | 20,260 | 16,322 |
+| `patch_component(widget, { "text": .. })` | 18,440 | 15,547 |
+| `component_property(transform, "position")`, `get_component` before | 34,783 | 33,657 |
+
+One edit in the editor (`scripts/edit_cost.sh`, M instructions, `main` with its
+own editor against this branch with `editor-fixes` merged, at load 40 to 140):
+3.2 and 3.0 before, 2.9, 3.2 and 4.1 after (text); 3.5 and 2.7, 2.7, 3.3 and 3.4
+(colour); 1.4 and 1.2, 1.2, 1.8 and 1.6 (position); 2.7 and 3.5, 2.3, 2.8 and
+3.0 (engine text). That is within what runs differ by.
+
+A property's write and read are typed end to end: the script's slots become a
+`derived::Given` (a number, a flag, a vector's numbers, text), which the derive
+hands each field's `Property::from_given`, and a read hands back what
+`Property::given` says, with no `toml::Value` or neutral value between for
+those kinds. A value of any other kind is still one. `PropertyPlace` holds the
+registry and the change log and ticks (`changes::Feeds`), found once when the
+script binds the property, and a write still logs, stamps, keeps what it
+replaced and runs the component's lifecycle calls and hook.
+
+No target is met, and in this build none of the engine ones can be:
+
+- wasmtime's own call into a host function that does nothing is 144 to 171
+  instructions here; the runtime's dispatch and the arguments' slots add about
+  380 more, and a binding's conversion the rest of `engine::time()`.
+- Of a position write, sampled: wasmtime's glue for a host call, which
+  monomorphises into `balaur_bs` at its `opt-level` of 1, is a fifth; hecs's
+  `World::get`, whose type lookup monomorphises into `balaur_core` at the same
+  level, is a fifth again (`OrderedTypeIdMap::get` alone a seventh); the write
+  path, the change log and the ticks a fifth; the call's arguments the rest.
+  `balaur_bs` at `opt-level` 2 took 60 to 70 more off each call.
+- In the module, a map read is two prelude calls, a count up for the value it
+  hands back and one down when the script drops it; a search is a call to the
+  prelude and its helper.
 
 ## Open questions
 
