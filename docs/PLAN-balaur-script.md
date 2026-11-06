@@ -525,8 +525,10 @@ the table:
      debugger's probes, a profiler's counters and a browser's metering, and
      every build a host runs links a project as units, so the cast holds in
      all of them (`tests/suite/units.rs`, `tests/suite/bs_host.rs`,
-     `tests/web/main.rs`). Left: the editor's 39 panels calling the Editor by
-     its type rather than through `node.call`.
+     `tests/web/main.rs`). With the panels holding the Editor, the profiler's
+     rebuild is 10 s where it was 287, and warm 1.7 s where it was 137
+     (PLAN-bs-linking has the measure). Left: the editor's 39 panels calling
+     the Editor by its type rather than through `node.call`.
 6. **The derive's index.** `node.c.p` resolves at load to the component and
    the property's index in its schema (PLAN-property-types §5): a read or a
    write of one field. A component or property the schema lacks does not

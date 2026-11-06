@@ -141,10 +141,10 @@ impl BsHost {
     }
 
     // Where the unit built from `source`, the file at `key`, is kept: named
-    // by them, its build and the engine's API. `None` for a pack, which keeps
-    // nothing.
+    // by them, its build and the engine's API. `None` for a pack or a page,
+    // which keep nothing.
     fn unit_path(&self, key: &str, source: &str, build: Build) -> Option<PathBuf> {
-        if self.inner.pack.is_some() {
+        if self.inner.pack.is_some() || cfg!(target_arch = "wasm32") {
             return None;
         }
         let api = match self.inner.api_hash.take() {

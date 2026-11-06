@@ -65,7 +65,7 @@ fn shared(cx: impl wasmi::AsContext<Data = Data>, name: &str) -> Option<Global> 
 fn own(cx: impl wasmi::AsContext<Data = Data>, unit: usize, name: &str) -> Option<i32> {
     let cx = cx.as_context();
     let inst = cx.data().links.as_ref()?.borrow().units.get(unit)?.inst?;
-    match inst.get_global(&cx, name)?.get(&cx) {
+    match inst.get_global(cx, name)?.get(cx) {
         Val::I32(value) => Some(value),
         _ => None,
     }
@@ -121,7 +121,7 @@ impl ImportCtx for Ctx<'_, '_> {
     fn global(&mut self, name: &str) -> Option<i32> {
         let found = shared(&*self.0, name)
             .or_else(|| self.0.get_export(name).and_then(Extern::into_global));
-        match found.map(|g| g.get(&*self.0)) {
+        match found.map(|global| global.get(&*self.0)) {
             Some(Val::I32(v)) => Some(v),
             _ => None,
         }
@@ -129,8 +129,8 @@ impl ImportCtx for Ctx<'_, '_> {
     fn set_global(&mut self, name: &str, value: i32) {
         let found = shared(&*self.0, name)
             .or_else(|| self.0.get_export(name).and_then(Extern::into_global));
-        if let Some(g) = found {
-            let _ = g.set(&mut *self.0, Val::I32(value));
+        if let Some(global) = found {
+            let _ = global.set(&mut *self.0, Val::I32(value));
         }
     }
     fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
@@ -208,17 +208,17 @@ fn direct_entry(
 ) -> impl Fn(Caller<'_, Data>, &[Val], &mut [Val]) -> Result<(), wasmi::Error> + Send + Sync + 'static
 {
     use super::host::direct_call;
-    move |mut c, params, results| {
-        let host = c.data().host.clone();
+    move |mut caller, params, results| {
+        let host = caller.data().host.clone();
         let index = params[1].i32().unwrap_or(0) as usize;
         let bits: smallvec::SmallVec<[u64; 8]> = params[2..]
             .iter()
-            .map(|v| v.i64().unwrap_or(0).cast_unsigned())
+            .map(|value| value.i64().unwrap_or(0).cast_unsigned())
             .collect();
-        let first =
-            direct_call(&host, &mut Ctx(&mut c), unit, index, &bits).map_err(wasmi::Error::new)?;
+        let first = direct_call(&host, &mut Ctx(&mut caller), unit, index, &bits)
+            .map_err(wasmi::Error::new)?;
         if host.borrow_mut().debugger.take_parking() {
-            c.data_mut().owed = vec![ValType::I64];
+            caller.data_mut().owed = vec![ValType::I64];
             return Err(wasmi::Error::host(Park));
         }
         results[0] = Val::I64(first.cast_signed());
@@ -227,31 +227,37 @@ fn direct_entry(
 }
 
 // A direct module's way to the second and later results of a call.
-fn direct_answer(
-    c: Caller<'_, Data>,
-    params: &[Val],
-    results: &mut [Val],
-) -> Result<(), wasmi::Error> {
-    let k = params[1].i32().unwrap_or(0) as usize;
-    results[0] = Val::I64(super::host::direct_result(&c.data().host, k).cast_signed());
-    Ok(())
+fn direct_answer()
+-> impl Fn(Caller<'_, Data>, &[Val], &mut [Val]) -> Result<(), wasmi::Error> + Send + Sync + 'static
+{
+    |caller, params, results| {
+        let which = params[1].i32().unwrap_or(0) as usize;
+        let answer = super::host::direct_result(&caller.data().host, which);
+        results[0] = Val::I64(answer.cast_signed());
+        Ok(())
+    }
 }
 
 // A direct module's entry points, each standing for every import that takes
 // as many slots.
 fn link_direct(linker: &mut Linker<Data>, meta: &crate::Meta) -> Result<(), String> {
-    for n in super::host::direct_arities(meta) {
+    for arity in super::host::direct_arities(meta) {
         let mut params = vec![ValType::I32, ValType::I32];
-        params.extend(vec![ValType::I64; n]);
+        params.extend(vec![ValType::I64; arity]);
         let ty = FuncType::new(params, [ValType::I64]);
-        let name = format!("{}{n}", words::DIRECT_CALL);
+        let name = format!("{}{arity}", words::DIRECT_CALL);
         linker
             .func_new(words::HOST_MODULE, &name, ty, direct_entry(0))
             .map_err(|e| e.to_string())?;
     }
     let ty = FuncType::new([ValType::I32, ValType::I32], [ValType::I64]);
     linker
-        .func_new(words::HOST_MODULE, words::DIRECT_RESULT, ty, direct_answer)
+        .func_new(
+            words::HOST_MODULE,
+            words::DIRECT_RESULT,
+            ty,
+            direct_answer(),
+        )
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -589,7 +595,7 @@ fn unit_imports(
         let name = imp.name();
         let ext: Extern = match imp.ty() {
             ExternType::Func(ty) if name == words::DIRECT_RESULT => {
-                Func::new(&mut cx, ty.clone(), direct_answer).into()
+                Func::new(&mut cx, ty.clone(), direct_answer()).into()
             }
             ExternType::Func(ty) if name.starts_with(words::DIRECT_CALL) => {
                 Func::new(&mut cx, ty.clone(), direct_entry(numbered)).into()
@@ -800,15 +806,15 @@ impl Wasm for Wasmi {
     }
     fn global(&mut self, name: &str) -> Option<i32> {
         let found = shared(&self.store, name).or_else(|| self.inst.get_global(&self.store, name));
-        match found.map(|g| g.get(&self.store)) {
+        match found.map(|global| global.get(&self.store)) {
             Some(Val::I32(v)) => Some(v),
             _ => None,
         }
     }
     fn set_global(&mut self, name: &str, value: i32) {
         let found = shared(&self.store, name).or_else(|| self.inst.get_global(&self.store, name));
-        if let Some(g) = found {
-            let _ = g.set(&mut self.store, Val::I32(value));
+        if let Some(global) = found {
+            let _ = global.set(&mut self.store, Val::I32(value));
         }
     }
     fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {

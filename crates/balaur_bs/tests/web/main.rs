@@ -157,8 +157,8 @@ fn a_typed_call_counts_on_the_browsers_engine() {
 #[wasm_bindgen_test]
 fn a_runaway_unit_stops_on_its_own_fuel() {
     let (mut rt, panel) = project(true, false, Some(1000));
-    let e = rt.call_method(&panel, "spun", &[]).unwrap_err();
-    assert!(e.msg.contains("fuel"), "{e}");
+    let trap = rt.call_method(&panel, "spun", &[]).unwrap_err();
+    assert!(trap.msg.contains("fuel"), "{trap}");
     assert_eq!(rt.call_method(&panel, "poke", &[]), Ok(Value::Int(1)));
 }
 

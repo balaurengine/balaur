@@ -902,12 +902,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     let direct = options.direct_imports && direct::applies(&import_list);
     let host_ctx = AskedGlobals::of(options).host_ctx;
     let (imports, shift) = if direct {
-        let (mut sec, shift) = direct::rewrite(&g, &import_list, &mut out.bodies, host_ctx);
-        if g.unit {
-            unit_imports(&mut sec, options);
-            host_ctx_import(&mut sec);
-        }
-        (sec, shift)
+        direct_imports(&g, &import_list, &mut out.bodies, options)
     } else {
         (imports, 0)
     };
@@ -937,13 +932,8 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         globals.global(mutable, &ConstExpr::i32_const(0));
     }
     let (breaks_at, rows_at) = if g.unit {
-        let probes = g.probes.borrow().len();
-        let rows = if options.profile {
-            out.func_names.len()
-        } else {
-            0
-        };
-        unit_tables(&mut data, probes, rows)
+        let rows = usize::from(options.profile) * out.func_names.len();
+        unit_tables(&mut data, g.probes.borrow().len(), rows)
     } else {
         (0, 0)
     };
@@ -971,16 +961,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     m.section(&code).section(&ds);
     let (by_key, by_owner) = lookups(&out.infos);
     let meta = Meta {
-        structs: prog
-            .structs
-            .iter()
-            .map(|(n, fs)| {
-                (
-                    n.clone(),
-                    fs.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
-                )
-            })
-            .collect(),
+        structs: struct_fields(prog),
         classes: prog.classes.clone(),
         fns: out.infos,
         by_key,
@@ -1010,6 +991,34 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         key: options.path.clone(),
         linked: vec![],
     })
+}
+
+// A direct module's imports, its functions moved past its entry points: a
+// unit's shared memory, table and globals after them, then its own id.
+fn direct_imports(
+    g: &Gen,
+    import_list: &[Import],
+    bodies: &mut Vec<(u32, FuncBody)>,
+    options: &Options,
+) -> (ImportSection, u32) {
+    let host_ctx = AskedGlobals::of(options).host_ctx;
+    let (mut sec, shift) = direct::rewrite(g, import_list, bodies, host_ctx);
+    if g.unit {
+        unit_imports(&mut sec, options);
+        host_ctx_import(&mut sec);
+    }
+    (sec, shift)
+}
+
+// Each struct's fields, by name and type.
+fn struct_fields(prog: &Program) -> Vec<(String, Vec<(String, Ty)>)> {
+    prog.structs
+        .iter()
+        .map(|(name, fields)| {
+            let fields = fields.iter().map(|f| (f.name.clone(), f.ty.clone()));
+            (name.clone(), fields.collect())
+        })
+        .collect()
 }
 
 pub(crate) type ByOwner = rustc_hash::FxHashMap<String, rustc_hash::FxHashMap<String, usize>>;

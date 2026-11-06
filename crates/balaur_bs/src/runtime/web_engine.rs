@@ -69,7 +69,7 @@ fn unit_module(wasm: &[u8]) -> Result<WebAssembly::Module, String> {
         return Ok(module);
     }
     let module =
-        WebAssembly::Module::new(&Uint8Array::from(wasm).into()).map_err(|e| js_err(&e))?;
+        WebAssembly::Module::new(&Uint8Array::from(wasm).into()).map_err(|error| js_err(&error))?;
     MODULES.with(|modules| modules.borrow_mut().insert(hash, module.clone()));
     Ok(module)
 }
@@ -77,14 +77,14 @@ fn unit_module(wasm: &[u8]) -> Result<WebAssembly::Module, String> {
 fn set(on: &Object, name: &str, value: &JsValue) -> Result<(), String> {
     Reflect::set(on, &name.into(), value)
         .map(|_| ())
-        .map_err(|e| js_err(&e))
+        .map_err(|error| js_err(&error))
 }
 
 fn mutable_global(value: i32) -> Result<WebAssembly::Global, String> {
     let descriptor = Object::new();
     set(&descriptor, "value", &"i32".into())?;
     set(&descriptor, "mutable", &true.into())?;
-    WebAssembly::Global::new(&descriptor, &value.into()).map_err(|e| js_err(&e))
+    WebAssembly::Global::new(&descriptor, &value.into()).map_err(|error| js_err(&error))
 }
 
 impl Links {
@@ -95,7 +95,7 @@ impl Links {
         if let Some(index) = self.by_key.borrow().get(key) {
             return Ok(*index);
         }
-        let len = unit.meta.unit.as_ref().map_or(0, |u| u.data_len);
+        let len = unit.meta.unit.as_ref().map_or(0, |own| own.data_len);
         let base = if len == 0 { 0 } else { self.block(len)? };
         let mut units = self.units.borrow_mut();
         let index = units.len();
@@ -118,7 +118,7 @@ impl Links {
         let live = guard.as_ref().ok_or("the script's own unit is not made")?;
         let size = Raw::I32((len + 15) as i32);
         let alloc = Reflect::get(&live.exports, &words::ALLOC.into())
-            .map_err(|e| js_err(&e))?
+            .map_err(|error| js_err(&error))?
             .dyn_into::<Function>()
             .map_err(|_| format!("no export `{}`", words::ALLOC))?;
         let block = apply(&alloc, &[size], 1)?;
@@ -163,7 +163,7 @@ impl Links {
         let table_base = self.table.length();
         self.table
             .grow(unit.refs + unit.links.len() as u32)
-            .map_err(|e| js_err(&e))?;
+            .map_err(|error| js_err(&error))?;
         let direct = meta.direct.then(|| {
             register(Direct {
                 host: self.host.clone(),
@@ -212,7 +212,7 @@ impl Links {
         }
         let imports = Object::new();
         set(&imports, words::HOST_MODULE, &env)?;
-        let inst = WebAssembly::Instance::new(&module, &imports).map_err(|e| js_err(&e))?;
+        let inst = WebAssembly::Instance::new(&module, &imports).map_err(|error| js_err(&error))?;
         let mut units = self.units.borrow_mut();
         let made = &mut units[at];
         made.link_base = bases.link;
@@ -227,7 +227,7 @@ impl Links {
             let mut units = self.units.borrow_mut();
             (units[at].link_base, std::mem::take(&mut units[at].links))
         };
-        for (j, link) in links.iter().enumerate() {
+        for (at_slot, link) in links.iter().enumerate() {
             let target = *self
                 .by_key
                 .borrow()
@@ -238,12 +238,12 @@ impl Links {
                 .clone()
                 .ok_or_else(|| format!("{} is not made", link.file))?;
             let func = Reflect::get(&exports, &link.export.as_str().into())
-                .map_err(|e| js_err(&e))?
+                .map_err(|error| js_err(&error))?
                 .dyn_into::<Function>()
                 .map_err(|_| format!("{}: no `{}`", link.file, &link.export[1..]))?;
             self.table
-                .set(link_base + j as u32, &func)
-                .map_err(|e| js_err(&e))?;
+                .set(link_base + at_slot as u32, &func)
+                .map_err(|error| js_err(&error))?;
         }
         Ok(())
     }
@@ -303,13 +303,13 @@ impl Live {
                     .units
                     .borrow()
                     .get(unit)
-                    .and_then(|u| u.exports.clone())
+                    .and_then(|made| made.exports.clone())
                     .ok_or_else(|| format!("no unit {unit}"))?
             }
             None => self.exports.clone(),
         };
-        let f = Reflect::get(&exports, &name.into()).map_err(|e| js_err(&e))?;
-        f.dyn_into().map_err(|_| format!("no export `{name}`"))
+        let found = Reflect::get(&exports, &name.into()).map_err(|error| js_err(&error))?;
+        found.dyn_into().map_err(|_| format!("no export `{name}`"))
     }
 }
 
@@ -321,13 +321,15 @@ fn value_of(global: &JsValue) -> Option<i32> {
     Reflect::get(global, &"value".into())
         .ok()?
         .as_f64()
-        .map(|v| v as i32)
+        .map(|value| value as i32)
 }
 
 // Re-entrant from an import: the page's engine lets a host function call back in.
 fn apply(f: &Function, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
     let a: Array = args.iter().map(|r| to_js(*r)).collect();
-    let out = f.apply(&JsValue::NULL, &a).map_err(|e| js_err(&e))?;
+    let out = f
+        .apply(&JsValue::NULL, &a)
+        .map_err(|error| js_err(&error))?;
     Ok(match results {
         0 => vec![],
         1 => vec![from_js(&out, None)],
@@ -368,11 +370,11 @@ impl ImportCtx for Ctx<'_> {
     }
     // An export of the unit making the call, else of the script's own.
     fn call(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, String> {
-        let f = self
+        let func = self
             .live
             .export(self.unit, name)
             .or_else(|_| self.live.export(0, name))?;
-        apply(&f, args, results)
+        apply(&func, args, results)
     }
     fn has_func(&mut self, name: &str) -> bool {
         self.live.export(self.unit, name).is_ok() || self.live.export(0, name).is_ok()
@@ -460,7 +462,7 @@ fn imports_each(
                 .as_ref()
                 .ok_or_else(|| JsValue::from_str("the module is not ready"))?;
             let out = dispatch(&host, &mut Ctx { live: l, unit }, unit, index, &args)
-                .map_err(|e| JsValue::from_str(&e))?;
+                .map_err(|error| JsValue::from_str(&error))?;
             Ok(match out.len() {
                 0 => JsValue::UNDEFINED,
                 1 => to_js(out[0]),
@@ -471,8 +473,8 @@ fn imports_each(
             .as_ref()
             .ok_or_else(|| "no shim for an import".to_string())?
             .call1(&JsValue::NULL, f.as_ref())
-            .map_err(|e| js_err(&e))?;
-        Reflect::set(env, &imp.name.as_str().into(), &wrapped).map_err(|e| js_err(&e))?;
+            .map_err(|error| js_err(&error))?;
+        Reflect::set(env, &imp.name.as_str().into(), &wrapped).map_err(|error| js_err(&error))?;
         keep.push(f);
     }
     Ok(keep)
@@ -489,8 +491,8 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     // The page's engine meters no fuel, and the module owns its memory, so
     // neither limit holds here: a runaway script stalls the tab.
     let _ = (setup.fuel, setup.memory_bytes);
-    let module =
-        WebAssembly::Module::new(&Uint8Array::from(setup.wasm).into()).map_err(|e| js_err(&e))?;
+    let module = WebAssembly::Module::new(&Uint8Array::from(setup.wasm).into())
+        .map_err(|error| js_err(&error))?;
     let live: Rc<RefCell<Option<Live>>> = Rc::new(RefCell::new(None));
     let errors = Rc::new(RefCell::new(None));
     let env = Object::new();
@@ -513,13 +515,13 @@ pub(crate) fn instantiate(setup: Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     };
     let keep = imports_each(&env, &setup.host, &live, one_each, 0)?;
     let imports = Object::new();
-    Reflect::set(&imports, &words::HOST_MODULE.into(), &env).map_err(|e| js_err(&e))?;
-    let inst = WebAssembly::Instance::new(&module, &imports).map_err(|e| js_err(&e))?;
+    Reflect::set(&imports, &words::HOST_MODULE.into(), &env).map_err(|error| js_err(&error))?;
+    let inst = WebAssembly::Instance::new(&module, &imports).map_err(|error| js_err(&error))?;
     let exports = inst.exports();
-    let memory = Reflect::get(&exports, &words::MEMORY.into()).map_err(|e| js_err(&e))?;
+    let memory = Reflect::get(&exports, &words::MEMORY.into()).map_err(|error| js_err(&error))?;
     let memory = memory
         .dyn_into::<WebAssembly::Memory>()
-        .map_err(|e| js_err(&e))?;
+        .map_err(|error| js_err(&error))?;
     let live_now = Live {
         exports,
         memory,
@@ -551,11 +553,11 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
         let pages = (bytes as u64).div_ceil(65536) as u32;
         set(&memory_descriptor, "maximum", &JsValue::from(pages))?;
     }
-    let memory = WebAssembly::Memory::new(&memory_descriptor).map_err(|e| js_err(&e))?;
+    let memory = WebAssembly::Memory::new(&memory_descriptor).map_err(|error| js_err(&error))?;
     let table_descriptor = Object::new();
     set(&table_descriptor, "element", &"anyfunc".into())?;
     set(&table_descriptor, "initial", &JsValue::from(1))?;
-    let table = WebAssembly::Table::new(&table_descriptor).map_err(|e| js_err(&e))?;
+    let table = WebAssembly::Table::new(&table_descriptor).map_err(|error| js_err(&error))?;
     let globals = shared_starts(&layout)
         .into_iter()
         .map(mutable_global)
@@ -618,13 +620,13 @@ struct Browser {
 impl Drop for Browser {
     fn drop(&mut self) {
         if let Some(id) = self.direct {
-            DIRECT.with(|t| t.borrow_mut()[id] = None);
+            DIRECT.with(|direct| direct.borrow_mut()[id] = None);
         }
         // A unit's closures, and what its entry points reach, hold the rest.
         if let Some(links) = self.live.borrow_mut().take().and_then(|live| live.links) {
             for unit in links.units.borrow().iter() {
                 if let Some(id) = unit.direct {
-                    DIRECT.with(|t| t.borrow_mut()[id] = None);
+                    DIRECT.with(|direct| direct.borrow_mut()[id] = None);
                 }
             }
         }
@@ -646,10 +648,10 @@ thread_local! {
 }
 
 fn register(direct: Direct) -> usize {
-    DIRECT.with(|t| {
-        let mut t = t.borrow_mut();
-        t.push(Some(Rc::new(direct)));
-        t.len() - 1
+    DIRECT.with(|table| {
+        let mut table = table.borrow_mut();
+        table.push(Some(Rc::new(direct)));
+        table.len() - 1
     })
 }
 
@@ -668,11 +670,11 @@ fn link_direct(env: &Object, meta: &crate::Meta) -> Result<(), String> {
     names.push(words::DIRECT_RESULT.into());
     for name in names {
         let ours = format!("__balaur{name}");
-        let f = Reflect::get(&engine, &ours.as_str().into()).map_err(|e| js_err(&e))?;
+        let f = Reflect::get(&engine, &ours.as_str().into()).map_err(|error| js_err(&error))?;
         if !f.is_function() {
             return Err(format!("this engine exports no `{ours}`"));
         }
-        Reflect::set(env, &name.as_str().into(), &f).map_err(|e| js_err(&e))?;
+        Reflect::set(env, &name.as_str().into(), &f).map_err(|error| js_err(&error))?;
     }
     Ok(())
 }
@@ -753,12 +755,12 @@ impl Wasm for Browser {
         results: usize,
     ) -> Result<Vec<Raw>, String> {
         let guard = self.live.borrow();
-        let f = guard
+        let func = guard
             .as_ref()
             .ok_or("the module is not ready")?
             .export(unit, name)?;
         drop(guard);
-        apply(&f, args, results).map_err(|trap| {
+        apply(&func, args, results).map_err(|trap| {
             // A direct call that failed left its reason before trapping.
             self.errors.borrow_mut().take().unwrap_or(trap)
         })
@@ -767,35 +769,35 @@ impl Wasm for Browser {
         self.has_func_in(0, name)
     }
     fn has_func_in(&mut self, unit: usize, name: &str) -> bool {
-        self.with(|l| l.export(unit, name).is_ok(), false)
+        self.with(|live| live.export(unit, name).is_ok(), false)
     }
     fn link(&mut self, key: &str, unit: Arc<Compiled>) -> Result<usize, String> {
-        let links = self.with(|l| l.links.clone(), None);
+        let links = self.with(|live| live.links.clone(), None);
         match links {
             Some(links) => links.link(key, unit),
             None => Err(format!("{key}: this script is not built as units")),
         }
     }
     fn read(&self, at: usize, len: usize) -> Vec<u8> {
-        self.with(|l| l.read(at, len), vec![0; len])
+        self.with(|live| live.read(at, len), vec![0; len])
     }
     fn memory_len(&self) -> usize {
-        self.with(|l| l.bytes().length() as usize, 0)
+        self.with(|live| live.bytes().length() as usize, 0)
     }
     fn write(&mut self, at: usize, bytes: &[u8]) {
-        self.with(|l| l.write(at, bytes), ());
+        self.with(|live| live.write(at, bytes), ());
     }
     fn global(&mut self, name: &str) -> Option<i32> {
-        self.with(|l| l.global(0, name), None)
+        self.with(|live| live.global(0, name), None)
     }
     fn set_global(&mut self, name: &str, value: i32) {
-        self.with(|l| l.set_global(0, name, value), ());
+        self.with(|live| live.set_global(0, name, value), ());
     }
     fn global_in(&mut self, unit: usize, name: &str) -> Option<i32> {
-        self.with(|l| l.own_global(unit, name), None)
+        self.with(|live| live.own_global(unit, name), None)
     }
     fn make(&mut self, _unit: usize) -> Result<(), String> {
-        match self.with(|l| l.links.clone(), None) {
+        match self.with(|live| live.links.clone(), None) {
             Some(links) => links.make_pending(),
             None => Ok(()),
         }

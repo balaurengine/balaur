@@ -86,6 +86,13 @@ pub(crate) struct Shadow {
 
 type OnPause = Box<dyn FnMut(&mut Paused) -> Command>;
 
+/// Each debug unit's breakpoint table, by its index in the instance.
+pub(crate) type Tables = Vec<(usize, Vec<u8>)>;
+
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "independent switches of a debugger's state, not one state enum"
+)]
 pub struct Debugger {
     /// Every unit of the instance by its index, and its file.
     units: Vec<(String, Arc<Meta>)>,
@@ -210,7 +217,7 @@ impl Debugger {
     /// Each debug unit's breakpoint table, if anything changed: a byte per
     /// statement, set on the first statement of each breakpoint line so a
     /// line stops once per pass.
-    pub(crate) fn take_tables(&mut self) -> Option<(Vec<(usize, Vec<u8>)>, i32)> {
+    pub(crate) fn take_tables(&mut self) -> Option<(Tables, i32)> {
         if !std::mem::take(&mut self.dirty) {
             return None;
         }
@@ -225,9 +232,9 @@ impl Debugger {
                 let table = meta
                     .probes
                     .iter()
-                    .map(|p| {
-                        let set = lines.is_some_and(|lines| lines.contains(&p.line));
-                        u8::from(set && seen.insert((p.func, p.line)))
+                    .map(|probe| {
+                        let set = lines.is_some_and(|lines| lines.contains(&probe.line));
+                        u8::from(set && seen.insert((probe.func, probe.line)))
                     })
                     .collect();
                 (unit, table)
@@ -249,28 +256,30 @@ impl Debugger {
     /// The line a trap happened on: the innermost frame's statement.
     pub(crate) fn trap_line(&self, stack: &[Shadow]) -> Option<u32> {
         let top = stack.last()?;
-        self.probe(top.unit, top.probe?).map(|p| p.line)
+        self.probe(top.unit, top.probe?).map(|found| found.line)
     }
 
     fn should_stop(&self, unit: usize, probe: u32, depth: usize) -> Option<StopReason> {
-        let p = self.probe(unit, probe)?;
+        let here = self.probe(unit, probe)?;
         let first_on_line = self.units[unit]
             .1
             .probes
             .iter()
-            .position(|q| q.func == p.func && q.line == p.line)
+            .position(|other| other.func == here.func && other.line == here.line)
             == Some(probe as usize);
         let stepped = match self.mode {
             Mode::Run => false,
             Mode::Asked => true,
-            Mode::Into { line, depth: d } => p.line != line || depth != d,
-            Mode::Over { line, depth: d } => depth < d || (depth == d && p.line != line),
-            Mode::Out { depth: d } => depth < d,
+            Mode::Into { line, depth: from } => here.line != line || depth != from,
+            Mode::Over { line, depth: from } => {
+                depth < from || (depth == from && here.line != line)
+            }
+            Mode::Out { depth: from } => depth < from,
         };
         let on_breakpoint = self
             .breakpoints
             .get(&unit)
-            .is_some_and(|lines| lines.contains(&p.line));
+            .is_some_and(|lines| lines.contains(&here.line));
         if first_on_line && on_breakpoint {
             Some(StopReason::Breakpoint)
         } else if matches!(self.mode, Mode::Asked) {

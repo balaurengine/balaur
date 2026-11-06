@@ -813,8 +813,8 @@ fn a_trap_across_units_leaves_the_stack_it_died_with() {
         .unwrap();
     let obj = rt.in_unit(caller, |rt| rt.object("Caller", &[])).unwrap();
     rt.debugger().keep_locals(true);
-    let e = rt.call_method(&obj, "go", &[]).unwrap_err();
-    assert_eq!(e.line, Some(3), "{e}");
+    let trap = rt.call_method(&obj, "go", &[]).unwrap_err();
+    assert_eq!(trap.line, Some(3), "{trap}");
     let stop = rt.error_stop().expect("a debug build leaves its stack");
     assert_eq!(stop.frames.len(), 2);
     assert_eq!(stop.frames[0].file, "scripts/falls.bs");
@@ -833,10 +833,10 @@ fn a_trap_across_units_leaves_the_stack_it_died_with() {
     };
     assert!(rt.call_method(&obj, "go", &[]).is_err());
     assert!(rt.paused().is_some(), "the stop still holds");
-    let Err(e) = rt.resume(Command::Continue) else {
+    let Err(trap) = rt.resume(Command::Continue) else {
         panic!("the parked call goes on to the same trap");
     };
-    assert_eq!(e.line, Some(3), "{e}");
+    assert_eq!(trap.line, Some(3), "{trap}");
 }
 
 // A browser's build: metered, and calling the engine through its entry points.

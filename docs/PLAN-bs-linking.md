@@ -180,3 +180,23 @@ that reach a module export by name. The editor's warm boot reads every unit
 from disk (before the units were kept there it cost 1.6x the whole file's,
 each of its 62 units compiled again). Wall clock on that machine is noise
 under the load of the other builds it ran; instructions retired are not.
+
+Measured 2026-11-03, a dev build of the tree before these builds linked units
+against one after, on that Mac under the load of other builds: `balaur edit
+--offscreen --state suite:test:profiler`, the profiler switched on and off.
+Instructions retired are the run's less a boot of 12 frames (48 G with nothing
+kept, 3.7 G warm, the same for both binaries), and the time is the state's.
+
+| | whole file per script | units |
+|---|---|---|
+| The editor as it is, nothing kept | 34 G, 3.7 s | 29 G, 4.7 s |
+| The same, kept from a run before | 4.0 G, 1.5 s | 7.3 G, 1.0 s |
+
+A throwaway copy of the editor whose 39 panels hold `editor::Editor?`, what
+compiled the editor once per panel, ran `test:profiler` and `test:theme_switch`.
+Instructions retired are the whole run's, boot included.
+
+| | whole file per script | units |
+|---|---|---|
+| Nothing kept | 1,135 G, 287 s, the link nil | 96 G, 10 s |
+| Kept from a run before | 125 G, 137 s, the link nil | 10 G, 1.7 s |

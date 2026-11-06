@@ -530,14 +530,15 @@ impl BsHost {
         if !found.is_empty() {
             return found;
         }
-        self.unit_of(&key, source)
-            .map(|unit| self.module_errors(&key, &unit))
-            .unwrap_or_else(|e| {
+        self.unit_of(&key, source).map_or_else(
+            |error| {
                 vec![balaur_bs::Error {
                     pos: balaur_bs::Pos { line: 1, col: 1 },
-                    msg: format!("{e:#}"),
+                    msg: format!("{error:#}"),
                 }]
-            })
+            },
+            |unit| self.module_errors(&key, &unit),
+        )
     }
 
     /// What the file's own functions should say otherwise, though they compile.
