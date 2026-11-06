@@ -296,14 +296,20 @@ impl balaur_plugin::Plugin for UiPlugin {
         widget::beside::register_all(reg);
         widget::schema::register_widget_component(reg);
         widget::presets::register_widget_presets(reg)?;
-        balaur_core::preload::on_component(
-            reg.engine(),
-            <widget::properties::WidgetProperties as balaur_core::components::derived::Component>::NAME,
-            balaur_core::preload::Warming {
-                preload: images::preload_widget,
-                unload: images::unload_widget,
-            },
-        );
+        // The two components holding a picture a widget draws.
+        for component in [
+            <widget::beside::WidgetImage as balaur_core::components::derived::Component>::NAME,
+            <widget::beside_controls::WidgetButton as balaur_core::components::derived::Component>::NAME,
+        ] {
+            balaur_core::preload::on_component(
+                reg.engine(),
+                component,
+                balaur_core::preload::Warming {
+                    preload: images::preload_picture,
+                    unload: images::unload_picture,
+                },
+            );
+        }
         Ok(())
     }
 }

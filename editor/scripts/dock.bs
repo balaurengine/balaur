@@ -642,7 +642,7 @@ pub fn timeline_fill(state: &mut editor::State) {
         util::set_text(TIMELINE + "/Missing/Says", missing);
         let filled = scene::get_node(TIMELINE + "/Missing/Create");
         if filled.is_valid() {
-            filled.widget.icon = icons::ui("add");
+            filled.widget_button.icon = icons::ui("add");
         }
         util::set_visible(TIMELINE + "/Body", false);
         return;
@@ -657,7 +657,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let name = anim::clip_name(state, node);
     let filled = scene::get_node(TIMELINE + "/Body/Head/AddKey");
     if filled.is_valid() {
-        filled.widget.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui("add");
     }
     let library = anim::library_path(state, node);
     let clip = if name == "" { "unnamed" } else { name };

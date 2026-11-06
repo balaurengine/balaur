@@ -42,7 +42,7 @@ fn widget_kind_constants_match_the_registered_schema() {
 #[test]
 fn align_and_font_style_constants_match_the_registered_schema() {
     let aligns: Vec<&str> = ALIGNS.iter().map(|(_, v)| *v).collect();
-    assert_eq!(aligns, registered_options("text_align"));
+    assert_eq!(aligns, options_of("widget_text", "text_align"));
     let items: Vec<&str> = ALIGNS.iter().chain(ITEM_ALIGNS).map(|(_, v)| *v).collect();
     assert_eq!(items, options_of("widget_layout", "align_items"));
     let styles: Vec<&str> = FONT_STYLES.iter().map(|(_, v)| *v).collect();

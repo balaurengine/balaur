@@ -69,7 +69,7 @@ fn picture(dir: &std::path::Path) {
 fn every_option_reads_back_as_it_was_written() {
     let (_dir, app) = app();
     let written = toml::toml! {
-        kind = "slider" sense = "drag" show_tooltip_when_elided = false
+        kind = "slider"
         movable = true constrain = true fade_in = true
         widget_separator = { spacing = 9.0, overhang = -2.0 } widget_color_picker = { alpha = "additive", inline = true } widget_menu = { popup_gap = 2.0, popup_width = 140.0, placement_fallbacks = ["above", "right_end"], close_on = "never" } widget_window = { backdrop_color = [1.0, 0.0, 0.0, 0.5], dismissable = false, resizable = true, collapsible = true, closable = false, default_open = false }
         widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true, prefix = "x" } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
@@ -430,8 +430,8 @@ fn an_image_is_tinted_and_cut_to_its_region() {
     add_widget(
         &app,
         &toml::toml! {
-            kind = "image" image = "white.png"   x = 0.0 y = 0.0
-            widget_image = { tint = [0.0, 1.0, 0.0, 1.0], region = [0.0, 0.0, 4.0, 4.0] }
+            kind = "image"   x = 0.0 y = 0.0
+            widget_image = { tint = [0.0, 1.0, 0.0, 1.0], region = [0.0, 0.0, 4.0, 4.0], image = "white.png" }
         }
         .into(),
     );
@@ -466,7 +466,7 @@ fn a_turned_image_is_drawn_turned() {
     picture(dir.path());
     add_widget(
         &app,
-        &toml::toml! { kind = "image" image = "white.png" width = 40.0 height = 40.0  x = 50.0 y = 50.0 widget_image = { angle_degrees = 45.0 } }.into(),
+        &toml::toml! { kind = "image" width = 40.0 height = 40.0  x = 50.0 y = 50.0 widget_image = { angle_degrees = 45.0, image = "white.png" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -485,7 +485,7 @@ fn a_turned_image_is_drawn_turned() {
 #[test]
 fn an_image_that_will_not_load_draws_its_alt_text() {
     let (_dir, _app, _, _, out) = drawn(
-        &toml::toml! { kind = "image" image = "missing.png"  x = 0.0 y = 0.0 widget_image = { alt_text = "no picture" } }.into(),
+        &toml::toml! { kind = "image"  x = 0.0 y = 0.0 widget_image = { alt_text = "no picture", image = "missing.png" } }.into(),
     );
     assert!(has_text(&out, "no picture"), "{:?}", texts(&out));
 }
@@ -705,7 +705,7 @@ fn a_button_that_only_senses_hover_takes_no_click() {
     let (_dir, mut app) = app();
     let button = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" sense = "hover" x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { sense = "hover" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -719,7 +719,7 @@ fn a_button_that_only_senses_hover_takes_no_click() {
 fn a_button_s_gap_spaces_its_icon_from_its_caption() {
     let wide = |gap: f64| {
         let (_dir, _app, button, _, _) = drawn(
-            &toml::toml! { kind = "button" text = "go" icon = "+" x = 0.0 y = 0.0 widget_button = { face_gap = gap } }
+            &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { face_gap = gap, icon = "+" } }
                 .into(),
         );
         balaur_ui::widget_rect(button).unwrap().width()

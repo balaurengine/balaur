@@ -484,7 +484,7 @@ fn a_sliced_image_keeps_its_corners_at_their_own_size() {
     picture.save(dir.path().join("frame.png")).unwrap();
     let entity = add_widget(
         &app,
-        &toml::toml! { kind = "image" image = "frame.png" slice = [2.0, 2.0, 2.0, 2.0] width = 100.0 height = 50.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "image" width = 100.0 height = 50.0 x = 0.0 y = 0.0 widget_image = { image = "frame.png", slice = [2.0, 2.0, 2.0, 2.0] } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -606,7 +606,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     );
     let kid = |parent, name: &str, params: toml::Value| {
         let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, parent);
-        balaur::components::add(&app.engine, node, "widget", Some(&params)).unwrap();
+        add_widget_to(&app, node, &params);
         node
     };
     let scroll = kid(
@@ -622,7 +622,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     kid(
         strip,
         "Mark",
-        toml::toml! { kind = "button" text = "" icon = (icon) role = "transport" }.into(),
+        toml::toml! { kind = "button" text = "" role = "transport" widget_button = { icon = (icon) } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -651,12 +651,12 @@ fn a_role_puts_a_button_s_face_at_its_left_edge() {
     let icon = "\u{e1dc}";
     let left = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "button" text = "go" width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 widget_button = { icon = (icon) } }
             .into(),
     );
     let _middle = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" text = "go" width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { icon = (icon) } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -692,7 +692,7 @@ fn trailing_text_widens_a_button_and_draws() {
     );
     let tailed = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "Open" trailing = "⌘K" x = 0.0 y = 100.0 }.into(),
+        &toml::toml! { kind = "button" text = "Open" x = 0.0 y = 100.0 widget_button = { trailing = "⌘K" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -728,7 +728,7 @@ fn a_picture_sits_on_its_role_s_plate() {
     );
     let pictured = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "B" image = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" text = "B" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { image = "mark.png" } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -796,9 +796,9 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         &app,
         &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
     );
-    let params = toml::toml! { kind = "image" image = "wide.png"  width = 40.0 widget_image = { fit = "contain" } };
+    let params = toml::toml! { kind = "image"  width = 40.0 widget_image = { fit = "contain", image = "wide.png" } };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
-    let own = toml::toml! { kind = "image" image = "wide.png" };
+    let own = toml::toml! { kind = "image" widget_image = { image = "wide.png" } };
     let native = add_child_widget(&app, row, "Native", &own.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -1011,12 +1011,12 @@ fn a_button_s_icon_size_sizes_its_glyph() {
     let icon = "\u{e1dc}";
     add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) icon_size = 24.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { icon = (icon), icon_size = 24.0 } }
             .into(),
     );
     add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) x = 0.0 y = 100.0 }.into(),
+        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 100.0 widget_button = { icon = (icon) } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);

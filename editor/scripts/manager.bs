@@ -373,12 +373,12 @@ fn tools(state: editor::State) {
     let filled = scene::get_node(TOOLS() + "/Open");
     if filled.is_valid() {
         filled.set_visible(acting && !state.touchscreen);
-        filled.widget.icon = icons::panel("assets");
+        filled.widget_button.icon = icons::panel("assets");
     }
     let filled = scene::get_node(TOOLS() + "/New");
     if filled.is_valid() {
         filled.set_visible(acting);
-        filled.widget.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui("add");
     }
 }
 

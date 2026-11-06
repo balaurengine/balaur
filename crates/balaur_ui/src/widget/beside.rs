@@ -17,6 +17,7 @@ use balaur_core::components::derived::{Component, Fields, Written, to_table};
 use balaur_core::hecs::{Entity, World};
 use balaur_core::warnings::Warning;
 use balaur_plugin::Registry;
+use balaur_text::vocabulary::words as tw;
 use rustc_hash::FxHashMap;
 use smol_str::SmolStr;
 
@@ -24,11 +25,13 @@ use crate::vocabulary::{keys as k, words as w};
 use crate::widget::beside_box::{
     WidgetBox, WidgetChild, WidgetFold, WidgetGrid, WidgetLayout, WidgetTabs,
 };
-use crate::widget::beside_controls::{WidgetButton, WidgetCheck, WidgetRows};
+use crate::widget::beside_controls::{
+    WidgetButton, WidgetCheck, WidgetRows, WidgetShortcut, WidgetText, look, tab_stops,
+};
 use crate::widget::node::{EguiOptions, Inspecting, Widget};
 use crate::widget::properties::{
-    Alpha, Axis, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, NumberFormat, Numeral, Placement,
-    Scrollbar, SidePlacement, WidgetProperties,
+    Alpha, Axis, Clamp, CloseOn, Cursor, DragScroll, Fit, Handle, LineBreak, NumberFormat, Numeral,
+    Placement, Scrollbar, SidePlacement, TextAlign, WidgetProperties,
 };
 
 /// A component beside `widget`, read by the kinds `reads` names.
@@ -133,6 +136,8 @@ pub(crate) struct WidgetInspector {
     /// How tall an `inspector`'s file rows are, in design pixels, and its chips 4 less; 0 takes 24
     #[property(min = 0.0)]
     pub(crate) row_height: f32,
+    /// Put each of an `inspector`'s labels above its control
+    pub(crate) wrap: bool,
 }
 
 impl Beside for WidgetInspector {
@@ -147,6 +152,7 @@ impl Beside for WidgetInspector {
         label_width => inspecting(widget).label_width = held.label_width;
         options => widget.options.clone_from(&held.options);
         row_height => widget.row_height = held.row_height;
+        wrap => widget.wrap = held.wrap;
     }
 }
 
@@ -170,6 +176,9 @@ pub(crate) struct WidgetTable {
     /// How wide a grab the seam between two of a `table`'s columns gets, in design pixels; 0 takes six
     #[property(min = 0.0)]
     pub(crate) splitter_width: f32,
+    /// Where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right
+    #[property(default = TextAlign::new(w::START))]
+    pub(crate) text_align: TextAlign,
 }
 
 impl Beside for WidgetTable {
@@ -185,6 +194,7 @@ impl Beside for WidgetTable {
         reverse => widget.reverse = held.reverse;
         header => widget.header = held.header;
         splitter_width => widget.handle = held.splitter_width;
+        text_align => widget.text_align = held.text_align.0.clone();
     }
 }
 
@@ -517,6 +527,15 @@ pub(crate) struct WidgetField {
     pub(crate) on_submit: SmolStr,
     /// Script method called with `{ x, y, index }` when a `code` widget's caret moves, on this node or the nearest ancestor whose script declares it
     pub(crate) on_caret: SmolStr,
+    /// Where what a `text_field` or `text_area` edits sits in its width
+    #[property(default = TextAlign::new(w::START))]
+    pub(crate) text_align: TextAlign,
+    /// Where a `text_area`'s wrapped line may break
+    #[property(default = LineBreak::new(tw::WORD_OR_GLYPH))]
+    pub(crate) line_break: LineBreak,
+    /// Spaces between a `text_field`'s or `text_area`'s tab stops
+    #[property(default = 8, min = 1, max = 64)]
+    pub(crate) tab_width: i64,
 }
 
 impl Beside for WidgetField {
@@ -549,6 +568,10 @@ impl Beside for WidgetField {
         suffix => widget.suffix = held.suffix.clone();
         on_submit => widget.on_submit = held.on_submit.clone();
         on_caret => widget.on_caret = held.on_caret.clone();
+        text_align => widget.text_align = held.text_align.0.clone();
+        line_break => look(widget).options.line_break =
+            balaur_text::LineBreak::of(&held.line_break.0);
+        tab_width => look(widget).options.tab_width = tab_stops(held.tab_width);
     }
 }
 
@@ -617,10 +640,15 @@ impl Beside for WidgetScroll {
     }
 }
 
-/// The rows an `image` reads: the part of the picture drawn and how it sits in its box.
+/// The rows an `image` reads: its picture, the part of it drawn and how it sits in its box.
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_image")]
 pub(crate) struct WidgetImage {
+    /// The project-relative picture an `image` draws
+    pub(crate) image: SmolStr,
+    /// Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture
+    #[property(default = [0.0, 0.0, 0.0, 0.0])]
+    pub(crate) slice: [f32; 4],
     /// What an `image` is multiplied by; white draws it as it is
     #[property(color, default = [1.0, 1.0, 1.0, 1.0])]
     pub(crate) tint: [f32; 4],
@@ -644,6 +672,8 @@ impl Beside for WidgetImage {
     }
 
     puts! { held, widget;
+        image => widget.source = held.image.clone();
+        slice => widget.slice = held.slice;
         tint => egui(widget).tint = held.tint;
         fit => widget.fit = held.fit.0.clone();
         region => egui(widget).region = held.region;
@@ -751,15 +781,20 @@ macro_rules! each_beside {
             WidgetCheck,
             WidgetRows,
             WidgetButton,
+            WidgetText,
             WidgetLayout,
             WidgetGrid,
             WidgetFold,
             WidgetTabs,
             WidgetBox,
-            WidgetChild
+            WidgetChild,
+            WidgetShortcut
         )
     };
 }
+
+#[cfg(test)]
+pub(crate) use each_beside;
 
 /// Every component beside `widget`, by name.
 pub(crate) fn names() -> &'static [&'static str] {
@@ -1058,93 +1093,4 @@ fn inspecting(widget: &mut Widget) -> &mut Inspecting {
 /// The lines a code widget's gutter property names, counting from 1.
 fn lines(texts: &[Numeral]) -> Vec<u32> {
     texts.iter().filter_map(Numeral::line).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::widget::schema::{changed_value, widget_of};
-
-    /// Each row written alone leaves the widget as putting the component
-    /// whole does: a row the table forgot would be left at its field's zero.
-    fn each_row_fills_what_a_whole_put_fills<C: Beside>(kind: &str) {
-        let asked = WidgetProperties {
-            kind: crate::widget::properties::Kind::new(kind),
-            ..WidgetProperties::default()
-        };
-        for (index, row) in C::NAMES.iter().enumerate() {
-            let mut held = C::default();
-            let mut alone = widget_of(&asked);
-            C::default().put(&mut alone);
-            let changed = changed_value::<C>(&held, index);
-            held.write(index, &changed).expect("the value fits the row");
-            assert!(
-                held.put_row(&mut alone, row),
-                "`{row}` of `{}` has no place",
-                C::NAME
-            );
-            let mut whole = widget_of(&asked);
-            held.put(&mut whole);
-            assert_eq!(
-                format!("{alone:?}"),
-                format!("{whole:?}"),
-                "`{row}` of `{}` written alone is not what a whole put leaves",
-                C::NAME
-            );
-        }
-    }
-
-    #[test]
-    fn a_row_written_alone_fills_what_a_whole_put_fills() {
-        macro_rules! check_each {
-            (; $($beside:ty),*) => {
-                $(each_row_fills_what_a_whole_put_fills::<$beside>(
-                    w::WIDGET_KINDS
-                        .iter()
-                        .find(|kind| <$beside>::reads(kind))
-                        .expect("some kind reads every component"),
-                );)*
-            };
-        }
-        each_beside!(check_each!());
-    }
-
-    /// A pooled control's table says nothing of which component holds a row,
-    /// so no kind may read two that hold the same one.
-    #[test]
-    fn no_kind_reads_two_components_holding_one_row() {
-        macro_rules! rows_of_each {
-            (; $($beside:ty),*) => {
-                [$(<$beside as Fields>::NAMES),*]
-            };
-        }
-        for rows in each_beside!(rows_of_each!()) {
-            for row in rows {
-                for kind in w::WIDGET_KINDS {
-                    let readers: Vec<&str> = owners_of(row)
-                        .iter()
-                        .filter(|owner| (owner.reads)(kind))
-                        .map(|owner| owner.name)
-                        .collect();
-                    assert!(
-                        readers.len() <= 1,
-                        "a `{kind}` reads `{row}` from each of {readers:?}"
-                    );
-                }
-            }
-        }
-    }
-
-    /// No component holds a row of `widget` itself, or a pooled control's
-    /// table could not say which it meant.
-    #[test]
-    fn no_row_beside_the_widget_is_a_row_of_the_widget() {
-        for row in WidgetProperties::NAMES {
-            assert!(
-                owners_of(row).is_empty(),
-                "`{row}` is on `widget` and on `{}`",
-                owners_of(row)[0].name
-            );
-        }
-    }
 }

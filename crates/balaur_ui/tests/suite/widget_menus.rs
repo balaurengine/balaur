@@ -173,7 +173,7 @@ fn a_menu_button_holds_its_room_in_a_row() {
         &app,
         strip,
         "M",
-        &toml::toml! { kind = "menu" role = "m" text = "Balaur" trailing = "▾" }.into(),
+        &toml::toml! { kind = "menu" role = "m" text = "Balaur" widget_button = { trailing = "▾" } }.into(),
     );
     let row = toml::toml! { kind = "button" text = "row" };
     add_child_widget(&app, menu, "R0", &row.into());
@@ -433,7 +433,8 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     let params = toml::toml! { kind = "menu" text = "File" x = 10.0 y = 10.0 };
     let host = add_widget(&app, &params.into());
     let row = toml::toml! {
-        kind = "button" text = "Save" width = 173.0 height = 22.0 shortcut = "cmd+s"
+        kind = "button" text = "Save" width = 173.0 height = 22.0
+        widget_shortcut = { shortcut = "cmd+s" }
     };
     let row = add_child_widget(&app, host, "Save", &row.into());
     let ctx = egui::Context::default();
@@ -460,7 +461,8 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
     let showing = toml::toml! { kind = "menu" text = "File" x = 10.0 y = 200.0 widget_menu = { showing = true } };
     let open = add_widget(&app, &showing.into());
     let labelled = toml::toml! {
-        kind = "button" text = "Save" width = 173.0 height = 22.0 shortcut = "cmd+s"
+        kind = "button" text = "Save" width = 173.0 height = 22.0
+        widget_shortcut = { shortcut = "cmd+s" }
     };
     add_child_widget(&app, open, "Save", &labelled.into());
     settle(&app, &ctx);

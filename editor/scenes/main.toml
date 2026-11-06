@@ -771,6 +771,7 @@ visible = false
 kind = "label"
 role = "text_code_quiet"
 font_size = 11
+[nodes.widget_text]
 wrap = true
 
 [[nodes]]

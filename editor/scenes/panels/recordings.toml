@@ -55,6 +55,7 @@ visible = false
 kind = "label"
 role = "text_caption"
 text = "no recordings yet — press Play"
+[nodes.widget_text]
 wrap = true
 
 [[nodes]]

@@ -33,8 +33,9 @@ impl Owner {
     host.attach(balaur::node_id_of(owner), "scripts/owner.bs")
         .unwrap();
     let label = toml::toml! {
-        kind = "label" markup = true on_link = "on_go" x = 10.0 y = 10.0
+        kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
+        widget_text = { markup = true, on_link = "on_go" }
     };
     let entity = add_child_widget(&app, owner, "Label", &label.into());
     let ctx = egui::Context::default();
@@ -58,8 +59,9 @@ impl Owner {
 fn a_url_span_emits_its_target_with_no_handler_named() {
     let (_dir, mut app) = app();
     let label = toml::toml! {
-        kind = "label" markup = true x = 10.0 y = 10.0
+        kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
+        widget_text = { markup = true }
     };
     let entity = add_widget(&app, &label.into());
     let ctx = egui::Context::default();
@@ -92,8 +94,9 @@ impl Owner {
     host.attach(balaur::node_id_of(owner), "scripts/owner.bs")
         .unwrap();
     let label = toml::toml! {
-        kind = "label" markup = true on_link = "on_go" x = 10.0 y = 10.0
+        kind = "label" x = 10.0 y = 10.0
         text = "read the [url=docs/ui]manual[/url] first"
+        widget_text = { markup = true, on_link = "on_go" }
     };
     let entity = add_child_widget(&app, owner, "Label", &label.into());
     let ctx = egui::Context::default();
@@ -116,8 +119,9 @@ impl Owner {
 fn a_hint_span_shows_its_text_on_hover() {
     let (_dir, app) = app();
     let label = toml::toml! {
-        kind = "label" markup = true x = 10.0 y = 10.0
+        kind = "label" x = 10.0 y = 10.0
         text = "costs [hint=one a second]stamina[/hint] to run"
+        widget_text = { markup = true }
     };
     let entity = add_widget(&app, &label.into());
     let ctx = egui::Context::default();
@@ -143,7 +147,8 @@ fn a_hint_span_shows_its_text_on_hover() {
 fn a_drag_over_a_selectable_label_selects_and_copies() {
     let (_dir, app) = app();
     let label = toml::toml! {
-        kind = "label" selectable = true x = 10.0 y = 10.0 text = "Balaur engine"
+        kind = "label" x = 10.0 y = 10.0 text = "Balaur engine"
+        widget_text = { selectable = true }
     };
     let entity = add_widget(&app, &label.into());
     let ctx = egui::Context::default();
@@ -242,8 +247,9 @@ fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
     let cells = toml::toml! { kind = "row" grow = 1.0 };
     let cells = add_child_widget(&app, row, "Cells", &cells.into());
     let label = toml::toml! {
-        kind = "label" grow = 1.0 wrap = true
+        kind = "label" grow = 1.0
         text = "A project-relative picture shown over the first frames, on every target."
+        widget_text = { wrap = true }
     };
     let label = add_child_widget(&app, cells, "Note", &label.into());
     let ctx = egui::Context::default();
@@ -265,14 +271,18 @@ fn a_row_hugging_a_wrapped_label_is_as_tall_as_the_wrap() {
 fn a_widget_takes_the_text_keys_text2d_takes() {
     let (_dir, app) = app();
     let label = toml::toml! {
-        kind = "label" text = "hello" truncate_at = "middle"
-        font = "fonts/SourceSans3-Regular.ttf" text_background = [0.0, 0.0, 1.0, 0.5]
+        kind = "label" text = "hello"
+        font = "fonts/SourceSans3-Regular.ttf"
         text_style = { underline = "double", strikethrough = true, letter_spacing = 2.0 }
+        widget_text = { truncate_at = "middle", text_background = [0.0, 0.0, 1.0, 0.5] }
     };
     let entity = add_widget(&app, &label.into());
     let got = balaur::components::get(&app.engine, entity, "widget").unwrap();
     let read = |key: &str| got.get(key).cloned().unwrap();
-    assert_eq!(read("truncate_at").as_str(), Some("middle"));
+    assert_eq!(
+        beside_property(&app, entity, "widget_text", "truncate_at").as_str(),
+        Some("middle")
+    );
     assert_eq!(read("font").as_str(), Some("fonts/SourceSans3-Regular.ttf"));
     // The style is filed as an inline definition, and the widget takes it.
     let key = read("text_style");

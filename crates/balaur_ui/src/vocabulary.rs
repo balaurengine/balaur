@@ -442,9 +442,7 @@ pub(crate) mod keys {
     pub(crate) const GROW: &str = "grow";
     pub(crate) const GUTTER_COLOR: &str = "gutter_color";
     pub(crate) const HEIGHT: &str = "height";
-    pub(crate) const ICON: &str = "icon";
     pub(crate) const ICON_COLOR: &str = "icon_color";
-    pub(crate) const ICON_SIZE: &str = "icon_size";
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INSET: &str = "inset";
     pub(crate) const SYNTAX_COMMENT: &str = "syntax_comment";
@@ -456,13 +454,7 @@ pub(crate) mod keys {
     pub(crate) const SYNTAX_TYPE: &str = "syntax_type";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const WHOLE_WINDOW: &str = "whole_window";
-    pub(crate) const TEXT_BACKGROUND: &str = "text_background";
     pub(crate) const TEXT_STYLE: &str = "text_style";
-    pub(crate) const LINE_BREAK: &str = "line_break";
-    pub(crate) const TRUNCATE_AT: &str = "truncate_at";
-    pub(crate) const MAX_LINES: &str = "max_lines";
-    pub(crate) const TAB_WIDTH: &str = "tab_width";
-    pub(crate) const MARKUP: &str = "markup";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const HIDE_NARROWER: &str = "hide_narrower";
@@ -473,7 +465,6 @@ pub(crate) mod keys {
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
-    pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
     pub(crate) const ON_DOUBLE_CLICK: &str = "on_double_click";
     pub(crate) const ON_BLUR: &str = "on_blur";
@@ -515,11 +506,7 @@ pub(crate) mod keys {
     pub(crate) const SECOND: &str = "second";
     pub(crate) const DISTANCE: &str = "distance";
     pub(crate) const VISION: &str = "vision";
-    pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";
-    pub(crate) const SHORTCUT: &str = "shortcut";
-    pub(crate) const WHILE_TYPING: &str = "while_typing";
-    pub(crate) const TAKES_TYPING: &str = "takes_typing";
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
@@ -530,7 +517,6 @@ pub(crate) mod keys {
     pub(crate) const THEME: &str = "theme";
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const CURSOR: &str = "cursor";
-    pub(crate) const TRAILING: &str = "trailing";
     pub(crate) const ICON_FILL: &str = "icon_fill";
     pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
@@ -540,7 +526,6 @@ pub(crate) mod keys {
     pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
     pub(crate) const WIDTH: &str = "width";
-    pub(crate) const WRAP: &str = "wrap";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
 
@@ -563,8 +548,6 @@ pub(crate) mod keys {
     pub(crate) const COLUMN: &str = "column";
 
     // What the egui widget behind a kind takes.
-    pub(crate) const SENSE: &str = "sense";
-    pub(crate) const SHOW_TOOLTIP_WHEN_ELIDED: &str = "show_tooltip_when_elided";
     pub(crate) const DRAG_SPEED: &str = "drag_speed";
     /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";

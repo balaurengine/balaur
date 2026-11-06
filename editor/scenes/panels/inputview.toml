@@ -150,8 +150,9 @@ parent = "view"
 visible = false
 [nodes.widget]
 kind = "image"
-image = "assets/cursor.png"
 absolute = true
 width = 36
 height = 36
 interactive = false
+[nodes.widget_image]
+image = "assets/cursor.png"

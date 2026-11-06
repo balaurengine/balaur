@@ -928,7 +928,10 @@ fn a_table_puts_every_cell_where_its_text_align_says() {
             widget_table = { titles = ["name", "size>"] }
             widget_rows = { items = [{ cells = ["hero", "12 KB"] }] }
         };
-        params.insert("text_align".into(), toml::Value::String(align.into()));
+        params["widget_table"]
+            .as_table_mut()
+            .unwrap()
+            .insert("text_align".into(), toml::Value::String(align.into()));
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);

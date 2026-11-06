@@ -408,29 +408,15 @@ cache_fields! {
         k::CORNER_RADIUS => widget.radius = asked.corner_radius;
         k::DASHED => widget.dashed = asked.dashed;
         k::FADE_IN => egui(widget).fade_in = asked.fade_in;
-        k::ICON => widget.icon = asked.icon.clone();
-        k::ICON_COLOR => widget.icon_color = asked.icon_color.clone();
-        k::ICON_SIZE => widget.icon_size = asked.icon_size;
-        k::IMAGE => widget.source = asked.image.clone();
-        k::SLICE => widget.slice = asked.slice;
         k::FONT => widget.font = asked.font.clone();
         k::FONT_SIZE => widget.font_size = asked.font_size;
         k::FONT_WEIGHT => widget.font_weight = asked.font_weight as f32;
         k::FONT_STYLE => widget.font_style = asked.font_style.0.clone();
         k::TEXT_KEY => widget.text_key = asked.text_key.clone();
-        k::MARKUP => widget.markup = asked.markup;
-        k::TEXT_ALIGN => widget.text_align = asked.text_align.0.clone();
-        k::WRAP => widget.wrap = asked.wrap;
-        k::TRUNCATE => widget.truncate = asked.truncate;
-        k::SHOW_TOOLTIP_WHEN_ELIDED => egui(widget).show_tooltip_when_elided =
-            asked.show_tooltip_when_elided;
-        k::TRAILING => widget.trailing = asked.trailing.clone();
         k::TOOLTIP => widget.tooltip = asked.tooltip.clone();
-        k::SELECTABLE => widget.selectable = asked.selectable;
         k::ON_CLICK => widget.on_click = asked.on_click.clone();
         k::ON_CHANGE => widget.on_change = asked.on_change.clone();
         k::ON_FOCUS => widget.on_focus = asked.on_focus.clone();
-        k::ON_LINK => widget.on_link = asked.on_link.clone();
         k::ON_DOUBLE_CLICK => widget.on_double_click = asked.on_double_click.clone();
         k::ON_BLUR => widget.on_blur = asked.on_blur.clone();
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
@@ -439,17 +425,10 @@ cache_fields! {
         k::NEIGHBOUR_DOWN => widget.neighbours[1] = asked.neighbour_down.clone();
         k::NEIGHBOUR_LEFT => widget.neighbours[2] = asked.neighbour_left.clone();
         k::NEIGHBOUR_RIGHT => widget.neighbours[3] = asked.neighbour_right.clone();
-        k::SENSE => egui(widget).sense = asked.sense.0.clone();
         k::CURSOR => widget.cursor = asked.cursor.0.clone();
-        k::SHORTCUT => widget.shortcut = asked.shortcut.clone();
-        k::WHILE_TYPING => widget.while_typing = asked.while_typing;
-        k::TAKES_TYPING => widget.takes_typing = asked.takes_typing;
         k::CONTEXT => widget.context = asked.context.clone();
     }
-    whole [
-        k::KIND, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
-        k::TAB_WIDTH,
-    ] {
+    whole [k::KIND, k::TEXT_STYLE] {
         widget.kind = asked.kind.0.clone();
         widget.text_look = Arc::new(TextLook::of(asked));
     }

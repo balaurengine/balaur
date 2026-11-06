@@ -82,7 +82,7 @@ impl SceneTree {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Find/Add").widget.icon = view["add_icon"].as_str();
+        self.node.get_node("Find/Add").widget_button.icon = view["add_icon"].as_str();
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
         if view["filtering"].as_bool() && view["empty"].as_bool() {

@@ -49,12 +49,12 @@ impl Hud {
             patched.widget.height = view["step"].as_float();
             patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
         }
-        zoom.get_node("In").widget.icon = view["add_icon"].as_str();
+        zoom.get_node("In").widget_button.icon = view["add_icon"].as_str();
         zoom.get_node("Reading").widget.text = view["zoom"].as_str();
         let bottom = self.node.get_node("Bottom");
         bottom.set_visible(view["bottom"].as_bool());
         let patched = bottom.get_node("Open");
-        patched.widget.icon = view["bottom_icon"].as_str();
+        patched.widget_button.icon = view["bottom_icon"].as_str();
         patched.widget.width = view["step"].as_float() + 6.0;
         patched.widget.height = view["step"].as_float() + 6.0;
         patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });

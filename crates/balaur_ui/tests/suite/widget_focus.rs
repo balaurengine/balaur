@@ -444,26 +444,28 @@ fn a_shortcut_leaves_the_keys_of_a_field_being_typed_into() {
         &app,
         column,
         "Hide",
-        &toml::toml! { kind = "button" text = "hide" shortcut = "h" }.into(),
+        &toml::toml! { kind = "button" text = "hide" widget_shortcut = { shortcut = "h" } }.into(),
     );
     let save = add_child_widget(
         &app,
         column,
         "Save",
-        &toml::toml! { kind = "button" text = "save" shortcut = "cmd+s" }.into(),
+        &toml::toml! { kind = "button" text = "save" widget_shortcut = { shortcut = "cmd+s" } }
+            .into(),
     );
     let undo = add_child_widget(
         &app,
         column,
         "Undo",
-        &toml::toml! { kind = "button" text = "undo" shortcut = "cmd+z" while_typing = false }
+        &toml::toml! { kind = "button" text = "undo" widget_shortcut = { shortcut = "cmd+z", while_typing = false } }
             .into(),
     );
     let step = add_child_widget(
         &app,
         column,
         "Step",
-        &toml::toml! { kind = "button" text = "step" shortcut = "f10" }.into(),
+        &toml::toml! { kind = "button" text = "step" widget_shortcut = { shortcut = "f10" } }
+            .into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);

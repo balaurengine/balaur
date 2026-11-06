@@ -67,10 +67,11 @@ parent = "head"
 [nodes.widget]
 kind = "button"
 text = "Shuffle"
-# A glyph from the theme's icon family, drawn before the caption.
-icon = "\ue3ee"
 tooltip = "Re-order the cards"
 on_click = "shuffle"
+[nodes.widget_button]
+# A glyph from the theme's icon family, drawn before the caption.
+icon = "\ue3ee"
 
 [[nodes]]
 id = "apply"
@@ -184,8 +185,9 @@ name = "TMarkup"
 parent = "left"
 [nodes.widget]
 kind = "label"
-markup = true
 text = "markup: [b]bold[/b], [i]italic[/i], [color=#6fa4d8]a colour[/color]"
+[nodes.widget_text]
+markup = true
 
 [[nodes]]
 id = "f_field"
@@ -251,6 +253,7 @@ parent = "b_row"
 [nodes.widget]
 kind = "button"
 text = "icon"
+[nodes.widget_button]
 icon = "\ue24a"
 
 [[nodes]]
@@ -611,9 +614,10 @@ parent = "n_screen"
 visible = false
 [nodes.widget]
 kind = "image"
-image = "assets/cursor.png"
 anchor = "top_left"
 x = 0
 y = 0
 width = 20
 height = 20
+[nodes.widget_image]
+image = "assets/cursor.png"

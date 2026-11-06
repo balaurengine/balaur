@@ -46,9 +46,10 @@ name = "Links"
 parent = "sheet"
 [nodes.widget]
 kind = "label"
+text = "The [b]Sunken Vault[/b] opens at dusk. Read the [url=docs/manual/ui]manual[/url] first, and mind your [hint=a point a second]stamina[/hint]."
+[nodes.widget_text]
 markup = true
 on_link = "open"
-text = "The [b]Sunken Vault[/b] opens at dusk. Read the [url=docs/manual/ui]manual[/url] first, and mind your [hint=a point a second]stamina[/hint]."
 
 [[nodes]]
 id = "links_note"
@@ -74,8 +75,9 @@ name = "Select"
 parent = "sheet"
 [nodes.widget]
 kind = "label"
-selectable = true
 text = "Seed 0x5eed-1f3a. Drag across this line to select it, then copy."
+[nodes.widget_text]
+selectable = true
 
 [[nodes]]
 id = "typing_head"

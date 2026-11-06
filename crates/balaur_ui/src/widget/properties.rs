@@ -366,24 +366,6 @@ pub(crate) struct WidgetProperties {
     /// Fade a root in as it appears, over egui's fade time
     #[property(group = "paint")]
     pub(crate) fade_in: bool,
-    /// A glyph from the theme's icon family, drawn before `text`
-    #[property(group = "paint")]
-    pub(crate) icon: SmolStr,
-    /// What that glyph is tinted with, as `#rrggbb` or a name from the theme's `[colors]`; empty takes the role's own
-    #[property(group = "paint")]
-    pub(crate) icon_color: SmolStr,
-    /// That glyph's size in design pixels; below zero takes the caption's
-    #[property(default = -1.0, group = "paint")]
-    pub(crate) icon_size: f32,
-    /// The project-relative image an `image` widget draws, or the picture a `button` draws before its caption at the caption's height
-    #[property(group = "paint")]
-    pub(crate) image: SmolStr,
-    /// Left, top, right and bottom borders of an `image` kept unstretched, in the picture's own pixels; all zero stretches the whole picture
-    #[property(default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
-    pub(crate) slice: [f32; 4],
-    /// A wash behind the text of the kinds egui draws; alpha 0 is none
-    #[property(color, default = [0.0, 0.0, 0.0, 0.0], group = "paint")]
-    pub(crate) text_background: [f32; 4],
     /// The face it draws in, and how: a face file such as `fonts/Inter.ttf`, or a `font` asset. Empty takes the theme's default font
     #[property(asset = "font", group = "font")]
     pub(crate) font: SmolStr,
@@ -402,42 +384,9 @@ pub(crate) struct WidgetProperties {
     /// A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once
     #[property(group = "text")]
     pub(crate) text_key: SmolStr,
-    /// Read inline marks in the text: `[b]`, `[i]`, `[color=#hex]`, `[center]`, `[right]`, `[wave amp=N freq=N]` and `[img=path width=N]`; off, brackets are text
-    #[property(group = "text")]
-    pub(crate) markup: bool,
-    /// Where text sits in the width the widget was given, what a `text_field` or `text_area` edits included, and where every cell of a `table` sits in its column; a column whose name ends in `>` pins its own to the right
-    #[property(default = TextAlign::new(w::START), group = "text")]
-    pub(crate) text_align: TextAlign,
-    /// Break text to the width the widget was given instead of running past it on one line; a `dropdown` breaks its picked text, and an `inspector` puts each label above its control
-    #[property(group = "text")]
-    pub(crate) wrap: bool,
-    /// Cut a caption too long for the width the widget was given and end it with an ellipsis; with neither this nor `wrap` a button clips it at its edge. A `dropdown` cuts its picked text
-    #[property(group = "text")]
-    pub(crate) truncate: bool,
-    /// Which part of a cut caption the ellipsis stands in for
-    #[property(default = TruncateAt::new(tw::END), group = "text")]
-    pub(crate) truncate_at: TruncateAt,
-    /// Show a `label`'s whole text when the pointer rests on it and `truncate` cut it short
-    #[property(default = true, group = "text")]
-    pub(crate) show_tooltip_when_elided: bool,
-    /// The most lines a wrapped label keeps; zero keeps every line
-    #[property(min = 0, group = "text")]
-    pub(crate) max_lines: i64,
-    /// Where a wrapped line may break
-    #[property(default = LineBreak::new(tw::WORD_OR_GLYPH), group = "text")]
-    pub(crate) line_break: LineBreak,
-    /// Spaces between tab stops
-    #[property(default = 8, min = 1, max = 64, group = "text")]
-    pub(crate) tab_width: i64,
-    /// Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret
-    #[property(group = "text")]
-    pub(crate) trailing: SmolStr,
     /// Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why
     #[property(group = "text")]
     pub(crate) tooltip: SmolStr,
-    /// Let a drag over this label select its text, and the platform's copy key take it
-    #[property(group = "text")]
-    pub(crate) selectable: bool,
     /// Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button
     #[property(group = "events")]
     pub(crate) on_click: SmolStr,
@@ -447,9 +396,6 @@ pub(crate) struct WidgetProperties {
     /// Script method called when focus arrives, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_focus: SmolStr,
-    /// Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_link: SmolStr,
     /// Script method called on a double click, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_double_click: SmolStr,
@@ -474,21 +420,9 @@ pub(crate) struct WidgetProperties {
     /// The same pointing right
     #[property(group = "events")]
     pub(crate) neighbour_right: SmolStr,
-    /// What the pointer may do to a `button`: `click` reports a press let go as a click; under `click_and_drag` a press that moves past egui's drag distance is a drag and no click; `drag` and `hover` never click
-    #[property(default = Sense::new(w::CLICK), group = "events")]
-    pub(crate) sense: Sense,
     /// The pointer's shape while it is over the widget: `hand` over anything that opens on a click, `none` to hide it; `arrow` is the platform's own
     #[property(default = Cursor::new(w::cursor::ARROW), group = "events")]
     pub(crate) cursor: Cursor,
-    /// A chord that clicks this widget wherever it is, as `cmd+shift+s` or `f5`; a menu row fires while its menu is shut, and draws the chord against its far edge unless it says its own `trailing`
-    #[property(group = "events")]
-    pub(crate) shortcut: SmolStr,
-    /// Whether `shortcut` fires while a text field holds the keyboard. A chord without cmd, ctrl or alt never does unless it is a function key, since that is typing; off, no chord does, for one the field has a use for itself, as `cmd+z`
-    #[property(default = true, group = "events")]
-    pub(crate) while_typing: bool,
-    /// Whether `shortcut` takes its key ahead of a field being typed into, a plain key included, so the field never sees it: a completion list's arrows, Enter and Escape while it is up
-    #[property(group = "events")]
-    pub(crate) takes_typing: bool,
     /// Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own
     #[property(group = "events")]
     pub(crate) context: SmolStr,
