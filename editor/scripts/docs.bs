@@ -17,10 +17,10 @@ pub class DocsState {
 /// What the Docs panel shows: the module names, the one picked, its rows, and
 /// what to say when there is nothing to list.
 pub struct View {
-    modules: [str],
-    pick: str,
-    items: [ui::Item],
-    says: str,
+    internal modules: [str],
+    internal pick: str,
+    internal items: [ui::Item],
+    internal says: str,
 }
 
 pub fn state() -> DocsState {

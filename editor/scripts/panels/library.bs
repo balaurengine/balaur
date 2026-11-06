@@ -1,9 +1,11 @@
 // The Library tab's one script: it lights the kind, fills that kind's cards or
 // the templates from what the Editor hands it, and answers a pick of either.
 
+use editor;
+
 pub class Library {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 fn KINDS() -> [str] {
@@ -12,9 +14,11 @@ fn KINDS() -> [str] {
 
 impl Library {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "library_changed", self.editor);
-        events::listen(self.node, "outline_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, "library_changed", source);
+        events::listen(self.node, "outline_changed", source);
     }
 
     pub fn on_library_changed(_change: any) {
@@ -27,7 +31,7 @@ impl Library {
     }
 
     pub fn kind(_value: any, node: Node) {
-        self.editor.call("library_kind", node.name());
+        self.editor.unwrap().library_kind(node.name());
     }
 
     // A pick places, so the same card twice places twice: the row is read and
@@ -36,7 +40,14 @@ impl Library {
         let row = node.widget.text;
         node.widget.text = "";
         if row != "" {
-            self.editor.call("library_pick", row);
+            self.editor.unwrap().library_pick(row);
+        }
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
         }
     }
 
@@ -46,24 +57,21 @@ impl Library {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("library_view");
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().library_view();
         let kinds = self.node.get_node("Kinds");
         for kind in KINDS() {
-            kinds.get_node(kind).widget_check.checked = kind == view["kind"].as_str();
+            kinds.get_node(kind).widget_check.checked = kind == view.kind;
         }
         let patched = self.node.get_node("Note");
-        patched.set_visible(view["says"].as_str() != "");
-        patched.widget.text = view["says"].as_str();
-        let cards = !view["templates"].as_bool() && view["items"].len() > 0;
-        let table = view["templates"].as_bool() && view["items"].len() > 0;
+        patched.set_visible(view.says != "");
+        patched.widget.text = view.says;
+        let cards = !view.templates && view.items.len() > 0;
+        let table = view.templates && view.items.len() > 0;
         let patched = self.node.get_node("Cards");
         patched.set_visible(cards);
-        patched.widget_rows.items = if cards { view["items"] } else { [] };
+        patched.widget_rows.items = if cards { view.items } else { [] };
         let patched = self.node.get_node("Table");
         patched.set_visible(table);
-        patched.widget_rows.items = if table { view["items"] } else { [] };
+        patched.widget_rows.items = if table { view.items } else { [] };
     }
 }

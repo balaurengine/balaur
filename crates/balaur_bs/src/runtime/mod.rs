@@ -763,31 +763,23 @@ impl Runtime {
             let new_fields = into
                 .in_unit(*unit, |rt| rt.meta.fields(&obj.ty).map(<[_]>::to_vec))
                 .unwrap_or_default();
-            let carried: Vec<(smol_str::SmolStr, Value)> = self
-                .fields(obj)
-                .into_iter()
-                .filter(|(name, _)| {
-                    let old = old_fields.iter().find(|(k, _)| k == name).map(|(_, t)| t);
-                    new_fields
-                        .iter()
-                        .any(|(k, ty)| k == name && Some(ty) == old)
-                })
+            let carried: Vec<&String> = old_fields
+                .iter()
+                .filter(|(name, old)| new_fields.iter().any(|(k, ty)| k == name && ty == old))
+                .map(|(name, _)| name)
                 .collect();
-            let mut init: Vec<(&str, Value)> = vec![];
-            for (name, value) in &carried {
+            // A field pointed at its replacement is never read: what a panel
+            // holds of the Editor would read the Editor whole.
+            let mut values: Vec<(&str, Value)> = vec![];
+            for name in &carried {
                 let held = self.in_unit(obj.unit, |rt| rt.held_object(obj, name));
                 match held.and_then(|pointer| carried_at.get(&pointer)) {
-                    Some(target) => links.push((index, name.to_string(), *target)),
-                    None => init.push((name.as_str(), value.clone())),
+                    Some(target) => links.push((index, (*name).clone(), *target)),
+                    None => values.extend(self.get(obj, name).map(|value| (name.as_str(), value))),
                 }
             }
-            replacements.push(into.in_unit(*unit, |rt| rt.object(&obj.ty, &init))?);
-            kept_all.push(
-                carried
-                    .into_iter()
-                    .map(|(name, _)| name.to_string())
-                    .collect(),
-            );
+            replacements.push(into.in_unit(*unit, |rt| rt.object(&obj.ty, &values))?);
+            kept_all.push(carried.into_iter().cloned().collect());
         }
         for (holder, field, target) in &links {
             let pointer = Runtime::pointer(&replacements[*target]);

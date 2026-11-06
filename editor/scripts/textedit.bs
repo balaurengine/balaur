@@ -28,12 +28,12 @@ pub class TexteditState {
 /// its letters are typed at, 0 for the size its role carries.
 pub struct View {
     internal open: bool,
-    x: float,
-    y: float,
-    width: float,
-    height: float,
+    internal x: float,
+    internal y: float,
+    internal width: float,
+    internal height: float,
     internal text: str,
-    size: float,
+    internal size: float,
 }
 
 // Two clicks closer together than this many seconds, and this many design

@@ -2,26 +2,29 @@
 // on a word, and again after a control's own handler ran. Escape or a click
 // on the dim shuts it.
 
+use editor;
+
 pub class Sheet {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Sheet {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "sheet_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "sheet_changed", source);
     }
 
     pub fn on_sheet_changed(_change: any) {
-        self.editor.call("sheet_fill");
+        self.editor.unwrap().sheet_fill();
     }
 
     pub fn closed() {
-        self.editor.call("sheet_closed");
+        self.editor.unwrap().sheet_closed();
     }
 
     pub fn refill() {
-        self.editor.call("sheet_fill");
+        self.editor.unwrap().sheet_fill();
     }
 }

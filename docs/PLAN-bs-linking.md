@@ -143,9 +143,9 @@ changed is how many times they are made.
   makes only that one again, and a stop in it holds none of the editor's
   scripts. A file a native build lacks waits there until the project has moved
   off native code.
-- **`node.call` stays between instances**: the editor and a plugin, the
-  editor and the game it plays. Inside one instance a call by a method's
-  name in a string is the step after (PLAN-balaur-script §9 step 5).
+- **`node.call` stays between the editor and a plugin**, and between the
+  editor and the game it plays. Inside one instance a script calls another by
+  its type: the editor's panels call the Editor so since 2026-11-06.
 - **Not yet**: two scripts holding each other is a cycle the counts never
   free (a decode reads the inner one as nil rather than loop), and a
   carried object's deeper references, in a list or a struct, are copied.
@@ -200,3 +200,24 @@ Instructions retired are the whole run's, boot included.
 |---|---|---|
 | Nothing kept | 1,135 G, 287 s, the link nil | 96 G, 10 s |
 | Kept from a run before | 125 G, 137 s, the link nil | 10 G, 1.7 s |
+
+Measured 2026-11-06, the panels calling the Editor by type against the same
+tree with them calling it by name, one dev build, two runs each that agreed to
+1%: instructions retired, and the state's time on that Mac with the machine
+quiet. A boot is 12 frames; a state's cost is its run less a boot.
+
+| | by name | by type |
+|---|---|---|
+| Boot, nothing kept | 52.1 G | 63.9 G |
+| Boot, kept | 3.17 G | 3.44 G |
+| `test:profiler`, nothing kept | 39.9 G, 1.7 s | 52.9 G, 2.0 s |
+| `test:profiler`, kept | 1.45 G, 0.19 s | 1.89 G, 0.23 s |
+| `test:theme_switch`, kept | 0.86 G, 0.09 s | 0.87 G, 0.08 s |
+
+What a panel's unit costs more is reading the Editor's declarations, and the
+modules they name, as it compiles: once a run when nothing is kept. Before a
+carried link was left unread, the profiler's rebuild read the Editor once for
+each panel holding it, 1.5 G more kept. `scripts/edit_cost.sh`, M
+instructions an edit by name and by type: text 3.0 and 2.9, colour 3.0 and
+3.1, position 1.0 and 1.2, engine text 2.5 and 2.6, one run each.
+

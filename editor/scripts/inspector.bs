@@ -37,12 +37,12 @@ pub struct Inherited {
 
 /// What the Inspector panel's head says.
 pub struct View {
-    selected: bool,
-    icon: str,
-    icon_color: str,
-    name: str,
-    kind: str,
-    add_icon: str,
+    internal selected: bool,
+    internal icon: str,
+    internal icon_color: str,
+    internal name: str,
+    internal kind: str,
+    internal add_icon: str,
 }
 
 /// One row of the form: what it shows and where it sits. `count` is how many

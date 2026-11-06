@@ -40,13 +40,13 @@ pub struct Item {
 
 pub struct OutlineView {
     /// The rows, or none where they are the ones `stamp` already names.
-    items: [ui::Item],
-    stamp: str,
-    chosen: [str],
-    empty: bool,
-    filtering: bool,
-    nothing: str,
-    add_icon: str,
+    internal items: [ui::Item],
+    internal stamp: str,
+    internal chosen: [str],
+    internal empty: bool,
+    internal filtering: bool,
+    internal nothing: str,
+    internal add_icon: str,
 }
 
 /// Where the tree drew a row, in design px.

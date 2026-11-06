@@ -27,8 +27,8 @@ pub class Built {
 }
 
 pub struct OutputView {
-    items: [ui::Item],
-    says: str,
+    internal items: [ui::Item],
+    internal says: str,
 }
 
 /// A card's mark and the theme token it is inked with.
@@ -51,56 +51,56 @@ pub struct Shown {
 }
 
 pub struct AssetsView {
-    dir: str,
-    where: str,
-    renaming: bool,
-    name: str,
-    count: str,
-    importing: bool,
-    import_text: str,
-    import_tip: str,
-    folder_text: str,
-    chosen: bool,
-    items: [ui::Item],
-    picked: str,
+    internal dir: str,
+    internal where: str,
+    internal renaming: bool,
+    internal name: str,
+    internal count: str,
+    internal importing: bool,
+    internal import_text: str,
+    internal import_tip: str,
+    internal folder_text: str,
+    internal chosen: bool,
+    internal items: [ui::Item],
+    internal picked: str,
     /// The selection is a dependency's file, which Make local copies out.
-    local: bool,
+    internal local: bool,
     /// The `path` dependency Move to project moves the selection into, or "".
-    move_to: str,
+    internal move_to: str,
     /// What Edit dependency opens, or "" outside a dependency.
-    source_tip: str,
+    internal source_tip: str,
     /// The browser is in a Forge dependency, which Update moves on.
-    update: bool,
+    internal update: bool,
 }
 
 pub struct DebuggerView {
-    stopped: bool,
-    can_pause: bool,
-    steps: [str],
-    where: str,
-    threw: str,
-    break_on_error: bool,
-    frames: [ui::Item],
-    picked: str,
+    internal stopped: bool,
+    internal can_pause: bool,
+    internal steps: [str],
+    internal where: str,
+    internal threw: str,
+    internal break_on_error: bool,
+    internal frames: [ui::Item],
+    internal picked: str,
 }
 
 pub struct ProblemsView {
-    items: [ui::Item],
-    says: str,
+    internal items: [ui::Item],
+    internal says: str,
 }
 
 pub struct RecordingsFill {
-    verify: bool,
-    count: int,
+    internal verify: bool,
+    internal count: int,
 }
 
 pub struct MeterView {
-    titles: [str],
-    widths: [str],
-    items: [ui::Item],
-    says: str,
-    headline: str,
-    scripts: bool,
+    internal titles: [str],
+    internal widths: [str],
+    internal items: [ui::Item],
+    internal says: str,
+    internal headline: str,
+    internal scripts: bool,
 }
 
 /// A stage or a span, and what it cost the last frame.

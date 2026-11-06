@@ -31,6 +31,7 @@ use manager;
 use model;
 use newnode;
 use palette;
+use panels::scene_tree;
 use pen;
 use physics;
 use polygon;
@@ -3842,7 +3843,8 @@ const ASSETS_PANEL: str = "Editor/Shell/Body/Centre/Bottom/Assets";
 /// keep the query for the checks that follow.
 fn rows_search(state: &mut editor::State, query: str) {
     state.rows_query = query;
-    scene::get_node(SCENE_PANEL).call("find", query);
+    let panel: scene_tree::SceneTree? = scene::get_node(SCENE_PANEL).script;
+    panel.unwrap().find(query);
 }
 
 pub fn row_views(state: &mut editor::State) {

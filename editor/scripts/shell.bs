@@ -16,6 +16,7 @@ use lint;
 use manager;
 use model;
 use newnode;
+use panels::scene_tree;
 use plugins;
 use polygon;
 use populate;
@@ -1005,9 +1006,9 @@ fn state_override(state: &mut editor::State, tag: str) {
 
 // `find:<query>` fills the scene tree's search, for a screenshot.
 fn state_find(state: &mut editor::State, query: str) {
-    let panel = scene::get_node("Editor/Shell/Body/Left/LeftSheet/SceneTree");
-    if panel.is_valid() {
-        panel.call("find", query);
+    let panel: scene_tree::SceneTree? = scene::get_node("Editor/Shell/Body/Left/LeftSheet/SceneTree").script;
+    if panel != nil {
+        panel.unwrap().find(query);
     }
 }
 

@@ -1,18 +1,21 @@
 // The status strip's one script: what the editor is doing, how big the scene
 // is, and the workspace and tool in hand, filled when any of them moved.
 
+use editor;
+
 pub class Status {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Status {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "status_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "status_changed", source);
     }
 
     pub fn on_status_changed(_change: any) {
-        self.editor.call("status_fill");
+        self.editor.unwrap().status_fill();
     }
 }

@@ -31,10 +31,10 @@ pub struct Spot {
 }
 
 pub struct FillImports {
-    shown: bool,
-    bar: bool,
-    value: float,
-    until: float,
+    internal shown: bool,
+    internal bar: bool,
+    internal value: float,
+    internal until: float,
 }
 
 // What the head sheet keeps inside its edge, plus the row's own first step.

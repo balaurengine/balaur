@@ -19,15 +19,15 @@ pub class RefactorState {
 
 /// What the sheet shows.
 pub struct View {
-    open: bool,
-    title: str,
-    from: str,
-    to: str,
-    from_hint: str,
-    to_hint: str,
-    count: str,
-    hits: [ui::Item],
-    ready: bool,
+    internal open: bool,
+    internal title: str,
+    internal from: str,
+    internal to: str,
+    internal from_hint: str,
+    internal to_hint: str,
+    internal count: str,
+    internal hits: [ui::Item],
+    internal ready: bool,
 }
 
 pub fn state() -> RefactorState {

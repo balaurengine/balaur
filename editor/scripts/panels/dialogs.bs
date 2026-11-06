@@ -1,34 +1,37 @@
 // The plugin dialogs' one script: the Editor fills them when a plugin says
 // what they show moved, the document moved, or the stage they sit on did.
 
+use editor;
+
 pub class Dialogs {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Dialogs {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         for word in ["plugins_changed", "outline_changed", "stage_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
     pub fn on_plugins_changed(_change: any) {
-        self.editor.call("dialogs_fill");
+        self.editor.unwrap().dialogs_fill();
     }
 
     pub fn on_outline_changed(_change: any) {
-        self.editor.call("dialogs_fill");
+        self.editor.unwrap().dialogs_fill();
     }
 
     pub fn on_stage_changed(_change: any) {
-        self.editor.call("dialogs_fill");
+        self.editor.unwrap().dialogs_fill();
     }
 
     /// A control has run its own handler by now, so what is left is to show
     /// what it changed.
     pub fn refill() {
-        self.editor.call("dialogs_fill");
+        self.editor.unwrap().dialogs_fill();
     }
 }

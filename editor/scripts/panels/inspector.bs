@@ -2,19 +2,22 @@
 // form must follow, and has the Editor, which owns the document, build the
 // rows. A hidden Inspector does nothing, and is filled when it is shown.
 
+use editor;
+
 pub class Inspector {
     node: Node,
     query: str,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Inspector {
     pub fn init() {
         self.query = "";
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "outline_changed", self.editor);
-        events::listen(self.node, "inspector_changed", self.editor);
-        events::listen(self.node, "plugins_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "outline_changed", source);
+        events::listen(self.node, "inspector_changed", source);
+        events::listen(self.node, "plugins_changed", source);
         events::listen(self.node, "resized", self.node.get_node("Scroll"));
     }
 
@@ -26,7 +29,7 @@ impl Inspector {
     /// What the form is built from beside them moved, or a frame of play,
     /// where the rows on screen read their values again and nothing else.
     pub fn on_inspector_changed(_change: any) {
-        if self.node.visible_in_tree() && !self.editor.call("inspector_reread").as_bool() {
+        if self.node.visible_in_tree() && !self.editor.unwrap().inspector_reread() {
             self.refresh();
         }
     }
@@ -36,12 +39,12 @@ impl Inspector {
     }
 
     pub fn on_resized(_box: any) {
-        self.editor.call("inspector_resized");
+        self.editor.unwrap().inspector_resized();
     }
 
     /// The form scrolled to `[x, y]`.
     pub fn scrolled(offset: any) {
-        self.editor.call("inspector_scrolled", offset[1].as_float());
+        self.editor.unwrap().inspector_scrolled(offset[1].as_float());
     }
 
     pub fn search_typed(value: any) {
@@ -50,7 +53,7 @@ impl Inspector {
     }
 
     pub fn add() {
-        self.editor.call("inspector_add");
+        self.editor.unwrap().inspector_add();
     }
 
     // A plugin's drawer wrote through the Editor and may have moved what the
@@ -63,13 +66,10 @@ impl Inspector {
         if !self.node.visible_in_tree() {
             return;
         }
-        let view = self.editor.call("inspector_view");
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().inspector_view();
         let head = self.node.get_node("Head");
         let nothing = self.node.get_node("Nothing");
-        if !view["selected"].as_bool() {
+        if !view.selected {
             for one in [head, self.node.get_node("Search"), self.node.get_node("Scroll"), self.node.get_node("Foot")] {
                 one.set_visible(false);
             }
@@ -81,11 +81,11 @@ impl Inspector {
             one.set_visible(true);
         }
         let patched = head.get_node("Name");
-        patched.widget.text = view["name"].as_str();
-        patched.widget_button.icon = view["icon"].as_str();
-        patched.widget_button.icon_color = view["icon_color"].as_str();
-        head.get_node("Type").widget.text = view["kind"].as_str();
-        self.node.get_node("Foot").get_node("Add").widget_button.icon = view["add_icon"].as_str();
-        self.editor.call("inspector_fill", self.query);
+        patched.widget.text = view.name;
+        patched.widget_button.icon = view.icon;
+        patched.widget_button.icon_color = view.icon_color;
+        head.get_node("Type").widget.text = view.kind;
+        self.node.get_node("Foot").get_node("Add").widget_button.icon = view.add_icon;
+        self.editor.unwrap().inspector_fill(self.query);
     }
 }

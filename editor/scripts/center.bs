@@ -38,35 +38,35 @@ pub struct RailGrid {
 }
 
 pub struct StageView {
-    safe: bool,
-    resolution: bool,
-    res_inset: [float],
-    left: SheetHandle,
-    right: SheetHandle,
-    rail_handle: bool,
-    pad: float,
-    diameter: float,
+    internal safe: bool,
+    internal resolution: bool,
+    internal res_inset: [float],
+    internal left: SheetHandle,
+    internal right: SheetHandle,
+    internal rail_handle: bool,
+    internal pad: float,
+    internal diameter: float,
 }
 
 /// The round button that opens a side sheet over the stage.
 pub struct SheetHandle {
-    shown: bool,
-    icon: str,
-    tooltip: str,
+    internal shown: bool,
+    internal icon: str,
+    internal tooltip: str,
 }
 
 pub struct HudView {
-    shown: bool,
-    inset: [any],
-    height: float,
-    step: float,
-    x_ink: str,
-    y_ink: str,
-    quiet_ink: str,
-    zoom: str,
-    add_icon: str,
-    bottom: bool,
-    bottom_icon: str,
+    internal shown: bool,
+    internal inset: [any],
+    internal height: float,
+    internal step: float,
+    internal x_ink: str,
+    internal y_ink: str,
+    internal quiet_ink: str,
+    internal zoom: str,
+    internal add_icon: str,
+    internal bottom: bool,
+    internal bottom_icon: str,
 }
 
 pub struct OpenFile {
@@ -76,14 +76,14 @@ pub struct OpenFile {
 }
 
 pub struct CodeView {
-    shown: bool,
-    inset: [any],
-    note: str,
-    path: str,
-    rev: int,
-    text: any,
-    scroll_to: float,
-    look: Look,
+    internal shown: bool,
+    internal inset: [any],
+    internal note: str,
+    internal path: str,
+    internal rev: int,
+    internal text: any,
+    internal scroll_to: float,
+    internal look: Look,
 }
 
 pub struct Look {

@@ -2,17 +2,20 @@
 // handles over the viewport, shown as the Editor says when the workspace, the
 // docks, the room or a chip moved.
 
+use editor;
+
 pub class Stage {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 const STAGE: str = "stage_changed";
 
 impl Stage {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, STAGE, self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, STAGE, source);
     }
 
     pub fn on_stage_changed(_change: any) {
@@ -21,29 +24,26 @@ impl Stage {
 
     pub fn open(_value: any, node: Node) {
         let side = node.parent().name();
-        self.editor.call("stage_verb", if side == "Left" { "open_left" } else { "open_right" });
+        self.editor.unwrap().stage_verb(if side == "Left" { "open_left" } else { "open_right" });
     }
 
     fn refresh() {
-        let view = self.editor.call("stage_view");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.get_node("Safe").set_visible(view["safe"].as_bool());
+        let view = self.editor.unwrap().stage_view();
+        self.node.get_node("Safe").set_visible(view.safe);
         let patched = self.node.get_node("Resolution");
-        patched.set_visible(view["resolution"].as_bool());
-        patched.patch_component("widget", { "inset": view["res_inset"] });
+        patched.set_visible(view.resolution);
+        patched.patch_component("widget", { "inset": view.res_inset });
         for side in ["Left", "Right"] {
-            let handle = if side == "Left" { view["left"] } else { view["right"] };
+            let handle = if side == "Left" { view.left } else { view.right };
             let sheet = self.node.get_node(side);
-            sheet.set_visible(handle["shown"].as_bool());
-            sheet.patch_component("widget", { "padding": view["pad"] });
+            sheet.set_visible(handle.shown);
+            sheet.patch_component("widget", { "padding": view.pad });
             let patched = sheet.get_node("Open");
-            patched.widget_button.icon = handle["icon"].as_str();
-            patched.widget.tooltip = handle["tooltip"].as_str();
-            patched.widget.width = view["diameter"].as_float();
-            patched.widget.height = view["diameter"].as_float();
-            patched.widget.corner_radius = view["diameter"].as_float() / 2.0;
+            patched.widget_button.icon = handle.icon;
+            patched.widget.tooltip = handle.tooltip;
+            patched.widget.width = view.diameter;
+            patched.widget.height = view.diameter;
+            patched.widget.corner_radius = view.diameter / 2.0;
         }
     }
 }
