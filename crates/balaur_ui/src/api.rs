@@ -340,10 +340,28 @@ fn install_driving(m: &mut Module<Engine>) {
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
-            "edit",
+            "edit_number",
             &[],
-            "(node: node, value) -> bool",
-            "Change a widget node's value as the reader would, at the next tick, so it announces `change`: a number for a slider or a number field, a colour for a swatch, a boolean for a fold, text for a field, a dropdown's pick, a list's row or a tab. False for a disabled widget or a value its kind does not take.",
+            "(node: node, value: float) -> bool",
+            "Change a slider or a number field as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no number.",
+        ),
+        (
+            "edit_text",
+            &[],
+            "(node: node, value: string) -> bool",
+            "Change a text field, a dropdown's pick, a list's row or a tab as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no text.",
+        ),
+        (
+            "edit_color",
+            &[],
+            "(node: node, value: Color) -> bool",
+            "Change a swatch as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no colour.",
+        ),
+        (
+            "edit_bool",
+            &[],
+            "(node: node, value: bool) -> bool",
+            "Open or close a fold as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no boolean.",
         ),
     ]);
     m.records(&[(
@@ -351,12 +369,14 @@ fn install_driving(m: &mut Module<Engine>) {
         "{ hidden: bool? }",
         "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
     )]);
-    m.function(
-        "edit",
-        |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
-            Ok(crate::edit(eng, balaur_core::entity_of(node)?, &value))
-        },
-    );
+    for name in ["edit_number", "edit_text", "edit_color", "edit_bool"] {
+        m.function(
+            name,
+            |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
+                Ok(crate::edit(eng, balaur_core::entity_of(node)?, &value))
+            },
+        );
+    }
     m.function(
         "click",
         |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<balaur_script::Value>)| {

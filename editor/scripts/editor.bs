@@ -283,7 +283,7 @@ pub class State {
 /// The 3D light and camera marks, and what they were drawn for.
 pub struct Overlay3d {
     internal key: [any],
-    internal lines: [any],
+    internal lines: [float],
 }
 
 /// The viewport's rect in design pixels, and the frame it was read on.

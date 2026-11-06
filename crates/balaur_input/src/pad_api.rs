@@ -18,7 +18,7 @@ use crate::vocabulary::{keys as k, words as w};
 
 pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("gamepads", &[], "", "The ids of every connected pad: player slots from 0. A pad takes the lowest free slot last held by the same model, else the lowest free slot, and keeps it while connected."),
+        ("gamepads", &[], "() -> [int]", "The ids of every connected pad: player slots from 0. A pad takes the lowest free slot last held by the same model, else the lowest free slot, and keeps it while connected."),
         ("gamepad_name", &[], "", "The pad's name: its mapping's when one matched, else the platform's. Empty when no pad has that id."),
         ("gamepad_down", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button is held down: pressed past `[input] gamepad_press`, and not yet back under `gamepad_release`."),
         ("gamepad_just_pressed", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button went down this frame; a press and a release between two frames are both seen."),
@@ -26,13 +26,14 @@ pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
         ("gamepad_repeated", &[], "", "True the frame the pad's `GAMEPAD_BUTTON_*` button goes down, then every `[input] gamepad_repeat_interval_seconds` once it has been held for `gamepad_repeat_delay_seconds`: for stepping through a menu."),
         ("gamepad_pressure", &[], "", "How far the pad's `GAMEPAD_BUTTON_*` button is pressed, 0 to 1, before any deadzone: a digital button reads 0 or 1, a trigger or a pressure-sensitive button anything between."),
         ("gamepad_axis", &[], "", "How far the pad's `GAMEPAD_AXIS_*` stick or trigger is pushed: a stick -1 to 1 with up and right positive, a trigger 0 to 1, after `[input] gamepad_deadzone`; zero at rest and for an absent pad."),
-        ("gamepad_info", &[], "", "Who the pad is: `{ os_name, guid, vendor, product, mapping }`, with `guid` SDL's 32 hex digits and `mapping` either `sdl` or `driver`. Empty for an absent pad."),
-        ("gamepad_power", &[], "", "The pad's power, `{ state, level }`: a `GAMEPAD_POWER_*` state and a charge from 0 to 1, or -1 when not known. Read whenever the pad sends anything."),
-        ("gamepad_gyro", &[], "", "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope."),
-        ("gamepad_acceleration", &[], "", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer."),
-        ("gamepad_touches", &[], "", "Every finger on the pad's touchpad as `{ id, x, y }`, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad."),
-        ("feed_gamepad", &[], "(id: int, opts: map)", "Report a pad as if a backend had, from next frame: `buttons` and `axes` maps of name to value, `power` as `gamepad_power` reads it, `gyro`, `acceleration`, `touches`, and the identity keys `name`, `os_name`, `guid`, `vendor`, `product`, `mapping` and `rumble`. A pad fed anything connects; `connected: false` unplugs it."),
+        ("gamepad_info", &[], "(id: int) -> GamepadInfo?", "Who the pad is; nil for an absent pad."),
+        ("gamepad_power", &[], "(id: int) -> GamepadPower", "The pad's power. Read whenever the pad sends anything."),
+        ("gamepad_gyro", &[], "(id: int) -> Vec3", "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope."),
+        ("gamepad_acceleration", &[], "(id: int) -> Vec3", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer."),
+        ("gamepad_touches", &[], "(id: int) -> [Touch]", "Every finger on the pad's touchpad, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad."),
+        ("feed_gamepad", &[], "(id: int, opts: PadFeed)", "Report a pad as if a backend had, from next frame. A pad fed anything connects; `connected: false` unplugs it."),
     ]);
+    install_pad_records(m);
     for name in PAD_BUTTON_NAMES {
         m.constant(
             &const_name("GAMEPAD_BUTTON_", name),
@@ -58,6 +59,10 @@ pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
             Value::Str(word.to_string()),
         );
     }
+    install_pad_readers(m);
+}
+
+fn install_pad_readers(m: &mut Module<Engine>) {
     m.function("gamepads", |eng: &Engine, ()| {
         let state = eng.resource::<GamepadState>();
         let ids = state
@@ -87,7 +92,7 @@ pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
         let state = eng.resource::<GamepadState>();
         let state = state.borrow();
         let Some(pad) = state.pad(id) else {
-            return Ok(Value::Map(Vec::new()));
+            return Ok(Value::Nil);
         };
         let info = pad.info();
         Ok(Value::Map(vec![
@@ -117,6 +122,37 @@ pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
         feed(&mut eng.resource::<GamepadState>().borrow_mut(), id, &opts)
     });
     crate::haptics::install_haptics_api(m);
+}
+
+/// What a script reads of a pad, and what it feeds one.
+fn install_pad_records(m: &mut Module<Engine>) {
+    m.records(&[
+        (
+            "GamepadInfo",
+            "{ os_name: string, guid: string, vendor: int, product: int, mapping: string }",
+            "Who a pad is, with `guid` SDL's 32 hex digits and `mapping` either `sdl` or `driver`.",
+        ),
+        (
+            "GamepadPower",
+            "{ state: string, level: float }",
+            "A pad's power: a `GAMEPAD_POWER_*` state and a charge from 0 to 1, or -1 when not known.",
+        ),
+        (
+            "PadButtons",
+            "{ south: float?, east: float?, north: float?, west: float?, left_shoulder: float?, left_trigger: float?, right_shoulder: float?, right_trigger: float?, back: float?, start: float?, guide: float?, left_stick: float?, right_stick: float?, dpad_up: float?, dpad_down: float?, dpad_left: float?, dpad_right: float?, c: float?, z: float? }",
+            "How far a fed pad's buttons are pressed, 0 to 1; one left out stays as it was.",
+        ),
+        (
+            "PadAxes",
+            "{ left_x: float?, left_y: float?, right_x: float?, right_y: float?, left_trigger: float?, right_trigger: float? }",
+            "Where a fed pad's sticks and triggers are; one left out stays as it was.",
+        ),
+        (
+            "PadFeed",
+            "{ connected: bool?, name: string?, os_name: string?, guid: string?, vendor: int?, product: int?, mapping: string?, rumble: bool?, buttons: PadButtons?, axes: PadAxes?, power: GamepadPower?, gyro: Vec3?, acceleration: Vec3?, touches: [Touch]? }",
+            "What a script reports of a pad: its identity, its buttons and sticks, its power, its motion and its touchpad.",
+        ),
+    ]);
 }
 
 /// The four per-button readers, which differ only in what they ask the pad.
@@ -285,11 +321,9 @@ fn merge_info(info: &mut PadInfo, opts: Option<&Value>) -> anyhow::Result<bool> 
     Ok(any)
 }
 
-/// A button's or an axis's value as a script spelled it: a number, or a bool
-/// for a digital button.
+/// A button's or an axis's value, whichever way the language spelled the number.
 fn pressure_of(value: &Value) -> Option<f32> {
     match value {
-        Value::Bool(down) => Some(f32::from(u8::from(*down))),
         Value::Num(n) => Some(*n as f32),
         Value::Int(n) => Some(*n as f32),
         _ => None,

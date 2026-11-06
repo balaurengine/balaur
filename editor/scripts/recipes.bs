@@ -689,17 +689,17 @@ fn islands(sprite: any, loops: [[Vec2]]) -> any {
     let positions: [[float]] = [];
     let indices: [[int]] = [];
     for found in loops {
-        let raw: [[float]] = [];
-        for outline_point in found {
-            raw.push([outline_point.x, outline_point.y]);
-        }
         // Traced counter-clockwise, a hole runs the other way.
-        if raw.len() < 3 || geometry2d::is_clockwise(raw) {
+        if found.len() < 3 || geometry2d::is_clockwise(found) {
             continue;
         }
         let points = placed(sprite, found);
+        let outline: [Vec2] = [];
+        for point in points {
+            outline.push(vec2(point[0], point[1]));
+        }
         let base = positions.len();
-        for triangle in geometry2d::triangulate(points) {
+        for triangle in geometry2d::triangulate(outline) {
             indices.push([triangle[0] + base, triangle[1] + base, triangle[2] + base]);
         }
         for point in points {

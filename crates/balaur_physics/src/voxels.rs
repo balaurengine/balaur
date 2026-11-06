@@ -13,7 +13,7 @@ use crate::vocabulary::component as c;
 pub(crate) fn install_voxel_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("set_voxel_size", &[c::COLLIDER_3D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
-        ("voxel_size", &[c::COLLIDER_3D], "", "How big one cell of a voxel collider is, along each axis."),
+        ("voxel_size", &[c::COLLIDER_3D], "(node: node) -> Vec3", "How big one cell of a voxel collider is, along each axis."),
         ("crop_voxels", &[c::COLLIDER_3D], "", "Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was."),
         ("combine_voxels", &[c::COLLIDER_3D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
     ]);

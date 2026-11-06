@@ -802,11 +802,15 @@ fn refresh_multimeshes_system(eng: &Engine, _dt: f32) {
         }
         stale
     };
+    // The component's own values did not move, so a write of them would read
+    // as unchanged; what moved is the file its copy came from.
     for (entity, source, flat) in stale {
-        let name = if flat { MULTIMESH_2D } else { MULTIMESH_3D };
-        if let Some(params) = balaur_core::components::get(eng, entity, name)
-            && let Err(why) = balaur_core::components::patch(eng, entity, name, &params)
-        {
+        let laid_out = if flat {
+            multimesh2d_laid_out(eng, entity)
+        } else {
+            multimesh3d_laid_out(eng, entity)
+        };
+        if let Err(why) = laid_out {
             tracing::warn!("multimesh '{source}': {why:#}");
         }
     }

@@ -9,7 +9,7 @@ use signals;
 use util;
 
 pub class DocsState {
-    modules: any,
+    modules: [script::ApiModule],
     pick: str,
     function_pick: str,
 }
@@ -24,13 +24,13 @@ pub struct View {
 }
 
 pub fn state() -> DocsState {
-    DocsState { modules: nil, pick: "", function_pick: "" }
+    DocsState { modules: [], pick: "", function_pick: "" }
 }
 
 // Every module, asked once per session: `script::api` builds the whole
 // reference on each call, which is not a per-frame cost worth paying.
-fn modules(state: &mut editor::State) -> any {
-    if state.docs.modules == nil {
+fn modules(state: &mut editor::State) -> [script::ApiModule] {
+    if state.docs.modules.len() == 0 {
         state.docs.pick = if state.docs.pick == "" { "engine" } else { state.docs.pick };
         state.docs.modules = script::api();
     }
@@ -53,9 +53,9 @@ pub fn pick(state: &mut editor::State, module: str) {
 }
 
 // The module the dock is showing; nil when none is.
-fn current(state: editor::State, list: any) -> any {
+fn current(state: editor::State, list: [script::ApiModule]) -> script::ApiModule? {
     for module in list {
-        if module["name"].as_str() == state.docs.pick {
+        if module.name == state.docs.pick {
             return module;
         }
     }
@@ -65,39 +65,38 @@ fn current(state: editor::State, list: any) -> any {
 /// What the Docs panel shows for `query`.
 pub fn view(state: &mut editor::State, query: str) -> View {
     let tokens = state.theme;
-    let list = util::list_or_empty(modules(state));
+    let list = modules(state);
     let names: [str] = [];
     for module in list {
-        names.push(module["name"].as_str());
+        names.push(module.name);
     }
-    let module = current(state, list);
-    if module == nil {
+    let found = current(state, list);
+    if found == nil {
         let says = if list.len() == 0 { "the engine reported no modules" } else { "pick a module" };
         return View { modules: names, pick: state.docs.pick, items: [], says: says };
     }
+    let module = found.unwrap();
     let items: [ui::Item] = [];
-    if module["doc"].as_str() != "" {
-        items.push(ui::Item { label: module["doc"].as_str(), tint: tokens["text_muted"].as_str() });
+    if module.doc != "" {
+        items.push(ui::Item { label: module.doc, tint: tokens["text_muted"].as_str() });
     }
     let shown = 0;
-    for function in util::list_or_empty(module["functions"]) {
-        let name = function.as_str();
+    for function in module.functions {
+        let name = function.name;
         if !search::matches(query, name) {
             continue;
         }
         shown += 1;
         let tint = if name == state.docs.function_pick { tokens["primary_text"] } else { tokens["text_default"] };
-        let on = module["acts_on"][name];
-        let called = if on == nil { name } else { "node.{on[0].as_str()}.{name}" };
-        items.push(ui::Item { label: called + module["signatures"][name].as_str(), tint: tint.as_str() });
-        let doc = module["docs"][name].as_str();
-        if doc != "" {
-            items.push(ui::Item { label: "\t  " + doc, tint: tokens["text_subtle"].as_str() });
+        let called = if function.acts_on.len() == 0 { name } else { "node.{function.acts_on[0]}.{name}" };
+        items.push(ui::Item { label: called + function.signature, tint: tint.as_str() });
+        if function.doc != "" {
+            items.push(ui::Item { label: "\t  " + function.doc, tint: tokens["text_subtle"].as_str() });
         }
     }
     if query == "" {
-        for constant in util::list_or_empty(module["constants"]) {
-            items.push(ui::Item { label: "{constant["name"].as_str()}  {constant["value"].as_str()}", tint: tokens["text_subtle"].as_str() });
+        for constant in module.constants {
+            items.push(ui::Item { label: "{constant.name}  {constant.value}", tint: tokens["text_subtle"].as_str() });
         }
     }
     let says = if shown == 0 && query != "" { search::nothing_says(query) } else { "" };

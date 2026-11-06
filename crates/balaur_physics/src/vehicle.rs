@@ -301,11 +301,16 @@ pub struct WheelInput3d {
 }
 
 pub(crate) fn install_vehicle_api(m: &mut Module<Engine>) {
+    m.records(&[(
+        "WheelState",
+        "{ rotation: float, suspension_force: float, in_contact: bool, engine_force: float, brake: float, steering: float, forward_impulse: float, side_impulse: float, contact_normal: Vec3, contact_point: Vec3, suspension_length: float, ray_origin: Vec3, ground: node?, center: Vec3, suspension: Vec3, axle: Vec3 }",
+        "What the last step did with a wheel. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil.",
+    )]);
     m.describe(&[
         ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
         ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0."),
         ("set_steering", &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
-        ("wheel_state", &[c::WHEEL_3D], "", "What the last step did with this wheel: `{ rotation, suspension_force, in_contact, engine_force, brake, steering, forward_impulse, side_impulse, contact_normal, contact_point, suspension_length, ray_origin, ground, center, suspension, axle }`. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil."),
+        ("wheel_state", &[c::WHEEL_3D], "(node: node) -> WheelState", "What the last step did with this wheel."),
         ("set_wheel_rotation", &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`."),
         ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
     ]);

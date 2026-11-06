@@ -303,7 +303,7 @@ fn a_property_the_component_lacks_does_not_compile() {
         );
         compile(&src, &options).map(|_| ()).unwrap_err().to_string()
     };
-    let read = with("let at = self.node.get_component(\"transform\", \"skew\");");
+    let read = with("let at = self.node.component_property(\"transform\", \"skew\");");
     assert!(
         read.contains("read a property as `node.transform.skew`"),
         "{read}"

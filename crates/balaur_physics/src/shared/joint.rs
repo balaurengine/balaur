@@ -474,10 +474,11 @@ macro_rules! functions {
                 } else {
                     w::DISABLED
                 };
-                return Ok(crate::vocabulary::map([(
-                    k::STATUS,
-                    Value::Str(status.into()),
-                )]));
+                return Ok(crate::vocabulary::map([
+                    (k::STATUS, Value::Str(status.into())),
+                    (k::LIMIT_IMPULSES, Value::Map(Vec::new())),
+                    (k::MOTOR_IMPULSES, Value::Map(Vec::new())),
+                ]));
             };
             let (data, bodies, chain) = joint_parts(&state.world, reference.handle)?;
             let status = match data.enabled {

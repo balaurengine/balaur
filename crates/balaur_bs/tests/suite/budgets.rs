@@ -25,34 +25,34 @@ const SETUP: &str = r#"
 "#;
 
 // The operation, and its ceiling in fuel each time it runs: what it spent on
-// 2026-10-27, and a quarter more.
+// 2026-11-06, and a quarter more.
 const CASES: &[(&str, u64)] = &[
-    (r#"if greeting.contains("wor") { total += 1; }"#, 3000),
-    (r#"total += greeting.find("wor");"#, 3000),
+    (r#"if greeting.contains("wor") { total += 1; }"#, 290),
+    (r#"total += greeting.find("wor");"#, 280),
     (
         r#"if greeting.starts_with("hel") && greeting.ends_with("rld") { total += 1; }"#,
-        2000,
+        680,
     ),
-    ("total += greeting.slice(2, 7).len();", 1100),
-    ("total += greeting.to_upper().len();", 4700),
-    ("total += wide.to_lower().len();", 55000),
-    ("total += padded.trim().len();", 3400),
-    (r#"total += greeting.replace("o", "0").len();"#, 10200),
-    (r#"total += greeting.split(" ").len();"#, 5900),
-    ("total += wide.chars().len();", 10800),
-    (r#"total += "-12345".parse_int();"#, 2400),
-    (r#"total += scores["e"].as_int();"#, 1550),
-    (r#"scores["e"] = step;"#, 1600),
-    (r#"if scores.has("h") { total += scores.len(); }"#, 1950),
-    ("total += scores.keys().len();", 2200),
-    (r#"total += typed["e"].or(0);"#, 700),
-    (r#"typed["e"] = step;"#, 760),
-    (r#"if typed.has("h") { total += typed.len(); }"#, 680),
-    ("total += letters[1].as_str().len();", 560),
-    ("if letters == letters { total += 1; }", 3800),
-    ("total += scores.text().len();", 28600),
-    ("let cell: any = item; total += cell.len();", 3200),
-    ("let back: Item = boxed; total += back.tags.len();", 5400),
+    ("total += greeting.slice(2, 7).len();", 710),
+    ("total += greeting.to_upper().len();", 3450),
+    ("total += wide.to_lower().len();", 32970),
+    ("total += padded.trim().len();", 2000),
+    (r#"total += greeting.replace("o", "0").len();"#, 5510),
+    (r#"total += greeting.split(" ").len();"#, 2100),
+    ("total += wide.chars().len();", 7490),
+    (r#"total += "-12345".parse_int();"#, 1510),
+    (r#"total += scores["e"].as_int();"#, 340),
+    (r#"scores["e"] = step;"#, 490),
+    (r#"if scores.has("h") { total += scores.len(); }"#, 370),
+    ("total += scores.keys().len();", 2000),
+    (r#"total += typed["e"].or(0);"#, 300),
+    (r#"typed["e"] = step;"#, 360),
+    (r#"if typed.has("h") { total += typed.len(); }"#, 270),
+    ("total += letters[1].as_str().len();", 210),
+    ("if letters == letters { total += 1; }", 1930),
+    ("total += scores.text().len();", 24030),
+    ("let cell: any = item; total += cell.len();", 2950),
+    ("let back: Item = boxed; total += back.tags.len();", 2050),
 ];
 
 // What `op`, run `RUNS` times, spent beyond an empty loop, and the calls out.
@@ -74,6 +74,19 @@ fn cost(op: &str) -> (u64, u64) {
         .unwrap_or_else(|error| panic!("{op}: {error}"));
     let spent = FUEL - rt.fuel_left().expect("wasmi meters fuel");
     (spent, rt.host_calls() - before)
+}
+
+// What each operation spends, to set a ceiling from and for the plan's tables:
+// `cargo test -p balaur_bs --test suite every_cost -- --ignored --nocapture`.
+#[test]
+#[ignore = "prints; the gate is the test below"]
+fn every_cost() {
+    let (empty, _) = cost("total += step;");
+    for (op, ceiling) in CASES {
+        let (spent, calls) = cost(op);
+        let each = spent.saturating_sub(empty) / RUNS.unsigned_abs();
+        println!("{each:>7} of {ceiling:>6}, {calls} out: {op}");
+    }
 }
 
 #[test]

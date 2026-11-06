@@ -341,12 +341,17 @@ pub(crate) fn hash_sha256_text(_: &Engine, args: &[Value]) -> Result<Value> {
 
 pub(crate) fn encoding_base64(_: &Engine, args: &[Value]) -> Result<Value> {
     use base64::Engine as _;
-    let encoded = match args.first() {
-        Some(Value::Bytes(bytes)) => base64::engine::general_purpose::STANDARD.encode(bytes),
-        Some(Value::Str(text)) => base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
-        other => return Err(anyhow!("base64 takes bytes or a string, got {other:?}")),
-    };
-    Ok(Value::Str(encoded))
+    let bytes = crate::handler::bytes_of(args.first().unwrap_or(&Value::Nil))?;
+    Ok(Value::Str(
+        base64::engine::general_purpose::STANDARD.encode(bytes),
+    ))
+}
+
+pub(crate) fn encoding_base64_text(_: &Engine, args: &[Value]) -> Result<Value> {
+    use base64::Engine as _;
+    Ok(Value::Str(
+        base64::engine::general_purpose::STANDARD.encode(text(args, 0)?.as_bytes()),
+    ))
 }
 
 pub(crate) fn encoding_from_base64(_: &Engine, args: &[Value]) -> Result<Value> {

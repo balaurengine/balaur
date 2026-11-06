@@ -298,7 +298,7 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let x = math::cos(a) * FIELD;
         let y = math::sin(a) * FIELD;
         let hit = physics2d::shapecast(physics2d::ShapeQuery {
-            shape: { "kind": "circle", "radius": 24.0 },
+            shape: physics2d::Shape { kind: "circle", radius: 24.0 },
             origin: vec2(x, y),
             direction: vec2(-x, -y),
             max_distance: 2.0,

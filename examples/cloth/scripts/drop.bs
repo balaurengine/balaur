@@ -8,12 +8,12 @@ pub class Drop {
     frame: int,
 }
 
-fn INK() -> [float] {
-    [0.93, 0.94, 0.96, 1.0]
+fn INK() -> Color {
+    color(0.93, 0.94, 0.96, 1.0)
 }
 
-fn FAINT() -> [float] {
-    [0.62, 0.66, 0.72, 1.0]
+fn FAINT() -> Color {
+    color(0.62, 0.66, 0.72, 1.0)
 }
 
 impl Drop {
@@ -23,7 +23,7 @@ impl Drop {
     }
 }
 
-fn label(x: float, y: float, text: str, size: float, color: [float]) {
+fn label(x: float, y: float, text: str, size: float, color: Color) {
     render::draw_text_3d(x, y, 0.0, text, render::TextOptions {
         font_size: size,
         color: color,

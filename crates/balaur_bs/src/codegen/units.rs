@@ -2,10 +2,11 @@
 // that call through them, and what a unit imports from the rest of its script.
 
 use super::asyncs;
-use super::rt::G_LINK_BASE;
+use super::rt::{G_LINK_BASE, GLOBALS};
+use super::sections::PROF_GLOBALS;
 use super::{Emitted, FuncBody, Gen, Kind, Linked, Sig, Signature};
 use crate::ast::{Expr, ExprKind, FnDecl, Program, StmtKind};
-use crate::{Slot, words};
+use crate::{Options, Slot, words};
 use std::collections::HashMap;
 use wasm_encoder::{
     EntityType, GlobalType, ImportSection, Instruction as I, MemoryType, RefType, TableType,
@@ -174,11 +175,42 @@ pub(super) fn named(
     out
 }
 
-// A scalar a built-in import passes: a heap value goes as its pointer.
+/// Where the globals a build asks for sit, past what every module has: a
+/// whole module's after its own, a unit's after its imports.
+pub(super) struct AskedGlobals {
+    pub(super) fuel: u32,
+    /// The statement count, then the callees' share, then the table's address.
+    pub(super) prof: Option<u32>,
+    pub(super) dbg_unit: Option<u32>,
+    pub(super) host_ctx: u32,
+}
+
+impl AskedGlobals {
+    pub(super) fn of(options: &Options) -> Self {
+        let mut next = if options.unit {
+            G_LINK_BASE + 1
+        } else {
+            GLOBALS as u32
+        };
+        let fuel = next;
+        next += u32::from(options.meter);
+        let prof = options.profile.then_some(next);
+        next += PROF_GLOBALS * u32::from(options.profile);
+        let dbg_unit = (options.unit && options.debug).then_some(next);
+        next += u32::from(dbg_unit.is_some());
+        AskedGlobals {
+            fuel,
+            prof,
+            dbg_unit,
+            host_ctx: next,
+        }
+    }
+}
 
 // What a unit shares with the rest of its script: the memory, the `fn`
-// table, the allocator's globals, and where its own parts start.
-pub(super) fn unit_imports(sec: &mut ImportSection) {
+// table, the allocator's globals, where its own parts start, and what its
+// build counts with. A direct unit's id comes last, once it is known to be one.
+pub(super) fn unit_imports(sec: &mut ImportSection, options: &Options) {
     let host = words::HOST_MODULE;
     let memory = MemoryType {
         minimum: 1,
@@ -209,6 +241,41 @@ pub(super) fn unit_imports(sec: &mut ImportSection) {
     for name in [words::MEMORY_BASE, words::TABLE_BASE, words::LINK_BASE] {
         sec.import(host, name, global(false));
     }
+    if options.meter {
+        sec.import(host, words::FUEL, global(true));
+    }
+    if options.profile {
+        sec.import(host, words::STEPS, global(true));
+        sec.import(host, words::PROF_CALLEES, global(true));
+        sec.import(host, words::PROF, global(false));
+    }
+    if options.debug {
+        sec.import(host, words::DBG_UNIT, global(false));
+    }
+}
+
+// A direct unit's id, past everything [`unit_imports`] asked for.
+pub(super) fn host_ctx_import(sec: &mut ImportSection) {
+    let id = GlobalType {
+        val_type: ValType::I32,
+        mutable: false,
+        shared: false,
+    };
+    sec.import(words::HOST_MODULE, words::HOST_CTX, EntityType::Global(id));
+}
+
+// A debug build's breakpoint table and a profiled build's rows, zeros past a
+// unit's static strings: `data`, and where each starts.
+pub(super) fn unit_tables(data: &mut Vec<u8>, probes: usize, rows: usize) -> (u32, u32) {
+    let breaks_at = data.len();
+    data.resize(breaks_at + probes, 0);
+    let rows_at = if rows == 0 {
+        data.len()
+    } else {
+        data.len().next_multiple_of(16)
+    };
+    data.resize(rows_at + 16 * rows, 0);
+    (breaks_at as u32, rows_at as u32)
 }
 
 // A function of another unit: a stub that calls through its link slot, or

@@ -254,8 +254,8 @@ pub fn fill_dialogs(state: &mut editor::State) {
             kind: "panel",
             role: "sheet",
             width: DIALOG_WIDTH,
-            padding: [12, 6, 12, 8],
-            gap: [6, 6],
+            padding: ui::sides(12, 6, 12, 8),
+            gap: vec2(6, 6),
             controls: body,
         });
     }
@@ -285,7 +285,7 @@ fn row_controls(row: any) -> ui::Control {
     for one in util::list_or_empty(row["controls"]) {
         controls.push(one);
     }
-    ui::Control { kind: "row", gap: [6, 6], align_items: "center", controls: controls }
+    ui::Control { kind: "row", gap: vec2(6, 6), align_items: "center", controls: controls }
 }
 
 /// What a plugin's docks and dialogs show moved.

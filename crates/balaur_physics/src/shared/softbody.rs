@@ -411,17 +411,9 @@ pub(crate) use surface;
 /// which the first `N` are read.
 pub(crate) fn vector_arg<const N: usize>(value: &balaur_script::Value) -> anyhow::Result<[f32; N]> {
     use balaur_script::Value;
-    let numbers: Vec<f32> = match value {
-        Value::Vec2(v) => v.to_vec(),
-        Value::Vec3(v) => v.to_vec(),
-        Value::List(items) => items
-            .iter()
-            .map(|item| match item {
-                Value::Num(n) => Ok(*n as f32),
-                Value::Int(n) => Ok(*n as f32),
-                _ => Err(anyhow::anyhow!("a vector holds numbers only")),
-            })
-            .collect::<anyhow::Result<_>>()?,
+    let numbers: &[f32] = match value {
+        Value::Vec2(v) => v,
+        Value::Vec3(v) => v,
         _ => anyhow::bail!("expected a vector of {N} numbers"),
     };
     anyhow::ensure!(
@@ -524,6 +516,7 @@ pub(crate) struct Region {
 /// The `regions` list, every particle checked against the `particles` the
 /// body was built with.
 pub(crate) fn read_regions(
+    eng: &balaur_core::Engine,
     regions: &[crate::properties::SoftRegion],
     particles: usize,
 ) -> anyhow::Result<Vec<Region>> {
@@ -543,16 +536,27 @@ pub(crate) fn read_regions(
                     k::PARTICLES
                 )
             })?;
+            // A region naming no material keeps the body's springs.
+            let made = (!row.soft_material.is_empty())
+                .then(|| crate::soft_material::named(eng, &row.soft_material))
+                .transpose()?;
             Ok(Region {
                 particles: indices,
                 stiffness_scale: row.stiffness_scale.max(0.0),
                 tear_resistance: row.tear_resistance.max(0.0),
-                shape_matching: row.shape_matching,
+                shape_matching: made.as_ref().and_then(|made| made.shape_matching) == Some(true),
                 pinned: row.pinned,
-                springs: (row.hz > 0.0).then(|| (row.hz, row.damping.max(0.0))),
+                springs: made.as_ref().map(|made| (made.edge.hz, made.edge.damping)),
             })
         })
         .collect()
+}
+
+/// Whether a region's material is a file, which a save moves under it.
+pub(crate) fn regions_name_a_file(regions: &[crate::properties::SoftRegion]) -> bool {
+    regions
+        .iter()
+        .any(|region| crate::material::is_a_file(&region.soft_material))
 }
 
 /// A mesh's points and its triangles.
@@ -616,6 +620,7 @@ pub(crate) use collision_mesh;
 macro_rules! regions {
     (rapier = $rapier:ident, add = $add:ident) => {
         fn $add(
+            eng: &balaur_core::Engine,
             world: &mut crate::$rapier::prelude::PhysicsWorld,
             handle: crate::$rapier::prelude::SoftBodyHandle,
             regions: &[crate::properties::SoftRegion],
@@ -624,7 +629,7 @@ macro_rules! regions {
                 .soft_bodies
                 .get(handle)
                 .map_or(0, |body| body.num_particles());
-            for region in cap::read_regions(regions, count)? {
+            for region in cap::read_regions(eng, regions, count)? {
                 let Some(i) = world.soft_bodies.add_cluster(
                     handle,
                     &region.particles,

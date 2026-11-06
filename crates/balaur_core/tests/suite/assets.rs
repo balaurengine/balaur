@@ -349,7 +349,7 @@ const HELD_TO_KEYS: [(&str, &str); 2] = [
 
 #[test]
 fn an_asset_held_to_its_keys_refuses_another_however_it_is_written() {
-    balaur_core::logbuf::capture_for_test();
+    let _log = crate::observability::hold_the_log();
     let row = "pich = 2.0";
     for (kind, said) in HELD_TO_KEYS {
         for song in tone_spellings(kind, row) {
@@ -375,7 +375,7 @@ fn an_asset_held_to_its_keys_refuses_another_however_it_is_written() {
 
 #[test]
 fn an_asset_holding_only_its_keys_loads_however_it_is_written() {
-    balaur_core::logbuf::capture_for_test();
+    let _log = crate::observability::hold_the_log();
     let row = "pitch = 2.0";
     for (kind, _) in HELD_TO_KEYS {
         for song in tone_spellings(kind, row) {
@@ -434,7 +434,7 @@ fn loading_a_definition_holds_it_to_its_keys_too() {
 /// to open a scene whose files it cannot reach.
 #[test]
 fn a_record_asset_that_cannot_be_read_only_warns() {
-    balaur_core::logbuf::capture_for_test();
+    let _log = crate::observability::hold_the_log();
     let dir = project();
     let app = app_with_tone(dir.path());
     let root = app.engine.root();
@@ -461,7 +461,7 @@ fn a_record_asset_that_cannot_be_read_only_warns() {
 /// can open a project whose files it cannot reach and show what is missing.
 #[test]
 fn an_unknown_scene_asset_id_is_named_in_a_warning_and_the_scene_still_loads() {
-    balaur_core::logbuf::capture_for_test();
+    let _log = crate::observability::hold_the_log();
     let dir = project();
     let app = app_in(dir.path(), None);
     let root = app.engine.root();

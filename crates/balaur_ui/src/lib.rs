@@ -32,7 +32,9 @@ use balaur_core::Engine;
 use smol_str::SmolStr;
 use std::collections::HashMap;
 
-pub use access::{AccessTree, act, enable_access, take_access_update};
+pub use access::{
+    AccessTree, access_enabled, act, disable_access, enable_access, take_access_update,
+};
 pub use loading::Loading;
 pub use pacing::{NextFrame, Pacing, honour_lazy, next_frame, wants_pass};
 pub use routing::{pointer_is_ui, takes_point};

@@ -122,7 +122,7 @@ stop, open a pull request and merge before going on.
 | 4 | Per-kind splits: `widget`, `shape2d` to `line2d`, the collider groups, softbody and joint rows, tilemap grids; then delete the old readers, writers and `Authored` | handover 3, 1 |
 | 5 | The PR gates, and the `editor-followups` pull request | handover 8; **PR boundary** |
 | 6 | Script corpus, every engine, errors as written, fuzzing; CI over the big corpus, the editor native, the budget gate | PLAN-script-tests 1 to 7, handover 5 and 6 |
-| 7 | A stricter language: engine records and `map()` and `with` out, built 2026-10-31; typed calls once whole-file builds link units, and the pool's specs as records, left; then enums and `match` | handover 4, PLAN-script-tests 10; **PR boundary** |
+| 7 | A stricter language: engine records and `map()` and `with` out, built 2026-10-31; every build linking units, built 2026-11-03; the panels calling by type, and the pool's specs as records, left; then enums and `match` | handover 4, PLAN-script-tests 10; **PR boundary** |
 | 8 | The core split | PLAN-core-split; **PR boundary** |
 | 9 | One door, ticks, change detection, lifecycle calls | PLAN-ecs 1 to 4 |
 | 10 | Observers, messages, commands, relationships, required components; the scene tree on relationships | PLAN-ecs 5 to 9 |

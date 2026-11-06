@@ -2,11 +2,13 @@
 // frames with counters or without, as a breakpoint rebuilds one with probes.
 
 use super::BsHost;
+use balaur_bs::runtime::{Reentry, Runtime};
 use std::collections::HashMap;
 
 impl BsHost {
-    /// On from off, or off from on: every loaded file is rebuilt between
-    /// frames, its instances carried across. On while on starts the tally
+    /// On from off, or off from on: every instance is made again between
+    /// frames with each file's unit built with counters or without, each
+    /// compiled once, its objects carried across. On while on starts the tally
     /// again, which is how a profiler reads one frame at a time.
     pub(super) fn profile_set(&self, on: bool) {
         let inner = &self.inner;
@@ -14,9 +16,7 @@ impl BsHost {
         if inner.profiling.get() == on {
             if on {
                 for home in self.homes() {
-                    if let Ok(mut rt) = home.rt.try_borrow_mut() {
-                        rt.clear_profile();
-                    }
+                    home.either(Runtime::clear_profile, Reentry::clear_profile);
                 }
             }
             return;
@@ -61,18 +61,15 @@ impl BsHost {
         out
     }
 
-    /// Each function as `(name, calls, own statements)`, dearest first. A
-    /// module two files use is in both, and counts once for the two.
+    /// Each function as `(name, calls, own statements)`, dearest first.
     pub(super) fn profile_functions(&self) -> Vec<(String, u64, u64)> {
         if !self.inner.profiling.get() {
             return Vec::new();
         }
         let mut summed: HashMap<String, (u64, u64)> = HashMap::new();
         for home in self.homes() {
-            let Ok(mut rt) = home.rt.try_borrow_mut() else {
-                continue;
-            };
-            for (name, calls, own) in rt.function_costs() {
+            let costs = home.either(Runtime::function_costs, Reentry::function_costs);
+            for (name, calls, own) in costs {
                 let cost = summed.entry(name).or_default();
                 cost.0 += calls;
                 cost.1 += own;

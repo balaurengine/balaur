@@ -2,8 +2,9 @@
 > (`balaur_text/src/edit.rs`), §4's arrows and §5, with §5's radial
 > gradients and stops past two on 2026-10-31. Built 2026-10-31: §1's
 > wiring, so every text kind types through the shaper and `egui::TextEdit`
-> has no caller; §2; §4 whole; and §3's tree, actions and colour check, its
-> platform adapter waiting on a push to the kiss3d fork.
+> has no caller; §2; §4 whole; and §3's tree, actions and colour check.
+> Built 2026-11-06: §3's platform adapter, on the kiss3d fork's
+> `balaur-buffers-and-access` until the engine pins it.
 
 # Plan: the UI's gaps
 
@@ -143,10 +144,32 @@ CIELAB for typical, protan, deutan and tritan vision; Balaur's own halves
 keep every pair 10 apart (its light half's success is stated for that), and
 the imported palettes, which lean on hue, are reported, not changed: the
 theme window's Problems page lists a pair under 10 beside the contrast
-failures, with the vision that sees it closest. Not built: the platform
-adapter. The window comes from the kiss3d fork
-(`Ughuuu/kiss3d`), which owns winit's event loop, so `accesskit_winit`
-goes there, a push to that fork; until then nothing reaches VoiceOver.
+failures, with the vision that sees it closest.
+
+The platform adapter built 2026-11-06. The kiss3d fork owns winit's event
+loop, so `accesskit_winit` is there: a window opened with
+`CanvasSetup::accessible` gets its adapter before it is first shown, every
+window event passes through it, and what a reader asks waits in a queue
+that wakes a sleeping loop. Every real window the engine opens asks for
+one. `balaur_render::access` reads the queue in `pump_input`, as input, so
+a lazy UI owes it a pass: a reader arriving is `enable_access`, leaving is
+`disable_access`, a request is `act`; after the pass it hands
+`take_access_update` back. Until a reader asks, a frame reads an empty
+queue. A first update waits for a pass, so it holds the root a reader
+needs; a focus move goes over with no node changed; the last widget going
+leaves an empty window, not the old tree. No adapter on the web, where a
+page would need a DOM to mirror the tree into, or on Android, whose
+AccessKit adapter wants `GameActivity` and the fork runs on
+`NativeActivity`.
+
+Checked: the fork's `tests/access_adapter.rs` asks NSAccessibility on a
+hidden window, in process, what a reader asks (the view's children, a
+node's role and title, a press) and sees the queue fill and the loop wake;
+`crates/balaur_ui/tests/suite/access.rs` holds the tree to what AccessKit
+takes. Not checked: a real reader. Nobody has heard VoiceOver, Narrator or
+Orca read a Balaur window, so the done-when above is still open; Windows
+and Linux are compiled by CI only, and iOS by `cargo check` on the
+simulator target.
 
 ## 4. Directional focus
 

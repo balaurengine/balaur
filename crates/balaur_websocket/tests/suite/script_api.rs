@@ -49,7 +49,7 @@ impl Scenario {{
     pub fn on_websocket_event(e: any) {{
         let kind = e["kind"].as_str();
         if kind == "open" {{
-            websocket::send(self.socket, "ping");
+            websocket::send_text(self.socket, "ping");
         }} else if kind == "message" {{
             let text = e["text"];
             log::info("echoed {{text}}");
@@ -65,7 +65,6 @@ impl Scenario {{
 }
 
 #[test]
-#[ignore = "needs engine: a .bs script cannot hand `websocket::send` bytes"]
 fn a_script_sends_and_receives_a_binary_frame() {
     if !e2e_enabled() {
         return;
@@ -83,7 +82,7 @@ impl Scenario {{
         let kind = e["kind"].as_str();
         if kind == "open" {{
             // 0, 255, 16, 254
-            websocket::send(self.socket, encoding::from_base64("AP8Q/g=="));
+            websocket::send_bytes(self.socket, encoding::from_base64("AP8Q/g=="));
         }} else if kind == "binary" {{
             let count = e["bytes"].len();
             log::info("binary {{count}}");

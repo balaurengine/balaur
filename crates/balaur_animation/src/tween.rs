@@ -20,7 +20,7 @@
 //!         animation::Step { property: "position", by: [0.0, -3.0, 0.0], duration: 0.4, ease: animation::EASE_IN_QUAD },
 //!     ],
 //! });
-//! animation::stop(id);
+//! animation::stop_tween(id);
 //! animation::is_tween_running(id);
 //! ```
 //!
@@ -69,7 +69,7 @@ use crate::player::{AnimationState, fixed_dt};
 use crate::sampler::{self, euler_from_quat};
 use crate::system::Effect;
 
-/// What `animation::tween` hands back, and what `animation::stop` and
+/// What `animation::tween` hands back, and what `animation::stop_tween` and
 /// `animation::is_tween_running` take. Opaque: a script holds it and gives it back.
 pub type TweenId = u64;
 
@@ -114,7 +114,7 @@ pub struct Tween {
     /// The specification of a waiting tween, rebuilt when its turn comes so
     /// its start values are read then rather than when it was asked for.
     pub pending: Option<String>,
-    /// Drives no node: a script reads it with [`value_of`].
+    /// Drives no node: a script reads it with [`float_of`].
     pub value: bool,
     /// When each of the `steps` is over, in the order they were written.
     pub step_ends: Vec<f32>,
@@ -171,24 +171,19 @@ pub fn start(eng: &Engine, node: Entity, spec: &toml::Value) -> Result<TweenId> 
     Ok(id)
 }
 
-/// A tween over a number, or a list of up to four, that drives no node: a
-/// script reads it each frame with [`value_of`] and writes it wherever it
-/// likes. The method tween without a callback into the middle of a tick.
+/// A tween over a number that drives no node: a script reads it each frame
+/// with [`float_of`] and writes it wherever it likes. The method tween without
+/// a callback into the middle of a tick.
 ///
 /// # Errors
-/// If the ends are not numbers of one width, or the curve is unknown.
-pub fn start_value(
+/// If the seconds are not a length of time, or the curve is unknown.
+pub fn start_float(
     eng: &Engine,
-    from: &toml::Value,
-    to: &toml::Value,
+    from: f32,
+    to: f32,
     duration: f32,
     ease: Option<&str>,
 ) -> Result<TweenId> {
-    let (from, channels) = numbers(from)?;
-    let (to, width) = numbers(to)?;
-    if width != channels {
-        bail!("`from` gives {channels} numbers and `to` gives {width}");
-    }
     if !duration.is_finite() || duration < 0.0 {
         bail!("a value tween lasts a number of seconds, and cannot last fewer than none");
     }
@@ -199,11 +194,12 @@ pub fn start_value(
     let mut track = Track {
         target: String::new(),
         property: VALUE_PROPERTY,
-        channels,
+        channels: 1,
         interpolation: Interpolation::Linear,
         keys: Vec::new(),
     };
-    push_segment(&mut track, 0.0, duration, from, to, ease);
+    let channel = |number| Vec4::new(number, 0.0, 0.0, 0.0);
+    push_segment(&mut track, 0.0, duration, channel(from), channel(to), ease);
     let clip = Clip {
         length: duration.max(fixed_dt()),
         loop_mode: LoopMode::None,
@@ -239,30 +235,19 @@ const VALUE_PROPERTY: Property = Property::Component {
     property: String::new(),
 };
 
-/// Where a value tween has got to: a number, or a list when it was started
-/// over one. `None` once it is over or when `id` names no value tween.
+/// Where a value tween has got to. `None` once it is over or when `id` names
+/// no value tween.
 #[must_use]
-pub fn value_of(eng: &Engine, id: TweenId) -> Option<balaur_script::Value> {
+pub fn float_of(eng: &Engine, id: TweenId) -> Option<f64> {
     let state = eng.try_resource::<AnimationState>()?;
     let state = state.borrow();
     let tween = state.tweens.get(&id).filter(|tween| tween.value)?;
     let (time, _) = sampler::clip_time(&tween.clip, tween.time);
     let pose = sampler::sample(&tween.clip, time);
-    let sampler::TrackValue::Property { value, channels } = *pose.first()? else {
+    let sampler::TrackValue::Property { value, .. } = *pose.first()? else {
         return None;
     };
-    Some(if channels == 1 {
-        balaur_script::Value::Num(f64::from(value.x))
-    } else {
-        balaur_script::Value::List(
-            value
-                .to_array()
-                .into_iter()
-                .take(channels)
-                .map(|n| balaur_script::Value::Num(f64::from(n)))
-                .collect(),
-        )
-    })
+    Some(f64::from(value.x))
 }
 
 /// Rebuild a waiting tween's clip now that its turn has come, so `by` and

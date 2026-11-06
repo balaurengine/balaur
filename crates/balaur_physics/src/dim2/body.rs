@@ -281,11 +281,18 @@ pub(crate) fn install_body2d_state_api(m: &mut Module<Engine>) {
             f32::from(body.effective_dominance_group())
         })
     });
-    m.records(&[(
-        "TeleportOptions",
-        "{ rotation: float? }",
-        "How `teleport` turns the body as it moves it, in radians.",
-    )]);
+    m.records(&[
+        (
+            "Pose",
+            "{ position: Vec2, rotation: float }",
+            "Where something stands and how it is turned, in radians.",
+        ),
+        (
+            "TeleportOptions",
+            "{ rotation: float? }",
+            "How `teleport` turns the body as it moves it, in radians.",
+        ),
+    ]);
     m.function(
         "teleport",
         |eng: &Engine, (node, x, y, opts): (NodeId, f32, f32, Option<balaur_script::Value>)| {
@@ -329,10 +336,10 @@ fn pose_value(pose: &scalar::Pose2) -> balaur_script::Value {
 pub(crate) fn install_body2d_mass_api(m: &mut Module<Engine>) {
     use balaur_script::Value;
     m.describe(&[
-        ("world_center_of_mass", &[c::BODY_2D], "", "Where the body's whole mass sits, in world space."),
-        ("local_center_of_mass", &[c::BODY_2D], "", "Where the body's whole mass sits, in the body's own space."),
+        ("world_center_of_mass", &[c::BODY_2D], "(node: node) -> Vec2", "Where the body's whole mass sits, in world space."),
+        ("local_center_of_mass", &[c::BODY_2D], "(node: node) -> Vec2", "Where the body's whole mass sits, in the body's own space."),
         ("total_inertia", &[c::BODY_2D], "", "The body's resistance to spin, colliders included."),
-        ("effective_mass", &[c::BODY_2D], "", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
+        ("effective_mass", &[c::BODY_2D], "(node: node) -> Vec2", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
         ("effective_angular_inertia", &[c::BODY_2D], "", "The inertia the solver turns: zero with rotation locked, and on any body that is not dynamic."),
     ]);
     m.function("world_center_of_mass", |eng: &Engine, node: NodeId| {
@@ -403,20 +410,20 @@ pub(crate) fn install_body2d_sleep_api(m: &mut Module<Engine>) {
         (
             "predict_position",
             &[c::BODY_2D],
-            "",
-            "Where the body will be after `dt` seconds at its current velocity, as `{ position, rotation }`.",
+            "(node: node, dt: float) -> Pose",
+            "Where the body will be after `dt` seconds at its current velocity.",
         ),
         (
             "predict_position_with_forces",
             &[c::BODY_2D],
-            "",
+            "(node: node, dt: float) -> Pose",
             "The same, with the forces already applied taken into account: where a thrust or a spring will have put it.",
         ),
         (
             "next_position",
             &[c::BODY_2D],
-            "",
-            "The pose a kinematic body has been told to move to, as `{ position, rotation }`.",
+            "(node: node) -> Pose",
+            "The pose a kinematic body has been told to move to.",
         ),
         (
             "time_since_can_sleep",

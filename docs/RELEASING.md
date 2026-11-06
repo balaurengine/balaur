@@ -26,7 +26,7 @@ and published by `scripts/draft_release.sh`.
    ```
 6. Read the draft, write what a patch fixed into its notes, and press publish.
    Publishing is what puts the assets behind a fetchable URL; a draft's are not
-   reachable without a token. It also fires `channel.yml`, which points that
+   reachable without a token. It also runs `runner.yml`'s `channel` job, which points that
    line's rolling tag at the release.
 7. **Deploy the site** if `/play` and `/editor` should run what was just
    published. The Download and Releases pages follow by themselves. See below.
@@ -139,7 +139,7 @@ Discovery reuses what `nightly` already does rather than asking the API: each
 channel has a rolling tag pointed at the newest release on that line, so an
 update is a fetch of `releases/download/<channel>/VERSION` and there is no rate
 limit to run into. `scripts/move_channel.sh` writes that pointer, and
-`channel.yml` runs it when a release is published. The Engine tab's list is
+`runner.yml` runs it, through `channel.yml`, when a release is published. The Engine tab's list is
 the one API read: the release feed, unauthenticated, once per check, against
 GitHub's 60 an hour.
 

@@ -90,7 +90,7 @@ macro_rules! counters_value {
         pipeline.counters.enable();
         let c = &pipeline.counters;
         let (stages, cd, solver, ccd) = (&c.stages, &c.cd, &c.solver, &c.ccd);
-        let count = |n: usize| Value::Num(n as f64);
+        let count = |n: usize| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
         map([
             (k::STEP_MS, Value::Num(c.step_time_ms())),
             (k::UPDATE_MS, Value::Num(stages.update_time.time_ms())),
@@ -740,19 +740,87 @@ fn tuning(eng: &Engine) -> Value {
     map([(k::WORLD_3D, table(dim3)), (k::WORLD_2D, table(dim2))])
 }
 
+/// The tables `physics` takes and gives. A world's rows are all optional as
+/// `set_tuning` leaves out what it does not change, and `tuning` answers every
+/// one, `friction_model` on the 3D world alone.
+const RECORDS: &[balaur_script::RecordDoc] = &[
+    (
+        "SoftRecovery",
+        "{ authored_velocity_margin: bool?, edge_speculation: bool?, inverted_cell_detection: bool?, self_crossing_detection: bool?, detection_motion_gating: bool?, cross_body_detection: bool?, self_stand_down: bool?, cross_body_expel_gate: bool?, edge_stand_down: bool?, crossing_repulsion: bool?, crossing_repulsion_guide: bool?, crossing_repulsion_self_guide: bool?, recovery_pace: float?, overlap_constraints: bool?, overlap_rigid_bodies: bool?, overlap_skip_self_tangled: bool?, overlap_edge_stand_down: bool?, overlap_constraint_pace: float?, overlap_patch_constraints: string?, overlap_skin_volume: bool?, overlap_kept_depth: float?, overlap_self_regions: bool?, overlap_normal_push: bool?, overlap_multi_volume: bool?, overlap_split: int?, overlap_patience_ticks: int?, overlap_progress_margin: float? }",
+        "How soft bodies find and undo tangles: `[physics.soft_recovery]`'s rows.",
+    ),
+    (
+        "Tuning",
+        "{ solver_iterations: int?, internal_iterations: int?, stabilization_iterations: int?, ccd_substeps: int?, min_ccd_seconds: float?, length_unit: float?, warmstart: float?, warmstart_joints: bool?, contact_clustering: bool?, contact_recycling: bool?, contact_recycle_distance: float?, friction_in_bias_pass: bool?, allowed_linear_error: float?, max_corrective_velocity: float?, prediction_distance: float?, max_linear_velocity: float?, contact_frequency_hz: float?, contact_damping: float?, static_contact_frequency_hz: float?, static_contact_damping: float?, friction_model: string?, soft_resweep_strain: float?, soft_max_extra_substeps: int?, soft_contact_stiffening: float?, soft_linear_tolerance: float?, soft_max_linear_iterations: int?, soft_max_dense_dofs: int?, soft_recovery: SoftRecovery? }",
+        "One world's solver settings: the keys `[physics]` takes.",
+    ),
+    (
+        "TuningOptions",
+        "{ solver_iterations: int?, internal_iterations: int?, stabilization_iterations: int?, ccd_substeps: int?, min_ccd_seconds: float?, length_unit: float?, warmstart: float?, warmstart_joints: bool?, contact_clustering: bool?, contact_recycling: bool?, contact_recycle_distance: float?, friction_in_bias_pass: bool?, allowed_linear_error: float?, max_corrective_velocity: float?, prediction_distance: float?, max_linear_velocity: float?, contact_frequency_hz: float?, contact_damping: float?, static_contact_frequency_hz: float?, static_contact_damping: float?, friction_model: string?, soft_resweep_strain: float?, soft_max_extra_substeps: int?, soft_contact_stiffening: float?, soft_linear_tolerance: float?, soft_max_linear_iterations: int?, soft_max_dense_dofs: int?, soft_recovery: SoftRecovery?, physics3d: Tuning?, physics2d: Tuning? }",
+        "What `set_tuning` changes: a key at the top reaches both worlds, and a world's own table wins over the top.",
+    ),
+    (
+        "WorldTunings",
+        "{ physics3d: Tuning, physics2d: Tuning }",
+        "The solver settings each world is running with.",
+    ),
+    (
+        "WorldQuarantine",
+        "{ bodies: [node], colliders: [node], soft_bodies: [node] }",
+        "What rapier disabled in one world's last step.",
+    ),
+    (
+        "Quarantined",
+        "{ physics3d: WorldQuarantine, physics2d: WorldQuarantine }",
+        "What rapier disabled in each world's last step.",
+    ),
+    (
+        "StepCounters",
+        "{ step_ms: float, update_ms: float, user_changes_ms: float, collision_detection_ms: float, island_construction_ms: float, island_constraints_ms: float, solver_ms: float, ccd_ms: float, broad_phase_ms: float, final_broad_phase_ms: float, narrow_phase_ms: float, contact_pair_count: int, constraint_count: int, contact_count: int, velocity_resolution_ms: float, velocity_assembly_ms: float, velocity_assembly_bodies_ms: float, velocity_assembly_constraints_ms: float, velocity_update_ms: float, velocity_writeback_ms: float, ccd_substep_count: int, ccd_time_of_impact_ms: float, ccd_solver_ms: float, ccd_broad_phase_ms: float, ccd_narrow_phase_ms: float }",
+        "What one world's last step spent its time on: every timer rapier keeps, in milliseconds (`step_ms`; the stages; collision detection's; the solver's; continuous collision's), and every count.",
+    ),
+    (
+        "Counters",
+        "{ physics3d: StepCounters, physics2d: StepCounters }",
+        "What each world's last step spent its time on.",
+    ),
+];
+
+/// `value`'s `(from, to)` keys renamed, its others left. A script names a world
+/// by its module, as `3d` is no field; a recording and `[physics]` by `3d`.
+fn worlds_named(value: Value, names: [(&str, &str); 2]) -> Value {
+    let Value::Map(entries) = value else {
+        return value;
+    };
+    Value::Map(
+        entries
+            .into_iter()
+            .map(|(key, value)| {
+                let renamed = names.iter().find(|(from, _)| *from == key);
+                (renamed.map_or(key, |(_, to)| (*to).to_string()), value)
+            })
+            .collect(),
+    )
+}
+
 pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
+    m.records(RECORDS);
     m.describe(&[
-        ("set_tuning", &[], "(opts: table)", "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` table, the keys `[physics]` takes. A key at the top reaches both worlds; a `3d` or `2d` table holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml."),
-        ("tuning", &[], "() -> map", "The solver settings each world is running with, as `{ \"3d\", \"2d\" }`, each holding every key `set_tuning` takes, `soft_recovery` included."),
-        ("quarantined", &[], "() -> map", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number, as `{ physics3d, physics2d }`, each `{ bodies, colliders, soft_bodies }` lists of nodes. Empty lists are the normal answer."),
-        ("counters", &[], "() -> map", "What each world's last step spent its time on, as `{ physics3d, physics2d }`, each with every timer rapier keeps, in milliseconds (`step_ms`; the stages `update_ms`, `user_changes_ms`, `collision_detection_ms`, `island_construction_ms`, `island_constraints_ms`, `solver_ms`, `ccd_ms`; collision detection's `broad_phase_ms`, `final_broad_phase_ms`, `narrow_phase_ms`; the solver's `velocity_resolution_ms`, `velocity_assembly_ms`, `velocity_assembly_bodies_ms`, `velocity_assembly_constraints_ms`, `velocity_update_ms`, `velocity_writeback_ms`; continuous collision's `ccd_time_of_impact_ms`, `ccd_solver_ms`, `ccd_broad_phase_ms`, `ccd_narrow_phase_ms`) and every count (`contact_pair_count`, `constraint_count`, `contact_count`, `ccd_substep_count`). The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
+        ("set_tuning", &[], "(opts: TuningOptions)", "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` record, the keys `[physics]` takes. A key at the top reaches both worlds; a `physics3d` or `physics2d` record holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml."),
+        ("tuning", &[], "() -> WorldTunings", "The solver settings each world is running with, every key `set_tuning` takes, `soft_recovery` included."),
+        ("quarantined", &[], "() -> Quarantined", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number. Empty lists are the normal answer."),
+        ("counters", &[], "() -> Counters", "What each world's last step spent its time on. The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
         ("threads", &[], "() -> int", "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`."),
     ]);
     m.function("set_tuning", |eng: &Engine, opts: Value| {
-        set_tuning(eng, &opts);
+        let named = [(k::PHYSICS_3D, k::WORLD_3D), (k::PHYSICS_2D, k::WORLD_2D)];
+        set_tuning(eng, &worlds_named(opts, named));
         Ok(())
     });
-    m.function("tuning", |eng: &Engine, ()| Ok(tuning(eng)));
+    m.function("tuning", |eng: &Engine, ()| {
+        let named = [(k::WORLD_3D, k::PHYSICS_3D), (k::WORLD_2D, k::PHYSICS_2D)];
+        Ok(worlds_named(tuning(eng), named))
+    });
     // Rapier disables a body whose pose or velocity goes non-finite rather
     // than letting the whole world become NaN. Saying which node it was is the
     // difference between a bug report and a mystery.

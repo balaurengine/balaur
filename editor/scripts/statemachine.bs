@@ -353,7 +353,7 @@ fn live_state(state: editor::State) -> str {
         return "";
     }
     let now = found.state_machine.current_state();
-    if now.kind() == "str" { now.as_str() } else { "" }
+    if now != nil { now.unwrap() } else { "" }
 }
 
 /// Every row the dock shows: the states, the new-state row, the transitions,

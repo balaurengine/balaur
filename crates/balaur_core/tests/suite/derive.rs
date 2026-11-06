@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use balaur_core::app::{App, AppConfig};
-use balaur_core::components::derived::{Component, Enum, Fields, Record, Written};
+use balaur_core::components::derived::{Component, Enum, Fields, Given, Record, Written};
 use balaur_core::components::{self};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
@@ -145,12 +145,10 @@ fn one_property_is_written_by_its_place_and_a_wrong_shape_is_refused() {
         .position(|name| *name == "gait")
         .unwrap();
     walker
-        .write(gait, &toml::Value::String("run_fast".into()))
+        .write(gait, (&toml::Value::String("run_fast".into())).into())
         .unwrap();
     assert_eq!(walker.gait, Gait::Run);
-    let refused = walker
-        .write(gait, &toml::Value::String("crawl".into()))
-        .unwrap_err();
+    let refused = walker.write(gait, Given::Text("crawl")).unwrap_err();
     assert!(
         format!("{refused:#}").contains("walk, run_fast"),
         "{refused:#}"
@@ -229,9 +227,9 @@ fn a_property_found_once_is_read_and_written_by_its_place() {
     components::add(&app.engine, e, "dial", None).unwrap();
     let place = components::place_of(&app.engine, "dial", "notches").unwrap();
     assert!(components::place_of(&app.engine, "dial", "notch").is_none());
-    components::set_property_placed(&app.engine, e, place, &toml::Value::Integer(9)).unwrap();
+    components::set_property_placed(&app.engine, e, &place, Given::Int(9)).unwrap();
     assert_eq!(
-        components::property_placed(&app.engine, e, place).and_then(|v| v.as_integer()),
+        components::property_placed(&app.engine, e, &place).and_then(|v| v.as_integer()),
         Some(9)
     );
     assert_eq!(
@@ -239,4 +237,118 @@ fn a_property_found_once_is_read_and_written_by_its_place() {
         Some(9),
         "the name and the place reach the one field"
     );
+}
+
+/// Each `Walker` property below, written as a script's slots hold it and as a
+/// file holds it, and what either leaves there.
+fn same_as_a_file(property: &str, given: Given<'_>, file: &str) {
+    let app = app_with_walker();
+    let root = app.engine.root();
+    let (slots, table) = (
+        app.engine.spawn_node("Slots", root),
+        app.engine.spawn_node("Table", root),
+    );
+    let place = components::place_of(&app.engine, "walker", property).unwrap();
+    let value: toml::Value = toml::from_str(&format!("value = {file}")).unwrap();
+    for node in [slots, table] {
+        components::add(&app.engine, node, "walker", None).unwrap();
+    }
+    let by_given = components::set_property_placed(&app.engine, slots, &place, given);
+    let by_file = components::set_property(&app.engine, table, "walker", property, &value["value"]);
+    assert_eq!(
+        by_given.is_ok(),
+        by_file.is_ok(),
+        "`{property}` from {given:?}: {by_given:?} and {by_file:?}"
+    );
+    assert_eq!(
+        components::get(&app.engine, slots, "walker"),
+        components::get(&app.engine, table, "walker"),
+        "`{property}` from {given:?}"
+    );
+}
+
+#[test]
+fn a_kind_given_as_it_is_lands_as_a_files_does() {
+    same_as_a_file("speed", Given::Float(1.5), "1.5");
+    same_as_a_file("speed", Given::Int(2), "2");
+    same_as_a_file("gait", Given::Text("run_fast"), "\"run_fast\"");
+    same_as_a_file(
+        "tint",
+        Given::Numbers([0.5, 0.25, 0.75, 0.5], 4),
+        "[0.5, 0.25, 0.75, 0.5]",
+    );
+    same_as_a_file(
+        "tint",
+        Given::Numbers([0.5, 0.25, 0.75, 0.0], 3),
+        "[0.5, 0.25, 0.75]",
+    );
+    same_as_a_file("tint", Given::Text("#ff0000"), "\"#ff0000\"");
+    same_as_a_file("label", Given::Text("led"), "\"led\"");
+}
+
+#[test]
+fn a_kind_given_as_it_is_refuses_what_a_file_is_refused() {
+    same_as_a_file("speed", Given::Text("fast"), "\"fast\"");
+    same_as_a_file("speed", Given::Bool(true), "true");
+    same_as_a_file("gait", Given::Text("hop"), "\"hop\"");
+    same_as_a_file("gait", Given::Int(1), "1");
+    same_as_a_file(
+        "tint",
+        Given::Numbers([0.5, 0.25, 0.0, 0.0], 2),
+        "[0.5, 0.25]",
+    );
+    same_as_a_file("label", Given::Float(1.0), "1.0");
+}
+
+#[test]
+fn a_property_with_a_form_of_its_own_is_read_with_nothing_built() {
+    let app = app_with_walker();
+    let node = app.engine.spawn_node("Walker", app.engine.root());
+    components::add(&app.engine, node, "walker", None).unwrap();
+    let read = |property: &str| {
+        let place = components::place_of(&app.engine, "walker", property).unwrap();
+        let mut found = None;
+        components::given_placed(&app.engine, node, &place, &mut |given| {
+            found = Some(format!("{given:?}"));
+        });
+        found
+    };
+    assert_eq!(read("speed").as_deref(), Some("Float(2.5)"));
+    assert_eq!(read("gait").as_deref(), Some("Text(\"walk\")"));
+    assert_eq!(read("label").as_deref(), Some("Text(\"lead\")"));
+    assert_eq!(
+        read("tint").as_deref(),
+        Some("Numbers([1.0, 0.5, 0.0, 1.0], 4)")
+    );
+    assert_eq!(read("waves"), None, "a list is a value");
+}
+
+#[test]
+fn a_refused_write_by_its_place_puts_back_what_was_held() {
+    let (app, e) = app_with_dial();
+    components::add(&app.engine, e, "dial", None).unwrap();
+    let place = components::place_of(&app.engine, "dial", "level").unwrap();
+    assert!(components::set_property_placed(&app.engine, e, &place, Given::Float(3.0)).is_err());
+    assert_eq!(
+        components::property(&app.engine, e, "dial", "level").and_then(|v| v.as_float()),
+        Some(0.15),
+    );
+}
+
+#[test]
+fn a_write_by_its_place_is_stamped_and_kept() {
+    let (app, e) = app_with_dial();
+    components::add(&app.engine, e, "dial", None).unwrap();
+    let eng = &app.engine;
+    let index = components::index_of(eng, "dial").unwrap();
+    let place = components::place_of(eng, "dial", "notches").unwrap();
+    let since = eng.change_tick();
+    eng.advance_change_tick();
+    assert!(!components::ticks::changed_since(eng, index, since).contains(&e));
+    balaur_core::changes::keep_changes(eng, Some(eng.root()));
+    components::set_property_placed(eng, e, &place, Given::Int(4)).unwrap();
+    assert!(components::ticks::changed_since(eng, index, since).contains(&e));
+    let kept = balaur_core::changes::take_changes(eng);
+    assert_eq!(kept.len(), 1);
+    assert!(format!("{:?}", kept[0]).contains("notches"), "{kept:?}");
 }

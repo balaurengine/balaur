@@ -110,6 +110,7 @@ module name (`register_shape2d_component`).
 | N22 | A bare hook is the engine asking (`init`, `update`, `exports`), `on_` is the engine telling, and a boolean change is `on_<reader>_changed` | script-api | `api_lints` hook-name |
 | N23 | The editor names a thing the way the API and the file do, in sentence case and US spelling, with the glossary's words for its own parts | editor-ui | — |
 | N24 | No name in a script is one letter: the editor's state is `state`, the theme's tokens it draws with are `tokens`, and an index, a coordinate or a loop variable is named for what it counts or holds. `balaur check` stands behind a rename that once had no compiler | script, editor | — |
+| N25 | A script function has one shape, and it is written down: a parameter, a result or a record field names its type. `any` is for what no one type is true of (data from outside, the caller's own value, a shape chosen by a name at run time), each listed with its reason; two shapes are two functions | script-api | `api_lints` any |
 
 ## Deliberate exemptions
 

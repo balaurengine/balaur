@@ -30,6 +30,11 @@ pub(super) struct Call {
 pub(super) struct ParkedCall {
     ret: Ty,
     poll: bool,
+    /// The unit whose function was called, whose types read its result.
+    unit: usize,
+    /// The shadow stack's top at the stop: a call made meanwhile that traps
+    /// goes back to it.
+    pub(super) top: Option<i32>,
 }
 
 /// Who a parked call hands its results to.
@@ -39,6 +44,13 @@ enum Owner<'a> {
 }
 
 impl Runtime {
+    /// Whether a call here should be one a stop can hold: a unit of the
+    /// instance has probes, and no other call is parked.
+    #[must_use]
+    pub fn steppable(&self) -> bool {
+        self.parked_call.is_none() && self.host.borrow().debugger.probed()
+    }
+
     /// [`Runtime::call_method`], but a stop parks the call, and
     /// [`Runtime::resume`] goes on with it.
     pub fn call_method_steppable(
@@ -47,26 +59,30 @@ impl Runtime {
         method: &str,
         args: &[Value],
     ) -> Result<Step, RunError> {
-        let key = format!("{}.{method}", obj.ty);
-        let info = self.meta.function(&key).cloned().ok_or(RunError {
-            msg: format!("no method `{key}`"),
-            line: None,
-        })?;
-        let mut a = obj.raw.clone();
-        for (t, v) in info.params.iter().zip(args) {
-            a.extend(self.encode(t, v)?);
-        }
-        let results = width(&self.meta, &info.ret);
-        if self.parked_call.is_some() {
-            return fail("the script is stopped at a breakpoint");
-        }
-        self.parked_call = Some(ParkedCall {
-            ret: info.ret,
-            poll: false,
-        });
-        self.prepare();
-        let outcome = self.wasm.call_resumable(&key, &a, results);
-        self.settle(outcome, Owner::Method)
+        self.in_unit(obj.unit, |rt| {
+            let key = format!("{}.{method}", obj.ty);
+            let info = rt.meta.function(&key).cloned().ok_or(RunError {
+                msg: format!("no method `{key}`"),
+                line: None,
+            })?;
+            let mut a = obj.raw.clone();
+            for (t, v) in info.params.iter().zip(args) {
+                a.extend(rt.encode(t, v)?);
+            }
+            let results = width(&rt.meta, &info.ret);
+            if rt.parked_call.is_some() {
+                return fail("the script is stopped at a breakpoint");
+            }
+            rt.prepare()?;
+            rt.parked_call = Some(ParkedCall {
+                ret: info.ret,
+                poll: false,
+                unit: rt.unit,
+                top: None,
+            });
+            let outcome = rt.wasm.call_resumable(rt.unit, &key, &a, results);
+            rt.settle(outcome, Owner::Method)
+        })
     }
 
     /// [`Runtime::poll`], but a stop parks the poll; [`Runtime::resume_task`]
@@ -79,30 +95,46 @@ impl Runtime {
         if self.parked_call.is_some() {
             return fail("the script is stopped at a breakpoint");
         }
-        let Some(call) = self.poll_call(task, obj)? else {
-            return Ok(Step::Waiting);
-        };
-        self.parked_call = Some(ParkedCall {
-            ret: call.ret,
-            poll: true,
-        });
-        self.prepare();
-        let outcome = self
-            .wasm
-            .call_resumable(&call.name, &call.args, call.results);
-        self.settle(outcome, Owner::Task(task))
+        self.in_unit(task.unit, |rt| {
+            let Some(call) = rt.poll_call(task, obj)? else {
+                return Ok(Step::Waiting);
+            };
+            rt.prepare()?;
+            rt.parked_call = Some(ParkedCall {
+                ret: call.ret,
+                poll: true,
+                unit: rt.unit,
+                top: None,
+            });
+            let outcome = rt
+                .wasm
+                .call_resumable(rt.unit, &call.name, &call.args, call.results);
+            rt.settle(outcome, Owner::Task(task))
+        })
     }
 
     /// Lets the parked method go on under `cmd`.
     pub fn resume(&mut self, cmd: Command) -> Result<Step, RunError> {
-        let outcome = self.go_on(cmd, false)?;
-        self.settle(outcome, Owner::Method)
+        let unit = self
+            .parked_call
+            .as_ref()
+            .map_or(self.unit, |call| call.unit);
+        self.in_unit(unit, |rt| {
+            let outcome = rt.go_on(cmd, false)?;
+            rt.settle(outcome, Owner::Method)
+        })
     }
 
     /// Lets the parked poll of `task` go on under `cmd`.
     pub fn resume_task(&mut self, cmd: Command, task: &mut Task) -> Result<Step, RunError> {
-        let outcome = self.go_on(cmd, true)?;
-        self.settle(outcome, Owner::Task(task))
+        let unit = self
+            .parked_call
+            .as_ref()
+            .map_or(self.unit, |call| call.unit);
+        self.in_unit(unit, |rt| {
+            let outcome = rt.go_on(cmd, true)?;
+            rt.settle(outcome, Owner::Task(task))
+        })
     }
 
     /// The stop a parked call is held at.
@@ -119,16 +151,19 @@ impl Runtime {
             return fail("no call is parked");
         };
         self.wasm.set_global(words::DBG_FLAGS, flags);
-        self.sync_debugger();
+        self.sync_debugger()?;
         self.host.borrow_mut().debugger.park = true;
         Ok(self.wasm.resume())
     }
 
-    fn prepare(&mut self) {
+    fn prepare(&mut self) -> Result<(), RunError> {
         self.error_stop = None;
         self.refuel();
-        self.sync_debugger();
-        self.host.borrow_mut().debugger.park = self.meta.debug && self.wasm.can_park();
+        self.sync_debugger()?;
+        let can_park = self.wasm.can_park();
+        let mut host = self.host.borrow_mut();
+        host.debugger.park = can_park && host.debugger.probed();
+        Ok(())
     }
 
     fn settle(
@@ -141,6 +176,10 @@ impl Runtime {
                 msg: "internal: a call parked with no stop".into(),
                 line: None,
             })?;
+            let top = self.wasm.global(words::DBG_SP);
+            if let Some(call) = &mut self.parked_call {
+                call.top = top;
+            }
             return Ok(Step::Paused(paused));
         }
         self.host.borrow_mut().debugger.park = false;

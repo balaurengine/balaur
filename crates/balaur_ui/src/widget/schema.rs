@@ -276,7 +276,7 @@ pub(crate) fn for_classes(
                 merged = Some(WidgetProperties::clone(&held));
             }
             // A value the property refuses leaves what the widget holds.
-            let _ = merged.as_mut()?.write(index, value);
+            let _ = merged.as_mut()?.write(index, value.into());
         }
     }
     let merged = merged?;
@@ -604,7 +604,7 @@ mod tests {
             let mut widget = widget_of(&asked);
             let changed = changed_value(&asked, index);
             asked
-                .write(index, &changed)
+                .write(index, (&changed).into())
                 .expect("the value fits the property");
             if !put_one(&mut widget, &asked, name) {
                 continue;

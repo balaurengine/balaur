@@ -82,20 +82,7 @@ pub(crate) fn color_of(args: &Value) -> anyhow::Result<[f32; 4]> {
     match args {
         Value::Nil => Ok([1.0, 1.0, 1.0, 1.0]),
         Value::Color(c) => Ok(*c),
-        Value::List(items) if items.len() >= 3 => {
-            let channel = |i: usize| match items.get(i) {
-                Some(Value::Num(n)) => Ok(*n as f32),
-                Some(Value::Int(n)) => Ok(*n as f32),
-                None => Ok(1.0),
-                other => Err(anyhow!(
-                    "a colour channel should be a number, got {other:?}"
-                )),
-            };
-            Ok([channel(0)?, channel(1)?, channel(2)?, channel(3)?])
-        }
-        other => Err(anyhow!(
-            "a colour is a color value or a list of channel floats, got {other:?}"
-        )),
+        other => Err(anyhow!("a colour is a Color, got {other:?}")),
     }
 }
 
@@ -109,17 +96,14 @@ fn number(value: &Value) -> anyhow::Result<f32> {
 
 fn point_of(item: &Value) -> anyhow::Result<[f32; 2]> {
     match item {
-        Value::Vec2([x, y]) | Value::Vec3([x, y, _]) => Ok([*x, *y]),
-        Value::List(pair) if pair.len() >= 2 => Ok([number(&pair[0])?, number(&pair[1])?]),
-        other => Err(anyhow!("a point is [x, y] or a vector, got {other:?}")),
+        Value::Vec2(at) => Ok(*at),
+        other => Err(anyhow!("a point is a Vec2, got {other:?}")),
     }
 }
 
 fn points_of(list: &Value) -> anyhow::Result<Vec<[f32; 2]>> {
     let Value::List(items) = list else {
-        return Err(anyhow!(
-            "points should be a list of [x, y] pairs or vectors"
-        ));
+        return Err(anyhow!("points should be a list of Vec2s"));
     };
     items.iter().map(point_of).collect()
 }
@@ -194,12 +178,12 @@ type TextureArgs = (String, f32, f32, f32, f32, Option<Value>, Option<Value>);
 
 pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: color, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
-        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: color, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
-        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float, color: color, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_polygon_2d", &[], "(points: list, color: color, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
-        ("draw_polyline_2d", &[], "(points: list, width: float, color: color, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: color, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: Color?, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
+        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: Color?, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
+        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float?, color: Color?, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_polygon_2d", &[], "(points: [Vec2], color: Color?, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
+        ("draw_polyline_2d", &[], "(points: [Vec2], width: float?, color: Color?, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
+        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: Color?, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
     ]);
     m.records(&[
         (
@@ -209,7 +193,7 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
         ),
         (
             "TextureOptions",
-            "{ z_index: int?, region_origin: vec2?, region_size: vec2? }",
+            "{ z_index: int?, region_origin: Vec2?, region_size: Vec2? }",
             "A drawn image's `z_index`, and the part of it drawn: `region_origin` and `region_size` in the image's pixels.",
         ),
     ]);
@@ -584,15 +568,17 @@ mod tests {
     }
 
     #[test]
-    fn a_colour_may_be_a_list_of_three_or_four_channels() {
-        let close = |got: [f32; 4], want: [f32; 4]| {
-            got.iter()
-                .zip(want.iter())
-                .all(|(a, b)| (a - b).abs() < 1e-6)
-        };
-        let rgb = Value::List(vec![Value::Num(0.5), Value::Int(1), Value::Num(0.0)]);
-        assert!(close(color_of(&rgb).unwrap(), [0.5, 1.0, 0.0, 1.0]));
-        assert!(close(color_of(&Value::Nil).unwrap(), [1.0; 4]));
+    #[allow(
+        clippy::float_cmp,
+        reason = "a colour passed through, not an arithmetic result"
+    )]
+    fn a_colour_left_out_is_white_and_a_list_is_no_colour() {
+        assert_eq!(
+            color_of(&Value::Color([0.5, 1.0, 0.0, 1.0])).unwrap(),
+            [0.5, 1.0, 0.0, 1.0]
+        );
+        assert_eq!(color_of(&Value::Nil).unwrap(), [1.0; 4]);
+        assert!(color_of(&Value::List(vec![Value::Num(0.5); 3])).is_err());
         assert!(color_of(&Value::Str("red".into())).is_err());
     }
 }

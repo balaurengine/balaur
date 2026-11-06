@@ -1119,7 +1119,7 @@ pub fn read_property(state: editor::State, component: str, property: str, spec: 
     if !form.node.is_valid() {
         return spec["default"];
     }
-    let now = form.node.get_component(component, property);
+    let now = form.node.component_property(component, property);
     if now == nil { spec["default"] } else { now }
 }
 
@@ -1509,7 +1509,7 @@ fn read_now(state: editor::State, component: str, property: str, fallback: any) 
     if !found.is_valid() {
         return fallback;
     }
-    let value = found.get_component(component, property);
+    let value = found.component_property(component, property);
     if value == nil { fallback } else { value }
 }
 

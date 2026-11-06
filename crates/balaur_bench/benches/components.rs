@@ -100,7 +100,7 @@ fn script_side(c: &mut Criterion) {
         ),
         (
             "get_component_keyed",
-            "let at = self.node.get_component(\"transform\", \"position\");",
+            "let at = self.node.component_property(\"transform\", \"position\");",
         ),
         (
             "has_component",

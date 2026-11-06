@@ -57,19 +57,27 @@ pub(crate) fn added(eng: &Engine, node: Entity, index: usize) {
     });
 }
 
+impl Ticks {
+    /// Component `index` of `node` changed at tick `now`.
+    pub(crate) fn changed(&mut self, now: u64, node: Entity, index: usize) {
+        if let Some(stamp) = self.stamps.get_mut(&(node, index)) {
+            stamp.changed = now;
+            return;
+        }
+        self.stamps.insert(
+            (node, index),
+            Stamp {
+                added: now,
+                changed: now,
+            },
+        );
+    }
+}
+
 /// Component `index` of `node` changed now.
 pub(crate) fn changed(eng: &Engine, node: Entity, index: usize) {
     let now = eng.change_tick();
-    with(eng, |ticks| {
-        ticks
-            .stamps
-            .entry((node, index))
-            .and_modify(|stamp| stamp.changed = now)
-            .or_insert(Stamp {
-                added: now,
-                changed: now,
-            });
-    });
+    with(eng, |ticks| ticks.changed(now, node, index));
 }
 
 /// Component `index` came off `node` now.

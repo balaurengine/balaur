@@ -8,11 +8,11 @@ pub fn contains(text: str, needle: str) -> bool {
 }
 
 pub fn starts_with(text: str, prefix: str) -> bool {
-    prefix.len() <= text.len() && same_at(text, 0, prefix)
+    prefix.len() <= text.len() && __same_at(text, 0, prefix)
 }
 
 pub fn ends_with(text: str, suffix: str) -> bool {
-    suffix.len() <= text.len() && same_at(text, text.len() - suffix.len(), suffix)
+    suffix.len() <= text.len() && __same_at(text, text.len() - suffix.len(), suffix)
 }
 
 pub fn find(text: str, needle: str) -> int {
@@ -153,46 +153,8 @@ pub fn parse_float(text: str) -> float {
     __parse_float(trim(text))
 }
 
-// A key's place in a map's table (`crate::maps`), never negative: each byte
-// folded in by a large odd multiplier, then the high half into the low, which
-// the table's size picks from.
-fn hash(text: str) -> int {
-    let total = 0;
-    let at = 0;
-    while at < text.len() {
-        total = (total + __byte(text, at) + 1) * 1099511628211;
-        at += 1;
-    }
-    total = total + total / 4294967296;
-    if total < 0 {
-        -1 - total
-    } else {
-        total
-    }
-}
-
-// Whether `needle` sits in `text` at byte `at`.
-fn same_at(text: str, at: int, needle: str) -> bool {
-    let offset = 0;
-    while offset < needle.len() {
-        if __byte(text, at + offset) != __byte(needle, offset) {
-            return false;
-        }
-        offset += 1;
-    }
-    true
-}
-
 fn find_from(text: str, needle: str, from: int) -> int {
-    let last = text.len() - needle.len();
-    let at = from;
-    while at <= last {
-        if same_at(text, at, needle) {
-            return at;
-        }
-        at += 1;
-    }
-    return -1;
+    __find(text, needle, from)
 }
 
 // `at` clamped into the string and moved back onto a character's start.

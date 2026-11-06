@@ -5,6 +5,7 @@ pub const MEMORY: &str = "memory";
 pub const ALLOC: &str = "__alloc";
 pub const FREE: &str = "__free";
 pub const LIVE: &str = "__live";
+pub const BUMP: &str = "__bump";
 pub const DBG_RESET: &str = "__dbg_reset";
 /// Followed by the type, `__dec$[str]`: releases one reference to a value of it.
 pub const DEC: &str = "__dec$";
@@ -32,14 +33,19 @@ pub const DBG_PROBE: &str = "__dbg_probe";
 pub const FUEL: &str = "__fuel";
 /// A profiled module: the statements it has run, wrapping.
 pub const STEPS: &str = "__steps";
+/// A profiled unit: the callees' share of the call running, which every
+/// unit's functions add to as a whole module's do.
+pub const PROF_CALLEES: &str = "__prof_callees";
 /// A profiled module: where its table of calls and own statements per
-/// function sits, set by the host; 0 keeps none.
+/// function sits, set by the host; 0 keeps none. A unit's is in its static
+/// data ([`crate::Unit::rows_at`]), and this is its address.
 pub const PROF: &str = "__prof";
 /// A direct module's entry point for a call of `n` slots: `__bs_call{n}`.
 pub const DIRECT_CALL: &str = "__bs_call";
 /// A direct module's way to the second and later results of a call.
 pub const DIRECT_RESULT: &str = "__bs_result";
-/// The global a direct module passes as its instance's id.
+/// The global a direct module passes as its instance's id; a direct unit's
+/// is its own, as the engine's entry points find a unit by it.
 pub const HOST_CTX: &str = "__host_ctx";
 /// Debug builds: the shadow stack's base and top, the stepping flag, and the
 /// address of the breakpoint table, one byte per statement.
@@ -47,6 +53,9 @@ pub const DBG_BASE: &str = "__dbg_base";
 pub const DBG_SP: &str = "__dbg_sp";
 pub const DBG_FLAGS: &str = "__dbg_flags";
 pub const DBG_BREAKS: &str = "__dbg_breaks";
+/// A debug unit: its index in the instance, which its shadow frames carry so
+/// a stack across units reads each frame by the unit it is in.
+pub const DBG_UNIT: &str = "__dbg_unit";
 
 /// A unit ([`crate::Options::unit`]) exports each function another unit may
 /// call under this prefix and its key: `~util::lerp` is `~lerp` in `util`'s.
@@ -54,8 +63,11 @@ pub const LINK: &str = "~";
 /// What a unit imports besides the engine's functions, so the units of one
 /// script share its memory, its `fn` table and its allocator: the table...
 pub const TABLE: &str = "__table";
-/// ...the allocator's and the debugger's globals, in their module order...
-pub const UNIT_GLOBALS: [&str; 6] = ["__bump", LIVE, DBG_SP, DBG_BASE, DBG_FLAGS, DBG_BREAKS];
+/// ...the allocator's and the debugger's globals, in their module order,
+/// [`DBG_BREAKS`] being each debug unit's own table...
+pub const UNIT_GLOBALS: [&str; 6] = [BUMP, LIVE, DBG_SP, DBG_BASE, DBG_FLAGS, DBG_BREAKS];
+/// ...what a unit built to count shares with the rest, which no other imports...
+pub const COUNT_GLOBALS: [&str; 3] = [FUEL, STEPS, PROF_CALLEES];
 /// ...and where its own static data, `fn` values and links start.
 pub const MEMORY_BASE: &str = "__memory_base";
 pub const TABLE_BASE: &str = "__table_base";

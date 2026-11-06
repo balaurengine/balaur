@@ -30,6 +30,54 @@ pub use toml;
 use super::{ComponentDef, Schema, WriteEachFn, WriteFn};
 use crate::engine::Engine;
 
+/// A property's value with nothing built: what a write hands a field and what
+/// a field hands a read, for the kinds a script passes in its call's slots.
+/// `Value` is everything else, as a file holds it.
+#[derive(Clone, Copy, Debug)]
+pub enum Given<'a> {
+    Float(f64),
+    Int(i64),
+    Bool(bool),
+    /// A vector's or a colour's numbers, and how many.
+    Numbers([f32; 4], usize),
+    Text(&'a str),
+    Value(&'a toml::Value),
+}
+
+impl Given<'_> {
+    /// The value a file would hold for it.
+    #[must_use]
+    pub fn to_value(self) -> toml::Value {
+        match self {
+            Self::Float(number) => toml::Value::Float(number),
+            Self::Int(number) => toml::Value::Integer(number),
+            Self::Bool(flag) => toml::Value::Boolean(flag),
+            Self::Numbers(numbers, count) => toml::Value::Array(
+                numbers[..count]
+                    .iter()
+                    .map(|number| toml::Value::Float(f64::from(*number)))
+                    .collect(),
+            ),
+            Self::Text(text) => toml::Value::String(text.to_owned()),
+            Self::Value(value) => value.clone(),
+        }
+    }
+}
+
+impl<'a> From<&'a toml::Value> for Given<'a> {
+    fn from(value: &'a toml::Value) -> Self {
+        Self::Value(value)
+    }
+}
+
+/// A value read as a file's would be, for a kind a type has no quicker read of.
+pub fn from_given<P: Property>(given: Given<'_>) -> Result<P> {
+    match given {
+        Given::Value(value) => P::from_value(value),
+        other => P::from_value(&other.to_value()),
+    }
+}
+
 /// A value a property holds: what its spec says it is, and how it is written
 /// in a file and read back.
 pub trait Property: Sized {
@@ -39,10 +87,14 @@ pub trait Property: Sized {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>);
     fn to_value(&self) -> toml::Value;
     fn from_value(value: &toml::Value) -> Result<Self>;
-    /// A vector's numbers into `out`, and how many, for a read that builds no
-    /// value. `None` for any other type.
-    fn vector(&self, out: &mut [f32; 4]) -> Option<usize> {
-        let _ = out;
+    /// A value from what a write hands it, which refuses what
+    /// [`Property::from_value`] refuses.
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        from_given(given)
+    }
+    /// What it holds with nothing built, for a read. `None` for a type with
+    /// no such form, which [`Property::to_value`] reads.
+    fn given(&self) -> Option<Given<'_>> {
         None
     }
 }
@@ -60,9 +112,9 @@ pub trait Fields: Default {
     fn read(&self, index: usize) -> Option<toml::Value>;
     /// Write one property, by its index. A value of the wrong shape is
     /// refused and the field keeps what it held.
-    fn write(&mut self, index: usize, value: &toml::Value) -> Result<()>;
-    /// One property's numbers, where it is a vector: see [`Property::vector`].
-    fn vector(&self, index: usize, out: &mut [f32; 4]) -> Option<usize>;
+    fn write(&mut self, index: usize, value: Given<'_>) -> Result<()>;
+    /// One property with nothing built: see [`Property::given`].
+    fn given(&self, index: usize) -> Option<Given<'_>>;
 }
 
 /// A struct that is a component: [`Fields`] and the name a scene keys it by.
@@ -181,7 +233,7 @@ pub fn from_table<F: Fields>(table: &toml::Value) -> Result<F> {
                 .ok(),
         };
         if let Some(at) = found {
-            out.write(F::BY_NAME[at].1, value)?;
+            out.write(F::BY_NAME[at].1, value.into())?;
             next = at + 1;
         }
     }
@@ -375,6 +427,17 @@ impl Property for f32 {
     fn from_value(value: &toml::Value) -> Result<Self> {
         number(value).map(|number| number as Self)
     }
+
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        match given {
+            Given::Float(number) => Ok(number as Self),
+            other => from_given(other),
+        }
+    }
+
+    fn given(&self) -> Option<Given<'_>> {
+        Some(Given::Float(widened(*self)))
+    }
 }
 
 impl Property for f64 {
@@ -388,6 +451,17 @@ impl Property for f64 {
 
     fn from_value(value: &toml::Value) -> Result<Self> {
         number(value)
+    }
+
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        match given {
+            Given::Float(number) => Ok(number),
+            other => from_given(other),
+        }
+    }
+
+    fn given(&self) -> Option<Given<'_>> {
+        Some(Given::Float(*self))
     }
 }
 
@@ -417,6 +491,18 @@ macro_rules! whole_number {
                 <$kind>::try_from(whole)
                     .map_err(|_| anyhow!("is {whole}, which does not fit {}", stringify!($kind)))
             }
+
+            fn from_given(given: Given<'_>) -> Result<Self> {
+                match given {
+                    Given::Int(whole) => <$kind>::try_from(whole)
+                        .map_err(|_| anyhow!("is {whole}, which does not fit {}", stringify!($kind))),
+                    other => from_given(other),
+                }
+            }
+
+            fn given(&self) -> Option<Given<'_>> {
+                Some(Given::Int(i64::try_from(*self).unwrap_or(i64::MAX)))
+            }
         }
     )*};
 }
@@ -435,6 +521,17 @@ impl Property for bool {
     fn from_value(value: &toml::Value) -> Result<Self> {
         value.as_bool().ok_or_else(|| wrong(value, "true or false"))
     }
+
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        match given {
+            Given::Bool(flag) => Ok(flag),
+            other => from_given(other),
+        }
+    }
+
+    fn given(&self) -> Option<Given<'_>> {
+        Some(Given::Bool(*self))
+    }
 }
 
 impl Property for String {
@@ -451,6 +548,17 @@ impl Property for String {
             .as_str()
             .map(str::to_owned)
             .ok_or_else(|| wrong(value, "text"))
+    }
+
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        match given {
+            Given::Text(text) => Ok(text.to_owned()),
+            other => from_given(other),
+        }
+    }
+
+    fn given(&self) -> Option<Given<'_>> {
+        Some(Given::Text(self))
     }
 }
 
@@ -469,6 +577,17 @@ impl Property for smol_str::SmolStr {
             .map(Self::new)
             .ok_or_else(|| wrong(value, "text"))
     }
+
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        match given {
+            Given::Text(text) => Ok(Self::new(text)),
+            other => from_given(other),
+        }
+    }
+
+    fn given(&self) -> Option<Given<'_>> {
+        Some(Given::Text(self))
+    }
 }
 
 macro_rules! vector {
@@ -486,9 +605,21 @@ macro_rules! vector {
                 numbers::<$size>(value).map(Self::from)
             }
 
-            fn vector(&self, out: &mut [f32; 4]) -> Option<usize> {
-                out[..$size].copy_from_slice(&<[f32; $size]>::from(*self));
-                Some($size)
+            fn from_given(given: Given<'_>) -> Result<Self> {
+                match given {
+                    Given::Numbers(numbers, $size) => {
+                        let mut held = [0.0; $size];
+                        held.copy_from_slice(&numbers[..$size]);
+                        Ok(Self::from(held))
+                    }
+                    other => from_given(other),
+                }
+            }
+
+            fn given(&self) -> Option<Given<'_>> {
+                let mut numbers = [0.0; 4];
+                numbers[..$size].copy_from_slice(&<[f32; $size]>::from(*self));
+                Some(Given::Numbers(numbers, $size))
             }
         }
     };
@@ -516,6 +647,13 @@ impl Property for glamx::Quat {
     fn from_value(value: &toml::Value) -> Result<Self> {
         let [x, y, z] = numbers::<3>(value)?;
         Ok(Self::from_euler(glamx::EulerRot::ZYX, z, y, x))
+    }
+
+    fn from_given(given: Given<'_>) -> Result<Self> {
+        match given {
+            Given::Numbers([x, y, z, _], 3) => Ok(Self::from_euler(glamx::EulerRot::ZYX, z, y, x)),
+            other => from_given(other),
+        }
     }
 }
 
@@ -669,10 +807,16 @@ impl ComponentDef {
                 let held = world.get::<&C>(entity).ok()?;
                 held.read(index)
             })),
-            read_vector: Some(Box::new(|eng, entity, index, out| {
+            read_given: Some(Box::new(|eng, entity, index, out| {
                 let world = eng.world();
-                let held = world.get::<&C>(entity).ok()?;
-                held.vector(index, out)
+                let Ok(held) = world.get::<&C>(entity) else {
+                    return false;
+                };
+                let Some(given) = held.given(index) else {
+                    return false;
+                };
+                out(given);
+                true
             })),
             write: Some(write_one::<C>(after_write)),
             write_each: Some(write_each::<C>(after_write)),
@@ -688,8 +832,8 @@ fn write_one<C: Component>(after_write: Option<AfterWriteFn>) -> WriteFn {
             let Ok(mut held) = world.get::<&mut C>(entity) else {
                 return Ok(false);
             };
-            // Only for a hook to refuse, and a vector's numbers without
-            // a value built: a script moving a node writes every frame.
+            // Only for a hook to refuse, and a vector's numbers without a
+            // value built: a script moving a node writes every frame.
             let before = after_write.map(|_| Held::of(&*held, index));
             held.write(index, value)?;
             before
@@ -714,7 +858,7 @@ fn write_each<C: Component>(after_write: Option<AfterWriteFn>) -> WriteEachFn {
         let put_back = |held: &mut C, before: &[Option<toml::Value>]| {
             for ((index, _), was) in each.iter().zip(before) {
                 if let Some(was) = was {
-                    let _ = held.write(*index, was);
+                    let _ = held.write(*index, was.into());
                 }
             }
         };
@@ -725,7 +869,7 @@ fn write_each<C: Component>(after_write: Option<AfterWriteFn>) -> WriteEachFn {
             };
             let before: Vec<_> = each.iter().map(|(index, _)| held.read(*index)).collect();
             for (at, (index, value)) in each.iter().enumerate() {
-                if let Err(why) = held.write(*index, value) {
+                if let Err(why) = held.write(*index, (*value).into()) {
                     put_back(&mut held, &before[..at]);
                     return Err(why);
                 }
@@ -753,20 +897,19 @@ enum Held {
 
 impl Held {
     fn of<F: Fields>(held: &F, index: usize) -> Self {
-        let mut numbers = [0.0; 4];
-        match held.vector(index, &mut numbers) {
-            Some(count) => Self::Vector(numbers, count),
-            None => Self::Value(held.read(index)),
+        match held.given(index) {
+            Some(Given::Numbers(numbers, count)) => Self::Vector(numbers, count),
+            _ => Self::Value(held.read(index)),
         }
     }
 
     fn put_back<F: Fields>(&self, held: &mut F, index: usize) {
         match self {
             Self::Vector(numbers, count) => {
-                let _ = held.write(index, &floats(&numbers[..*count]));
+                let _ = held.write(index, Given::Numbers(*numbers, *count));
             }
             Self::Value(Some(was)) => {
-                let _ = held.write(index, was);
+                let _ = held.write(index, was.into());
             }
             Self::Value(None) => {}
         }

@@ -195,6 +195,11 @@ fn install_import_api(m: &mut Module<Engine>) {
     m.module_doc(
         "Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk` level into the project being edited, with the importers `balaur import` runs.",
     );
+    m.records(&[(
+        "Imported",
+        "{ files: [string], scene: string?, note: string, error: string? }",
+        "What one import did: the project-relative paths written, the scene to instantiate when there is one, a line for the log, and why it failed when it did.",
+    )]);
     m.describe(&[
         (
             "handles",
@@ -205,8 +210,8 @@ fn install_import_api(m: &mut Module<Engine>) {
         (
             "file",
             &[],
-            "(path: string) -> map",
-            "Import one file into the edited project, in one call. Answers `{ files, scene, note }`: the project-relative paths written, the scene to instantiate when there is one, and a line for the log. Answers `{ error }` when the import failed. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
+            "(path: string) -> Imported",
+            "Import one file into the edited project, in one call. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
         ),
         (
             "start",
@@ -760,21 +765,27 @@ fn import(file: &Path, project: &Path) -> Value {
                 ("note".into(), Value::Str(imported.note)),
             ])
         }
-        Err(e) => Value::Map(vec![("error".into(), Value::text(format!("{e:#}")))]),
+        Err(e) => failed(format!("{e:#}")),
     }
+}
+
+/// An import that wrote nothing, and why.
+fn failed(error: String) -> Value {
+    Value::Map(vec![
+        ("files".into(), Value::List(Vec::new())),
+        ("note".into(), Value::text("")),
+        ("error".into(), Value::Str(error)),
+    ])
 }
 
 /// A tab has none of the importers: they read a `.glb` or an `.aseprite`
 /// off disk through crates the browser build leaves out.
 #[cfg(not(feature = "import"))]
 fn import(file: &Path, _project: &Path) -> Value {
-    Value::Map(vec![(
-        "error".into(),
-        Value::text(format!(
-            "importing {} needs the desktop app; a tab has no importers",
-            file.display()
-        )),
-    )])
+    failed(format!(
+        "importing {} needs the desktop app; a tab has no importers",
+        file.display()
+    ))
 }
 
 #[cfg(all(test, feature = "import"))]

@@ -76,7 +76,8 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("set_state", &["states"], "(state: string)", "Put the node in one of its `states`: the state's table is patched over the components it names, and `on_state_changed(from, to)` follows. A node already in that state is left alone.", go_to_state),
     op("state", &["states"], "() -> string", "The state the node is in, or \"\" for the pose the scene gave it.", current_state),
     op("remove_component", &[], "(component: string)", "Take the named component off the node.", remove_component),
-    op("get_component", &[], "(component: string, key: string?) -> any", "The named component's properties as a table, nil when the node does not carry it. With a key, that one property rather than the table, which is what a caller reading a single value should ask for.", get_component),
+    op("get_component", &[], "(component: string) -> any", "The named component's properties as a table, nil when the node does not carry it.", get_component),
+    op("component_property", &[], "(component: string, property: string) -> any", "One property of the named component, nil when the node does not carry it: what a caller reading a single value should ask for.", component_property),
     op("has_component", &[], "(component: string) -> bool", "Whether the node carries the named component.", has_component),
     op("component_names", &[], "() -> [string]", "The names of every component on the node.", component_names),
     op("stable_id", &[], "() -> string", "The node's stable id: what a scene file declared, or what it was given when it was spawned. Survives rename and reparent, which a path does not.", stable_id),
@@ -105,7 +106,7 @@ pub const NODE_OPS: &[NodeOp] = &[
     op("material", &[], "() -> string", "The `material` asset the node names itself, empty when it takes its parent's.", material),
     op("effective_material", &[], "() -> string", "The material the node draws with: its own, or the nearest ancestor's. Empty is the built-in one.", effective_material),
     op("z_index", &[], "() -> int", "The node's own draw layer, added to its parent's unless set absolute.", z_index),
-    op("set_z_index", &[], "(z: int, options: any)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `z_as_relative = false` makes it absolute.", set_z_index),
+    op("set_z_index", &[], "(z: int, relative: bool?)", "Put the node and its subtree on a draw layer: higher draws later. It adds to the parent's layer unless `relative` is false, which makes it absolute.", set_z_index),
     op("effective_z_index", &[], "() -> int", "The layer the node actually draws on, with every ancestor's added in.", effective_z_index),
     op(crate::process::KEY, &[], "() -> string", "When this node ticks: \"inherit\", \"pausable\", \"always\" or \"disabled\". \"inherit\" is the default and takes the nearest ancestor's answer.", process),
     op("set_process", &[], "(mode: string)", "Set when the node and its subtree tick. \"always\" runs through a pause, which is what a pause menu is; \"disabled\" never runs; \"inherit\" goes back to the parent's. Physics is one world and is held whole by a pause whatever this says.", set_process),
@@ -312,15 +313,11 @@ fn z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
     with_appearance(eng, node(args)?, |a| Value::Int(i64::from(a.z_index)))
 }
 
-/// `set_z_index(node, z)` adds to the parent's; `z_as_relative = false` in
-/// the options makes it absolute.
+/// `set_z_index(node, z)` adds to the parent's; `relative` false makes it
+/// absolute.
 fn set_z_index(eng: &Engine, args: &[Value]) -> Result<Value> {
     let z = integer(args, 1)?;
-    let relative = match crate::handler::opt(args.get(2), "z_as_relative") {
-        Some(Value::Bool(b)) => *b,
-        Some(other) => bail!("`z_as_relative` should be a bool, got {other:?}"),
-        None => true,
-    };
+    let relative = !matches!(args.get(2), Some(Value::Bool(false)));
     let e = node(args)?;
     crate::changes::node_keys(eng, e);
     with_appearance(eng, e, |a| {
@@ -592,41 +589,6 @@ pub fn set_property_at(
     crate::components::set_property_at(eng, entity, index, key, &to_toml(value)?)
 }
 
-/// [`set_property_at`] at a place found before, as a script's bound
-/// property writes it.
-///
-/// # Errors
-/// As [`set_property_at`].
-pub fn set_property_placed(
-    eng: &Engine,
-    entity: Entity,
-    place: crate::components::PropertyPlace,
-    value: &Value,
-) -> Result<()> {
-    let numbers: Option<&[f32]> = match value {
-        Value::Vec2(numbers) => Some(numbers),
-        Value::Vec3(numbers) => Some(numbers),
-        Value::Color(numbers) => Some(numbers),
-        _ => None,
-    };
-    let Some(numbers) = numbers else {
-        return crate::components::set_property_placed(eng, entity, place, &to_toml(value)?);
-    };
-    // A vector's array, kept: a script moving a node writes one every frame.
-    thread_local! {
-        static SPARE: std::cell::Cell<Vec<toml::Value>> = const { std::cell::Cell::new(Vec::new()) };
-    }
-    let mut items = SPARE.take();
-    items.clear();
-    items.extend(numbers.iter().map(|n| toml::Value::Float(f64::from(*n))));
-    let array = toml::Value::Array(items);
-    let written = crate::components::set_property_placed(eng, entity, place, &array);
-    if let toml::Value::Array(items) = array {
-        SPARE.set(items);
-    }
-    written
-}
-
 /// Writes over what the component currently holds, so the properties the
 /// table does not name survive.
 ///
@@ -665,7 +627,7 @@ fn set_property(eng: &Engine, args: &[Value]) -> Result<Value> {
         .get(3)
         .ok_or_else(|| anyhow!("set_property needs the value"))?;
     let written = match crate::components::place_of(eng, name, key) {
-        Some(place) => set_property_placed(eng, e, place, value),
+        Some(place) => write_placed(eng, e, &place, value),
         None => crate::components::set_property(eng, e, name, key, &to_toml(value)?),
     };
     let Err(why) = written else {
@@ -681,6 +643,37 @@ fn set_property(eng: &Engine, args: &[Value]) -> Result<Value> {
     let node = scene::node_path(&eng.world(), e);
     tracing::warn!(node, "write refused: {why:#}");
     Ok(Value::Bool(false))
+}
+
+/// A script's value written at a place: a value is built only for a kind
+/// [`Given`] does not hold.
+fn write_placed(
+    eng: &Engine,
+    e: Entity,
+    place: &crate::components::PropertyPlace,
+    value: &Value,
+) -> Result<()> {
+    use crate::components::derived::Given;
+    let numbers = |held: &[f32]| {
+        let mut out = [0.0; 4];
+        let count = held.len().min(4);
+        out[..count].copy_from_slice(&held[..count]);
+        Given::Numbers(out, count)
+    };
+    let given = match value {
+        Value::Num(number) => Given::Float(*number),
+        Value::Int(number) => Given::Int(*number),
+        Value::Bool(flag) => Given::Bool(*flag),
+        Value::Str(text) => Given::Text(text),
+        Value::Vec2(held) => numbers(held),
+        Value::Vec3(held) => numbers(held),
+        Value::Color(held) => numbers(held),
+        other => {
+            let built = to_toml(other)?;
+            return crate::components::set_property_placed(eng, e, place, Given::Value(&built));
+        }
+    };
+    crate::components::set_property_placed(eng, e, place, given)
 }
 
 /// Whether a write that failed named a node that is gone, or a component or
@@ -730,14 +723,18 @@ fn remove_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 fn get_component(eng: &Engine, args: &[Value]) -> Result<Value> {
     let e = node(args)?;
-    let name = text(args, 1)?;
-    // With a key, one property: a control reading what it now holds asked for
-    // the whole table, and building that was a twelfth of the editor's frame.
-    let found = match args.get(2) {
-        Some(Value::Str(key)) => crate::components::property(eng, e, name, key),
-        _ => crate::components::get(eng, e, name),
-    };
-    found.as_ref().map_or(Ok(Value::Nil), from_toml)
+    crate::components::get(eng, e, text(args, 1)?)
+        .as_ref()
+        .map_or(Ok(Value::Nil), from_toml)
+}
+
+// One property: a control reading what it now holds asked for the whole
+// table, and building that was a twelfth of the editor's frame.
+fn component_property(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let e = node(args)?;
+    crate::components::property(eng, e, text(args, 1)?, text(args, 2)?)
+        .as_ref()
+        .map_or(Ok(Value::Nil), from_toml)
 }
 
 fn has_component(eng: &Engine, args: &[Value]) -> Result<Value> {

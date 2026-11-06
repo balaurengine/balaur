@@ -71,7 +71,7 @@ pub fn login_email(email: str, password: str) -> int {
 /// The server emails a link and a six-digit code; `auth::confirm_registration`
 /// takes the code and the password the player chooses, and opens a session.
 /// An empty `username` lets the server pick one.
-pub fn register_email(email: str, username: str) -> any {
+pub fn register_email(email: str, username: str) -> int {
     let account: any = { "email": email };
     if username != "" {
         account["username"] = username;
@@ -81,7 +81,7 @@ pub fn register_email(email: str, username: str) -> any {
 
 /// Email a `register_email` account a new code; only the newest works. The
 /// reply is `ok` whether or not the address has an account waiting.
-pub fn resend_confirmation(email: str) -> any {
+pub fn resend_confirmation(email: str) -> int {
     authentication::resend_confirmation({ "email": email })
 }
 
@@ -258,7 +258,7 @@ pub async fn fetch_row(key: str, force: bool) -> any {
     if !force && has_row(key) {
         return row(key);
     }
-    let reply = await task::wait(kv::get_kv(key).as_int());
+    let reply = await task::wait(kv::get_kv(key));
     if !core::ok(reply) {
         if reply["status"].as_int() == 404 {
             keep_row(key, {});
@@ -274,13 +274,13 @@ pub async fn fetch_row(key: str, force: bool) -> any {
 
 /// The signed-in player's profile, fetched fresh, as `core::unpack` shapes it.
 pub async fn fetch_current_user() -> any {
-    let reply = await task::wait(users::get_current_user().as_int());
+    let reply = await task::wait(users::get_current_user());
     core::unpack(reply)
 }
 
 /// One lobby, fetched fresh, its members inside it as the server sends them.
-pub async fn fetch_lobby(lobby_id: any) -> any {
-    let reply = await task::wait(lobbies::get_lobby(lobby_id).as_int());
+pub async fn fetch_lobby(lobby_id: str) -> any {
+    let reply = await task::wait(lobbies::get_lobby(lobby_id));
     core::unpack(reply)
 }
 

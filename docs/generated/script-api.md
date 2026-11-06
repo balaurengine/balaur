@@ -16,15 +16,15 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
-| [`encoding`](#encoding) | 2 | 0 |
+| [`encoding`](#encoding) | 3 | 0 |
 | [`engine`](#engine) | 30 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
 | [`fs`](#fs) | 9 | 0 |
-| [`gamend`](#gamend) | 19 | 9 |
+| [`gamend`](#gamend) | 20 | 9 |
 | [`geometry2d`](#geometry2d) | 12 | 0 |
-| [`geometry3d`](#geometry3d) | 6 | 0 |
+| [`geometry3d`](#geometry3d) | 7 | 0 |
 | [`hash`](#hash) | 2 | 0 |
 | [`http`](#http) | 2 | 5 |
 | [`import`](#import) | 6 | 0 |
@@ -32,9 +32,11 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`json`](#json) | 2 | 0 |
 | [`log`](#log) | 8 | 0 |
 | [`math`](#math) | 24 | 3 |
+| [`multimesh2d`](#multimesh2d) | 0 | 0 |
+| [`multimesh3d`](#multimesh3d) | 0 | 0 |
 | [`multiplayer`](#multiplayer) | 14 | 18 |
-| [`node`](#node) | 52 | 0 |
-| [`physics`](#physics) | 12 | 0 |
+| [`node`](#node) | 55 | 0 |
+| [`physics`](#physics) | 13 | 0 |
 | [`physics2d`](#physics2d) | 17 | 111 |
 | [`physics3d`](#physics3d) | 17 | 118 |
 | [`picture`](#picture) | 1 | 0 |
@@ -54,8 +56,8 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
-| [`ui`](#ui) | 37 | 66 |
-| [`websocket`](#websocket) | 4 | 9 |
+| [`ui`](#ui) | 43 | 65 |
+| [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
 ## `animation`
@@ -65,11 +67,11 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 | Function | Signature |
 | --- | --- |
 | `ease_names` | `() -> [str]` |
-| `is_tween_running` | `(any) -> bool` |
-| `stop` | `(any)` |
+| `is_tween_running` | `(int) -> bool` |
+| `stop_tween` | `(int)` |
 | `tween` | `(Node, animation::Tween) -> int` |
-| `tween_value` | `(any, any, float, str?) -> int` |
-| `tween_value_of` | `(any) -> float` |
+| `tween_float` | `(float, float, float, str?) -> int` |
+| `tween_float_of` | `(int) -> float?` |
 
 Called on a node's component: `animation`, `state_machine`. See [components](components.md).
 
@@ -110,25 +112,25 @@ Apple services beyond `platform.*`: Game Center `identity`, purchases, notificat
 
 | Function | Signature |
 | --- | --- |
-| `access_point` | `(any, any) -> bool` |
-| `authenticated` | `() -> any` |
-| `available` | `() -> any` |
-| `cancel_notification` | `(any) -> any` |
-| `credential_state` | `(any) -> any` |
-| `entitlements` | `() -> any` |
-| `finish_purchase` | `(any) -> any` |
-| `identity` | `() -> any` |
-| `listen_for_cloud_changes` | `() -> any` |
-| `listen_for_invites` | `() -> any` |
-| `listen_for_urls` | `() -> any` |
-| `notify` | `(any, any) -> any` |
-| `products` | `(any) -> any` |
-| `purchase` | `(any) -> any` |
-| `register_for_push` | `() -> any` |
-| `request_notifications` | `() -> any` |
-| `restore_purchases` | `() -> any` |
-| `show_dashboard` | `(any) -> int` |
-| `sign_in` | `() -> any` |
+| `access_point` | `(bool, apple::AccessPointOptions?) -> bool` |
+| `authenticated` | `() -> bool` |
+| `available` | `() -> bool` |
+| `cancel_notification` | `(str)` |
+| `credential_state` | `(str) -> int` |
+| `entitlements` | `() -> int` |
+| `finish_purchase` | `(str) -> int` |
+| `identity` | `() -> int` |
+| `listen_for_cloud_changes` | `() -> bool` |
+| `listen_for_invites` | `() -> bool` |
+| `listen_for_urls` | `() -> bool` |
+| `notify` | `(str, apple::NotifyOptions?) -> int` |
+| `products` | `([str]) -> int` |
+| `purchase` | `(str) -> int` |
+| `register_for_push` | `() -> bool` |
+| `request_notifications` | `() -> int` |
+| `restore_purchases` | `() -> int` |
+| `show_dashboard` | `(apple::ShowDashboardOptions?) -> int` |
+| `sign_in` | `() -> int` |
 
 **Constants** (25):
 
@@ -187,13 +189,13 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 
 | Function | Signature |
 | --- | --- |
-| `bus_effects` | `(str) -> any` |
-| `bus_limit` | `(str) -> any` |
+| `bus_effects` | `(str) -> audio::BusEffects?` |
+| `bus_limit` | `(str) -> audio::BusLimit?` |
 | `bus_volume_linear` | `(str) -> float` |
 | `buses` | `() -> [str]` |
 | `cues` | `() -> [str]` |
 | `device_ready` | `() -> bool` |
-| `devices` | `() -> any` |
+| `devices` | `() -> [str]` |
 | `distance_gain` | `(int) -> float?` |
 | `emitter_position` | `(int) -> Vec3?` |
 | `is_playing` | `(int) -> bool` |
@@ -201,7 +203,7 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `pan` | `(int) -> float?` |
 | `play_cue` | `(str, audio::CueOptions?) -> int?` |
 | `set_bus_volume_linear` | `(str, float)` |
-| `set_emitter_position` | `(int, any, any, any)` |
+| `set_emitter_position` | `(int, Vec3)` |
 | `set_pitch_scale` | `(int, float)` |
 | `set_volume_linear` | `(int, float)` |
 | `stop_all` | `()` |
@@ -241,7 +243,7 @@ Breakpoints, pausing a script and resuming it. The editor's Debugger dock and th
 | `set_break_on_error` | `(bool)` |
 | `set_breakpoints` | `(str, [int]) -> [int]` |
 | `set_scope` | `(Node?)` |
-| `stop_location` | `() -> any` |
+| `stop_location` | `() -> debugger::Stop?` |
 
 **Constants** (4):
 
@@ -260,7 +262,7 @@ The projects a game imports whole under `deps/<alias>/`, declared in `[dependenc
 | --- | --- |
 | `add_path` | `(str, str, str)` |
 | `install` | `(str)` |
-| `list` | `() -> [any]` |
+| `list` | `() -> [dependency::Dependency]` |
 | `make_local` | `(str, str) -> [str]` |
 | `move_into` | `([str], str) -> [str]` |
 | `of` | `(str) -> str?` |
@@ -271,8 +273,9 @@ Bytes to base64 text and back.
 
 | Function | Signature |
 | --- | --- |
-| `base64` | `(any) -> str` |
-| `from_base64` | `(str) -> any` |
+| `base64` | `([int]) -> str` |
+| `base64_text` | `(str) -> str` |
+| `from_base64` | `(str) -> [int]` |
 
 ## `engine`
 
@@ -373,16 +376,17 @@ The Gamend backend: session, REST API and realtime socket. Each call returns an 
 | `clear_activity` | `()` |
 | `close` | `(int) -> bool` |
 | `configure` | `(str?) -> str` |
-| `connect` | `(any, events::ListenOptions?) -> int` |
+| `connect` | `(Node?, events::ListenOptions?) -> int` |
 | `connection` | `() -> gamend::Connection` |
 | `interrupt` | `(int) -> bool` |
 | `join` | `(int, str, any) -> int` |
 | `leave` | `(int, str) -> int` |
 | `login` | `(gamend::Credentials) -> int` |
 | `push` | `(int, str, str, any) -> int` |
+| `refuse` | `(str) -> int` |
 | `register` | `(gamend::Credentials) -> int` |
 | `reply` | `(int) -> any` |
-| `rest` | `(str, str, any) -> any` |
+| `rest` | `(str, str, any) -> int` |
 | `restore` | `(gamend::Session?) -> bool` |
 | `run_id` | `() -> str` |
 | `server` | `() -> gamend::Server` |
@@ -404,35 +408,36 @@ The Gamend backend: session, REST API and realtime socket. Each call returns an 
 
 ## `geometry2d`
 
-Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.
+Polygons on the plane as lists of `Vec2` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.
 
 | Function | Signature |
 | --- | --- |
-| `area` | `(any) -> float` |
-| `contains` | `(any, any) -> bool` |
-| `convex_decomposition` | `(any, geometry2d::DecompositionOptions?) -> any` |
-| `convex_hull` | `(any) -> any` |
-| `difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
-| `intersection` | `(any, any, geometry2d::BooleanOptions?) -> any` |
-| `is_clockwise` | `(any) -> bool` |
-| `reverse_difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
-| `segments_intersect` | `(any, any, any, any) -> Vec2` |
-| `symmetric_difference` | `(any, any, geometry2d::BooleanOptions?) -> any` |
-| `triangulate` | `(any) -> [[int]]` |
-| `union` | `(any, any, geometry2d::BooleanOptions?) -> any` |
+| `area` | `([Vec2]) -> float` |
+| `contains` | `([Vec2], Vec2) -> bool` |
+| `convex_decomposition` | `([Vec2], geometry2d::DecompositionOptions?) -> [[Vec2]]` |
+| `convex_hull` | `([Vec2]) -> [Vec2]` |
+| `difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
+| `intersection` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
+| `is_clockwise` | `([Vec2]) -> bool` |
+| `reverse_difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
+| `segments_intersect` | `(Vec2, Vec2, Vec2, Vec2) -> Vec2?` |
+| `symmetric_difference` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
+| `triangulate` | `([Vec2]) -> [[int]]` |
+| `union` | `([Vec2], [Vec2], geometry2d::BooleanOptions?) -> [[[Vec2]]]` |
 
 ## `geometry3d`
 
-Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection. A mesh is an asset name or a table of `points` and `indices`.
+Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection, on a `Mesh` that `load_mesh` reads from an asset or a script builds.
 
 | Function | Signature |
 | --- | --- |
-| `convex_decomposition` | `(any, geometry3d::DecompositionOptions?) -> [any]` |
-| `convex_hull` | `(any) -> any` |
-| `intersect` | `(any, any) -> any` |
-| `pieces` | `(any) -> [any]` |
-| `split` | `(any, geometry3d::Plane) -> [any]` |
-| `voxelize` | `(any, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels` |
+| `convex_decomposition` | `(geometry3d::Mesh, geometry3d::DecompositionOptions?) -> [geometry3d::Mesh]` |
+| `convex_hull` | `(geometry3d::Mesh) -> geometry3d::Mesh` |
+| `intersect` | `(geometry3d::Mesh, geometry3d::Mesh) -> geometry3d::Mesh?` |
+| `load_mesh` | `(str) -> geometry3d::Mesh` |
+| `pieces` | `(geometry3d::Mesh) -> [geometry3d::Mesh]` |
+| `split` | `(geometry3d::Mesh, geometry3d::Plane) -> [geometry3d::Mesh?]` |
+| `voxelize` | `(geometry3d::Mesh, geometry3d::VoxelizeOptions?) -> geometry3d::Voxels` |
 
 ## `hash`
 
@@ -449,7 +454,7 @@ HTTP requests off the frame: `method`, `headers`, `body`, `timeout_seconds` and 
 
 | Function | Signature |
 | --- | --- |
-| `cancel` | `(int) -> any` |
+| `cancel` | `(int) -> bool` |
 | `request` | `(str, http::RequestOptions?) -> int` |
 
 **Constants** (5):
@@ -470,7 +475,7 @@ Imports a `.glb` or `.gltf` model, an `.aseprite` sprite, or a `.tmx` or `.ldtk`
 | --- | --- |
 | `cancel` | `()` |
 | `choose` | `() -> bool` |
-| `file` | `(str) -> any` |
+| `file` | `(str) -> import::Imported` |
 | `handles` | `(str) -> bool` |
 | `running_count` | `() -> int` |
 | `start` | `(str, str?) -> bool` |
@@ -485,40 +490,40 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `action_just_pressed` | `(str) -> bool` |
 | `action_just_released` | `(str) -> bool` |
 | `action_value` | `(str) -> float` |
-| `actions` | `() -> any` |
-| `bind` | `(str, any)` |
-| `bindings` | `(str) -> any` |
-| `composing` | `() -> any` |
-| `dropped_files` | `() -> any` |
+| `actions` | `() -> [str]` |
+| `bind` | `(str, [str])` |
+| `bindings` | `(str) -> [str]` |
+| `composing` | `() -> str` |
+| `dropped_files` | `() -> [str]` |
 | `feed_action` | `(str, float)` |
-| `feed_gamepad` | `(int, any)` |
+| `feed_gamepad` | `(int, input::PadFeed)` |
 | `feed_key` | `(str, bool)` |
 | `feed_mouse` | `(float, float)` |
 | `feed_mouse_button` | `(int, bool)` |
 | `feed_scroll` | `(float, float)` |
 | `feed_touch` | `(int, float, float, str)` |
-| `gamepad_acceleration` | `(int) -> any` |
+| `gamepad_acceleration` | `(int) -> Vec3` |
 | `gamepad_axis` | `(int, str) -> float` |
 | `gamepad_can_rumble` | `(int) -> bool` |
 | `gamepad_down` | `(int, str) -> bool` |
-| `gamepad_gyro` | `(int) -> any` |
-| `gamepad_info` | `(int) -> any` |
+| `gamepad_gyro` | `(int) -> Vec3` |
+| `gamepad_info` | `(int) -> input::GamepadInfo?` |
 | `gamepad_just_pressed` | `(int, str) -> bool` |
 | `gamepad_just_released` | `(int, str) -> bool` |
 | `gamepad_name` | `(int) -> str` |
-| `gamepad_power` | `(int) -> any` |
+| `gamepad_power` | `(int) -> input::GamepadPower` |
 | `gamepad_pressure` | `(int, str) -> float` |
 | `gamepad_repeated` | `(int, str) -> bool` |
 | `gamepad_rumble` | `(int, input::RumbleOptions?) -> bool` |
-| `gamepad_set_listener` | `(int, any)` |
+| `gamepad_set_listener` | `(int, Vec3)` |
 | `gamepad_stop_rumble` | `(int)` |
-| `gamepad_touches` | `(int) -> any` |
-| `gamepads` | `() -> any` |
+| `gamepad_touches` | `(int) -> [input::Touch]` |
+| `gamepads` | `() -> [int]` |
 | `key_down` | `(str) -> bool` |
 | `key_just_pressed` | `(str) -> bool` |
 | `key_just_released` | `(str) -> bool` |
-| `keyboard_height` | `() -> any` |
-| `long_press` | `() -> any` |
+| `keyboard_height` | `() -> float` |
+| `long_press` | `() -> Vec2?` |
 | `mouse_delta` | `() -> Vec2` |
 | `mouse_down` | `(int) -> bool` |
 | `mouse_just_pressed` | `(int) -> bool` |
@@ -528,11 +533,11 @@ One frame of input: keyboard, mouse, touch screen and gamepads, plus what went d
 | `pinch` | `() -> input::Pinch` |
 | `reset_bindings` | `()` |
 | `scroll_delta` | `() -> Vec2` |
-| `swipe` | `() -> any` |
-| `touches` | `() -> any` |
-| `touches_just_ended` | `() -> any` |
-| `touches_just_started` | `() -> any` |
-| `typed` | `() -> any` |
+| `swipe` | `() -> input::Swipe?` |
+| `touches` | `() -> [input::Touch]` |
+| `touches_just_ended` | `() -> [int]` |
+| `touches_just_started` | `() -> [int]` |
+| `typed` | `() -> str` |
 | `vibrate` | `(float)` |
 
 **Constants** (188):
@@ -629,6 +634,18 @@ Deterministic float maths backed by pure-Rust `libm`: the same inputs give the s
 | `PI` | `3.141592653589793` |
 | `TAU` | `6.283185307179586` |
 
+## `multimesh2d`
+
+Thousands of copies of one sprite in one draw, each with its own transform, colour and custom data, through `node.multimesh2d`.
+
+Called on a node's component: `multimesh2d`. See [components](components.md).
+
+## `multimesh3d`
+
+Thousands of copies of one mesh in one draw, each with its own transform, colour and custom data, through `node.multimesh3d`.
+
+Called on a node's component: `multimesh3d`. See [components](components.md).
+
 ## `multiplayer`
 
 Host, join and play a rollback match. Set this machine's input with `set_input` and read every slot's with `rollback.input(slot)`; events are the `multiplayer_event` event: `events::listen(node, "multiplayer_event")`, heard as `on_multiplayer_event`, a map with a `kind`.
@@ -687,6 +704,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `call_async` | `(Node, str, any, any, any, any) -> int` |
 | `children` | `(Node) -> [Node]` |
 | `component_names` | `(Node) -> [str]` |
+| `component_property` | `(Node, str, str) -> any` |
 | `descendants` | `(Node) -> [Node]` |
 | `detach_script` | `(Node)` |
 | `effective_material` | `(Node) -> str` |
@@ -694,7 +712,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `effective_z_index` | `(Node) -> int` |
 | `emit` | `(Node, str, any)` |
 | `free` | `(Node)` |
-| `get_component` | `(Node, str, str?) -> any` |
+| `get_component` | `(Node, str) -> any` |
 | `get_node` | `(Node, str) -> Node` |
 | `has_component` | `(Node, str) -> bool` |
 | `has_method` | `(Node, str) -> bool` |
@@ -703,6 +721,7 @@ What every node has: name, path, transform, children, components and script. Eac
 | `is_valid` | `(Node) -> bool` |
 | `material` | `(Node) -> str` |
 | `name` | `(Node) -> str` |
+| `overrides` | `(Node) -> any` |
 | `parent` | `(Node) -> Node` |
 | `patch_component` | `(Node, str, any) -> bool` |
 | `path` | `(Node) -> str` |
@@ -718,11 +737,12 @@ What every node has: name, path, transform, children, components and script. Eac
 | `set_name` | `(Node, str)` |
 | `set_parent` | `(Node, Node)` |
 | `set_process` | `(Node, str)` |
+| `set_property` | `(Node, str, str, any) -> bool` |
 | `set_script` | `(Node, str?, any)` |
 | `set_sibling_index` | `(Node, int)` |
 | `set_tint` | `(Node, float, float, float, float)` |
 | `set_visible` | `(Node, bool)` |
-| `set_z_index` | `(Node, int, any)` |
+| `set_z_index` | `(Node, int, bool?)` |
 | `sibling_index` | `(Node) -> int` |
 | `stable_id` | `(Node) -> str` |
 | `tags` | `(Node) -> [str]` |
@@ -741,17 +761,18 @@ What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies a
 | Function | Signature |
 | --- | --- |
 | `clear` | `()` |
-| `counters` | `() -> any` |
-| `debug_draw` | `() -> any` |
+| `counters` | `() -> physics::Counters` |
+| `debug_draw` | `() -> physics::DebugDraw` |
+| `debug_draw_defaults` | `() -> physics::DebugDraw` |
 | `is_paused` | `() -> bool` |
-| `quarantined` | `() -> any` |
-| `set_debug_draw` | `(any)` |
+| `quarantined` | `() -> physics::Quarantined` |
+| `set_debug_draw` | `(physics::DebugDraw)` |
 | `set_paused` | `(bool)` |
 | `set_sleeping_allowed` | `(bool)` |
-| `set_tuning` | `(any)` |
+| `set_tuning` | `(physics::TuningOptions)` |
 | `sleeping_allowed` | `() -> bool` |
 | `threads` | `() -> int` |
-| `tuning` | `() -> any` |
+| `tuning` | `() -> physics::WorldTunings` |
 
 Called on a node's component: `ragdoll`. See [components](components.md).
 
@@ -764,7 +785,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `active_bodies` | `() -> [Node]` |
 | `bodies` | `() -> [Node]` |
 | `closest_point` | `(physics2d::PointQuery) -> physics2d::Closest?` |
-| `closest_points` | `(Node, Node) -> any` |
+| `closest_points` | `(Node, Node) -> physics2d::ClosestPoints?` |
 | `distance` | `(Node, Node) -> float` |
 | `gravity` | `() -> Vec2` |
 | `intersects` | `(Node, Node) -> bool` |
@@ -776,7 +797,7 @@ The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `raycast_all` | `(physics2d::RayQuery) -> [physics2d::Hit]` |
 | `set_gravity` | `(float, float)` |
 | `shapecast` | `(physics2d::ShapeQuery) -> physics2d::Hit?` |
-| `time_of_impact` | `(Node, Node, physics2d::ImpactOptions) -> any` |
+| `time_of_impact` | `(Node, Node, physics2d::ImpactOptions) -> physics2d::Impact?` |
 | `wake_all` | `()` |
 
 Called on a node's component: `body2d`, `character2d`, `collider2d`, `follow2d`, `joint2d`, `softbody2d`. See [components](components.md).
@@ -821,7 +842,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `active_bodies` | `() -> [Node]` |
 | `bodies` | `() -> [Node]` |
 | `closest_point` | `(physics3d::PointQuery) -> physics3d::Closest?` |
-| `closest_points` | `(Node, Node) -> any` |
+| `closest_points` | `(Node, Node) -> physics3d::ClosestPoints?` |
 | `distance` | `(Node, Node) -> float` |
 | `gravity` | `() -> Vec3` |
 | `intersects` | `(Node, Node) -> bool` |
@@ -833,7 +854,7 @@ The 3D rigid-body world: bodies and colliders on nodes, their velocities, raycas
 | `raycast_all` | `(physics3d::RayQuery) -> [physics3d::Hit]` |
 | `set_gravity` | `(float, float, float)` |
 | `shapecast` | `(physics3d::ShapeQuery) -> physics3d::Hit?` |
-| `time_of_impact` | `(Node, Node, physics3d::ImpactOptions) -> any` |
+| `time_of_impact` | `(Node, Node, physics3d::ImpactOptions) -> physics3d::Impact?` |
 | `wake_all` | `()` |
 
 Called on a node's component: `body3d`, `character3d`, `collider3d`, `follow3d`, `joint3d`, `softbody3d`, `vehicle3d`, `wheel3d`. See [components](components.md).
@@ -883,17 +904,17 @@ Store services every platform shares: sign-in, achievements, leaderboards, cloud
 
 | Function | Signature |
 | --- | --- |
-| `backend` | `() -> any` |
-| `cloud_read` | `(any) -> any` |
-| `cloud_write` | `(any, any) -> any` |
-| `player` | `() -> any` |
-| `progress` | `(any, any) -> any` |
-| `scores` | `(any, any) -> any` |
-| `set_presence` | `(any) -> any` |
-| `sign_in` | `() -> any` |
-| `signed_in` | `() -> any` |
-| `submit_score` | `(any, any) -> any` |
-| `unlock` | `(any) -> any` |
+| `backend` | `() -> str` |
+| `cloud_read` | `(str) -> int` |
+| `cloud_write` | `(str, str) -> int` |
+| `player` | `() -> platform::Player?` |
+| `progress` | `(str, float) -> int` |
+| `scores` | `(str, platform::ScoresOptions?) -> int` |
+| `set_presence` | `(str) -> int` |
+| `sign_in` | `() -> int` |
+| `signed_in` | `() -> bool` |
+| `submit_score` | `(str, int) -> int` |
+| `unlock` | `(str) -> int` |
 
 **Constants** (7):
 
@@ -981,20 +1002,20 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `clear_retained` | `(str)` |
 | `debug_view` | `() -> str` |
 | `debug_views` | `() -> [str]` |
-| `draw_arc_2d` | `(float, float, float, float, float, float?, any, render::DrawOptions?)` |
-| `draw_box` | `(float, float, float, float, float, float, any)` |
-| `draw_capsule` | `(float, float, float, float, float, any)` |
-| `draw_circle_2d` | `(float, float, float, any, render::DrawOptions?)` |
+| `draw_arc_2d` | `(float, float, float, float, float, float?, Color?, render::DrawOptions?)` |
+| `draw_box` | `(float, float, float, float, float, float, Color?)` |
+| `draw_capsule` | `(float, float, float, float, float, Color?)` |
+| `draw_circle_2d` | `(float, float, float, Color?, render::DrawOptions?)` |
 | `draw_line_2d` | `(float, float, float, float, float, float, float, float?, render::DrawOptions?)` |
 | `draw_line_3d` | `(float, float, float, float, float, float, float, float, float, float?, bool?, bool?)` |
-| `draw_lines` | `(any)` |
-| `draw_polygon_2d` | `(any, any, render::DrawOptions?)` |
-| `draw_polyline_2d` | `(any, float?, any, render::DrawOptions?)` |
-| `draw_rect_2d` | `(float, float, float, float, any, render::DrawOptions?)` |
-| `draw_sphere` | `(float, float, float, float, any)` |
+| `draw_lines` | `([float])` |
+| `draw_polygon_2d` | `([Vec2], Color?, render::DrawOptions?)` |
+| `draw_polyline_2d` | `([Vec2], float?, Color?, render::DrawOptions?)` |
+| `draw_rect_2d` | `(float, float, float, float, Color?, render::DrawOptions?)` |
+| `draw_sphere` | `(float, float, float, float, Color?)` |
 | `draw_text_2d` | `(float, float, str, render::TextOptions?)` |
 | `draw_text_3d` | `(float, float, float, str, render::TextOptions?)` |
-| `draw_texture_2d` | `(str, float, float, float, float, any, render::TextureOptions?)` |
+| `draw_texture_2d` | `(str, float, float, float, float, Color?, render::TextureOptions?)` |
 | `end_retained` | `()` |
 | `hold_cameras` | `(Node?)` |
 | `material_params` | `(str) -> [render::Param]` |
@@ -1009,7 +1030,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `set_grid_colors` | `(float, float, float, float, float, float)` |
 | `set_shader_preview` | `(str, int)` |
 | `set_shader_probe` | `(float, float)` |
-| `shader_probe` | `() -> any` |
+| `shader_probe` | `() -> Color?` |
 | `snap_aov` | `(str, str)` |
 | `stats` | `() -> render::Stats` |
 | `text_size` | `(str, render::TextOptions?) -> Vec2` |
@@ -1017,7 +1038,7 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `texture_size` | `(str) -> [int]` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
 
-Called on a node's component: `boolean3d`, `multimesh2d`, `multimesh3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
+Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
 
 **Constants** (45):
 
@@ -1150,7 +1171,7 @@ What a tool asks about a script file, and state no node owns.
 
 | Function | Signature |
 | --- | --- |
-| `api` | `() -> any` |
+| `api` | `() -> [script::ApiModule]` |
 | `check` | `(str, str) -> [script::Diagnostic]` |
 | `complete` | `(str, str, int, int) -> [script::Completion]` |
 | `definition` | `(str, str, int, int) -> script::Place?` |
@@ -1234,13 +1255,18 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | Function | Signature |
 | --- | --- |
 | `activate_focused` | `()` |
+| `all_sides` | `(float) -> ui::Sides` |
 | `clear_focus` | `()` |
 | `click` | `(Node, ui::ClickOptions?) -> bool` |
 | `colors_apart` | `(any) -> [ui::ColorsApart]` |
 | `complete_theme` | `(any) -> any` |
 | `contrast` | `(str, str) -> float` |
 | `contrast_pairs` | `(any, str) -> [ui::ContrastPair]` |
-| `edit` | `(Node, any) -> bool` |
+| `edit_bool` | `(Node, bool) -> bool` |
+| `edit_color` | `(Node, Color) -> bool` |
+| `edit_number` | `(Node, float) -> bool` |
+| `edit_text` | `(Node, str) -> bool` |
+| `fill_row` | `(Node, int, ui::Row?, float?, bool?) -> bool` |
 | `fill_rows` | `(str, [ui::Row], float?, bool?) -> bool` |
 | `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
@@ -1253,8 +1279,8 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
+| `patch_row` | `(Node, int, [any]) -> bool` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
-| `reread` | `(Node, str?, any) -> bool` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |
 | `set_clipboard` | `(str)` |
@@ -1263,6 +1289,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `set_scale` | `(float)` |
 | `set_theme` | `(any)` |
 | `set_widget_layer` | `(bool, float?, float?, float?, float?)` |
+| `sides` | `(float, float, float, float) -> ui::Sides` |
 | `tab_rect` | `(Node) -> ui::Rect?` |
 | `takes_pointer_at` | `(float, float) -> bool` |
 | `wants_keyboard` | `() -> bool` |
@@ -1271,7 +1298,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (66):
+**Constants** (65):
 
 | Name | Value |
 | --- | --- |
@@ -1300,7 +1327,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 42 more.
+…and 41 more.
 
 ## `websocket`
 
@@ -1308,10 +1335,11 @@ A long-lived socket for text or binary frames. Events reach the node's `on_webso
 
 | Function | Signature |
 | --- | --- |
-| `close` | `(int) -> any` |
-| `connect` | `(any, str, websocket::ConnectOptions?) -> int` |
-| `send` | `(int, any) -> any` |
-| `state` | `(int) -> any` |
+| `close` | `(int) -> bool` |
+| `connect` | `(Node?, str, websocket::ConnectOptions?) -> int` |
+| `send_bytes` | `(int, [int]) -> bool` |
+| `send_text` | `(int, str) -> bool` |
+| `state` | `(int) -> str` |
 
 **Constants** (9):
 

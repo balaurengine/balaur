@@ -54,6 +54,34 @@ fn a_pinned_region_holds_its_particles_and_restores_with_the_world() {
     assert!(loose > 0.01, "the unpinned region fell only {loose}");
 }
 
+/// A region's edge spring is the material it names: the slack part of a pinned
+/// rope sags further under a soft material than under a stiff one.
+#[test]
+fn a_region_is_made_of_the_material_it_names() {
+    let _guard = LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let sag = |edge_hz: f64| {
+        let script = format!(
+            "pub class Scenario {{ node: Node }}\nimpl Scenario {{\n    fn init() {{\n        self.node.set_component(\"soft_rope3d\", {{ \"particle_count\": 8 }}); self.node.set_component(\"softbody3d\", {{ \"kind\": physics3d::SOFT_ROPE, \"regions\": [{{ \"particles\": [0, 1], \"pinned\": true }}, {{ \"particles\": [2, 3, 4, 5, 6, 7], \"soft_material\": {{ \"type\": \"soft_material\", \"edge_hz\": {edge_hz:?}, \"edge_damping\": 1.0 }} }}] }});\n    }}\n}}\n"
+        );
+        let (dir, mut app) = boot(&script, 1);
+        let (clusters, _, start) = clusters_and_heights(&app, 0, 7);
+        assert_eq!(clusters, 3, "the whole body and its two regions");
+        for _ in 0..60 {
+            app.tick(1.0 / 60.0);
+        }
+        let (_, _, end) = clusters_and_heights(&app, 0, 7);
+        drop(dir);
+        start - end
+    };
+    let (soft, stiff) = (sag(0.5), sag(120.0));
+    assert!(
+        soft > stiff,
+        "a soft part sagged {soft}, a stiff one {stiff}"
+    );
+}
+
 #[test]
 fn a_region_naming_a_particle_the_body_lacks_is_refused() {
     let errors = run(r#"pub class Scenario { node: Node }

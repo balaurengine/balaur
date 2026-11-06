@@ -1,16 +1,26 @@
 name: Channel
 
-# Publishing a version release points that line's rolling tag at it. A release
-# is not a push, so this is the one workflow runner.yml cannot own the trigger
-# for; the nightly moves its own tag, and stable rides GitHub's `latest`.
+# Points a version line's rolling tag at a published release.
 on:
-  release:
-    types: [published]
+  # Runs from .github/workflows/runner.yml, which owns the triggers; kept
+  # dispatchable so a channel can be moved by hand from the Actions tab.
+  workflow_call:
+    inputs:
+      tag:
+        description: "The published release's tag, e.g. v0.1.0"
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The published release's tag, e.g. v0.1.0"
+        type: string
+        required: true
 
 jobs:
   move:
     name: move the channel pointer
-    if: startsWith(github.event.release.tag_name, 'v')
+    if: startsWith(inputs.tag, 'v')
     runs-on: ubuntu-latest
     # Writing a release, the same permission drafting one needs.
     permissions:
@@ -20,5 +30,5 @@ jobs:
       - name: Point the channel at this release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ inputs.tag }}
         run: ./scripts/move_channel.sh "$TAG"
