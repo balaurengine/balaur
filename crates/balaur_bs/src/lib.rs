@@ -427,6 +427,25 @@ pub fn lints(src: &str, options: &Options) -> Vec<Error> {
     front(src, options).map_or_else(|_| vec![], |(prog, _)| codegen::lints(&prog, options))
 }
 
+/// A name a script declares may not start with `__`: the runtime's exports
+/// and the prelude's helpers do, and a function by one of their names wrote a
+/// module with that export twice.
+fn no_reserved_names(prog: &ast::Program) -> Result<(), Error> {
+    let fns = prog.fns.iter().map(|f| (f.name.as_str(), f.pos));
+    let externs = prog.externs.iter().map(|e| (e.name.as_str(), e.pos));
+    let decls = prog.decls.iter().map(|(name, pos)| (name.as_str(), *pos));
+    for (name, pos) in fns.chain(externs).chain(decls) {
+        let own = name.rsplit("::").next().unwrap_or(name);
+        if own.starts_with("__") {
+            return Err(Error {
+                pos,
+                msg: format!("`{own}`: a name starting with `__` is the runtime's"),
+            });
+        }
+    }
+    Ok(())
+}
+
 // The file parsed, its modules linked in, the prelude and the engine's
 // records beside its own structs; the files linked.
 fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Error> {
@@ -442,6 +461,7 @@ fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Er
             options.parsed.as_ref(),
         )?
     };
+    no_reserved_names(&prog)?;
     reach::seal(&mut prog)?;
     let mut structs = host_structs(&options.host, &prog);
     structs.append(&mut prog.structs);
