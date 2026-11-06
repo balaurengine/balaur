@@ -2,28 +2,31 @@
 // edited, beside the code, filled by the Editor when the file or its buffer
 // moved.
 
+use editor;
+
 pub class Hooks {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Hooks {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         for word in ["code_changed", "chrome_changed", "outline_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
     pub fn on_code_changed(_change: any) {
-        self.editor.call("hooks_fill");
+        self.editor.unwrap().hooks_fill();
     }
 
     pub fn on_chrome_changed(_change: any) {
-        self.editor.call("hooks_fill");
+        self.editor.unwrap().hooks_fill();
     }
 
     pub fn on_outline_changed(_change: any) {
-        self.editor.call("hooks_fill");
+        self.editor.unwrap().hooks_fill();
     }
 }

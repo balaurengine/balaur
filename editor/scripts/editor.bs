@@ -116,12 +116,13 @@ pub class State {
     internal code_scroll: float,
     internal code_revision: int,
     internal layout_seen: float,
+    /// The rows the Import tab's form was last filled with.
     internal form: [ui::Row],
+    /// The Inspector's lines and which of them are on screen.
+    internal inspect: inspector::Form,
     /// When the Inspector's whole form is filled again after a run of edits
     /// its rows followed alone; 0 for none pending.
     internal inspector_after: float,
-    internal inspect_warned: any,
-    internal inspect_layout: any,
     internal tree_cache: left::TreeCache,
     internal told: any,
     internal inspector_key: any,
@@ -224,6 +225,7 @@ pub class State {
     internal pick_check: selftest::PickCheck?,
     internal picture_check: selftest::PictureCheck?,
     internal pool_check: selftest::PoolCheck?,
+    internal form_check: selftest::FormCheck?,
     internal reselect: selftest::Reselect?,
     internal empty_note: selftest::EmptyNote?,
     internal start_check: selftest::StartCheck?,
@@ -273,7 +275,6 @@ pub class State {
     internal font_families: any,
     /// What each request to the catalogue is for, by its id.
     internal font_requests: any,
-    internal row_after: ui::Control?,
     internal kit_state: any,
     internal rows_query: str,
     internal suite: suite::Run?,
@@ -282,7 +283,7 @@ pub class State {
 /// The 3D light and camera marks, and what they were drawn for.
 pub struct Overlay3d {
     internal key: [any],
-    internal lines: [any],
+    internal lines: [float],
 }
 
 /// The viewport's rect in design pixels, and the frame it was read on.
@@ -372,12 +373,9 @@ pub fn fresh_state() -> State {
         // The stage width the layout self-test last saw, so it asserts on a
         // settled shell rather than on the frame it was still bootstrapping.
         layout_seen: -1.0,
-        // The inspector's rows, described each frame and made by `pool.bs`.
         form: [],
+        inspect: inspector::fresh(),
         inspector_after: 0.0,
-        inspect_warned: {},
-        // Each component's rows cut into native runs, by component.
-        inspect_layout: {},
         tree_cache: left::TreeCache { key: "", rows: [] },
         // The guard on each word `signals` tells, and the keys each word was
         // last told for.
@@ -546,7 +544,6 @@ pub fn fresh_state() -> State {
         font_finding: nil,
         font_families: nil,
         font_requests: {},
-        row_after: nil,
         kit_state: nil,
         rows_query: "",
         suite: nil,
@@ -1700,6 +1697,27 @@ impl Editor {
     /// Fill the Inspector panel's form, filtered by `query`.
     pub fn inspector_fill(query: str) {
         inspector::fill(self.state, query);
+    }
+
+    /// A frame of play read the Inspector's rows on screen again: true when
+    /// that is all the word it heard meant.
+    pub fn inspector_reread() -> bool {
+        inspector::reread(self.state)
+    }
+
+    /// The Inspector's form scrolled to `offset`.
+    pub fn inspector_scrolled(offset: float) {
+        inspector::scrolled(self.state, offset);
+    }
+
+    /// The Inspector's view changed size.
+    pub fn inspector_resized() {
+        inspector::resized(self.state);
+    }
+
+    /// An edit on one of the Inspector's rows.
+    pub fn inspector_edit(data: any, value: any, _control: Node) {
+        inspector::edited(self.state, data, value);
     }
 
     /// The Inspector's "Add component".

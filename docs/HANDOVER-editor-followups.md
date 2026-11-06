@@ -1,9 +1,28 @@
 # Handover: `editor-followups`
 
-Branch `editor-followups`, on `main` after #66 (c4fc6e85). Worktree used so
-far: `../balaur-native`. Not pushed. Each step is one commit; no backwards
-compatibility anywhere (a renamed key fails by name, every scene in the tree
-is rewritten in the same commit).
+Merged as #67. What follows the next heading is that branch's record; this
+first section is what a check of `main` found left, and where the work on it
+stopped.
+
+## Fixed on `editor-fixes`, 2026-11-06
+
+Every item a check of `main` found left is on `editor-fixes`, one branch for
+one PR: each fix branch was merged into it green, and the gates in item 9
+pass on the merged tree.
+
+| Fix | What is now true |
+| --- | --- |
+| Multimesh reload | a saved multimesh asset copies its instances to its nodes again |
+| Soft regions | a soft-body region names its `soft_material` and is made of it |
+| Widget split | `widget` keeps 60 rows; the rest are on 25 components beside it, absent meaning defaults; a moved row written on `widget` is refused by name (PLAN-component-order §4.1) |
+| Inspector | rows of pooled widget nodes; the `inspector` kind, `widget_inspector` and `ui::reread` are gone; `node.set_property`, `node.overrides`, a plugin's `inspector_sections` |
+| Units | the debugger, the profiler and the browser link one instance per project; `as_units` and `BALAUR_BS_UNITS` are gone; a game's files run in a second instance beside it |
+| Typed calls | every panel holds `editor::Editor?` and calls it by type; no `self.editor.call` is left |
+| Speed | `a["k"]` 266 fuel from 1,234, `s.contains` 229 from 2,413; a position write 1,484 instructions from 3,955, `engine::time()` 659 from 1,001. No target is met; PLAN-balaur-script §9 says what stands in the way |
+| kiss3d and egui | buffer writes reuse their staging buffers in both forks (kiss3d de534f50, egui 12e09bb9) |
+| Screen reader | a window opens with its platform's accesskit adapter on macOS, Windows, Linux and iOS; none on the web or Android |
+| CI | `runner.yml` is the one file with triggers; fuzz and channel are called from it |
+| Native race | an instance runs native only when the loaded build holds every unit joining it |
 
 ## On the branch
 
@@ -33,9 +52,10 @@ is rewritten in the same commit).
   audio with a fixed schema. Hand-written on purpose: `meta` and `states`
   (every key is the author's), `mesh` (any `morph_*` key) and `material`
   (core's `Appearance` holds it, which scripts and snapshots write directly).
-- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 208
+- `widget` is `WidgetProperties` (`balaur_ui/src/widget/properties.rs`), 60
   fields, beside the `Widget` cache; a one-property write updates the one
-  `Widget` field it feeds (`cache_fields!`), 18 properties rebuild whole.
+  `Widget` field it feeds (`cache_fields!`), and `kind` and `text_style`
+  rebuild whole. The 25 components beside it do the same through `puts!`.
   A click, drag or keystroke writes the struct, and `schema::follow`
   redoes the `Widget` fields those properties fill (`input.rs`), so the
   struct is the one source. Core's `PropertyReaders`/`PropertyWriters` are
@@ -45,14 +65,14 @@ is rewritten in the same commit).
   a `removed` hook on `ComponentDef::of` would say it once.
 - Physics' builders read typed structs (item 7); a script call's table is
   read into the struct first, and a snapshot converts at its edges.
-- `refresh_multimeshes_system` re-applies through `get` + `patch` of the same
-  table, which `patch` reads as unchanged, so a reload never re-copies the
-  instances. It was so before the derive.
+- `refresh_multimeshes_system` lays a reloaded asset's instances out again:
+  the component's own values did not move, so a write of them would read as
+  unchanged.
 - Script `node.c.p` binds to its property's place at load
   (`balaur_script_bs/src/lib.rs`); a misspelt one does not compile and says
   which half is wrong.
 - Beside components (physics) register before their main component, so a
-  scene builds the main one once, and so do the ones beside `widget`. 100
+  scene builds the main one once, and so do the ones beside `widget`. 111
   components are registered of the 128 `Attached` allows.
 
 ## Left to do, in order
@@ -65,20 +85,17 @@ is rewritten in the same commit).
    definition is `ComponentDef::by_hand(schema, apply, remove, get)`.
 2. **Per-kind rows still applying on a condition** (PLAN-component-order
    §4): no property should.
-   - `widget`: done 2026-10-31. The rows one set of kinds reads are a
-     component beside it (`crates/balaur_ui/src/widget/beside.rs`):
-     `widget_range` (slider, number_field, progress_bar), `widget_field`
-     (text_field, text_area, code), `widget_scroll` (scroll, list, tree,
-     table), `widget_list` (list, tree), `widget_table`, `widget_code`,
-     `widget_inspector`, `widget_menu`, `widget_window` (window, dialog),
-     `widget_color_picker`, `widget_image`, `widget_dropdown`,
-     `widget_separator`, `widget_toast`. Each puts its rows on the `Widget`
-     where the kind reads them, its defaults where the node holds none; a
-     reader's edit (a value, a colour, a scroll, a sort) is written onto
-     it. A pooled control's spec stays one table: the pool sends each row
-     to the component holding it. What stays on `widget` is read by most
-     kinds, or by kinds the clusters cut across (`options`, `checked`,
-     `prefix`, `reverse`, the grid rows a list's cards also read).
+   - `widget`: done 2026-11-03. Every row only some kinds read is on a
+     component beside it, 25 in all (`crates/balaur_ui/src/widget/beside.rs`,
+     `beside_box.rs`, `beside_controls.rs`), audited row by row in
+     PLAN-component-order §4.1; `widget` keeps the 60 most kinds read. A row
+     may sit on two components whose kinds are apart (`axis` on the scroll's,
+     the range's and the separator's), and a pooled control's one table goes
+     to the one its kind reads; a screen class's table names any of them.
+     Each puts its rows on the `Widget` where the kind reads them, its
+     defaults where the node holds none, and a write of one row puts that row
+     alone; a reader's edit (a value, a tick, a pick, a page) is written onto
+     it.
    - The primitives' dimensions: done 2026-10-31. A `variant` property
      type holds a kind and that kind's rows; `shape2d`, `shape3d`,
      `collider2d` and `collider3d` each hold one `shape`.
@@ -120,15 +137,10 @@ is rewritten in the same commit).
      and what it cost. The gamend addon's hand-written modules are copies of
      gamend's `clients/balaur_template` and its generated ones
      `sdkgen/balaur.py`'s output: rewritten there too, for the owner to commit.
-   - Typed calls between scripts: blocked. A whole-file build (profiler,
-     debugger, browser) makes each file its own instance, so
-     `let editor: editor::Editor? = node.script;` is nil there; tried on the
-     39 panels and reverted (the profiler rebuild also went from 4 s to 64 s).
-     Needs those builds to link a project as units first
-     (`balaur_script_bs/src/host/units.rs`, `as_units`), and the compiler to
-     build a unit with probes, counters and metering; a native build links
-     units since 2026-10-30. `dock.bs` calling the shown panel's `refresh`
-     by name is the one dynamic dispatch left.
+   - Typed calls between scripts: done 2026-11-06. Every build a host runs
+     links a project as units, and every panel holds `editor::Editor?` and
+     calls it by type; a self-filling panel hears `docks_changed` where the
+     dock called its `refresh` by name (PLAN-balaur-script §9 step 5).
 5. **The editor runs native** (§9 step 7): done. A native build holds
    units and links them; the editor downloads carry the library, and
    `scripts/editor_native.sh` runs the editor's states on it in CI.
@@ -145,9 +157,10 @@ is rewritten in the same commit).
    build from `SoftAsked3d`/`SoftAsked2d` (the component and those beside
    it) and a typed `SoftMaterial`, done 2026-10-31; a body already built
    from `Body3d`/`Body2d`, its snapshot rows the one table left.
-8. **Not without the user**: reusing Metal buffers in the kiss3d fork
-   (`Ughuuu/kiss3d`, branch `balaur-wrapped-surface`) is about a sixth of
-   the render's 2.4 M instructions an edit; it needs a push to that fork.
+8. **Staging buffers in the forks**: done 2026-11-06. kiss3d's
+   `balaur-wrapped-surface` writes buffers through a staging belt, and egui's
+   `balaur-zeno-glyphs` reuses egui-wgpu's; the share of a frame spent making
+   staging buffers fell from 6.3% to 2.6%, and an edit costs no less.
 9. **Gates before the PR**: `cargo fmt --all --check`, `cargo clippy
    --workspace --all-targets -- -D warnings`, the wasm clippy
    (`scripts/precommit.sh`), `cargo test --workspace --no-fail-fast`,
@@ -167,6 +180,10 @@ colour 4.4 M, position 2.8 M, engine text 3.8 M once `widget` was derived
 §10). An edit patches 2 of 608 widgets and the editor's scripts are about 0.3 M of it; the rest is the
 egui pass (about 2 M) and the render (about 2.4 M). Time is noise on this
 Mac under load; count instructions (`/usr/bin/time -l`).
+
+On `editor-fixes`, 2026-11-06, with the clocks frozen: text 2.76 M, colour
+2.87 M, position 0.87 M, engine text 2.39 M (2.98, 3.05, 1.41 and 2.64 on
+`main`). Plain `edit_cost.sh` varies by 0.3 to 1 M a run.
 
 ## Moving a component onto the derive
 

@@ -1,16 +1,19 @@
 // The Outline tab's one script: it fills its list from the rows the Editor
 // builds for the workspace, and hands it a pick.
 
+use editor;
+
 pub class Outline {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Outline {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         for word in ["outline_changed", "inspector_changed", "docks_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -30,14 +33,12 @@ impl Outline {
         let row = node.widget.text;
         node.widget.text = "";
         if row != "" {
-            self.editor.call("secondary_pick", row);
+            self.editor.unwrap().secondary_pick(row);
         }
     }
 
     fn refresh() {
-        let items = self.editor.call("secondary_view");
-        if items.kind() == "list" {
-            self.node.get_node("List").widget.items = items;
-        }
+        let items = self.editor.unwrap().secondary_view();
+        self.node.get_node("List").widget_rows.items = items;
     }
 }

@@ -692,7 +692,7 @@ impl Scenario {
         if self.ticks == 110 {
             for contact in self.node.collider3d.contacts() {
                 self.seen += 1;
-                let y = contact["point"][1].as_float();
+                let y = contact.point.y;
                 if y >= -8.0 { log::error("the contact point is in local space: y is {y}"); }
             }
             if self.seen <= 0 { log::error("the body never landed, so nothing was checked"); }

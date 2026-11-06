@@ -37,17 +37,34 @@ pub struct AccessTree {
     /// first one has to.
     described: bool,
     focus: Option<NodeId>,
+    /// The focus the reader was last told of.
+    told_focus: Option<NodeId>,
 }
 
 /// Start building the tree, from the next pass: what the window layer calls
-/// once the platform's reader asks for one.
+/// once the platform's reader asks for one. A reader arriving knows nothing, so
+/// the first update after this is the whole tree.
 pub fn enable_access(eng: &Engine) {
     if let Some(tree) = eng.try_resource::<AccessTree>() {
-        let mut tree = tree.borrow_mut();
-        tree.enabled = true;
-        tree.sent.clear();
-        tree.described = false;
+        *tree.borrow_mut() = AccessTree {
+            enabled: true,
+            ..AccessTree::default()
+        };
     }
+}
+
+/// Stop building the tree: what the window layer calls once the last reader
+/// has gone.
+pub fn disable_access(eng: &Engine) {
+    if let Some(tree) = eng.try_resource::<AccessTree>() {
+        *tree.borrow_mut() = AccessTree::default();
+    }
+}
+
+/// Whether a reader is listening, so passes build the tree.
+pub fn access_enabled(eng: &Engine) -> bool {
+    eng.try_resource::<AccessTree>()
+        .is_some_and(|tree| tree.borrow().enabled)
 }
 
 /// What changed since the last call, as an update for the platform adapter;
@@ -55,10 +72,13 @@ pub fn enable_access(eng: &Engine) {
 pub fn take_access_update(eng: &Engine) -> Option<TreeUpdate> {
     let tree = eng.try_resource::<AccessTree>()?;
     let mut tree = tree.borrow_mut();
-    if !tree.enabled || (tree.changed.is_empty() && tree.described) {
+    // A first update has to hold the root, which only a pass builds.
+    let moved = tree.described && tree.focus != tree.told_focus;
+    if !tree.enabled || (tree.changed.is_empty() && !moved) {
         return None;
     }
     let tree = &mut *tree;
+    tree.told_focus = tree.focus;
     let nodes: Vec<(NodeId, Node)> = tree
         .changed
         .drain()
@@ -220,7 +240,7 @@ fn role_of(widget: &Widget) -> Role {
         w::WINDOW => Role::Window,
         w::TOAST => Role::Status,
         w::SEPARATOR => Role::Splitter,
-        w::FOLD | w::INSPECTOR => Role::Group,
+        w::FOLD => Role::Group,
         _ => Role::GenericContainer,
     }
 }

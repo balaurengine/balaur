@@ -66,7 +66,7 @@ holds them: workspace bar, status bar, tree, inspector, dock, centre.
 | workspace bar | 40 px | `chrome::top_bar` | no |
 | status bar | 28 px | `chrome::status_bar` | no |
 | tree + secondary | 262 px | `left::draw` | no |
-| inspector | 308 px | `inspector::draw` | no |
+| inspector | 308 px | `inspector.bs`, `drawers.bs` | no |
 | tool rail | 46 px | `center::rail` | no, hides with the viewport |
 | document tabs | 38 px | `center::doc_tabs` | no |
 | bottom dock | 150 / 212 px | `dock::draw` | no |
@@ -228,36 +228,39 @@ dock emptied of tabs gives its column back to the scene.
 
 ---
 
-## 6. Inspector — `inspector::draw` (308 px)
+## 6. Inspector — `inspector.bs`, `drawers.bs` (308 px)
 
 ```
 ┌────────────────────────────────┐
-│ ◉  Spinner                     │ 34  heading 16
-│    MeshInstance3D              │     mono 11 type
-│ ▾ TRANSFORM ─────────────── ×  │ 10 caps + rule
-│ Position   [x 0.00][y 0.00][z] │ 28  84 px label column
-│ Rotation eu[x 0.00][y 0.00][z] │
+│ ◉  Spinner   MeshInstance3D    │ 26  title, its type beside it
+│ [ Search                     ] │
+│ ▾ TRANSFORM ─────────────── ×  │ 24  caret, title, enabled, ×
+│ Position   [x 0.00][y 0.00][z] │ 24  a third of the width, at most 82
+│ ⚠ Scale    [x 0.00][y 0.00][z] │     a warning: a mark on the label
+│ ▸ Advanced · 3                 │     a group, shut until it is opened
 │ ▾ SCRIPT ───────────────────── │
-│ Script     [ scripts/x.rn open]│     sage chip
-│ PROPERTIES                     │
-│ Clockwise  (●———)              │ 42×24 toggle
-│ Speed      [ 3.50            ] │
-│ ▾ EVENTS ───────────────────── │
-│ ● init()              → engine │ 30
-│ ● update()            → engine │
+│ Source     [ scripts/x.bs pick]│
+│ Clockwise  [x]                 │
+│ Speed      [ 3.50      ] reset │     off its default: a chip on the row
 │                                │
-│ ─────────────────────────────  │
-│ [      ＋ Add component      ] │ 34 accent
+│ [      ＋ Add component      ] │ 30 accent
 └────────────────────────────────┘
 ```
 
-Six control shapes: numeric field, select, toggle, slider, script chip, asset row.
+A row's control follows its property's type: number field, vector of number
+fields, checkbox, dropdown, swatch, pills, node path, asset path with its own
+rows under it, or a text field. A `list` or `map` is a head that adds and an
+entry's row that takes it out; a `record` or `variant` is a head and its fields.
 Component sections are generated from `scene::component_schema`, so a plugin's
-component gets a section — and its label width — for free. The transform is one
-of them: `[nodes.transform]` in the file, `node.transform.position` in a script,
-and a node that names none has none. A row is labelled
-from its property name (`half_extents` reads "Half extents") and its label
-carries the schema's `description` as a tooltip.
+component gets a section for free, and an editor plugin declares one of its own
+in `inspector_sections`. The transform is one of them: `[nodes.transform]` in
+the file, `node.transform.position` in a script, and a node that names none has
+none. A row is labelled from its property name (`half_extents` reads "Half
+extents") and its label carries the schema's `description` as a tooltip, with
+what its mark says after it: a warning, or that it changes what the prefab sets.
+
+Only the rows on screen are nodes. An edit writes one property and the change
+log rewrites that row. PLAN-editor-as-scene §9.4 has the rest.
 
 ---
 

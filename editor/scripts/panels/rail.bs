@@ -2,20 +2,23 @@
 // the workspace, the tool or the room moved, and the folded left dock's
 // handle over them. A mark runs its tool itself, then the rail fills again.
 
+use editor;
+
 pub class Rail {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Rail {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "rail_changed", self.editor);
-        events::listen(self.node, "stage_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "rail_changed", source);
+        events::listen(self.node, "stage_changed", source);
     }
 
     pub fn on_rail_changed(_change: any) {
-        self.editor.call("rail_fill");
+        self.editor.unwrap().rail_fill();
     }
 
     pub fn on_stage_changed(_change: any) {
@@ -23,26 +26,23 @@ impl Rail {
     }
 
     pub fn open_left() {
-        self.editor.call("stage_verb", "open_left");
+        self.editor.unwrap().stage_verb("open_left");
     }
 
     pub fn refill() {
-        self.editor.call("rail_fill");
+        self.editor.unwrap().rail_fill();
     }
 
     fn handle() {
-        let view = self.editor.call("stage_view");
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().stage_view();
         let sheet = self.node.get_node("RailTop/Handle");
-        sheet.set_visible(view["rail_handle"].as_bool());
-        sheet.patch_component("widget", { "padding": view["pad"] });
+        sheet.set_visible(view.rail_handle);
+        sheet.patch_component("widget", { "padding": view.pad });
         let patched = sheet.get_node("Open");
-        patched.widget.icon = view["left"]["icon"].as_str();
-        patched.widget.tooltip = view["left"]["tooltip"].as_str();
-        patched.widget.width = view["diameter"].as_float();
-        patched.widget.height = view["diameter"].as_float();
-        patched.widget.corner_radius = view["diameter"].as_float() / 2.0;
+        patched.widget_button.icon = view.left.icon;
+        patched.widget.tooltip = view.left.tooltip;
+        patched.widget.width = view.diameter;
+        patched.widget.height = view.diameter;
+        patched.widget.corner_radius = view.diameter / 2.0;
     }
 }

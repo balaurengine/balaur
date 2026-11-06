@@ -5,19 +5,20 @@
 // Admin – Tournaments: one function per operation, `admin_tournaments::<name>` once a
 // script says `use addons::gamend::admin_tournaments;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Cancel tournament (admin; terminal, no recurrence spawn)
 /// `POST /api/v1/admin/tournaments/{id}/cancel`
-pub fn cancel_tournament(id: any) -> any {
-    if id == nil {
+pub fn cancel_tournament(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::cancel_tournament", "id");
     }
     gamend::rest("POST", "/api/v1/admin/tournaments/{id}/cancel")
@@ -25,7 +26,7 @@ pub fn cancel_tournament(id: any) -> any {
 
 /// Create tournament (admin)
 /// `POST /api/v1/admin/tournaments`
-pub fn create_tournament(params: any) -> any {
+pub fn create_tournament(params: any) -> int {
     if !core::given(params, "slug") {
         return core::missing("gamend::admin_tournaments::create_tournament", "slug");
     }
@@ -40,8 +41,8 @@ pub fn create_tournament(params: any) -> any {
 
 /// Delete tournament and all its entries/matches (admin)
 /// `DELETE /api/v1/admin/tournaments/{id}`
-pub fn delete_tournament(id: any) -> any {
-    if id == nil {
+pub fn delete_tournament(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::delete_tournament", "id");
     }
     gamend::rest("DELETE", "/api/v1/admin/tournaments/{id}")
@@ -49,8 +50,8 @@ pub fn delete_tournament(id: any) -> any {
 
 /// Draw the bracket now (admin; pulls starts_at to now)
 /// `POST /api/v1/admin/tournaments/{id}/draw`
-pub fn draw_tournament(id: any) -> any {
-    if id == nil {
+pub fn draw_tournament(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::draw_tournament", "id");
     }
     gamend::rest("POST", "/api/v1/admin/tournaments/{id}/draw")
@@ -58,8 +59,8 @@ pub fn draw_tournament(id: any) -> any {
 
 /// Finish tournament now (admin; pulls ends_at to now)
 /// `POST /api/v1/admin/tournaments/{id}/finish`
-pub fn finish_tournament(id: any) -> any {
-    if id == nil {
+pub fn finish_tournament(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::finish_tournament", "id");
     }
     gamend::rest("POST", "/api/v1/admin/tournaments/{id}/finish")
@@ -67,8 +68,8 @@ pub fn finish_tournament(id: any) -> any {
 
 /// Reopen a cancelled tournament (admin)
 /// `POST /api/v1/admin/tournaments/{id}/reopen`
-pub fn reopen_tournament(id: any) -> any {
-    if id == nil {
+pub fn reopen_tournament(id: str) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::reopen_tournament", "id");
     }
     gamend::rest("POST", "/api/v1/admin/tournaments/{id}/reopen")
@@ -76,11 +77,11 @@ pub fn reopen_tournament(id: any) -> any {
 
 /// Force a match verdict (admin)
 /// `POST /api/v1/admin/tournaments/{id}/matches/{match_id}/resolve`
-pub fn resolve_tournament_match(id: any, match_id: any, params: any) -> any {
-    if id == nil {
+pub fn resolve_tournament_match(id: str, match_id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::resolve_tournament_match", "id");
     }
-    if match_id == nil {
+    if match_id == "" {
         return core::missing("gamend::admin_tournaments::resolve_tournament_match", "match_id");
     }
     gamend::rest("POST", "/api/v1/admin/tournaments/{id}/matches/{match_id}/resolve", params)
@@ -88,8 +89,8 @@ pub fn resolve_tournament_match(id: any, match_id: any, params: any) -> any {
 
 /// Confirm an uploaded tournament icon (admin)
 /// `POST /api/v1/admin/tournaments/{id}/icon`
-pub fn set_tournament_icon(id: any, params: any) -> any {
-    if id == nil {
+pub fn set_tournament_icon(id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::set_tournament_icon", "id");
     }
     if !core::given(params, "key") {
@@ -100,8 +101,8 @@ pub fn set_tournament_icon(id: any, params: any) -> any {
 
 /// Request an upload ticket for a tournament icon (admin)
 /// `POST /api/v1/admin/tournaments/{id}/icon/upload_url`
-pub fn tournament_icon_upload_url(id: any, params: any) -> any {
-    if id == nil {
+pub fn tournament_icon_upload_url(id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::tournament_icon_upload_url", "id");
     }
     if !core::given(params, "content_type") {
@@ -112,8 +113,8 @@ pub fn tournament_icon_upload_url(id: any, params: any) -> any {
 
 /// Update tournament (admin)
 /// `PATCH /api/v1/admin/tournaments/{id}`
-pub fn update_tournament(id: any, params: any) -> any {
-    if id == nil {
+pub fn update_tournament(id: str, params: any) -> int {
+    if id == "" {
         return core::missing("gamend::admin_tournaments::update_tournament", "id");
     }
     if !core::given(params, "slug") {

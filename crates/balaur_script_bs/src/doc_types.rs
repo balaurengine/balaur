@@ -77,16 +77,23 @@ pub(crate) fn schema_ty(t: &str) -> Option<Ty> {
     })
 }
 
-// A documented type: a schema word, a record, `[T]`, a tuple, or `()` for
-// nothing. One that may be nil is a `T?`, so a script passes `nil` where the
-// docs say it may be left out; one of several, `bytes | string`, is an `any`.
+// A documented type: a schema word, a record, `[T]`, a tuple, `()` for nothing
+// or `T?`. `bytes` are a list of ints, and `a | b` reads as nothing (N25).
 fn doc_ty(t: &str, cx: &Cx<'_>) -> Option<Ty> {
     let t = t.trim();
     if let Some(inner) = t.strip_suffix('?') {
         return Some(optional(doc_ty(inner, cx)?));
     }
-    if t.contains('|') || t == "bytes" {
-        return Some(Ty::Any);
+    if t.contains('|') {
+        return None;
+    }
+    match t {
+        "bytes" => return Some(Ty::Array(Box::new(Ty::Int))),
+        "str" => return Some(Ty::Str),
+        "Vec2" | "Vec3" | "Color" | "Transform2d" | "Transform3d" => {
+            return Some(Ty::Struct(t.into()));
+        }
+        _ => {}
     }
     if let Some(inner) = t.strip_prefix('[').and_then(|x| x.strip_suffix(']')) {
         return Some(Ty::Array(Box::new(doc_ty(inner, cx)?)));
@@ -186,7 +193,18 @@ mod tests {
             read("(path: string, lines: [int])"),
             (vec![Ty::Str, list(Ty::Int)], Ty::Void)
         );
-        assert_eq!(read("(data: bytes | string)"), (vec![Ty::Any], Ty::Void));
+        assert_eq!(read("(data: bytes)"), (vec![list(Ty::Int)], Ty::Void));
+        assert!(
+            signature("(data: bytes | string)", &cx).is_none(),
+            "a function has one shape"
+        );
+        assert_eq!(
+            read("(at: Transform3d) -> Vec3"),
+            (
+                vec![Ty::Struct("Transform3d".into())],
+                Ty::Struct("Vec3".into())
+            )
+        );
         assert_eq!(
             read("(pattern: string, text: string) -> bool"),
             (vec![Ty::Str, Ty::Str], Ty::Bool)
@@ -200,7 +218,7 @@ mod tests {
             (vec![Ty::Str], Ty::Optional(Box::new(Ty::Str)))
         );
         assert_eq!(read("() -> map"), (vec![], Ty::Any));
-        assert_eq!(read("() -> bytes"), (vec![], Ty::Any));
+        assert_eq!(read("() -> bytes"), (vec![], list(Ty::Int)));
         assert_eq!(
             read("() -> (float, float)"),
             (vec![], Ty::Struct("Vec2".into()))

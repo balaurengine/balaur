@@ -506,6 +506,7 @@ pub(crate) fn reread_materials(eng: &Engine) {
             .filter(|(_, asked)| {
                 crate::material::is_a_file(&asked.body.physics_material)
                     || crate::material::is_a_file(&asked.body.soft_material)
+                    || crate::shared::softbody::regions_name_a_file(&asked.body.regions)
             })
             .map(|(entity, _)| (*entity, None));
         colliders.chain(soft).collect()
@@ -521,7 +522,7 @@ pub(crate) fn reread_materials(eng: &Engine) {
                 .get(&entity)
                 .cloned();
             params.map_or(Ok(()), |params| {
-                crate::dim2::softbody::apply_softbody_2d(eng, entity, &params)
+                crate::dim2::softbody::reread_softbody_2d(eng, entity, &params)
             })
         };
         if let Err(why) = rebuilt {
@@ -665,7 +666,7 @@ pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
         ("voxel", &[c::COLLIDER_2D], "", "Whether one cell of a voxel collider is filled."),
         ("voxel_at", &[c::COLLIDER_2D], "", "The cell a world position falls in, as two whole numbers."),
         ("set_voxel_size", &[c::COLLIDER_2D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
-        ("voxel_size", &[c::COLLIDER_2D], "", "How big one cell of a voxel collider is, along each axis."),
+        ("voxel_size", &[c::COLLIDER_2D], "(node: node) -> Vec2", "How big one cell of a voxel collider is, along each axis."),
         ("crop_voxels", &[c::COLLIDER_2D], "", "Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was."),
         ("combine_voxels", &[c::COLLIDER_2D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
     ]);

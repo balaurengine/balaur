@@ -13,16 +13,16 @@ fn a_check_flips_on_click_and_reads_back() {
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    assert_eq!(
-        property(&app, entity, "checked"),
-        toml::Value::Boolean(false)
+    assert!(
+        !balaur::components::has(&app.engine, entity, "widget_check"),
+        "a check that states nothing is clear, and carries nothing beside it"
     );
     let target = pos2(8.0, 8.0);
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "checked"),
+        beside_property(&app, entity, "widget_check", "checked"),
         toml::Value::Boolean(true),
         "the click did not tick the box"
     );
@@ -34,7 +34,7 @@ fn a_check_flips_on_click_and_reads_back() {
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "checked"),
+        beside_property(&app, entity, "widget_check", "checked"),
         toml::Value::Boolean(false)
     );
 }
@@ -189,7 +189,7 @@ fn a_color_swatch_paints_its_floats_as_srgb() {
 #[test]
 fn a_dropdown_takes_the_option_that_was_clicked() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "dropdown" text = "One" options = ["One", "Two", "Three"] x = 0.0 y = 0.0 };
+    let params = toml::toml! { kind = "dropdown" text = "One" x = 0.0 y = 0.0 widget_dropdown = { options = ["One", "Two", "Three"] } };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -216,7 +216,7 @@ fn a_grid_places_children_in_rows_of_columns() {
     let (_dir, app) = app();
     let grid = add_widget(
         &app,
-        &toml::toml! { kind = "grid" grid_columns = "1fr 1fr" gap = [0.0, 0.0] x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "grid" x = 0.0 y = 0.0 widget_grid = { grid_columns = "1fr 1fr" } widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let cells: Vec<Entity> = ["a", "b", "c", "d", "e"]
@@ -255,7 +255,7 @@ fn a_flow_wraps_when_the_row_is_full() {
     let (_dir, app) = app();
     let flow = add_widget(
         &app,
-        &toml::toml! { kind = "flow" width = 120.0 gap = [4.0, 4.0] x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "flow" width = 120.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 4.0] } }.into(),
     );
     let buttons: Vec<Entity> = ["alpha", "beta", "gamma", "delta", "epsilon"]
         .into_iter()
@@ -308,7 +308,7 @@ fn a_fold_hides_its_children_until_its_header_is_clicked() {
     let (_dir, mut app) = app();
     let fold = add_widget(
         &app,
-        &toml::toml! { kind = "fold" text = "Advanced" open = false x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "fold" text = "Advanced" x = 0.0 y = 0.0 widget_fold = { open = false } }.into(),
     );
     let inner = add_child_widget(
         &app,
@@ -326,7 +326,10 @@ fn a_fold_hides_its_children_until_its_header_is_clicked() {
     pass(&app, &ctx, press(head, true));
     pass(&app, &ctx, press(head, false));
     consume_input(&mut app);
-    assert_eq!(property(&app, fold, "open"), toml::Value::Boolean(true));
+    assert_eq!(
+        beside_property(&app, fold, "widget_fold", "open"),
+        toml::Value::Boolean(true)
+    );
     settle(&app, &ctx);
     assert!(
         balaur_ui::widget_rect(inner).is_some(),
@@ -339,13 +342,13 @@ fn a_title_bar_child_is_drawn_in_its_fold_s_header_while_the_fold_is_shut() {
     let (_dir, app) = app();
     let fold = add_widget(
         &app,
-        &toml::toml! { kind = "fold" open = false x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "fold" x = 0.0 y = 0.0 widget_fold = { open = false } }.into(),
     );
     let title = add_child_widget(
         &app,
         fold,
         "title",
-        &toml::toml! { kind = "label" text = "Audio" title_bar = true }.into(),
+        &toml::toml! { kind = "label" text = "Audio" widget_child = { title_bar = true } }.into(),
     );
     let inner = add_child_widget(
         &app,
@@ -378,7 +381,9 @@ fn a_fold_wears_its_checked_table_while_open_and_frames_what_it_shows() {
         )
         .unwrap();
         let mut params = toml::toml! { kind = "fold" text = "Sound" theme = "themes/t.toml" x = 0.0 y = 0.0 width = 200.0 };
-        params.insert("open".into(), toml::Value::Boolean(open));
+        let mut rows = toml::Table::new();
+        rows.insert("open".into(), toml::Value::Boolean(open));
+        params.insert("widget_fold".into(), rows.into());
         let fold = add_widget(&app, &params.into());
         add_child_widget(
             &app,
@@ -479,7 +484,7 @@ fn a_sliced_image_keeps_its_corners_at_their_own_size() {
     picture.save(dir.path().join("frame.png")).unwrap();
     let entity = add_widget(
         &app,
-        &toml::toml! { kind = "image" image = "frame.png" slice = [2.0, 2.0, 2.0, 2.0] width = 100.0 height = 50.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "image" width = 100.0 height = 50.0 x = 0.0 y = 0.0 widget_image = { image = "frame.png", slice = [2.0, 2.0, 2.0, 2.0] } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -511,7 +516,7 @@ fn a_scroll_deadzone_lets_a_short_drag_click_and_a_long_one_scroll() {
     let (_dir, mut app) = app();
     let holder = add_widget(
         &app,
-        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 gap = [0.0, 0.0] widget_scroll = { scroll_deadzone = 30.0 } }
+        &toml::toml! { kind = "scroll"  x = 0.0 y = 0.0 width = 200.0 height = 100.0 widget_scroll = { scroll_deadzone = 30.0 } widget_layout = { gap = [0.0, 0.0] } }
             .into(),
     );
     let first = add_child_widget(
@@ -601,7 +606,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     );
     let kid = |parent, name: &str, params: toml::Value| {
         let node = balaur::scene::spawn_node(&mut app.engine.world_mut(), name, parent);
-        balaur::components::add(&app.engine, node, "widget", Some(&params)).unwrap();
+        add_widget_to(&app, node, &params);
         node
     };
     let scroll = kid(
@@ -617,7 +622,7 @@ fn a_widget_under_a_scroll_keeps_its_ancestor_s_theme() {
     kid(
         strip,
         "Mark",
-        toml::toml! { kind = "button" text = "" icon = (icon) role = "transport" }.into(),
+        toml::toml! { kind = "button" text = "" role = "transport" widget_button = { icon = (icon) } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -646,12 +651,12 @@ fn a_role_puts_a_button_s_face_at_its_left_edge() {
     let icon = "\u{e1dc}";
     let left = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "button" text = "go" width = 200.0 role = "row" theme = "themes/face.toml" x = 0.0 y = 0.0 widget_button = { icon = (icon) } }
             .into(),
     );
     let _middle = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" text = "go" width = 200.0 theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { icon = (icon) } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -687,7 +692,7 @@ fn trailing_text_widens_a_button_and_draws() {
     );
     let tailed = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "Open" trailing = "⌘K" x = 0.0 y = 100.0 }.into(),
+        &toml::toml! { kind = "button" text = "Open" x = 0.0 y = 100.0 widget_button = { trailing = "⌘K" } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -723,7 +728,7 @@ fn a_picture_sits_on_its_role_s_plate() {
     );
     let pictured = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "B" image = "mark.png" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" text = "B" role = "mark" theme = "themes/face.toml" x = 0.0 y = 100.0 widget_button = { image = "mark.png" } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -791,9 +796,9 @@ fn a_picture_with_a_fit_takes_the_box_it_was_given() {
         &app,
         &toml::toml! { kind = "row" width = 400.0 height = 80.0 }.into(),
     );
-    let params = toml::toml! { kind = "image" image = "wide.png"  width = 40.0 widget_image = { fit = "contain" } };
+    let params = toml::toml! { kind = "image"  width = 40.0 widget_image = { fit = "contain", image = "wide.png" } };
     let fitted = add_child_widget(&app, row, "Fitted", &params.into());
-    let own = toml::toml! { kind = "image" image = "wide.png" };
+    let own = toml::toml! { kind = "image" widget_image = { image = "wide.png" } };
     let native = add_child_widget(&app, row, "Native", &own.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -916,7 +921,7 @@ fn a_dialog_closes_on_escape_and_on_the_dim_behind_it() {
         }
         consume_input(&mut app);
         assert_eq!(
-            property(&app, dialog, "open"),
+            beside_property(&app, dialog, "widget_window", "open"),
             toml::Value::Boolean(false),
             "by_escape = {by_escape}: the dialog is still open"
         );
@@ -1006,12 +1011,12 @@ fn a_button_s_icon_size_sizes_its_glyph() {
     let icon = "\u{e1dc}";
     add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) icon_size = 24.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 0.0 widget_button = { icon = (icon), icon_size = 24.0 } }
             .into(),
     );
     add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "go" icon = (icon) x = 0.0 y = 100.0 }.into(),
+        &toml::toml! { kind = "button" text = "go" x = 0.0 y = 100.0 widget_button = { icon = (icon) } }.into(),
     );
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -1041,9 +1046,13 @@ fn a_button_s_icon_size_sizes_its_glyph() {
 /// Two buttons of different captions in a column, and the width each drew at.
 fn column_widths(align: Option<&str>) -> (f32, f32) {
     let (_dir, app) = app();
-    let mut params = toml::toml! { kind = "column" gap = [4.0, 4.0] x = 0.0 y = 0.0 };
+    let mut params =
+        toml::toml! { kind = "column" x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 4.0] } };
     if let Some(align) = align {
-        params.insert("align_items".into(), align.into());
+        params["widget_layout"]
+            .as_table_mut()
+            .unwrap()
+            .insert("align_items".into(), align.into());
     }
     let column = add_widget(&app, &params.into());
     let short = add_child_widget(

@@ -2,16 +2,20 @@
 // playhead or the room moved, and it hands back the scrubber, the key verbs
 // and a clip asked for. A key's own dot seeks to it.
 
+use editor;
+
 pub class Timeline {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Timeline {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         for word in ["timeline_changed", "play_frame", "outline_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
         events::listen(self.node, "resized", self.node);
     }
@@ -34,19 +38,26 @@ impl Timeline {
     }
 
     pub fn seek(value: any) {
-        self.editor.call("timeline_seek", value);
+        self.editor.unwrap().timeline_seek(value.as_float());
     }
 
     pub fn clip_changed(value: any, node: Node) {
-        self.editor.call("timeline_clip", node.name(), value);
+        self.editor.unwrap().timeline_clip(node.name(), value);
     }
 
     pub fn verb(_value: any, node: Node) {
-        self.editor.call("timeline_verb", node.name());
+        self.editor.unwrap().timeline_verb(node.name());
     }
 
     pub fn refill() {
         self.refresh();
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// Fill what shows: on a word, and from the dock once it is visible.
@@ -54,6 +65,6 @@ impl Timeline {
         if self.node.visible() == false {
             return;
         }
-        self.editor.call("timeline_fill");
+        self.editor.unwrap().timeline_fill();
     }
 }

@@ -2,28 +2,31 @@
 // the Editor when the node, the document or the tab moved, and again after a
 // row's own control ran.
 
+use editor;
+
 pub class Events {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Events {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         for word in ["outline_changed", "inspector_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
     pub fn on_outline_changed(_change: any) {
-        self.editor.call("events_fill");
+        self.editor.unwrap().events_fill();
     }
 
     pub fn on_inspector_changed(_change: any) {
-        self.editor.call("events_fill");
+        self.editor.unwrap().events_fill();
     }
 
     pub fn refill() {
-        self.editor.call("events_fill");
+        self.editor.unwrap().events_fill();
     }
 }

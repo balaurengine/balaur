@@ -50,10 +50,11 @@ A row is also a feature big enough for a devlog post of its own. A smaller
 change, an icon format or one more module, belongs to the row it serves, or to
 no row: the page is a list of what the engine can do, not of every commit.
 
-The engine is at **0.2.0**, one version for the workspace; `v0.1.0` is tagged
-and published. A release is a `v*` tag: bump `[workspace.package] version`, and
-rewrite that milestone's rows as what landed rather than striking them, so a
-shipped tab keeps its history and the tag's notes are the rows themselves. A
+The engine is at **0.2.0-alpha.1**, one version for the workspace; `v0.1.0`
+and `v0.2.0-alpha.1` are published. A release is published on GitHub with its
+`v*` tag: bump `[workspace.package] version`, and rewrite that milestone's rows
+as what landed rather than striking them, so a shipped tab keeps its history
+and the release's notes are the rows themselves. A
 tagged milestone is closed: something built after it lands in the milestone
 being built, marked `done`, never back in the shipped one.
 

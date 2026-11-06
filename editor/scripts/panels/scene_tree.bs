@@ -1,11 +1,13 @@
 // The Scene tab's one script: it answers every control in its scene and
 // fills the tree from the rows the Editor, which owns the document, hands it.
 
+use editor;
+
 pub class SceneTree {
     node: Node,
     query: str,
     facet: str,
-    editor: Node,
+    editor: editor::Editor?,
     /// What names the rows the tree holds.
     drawn: str,
 }
@@ -34,8 +36,9 @@ impl SceneTree {
         self.query = "";
         self.facet = "";
         self.drawn = "";
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "outline_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "outline_changed", source);
     }
 
     /// The Editor's word that the document, the selection, a lock or a warning
@@ -45,7 +48,7 @@ impl SceneTree {
     }
 
     pub fn add() {
-        self.editor.call("scene_add");
+        self.editor.unwrap().scene_add();
     }
 
     pub fn search_typed(value: any) {
@@ -65,7 +68,7 @@ impl SceneTree {
         let row = node.widget.text;
         node.widget.text = "";
         if row != "" {
-            self.editor.call("outline_pick", row);
+            self.editor.unwrap().outline_pick(row);
         }
         self.refresh();
     }
@@ -78,25 +81,22 @@ impl SceneTree {
     }
 
     fn refresh() {
-        let view = self.editor.call("outline_view", self.query, self.facet, self.drawn);
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.get_node("Find/Add").widget.icon = view["add_icon"].as_str();
+        let view = self.editor.unwrap().outline_view(self.query, self.facet, self.drawn);
+        self.node.get_node("Find/Add").widget_button.icon = view.add_icon;
         let tree = self.node.get_node("Tree");
         let nothing = self.node.get_node("Nothing");
-        if view["filtering"].as_bool() && view["empty"].as_bool() {
+        if view.filtering && view.empty {
             tree.set_visible(false);
             nothing.set_visible(true);
-            nothing.widget.text = view["nothing"].as_str();
+            nothing.widget.text = view.nothing;
             return;
         }
         nothing.set_visible(false);
         tree.set_visible(true);
-        if view["stamp"].as_str() != self.drawn {
-            tree.widget.items = view["items"];
-            self.drawn = view["stamp"].as_str();
+        if view.stamp != self.drawn {
+            tree.widget_rows.items = view.items;
+            self.drawn = view.stamp;
         }
-        tree.widget.selection = view["chosen"];
+        tree.widget_rows.selection = view.chosen;
     }
 }

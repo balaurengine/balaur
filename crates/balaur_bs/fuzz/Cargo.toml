@@ -12,6 +12,9 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 balaur_bs = { path = "..", features = ["wasmi"] }
+# wasmi's default dispatch needs the optimiser's tail calls, which the
+# sanitizer's instrumentation stops: each instruction then took a host frame.
+wasmi = { version = "2", default-features = false, features = ["portable-dispatch"] }
 wasmparser = { version = "0.262", default-features = false, features = ["std", "validate"] }
 
 [workspace]

@@ -2,16 +2,20 @@
 // pick or the selection moved, and it hands back the verbs. A weight's own
 // field writes itself, and a vertex's or bone's own button picks it.
 
+use editor;
+
 pub class Weights {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Weights {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         for word in ["weights_changed", "outline_changed", "inspector_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -28,7 +32,7 @@ impl Weights {
     }
 
     pub fn verb(_value: any, node: Node) {
-        self.editor.call("weights_verb", node.name());
+        self.editor.unwrap().weights_verb(node.name());
         self.refresh();
     }
 
@@ -36,11 +40,18 @@ impl Weights {
         self.refresh();
     }
 
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
+    }
+
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
         if self.node.visible() == false {
             return;
         }
-        self.editor.call("weights_fill");
+        self.editor.unwrap().weights_fill();
     }
 }

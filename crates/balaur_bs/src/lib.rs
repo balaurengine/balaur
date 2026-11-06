@@ -106,8 +106,9 @@ pub struct Options {
     /// Compile this file alone, as a unit: the modules it uses are read for
     /// their declarations only, and a call into one goes through a link the
     /// runtime fills with that module's own unit, compiled once for every
-    /// script that uses it ([`Compiled::linked`]). Not with `debug`,
-    /// `profile`, `meter` or `direct_imports`, which build the whole file.
+    /// script that uses it ([`Compiled::linked`]). `debug`, `profile`, `meter`
+    /// and `direct_imports` each hold of the unit, and it links with units
+    /// built otherwise.
     pub unit: bool,
     /// The module files read so far, kept across compiles by the caller.
     pub parsed: Option<Parsed>,
@@ -282,6 +283,10 @@ pub struct Unit {
     pub refs: u32,
     /// Each function of another unit it calls, in link slot order.
     pub links: Vec<Link>,
+    /// A debug build's breakpoint table, a byte per probe, in its static data.
+    pub breaks_at: u32,
+    /// A profiled build's table, 16 bytes per function, in its static data.
+    pub rows_at: u32,
 }
 
 /// One function a unit calls in another: the file whose unit has it, the
@@ -422,6 +427,25 @@ pub fn lints(src: &str, options: &Options) -> Vec<Error> {
     front(src, options).map_or_else(|_| vec![], |(prog, _)| codegen::lints(&prog, options))
 }
 
+/// A name a script declares may not start with `__`: the runtime's exports
+/// and the prelude's helpers do, and a function by one of their names wrote a
+/// module with that export twice.
+fn no_reserved_names(prog: &ast::Program) -> Result<(), Error> {
+    let fns = prog.fns.iter().map(|f| (f.name.as_str(), f.pos));
+    let externs = prog.externs.iter().map(|e| (e.name.as_str(), e.pos));
+    let decls = prog.decls.iter().map(|(name, pos)| (name.as_str(), *pos));
+    for (name, pos) in fns.chain(externs).chain(decls) {
+        let own = name.rsplit("::").next().unwrap_or(name);
+        if own.starts_with("__") {
+            return Err(Error {
+                pos,
+                msg: format!("`{own}`: a name starting with `__` is the runtime's"),
+            });
+        }
+    }
+    Ok(())
+}
+
 // The file parsed, its modules linked in, the prelude and the engine's
 // records beside its own structs; the files linked.
 fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Error> {
@@ -437,6 +461,7 @@ fn front(src: &str, options: &Options) -> Result<(ast::Program, Vec<String>), Er
             options.parsed.as_ref(),
         )?
     };
+    no_reserved_names(&prog)?;
     reach::seal(&mut prog)?;
     let mut structs = host_structs(&options.host, &prog);
     structs.append(&mut prog.structs);

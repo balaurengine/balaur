@@ -210,9 +210,10 @@ one backend; the Rune backend before it was one crate and went as one.
   (`docs/PLAN-bs-linking.md`). A script holds another node's script as its
   class, `let tree: scene_tree::SceneTree? = node.script;`, and calls it
   directly. A native build holds those units, translated to C, and links
-  them the same way (`balaur_bs::c`, `runtime/native_engine.rs`). A
-  debugger's probes, a profiler and the browser compile the whole file with
-  its modules in, an instance of its own.
+  them the same way (`balaur_bs::c`, `runtime/native_engine.rs`); a
+  debugger's probes, a profiler's counters and a browser's metering are built
+  into a unit and link as ordinary ones do. A file from outside the project,
+  as the editor reads a game's scripts, is a unit of the instance beside it.
 
 ### Enums
 

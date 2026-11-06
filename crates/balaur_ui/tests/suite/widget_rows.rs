@@ -11,8 +11,7 @@ fn a_list_draws_only_the_rows_that_fit() {
     let many: Vec<toml::Value> = (0..2000)
         .map(|i| toml::toml! { label = (format!("Row{i}")) }.into())
         .collect();
-    let params =
-        toml::toml! { kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 120.0 items = (many) };
+    let params = toml::toml! { kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 120.0 widget_rows = { items = (many) } };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -33,7 +32,7 @@ fn a_tree_indents_a_row_by_its_depth() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 120.0
-        items = [{ label = "Root" }, { label = "Child", depth = 1 }, { label = "Leaf", depth = 2 }]
+        widget_rows = { items = [{ label = "Root" }, { label = "Child", depth = 1 }, { label = "Leaf", depth = 2 }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -56,7 +55,7 @@ fn a_list_row_draws_its_icon_label_and_note() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-        items = [{ icon = "*", label = "Named", note = "12 KB", tint = "#ff0000" }, { label = "Plain" }]
+        widget_rows = { items = [{ icon = "*", label = "Named", note = "12 KB", tint = "#ff0000" }, { label = "Plain" }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -83,7 +82,7 @@ fn picking_a_row_leaves_the_rows_under_it_where_they_were() {
         let params = toml::toml! {
             kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
             text = chosen
-            items = [{ label = "One" }, { label = "Two" }, { label = "Three" }, { label = "Four" }, { label = "Five" }, { label = "Six" }]
+            widget_rows = { items = [{ label = "One" }, { label = "Two" }, { label = "Three" }, { label = "Four" }, { label = "Five" }, { label = "Six" }] }
         };
         add_widget(&app, &params.into());
         settle(&app, &ctx);
@@ -106,7 +105,7 @@ fn a_tree_caret_folds_the_branch_under_it() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-        items = [{ label = "Root" }, { label = "Child", depth = 1 }, { label = "Leaf", depth = 2 }, { label = "After" }]
+        widget_rows = { items = [{ label = "Root" }, { label = "Child", depth = 1 }, { label = "Leaf", depth = 2 }, { label = "After" }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -146,8 +145,8 @@ fn a_table_draws_only_the_rows_that_fit() {
         .collect();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = (many)
         widget_table = { titles = ["name", "count>", "state"] }
+        widget_rows = { items = (many) }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -175,8 +174,8 @@ fn a_table_row_draws_one_cell_a_column() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = [{ cells = ["hero.png", "12 KB"] }]
         widget_table = { titles = ["name", "size"] }
+        widget_rows = { items = [{ cells = ["hero.png", "12 KB"] }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -203,8 +202,8 @@ fn dragging_a_seam_moves_the_column_beside_it() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = [{ cells = ["hero.png", "12 KB"] }]
         widget_table = { titles = ["name", "size"] }
+        widget_rows = { items = [{ cells = ["hero.png", "12 KB"] }] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -253,8 +252,8 @@ fn dragging_a_seam_moves_the_column_beside_it() {
 fn a_list_holding_many_takes_the_rows_a_command_click_adds() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi_select = true
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two" }, { label = "Three" }, { label = "Four" }]
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
+        widget_rows = { multi_select = true, row_height = 18.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }, { label = "Four" }] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -271,14 +270,14 @@ fn a_list_holding_many_takes_the_rows_a_command_click_adds() {
     click_held(&app, &ctx, one, egui::Modifiers::NONE);
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "selection"),
+        beside_property(&app, entity, "widget_rows", "selection"),
         toml::Value::Array(vec![toml::Value::String("One".into())]),
         "a plain click takes the row alone"
     );
     click_held(&app, &ctx, three, egui::Modifiers::COMMAND);
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "selection"),
+        beside_property(&app, entity, "widget_rows", "selection"),
         toml::Value::Array(vec![
             toml::Value::String("One".into()),
             toml::Value::String("Three".into()),
@@ -288,7 +287,7 @@ fn a_list_holding_many_takes_the_rows_a_command_click_adds() {
     click_held(&app, &ctx, three, egui::Modifiers::COMMAND);
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "selection"),
+        beside_property(&app, entity, "widget_rows", "selection"),
         toml::Value::Array(vec![toml::Value::String("One".into())]),
         "and takes it off again"
     );
@@ -298,8 +297,8 @@ fn a_list_holding_many_takes_the_rows_a_command_click_adds() {
 fn shift_on_a_list_takes_the_run_from_the_last_row_clicked() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi_select = true
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two" }, { label = "Three" }, { label = "Four" }]
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
+        widget_rows = { multi_select = true, row_height = 18.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }, { label = "Four" }] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -317,7 +316,7 @@ fn shift_on_a_list_takes_the_run_from_the_last_row_clicked() {
     click_held(&app, &ctx, at("Four"), egui::Modifiers::SHIFT);
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "selection"),
+        beside_property(&app, entity, "widget_rows", "selection"),
         toml::Value::Array(vec![
             toml::Value::String("Two".into()),
             toml::Value::String("Three".into()),
@@ -332,7 +331,7 @@ fn a_list_holding_one_row_still_says_what_is_picked() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two" }]
+        widget_rows = { row_height = 18.0, items = [{ label = "One" }, { label = "Two" }] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -351,7 +350,7 @@ fn a_list_holding_one_row_still_says_what_is_picked() {
         "the pick is the row, as it always was"
     );
     assert_eq!(
-        property(&app, entity, "selection"),
+        beside_property(&app, entity, "widget_rows", "selection"),
         toml::Value::Array(vec![toml::Value::String("Two".into())]),
         "and `selection` says so too, so nothing reading it branches on `multi`"
     );
@@ -362,7 +361,7 @@ fn a_secondary_click_picks_the_row_it_lands_on() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two" }, { label = "Three" }]
+        widget_rows = { row_height = 18.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -398,9 +397,8 @@ fn a_secondary_click_picks_the_row_it_lands_on() {
 fn a_secondary_click_on_a_picked_row_keeps_the_set() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 multi_select = true
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two" }, { label = "Three" }]
-        selection = ["One", "Two"] text = "Two"
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 text = "Two"
+        widget_rows = { multi_select = true, row_height = 18.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }], selection = ["One", "Two"] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -422,7 +420,7 @@ fn a_secondary_click_on_a_picked_row_keeps_the_set() {
     );
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "selection"),
+        beside_property(&app, entity, "widget_rows", "selection"),
         toml::Value::Array(vec![
             toml::Value::String("One".into()),
             toml::Value::String("Two".into()),
@@ -436,7 +434,7 @@ fn a_table_without_column_names_reads_its_first_row_as_the_header() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = [{ cells = ["name", "size"] }, { cells = ["hero.png", "12 KB"] }]
+        widget_rows = { items = [{ cells = ["name", "size"] }, { cells = ["hero.png", "12 KB"] }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -459,8 +457,8 @@ fn a_table_row_wears_the_colour_it_carries() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = [{ cells = ["plain", "1 KB"] }, { cells = ["loud", "2 KB"], tint = "#ff0000" }]
         widget_table = { titles = ["name", "size"] }
+        widget_rows = { items = [{ cells = ["plain", "1 KB"] }, { cells = ["loud", "2 KB"], tint = "#ff0000" }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -537,8 +535,8 @@ fn themed(theme: &str, params: &toml::Value) -> egui::FullOutput {
 fn a_table(theme: bool) -> toml::Value {
     let mut params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = [{ cells = ["hero.png", "12 KB"] }, { cells = ["map.png", "3 KB"] }]
         widget_table = { titles = ["name", "size"] }
+        widget_rows = { items = [{ cells = ["hero.png", "12 KB"] }, { cells = ["map.png", "3 KB"] }] }
     };
     if theme {
         params.insert("theme".into(), toml::Value::String("themes/t.toml".into()));
@@ -618,9 +616,9 @@ fn a_theme_dresses_the_box_a_row_view_draws_in() {
 fn a_list_takes_the_row_colours_its_theme_names() {
     let want = egui::Color32::from_rgb(200, 30, 30);
     let params = toml::toml! {
-        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two" }] text = "Two"
+        kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0 text = "Two"
         theme = "themes/t.toml"
+        widget_rows = { row_height = 18.0, items = [{ label = "One" }, { label = "Two" }] }
     };
     let painted = fills(&themed(
         "[colors]\nrow_selected = \"#c81e1e\"\n",
@@ -637,8 +635,8 @@ fn a_table_takes_the_column_shares_the_scene_states() {
     let (_dir, app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-        items = [{ cells = ["hero.png", "12 KB"] }]
         widget_table = { titles = ["name", "size"], widths = ["3", "1"] }
+        widget_rows = { items = [{ cells = ["hero.png", "12 KB"] }] }
     };
     add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -665,9 +663,11 @@ fn a_table_without_a_header_draws_every_row() {
         let (_dir, app) = app();
         let mut params = toml::toml! {
             kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 200.0
-            items = [{ cells = ["one", "1"] }, { cells = ["two", "2"] }, { cells = ["three", "3"] }]
+            widget_rows = { items = [{ cells = ["one", "1"] }, { cells = ["two", "2"] }, { cells = ["three", "3"] }] }
         };
-        params.insert("header".into(), toml::Value::Boolean(header));
+        let mut rows = toml::Table::new();
+        rows.insert("header".into(), toml::Value::Boolean(header));
+        params.insert("widget_table".into(), rows.into());
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);
@@ -688,14 +688,17 @@ fn a_table_sorts_by_the_column_it_names() {
         let (_dir, app) = app();
         let mut params = toml::toml! {
             kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 200.0
-            items = [{ cells = ["b", "3 KB"] }, { cells = ["a", "12 KB"] }, { cells = ["c", "1 KB"] }]
             widget_table = { titles = ["name", "size>"] }
+            widget_rows = { items = [{ cells = ["b", "3 KB"] }, { cells = ["a", "12 KB"] }, { cells = ["c", "1 KB"] }] }
         };
         params["widget_table"]
             .as_table_mut()
             .unwrap()
             .insert("sort".into(), toml::Value::String(sort.into()));
-        params.insert("reverse".into(), toml::Value::Boolean(reverse));
+        params["widget_table"]
+            .as_table_mut()
+            .unwrap()
+            .insert("reverse".into(), toml::Value::Boolean(reverse));
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);
@@ -719,8 +722,8 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
     let (_dir, mut app) = app();
     let params = toml::toml! {
         kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 200.0
-        items = [{ cells = ["b", "3"] }, { cells = ["a", "12"] }]
         widget_table = { titles = ["name", "size"], sortable = true }
+        widget_rows = { items = [{ cells = ["b", "3"] }, { cells = ["a", "12"] }] }
     };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
@@ -740,14 +743,14 @@ fn a_click_on_a_sortable_header_orders_by_that_column() {
         "the click sorts by the column it landed on"
     );
     assert_eq!(
-        property(&app, entity, "reverse"),
+        beside_property(&app, entity, "widget_table", "reverse"),
         toml::Value::Boolean(false)
     );
     pass(&app, &ctx, press(hit, true));
     pass(&app, &ctx, press(hit, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "reverse"),
+        beside_property(&app, entity, "widget_table", "reverse"),
         toml::Value::Boolean(true),
         "and the same column again turns it round"
     );
@@ -776,9 +779,8 @@ impl Owner {
             "Rows",
             &toml::toml! {
                 kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-                row_height = 20.0
-                items = [{ label = "One" }, { label = "Two" }, { label = "Three" }]
                 widget_list = { reorderable = true, on_move = "on_move" }
+                widget_rows = { row_height = 20.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
             }
             .into(),
         );
@@ -836,9 +838,8 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "list" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            row_height = 20.0
-            items = [{ label = "One" }, { label = "Two" }, { label = "Three" }]
             widget_list = { on_move = "on_move" }
+            widget_rows = { row_height = 20.0, items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
         }
         .into(),
     );
@@ -884,9 +885,8 @@ impl Owner {
             "Cards",
             &toml::toml! {
                 kind = "list" x = 0.0 y = 0.0 width = 240.0 height = 120.0
-                grid_columns = "repeat(3, 1fr)"
-                items = [{ label = "One" }, { label = "Two" }, { label = "Three" }]
-                widget_list = { draggable = true, on_drop = "on_drop" }
+                widget_list = { draggable = true, on_drop = "on_drop", grid_columns = "repeat(3, 1fr)" }
+                widget_rows = { items = [{ label = "One" }, { label = "Two" }, { label = "Three" }] }
             }
             .into(),
         );
@@ -925,10 +925,13 @@ fn a_table_puts_every_cell_where_its_text_align_says() {
         let (_dir, app) = app();
         let mut params = toml::toml! {
             kind = "table" x = 0.0 y = 0.0 width = 300.0 height = 120.0
-            items = [{ cells = ["hero", "12 KB"] }]
             widget_table = { titles = ["name", "size>"] }
+            widget_rows = { items = [{ cells = ["hero", "12 KB"] }] }
         };
-        params.insert("text_align".into(), toml::Value::String(align.into()));
+        params["widget_table"]
+            .as_table_mut()
+            .unwrap()
+            .insert("text_align".into(), toml::Value::String(align.into()));
         add_widget(&app, &params.into());
         let ctx = egui::Context::default();
         settle(&app, &ctx);
@@ -980,9 +983,8 @@ impl Owner {
         "Rows",
         &toml::toml! {
             kind = "tree" x = 0.0 y = 0.0 width = 200.0 height = 200.0
-            row_height = 20.0
-            items = [{ label = "One", key = "one", marks = [{ name = "eye", glyph = "E" }, { name = "lock", glyph = "L" }] }, { label = "Two", key = "two", marks = [{ name = "eye", glyph = "E" }] }]
             widget_list = { on_mark = "on_mark" }
+            widget_rows = { row_height = 20.0, items = [{ label = "One", key = "one", marks = [{ name = "eye", glyph = "E" }, { name = "lock", glyph = "L" }] }, { label = "Two", key = "two", marks = [{ name = "eye", glyph = "E" }] }] }
         }
         .into(),
     );

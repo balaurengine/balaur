@@ -35,6 +35,17 @@ fn add(app: &App, parent: Entity, name: &str, params: &toml::Value) -> Entity {
     entity
 }
 
+/// A container's children two pixels apart.
+fn spaced(app: &App, container: Entity) {
+    balaur::components::add(
+        &app.engine,
+        container,
+        "widget_layout",
+        Some(&toml::toml! { gap = [2, 2] }.into()),
+    )
+    .unwrap();
+}
+
 /// A column of rows of buttons, `count` widgets in all, and the leaf a
 /// changing case rewrites.
 fn screen(app: &App, count: usize, cell: &toml::Value) -> (Entity, Entity) {
@@ -43,17 +54,14 @@ fn screen(app: &App, count: usize, cell: &toml::Value) -> (Entity, Entity) {
         app,
         root,
         "Screen",
-        &toml::toml! { kind = "column" anchor = "fill" gap = [2, 2] }.into(),
+        &toml::toml! { kind = "column" anchor = "fill" }.into(),
     );
+    spaced(app, column);
     let mut leaf = column;
     let mut made = 1;
     while made < count {
-        let row = add(
-            app,
-            column,
-            "Row",
-            &toml::toml! { kind = "row" gap = [2, 2] }.into(),
-        );
+        let row = add(app, column, "Row", &toml::toml! { kind = "row" }.into());
+        spaced(app, row);
         made += 1;
         for _ in 0..PER_ROW {
             if made >= count {
@@ -121,7 +129,7 @@ fn widgets(c: &mut Criterion) {
                 &app.engine,
                 column,
                 "widget",
-                Some(&toml::toml! { kind = "column" anchor = "fill" gap = [2, 2] }.into()),
+                Some(&toml::toml! { kind = "column" anchor = "fill" }.into()),
             )
             .unwrap();
             one_pass(&app, &ctx);

@@ -145,8 +145,9 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         touched,
     } = begin(eng, stamp);
     // Nothing to draw and nothing to focus: a scene with no widgets pays for
-    // the resource lookup and no more.
+    // the resource lookup and no more, and a reader hears an empty window.
     if placed.is_empty() {
+        crate::access::written(eng, ctx, &[], &[], &[]);
         return;
     }
     let surface_of = |widget: &Widget| {
@@ -847,7 +848,6 @@ fn click_sensor(ui: &egui::Ui, at: &mut Painting<'_>, index: usize) {
             | w::PANEL
             | w::ROW
             | w::COLUMN
-            | w::INSPECTOR
             | w::GRID
             | w::STACK
             | w::FLOW
@@ -926,7 +926,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::IMAGE => crate::widget::picture::image(ui, at, index),
         // Taffy placed a grid's and a flow's children like a row's.
         w::ROW | w::GRID | w::FLOW => contain(ui, at, index, Axis::Row),
-        w::COLUMN | w::INSPECTOR => contain(ui, at, index, Axis::Column),
+        w::COLUMN => contain(ui, at, index, Axis::Column),
         // A box that clips, with its children free to run past it.
         w::SCROLL => scroller(ui, at, index),
         // One child at a time, with a strip of the rest above it. The strip is

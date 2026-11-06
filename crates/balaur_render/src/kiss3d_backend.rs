@@ -322,6 +322,7 @@ impl Frontend {
                 balaur_ui::draw_touch_controls(&app.engine, ctx);
             });
         }
+        crate::access::answer_reader(&app.engine, window);
         // On-screen keyboard follows ui keyboard focus, edge-detected after
         // the ui pass has settled focus. A no-op on desktop.
         let wants_keyboard = window.is_egui_capturing_keyboard();
@@ -433,6 +434,7 @@ pub async fn run_windowed_async(
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         vsync: window_settings.vsync,
         samples: present::samples_of(&window_settings),
+        accessible: true,
         ..CanvasSetup::default()
     };
     let phase = boot_cost::window_opening();
@@ -1177,23 +1179,4 @@ fn polyline_points(app: &App, reference: Option<&str>, closed: bool) -> Vec<Vec2
         points.push(points[0]);
     }
     points
-}
-
-#[cfg(test)]
-mod tests {
-    use balaur_core::project::WindowSettings;
-    use kiss3d::window::NumSamples;
-
-    #[test]
-    fn a_run_asks_its_canvas_for_the_sample_count_the_project_names() {
-        let at = |msaa| {
-            super::present::samples_of(&WindowSettings {
-                msaa,
-                ..WindowSettings::default()
-            })
-        };
-        assert_eq!(at(1), NumSamples::One, "msaa = 1 is off");
-        assert_eq!(at(4), NumSamples::Four);
-        assert_eq!(at(8), NumSamples::Four, "a count it lacks takes four");
-    }
 }

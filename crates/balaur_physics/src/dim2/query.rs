@@ -49,7 +49,7 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
     ),
     (
         "ShapeQuery",
-        "{ shape: any, origin: vec2?, direction: vec2?, at: vec2?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
+        "{ shape: Shape, origin: vec2?, direction: vec2?, at: vec2?, max_distance: float?, stop_at_penetration: bool?, filter: QueryFilter? }",
         "A shape, in the collider's vocabulary, swept from `origin` along `direction`, or standing `at` a point.",
     ),
     (
@@ -73,9 +73,29 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
         "The collider nearest a point: its node, the point on it, whether the point was inside, and how far.",
     ),
     (
+        "Shape",
+        "{ kind: string, radius: float?, size: Vec2?, edge_radius: float?, height: float?, up_axis: string?, a: Vec2?, b: Vec2?, c: Vec2?, normal: Vec2?, mesh: string?, fix_internal_edges: bool?, two_sided_edges: bool?, edges: string?, fit: string?, keep_collinear: bool?, heightfield: string?, scale: Vec2?, voxels: string?, voxel_size: float? }",
+        "A shape as `collider2d`'s `shape` spells it: its `kind`, and the rows that kind reads.",
+    ),
+    (
         "ImpactOptions",
-        "{ velocity_a: any, velocity_b: any, max_time: float?, stop_at_penetration: bool? }",
-        "How two colliders move for `time_of_impact`: each one's velocity, and how far ahead to look.",
+        "{ velocity_a: Vec2?, velocity_b: Vec2?, max_time: float?, stop_at_penetration: bool? }",
+        "How two colliders move for `time_of_impact`: each one's velocity, still when left out, and how far ahead to look.",
+    ),
+    (
+        "ClosestPoints",
+        "{ a: Vec2, b: Vec2 }",
+        "The nearest point on each of two colliders.",
+    ),
+    (
+        "Impact",
+        "{ distance: float, point: Vec2, normal: Vec2 }",
+        "Where two moving colliders meet: `distance` is how long they take to, at the velocities given; `point` and `normal` are on the first collider, in its own space.",
+    ),
+    (
+        "Contact",
+        "{ node: node, point: Vec2, normal: Vec2, impulse: float }",
+        "One contact point on a collider: what it touches, where, the normal, and how hard it pushed in the last step.",
     ),
 ];
 
@@ -352,8 +372,8 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("closest_points", &[], "(a: node, b: node) -> map?", "The nearest point on each of two nodes' colliders, as `{ a, b }`; nothing when they overlap."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> map?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
+        ("closest_points", &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders; nothing when they overlap."),
+        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
     m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
@@ -469,7 +489,7 @@ pub(crate) fn install_physics2d_world_list_api(m: &mut Module<Engine>) {
     m.describe(&[
         ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
         ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
-        ("contacts", &[c::COLLIDER_2D], "", "Every contact point on this node's collider this step: `{ node, point, normal, impulse }` each. Empty for a sensor, which has no contacts by definition."),
+        ("contacts", &[c::COLLIDER_2D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
     ]);
     m.function("bodies", |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState2d>();

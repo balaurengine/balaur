@@ -2,10 +2,12 @@
 // measured, read four times a second while the tab shows. The one panel that
 // reads on a clock, because what it shows is the cost of the frames.
 
+use editor;
+
 pub class Meter {
     node: Node,
     what: str,
-    editor: Node,
+    editor: editor::Editor?,
     titled: str,
     next: float,
 }
@@ -15,9 +17,18 @@ const EVERY: float = 0.25;
 impl Meter {
     pub fn init() {
         self.what = if self.node.name() == "Profiler" { "profiler" } else { "cost" };
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         self.titled = "";
         self.next = 0.0;
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// What the dock calls once it has made this tab visible: the first sample,
@@ -34,7 +45,7 @@ impl Meter {
     }
 
     pub fn scripts() {
-        self.editor.call("profiler_scripts");
+        self.editor.unwrap().profiler_scripts();
         self.sample();
     }
 
@@ -46,30 +57,27 @@ impl Meter {
         }
         self.next = engine::unix_time() + EVERY;
         ui::request_repaint(ui::RepaintOptions { after: EVERY });
-        let view = self.editor.call("meter_view", self.what);
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().meter_view(self.what);
         let table = self.node.get_node("Table");
-        let titled = "{view["titles"]}";
+        let titled = "{view.titles}";
         if titled != self.titled {
             // Widths only when the columns change: stating them every time would
             // snap the reader's own drag away.
             self.titled = titled;
-            table.widget_table.titles = view["titles"];
-            table.widget_table.widths = view["widths"];
+            table.widget_table.titles = view.titles;
+            table.widget_table.widths = view.widths;
             table.widget_table.sort = "";
-            table.widget.reverse = false;
+            table.widget_table.reverse = false;
         }
-        table.widget.items = view["items"];
-        table.set_visible(view["items"].len() > 0);
+        table.widget_rows.items = view.items;
+        table.set_visible(view.items.len() > 0);
         let patched = self.node.get_node("Nothing");
-        patched.set_visible(view["says"].as_str() != "");
-        patched.widget.text = view["says"].as_str();
+        patched.set_visible(view.says != "");
+        patched.widget.text = view.says;
         let tools = self.node.get_node("Tools");
-        tools.get_node("Headline").widget.text = view["headline"].as_str();
+        tools.get_node("Headline").widget.text = view.headline;
         if self.what == "profiler" {
-            tools.get_node("Scripts").widget.checked = view["scripts"].as_bool();
+            tools.get_node("Scripts").widget_check.checked = view.scripts;
         }
     }
 }

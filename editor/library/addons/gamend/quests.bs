@@ -5,19 +5,20 @@
 // Quests: one function per operation, `quests::<name>` once a
 // script says `use addons::gamend::quests;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Claim a completed quest
 /// `POST /api/v1/me/quests/{key}/claim`
-pub fn claim_quest(key: any) -> any {
-    if key == nil {
+pub fn claim_quest(key: str) -> int {
+    if key == "" {
         return core::missing("gamend::quests::claim_quest", "key");
     }
     gamend::rest("POST", "/api/v1/me/quests/{key}/claim")
@@ -25,28 +26,28 @@ pub fn claim_quest(key: any) -> any {
 
 /// List quests
 /// `GET /api/v1/quests`
-pub fn list_quests(options: any) -> any {
+pub fn list_quests(options: any) -> int {
     let query = core::query(options, ["category", "page", "page_size"]);
     gamend::rest("GET", "/api/v1/quests{query}")
 }
 
 /// List my quests
 /// `GET /api/v1/me/quests`
-pub fn my_quests(options: any) -> any {
+pub fn my_quests(options: any) -> int {
     let query = core::query(options, ["category", "group", "page", "page_size"]);
     gamend::rest("GET", "/api/v1/me/quests{query}")
 }
 
 /// Quest progress counts
 /// `GET /api/v1/quests/stats`
-pub fn quest_stats() -> any {
+pub fn quest_stats() -> int {
     gamend::rest("GET", "/api/v1/quests/stats")
 }
 
 /// List a user's completed quests
 /// `GET /api/v1/quests/user/{user_id}`
-pub fn user_quests(user_id: any, options: any) -> any {
-    if user_id == nil {
+pub fn user_quests(user_id: str, options: any) -> int {
+    if user_id == "" {
         return core::missing("gamend::quests::user_quests", "user_id");
     }
     let query = core::query(options, ["category", "page", "page_size"]);

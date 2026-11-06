@@ -27,8 +27,8 @@ pub class Built {
 }
 
 pub struct OutputView {
-    items: [ui::Item],
-    says: str,
+    internal items: [ui::Item],
+    internal says: str,
 }
 
 /// A card's mark and the theme token it is inked with.
@@ -51,56 +51,56 @@ pub struct Shown {
 }
 
 pub struct AssetsView {
-    dir: str,
-    where: str,
-    renaming: bool,
-    name: str,
-    count: str,
-    importing: bool,
-    import_text: str,
-    import_tip: str,
-    folder_text: str,
-    chosen: bool,
-    items: [ui::Item],
-    picked: str,
+    internal dir: str,
+    internal where: str,
+    internal renaming: bool,
+    internal name: str,
+    internal count: str,
+    internal importing: bool,
+    internal import_text: str,
+    internal import_tip: str,
+    internal folder_text: str,
+    internal chosen: bool,
+    internal items: [ui::Item],
+    internal picked: str,
     /// The selection is a dependency's file, which Make local copies out.
-    local: bool,
+    internal local: bool,
     /// The `path` dependency Move to project moves the selection into, or "".
-    move_to: str,
+    internal move_to: str,
     /// What Edit dependency opens, or "" outside a dependency.
-    source_tip: str,
+    internal source_tip: str,
     /// The browser is in a Forge dependency, which Update moves on.
-    update: bool,
+    internal update: bool,
 }
 
 pub struct DebuggerView {
-    stopped: bool,
-    can_pause: bool,
-    steps: [str],
-    where: str,
-    threw: str,
-    break_on_error: bool,
-    frames: [ui::Item],
-    picked: str,
+    internal stopped: bool,
+    internal can_pause: bool,
+    internal steps: [str],
+    internal where: str,
+    internal threw: str,
+    internal break_on_error: bool,
+    internal frames: [ui::Item],
+    internal picked: str,
 }
 
 pub struct ProblemsView {
-    items: [ui::Item],
-    says: str,
+    internal items: [ui::Item],
+    internal says: str,
 }
 
 pub struct RecordingsFill {
-    verify: bool,
-    count: int,
+    internal verify: bool,
+    internal count: int,
 }
 
 pub struct MeterView {
-    titles: [str],
-    widths: [str],
-    items: [ui::Item],
-    says: str,
-    headline: str,
-    scripts: bool,
+    internal titles: [str],
+    internal widths: [str],
+    internal items: [ui::Item],
+    internal says: str,
+    internal headline: str,
+    internal scripts: bool,
 }
 
 /// A stage or a span, and what it cost the last frame.
@@ -357,7 +357,7 @@ pub fn delete_asset(state: &mut editor::State) {
 
 /// The installed dependency a project-relative path lies in, as
 /// `dependency::list` describes it, or nil for one of the game's own.
-fn dependency_at(state: editor::State, relative_path: str) -> any {
+fn dependency_at(state: editor::State, relative_path: str) -> dependency::Dependency? {
     if !relative_path.starts_with("deps/") {
         return nil;
     }
@@ -366,7 +366,7 @@ fn dependency_at(state: editor::State, relative_path: str) -> any {
         return nil;
     }
     for dependency_entry in dependency::list() {
-        if dependency_entry["alias"].as_str() == alias.unwrap() && dependency_entry["game"].as_str() == state.game_root {
+        if dependency_entry.alias == alias.unwrap() && dependency_entry.game == state.game_root {
             return dependency_entry;
         }
     }
@@ -387,19 +387,19 @@ fn shown_folder(state: editor::State, relative_path: str) -> bool {
 /// The game's first `path` dependency, where Move to project puts files.
 fn shelf(state: editor::State) -> str {
     for dependency_entry in dependency::list() {
-        if dependency_entry["kind"].as_str() == "path" && dependency_entry["game"].as_str() == state.game_root {
-            return dependency_entry["alias"].as_str();
+        if dependency_entry.kind == "path" && dependency_entry.game == state.game_root {
+            return dependency_entry.alias;
         }
     }
     ""
 }
 
 /// What Edit dependency opens for `dependency_entry`: its folder or its page.
-fn source_of(dependency_entry: any) -> str {
-    if dependency_entry["kind"].as_str() == "path" {
-        return "Open {dependency_entry["path"].as_str()} in a second editor";
+fn source_of(dependency_entry: dependency::Dependency) -> str {
+    if dependency_entry.kind == "path" {
+        return "Open {dependency_entry.path} in a second editor";
     }
-    "Open {dependency_entry["project"].as_str()} on Forge"
+    "Open {dependency_entry.project} on Forge"
 }
 
 /// Say why a dependency's file is not changed here, and what does change it.
@@ -408,7 +408,7 @@ fn refuse_in_dependency(state: editor::State, relative_path: str) -> bool {
     if dependency_entry == nil {
         return false;
     }
-    log::warn("res://{relative_path} is in the dependency {dependency_entry["alias"].as_str()}, which is read-only here: make it local to change it, or edit the dependency");
+    log::warn("res://{relative_path} is in the dependency {dependency_entry.unwrap().alias}, which is read-only here: make it local to change it, or edit the dependency");
     true
 }
 
@@ -420,7 +420,8 @@ fn make_local(state: &mut editor::State) {
     if dependency_entry == nil {
         return;
     }
-    let inside = relative_path.slice("deps/{dependency_entry["alias"].as_str()}/".len(), relative_path.len());
+    let alias = dependency_entry.unwrap().alias;
+    let inside = relative_path.slice("deps/{alias}/".len(), relative_path.len());
     let target = inside;
     let copy_number = 2;
     while fs::exists(asset_path(state, target)) {
@@ -434,7 +435,7 @@ fn make_local(state: &mut editor::State) {
     model::forget(state);
     state.assets.selected = target;
     state.assets.directory = parent_directory(target);
-    log::info("made res://{target} from {dependency_entry["alias"].as_str()}; {rewritten.len()} file(s) now name it");
+    log::info("made res://{target} from {alias}; {rewritten.len()} file(s) now name it");
 }
 
 /// Move the selected game file into the game's `path` dependency.
@@ -454,18 +455,19 @@ fn move_to_shelf(state: &mut editor::State) {
 /// editor, a Forge one's page.
 fn edit_dependency(state: editor::State) {
     let at = if state.assets.selected != "" { state.assets.selected } else { state.assets.directory };
-    let dependency_entry = dependency_at(state, at);
-    if dependency_entry == nil {
+    let found = dependency_at(state, at);
+    if found == nil {
         return;
     }
-    if dependency_entry["kind"].as_str() == "path" {
-        let opened = util::map_or_empty(project::open_beside(state.game_root + "/" + dependency_entry["path"].as_str()));
+    let dependency_entry = found.unwrap();
+    if dependency_entry.kind == "path" {
+        let opened = util::map_or_empty(project::open_beside(state.game_root + "/" + dependency_entry.path));
         if opened["error"] != nil {
             log::warn(opened["error"].as_str());
         }
         return;
     }
-    engine::open_url("{forge::url()}/projects/{dependency_entry["project"].as_str()}");
+    engine::open_url("{forge::url()}/projects/{dependency_entry.project}");
 }
 
 /// What the Assets panel shows for a search: where the browser is, its cards
@@ -505,10 +507,10 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let in_dependency = dependency_at(state, directory);
     let pinned = if in_dependency == nil {
         ""
-    } else if in_dependency["rev"].as_str() != "" {
-        " · {in_dependency["rev"].as_str().slice(0, 7)}"
+    } else if in_dependency.unwrap().rev != "" {
+        " · {in_dependency.unwrap().rev.slice(0, 7)}"
     } else {
-        " · {in_dependency["path"].as_str()}"
+        " · {in_dependency.unwrap().path}"
     };
     let selected_own = state.assets.selected != "" && !state.assets.selected.starts_with("deps/");
     AssetsView {
@@ -532,8 +534,8 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         picked: picked,
         local: here != nil && state.assets.selected != "" && !shown_folder(state, state.assets.selected),
         move_to: if selected_own { shelf(state) } else { "" },
-        source_tip: if here == nil { "" } else { source_of(here) },
-        update: here != nil && here["kind"].as_str() == "forge",
+        source_tip: if here == nil { "" } else { source_of(here.unwrap()) },
+        update: here != nil && here.unwrap().kind == "forge",
     }
 }
 
@@ -642,7 +644,7 @@ pub fn timeline_fill(state: &mut editor::State) {
         util::set_text(TIMELINE + "/Missing/Says", missing);
         let filled = scene::get_node(TIMELINE + "/Missing/Create");
         if filled.is_valid() {
-            filled.widget.icon = icons::ui("add");
+            filled.widget_button.icon = icons::ui("add");
         }
         util::set_visible(TIMELINE + "/Body", false);
         return;
@@ -657,7 +659,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let name = anim::clip_name(state, node);
     let filled = scene::get_node(TIMELINE + "/Body/Head/AddKey");
     if filled.is_valid() {
-        filled.widget.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui("add");
     }
     let library = anim::library_path(state, node);
     let clip = if name == "" { "unnamed" } else { name };
@@ -671,7 +673,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let filled = scene::get_node(TIMELINE + "/Body/Head/Loop");
     if filled.is_valid() {
         filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
-        filled.widget.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
+        filled.widget_dropdown.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
     }
     // The ruler carries the scale the lanes are read against: a label and a
     // rule per tick straight down through the lanes.
@@ -686,13 +688,13 @@ pub fn timeline_fill(state: &mut editor::State) {
             role: "text_code_quiet",
             font_size: 11,
             absolute: true,
-            inset: [tick_x, 2.0, -1.0, -1.0],
+            inset: ui::sides(tick_x, 2.0, -1.0, -1.0),
             text: util::fixed(seconds, 2),
         });
         rules.push(ui::Control {
             kind: "row",
             absolute: true,
-            inset: [tick_x, 0.0, -1.0, 0.0],
+            inset: ui::sides(tick_x, 0.0, -1.0, 0.0),
             width: 1,
             fill: "border_default",
             interactive: false,
@@ -718,10 +720,10 @@ pub fn timeline_fill(state: &mut editor::State) {
                 role: "chip_quiet",
                 text: if before { "●" } else { "○" },
                 font_size: 13,
-                padding: 0,
+                padding: ui::all_sides(0),
                 text_color: color,
                 absolute: true,
-                inset: [(when / length) * lane_width - 6.0, 2.0, -1.0, -1.0],
+                inset: ui::sides((when / length) * lane_width - 6.0, 2.0, -1.0, -1.0),
                 tooltip: "{util::fixed(when, 2)} s",
                 on_click: "handle",
                 data: { "fn": on_key_pressed, "when": when },
@@ -733,9 +735,9 @@ pub fn timeline_fill(state: &mut editor::State) {
                 ui::Control {
                     kind: "row",
                     width: NAME_WIDTH,
-                    gap: [6, 6],
+                    gap: vec2(6, 6),
                     align_items: "center",
-                    padding: [8, 0, 0, 0],
+                    padding: ui::sides(8, 0, 0, 0),
                     controls: [
                         ui::Control { kind: "row", width: 6, height: 6, corner_radius: 3, fill: color },
                         ui::Control {
@@ -752,7 +754,7 @@ pub fn timeline_fill(state: &mut editor::State) {
                     width: lane_width,
                     controls: keys,
                     height: LANE_HEIGHT,
-                    margin: [14, 0, 0, 0],
+                    margin: ui::sides(14, 0, 0, 0),
                 },
             ],
         });
@@ -1019,9 +1021,9 @@ pub fn lanes_fill(state: editor::State) {
                 role: "chip_quiet",
                 text: "▮",
                 font_size: 9,
-                padding: 0,
+                padding: ui::all_sides(0),
                 absolute: true,
-                inset: [mark_x, -1.0, -1.0, -1.0],
+                inset: ui::sides(mark_x, -1.0, -1.0, -1.0),
                 text_color: if tick.as_int() <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
                 tooltip: "{tick}: {mark.label}",
                 on_click: "handle",
@@ -1034,7 +1036,7 @@ pub fn lanes_fill(state: editor::State) {
                 ui::Control {
                     kind: "label",
                     width: LANE_NAME_WIDTH - 12.0,
-                    padding: [8, 0, 0, 0],
+                    padding: ui::sides(8, 0, 0, 0),
                     role: "text_code_quiet",
                     font_size: 11,
                     text: lane.name,
@@ -1056,7 +1058,7 @@ pub fn lanes_fill(state: editor::State) {
             controls: [
                 ui::Control {
                     kind: "label",
-                    padding: [8, 0, 0, 0],
+                    padding: ui::sides(8, 0, 0, 0),
                     role: "text_code_quiet",
                     font_size: 11,
                     text: "{event.tick}",
@@ -1222,8 +1224,11 @@ pub fn meter_view(state: editor::State, what: str) -> MeterView {
     let items: [ui::Item] = [];
     let stages: any = timings.stages;
     cost_rows(items, tokens, stages, "stage");
-    let spans = util::map_or_empty(timings.spans);
-    if spans.len() > 0 {
+    if timings.spans.len() > 0 {
+        let spans: any = {};
+        for span in timings.spans {
+            spans[span.name] = span.seconds;
+        }
         cost_rows(items, tokens, spans, "span");
     }
     if scripts {

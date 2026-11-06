@@ -1,16 +1,16 @@
 name: Build
 
 # Everything that produces an artifact somebody downloads: a push to main
-# refreshes the rolling `nightly` prerelease, a `v*` tag drafts that version,
-# and publishing a version stays a human decision.
+# refreshes the rolling `nightly` prerelease, and a release published on
+# GitHub gets its files.
 on:
   # Runs from .github/workflows/runner.yml, which owns the triggers; kept
   # dispatchable so it can still be run on its own from the Actions tab.
   workflow_call:
     outputs:
       released:
-        description: "'true' once draft-release made this commit's release; container.yml publishes only then"
-        value: ${{ jobs.draft-release.outputs.released }}
+        description: "'true' once release put this commit's files on its release; container.yml publishes only then"
+        value: ${{ jobs.release.outputs.released }}
   workflow_dispatch:
 
 env:
@@ -105,7 +105,7 @@ jobs:
           # The step above installed them, and the action's own step reaches
           # for sudo, which a container has no need of and does not carry.
           build-deps: ${{ matrix.container && 'false' || 'true' }}
-          attest: ${{ github.event_name == 'push' }}
+          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # Runtimes for the non-desktop platforms, packaged as the shape
   # each OS starts (scripts/package_runtime.sh). Web is wasm-bindgen on
@@ -173,7 +173,7 @@ jobs:
           variant: ${{ matrix.variant }}
           web-features: ${{ matrix.web-features }}
           threads: ${{ matrix.threads }}
-          attest: ${{ github.event_name == 'push' }}
+          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # A game template per desktop and variant: one physics world, or a headless
   # server. Each exports an example with this run's editor and plays it.
@@ -239,7 +239,7 @@ jobs:
           target: ${{ matrix.desktop.target }}
           variant: ${{ matrix.variant }}
           build-deps: ${{ matrix.desktop.container && 'false' || 'true' }}
-          attest: ${{ github.event_name == 'push' }}
+          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # Exports a game with each template and checks the result is what the OS
   # installs or a host serves — the half a template build cannot check.
@@ -301,7 +301,7 @@ jobs:
           path: dist/balaur-example-*
           if-no-files-found: error
       - name: Attest what was built
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' || github.event_name == 'release'
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/balaur-example-*
@@ -349,7 +349,7 @@ jobs:
           project: examples/hello
           targets: "linux-x64 web"
           download: "false"
-          attest: ${{ github.event_name == 'push' }}
+          attest: ${{ github.event_name == 'push' || github.event_name == 'release' }}
 
   # The web build as the one download a site refreshes: the editor's module
   # and project, and each web runtime with the examples exported onto it by
@@ -431,19 +431,19 @@ jobs:
   # The only job that publishes anything, so the only one a pull request skips:
   # everything above still builds and is still checked, which is the point of
   # running this on a PR at all.
-  draft-release:
-    name: draft release
-    # A push to main or a `v*` tag, never a manual run: draft_release.sh moves
-    # the rolling `nightly` tag to whatever branch it was dispatched from.
-    if: github.event_name == 'push'
+  release:
+    name: release
+    # A push to main or a published release, never a manual run: release.sh
+    # moves the rolling `nightly` tag to whatever branch it was dispatched from.
+    if: github.event_name == 'push' || github.event_name == 'release'
     needs:
       [build-editor, build-platforms, build-templates, export-mobile, export-with-the-action, bundle-web]
     runs-on: ubuntu-latest
-    # Drafting a release means writing to the repo's releases.
+    # Attaching files means writing to the repo's releases.
     permissions:
       contents: write
     outputs:
-      released: ${{ steps.draft.outputs.released }}
+      released: ${{ steps.release.outputs.released }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -451,11 +451,11 @@ jobs:
           pattern: balaur-*
           path: dist
           merge-multiple: true
-      - name: Draft the release
-        id: draft
+      - name: Put the files on the release
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: ./scripts/draft_release.sh dist
+        run: ./scripts/release.sh dist
       # Nothing tells the site. balaurengine.org is served by Forge, whose image
       # build fetches this release's balaur-play.tar.gz (`mix forge.site.play`),
       # so a deploy there picks up the newest nightly by itself.

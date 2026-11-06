@@ -103,12 +103,12 @@ fn a_node_s_icon_color_tints_its_glyph_over_the_role_s() {
     let icon = "\u{e1dc}";
     let _from_role = add_widget(
         &app,
-        &toml::toml! { kind = "button" icon = (icon) role = "marked" theme = "themes/tint.toml" x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "button" role = "marked" theme = "themes/tint.toml" x = 0.0 y = 0.0 widget_button = { icon = (icon) } }
             .into(),
     );
     let _stated = add_widget(
         &app,
-        &toml::toml! { kind = "button" icon = (icon) role = "marked" icon_color = "#00ff00" theme = "themes/tint.toml" x = 0.0 y = 100.0 }
+        &toml::toml! { kind = "button" role = "marked" theme = "themes/tint.toml" x = 0.0 y = 100.0 widget_button = { icon = (icon), icon_color = "#00ff00" } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -225,7 +225,7 @@ fn a_truncated_label_ends_in_an_ellipsis() {
     let long = "a/very/long/path/that/will/not/fit/in/the/room/it/was/given.toml";
     let cut = add_widget(
         &app,
-        &toml::toml! { kind = "label" text = (long) width = 120.0 truncate = true x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "label" text = (long) width = 120.0 x = 0.0 y = 0.0 widget_text = { truncate = true } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -315,7 +315,7 @@ fn a_switch_flips_and_wears_its_role_s_two_states() {
     assert!(balaur_ui::click(&app.engine, flip, false));
     app.tick(1.0 / 60.0);
     assert_eq!(
-        property(&app, flip, "checked").as_bool(),
+        beside_property(&app, flip, "widget_check", "checked").as_bool(),
         Some(true),
         "the click did not flip it"
     );
@@ -416,7 +416,9 @@ fn narrow_button(extra: &str) -> (egui::Rect, f32) {
         kind = "button" text = "Save every scene in the project" width = 100.0 x = 0.0 y = 0.0
     };
     if !extra.is_empty() {
-        params.insert(extra.into(), true.into());
+        let mut rows = toml::Table::new();
+        rows.insert(extra.into(), true.into());
+        params.insert("widget_text".into(), rows.into());
     }
     let button = add_widget(&app, &params.into());
     let ctx = egui::Context::default();

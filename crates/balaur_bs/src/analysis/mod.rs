@@ -335,7 +335,7 @@ fn names(scope: &types::Scope<'_>, host: &HostApi) -> Vec<Completion> {
     for (s, _) in scope.prog.structs.iter().filter(|(s, _)| !s.contains("::")) {
         add(s, Kind::Struct, format!("struct {s}"));
     }
-    for s in ["Vec2", "Vec3", "Color"] {
+    for s in ["Vec2", "Vec3", "Color", "Transform2d", "Transform3d"] {
         add(s, Kind::Struct, format!("struct {s}"));
     }
     for (n, d) in NATIVES {

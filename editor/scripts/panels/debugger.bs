@@ -2,9 +2,11 @@
 // engine, or what to do while there is none, and answers the steps, pause,
 // break on error and a frame picked in the stack.
 
+use editor;
+
 pub class Debugger {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 pub struct Shown {
@@ -17,9 +19,11 @@ fn STEPS() -> [str] {
 
 impl Debugger {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "debugger_changed", self.editor);
-        events::listen(self.node, "outline_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, "debugger_changed", source);
+        events::listen(self.node, "outline_changed", source);
     }
 
     /// A script stopped or went on, play started or stopped, or a frame was
@@ -34,20 +38,27 @@ impl Debugger {
     }
 
     pub fn step(_value: any, node: Node) {
-        self.editor.call("debugger_step", node.name());
+        self.editor.unwrap().debugger_step(node.name());
     }
 
     pub fn pause() {
-        self.editor.call("debugger_pause");
+        self.editor.unwrap().debugger_pause();
     }
 
     pub fn break_on_error() {
-        self.editor.call("debugger_break_on_error");
+        self.editor.unwrap().debugger_break_on_error();
         self.refresh();
     }
 
     pub fn frame_clicked(_value: any, node: Node) {
-        self.editor.call("debugger_frame", node.widget.text);
+        self.editor.unwrap().debugger_frame(node.widget.text);
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
@@ -56,30 +67,27 @@ impl Debugger {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("debugger_view");
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().debugger_view();
         let tools = self.node.get_node("Tools");
-        tools.get_node("Pause").set_visible(view["can_pause"].as_bool());
+        tools.get_node("Pause").set_visible(view.can_pause);
         let steps = STEPS();
         for index in 0..steps.len() {
             let step = steps[index];
             let shown = Shown { text: nil };
-            if view["stopped"].as_bool() {
-                shown.text = view["steps"][index];
+            if view.stopped {
+                shown.text = view.steps[index];
             }
-            tools.get_node(step).set_visible(view["stopped"].as_bool());
+            tools.get_node(step).set_visible(view.stopped);
             tools.get_node(step).patch_component("widget", shown);
         }
-        tools.get_node("Where").widget.text = view["where"].as_str();
+        tools.get_node("Where").widget.text = view.where;
         let patched = tools.get_node("Threw");
-        patched.set_visible(view["threw"].as_str() != "");
-        patched.widget.text = view["threw"].as_str();
-        tools.get_node("BreakOnError").widget.checked = view["break_on_error"].as_bool();
+        patched.set_visible(view.threw != "");
+        patched.widget.text = view.threw;
+        tools.get_node("BreakOnError").widget_check.checked = view.break_on_error;
         let patched = self.node.get_node("Stack");
-        patched.set_visible(view["stopped"].as_bool());
-        patched.widget.items = view["frames"];
-        patched.widget.text = view["picked"].as_str();
+        patched.set_visible(view.stopped);
+        patched.widget_rows.items = view.frames;
+        patched.widget.text = view.picked;
     }
 }

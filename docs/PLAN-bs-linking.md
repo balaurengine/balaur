@@ -54,15 +54,61 @@ units of every module it uses, near or far.
 - **An edit** rebuilds the file's unit, and every unit built against it when
   what it declares changed; every loaded script whose units include it
   reloads, objects carried across by field name as before.
-- **What still builds the whole file.** A debugger's probes, a profiler's
-  counters, a browser's metering and direct imports, a native build an
-  export made, and `BALAUR_BS_UNITS=0`. An export compiles the whole file,
-  as its C translation and the browser need.
+- **Every build a host runs is units.** A unit is built with a debugger's
+  probes, a profiler's counters and a browser's metering and direct imports
+  (below), and an export's native build holds plain ones. A compile without
+  `Options::unit` still makes one module with every file it uses linked in:
+  the compiler's own suite runs those, and `analysis` checks a buffer with
+  one. No host runs one, and `BALAUR_BS_UNITS` is gone.
 
-Host calls are dispatched per unit (`HostState::bind_unit`), each with its
-own types: a unit names a module struct `gd::Thing` where the module calls
-it `Thing`. An engine call from a module that reenters the script finds the
-script's methods in its own unit.
+Host calls are dispatched per unit (`HostState::bind_unit`), by its index in
+the instance, each with its own types: a unit names a module struct
+`gd::Thing` where the module calls it `Thing`. An engine call from a module
+that reenters the script finds the script's methods in its own unit.
+
+## Probes, counters and metering in a unit
+
+Built 2026-11-03. What each build adds is the unit's own business, so a unit
+with probes links with one without: a stub and a `~key` export are the same in
+both, and a typed call runs from one into the other.
+
+- **Shared and own globals.** The fuel, the statement count and the callees'
+  share of the call running (`words::COUNT_GLOBALS`) are globals of the
+  instance like the allocator's, imported by the units built to count. A
+  debug unit's `__dbg_unit` and `__dbg_breaks`, a profiled unit's `__prof` and
+  a direct unit's `__host_ctx` are its own; the engine answers each in
+  `engine::own_global`. The native build's C imports none of these, and reads
+  as it did.
+- **A unit's tables are in its static data.** A debug build's breakpoint table
+  and a profiled build's rows are zeros past its strings (`Unit::breaks_at`,
+  `Unit::rows_at`), part of the block it is given when it links.
+- **One shadow stack.** Every instance reserves its 64 KB past the units known
+  when it is made, untouched without a debug unit. A shadow frame names its
+  unit, so a stack across units reads each frame by that unit's probes and
+  types and says each frame's file (`Frame::file`). A unit without probes
+  pushes no frame.
+- **A stop holds a call, not the instance.** The instance moves to wasmi once a
+  debugger asks about a file of it, and only that file gets probes. Every call
+  in it then runs resumable, so a typed call from a unit with no probes can
+  stop in one that has them, and every unit is made first, since a stand-in's
+  call cannot park. While a call is parked others run above its frames on the
+  shadow stack and pass any stop by: one stop at a time. A trap among them goes
+  back to the stop's stack. Rebuilding the instance waits until the stop goes
+  on, as its memory holds the parked call.
+- **A browser's engine has no stand-ins.** A slot of a page's table takes only
+  a module's own export, so nothing can hold a slot for a unit not made yet:
+  what is linked is made together before the next call, then the slots are
+  filled. A module is kept by hash, so remaking an instance compiles nothing.
+  A direct unit reaches the engine's entry points with its own id, one per
+  unit, which is how a call finds the types it was made with.
+- **Each build is kept apart.** `BsHost::unit` holds a file's unit per build
+  (`host/units.rs`, `Build`), on disk too, so the second profile of a run
+  compiles nothing and turning one off rebuilds nothing.
+
+Decided: on a profiler or a debugger a whole instance is made again rather than
+one file swapped into it, since a slot once filled has no way back to a unit's
+old code and an object's unit is its index. What it costs is carrying the
+instance's objects, which an edit already does.
 
 ## One instance per project
 
@@ -91,13 +137,15 @@ changed is how many times they are made.
   holds its replacement, so a script two others hold stays one. A reload a
   script asks for while the instance runs is built at once, so it says what
   broke, and swapped in between frames.
-- **A file built whole** for a debugger's probes, a profiler's counters, a
-  browser or a native export is an instance of its own, as before; turning
-  the debugger on moves its objects out of the project's instance, and off
-  moves them back. `node.script` there finds only that file's nodes.
-- **`node.call` stays between instances**: the editor and a plugin, the
-  editor and the game it plays. Inside one instance a call by a method's
-  name in a string is the step after (PLAN-balaur-script §9 step 5).
+- **A second instance beside it.** A file from outside the project, as the
+  editor reads a game's scripts, joins an instance of its own kind
+  (`Place::Aside` in the host), never native. Debugging or profiling a game
+  makes only that one again, and a stop in it holds none of the editor's
+  scripts. A file a native build lacks waits there until the project has moved
+  off native code.
+- **`node.call` stays between the editor and a plugin**, and between the
+  editor and the game it plays. Inside one instance a script calls another by
+  its type: the editor's panels call the Editor so since 2026-11-06.
 - **Not yet**: two scripts holding each other is a cycle the counts never
   free (a decode reads the inner one as nil rather than loop), and a
   carried object's deeper references, in a list or a struct, are copied.
@@ -115,7 +163,7 @@ changed is how many times they are made.
 ## Measured
 
 Release builds on the M-series Mac this was written on, 2026-10-23, the
-same binary both ways (`BALAUR_BS_UNITS=0` builds the whole file). The game
+same binary both ways (a switch since removed built the whole file). The game
 is `../polyglot-pirates-game` as `balaur import` converted it then; the
 importer has since been removed.
 
@@ -132,3 +180,44 @@ that reach a module export by name. The editor's warm boot reads every unit
 from disk (before the units were kept there it cost 1.6x the whole file's,
 each of its 62 units compiled again). Wall clock on that machine is noise
 under the load of the other builds it ran; instructions retired are not.
+
+Measured 2026-11-03, a dev build of the tree before these builds linked units
+against one after, on that Mac under the load of other builds: `balaur edit
+--offscreen --state suite:test:profiler`, the profiler switched on and off.
+Instructions retired are the run's less a boot of 12 frames (48 G with nothing
+kept, 3.7 G warm, the same for both binaries), and the time is the state's.
+
+| | whole file per script | units |
+|---|---|---|
+| The editor as it is, nothing kept | 34 G, 3.7 s | 29 G, 4.7 s |
+| The same, kept from a run before | 4.0 G, 1.5 s | 7.3 G, 1.0 s |
+
+A throwaway copy of the editor whose 39 panels hold `editor::Editor?`, what
+compiled the editor once per panel, ran `test:profiler` and `test:theme_switch`.
+Instructions retired are the whole run's, boot included.
+
+| | whole file per script | units |
+|---|---|---|
+| Nothing kept | 1,135 G, 287 s, the link nil | 96 G, 10 s |
+| Kept from a run before | 125 G, 137 s, the link nil | 10 G, 1.7 s |
+
+Measured 2026-11-06, the panels calling the Editor by type against the same
+tree with them calling it by name, one dev build, two runs each that agreed to
+1%: instructions retired, and the state's time on that Mac with the machine
+quiet. A boot is 12 frames; a state's cost is its run less a boot.
+
+| | by name | by type |
+|---|---|---|
+| Boot, nothing kept | 52.1 G | 63.9 G |
+| Boot, kept | 3.17 G | 3.44 G |
+| `test:profiler`, nothing kept | 39.9 G, 1.7 s | 52.9 G, 2.0 s |
+| `test:profiler`, kept | 1.45 G, 0.19 s | 1.89 G, 0.23 s |
+| `test:theme_switch`, kept | 0.86 G, 0.09 s | 0.87 G, 0.08 s |
+
+What a panel's unit costs more is reading the Editor's declarations, and the
+modules they name, as it compiles: once a run when nothing is kept. Before a
+carried link was left unread, the profiler's rebuild read the Editor once for
+each panel holding it, 1.5 G more kept. `scripts/edit_cost.sh`, M
+instructions an edit by name and by type: text 3.0 and 2.9, colour 3.0 and
+3.1, position 1.0 and 1.2, engine text 2.5 and 2.6, one run each.
+

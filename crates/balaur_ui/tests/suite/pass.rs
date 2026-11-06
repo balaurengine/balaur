@@ -326,7 +326,8 @@ fn a_cmd_chord_answers_to_control_and_to_command() {
         fields: "focus: int",
         methods: "pub fn hit() { self.focus += 1; }",
         scene: "[[nodes]]\nid = \"go\"\nname = \"Go\"\nparent = \"root\"\n\
-                widget = { kind = \"button\", text = \"Go\", shortcut = \"cmd+shift+backslash\", on_click = \"hit\" }\n",
+                widget = { kind = \"button\", text = \"Go\", on_click = \"hit\" }\n\
+                widget_shortcut = { shortcut = \"cmd+shift+backslash\" }\n",
         ..Script::default()
     });
     assert!(errors.is_empty(), "{errors:#?}");

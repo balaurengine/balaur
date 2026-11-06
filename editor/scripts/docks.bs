@@ -339,7 +339,7 @@ fn body(state: editor::State, id: str) {
     } else if id == "outline" {
         left::show_outline();
     } else if id == "inspector" {
-        inspector::show_panel();
+        inspector::show_panel(state);
     } else if id == "import" {
         util::set_visible("Editor/Shell/Body/Right/RightSheet/Import", true);
     } else {
@@ -403,7 +403,7 @@ fn show_panel(name: str) {
 pub fn toolbar(state: editor::State, path: str, rows: [[ui::Control]]) {
     let groups: [ui::Control] = [];
     for row in rows {
-        groups.push(ui::Control { kind: "row", role: "toolbar_dock", gap: [6, 6], align_items: "center", controls: row });
+        groups.push(ui::Control { kind: "row", role: "toolbar_dock", gap: vec2(6, 6), align_items: "center", controls: row });
     }
     ui::fill_strip(path, groups);
 }
@@ -496,7 +496,7 @@ fn plugins_of(side: str) -> str {
 // A plugin dock's own subtree: a head, a sidebar, a body and a foot. One per
 // dock and side, so a dock moved between sides leaves nothing behind it.
 fn host_fragment(name: str) -> str {
-    let text = "[[nodes]]\nid = \"HOST\"\nname = \"HOST\"\nscript.source = \"scripts/panels/plugin.bs\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_host\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_head\"\nname = \"Head\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"flow\"\nrole = \"plugin_head\"\nalign_items = \"center\"\n\n[[nodes]]\nid = \"HOST_split\"\nname = \"Split\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_split\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_side\"\nname = \"Side\"\nparent = \"HOST_split\"\nvisible = false\n[nodes.widget]\nkind = \"scroll\"\naxis = \"vertical\"\nwidth = 150\n\n[[nodes]]\nid = \"HOST_side_rows\"\nname = \"SideRows\"\nparent = \"HOST_side\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_side\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_body\"\nname = \"Body\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\naxis = \"vertical\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_rows\"\nname = \"Rows\"\nparent = \"HOST_body\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_rows\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_foot\"\nname = \"Foot\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\nalign_items = \"center\"\n";
+    let text = "[[nodes]]\nid = \"HOST\"\nname = \"HOST\"\nscript.source = \"scripts/panels/plugin.bs\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_host\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_head\"\nname = \"Head\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"flow\"\nrole = \"plugin_head\"\n[nodes.widget_layout]\nalign_items = \"center\"\n\n[[nodes]]\nid = \"HOST_split\"\nname = \"Split\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_split\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_side\"\nname = \"Side\"\nparent = \"HOST_split\"\nvisible = false\n[nodes.widget]\nkind = \"scroll\"\nwidth = 150\n[nodes.widget_scroll]\naxis = \"vertical\"\n\n[[nodes]]\nid = \"HOST_side_rows\"\nname = \"SideRows\"\nparent = \"HOST_side\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_side\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_body\"\nname = \"Body\"\nparent = \"HOST_split\"\n[nodes.widget]\nkind = \"scroll\"\ngrow = 1\n[nodes.widget_scroll]\naxis = \"vertical\"\n\n[[nodes]]\nid = \"HOST_rows\"\nname = \"Rows\"\nparent = \"HOST_body\"\n[nodes.widget]\nkind = \"column\"\nrole = \"plugin_rows\"\ngrow = 1\n\n[[nodes]]\nid = \"HOST_foot\"\nname = \"Foot\"\nparent = \"HOST\"\n[nodes.widget]\nkind = \"row\"\nrole = \"plugin_head\"\n[nodes.widget_layout]\nalign_items = \"center\"\n";
     text.replace("HOST", name)
 }
 
@@ -610,7 +610,7 @@ fn tail_controls(state: editor::State, side: str) -> [ui::Control] {
         kind: "button",
         height: tab_height(state),
         width: tab_height(state),
-        padding: 0,
+        padding: ui::all_sides(0),
         text: "",
         icon: icons::ui(shut_icon(side)),
         role: "icon_action",
@@ -647,7 +647,7 @@ fn tab_controls(state: &mut editor::State, tokens: any, side: str, dock: any) ->
             kind: "button",
             height: height,
             text: label,
-            padding: [6, -1, 6, -1],
+            padding: ui::sides(6, -1, 6, -1),
             corner_radius: 4,
             fill: "none",
             role: "tab",

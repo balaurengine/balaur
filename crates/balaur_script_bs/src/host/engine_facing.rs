@@ -13,7 +13,7 @@ impl ScriptCompiler for BsHost {
     }
 
     fn compile(&self, rel: &str, source: &str) -> Result<Vec<u8>> {
-        let (compiled, _) = self.compile_source(&key_of(rel), source)?;
+        let compiled = self.unit_of(&key_of(rel), source)?;
         self.inner
             .called
             .borrow_mut()
@@ -221,6 +221,9 @@ impl ScriptHost<Engine> for BsHost {
     }
 
     fn pump_reloads(&self) {
+        if let Some(mode) = self.inner.resume_owed.take() {
+            self.debug_resume(mode);
+        }
         let mut todo: Vec<String> = self.inner.rebuild.take();
         for key in self.edited() {
             self.invalidate(&key);
@@ -244,35 +247,13 @@ impl ScriptHost<Engine> for BsHost {
                 }
             }
         }
-        // Every file built as units reloads with the project, once.
-        let (units, alone): (Vec<String>, Vec<String>) =
-            todo.into_iter().partition(|key| self.as_units(key));
-        if !units.is_empty() {
-            match self.rebuild_project(&units) {
-                Ok(()) => tracing::info!("reloaded {}", units.join(", ")),
-                Err(e) => {
-                    tracing::error!("{e:#}");
-                    self.inner
-                        .reload_owed
-                        .borrow_mut()
-                        .retain(|key| !units.contains(key));
-                }
-            }
-        }
-        for key in alone {
-            match self.rebuild_key(&key) {
-                Ok(()) => tracing::info!("reloaded {key}"),
-                Err(e) => {
-                    tracing::error!("{e:#}");
-                    self.inner.reload_owed.borrow_mut().retain(|k| *k != key);
-                }
-            }
-        }
+        // Every file of an instance reloads with it, once.
+        self.rebuild_keys(&todo);
         self.announce_reloads();
     }
 
     // A new module, with every instance of the file carried across by field
-    // name: as a unit, the whole project's instance made again.
+    // name: its whole instance made again.
     fn reload(&self, key: &str) -> Result<()> {
         let key = key_of(key);
         self.inner.reload_owed.borrow_mut().push(key.clone());

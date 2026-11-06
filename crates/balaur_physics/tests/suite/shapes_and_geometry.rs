@@ -88,8 +88,8 @@ fn a_voxel_collider_can_be_turned_into_a_mesh() {
 impl Scenario {
     fn init() {
         let mesh = self.node.collider3d.collider_mesh();
-        if mesh["points"].len() <= 0 { log::error("the grid tessellated to nothing"); }
-        if mesh["indices"].len() % 3 != 0 { log::error("the triangles are not triples"); }
+        if mesh.points.len() <= 0 { log::error("the grid tessellated to nothing"); }
+        if mesh.indices.len() % 3 != 0 { log::error("the triangles are not triples"); }
     }
 }
 "#,
@@ -121,17 +121,17 @@ fn the_solver_knobs_are_set_and_read_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics::set_tuning({ "solver_iterations": 8, "length_unit": 64.0, "ccd_substeps": 2 });
-        let tuning = physics::tuning()["3d"];
-        let iterations = tuning["solver_iterations"].as_float();
-        if iterations != 8.0 { log::error("iterations read back as {iterations}"); }
-        let unit = tuning["length_unit"].as_float();
+        physics::set_tuning(physics::TuningOptions { solver_iterations: 8, length_unit: 64.0, ccd_substeps: 2 });
+        let tuning = physics::tuning().physics3d;
+        let iterations = tuning.solver_iterations.unwrap();
+        if iterations != 8 { log::error("iterations read back as {iterations}"); }
+        let unit = tuning.length_unit.unwrap();
         if unit != 64.0 { log::error("the length unit read back as {unit}"); }
-        let substeps = tuning["ccd_substeps"].as_float();
-        if substeps != 2.0 { log::error("substeps read back as {substeps}"); }
+        let substeps = tuning.ccd_substeps.unwrap();
+        if substeps != 2 { log::error("substeps read back as {substeps}"); }
         let quarantined = physics::quarantined();
-        for world in [quarantined["physics3d"], quarantined["physics2d"]] {
-            if world["bodies"].len() + world["colliders"].len() + world["soft_bodies"].len() != 0 {
+        for world in [quarantined.physics3d, quarantined.physics2d] {
+            if world.bodies.len() + world.colliders.len() + world.soft_bodies.len() != 0 {
                 log::error("something was quarantined in a still world");
             }
         }
@@ -148,17 +148,18 @@ fn the_geometry_toolkit_works_on_a_mesh() {
         r##"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        let hull = geometry3d::convex_hull("#wedge");
-        let points = hull["points"].len();
+        let wedge = geometry3d::load_mesh("#wedge");
+        let hull = geometry3d::convex_hull(wedge);
+        let points = hull.points.len();
         if points < 4 { log::error("the hull of a tetrahedron has four points, not {points}"); }
 
-        let pieces = geometry3d::convex_decomposition("#wedge", geometry3d::DecompositionOptions { resolution: 16 });
+        let pieces = geometry3d::convex_decomposition(wedge, geometry3d::DecompositionOptions { resolution: 16 });
         if pieces.len() < 1 { log::error("the decomposition found no pieces"); }
 
-        let grid = geometry3d::voxelize("#wedge", geometry3d::VoxelizeOptions { resolution: 8 });
+        let grid = geometry3d::voxelize(wedge, geometry3d::VoxelizeOptions { resolution: 8 });
         if grid.cells.len() <= 0 { log::error("voxelising found no cells"); }
 
-        let halves = geometry3d::split("#wedge", geometry3d::Plane { point: vec3(0.25, 0.0, 0.0), normal: vec3(1.0, 0.0, 0.0) });
+        let halves = geometry3d::split(wedge, geometry3d::Plane { point: vec3(0.25, 0.0, 0.0), normal: vec3(1.0, 0.0, 0.0) });
         if halves.len() != 2 { log::error("a cut gives two halves, not {halves.len()}"); }
     }
 }
@@ -172,14 +173,16 @@ fn debug_draw_is_set_and_read_back() {
         r#"pub class Scenario { node: Node }
 impl Scenario {
     fn init() {
-        physics::set_debug_draw(true);
-        if !physics::debug_draw()["enabled"].as_bool() { log::error("the switch did not stay on"); }
-        physics::set_debug_draw({ "colliders": true, "impulse_joints": true, "contacts": false });
+        physics::set_debug_draw(physics::debug_draw_defaults());
+        let usual = physics::debug_draw();
+        if !usual.enabled.unwrap() { log::error("the switch did not stay on"); }
+        if !usual.colliders.unwrap() { log::error("the usual shapes were not drawn"); }
+        physics::set_debug_draw(physics::DebugDraw { colliders: true, impulse_joints: true, contacts: false });
         let modes = physics::debug_draw();
-        if !(modes["colliders"].as_bool() && modes["impulse_joints"].as_bool()) { log::error("the named modes were not kept"); }
-        if modes["contacts"].as_bool() { log::error("a mode that was not named came on"); }
-        physics::set_debug_draw(false);
-        if physics::debug_draw()["enabled"].as_bool() { log::error("the switch did not go off"); }
+        if !(modes.colliders.unwrap() && modes.impulse_joints.unwrap()) { log::error("the named modes were not kept"); }
+        if modes.contacts.unwrap() { log::error("a mode that was not named came on"); }
+        physics::set_debug_draw(physics::DebugDraw { enabled: false });
+        if physics::debug_draw().enabled.unwrap() { log::error("the switch did not go off"); }
     }
 }
 "#,
@@ -360,7 +363,7 @@ collider2d = { shape = { kind = "circle", radius = 0.5 } }
             "contact_pair_count",
         ] {
             assert!(
-                matches!(entry(counters, key), balaur_script::Value::Num(n) if *n >= 0.0),
+                crate::boot::number(entry(counters, key)) >= 0.0,
                 "{world}.{key} is not a count"
             );
         }

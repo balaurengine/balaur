@@ -21,7 +21,7 @@ pub(crate) use imp::{download_url, held, releases, replace};
 pub(crate) struct Release {
     /// The tag the release was cut under, `v0.2.0` or `nightly`.
     pub(crate) tag: String,
-    /// The build id its assets carry, which for a rolling tag is not the tag
+    /// The build id its assets carry, which for the nightly is not the tag
     /// itself.
     pub(crate) id: String,
     /// When it was published, as the feed's own ISO 8601 string.
@@ -94,8 +94,8 @@ mod imp {
         }
     }
 
-    /// Where a channel's releases are: a rolling tag per prerelease line,
-    /// and GitHub's `latest` for stable, which skips the prereleases.
+    /// Where stable and the nightly are: GitHub's `latest`, which skips
+    /// prereleases, and the `nightly` tag.
     fn channel_base(channel: &str) -> String {
         if channel == crate::version::STABLE {
             format!("{RELEASE_BASE}/latest/download")
@@ -104,9 +104,24 @@ mod imp {
         }
     }
 
-    /// Where an update reads from: one line, followed; or one release, named.
+    /// The newest release of a prerelease line (`alpha`, `beta`, `rc`): its
+    /// tag names the line, and the feed lists the newest first.
+    fn newest_on(feed: &[Release], line: &str) -> Option<String> {
+        feed.iter()
+            .find(|release| release.channel == line)
+            .map(|release| release.tag.clone())
+    }
+
+    /// The newest release of a prerelease line, read from the feed.
+    fn newest_on_line(line: &str) -> Result<Option<String>> {
+        Ok(newest_on(&feed()?, line))
+    }
+
+    /// Where an update reads from: stable or the nightly, followed; a
+    /// prerelease line, at its newest release; or one release, named.
     enum Source {
         Channel(String),
+        Line(String, String),
         Tag(String),
     }
 
@@ -114,7 +129,7 @@ mod imp {
         fn base(&self) -> String {
             match self {
                 Self::Channel(channel) => channel_base(channel),
-                Self::Tag(tag) => format!("{RELEASE_BASE}/download/{tag}"),
+                Self::Line(_, tag) | Self::Tag(tag) => format!("{RELEASE_BASE}/download/{tag}"),
             }
         }
 
@@ -145,7 +160,7 @@ mod imp {
         /// when that is not already the name the caller used.
         fn installing(&self, published: &str) -> String {
             match self {
-                Self::Channel(_) => format!("{published} on {self}"),
+                Self::Channel(_) | Self::Line(..) => format!("{published} on {self}"),
                 Self::Tag(_) => published.to_string(),
             }
         }
@@ -154,7 +169,9 @@ mod imp {
     impl std::fmt::Display for Source {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Self::Channel(channel) => write!(f, "the {channel} channel"),
+                Self::Channel(channel) | Self::Line(channel, _) => {
+                    write!(f, "the {channel} channel")
+                }
                 Self::Tag(tag) => write!(f, "release {tag}"),
             }
         }
@@ -168,6 +185,9 @@ mod imp {
     /// Only for a failure message, so the cost lands on a path that has
     /// already failed.
     fn has_a_release(channel: &str) -> bool {
+        if crate::version::is_line(channel) {
+            return matches!(newest_on_line(channel), Ok(Some(_)));
+        }
         let url = format!("{}/VERSION", channel_base(channel));
         matches!(crate::runtimes::fetch_text(&url), Ok(Some(_)))
     }
@@ -185,17 +205,28 @@ mod imp {
                     crate::version::CHANNELS.join(", ")
                 );
             }
-            return Ok(Source::Channel(channel.to_string()));
+            return line_or_channel(channel);
         }
         let own = crate::version::channel().context(
             "this is a source build; update it with git and cargo, or pass --channel or --tag",
         )?;
-        Ok(Source::Channel(own.to_string()))
+        line_or_channel(own)
     }
 
-    /// The release the archives come from. A channel's rolling tag carries
-    /// only VERSION, naming the release that holds the rest; a nightly names
-    /// a build rather than a tag, so its assets stay where VERSION was.
+    /// A prerelease line at its newest release, or stable or the nightly. A
+    /// line with nothing published stays a channel, so the read finds no
+    /// VERSION and says which channels do have one.
+    fn line_or_channel(channel: &str) -> Result<Source> {
+        if crate::version::is_line(channel)
+            && let Some(tag) = newest_on_line(channel)?
+        {
+            return Ok(Source::Line(channel.to_string(), tag));
+        }
+        Ok(Source::Channel(channel.to_string()))
+    }
+
+    /// The release the archives come from: the version VERSION names, or for
+    /// a nightly, which names a build rather than a tag, where VERSION was.
     fn assets_base(base: &str, published: &str) -> String {
         if crate::version::channel_of(published) == crate::version::NIGHTLY {
             base.to_string()
@@ -207,11 +238,8 @@ mod imp {
     /// Every release the project has published, newest first. The feed is
     /// public, so this asks for no token and sends none.
     pub(crate) fn releases() -> Result<Vec<Release>> {
-        const FEED: &str = "https://api.github.com/repos/balaurengine/balaur/releases?per_page=30";
-        let text =
-            crate::runtimes::fetch_text(FEED)?.context("the release feed answered nothing")?;
-        let mut out = parse_feed(&text)?;
-        // A version tag is its own build id; only a rolling tag has to be
+        let mut out = feed()?;
+        // A version tag is its own build id; only the nightly has to be
         // asked, through its VERSION, which build it holds now.
         for release in &mut out {
             if crate::version::channel_of(&release.tag) != crate::version::NIGHTLY {
@@ -225,9 +253,16 @@ mod imp {
         Ok(out)
     }
 
+    /// The feed's releases as it lists them, newest first, read once.
+    fn feed() -> Result<Vec<Release>> {
+        const FEED: &str = "https://api.github.com/repos/balaurengine/balaur/releases?per_page=30";
+        let text =
+            crate::runtimes::fetch_text(FEED)?.context("the release feed answered nothing")?;
+        parse_feed(&text)
+    }
+
     /// The feed's releases, in its order, without the network. A draft is not
-    /// fetchable, and a line's pointer repeats a release listed under its own
-    /// tag, so neither is a row.
+    /// fetchable, so it is no row.
     fn parse_feed(text: &str) -> Result<Vec<Release>> {
         let feed: serde_json::Value = serde_json::from_str(text)?;
         let items = feed.as_array().context("the release feed is not a list")?;
@@ -239,9 +274,6 @@ mod imp {
             let Some(tag) = item.get("tag_name").and_then(serde_json::Value::as_str) else {
                 continue;
             };
-            if crate::version::is_pointer(tag) {
-                continue;
-            }
             out.push(Release {
                 channel: crate::version::channel_of(tag).to_string(),
                 published: item
@@ -482,7 +514,7 @@ mod imp {
         #[test]
         fn a_tag_names_one_release_and_a_channel_names_a_line() {
             assert!(base(Some("v9.9.9"), None).ends_with("/download/v9.9.9"));
-            assert!(base(None, Some("alpha")).ends_with("/download/alpha"));
+            assert!(base(None, Some("nightly")).ends_with("/download/nightly"));
             assert!(base(None, Some("stable")).ends_with("/latest/download"));
             assert!(
                 super::source(None, Some("edge")).is_err(),
@@ -496,26 +528,35 @@ mod imp {
 
         #[test]
         fn a_channel_sends_the_download_to_the_release_its_version_names() {
-            let base = base(None, Some("alpha"));
-            let named = super::assets_base(&base, "v0.3.0-alpha.1");
-            assert!(named.ends_with("/download/v0.3.0-alpha.1"));
-            assert_eq!(super::assets_base(&base, "nightly-abc1234"), base);
+            let stable = base(None, Some("stable"));
+            let named = super::assets_base(&stable, "v0.3.0");
+            assert!(named.ends_with("/download/v0.3.0"));
+            let nightly = base(None, Some("nightly"));
+            assert_eq!(super::assets_base(&nightly, "nightly-abc1234"), nightly);
         }
 
         #[test]
-        fn the_feed_lists_releases_but_not_drafts_or_line_pointers() {
+        fn the_feed_lists_releases_but_not_drafts() {
             let feed = r#"[
                 {"tag_name": "nightly", "name": "Balaur nightly (716854d)", "draft": false, "published_at": "2026-09-17T18:00:00Z"},
-                {"tag_name": "alpha", "name": "Balaur alpha (v0.2.0-alpha.3)", "draft": false, "published_at": "2026-09-16T10:00:00Z"},
                 {"tag_name": "v0.2.0-alpha.3", "name": "Balaur v0.2.0-alpha.3", "draft": false, "published_at": "2026-09-16T09:00:00Z"},
+                {"tag_name": "v0.2.0-alpha.2", "name": "Balaur v0.2.0-alpha.2", "draft": false, "published_at": "2026-09-15T09:00:00Z"},
                 {"tag_name": "v0.2.0", "name": "Balaur v0.2.0", "draft": true, "published_at": null},
                 {"tag_name": "v0.1.0", "name": "Balaur v0.1.0", "draft": false, "published_at": "2026-09-09T12:00:00Z"}
             ]"#;
             let rows = super::parse_feed(feed).expect("the feed parses");
             let tags: Vec<&str> = rows.iter().map(|r| r.tag.as_str()).collect();
-            assert_eq!(tags, ["nightly", "v0.2.0-alpha.3", "v0.1.0"]);
+            assert_eq!(
+                tags,
+                ["nightly", "v0.2.0-alpha.3", "v0.2.0-alpha.2", "v0.1.0"]
+            );
             let lines: Vec<&str> = rows.iter().map(|r| r.channel.as_str()).collect();
-            assert_eq!(lines, ["nightly", "alpha", "stable"]);
+            assert_eq!(lines, ["nightly", "alpha", "alpha", "stable"]);
+            assert_eq!(
+                super::newest_on(&rows, "alpha").as_deref(),
+                Some("v0.2.0-alpha.3")
+            );
+            assert_eq!(super::newest_on(&rows, "beta"), None);
         }
 
         #[test]

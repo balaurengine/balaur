@@ -380,7 +380,7 @@ fn display_types() -> [DisplayType] {
 /// A body's kind, nil for a node without that body.
 fn kind_of(found: Node, component: str) -> any {
     if found.is_valid() && found.has_component(component) {
-        found.get_component(component, "kind")
+        found.component_property(component, "kind")
     } else {
         nil
     }
@@ -825,8 +825,9 @@ pub fn select_ids(state: &mut editor::State, ids: [str]) {
 /// What the edited scene's writes this frame move, from the engine's change
 /// log heard from the mirror: a node added, freed, renamed or moved, or a
 /// component put on or taken off, lists the rows again and is the outline's
-/// word; a component of the selected node written is the Inspector's rows
-/// read again, and its whole form once the edits stop for `REFILL_AFTER`.
+/// word; a component of the selected node written, or what its script sets,
+/// is the Inspector's rows of what it names, and its whole form once the edits
+/// stop for `REFILL_AFTER`.
 pub fn follow_changes(state: &mut editor::State, entries: any) {
     state.lint.stale = true;
     let selected = node(state, state.selected);
@@ -836,7 +837,11 @@ pub fn follow_changes(state: &mut editor::State, entries: any) {
     let written: { str: [str] } = {};
     let whole: [str] = [];
     for entry in entries {
-        if entry["kind"].as_str() != "component" {
+        if entry["kind"].as_str() == "script" && selected.is_valid() && entry["node"].as_node() == selected && inspector::script_stands(state, selected) {
+            if !util::contains(whole, inspector::SCRIPT) {
+                whole.push(inspector::SCRIPT);
+            }
+        } else if entry["kind"].as_str() != "component" {
             structure = true;
         } else if selected.is_valid() && entry["node"].as_node() == selected {
             let name = entry["component"].as_str();
@@ -861,11 +866,11 @@ pub fn follow_changes(state: &mut editor::State, entries: any) {
         signals::outline(state);
     } else if whole.len() > 0 || written.len() > 0 {
         for name in whole {
-            inspector::reread_rows(name);
+            inspector::rows_moved(state, name);
         }
         for name in written.keys() {
             if !util::contains(whole, name) {
-                inspector::reread_rows(name, written[name]);
+                inspector::rows_moved(state, name, written[name]);
             }
         }
         state.inspector_after = engine::unix_time() + REFILL_AFTER;
@@ -1294,13 +1299,13 @@ pub fn remove_component(state: &mut editor::State, name: str) {
 /// Write one property across the selection: every selected node that carries
 /// the component takes the value, and the whole write is one history step.
 /// The engine keeps what each write refused as a warning on the property,
-/// which the inspector draws under it.
+/// which the inspector marks its row with.
 pub fn set_component_property(state: &mut editor::State, name: str, property: str, value: any) {
     history::record(state, "set {name}.{property}", "prop:{name}:{property}:{state.selected}");
     for row in selection::all(state) {
         let found = node(state, row);
         if found.is_valid() && found.has_component(name) {
-            found.patch_component(name, { property: value });
+            found.set_property(name, property, value);
         }
     }
 }
@@ -1599,7 +1604,7 @@ fn restore_keys(found: Node, was: any) {
         found.set_tint(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float());
     }
     if found.z_index() != was["z_index"].as_int() {
-        found.set_z_index(was["z_index"].as_int(), { "z_as_relative": was["z_as_relative"].as_bool() });
+        found.set_z_index(was["z_index"].as_int(), was["z_as_relative"].as_bool());
     }
     if found.process() != was["process"].as_str() {
         found.set_process(was["process"].as_str());

@@ -196,7 +196,7 @@ impl FnGen<'_> {
         Ok(Some(((**node).clone(), get, set, ty)))
     }
 
-    /// `get_component("c", "p")` or a patch of one key where the schema knows
+    /// `component_property("c", "p")` or a patch of one key where the schema knows
     /// both names: `node.c.p`, checked here and bound once. A map for a
     /// property that is no `any`, an inline asset, and a colour as `#rrggbb`
     /// stay patches: neither is a value of the property's type.
@@ -207,11 +207,11 @@ impl FnGen<'_> {
         args: &[Expr],
         pos: Pos,
     ) -> R<()> {
-        if self.prelude || !matches!(name, "get_component" | "patch_component") {
+        if self.prelude || !matches!(name, "component_property" | "patch_component") {
             return Ok(());
         }
         let (comp, prop, value) = match args {
-            [comp, prop] if name == "get_component" => (comp, prop, None),
+            [comp, prop] if name == "component_property" => (comp, prop, None),
             [
                 comp,
                 Expr {
@@ -237,7 +237,7 @@ impl FnGen<'_> {
             None => err(
                 pos,
                 format!(
-                    "read a property as `node.{comp}.{prop}`, not `get_component(\"{comp}\", \"{prop}\")`"
+                    "read a property as `node.{comp}.{prop}`, not `component_property(\"{comp}\", \"{prop}\")`"
                 ),
             ),
             Some(Expr {

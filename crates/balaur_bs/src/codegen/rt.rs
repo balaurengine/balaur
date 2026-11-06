@@ -17,8 +17,6 @@ pub(crate) const G_DBG_BASE: u32 = 3;
 pub(crate) const G_DBG_FLAGS: u32 = 4;
 pub(crate) const G_DBG_BREAKS: u32 = 5;
 pub(crate) const GLOBALS: usize = 6;
-/// Only in a metered module, after the rest.
-pub(crate) const G_FUEL: u32 = 6;
 /// Only in a unit, imported after the rest: where its static data, its own
 /// `fn` table slots and its link slots start.
 pub(crate) const G_MEMORY_BASE: u32 = 6;
@@ -56,7 +54,8 @@ pub(crate) struct Helpers {
     pub retain: u32,
     pub dec_str: u32,
     pub concat: u32,
-    pub str_eq: u32,
+    pub str_same: u32,
+    pub same_bytes: u32,
     pub str_of_i64: u32,
     pub str_of_f64: u32,
     pub arr_new: u32,
@@ -64,7 +63,7 @@ pub(crate) struct Helpers {
     pub dbg_reset: u32,
 }
 
-pub(crate) const HELPER_COUNT: u32 = 11;
+pub(crate) const HELPER_COUNT: u32 = 12;
 
 impl Helpers {
     pub(crate) fn at(base: u32) -> Self {
@@ -74,12 +73,13 @@ impl Helpers {
             retain: base + 2,
             dec_str: base + 3,
             concat: base + 4,
-            str_eq: base + 5,
-            str_of_i64: base + 6,
-            str_of_f64: base + 7,
-            arr_new: base + 8,
-            arr_reserve: base + 9,
-            dbg_reset: base + 10,
+            str_same: base + 5,
+            same_bytes: base + 6,
+            str_of_i64: base + 7,
+            str_of_f64: base + 8,
+            arr_new: base + 9,
+            arr_reserve: base + 10,
+            dbg_reset: base + 11,
         }
     }
 }
@@ -101,8 +101,8 @@ fn f(params: &[ValType], results: &[ValType], locals: &[ValType], code: Vec<I<'s
     )
 }
 
-/// In index order: alloc, free, retain, dec_str, concat, str_eq, str_of_i64,
-/// str_of_f64, arr_new, arr_reserve, dbg_reset.
+/// In index order: alloc, free, retain, dec_str, concat, str_same, same_bytes,
+/// str_of_i64, str_of_f64, arr_new, arr_reserve, dbg_reset.
 pub(crate) fn helpers(h: Helpers, imp: &Imports) -> Vec<Helper> {
     let mut out = vec![
         alloc(),
@@ -112,7 +112,8 @@ pub(crate) fn helpers(h: Helpers, imp: &Imports) -> Vec<Helper> {
     ];
     out.extend([
         concat(h),
-        str_eq(h),
+        str_same(h),
+        same_bytes(),
         str_of_i64(h),
         str_of(h, F64, imp.fmt_f64),
         arr_new(h),
@@ -200,25 +201,42 @@ fn concat(h: Helpers) -> Helper {
     ])
 }
 
-// str_eq(a, b) -> bool; both arguments are consumed.
+// str_same(a, b) -> bool: the same string, or the same length and bytes. Lends
+// both, so no count moves.
 #[rustfmt::skip]
-fn str_eq(h: Helpers) -> Helper {
-    f(&[I32, I32], &[I32], &[I32, I32, I32], vec![
-        I::I32Const(1), I::LocalSet(4),
+fn str_same(h: Helpers) -> Helper {
+    f(&[I32, I32], &[I32], &[I32], vec![
+        I::LocalGet(0), I::LocalGet(1), I::I32Eq,
+        I::If(BlockType::Empty), I::I32Const(1), I::Return, I::End,
         I::LocalGet(0), I::I32Load(mem(4, 2)), I::LocalTee(2), I::LocalGet(1), I::I32Load(mem(4, 2)), I::I32Ne,
-        I::If(BlockType::Empty),
-        I::I32Const(0), I::LocalSet(4),
-        I::Else,
+        I::If(BlockType::Empty), I::I32Const(0), I::Return, I::End,
+        I::LocalGet(0), I::I32Const(8), I::I32Add, I::LocalGet(1), I::I32Const(8), I::I32Add, I::LocalGet(2),
+        I::Call(h.same_bytes),
+    ])
+}
+
+// same_bytes(a, b, count) -> bool: `count` bytes at two addresses, no alignment
+// assumed, a word at a time and then a byte at a time.
+#[rustfmt::skip]
+fn same_bytes() -> Helper {
+    f(&[I32, I32, I32], &[I32], &[], vec![
         I::Block(BlockType::Empty), I::Loop(BlockType::Empty),
-        I::LocalGet(3), I::LocalGet(2), I::I32GeU, I::BrIf(1),
-        I::LocalGet(0), I::LocalGet(3), I::I32Add, I::I32Load8U(mem(8, 0)),
-        I::LocalGet(1), I::LocalGet(3), I::I32Add, I::I32Load8U(mem(8, 0)), I::I32Ne,
-        I::If(BlockType::Empty), I::I32Const(0), I::LocalSet(4), I::Br(2), I::End,
-        I::LocalGet(3), I::I32Const(1), I::I32Add, I::LocalSet(3), I::Br(0),
-        I::End, I::End,
-        I::End,
-        I::LocalGet(0), I::Call(h.dec_str), I::LocalGet(1), I::Call(h.dec_str),
-        I::LocalGet(4),
+        I::LocalGet(2), I::I32Const(8), I::I32LtU, I::BrIf(1),
+        I::LocalGet(0), I::I64Load(mem(0, 0)), I::LocalGet(1), I::I64Load(mem(0, 0)), I::I64Ne,
+        I::If(BlockType::Empty), I::I32Const(0), I::Return, I::End,
+        I::LocalGet(0), I::I32Const(8), I::I32Add, I::LocalSet(0),
+        I::LocalGet(1), I::I32Const(8), I::I32Add, I::LocalSet(1),
+        I::LocalGet(2), I::I32Const(8), I::I32Sub, I::LocalSet(2),
+        I::Br(0), I::End, I::End,
+        I::Block(BlockType::Empty), I::Loop(BlockType::Empty),
+        I::LocalGet(2), I::I32Eqz, I::BrIf(1),
+        I::LocalGet(0), I::I32Load8U(mem(0, 0)), I::LocalGet(1), I::I32Load8U(mem(0, 0)), I::I32Ne,
+        I::If(BlockType::Empty), I::I32Const(0), I::Return, I::End,
+        I::LocalGet(0), I::I32Const(1), I::I32Add, I::LocalSet(0),
+        I::LocalGet(1), I::I32Const(1), I::I32Add, I::LocalSet(1),
+        I::LocalGet(2), I::I32Const(1), I::I32Sub, I::LocalSet(2),
+        I::Br(0), I::End, I::End,
+        I::I32Const(1),
     ])
 }
 

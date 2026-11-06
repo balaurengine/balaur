@@ -6,9 +6,11 @@
 /// `ACTION` reads it.
 const ACTION: str = "action:";
 
+use editor;
+
 pub class Inputview {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
     shown: bool,
     chips: any,
     rings: [Ring],
@@ -50,7 +52,8 @@ const PRESS: float = 22.0;
 
 impl Inputview {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
         self.shown = false;
         // A chip's name, and when it goes: zero while it is held.
         self.chips = {};
@@ -62,7 +65,7 @@ impl Inputview {
             events::listen(self.node, word);
         }
         for word in ["inputview_changed", "stage_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -76,11 +79,11 @@ impl Inputview {
     }
 
     pub fn on_key_down(key: str) {
-        self.hold(self.editor.call("inputview_key", key).as_str());
+        self.hold(self.editor.unwrap().inputview_key(key));
     }
 
     pub fn on_key_up(key: str) {
-        self.let_go(self.editor.call("inputview_key", key).as_str());
+        self.let_go(self.editor.unwrap().inputview_key(key));
     }
 
     pub fn on_action(name: str) {
@@ -164,14 +167,11 @@ impl Inputview {
     }
 
     fn show() {
-        let view = self.editor.call("inputview_view");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.shown = view["shown"].as_bool();
-        self.factor = view["factor"].as_float();
-        self.node.set_visible(view["shown"].as_bool());
-        self.node.get_node("Chips").patch_component("widget", { "inset": [view["chips_x"], view["chips_y"], -1.0, -1.0] });
+        let view = self.editor.unwrap().inputview_view();
+        self.shown = view.shown;
+        self.factor = view.factor;
+        self.node.set_visible(view.shown);
+        self.node.get_node("Chips").patch_component("widget", { "inset": [view.chips_x, view.chips_y, -1.0, -1.0] });
     }
 
     // Window pixels as the overlay's design pixels.
@@ -205,7 +205,7 @@ impl Inputview {
             names.push(name);
         }
         names.sort();
-        self.editor.call("inputview_chips", names);
+        self.editor.unwrap().inputview_chips(names);
     }
 }
 

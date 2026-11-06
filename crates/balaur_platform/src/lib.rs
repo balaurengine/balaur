@@ -16,8 +16,8 @@
 //! ```bs
 //! pub async fn init() {
 //!     events::listen(self.node, "platform_event");
-//!     let player = await task::wait(platform::sign_in().as_int());
-//!     let done = await task::wait(platform::unlock("first_blood").as_int());
+//!     let player = await task::wait(platform::sign_in());
+//!     let done = await task::wait(platform::unlock("first_blood"));
 //!     if done["kind"].as_str() == platform::EVENT_UNSUPPORTED {
 //!         log::info("no store here");
 //!     }
@@ -554,57 +554,84 @@ fn install_platform_api(m: &mut Module<Engine>) {
         "Store services every platform shares: sign-in, achievements, leaderboards, cloud saves. A call answers `task::wait` later with a map whose `kind` is `signed_in`, `signed_out`, `done`, `scores`, `read`, `error` or `unsupported`, each an `EVENT_*` constant. A sign-in or sign-out, asked for or not, is also the `platform_event` event, `events::listen(node, \"platform_event\")`.",
     );
     balaur_core::handler::install_event_kinds(m, kind::ALL);
+    m.records(&[
+        (
+            "Player",
+            "{ id: string, alias: string }",
+            "Who the store says is playing: its stable `id` on this platform, and the `alias` to show.",
+        ),
+        (
+            "Score",
+            "{ player: string, alias: string, rank: int, score: int }",
+            "One row of a leaderboard, as a `scores` answer's `entries` hold it: `let rows: [platform::Score] = reply[\"entries\"];`.",
+        ),
+        (
+            "ScoresOptions",
+            "{ count: int?, start: int?, scope: string?, period: string? }",
+            "Which entries `scores` reads: how many, the rank to read from (from 1), `scope` (\"global\" or \"friends\") and `period` (\"today\", \"week\" or \"all_time\").",
+        ),
+    ]);
     m.describe(&[
         (
             "backend",
             &[],
-            "",
+            "() -> string",
             "The name of the loaded store, or \"none\".",
         ),
         (
             "player",
             &[],
-            "",
+            "() -> Player?",
             "Who the store says is playing, or nil before a sign-in has landed.",
         ),
-        ("signed_in", &[], "", "Whether a sign-in has landed."),
+        ("signed_in", &[], "() -> bool", "Whether a sign-in has landed."),
         (
             "sign_in",
             &[],
-            "",
-            "Ask the store who is playing, and return the id its answer carries. A node given here keeps hearing: a later sign-out reaches the same method.",
+            "() -> int",
+            "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
         ),
-        ("unlock", &[], "", "Award an achievement whole."),
+        (
+            "unlock",
+            &[],
+            "(achievement: string) -> int",
+            "Award an achievement whole, and return the id its answer carries.",
+        ),
         (
             "progress",
             &[],
-            "",
-            "Report an achievement's completion, 0 to 100.",
+            "(achievement: string, percent: float) -> int",
+            "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
         ),
-        ("submit_score", &[], "", "Post a score to a leaderboard."),
+        (
+            "submit_score",
+            &[],
+            "(board: string, score: int) -> int",
+            "Post a score to a leaderboard, and return the id its answer carries.",
+        ),
         (
             "scores",
             &[],
-            "",
-            "Read a leaderboard's entries. The options take `count`, `start` (a rank, from 1), `scope` (\"global\" or \"friends\") and `period` (\"today\", \"week\" or \"all_time\").",
+            "(board: string, opts: ScoresOptions?) -> int",
+            "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
         ),
         (
             "cloud_read",
             &[],
-            "",
-            "Read a value the store syncs between the player's devices.",
+            "(key: string) -> int",
+            "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
         ),
         (
             "cloud_write",
             &[],
-            "",
-            "Write a value for the store to sync between the player's devices.",
+            "(key: string, value: string) -> int",
+            "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
         ),
         (
             "set_presence",
             &[],
-            "",
-            "Say what the player is doing, where the store shows it.",
+            "(text: string) -> int",
+            "Say what the player is doing, where the store shows it, and return the id its answer carries.",
         ),
     ]);
     install_platform_reads(m);

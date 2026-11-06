@@ -98,6 +98,7 @@ item path and fields, and `Unit::new_struct` builds one from fields by name.
    own spec asks for, with a button to take one out and one to add. Every
    drawer takes a cursor (`comp`, `prop`, `path`) instead of a property name,
    so a write reaches into the value and hands the property back whole. Done.
+   They are `editor/scripts/drawers.bs` since 2026-11-03.
 7. **A class that round-trips, and a map keyed by numbers.** The fork gains
    `Value::struct_parts`, `Unit::new_struct` and a public map constructor,
    which are the three things a host cannot do from outside the crate. An
@@ -123,9 +124,9 @@ is, and a recording has to be plain data. An export is the path that knows.
 
 Planned 2026-10-27. A component is written three times today: its struct;
 its schema, TOML text in its `ComponentDef` (70 of them in 53 files); and its
-`apply` and `get`, which convert between the two by hand. Readers then sort
-the schema by name (`util::keys_sorted`, `sorted_keys` in
-`widget/inspector/form.rs`), so the order a user sees is the alphabet's.
+`apply` and `get`, which convert between the two by hand. Readers then sorted
+the schema by name (`util::keys_sorted`, `sorted_keys` in the `inspector` kind),
+so the order a user saw was the alphabet's.
 `group` exists (`components.rs`) and few properties use it, under names
 that differ for one idea. `Authored` keeps what a scene asked for beside
 every component, for a save, and `PropertyReaders`/`PropertyWriters` give
@@ -143,9 +144,9 @@ every component, for a save, and `PropertyReaders`/`PropertyWriters` give
 - **Groups are one vocabulary.** A component uses the shared name when the
   idea is the one the name means (PLAN-component-order §1).
 - **No property shows on a condition.** Properties that apply only beside
-  one value of another are a component of their own: `widget` is one
-  component per kind (PLAN-widgets), and the rest are listed in
-  PLAN-component-order §4.
+  one value of another are a component of their own: the rows only some
+  of `widget`'s kinds read are components beside it, and the rest are
+  listed in PLAN-component-order §4.
 - **Derived state is a system's cache**, keyed on the change log, never a
   field: a shaped text, a built mesh.
 - **What goes**: each component's hand-written `apply` and `get`, the
@@ -166,9 +167,11 @@ Every component of core, physics, render, input, animation and audio with a
 fixed schema is on it, each schema proven unchanged; what a system works
 out stays a cache beside the struct. `meta` and `states` (every key the
 author's), `mesh` (any `morph_*` key) and `material` (core's `Appearance`)
-stay hand-written. `widget` is `WidgetProperties` beside the `Widget` the UI
-reads, a one-property write updating the one field it feeds; its split into
-a component per kind is still to come.
+stay hand-written. `widget` is `WidgetProperties`, the 60 rows most kinds
+read, beside the `Widget` the UI reads, a one-property write updating the one
+field it feeds. The rows only some kinds read are 25 components beside it
+(`balaur_ui/src/widget/beside*.rs`, PLAN-component-order §4.1), absent
+meaning their defaults, a row of one written onto its one field the same way.
 
 A component's order is what a user changes most first, then its groups.
 PLAN-component-order lists all 55 components, 1,429 properties, in that

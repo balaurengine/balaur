@@ -1,6 +1,6 @@
 # The Inspector: the selected node's header, a search, its form and the one
-# verb under it. One script answers every control here; the Editor owns the
-# document and fills the form's rows when asked.
+# verb under it. One script answers the controls here; the Editor owns the
+# document and puts the form's rows on the pool when asked.
 
 [[nodes]]
 id = "panel"
@@ -11,6 +11,7 @@ visible = false
 kind = "column"
 role = "layout_dock"
 grow = 1
+[nodes.widget_layout]
 gap = [0, 3]
 
 # The node's mark and name, then its type beside them on one line.
@@ -20,9 +21,10 @@ name = "Head"
 parent = "panel"
 [nodes.widget]
 kind = "row"
+height = 26
+[nodes.widget_layout]
 align_items = "center"
 gap = [6, 0]
-height = 26
 
 # A button only for the mark it draws before its text; it takes no pointer.
 [[nodes]]
@@ -41,6 +43,7 @@ parent = "head"
 [nodes.widget]
 kind = "label"
 role = "text_code_quiet"
+[nodes.widget_text]
 truncate = true
 
 [[nodes]]
@@ -70,18 +73,20 @@ name = "Scroll"
 parent = "panel"
 [nodes.widget]
 kind = "scroll"
-axis = "vertical"
 grow = 1
+[nodes.widget_scroll]
+axis = "vertical"
+on_scrolled = "scrolled"
 
-# The form's rows, which the Editor fills from the selection: a form whose
-# fields change with the node, so the pool makes them and hides the spares.
+# The rows on screen, each placed at its height in a column as tall as the whole
+# form, so a node of hundreds of rows builds the few it shows: the pool makes
+# them, and a row scrolled off is the one the next row takes.
 [[nodes]]
 id = "form"
 name = "Form"
 parent = "scroll"
 [nodes.widget]
 kind = "column"
-gap = [2, 2]
 
 [[nodes]]
 id = "foot"
@@ -89,8 +94,9 @@ name = "Foot"
 parent = "panel"
 [nodes.widget]
 kind = "row"
-align_items = "center"
 height = 36
+[nodes.widget_layout]
+align_items = "center"
 
 [[nodes]]
 id = "add"

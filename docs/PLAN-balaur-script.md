@@ -120,10 +120,11 @@ a script as from TOML, a component or the engine, so a `Vec3` in a patch works.
   script holds another's object as its class:
   `let tree: scene_tree::SceneTree? = node.script;` is the node's object
   when it runs that file's class, else nil, and a call on it is a direct
-  call. `node.script` read with no class wanted does not compile. A file
-  built whole, for a debugger, a profiler, a browser or a native export,
-  is an instance of its own, where `node.script` finds only its own file's
-  nodes. Two scripts holding each other is a cycle the counts never free.
+  call, under a debugger, a profiler and in a browser as anywhere.
+  `node.script` read with no class wanted does not compile. A file from
+  outside the project, as the editor reads a game's scripts, is a unit of the
+  instance beside it, where `node.script` finds only its nodes. Two scripts
+  holding each other is a cycle the counts never free.
 - The compiler emits `Class.method$batch(base, count, args)` for a public
   method with plain arguments: one host call runs it over `count` objects
   whose pointers sit at `base`, for each run of nodes in scene order sharing
@@ -175,14 +176,15 @@ same on wasmtime, wasmi and a browser.
 
 The editor's debugger and the DAP server reach it through the seam's
 methods. A file is built with probes only once a debugger asks something of
-it, and then runs on wasmi, whose resumable calls let a stop park the call:
-the host freezes the game as for a Rune pause, the frame loop keeps drawing,
-and `resume` carries the call on in a later frame. An async method's poll
-parks the same way, and the task goes back to waiting when it reaches its
-next `await`. A stop on an engine that cannot park a call is passed by.
+it, as a unit that links with the rest (PLAN-bs-linking), and its instance
+then runs on wasmi, whose resumable calls let a stop park the call: the host
+freezes the game as for a Rune pause, the frame loop keeps drawing, and
+`resume` carries the call on in a later frame. An async method's poll parks
+the same way, and the task goes back to waiting when it reaches its next
+`await`. A stop on an engine that cannot park a call is passed by.
 
-Break on error rebuilds every file with probes on the engine it already runs
-on. Flag 2 of `__dbg_flags` spills each frame's variables at every
+Break on error builds every file with probes on the engine its instance
+already runs on. Flag 2 of `__dbg_flags` spills each frame's variables at every
 statement, a store per variable and no host call, so a trap leaves its
 stack with the values it died with; `Runtime::error_stop` hands it over and
 the editor shows it as an error pause, dismissed rather than resumed.
@@ -414,11 +416,10 @@ step 1 is the compiler's suite with the prelude in.
 | `node.text2d.text = s` | 68,000 | |
 | reading `node.text2d.text` | 66,000 | |
 
-After step 1 nothing in the table calls out but the engine rows. What is
-left inside the module is reference counting: a script function owns its
-arguments, so each call into the prelude counts a string up and down, and a
-key is found by comparing every key. Step 5's maps and the compiler not
-counting a borrowed argument take it the rest of the way.
+After step 1 nothing in the table calls out but the engine rows. What was
+left inside the module was reference counting, a prelude call counting each
+string up and down, and a key found by comparing every key; the measurements
+after the targets below are what lending and the scans took off.
 
 Where it goes:
 
@@ -478,12 +479,12 @@ the table:
    the game it plays.
    Found 2026-10-30, moving the editor's 39 panels onto `editor::Editor?`:
    a build of whole files (the profiler's, the debugger's, the browser's, a
-   native export) makes each file an instance of its own, so the cast is
-   nil there and every panel stops filling; the profiler's rebuild also
-   took 64 s rather than 4, each panel compiling the editor whole. The
-   panels keep `node.call` to the Editor until those builds link a project
-   as units too. A native build does since 2026-10-30 (§7a); the profiler,
-   the debugger and the browser are left.
+   native export) made each file an instance of its own, so the cast was
+   nil there and every panel stopped filling; the profiler's rebuild also
+   took 64 s rather than 4, each panel compiling the editor whole. A native
+   build links units since 2026-10-30 (§7a), and the profiler, the debugger
+   and the browser since 2026-11-03 (PLAN-bs-linking): every build a host
+   runs is one instance per project.
 5. **A stricter language.**
    - An `any` holds data from outside: a file, the network, TOML, JSON, a
      plugin's payload. The engine functions that take or give an options
@@ -519,10 +520,18 @@ the table:
      for it, a class compiled in as the program's own (`crate::maps`); a
      read costs under half an `any` map's, with no call out.
    - A script calls another by its type, never by a method's name in a
-     string. Not built: a debugger's probes, a profiler's counters and a
-     browser's metering compile a file whole, and the compiler builds no
-     unit with them (`Options::unit`), so those builds cannot link a
-     project as units yet (`host/units.rs`, `as_units`).
+     string. Built 2026-11-06: the compiler builds a unit with a debugger's
+     probes, a profiler's counters and a browser's metering, every build a
+     host runs links a project as units (`tests/suite/units.rs`,
+     `tests/suite/bs_host.rs`, `tests/web/main.rs`), and the editor's
+     panels hold `editor::Editor?` and call it as a link: 114 calls by name
+     are typed, what the Editor answers is read as its struct, and the scene
+     tree's search is asked of its panel by class. A panel that fills itself
+     hears `docks_changed` after its dock, its parent, has shown it, where
+     the dock called `refresh` by name. What stays by name is between the
+     editor and its plugins (the kit, `register`), a pooled control's
+     `refill`, a widget kit's `method` given as data, and `fonts.bs` starting
+     the Editor's async `await_font_reply`. PLAN-bs-linking has the cost.
 6. **The derive's index.** `node.c.p` resolves at load to the component and
    the property's index in its schema (PLAN-property-types §5): a read or a
    write of one field. A component or property the schema lacks does not
@@ -575,6 +584,88 @@ The write is still forty times the target. What is left of it is the engine
 side, a property set as a `toml::Value` and the change log and registry
 looked up by type on each write, and the any map's walk through module
 memory for a patch.
+
+Measured 2026-11-06, `main` at b160b613 against this branch, the dev build on a
+quiet machine. Wasmi fuel per operation (`tests/suite/budgets.rs`, which now
+holds each to what it spent and a quarter more):
+
+| operation | before | after |
+| --- | ---: | ---: |
+| `s.contains(t)` | 2,413 | 229 |
+| `s.find(t)` | 2,408 | 224 |
+| `starts_with` and `ends_with` | 1,622 | 544 |
+| `a["k"].as_int()` on a map of 8 | 1,234 | 266 |
+| `a["k"] = v` | 1,292 | 392 |
+| `a.has(k)`, then `a.len()` | 1,562 | 291 |
+| `typed["e"]` on a `{ str: int }` | 552 | 239 |
+| `s.replace(..)` | 8,147 | 4,404 |
+| `s.split(..)` | 4,704 | 1,676 |
+| an `any` into a struct | 4,412 | 1,639 |
+
+What moved them:
+
+- A prelude function and a map's method borrow their string, list and `any`
+  parameters (`Gen::lends_to`): the caller holds them, so neither counts them
+  up and down. A local is lent as it is, to a host call and a built-in too,
+  unless a later argument could assign it (`codegen/lend.rs`), and a string
+  compare reads a class's field or a list's element where it is held.
+- `==` on strings is `str_same`, which lends both: the same pointer, else the
+  same length, then eight bytes at a time.
+- `__key_index` walks an `any` map's keys passing over one of another length
+  or first byte with two loads, then tries the pointer, then the rest of the
+  bytes. What a near miss goes on to is in a block of its own: wasmi charges a
+  block's fuel on entry, so code a pass skips cost it all the same.
+- `__find` looks for the needle's first byte eight bytes at a time and
+  compares the rest where it finds one; `__same_at` serves `starts_with`.
+- Literals are not interned across units, and an `any` map has no index: its
+  data comes from outside a script now, whose keys share no pointer with a
+  literal, and eight keys walk faster than a hash is made.
+
+Instructions retired per engine call, wasmtime (`scripts/call_cost.sh`, 200
+frames of a thousand calls, each case after a run that fills the compile cache):
+
+| a call | before | after |
+| --- | ---: | ---: |
+| `engine::time()` | 1,001 | 659 |
+| `self.node.transform.position = vec3(..)` | 3,955 | 1,484 |
+| `let at = self.node.transform.position` | 1,811 | 1,203 |
+| `self.node.transform.skew = step` | 3,568 | 1,378 |
+| `let lean = self.node.transform.skew` | 1,685 | 1,064 |
+| `self.node.widget.text = "text"` | 6,898 | 3,928 |
+| `let text = self.node.widget.text` | 4,428 | 3,727 |
+| `patch_component(transform, { "position": .. })` | 20,260 | 16,322 |
+| `patch_component(widget, { "text": .. })` | 18,440 | 15,547 |
+| `component_property(transform, "position")`, `get_component` before | 34,783 | 33,657 |
+
+One edit in the editor (`scripts/edit_cost.sh`, M instructions, `main` with its
+own editor against this branch with `editor-fixes` merged, at load 40 to 140):
+3.2 and 3.0 before, 2.9, 3.2 and 4.1 after (text); 3.5 and 2.7, 2.7, 3.3 and 3.4
+(colour); 1.4 and 1.2, 1.2, 1.8 and 1.6 (position); 2.7 and 3.5, 2.3, 2.8 and
+3.0 (engine text). That is within what runs differ by.
+
+A property's write and read are typed end to end: the script's slots become a
+`derived::Given` (a number, a flag, a vector's numbers, text), which the derive
+hands each field's `Property::from_given`, and a read hands back what
+`Property::given` says, with no `toml::Value` or neutral value between for
+those kinds. A value of any other kind is still one. `PropertyPlace` holds the
+registry and the change log and ticks (`changes::Feeds`), found once when the
+script binds the property, and a write still logs, stamps, keeps what it
+replaced and runs the component's lifecycle calls and hook.
+
+No target is met, and in this build none of the engine ones can be:
+
+- wasmtime's own call into a host function that does nothing is 144 to 171
+  instructions here; the runtime's dispatch and the arguments' slots add about
+  380 more, and a binding's conversion the rest of `engine::time()`.
+- Of a position write, sampled: wasmtime's glue for a host call, which
+  monomorphises into `balaur_bs` at its `opt-level` of 1, is a fifth; hecs's
+  `World::get`, whose type lookup monomorphises into `balaur_core` at the same
+  level, is a fifth again (`OrderedTypeIdMap::get` alone a seventh); the write
+  path, the change log and the ticks a fifth; the call's arguments the rest.
+  `balaur_bs` at `opt-level` 2 took 60 to 70 more off each call.
+- In the module, a map read is two prelude calls, a count up for the value it
+  hands back and one down when the script drops it; a search is a call to the
+  prelude and its helper.
 
 ## Open questions
 

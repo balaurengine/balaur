@@ -28,6 +28,9 @@ pub(crate) const RECORDS: &[(&str, &str)] = &[
     ("Symbol", "{ name: string, kind: string, detail: string, line: int, column: int }"),
     ("Signature", "{ title: string, detail: string, doc: string, active: int }"),
     ("Edit", "{ file: string, source: string }"),
+    ("ApiFunction", "{ name: string, signature: string, doc: string, acts_on: [string] }"),
+    ("ApiConstant", "{ name: string, value: string }"),
+    ("ApiModule", "{ name: string, doc: string, functions: [ApiFunction], constants: [ApiConstant] }"),
 ];
 
 /// Each verb, what it takes after the path and gives back, and what it does.
@@ -45,7 +48,7 @@ const VERBS: &[(&str, &str, &str)] = &[
     ("replace", "(source: string, from: string, to: string) -> [Edit]", "The file with that text replaced; nothing is written, so a caller can show it first."),
     ("format", "(source: string) -> string", "The source laid out as `balaur fmt` lays it out; unchanged when it will not parse."),
     ("exports", "() -> list", "The `pub` fields of the script's struct, which a scene tunes, with their types and defaults."),
-    ("api", "() -> list", "Every module a script can reach: its functions, their signatures and what each does, and its constants."),
+    ("api", "() -> [ApiModule]", "Every module a script can reach: its functions, their signatures and what each does, and its constants."),
 ];
 
 // The verbs about the engine rather than a file: no path first.
@@ -95,7 +98,7 @@ pub(crate) fn call(
 ) -> Result<L, String> {
     if verb == "api" {
         let answer = crate::BsHost::of(eng).map_or(Value::List(vec![]), |host| host.reference());
-        return Ok(from_neutral(&answer, ret, structs));
+        return Ok(from_neutral(&by_function(&answer), ret, structs));
     }
     let Some(path) = args.text(0) else {
         return Err(format!("`script::{verb}` wants a path first"));
@@ -112,6 +115,58 @@ pub(crate) fn call(
         balaur_script::tool_answer(tools, verb, &key, &after)
     });
     Ok(from_neutral(&answer.unwrap_or(Value::Nil), ret, structs))
+}
+
+// `balaur api`'s reference as a script reads it: a row a function, where the
+// file keeps its signatures and docs in maps by name.
+fn by_function(reference: &Value) -> Value {
+    let Value::List(modules) = reference else {
+        return Value::List(vec![]);
+    };
+    let rows = modules.iter().map(|module| {
+        let functions = list_at(module, "functions").iter().filter_map(|function| {
+            let Value::Str(name) = function else {
+                return None;
+            };
+            let of = |key: &str| at(at(module, key), name).cloned().unwrap_or(Value::Nil);
+            Some(Value::Map(vec![
+                ("name".into(), function.clone()),
+                ("signature".into(), of("signatures")),
+                ("doc".into(), of("docs")),
+                ("acts_on".into(), of("acts_on")),
+            ]))
+        });
+        Value::Map(vec![
+            (
+                "name".into(),
+                at(module, "name").cloned().unwrap_or(Value::Nil),
+            ),
+            (
+                "doc".into(),
+                at(module, "doc").cloned().unwrap_or(Value::Nil),
+            ),
+            ("functions".into(), Value::List(functions.collect())),
+            (
+                "constants".into(),
+                Value::List(list_at(module, "constants").to_vec()),
+            ),
+        ])
+    });
+    Value::List(rows.collect())
+}
+
+fn at<'a>(map: impl Into<Option<&'a Value>>, key: &str) -> Option<&'a Value> {
+    match map.into()? {
+        Value::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
+        _ => None,
+    }
+}
+
+fn list_at<'a>(map: &'a Value, key: &str) -> &'a [Value] {
+    match at(map, key) {
+        Some(Value::List(items)) => items,
+        _ => &[],
+    }
 }
 
 /// What the script at `key` declares tunable, one row a property in name

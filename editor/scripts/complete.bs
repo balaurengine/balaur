@@ -37,13 +37,13 @@ pub struct LineColumn {
 /// What the list shows: where it opens, under the caret, its rows, the one
 /// picked, and the doc line of that one.
 pub struct View {
-    open: bool,
-    x: float,
-    y: float,
-    items: [ui::Item],
-    picked: str,
-    list_h: float,
-    doc: str,
+    internal open: bool,
+    internal x: float,
+    internal y: float,
+    internal items: [ui::Item],
+    internal picked: str,
+    internal list_h: float,
+    internal doc: str,
 }
 
 // The list's rows, in design pixels.

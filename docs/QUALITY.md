@@ -9,10 +9,8 @@ Tools and processes for ensuring the code quality remains high.
 | `runner.yml` | the one push and pull-request trigger; calls the four below |
 | `lint.yml` | runs format, clippy, house rules and supply chain checks |
 | `docs.yml` | checks if the documentation is generated correctly |
-| `test.yml` | runs the tests |
+| `test.yml` | runs the tests, and the Balaur Script compiler's fuzz targets |
 | `build.yml` | builds and exports |
-| `channel.yml` | moves a channel's tag when a version is published |
-| `fuzz.yml` | runs the Balaur Script compiler's fuzz targets each night, on a schedule of its own |
 
 ## Before you push
 

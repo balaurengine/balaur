@@ -1,6 +1,8 @@
 // A plugin dock's one script, on the subtree the editor made for it: the
 // plugin fills it on these words and after its own controls, and never draws.
 
+use editor;
+
 pub class Plugin {
     node: Node,
 }
@@ -56,6 +58,9 @@ impl Plugin {
         if self.node.visible() == false {
             return;
         }
-        scene::get_node("Editor").call("plugin_fill", id_of(self.node));
+        let found: editor::Editor? = scene::get_node("Editor").script;
+        if found != nil {
+            found.unwrap().plugin_fill(id_of(self.node));
+        }
     }
 }

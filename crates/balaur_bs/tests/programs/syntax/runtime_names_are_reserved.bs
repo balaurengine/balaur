@@ -1,0 +1,6 @@
+// A name starting with `__` is the runtime's: its exports and the prelude's
+// helpers go by such names, so a script declaring one is refused.
+
+pub fn __free() -> str { "a" }
+
+// error: 4:5: `__free`: a name starting with `__` is the runtime's

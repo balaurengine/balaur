@@ -5,6 +5,10 @@ pub(crate) mod anchor;
 pub(crate) mod arena;
 pub(crate) mod arrange;
 pub(crate) mod beside;
+pub(crate) mod beside_box;
+pub(crate) mod beside_controls;
+#[cfg(test)]
+mod beside_tests;
 pub(crate) mod button;
 pub(crate) mod code;
 pub(crate) mod drag;
@@ -14,7 +18,6 @@ pub(crate) mod frame;
 pub(crate) mod gradient;
 pub(crate) mod grid;
 pub(crate) mod input;
-pub(crate) mod inspector;
 pub(crate) mod kinds;
 pub(crate) mod layer;
 pub(crate) mod marks;

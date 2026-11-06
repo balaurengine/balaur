@@ -44,7 +44,7 @@ else
   esac
 fi
 
-# draft_release.sh compares the tag to this, so a malformed one fails in CI.
+# release.sh compares the tag to this, so a malformed one fails in CI.
 # The suffix is the channel the build is on (docs/RELEASING.md).
 [[ $next =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]] \
   || { printf 'not a version: %s\n' "$next" >&2; exit 1; }
@@ -124,5 +124,5 @@ next, per docs/RELEASING.md:
   docs/ROADMAP.md            rewrite the rows this version finished
   python3 scripts/gen_docs.py
   git commit, push, wait for green
-  git tag v$next && git push origin v$next
+  publish a release on GitHub tagged v$next; CI attaches the files
 EOF

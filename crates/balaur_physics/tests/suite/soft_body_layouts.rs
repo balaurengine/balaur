@@ -376,7 +376,7 @@ impl Scenario {
     fn fixed_update(dt: float) {
         self.ticks += 1;
         if self.ticks == 90 {
-            let y = self.node.softbody3d.softbody_center()[1].as_float();
+            let y = self.node.softbody3d.softbody_center().y;
             if y >= -1.0 { log::error("the sensor body stopped on the floor at {y}"); }
             log::error("checked: sensor");
         }
@@ -421,46 +421,46 @@ impl Scenario {
     fn init() {
         let n = self.node;
         let p = n.softbody3d.softbody_particle(0);
-        let mass = p["mass"].as_float();
-        let inverse = p["inverse_mass"].as_float();
+        let mass = p.mass;
+        let inverse = p.inverse_mass;
         if !(mass > 0.0 && inverse > 0.0) { log::error("particle mass {mass} {inverse}"); }
-        if !(!p["pinned"].as_bool() && p["on_surface"].as_bool() && !p["damaged"].as_bool()) { log::error("particle flags"); }
-        if p["target"] != nil { log::error("a free particle has a target"); }
+        if !(!p.pinned && p.on_surface && !p.damaged) { log::error("particle flags"); }
+        if p.target != nil { log::error("a free particle has a target"); }
         n.softbody3d.pin_particle(0);
-        n.softbody3d.set_particle_target(0, [0.0, 0.5, 0.0]);
-        if n.softbody3d.softbody_particle(0)["inverse_mass"].as_float() != 0.0 { log::error("a held particle still has an inverse mass"); }
-        if n.softbody3d.softbody_particle(0)["target"][1].as_float() != 0.5 { log::error("the target was not kept"); }
-        n.softbody3d.add_particle_force(1, [0.0, 0.0, 3.0]);
-        if n.softbody3d.softbody_particle(1)["force"][2].as_float() != 3.0 { log::error("the particle force was not kept"); }
+        n.softbody3d.set_particle_target(0, vec3(0.0, 0.5, 0.0));
+        if n.softbody3d.softbody_particle(0).inverse_mass != 0.0 { log::error("a held particle still has an inverse mass"); }
+        if n.softbody3d.softbody_particle(0).target.unwrap().y != 0.5 { log::error("the target was not kept"); }
+        n.softbody3d.add_particle_force(1, vec3(0.0, 0.0, 3.0));
+        if n.softbody3d.softbody_particle(1).force.z != 3.0 { log::error("the particle force was not kept"); }
         let edge = n.softbody3d.softbody_edge(0);
-        let rest = edge["rest_length"].as_float();
-        if !(rest > 0.0 && edge["initial_rest_length"].as_float() == rest) { log::error("edge lengths"); }
-        let kind = edge["kind"].as_str();
+        let rest = edge.rest_length;
+        if !(rest > 0.0 && edge.initial_rest_length == rest) { log::error("edge lengths"); }
+        let kind = edge.kind;
         if kind != "structural" && kind != "bending" { log::error("edge kind {kind}"); }
-        if !(edge["softness_hz"].as_float() > 0.0 && edge["tear_resistance"].as_float() == 1.0) { log::error("edge spring"); }
+        if !(edge.softness_hz > 0.0 && edge.tear_resistance == 1.0) { log::error("edge spring"); }
         let cells = n.softbody3d.softbody_cells();
         if !(cells.len() > 0 && cells[0].len() == 4) { log::error("cells"); }
         let cell = n.softbody3d.softbody_cell(0);
-        if !(cell["rest_volume"].as_float() > 0.0 && cell["stiffness_scale"].as_float() == 1.0) { log::error("cell rows"); }
-        let stretch = cell["plastic_stretch"];
-        if !(stretch.len() == 3 && stretch[0][0].as_float() == 1.0) { log::error("plastic stretch"); }
+        if !(cell.rest_volume > 0.0 && cell.stiffness_scale == 1.0) { log::error("cell rows"); }
+        let stretch = cell.plastic_stretch;
+        if !(stretch.len() == 3 && stretch[0].x == 1.0) { log::error("plastic stretch"); }
         if n.softbody3d.softbody_boundary().len() <= 0 { log::error("no boundary"); }
         let pieces = n.softbody3d.softbody_volume_pieces();
-        if !(pieces.len() == 1 && pieces[0]["rest_volume"].as_float() > 0.0) { log::error("volume pieces"); }
+        if !(pieces.len() == 1 && pieces[0].rest_volume > 0.0) { log::error("volume pieces"); }
         if !(n.softbody3d.softbody_particle_radius() > 0.0 && n.softbody3d.softbody_mass() > 0.0) { log::error("radius and mass"); }
         let post = scene::get_node("World/Post");
         n.softbody3d.attach_particle(2, post);
         let ties = n.softbody3d.softbody_attachments();
-        if !(ties.len() == 1 && ties[0]["particle"].as_int() == 2 && ties[0]["body"].as_node() == post) { log::error("attachments"); }
+        if !(ties.len() == 1 && ties[0].particle == 2 && ties[0].body.unwrap() == post) { log::error("attachments"); }
         n.softbody3d.set_edge_tear_resistance(0, 3.0);
-        if n.softbody3d.softbody_edge(0)["tear_resistance"].as_float() != 3.0 { log::error("tear resistance"); }
+        if n.softbody3d.softbody_edge(0).tear_resistance != 3.0 { log::error("tear resistance"); }
         n.softbody3d.set_particle_damaged(3, true);
-        if !n.softbody3d.softbody_particle(3)["damaged"].as_bool() { log::error("damaged"); }
+        if !n.softbody3d.softbody_particle(3).damaged { log::error("damaged"); }
         if n.softbody3d.has_pending_tears() { log::error("tears pending before any"); }
         n.softbody3d.tear_edge(1);
         if !n.softbody3d.has_pending_tears() { log::error("tear_edge marked nothing"); }
         let contacts = n.softbody3d.softbody_contacts();
-        if !(contacts["edges"].len() == 0 && contacts["volumes"].len() == 0) { log::error("contacts before a step"); }
+        if !(contacts.edges.len() == 0 && contacts.volumes.len() == 0) { log::error("contacts before a step"); }
         if n.softbody3d.softbody_dihedrals().len() != 0 { log::error("a box has no hinges"); }
         n.softbody3d.reset_plasticity();
         log::error("checked: rows");
@@ -481,15 +481,15 @@ impl Scenario {
     fn init() {
         let n = self.node;
         let before = n.softbody3d.softbody_particles();
-        let blade = [[-1.0, -0.5, -1.0], [1.0, -0.5, -1.0], [0.0, -0.5, 2.0]];
+        let blade = [vec3(-1.0, -0.5, -1.0), vec3(1.0, -0.5, -1.0), vec3(0.0, -0.5, 2.0)];
         let crossing = n.softbody3d.softbody_crossing(blade);
-        if crossing["edges"].len() <= 0 { log::error("the blade meets no edge"); }
+        if crossing.edges.len() <= 0 { log::error("the blade meets no edge"); }
         let records = n.softbody3d.cut_softbody(blade);
         let changed = records.len();
         if changed != 1 { log::error("the cut changed {changed} pieces"); }
-        let pieces = records[0]["pieces"].as_int();
+        let pieces = records[0].pieces;
         if pieces != 2 { log::error("the cut left {pieces} pieces"); }
-        if records[0]["piece_particles"].len() != 2 { log::error("piece particles"); }
+        if records[0].piece_particles.len() != 2 { log::error("piece particles"); }
         // Two particles go in where the blade crosses the rope, one a side.
         let after = n.softbody3d.softbody_particles();
         if after != before + 2 { log::error("the cut went from {before} particles to {after}"); }

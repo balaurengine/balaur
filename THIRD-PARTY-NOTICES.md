@@ -4,7 +4,7 @@
 
 Balaur's own source is licensed MIT (see [LICENSE](LICENSE)). A built
 engine, editor or exported game is a combined work that also contains the
-849 packages listed here, some under licences that are not MIT.
+866 packages listed here, some under licences that are not MIT.
 Ship this file with any binary you distribute.
 
 Two consequences worth stating plainly:
@@ -22,11 +22,11 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 
 | Licence | Packages |
 | --- | --- |
-| `MIT OR Apache-2.0` | 424 |
-| `MIT` | 159 |
-| `Apache-2.0 OR MIT` | 61 |
+| `MIT OR Apache-2.0` | 430 |
+| `MIT` | 166 |
+| `Apache-2.0 OR MIT` | 64 |
+| `Apache-2.0` | 28 |
 | `Apache-2.0 WITH LLVM-exception` | 28 |
-| `Apache-2.0` | 27 |
 | `Zlib OR Apache-2.0 OR MIT` | 27 |
 | `Unicode-3.0` | 18 |
 | `BSD-3-Clause` | 16 |
@@ -67,7 +67,14 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | --- | --- | --- |
 | [ab_glyph](https://github.com/alexheretic/ab-glyph) | 0.2.32 | `Apache-2.0` |
 | [ab_glyph_rasterizer](https://github.com/alexheretic/ab-glyph) | 0.1.10 | `Apache-2.0` |
-| [accesskit](https://github.com/AccessKit/accesskit) | 0.25.1 | `MIT OR Apache-2.0` |
+| [accesskit](https://github.com/AccessKit/accesskit) | 0.25.2 | `MIT OR Apache-2.0` |
+| [accesskit_atspi_common](https://github.com/AccessKit/accesskit) | 0.21.1 | `MIT OR Apache-2.0` |
+| [accesskit_consumer](https://github.com/AccessKit/accesskit) | 0.39.2 | `MIT OR Apache-2.0` |
+| [accesskit_ios](https://github.com/AccessKit/accesskit) | 0.2.2 | `MIT OR Apache-2.0` |
+| [accesskit_macos](https://github.com/AccessKit/accesskit) | 0.27.2 | `MIT OR Apache-2.0` |
+| [accesskit_unix](https://github.com/AccessKit/accesskit) | 0.24.1 | `MIT OR Apache-2.0` |
+| [accesskit_windows](https://github.com/AccessKit/accesskit) | 0.35.2 | `MIT OR Apache-2.0` |
+| [accesskit_winit](https://github.com/AccessKit/accesskit) | 0.34.2 | `Apache-2.0` |
 | [addr2line](https://github.com/gimli-rs/addr2line) | 0.26.1 | `Apache-2.0 OR MIT` |
 | [adler2](https://github.com/oyvindln/adler2) | 2.0.1 | `0BSD OR MIT OR Apache-2.0` |
 | [ahash](https://github.com/tkaitchuck/ahash) | 0.8.12 | `MIT OR Apache-2.0` |
@@ -105,7 +112,7 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [asn1-rs-impl](https://github.com/rusticata/asn1-rs.git) | 0.2.0 | `MIT OR Apache-2.0` |
 | [async-broadcast](https://github.com/smol-rs/async-broadcast) | 0.7.2 | `MIT OR Apache-2.0` |
 | [async-channel](https://github.com/smol-rs/async-channel) | 2.5.0 | `Apache-2.0 OR MIT` |
-| [async-executor](https://github.com/smol-rs/async-executor) | 1.14.0 | `Apache-2.0 OR MIT` |
+| [async-executor](https://github.com/smol-rs/async-executor) | 1.14.1 | `Apache-2.0 OR MIT` |
 | [async-io](https://github.com/smol-rs/async-io) | 2.6.0 | `Apache-2.0 OR MIT` |
 | [async-lock](https://github.com/smol-rs/async-lock) | 3.4.2 | `Apache-2.0 OR MIT` |
 | [async-process](https://github.com/smol-rs/async-process) | 2.5.0 | `Apache-2.0 OR MIT` |
@@ -115,6 +122,9 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [async-trait](https://github.com/dtolnay/async-trait) | 0.1.92 | `MIT OR Apache-2.0` |
 | [atomic-waker](https://github.com/smol-rs/atomic-waker) | 1.1.2 | `Apache-2.0 OR MIT` |
 | [atomic_float](https://github.com/thomcc/atomic_float) | 1.1.0 | `Apache-2.0 OR MIT OR Unlicense` |
+| [atspi](https://github.com/odilia-app/atspi) | 0.29.0 | `Apache-2.0 OR MIT` |
+| [atspi-common](https://github.com/odilia-app/atspi) | 0.13.0 | `Apache-2.0 OR MIT` |
+| [atspi-proxies](https://github.com/odilia-app/atspi) | 0.13.0 | `Apache-2.0 OR MIT` |
 | [audio-codec-algorithms](https://github.com/karip/audio-codec-algorithms) | 0.8.1 | `0BSD OR Apache-2.0` |
 | [audioadapter](https://github.com/HEnquist/audioadapter-rs) | 5.0.0 | `MIT OR Apache-2.0` |
 | [audioadapter-buffers](https://github.com/HEnquist/audioadapter-buffers-rs) | 5.2.0 | `MIT OR Apache-2.0` |
@@ -511,6 +521,10 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [pastey](https://github.com/as1100k/pastey) | 0.1.1 | `MIT OR Apache-2.0` |
 | [pem](https://github.com/jcreekmore/pem-rs.git) | 4.0.0 | `MIT` |
 | [percent-encoding](https://github.com/servo/rust-url/) | 2.3.2 | `MIT OR Apache-2.0` |
+| [phf](https://github.com/rust-phf/rust-phf) | 0.14.0 | `MIT` |
+| [phf_generator](https://github.com/rust-phf/rust-phf) | 0.14.0 | `MIT` |
+| [phf_macros](https://github.com/rust-phf/rust-phf) | 0.14.0 | `MIT` |
+| [phf_shared](https://github.com/rust-phf/rust-phf) | 0.14.0 | `MIT` |
 | [pico-args](https://github.com/RazrFalcon/pico-args) | 0.5.0 | `MIT` |
 | [pin-project](https://github.com/taiki-e/pin-project) | 1.1.13 | `Apache-2.0 OR MIT` |
 | [pin-project-internal](https://github.com/taiki-e/pin-project) | 1.1.13 | `Apache-2.0 OR MIT` |
@@ -889,8 +903,11 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 | [yoke](https://github.com/unicode-org/icu4x) | 0.8.4 | `Unicode-3.0` |
 | [yoke-derive](https://github.com/unicode-org/icu4x) | 0.8.4 | `Unicode-3.0` |
 | [zbus](https://github.com/z-galaxy/zbus/) | 5.19.0 | `MIT` |
+| [zbus-lockstep](https://github.com/luukvanderduim/zbus-lockstep) | 0.5.2 | `MIT` |
+| [zbus-lockstep-macros](https://github.com/luukvanderduim/zbus-lockstep) | 0.5.2 | `MIT` |
 | [zbus_macros](https://github.com/z-galaxy/zbus/) | 5.19.0 | `MIT` |
 | [zbus_names](https://github.com/z-galaxy/zbus/) | 4.3.5 | `MIT` |
+| [zbus_xml](https://github.com/z-galaxy/zbus/) | 5.2.1 | `MIT` |
 | [zcheapstr](https://github.com/z-galaxy/zcheapstr/) | 1.2.0 | `MIT` |
 | [zeno](https://github.com/dfrg/zeno) | 0.3.3 | `Apache-2.0 OR MIT` |
 | [zerocopy](https://github.com/google/zerocopy) | 0.8.63 | `BSD-2-Clause OR Apache-2.0 OR MIT` |
@@ -920,14 +937,14 @@ Regenerate with `python3 scripts/third_party_notices.py`.
 These packages ship no licence file in their published archive, so the
 SPDX expression in the table above is the whole of what their authors
 granted; where it names a licence, that licence's text appears below,
-reproduced from a crate that does ship it: accesskit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gdt-cpus, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, winapi-i686-pc-windows-gnu, winapi-x86_64-pc-windows-gnu, zune-inflate.
+reproduced from a crate that does ship it: accesskit, accesskit_atspi_common, accesskit_consumer, accesskit_ios, accesskit_macos, accesskit_unix, accesskit_windows, accesskit_winit, aotuv_lancer_vorbis_sys, asn1-rs-impl, block2, clipboard-win, cranelift-assembler-x64, cranelift-assembler-x64-meta, cranelift-bitset, cranelift-isle, cranelift-srcgen, crc-catalog, dasp_sample, dispatch, dispatch2, ecolor, egui, egui-wgpu, emath, epaint, epaint_default_fonts, gdt-cpus, gilrs, gilrs-core, gl_generator, i_key_sort, i_overlay, i_triangle, jni, jni-macros, jni-sys-macros, khronos_api, kio, kiss3d-macro, ndk, ndk-context, ndk-sys, objc-sys, objc2, objc2-app-kit, objc2-audio-toolbox, objc2-authentication-services, objc2-avf-audio, objc2-cloud-kit, objc2-contacts, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-encode, objc2-foundation, objc2-game-kit, objc2-io-kit, objc2-io-surface, objc2-link-presentation, objc2-metal, objc2-quartz-core, objc2-symbols, objc2-ui-kit, objc2-uniform-type-identifiers, objc2-user-notifications, ogg_next_sys, parry2d, parry3d, profiling, profiling-procmacros, pulley-interpreter, pulley-macros, pulp-wasm-simd-flag, r-efi, rapier2d, rapier3d, realfft, rstar, rustls-platform-verifier-android, simd_helpers, spirv, symphonia, symphonia-bundle-flac, symphonia-bundle-mp3, symphonia-codec-aac, symphonia-codec-pcm, symphonia-codec-vorbis, symphonia-core, symphonia-format-isomp4, symphonia-format-ogg, symphonia-format-riff, symphonia-metadata, symphonia-utils-xiph, taffy, tokrepr, tokrepr-derive, valuable, vorbis_rs, wasm_sync, wasmi, wasmi_collections, wasmi_core, wasmi_ir, wasmparser, wasmtime-internal-component-util, wasmtime-internal-core, wasmtime-internal-jit-debug, wasmtime-internal-jit-icache-coherence, wasmtime-internal-versioned-export-macros, web-transport-proto, web-transport-quinn, web-transport-trait, wesl, wesl-core, wesl-macros, wesl-quote, wgsl-parse, wgsl-types, winapi-i686-pc-windows-gnu, winapi-x86_64-pc-windows-gnu, zune-inflate.
 
 ### LICENSE-APACHE — 192 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-addr2line 0.26.1, ahash 0.8.12, aligned 0.4.3, arbitrary 1.5.0, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, blocking 1.7.0, bumpalo 3.20.3, cc 1.10.0, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, cpp_demangle 0.5.1, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, debug-ignore 1.0.5, der-parser 10.0.0, displaydoc 0.2.7, either 1.19.0, embedded-io 0.4.0, embedded-io 0.6.1, ena 0.14.4, equivalent 1.0.3, errno 0.3.14, euclid 0.22.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.15, flate2 1.1.10, fnv 1.0.7, fontique 0.12.0, form_urlencoded 1.2.2, futures-lite 2.6.1, gethostname 1.1.0, gif 0.14.2, gimli 0.33.0, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.15.5, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.2, lazy_static 1.5.1, leb128fmt 0.1.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, object 0.39.1, object 0.40.0, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, ordered-stream 0.2.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, parlance 0.1.1, percent-encoding 2.3.2, piper 0.2.5, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, postcard 1.1.3, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.2, rtrb 0.3.5, rustc-demangle 0.1.28, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.46, rustls-native-certs 0.8.5, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, signal-hook-registry 1.4.8, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.4, smol_str 0.2.2, smol_str 0.3.7, socket2 0.6.5, stable_deref_trait 1.2.1, stacker 0.1.25, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-properties 0.1.4, unicode-segmentation 1.13.3, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.29.0, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-encoder 0.261.0, wasm-encoder 0.262.0, wasmparser 0.261.0, wasmparser 0.262.0, wasmprinter 0.261.0, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
+addr2line 0.26.1, ahash 0.8.12, aligned 0.4.3, arbitrary 1.5.0, arrayvec 0.7.8, as-slice 0.2.1, asn1-rs 0.7.2, asn1-rs-derive 0.6.0, async-channel 2.5.0, async-executor 1.14.1, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, atomic-waker 1.1.2, autocfg 1.5.1, base64 0.13.1, base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 1.3.2, bitflags 2.13.2, bitstream-io 4.10.0, blocking 1.7.0, bumpalo 3.20.3, cc 1.10.0, cfg-if 1.0.5, concurrent-queue 2.5.0, core-foundation 0.10.1, core-foundation 0.9.4, core-foundation-sys 0.8.7, core-graphics 0.23.2, core-graphics-types 0.1.3, core_detect 1.0.0, coreaudio-rs 0.14.2, cpp_demangle 0.5.1, crossbeam-channel 0.5.17, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, data-url 0.3.2, debug-ignore 1.0.5, der-parser 10.0.0, displaydoc 0.2.7, either 1.19.0, embedded-io 0.4.0, embedded-io 0.6.1, ena 0.14.4, equivalent 1.0.3, errno 0.3.14, euclid 0.22.14, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, filetime 0.2.29, find-msvc-tools 0.1.15, flate2 1.1.10, fnv 1.0.7, fontique 0.12.0, form_urlencoded 1.2.2, futures-lite 2.6.1, gethostname 1.1.0, gif 0.14.2, gimli 0.33.0, glob 0.3.4, glow 0.17.0, gltf 1.4.1, gltf-derive 1.4.1, gltf-json 1.4.1, hash32 0.3.1, hashbrown 0.15.5, hashbrown 0.16.1, hashbrown 0.17.1, heapless 0.8.0, heck 0.5.0, hermit-abi 0.5.3, httparse 1.10.1, idna 1.1.0, idna_adapter 1.2.2, indexmap 2.14.2, itertools 0.14.0, itertools 0.15.0, jobserver 0.1.35, js-sys 0.3.106, khronos-egl 6.0.0, lalrpop-util 0.23.2, lazy_static 1.5.1, leb128fmt 0.1.0, libfuzzer-sys 0.4.13, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, lock_api 0.4.14, log 0.4.34, matrixmultiply 0.3.11, num-bigint 0.4.8, num-complex 0.4.6, num-derive 0.4.2, num-derive 0.5.1, num-integer 0.1.47, num-rational 0.4.2, num-traits 0.2.19, num_cpus 1.17.0, object 0.39.1, object 0.40.0, oid-registry 0.8.1, once_cell 1.21.4, openssl-probe 0.2.1, ordered-stream 0.2.0, parking 2.2.1, parking_lot 0.12.5, parking_lot_core 0.9.12, parlance 0.1.1, percent-encoding 2.3.2, piper 0.2.5, pkg-config 0.3.34, plain 0.2.3, png 0.18.1, polling 3.11.0, pollster 0.4.0, pollster 1.0.1, postcard 1.1.3, primal-check 0.3.4, rawpointer 0.2.1, rayon 1.12.0, rayon-core 1.13.0, regex-automata 0.4.18, regex-lite 0.1.9, regex-syntax 0.8.11, renderdoc-sys 1.1.0, robust 1.2.0, roxmltree 0.21.2, rtrb 0.3.5, rustc-demangle 0.1.28, rustc-hash 1.1.0, rustc_version 0.4.1, rusticata-macros 4.1.0, rustix 0.38.44, rustix 1.1.5, rustls 0.23.46, rustls-native-certs 0.8.5, scoped-tls 1.0.1, scopeguard 1.2.0, security-framework 3.7.0, security-framework-sys 2.17.0, sfv 0.15.0, signal-hook-registry 1.4.8, simd_cesu8 1.2.0, simplecss 0.2.2, smallvec 1.16.4, smol_str 0.2.2, smol_str 0.3.7, socket2 0.6.5, stable_deref_trait 1.2.1, stacker 0.1.25, svgtypes 0.16.1, swash 0.2.10, tar 0.4.46, tempfile 3.27.0, thread_local 1.1.10, ttf-parser 0.15.2, ttf-parser 0.25.1, tungstenite 0.30.0, unicode-bidi 0.3.18, unicode-properties 0.1.4, unicode-segmentation 1.13.3, unicode-width 0.2.2, unicode-xid 0.2.6, url 2.5.8, uuid 1.29.0, version_check 0.9.5, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-bindgen 0.2.129, wasm-bindgen-futures 0.4.79, wasm-bindgen-macro 0.2.129, wasm-bindgen-macro-support 0.2.129, wasm-bindgen-shared 0.2.129, wasm-encoder 0.261.0, wasm-encoder 0.262.0, wasmparser 0.261.0, wasmparser 0.262.0, wasmprinter 0.261.0, web-sys 0.3.106, weezl 0.1.12, wit-bindgen 0.57.1, x509-parser 0.18.1, xattr 1.6.1, yasna 0.6.0, yazi 0.2.1, zeno 0.3.3
 
 </details>
 
@@ -1135,12 +1152,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### LICENSE-MIT — 100 packages
+### LICENSE-MIT — 102 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-adler2 2.0.1, allocator-api2 0.2.21, anyhow 1.0.104, async-channel 2.5.0, async-executor 1.14.0, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atomic-waker 1.1.2, blocking 1.7.0, borsh 1.8.1, concurrent-queue 2.5.0, debug-ignore 1.0.5, displaydoc 0.2.7, endi 1.1.1, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, futures-lite 2.6.1, glam 0.30.10, glam 0.31.1, glam 0.32.1, glam 0.33.12, glamx 0.3.1, glow 0.17.0, hermit-abi 0.5.3, itoa 1.0.18, khronos-egl 6.0.0, lazy_static 1.5.1, leb128fmt 0.1.0, lexical 7.0.5, lexical-core 1.0.6, lexical-parse-float 1.0.6, lexical-parse-integer 1.0.6, lexical-util 1.0.7, lexical-write-float 1.0.6, lexical-write-integer 1.0.6, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, minimal-lexical 0.2.1, num_enum 0.7.6, num_enum_derive 0.7.6, once_cell 1.21.4, oneshot 0.2.1, ordered-stream 0.2.0, parking 2.2.1, paste 1.0.15, pastey 0.1.1, pin-project 1.1.13, pin-project-internal 1.1.13, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.15.0, portable-atomic-util 0.2.8, proc-macro-crate 3.5.0, proc-macro2 1.0.107, quote 1.0.47, ref-cast 1.0.27, ref-cast-impl 1.0.27, rtrb 0.3.5, rustc-hash 1.1.0, rustc-hash 2.1.3, rustix 0.38.44, rustix 1.1.5, rustversion 1.0.23, semver 1.0.28, seq-macro 0.3.6, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.154, serde_repr 0.1.21, simd_cesu8 1.2.0, smol_str 0.2.2, smol_str 0.3.7, syn 2.0.119, syn 3.0.9, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, typed-path 0.13.0, unicode-ident 1.0.27, utf8-zero 0.8.1, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-encoder 0.261.0, wasm-encoder 0.262.0, wasmparser 0.261.0, wasmparser 0.262.0, wasmprinter 0.261.0, wit-bindgen 0.57.1, x11-dl 2.21.0, zmij 1.0.23, zvariant_utils 4.2.0
+adler2 2.0.1, allocator-api2 0.2.21, anyhow 1.0.104, async-channel 2.5.0, async-executor 1.14.1, async-io 2.6.0, async-lock 3.4.2, async-process 2.5.0, async-recursion 1.2.0, async-signal 0.2.14, async-task 4.7.1, async-trait 0.1.92, atomic-waker 1.1.2, blocking 1.7.0, borsh 1.8.1, concurrent-queue 2.5.0, debug-ignore 1.0.5, displaydoc 0.2.7, endi 1.1.1, event-listener 5.4.2, event-listener-strategy 0.5.4, fastrand 2.5.0, futures-lite 2.6.1, glam 0.30.10, glam 0.31.1, glam 0.32.1, glam 0.33.12, glamx 0.3.1, glow 0.17.0, hermit-abi 0.5.3, itoa 1.0.18, khronos-egl 6.0.0, lazy_static 1.5.1, leb128fmt 0.1.0, lexical 7.0.5, lexical-core 1.0.6, lexical-parse-float 1.0.6, lexical-parse-integer 1.0.6, lexical-util 1.0.7, lexical-write-float 1.0.6, lexical-write-integer 1.0.6, linux-raw-sys 0.12.1, linux-raw-sys 0.4.15, minimal-lexical 0.2.1, num_enum 0.7.6, num_enum_derive 0.7.6, once_cell 1.21.4, oneshot 0.2.1, ordered-stream 0.2.0, parking 2.2.1, paste 1.0.15, pastey 0.1.1, pin-project 1.1.13, pin-project-internal 1.1.13, pin-project-lite 0.2.17, piper 0.2.5, polling 3.11.0, portable-atomic 1.15.0, portable-atomic-util 0.2.8, proc-macro-crate 3.5.0, proc-macro2 1.0.107, quote 1.0.47, ref-cast 1.0.27, ref-cast-impl 1.0.27, rtrb 0.3.5, rustc-hash 1.1.0, rustc-hash 2.1.3, rustix 0.38.44, rustix 1.1.5, rustversion 1.0.23, semver 1.0.28, seq-macro 0.3.6, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.154, serde_repr 0.1.21, simd_cesu8 1.2.0, smol_str 0.2.2, smol_str 0.3.7, syn 2.0.119, syn 3.0.9, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, typed-path 0.13.0, unicode-ident 1.0.27, utf8-zero 0.8.1, wasi 0.11.1+wasi-snapshot-preview1, wasip2 1.0.4+wasi-0.2.12, wasm-encoder 0.261.0, wasm-encoder 0.262.0, wasmparser 0.261.0, wasmparser 0.262.0, wasmprinter 0.261.0, wit-bindgen 0.57.1, x11-dl 2.21.0, zbus-lockstep 0.5.2, zbus-lockstep-macros 0.5.2, zmij 1.0.23, zvariant_utils 4.2.0
 
 </details>
 
@@ -1170,12 +1187,12 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### LICENSE — 42 packages
+### LICENSE — 45 packages
 
 <details>
 <summary>Which packages carry this exact file</summary>
 
-approx 0.5.1, as-raw-xcb-connection 1.0.1, audioadapter 5.0.0, audioadapter-buffers 5.2.0, audioadapter-sample 5.2.0, beul 1.0.0, codespan-reporting 0.13.1, cpal 0.18.2, encoding_rs 0.8.42, flacenc 0.5.1, hecs 0.11.2, hound 3.5.1, imgref 1.12.3, kurbo 0.13.1, lru-slab 0.1.3, memfd 0.6.6, multiversion_no_op 1.0.0, mundy 0.2.3, nohash-hasher 0.2.0, polycool 0.4.0, quinn 0.11.12, quinn-proto 0.11.19, quinn-udp 0.5.16, raw-window-metal 1.1.0, rustls-platform-verifier 0.7.1, self_cell 1.3.0, serde_arrays 0.2.0, siphasher 1.0.4, spade 2.15.1, static_assertions 1.1.0, sys-locale 0.3.2, tinyvec 1.13.3, unicode-linebreak 0.1.5, ureq 3.5.0, ureq-proto 0.6.5, utf8_iter 1.0.4, wasm-bindgen-rayon 1.3.0, x11rb 0.13.2, x11rb-protocol 0.13.2, zeroize 1.9.1, zune-core 0.5.3, zune-jpeg 0.5.15
+approx 0.5.1, as-raw-xcb-connection 1.0.1, atspi 0.29.0, atspi-common 0.13.0, atspi-proxies 0.13.0, audioadapter 5.0.0, audioadapter-buffers 5.2.0, audioadapter-sample 5.2.0, beul 1.0.0, codespan-reporting 0.13.1, cpal 0.18.2, encoding_rs 0.8.42, flacenc 0.5.1, hecs 0.11.2, hound 3.5.1, imgref 1.12.3, kurbo 0.13.1, lru-slab 0.1.3, memfd 0.6.6, multiversion_no_op 1.0.0, mundy 0.2.3, nohash-hasher 0.2.0, polycool 0.4.0, quinn 0.11.12, quinn-proto 0.11.19, quinn-udp 0.5.16, raw-window-metal 1.1.0, rustls-platform-verifier 0.7.1, self_cell 1.3.0, serde_arrays 0.2.0, siphasher 1.0.4, spade 2.15.1, static_assertions 1.1.0, sys-locale 0.3.2, tinyvec 1.13.3, unicode-linebreak 0.1.5, ureq 3.5.0, ureq-proto 0.6.5, utf8_iter 1.0.4, wasm-bindgen-rayon 1.3.0, x11rb 0.13.2, x11rb-protocol 0.13.2, zeroize 1.9.1, zune-core 0.5.3, zune-jpeg 0.5.15
 
 </details>
 
@@ -4134,6 +4151,43 @@ The Rand project includes code from the Rust project
 published under these same licenses.
 ```
 
+### LICENSE — 6 packages
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+zbus 5.19.0, zbus_macros 5.19.0, zbus_names 4.3.5, zbus_xml 5.2.1, zvariant 5.15.1, zvariant_derive 5.15.1
+
+</details>
+
+```
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+```
+
 ### LICENSE-MIT — 5 packages
 
 <details>
@@ -4489,43 +4543,6 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### LICENSE — 5 packages
-
-<details>
-<summary>Which packages carry this exact file</summary>
-
-zbus 5.19.0, zbus_macros 5.19.0, zbus_names 4.3.5, zvariant 5.15.1, zvariant_derive 5.15.1
-
-</details>
-
-```
-Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-```
-
 ### LICENSE-MIT — 4 packages
 
 <details>
@@ -4637,6 +4654,38 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+```
+
+### LICENSE — 4 packages
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+phf 0.14.0, phf_generator 0.14.0, phf_macros 0.14.0, phf_shared 0.14.0
+
+</details>
+
+```
+The MIT License (MIT)
+
+Copyright (c) 2014-2022 Steven Fackler, Yuki Okushi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ### LICENSE-MIT — 4 packages
@@ -4935,6 +4984,37 @@ license <LICENSE-MIT or http://opensource.org/licenses/MIT>,
 at your option. All files in the project carrying such
 notice may not be copied, modified, or distributed except
 according to those terms.
+```
+
+### LICENSE-MIT.txt — 3 packages
+
+<details>
+<summary>Which packages carry this exact file</summary>
+
+atspi 0.29.0, atspi-common 0.13.0, atspi-proxies 0.13.0
+
+</details>
+
+```
+Copyright (c) 2022 Tait Hoyem <tait@tait.tech>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 ```
 
 ### LICENSE-MIT — 3 packages

@@ -9,10 +9,11 @@ pub fn given(table: any, key: str) -> bool {
 }
 
 /// A call this SDK would not send. It logs which field was missing and
-/// answers nil, which is what a caller sees instead of a request id.
-pub fn missing(call: str, field: str) -> any {
-    log::error("gamend: {call} needs `{field}`");
-    nil
+/// answers an id whose reply is an `error` naming it, so an await resumes.
+pub fn missing(call: str, field: str) -> int {
+    let message = "gamend: {call} needs `{field}`";
+    log::error(message);
+    gamend::refuse(message)
 }
 
 /// `?a=1&b=2` for the keys an operation declares, in the order it declares
@@ -85,6 +86,8 @@ pub fn unpack(reply: any) -> any {
     if !ok(reply) {
         let message = if payload.has("error") {
             payload["error"].text()
+        } else if reply.has("error") {
+            reply["error"].text()
         } else {
             "gamend: the call answered " + status.text()
         };

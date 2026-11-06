@@ -9,8 +9,10 @@ mod func;
 mod hoist;
 mod host;
 mod intrinsics;
+mod lend;
 mod lower;
 mod optional;
+mod releases;
 mod rt;
 mod sections;
 mod stmt;
@@ -27,17 +29,32 @@ pub(crate) use checks::{errors, lints, unknown_type};
 pub(crate) use func::show;
 /// Where a module's static data starts: past the scratch space and the
 /// allocator's free lists. A linked script's units put theirs from here.
-#[cfg(any(jit, native, feature = "wasmi"))]
+#[cfg(any(
+    jit,
+    native,
+    feature = "wasmi",
+    all(target_arch = "wasm32", feature = "web")
+))]
 pub(crate) const DATA_START: u32 = DATA_BASE;
+/// The shadow stack a linked script's debug units share.
+#[cfg(any(
+    jit,
+    native,
+    feature = "wasmi",
+    all(target_arch = "wasm32", feature = "web")
+))]
+pub(crate) const SHADOW_STACK: u32 = rt::DEBUG_STACK;
 use func::{FnGen, LVal, Mode, R, err};
-use rt::{DATA_BASE, G_MEMORY_BASE, GLOBALS, HELPER_COUNT, Helpers, mem};
-use sections::{code_sections, export_section, host_global, memory_and_globals, table_sections};
+use rt::{DATA_BASE, G_MEMORY_BASE, HELPER_COUNT, Helpers};
+use sections::{code_sections, export_section, memory_and_globals, table_sections};
 use std::cell::RefCell;
 use std::collections::{BTreeSet, HashMap};
-use units::{UnitPlan, link_list, link_stubs, unit_imports};
+use units::{
+    AskedGlobals, UnitPlan, host_ctx_import, link_list, link_stubs, unit_imports, unit_tables,
+};
 use wasm_encoder::{
-    BlockType, ConstExpr, DataSection, EntityType, ExportKind, GlobalType, ImportSection,
-    Instruction as I, Module, TypeSection, ValType,
+    ConstExpr, DataSection, EntityType, ExportKind, GlobalType, ImportSection, Instruction as I,
+    Module, TypeSection, ValType,
 };
 
 /// A function of another unit, called through the link slots from `slot`:
@@ -167,9 +184,13 @@ pub(crate) struct Gen {
     pub host: HostApi,
     pub host_calls: Vec<HostSignature>,
     pub meter: bool,
+    /// A metered module's fuel.
+    pub fuel: u32,
     /// A profiled module's first global: the statement count, then the
     /// callees' share of the call running, then the table's address.
     pub prof_globals: Option<u32>,
+    /// A debug unit's index in its instance, which its shadow frames carry.
+    pub dbg_unit: Option<u32>,
     types: RefCell<(Vec<Signature>, HashMap<Signature, u32>)>,
     data: RefCell<(Vec<u8>, HashMap<String, u32>)>,
     dyns: RefCell<Dyn>,
@@ -303,6 +324,12 @@ impl Gen {
     }
     /// The index a call to `key` goes to: its own, or for a prelude function
     /// the one its first call gives it.
+    /// Whether function `key` borrows its heap parameters from its caller,
+    /// who releases them once it returns: a prelude function, and a map's
+    /// method, neither of which a host or a `fn` value calls.
+    pub(crate) fn lends_to(&self, key: &str) -> bool {
+        self.lazy.contains_key(key) || crate::maps::is_method(key)
+    }
     pub(crate) fn callee(&self, key: &str, sig: &Sig) -> u32 {
         if !self.lazy.contains_key(key) {
             return sig.idx;
@@ -343,114 +370,6 @@ impl Gen {
         owner
             .map(|o| self.vts(&Ty::Struct(o.clone())))
             .unwrap_or_default()
-    }
-
-    // dec for an array: release each element's heap fields, then its storage.
-    fn dec_array(&self, et: &Ty) -> FuncBody {
-        let esz = self.elem_size(et) as i32;
-        let heap: Vec<(u64, u32)> = self
-            .slots(et)
-            .into_iter()
-            .enumerate()
-            .filter_map(|(j, (_, h))| h.map(|h| (8 * j as u64, self.dec_fn(&h))))
-            .collect();
-        let mut drop = vec![];
-        if !heap.is_empty() {
-            drop.extend([
-                I::LocalGet(0),
-                I::I32Load(mem(12, 2)),
-                I::LocalSet(3),
-                I::Block(BlockType::Empty),
-                I::Loop(BlockType::Empty),
-            ]);
-            drop.extend([
-                I::LocalGet(2),
-                I::LocalGet(0),
-                I::I32Load(mem(4, 2)),
-                I::I32GeU,
-                I::BrIf(1),
-            ]);
-            for (off, f) in heap {
-                drop.extend([
-                    I::LocalGet(3),
-                    I::LocalGet(2),
-                    I::I32Const(esz),
-                    I::I32Mul,
-                    I::I32Add,
-                    I::I32Load(mem(off, 2)),
-                    I::Call(f),
-                ]);
-            }
-            drop.extend([
-                I::LocalGet(2),
-                I::I32Const(1),
-                I::I32Add,
-                I::LocalSet(2),
-                I::Br(0),
-                I::End,
-                I::End,
-            ]);
-        }
-        drop.extend([
-            I::LocalGet(0),
-            I::I32Load(mem(12, 2)),
-            I::If(BlockType::Empty),
-            I::LocalGet(0),
-            I::I32Load(mem(12, 2)),
-            I::Call(self.h.free),
-            I::End,
-        ]);
-        FuncBody {
-            locals: vec![ValType::I32; 3],
-            code: rt::dec_body(self.h, &drop),
-        }
-    }
-
-    // dec for a class object: release each heap field, then the object.
-    fn dec_class(&self, s: &str) -> FuncBody {
-        let mut drop = vec![];
-        for (j, (_, heap)) in self.object_slots(s).into_iter().enumerate() {
-            if let Some(h) = heap {
-                drop.extend([
-                    I::LocalGet(0),
-                    I::I32Load(mem(OBJ_HEADER + 8 * j as u64, 2)),
-                    I::Call(self.dec_fn(&h)),
-                ]);
-            }
-        }
-        FuncBody {
-            locals: vec![ValType::I32],
-            code: rt::dec_body(self.h, &drop),
-        }
-    }
-
-    // dec for an `any`: release what its cell points at, by its tag.
-    fn dec_any(&self) -> FuncBody {
-        use crate::anys::{LIST, MAP, STR};
-        let anys = self.dec_fn(&Ty::Array(Box::new(Ty::Any)));
-        let strs = self.dec_fn(&Ty::Array(Box::new(Ty::Str)));
-        let when = |tag: i32, then: &[I<'static>]| {
-            let mut c = vec![
-                I::LocalGet(2),
-                I::I32Const(tag),
-                I::I32Eq,
-                I::If(BlockType::Empty),
-            ];
-            c.extend(then.iter().cloned());
-            c.push(I::End);
-            c
-        };
-        let at = |off: u64, f: u32| [I::LocalGet(0), I::I32Load(mem(off, 2)), I::Call(f)];
-        let mut drop = vec![I::LocalGet(0), I::I32Load(mem(4, 2)), I::LocalSet(2)];
-        drop.extend(when(STR, &at(8, self.h.dec_str)));
-        drop.extend(when(LIST, &at(8, anys)));
-        let mut map = at(8, strs).to_vec();
-        map.extend(at(12, anys));
-        drop.extend(when(MAP, &map));
-        FuncBody {
-            locals: vec![ValType::I32; 3],
-            code: rt::dec_body(self.h, &drop),
-        }
     }
 }
 
@@ -544,12 +463,6 @@ fn import_sigs(
 // functions, then the release functions generated for each array type.
 fn layout(prog: &Program, options: &Options) -> R<Gen> {
     let debug = options.debug;
-    if options.unit && (debug || options.profile || options.meter || options.direct_imports) {
-        return err(
-            Pos::default(),
-            "internal: a unit is built without probes, counters or direct imports",
-        );
-    }
     check_structs(prog)?;
     check_types(prog)?;
     let structs: Structs = prog
@@ -595,6 +508,7 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         .map(|class| (class.clone(), options.path.clone()))
         .chain(prog.class_origin.iter().cloned())
         .collect();
+    let asked = AskedGlobals::of(options);
     let field_defaults = prog
         .structs
         .iter()
@@ -618,9 +532,9 @@ fn layout(prog: &Program, options: &Options) -> R<Gen> {
         host: options.host.clone(),
         host_calls,
         meter: options.meter,
-        prof_globals: options
-            .profile
-            .then_some(GLOBALS as u32 + u32::from(options.meter)),
+        fuel: asked.fuel,
+        prof_globals: asked.prof,
+        dbg_unit: asked.dbg_unit,
         types: RefCell::new((vec![], HashMap::new())),
         data: RefCell::new((vec![], HashMap::new())),
         dyns: RefCell::new(Dyn {
@@ -703,8 +617,13 @@ fn script_sigs(
     Ok(idx)
 }
 
-fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternInfo>, Vec<Import>) {
+fn imports(
+    g: &Gen,
+    prog: &Program,
+    options: &Options,
+) -> (ImportSection, Vec<ExternInfo>, Vec<Import>) {
     use ValType::{F64, I32, I64};
+    let debug = options.debug;
     let mut sec = ImportSection::new();
     let mut externs = vec![];
     let mut list = vec![];
@@ -770,7 +689,7 @@ fn imports(g: &Gen, prog: &Program, debug: bool) -> (ImportSection, Vec<ExternIn
         add(&mut sec, &name, p, r);
     }
     if g.unit {
-        unit_imports(&mut sec);
+        unit_imports(&mut sec, options);
     }
     (sec, externs, list)
 }
@@ -983,23 +902,24 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     let debug = options.debug;
     let g = layout(prog, options)?;
     let defaults = defaults(prog)?;
-    let (imports, externs, import_list) = imports(&g, prog, debug);
+    let (imports, externs, import_list) = imports(&g, prog, options);
     let mut out = emit_fns(&g, prog, debug, None)?;
     let dyns = emit_dyns(&g, &mut out)?;
     // A browser build calls the engine through its exports, never JavaScript.
     let direct = options.direct_imports && direct::applies(&import_list);
+    let host_ctx = AskedGlobals::of(options).host_ctx;
     let (imports, shift) = if direct {
-        direct::rewrite(&g, &import_list, &mut out.bodies, host_global(options))
+        direct_imports(&g, &import_list, &mut out.bodies, options)
     } else {
         (imports, 0)
     };
     let (funcs, code) = code_sections(&out.bodies);
     let (table, elements) = table_sections(&g, shift);
     let mut exports = export_section(&g, &out, &dyns, debug, shift);
-    if direct {
-        exports.export(words::HOST_CTX, ExportKind::Global, host_global(options));
+    if direct && !g.unit {
+        exports.export(words::HOST_CTX, ExportKind::Global, host_ctx);
     }
-    let data = g.data.borrow().0.clone();
+    let mut data = g.data.borrow().0.clone();
     let mut types = TypeSection::new();
     for (p, r) in &g.types.borrow().0 {
         types.ty().function(p.clone(), r.clone());
@@ -1018,6 +938,12 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         };
         globals.global(mutable, &ConstExpr::i32_const(0));
     }
+    let (breaks_at, rows_at) = if g.unit {
+        let rows = usize::from(options.profile) * out.func_names.len();
+        unit_tables(&mut data, g.probes.borrow().len(), rows)
+    } else {
+        (0, 0)
+    };
     let data_len = data.len() as u32;
     let mut ds = DataSection::new();
     let at = if g.unit {
@@ -1042,16 +968,7 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
     m.section(&code).section(&ds);
     let (by_key, by_owner) = lookups(&out.infos);
     let meta = Meta {
-        structs: prog
-            .structs
-            .iter()
-            .map(|(n, fs)| {
-                (
-                    n.clone(),
-                    fs.iter().map(|p| (p.name.clone(), p.ty.clone())).collect(),
-                )
-            })
-            .collect(),
+        structs: struct_fields(prog),
         classes: prog.classes.clone(),
         fns: out.infos,
         by_key,
@@ -1071,6 +988,8 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
             data_len,
             refs: g.fn_refs.borrow().len() as u32,
             links: link_list(&g, prog),
+            breaks_at,
+            rows_at,
         }),
     };
     Ok(Compiled {
@@ -1079,6 +998,34 @@ pub(crate) fn generate(prog: &Program, options: &Options) -> Result<Compiled, Er
         key: options.path.clone(),
         linked: vec![],
     })
+}
+
+// A direct module's imports, its functions moved past its entry points: a
+// unit's shared memory, table and globals after them, then its own id.
+fn direct_imports(
+    g: &Gen,
+    import_list: &[Import],
+    bodies: &mut Vec<(u32, FuncBody)>,
+    options: &Options,
+) -> (ImportSection, u32) {
+    let host_ctx = AskedGlobals::of(options).host_ctx;
+    let (mut sec, shift) = direct::rewrite(g, import_list, bodies, host_ctx);
+    if g.unit {
+        unit_imports(&mut sec, options);
+        host_ctx_import(&mut sec);
+    }
+    (sec, shift)
+}
+
+// Each struct's fields, by name and type.
+fn struct_fields(prog: &Program) -> Vec<(String, Vec<(String, Ty)>)> {
+    prog.structs
+        .iter()
+        .map(|(name, fields)| {
+            let fields = fields.iter().map(|f| (f.name.clone(), f.ty.clone()));
+            (name.clone(), fields.collect())
+        })
+        .collect()
 }
 
 pub(crate) type ByOwner = rustc_hash::FxHashMap<String, rustc_hash::FxHashMap<String, usize>>;
@@ -1113,6 +1060,7 @@ fn sync_fn(
     let mut fg = FnGen::new(g, p.len(), Mode::Normal { ret: f.ret.clone() });
     fg.prelude = crate::prelude::owns(&f.key()) || crate::maps::owns(&f.key());
     fg.module = crate::reach::module_of(&f.key()).to_string();
+    let lent = g.lends_to(&f.key());
     let mut slot = 0u32;
     if let Some(o) = &sig.owner {
         let n = g.slots(&Ty::Struct(o.clone())).len() as u32;
@@ -1131,6 +1079,8 @@ fn sync_fn(
         // A `&mut` value goes back to its caller, so this call never frees it.
         if prm.by_ref {
             fg.refs.push(lv.clone());
+        } else if lent && prm.ty.is_heap() {
+            fg.lent_slots.extend(&lv.slots);
         } else {
             fg.own(&lv);
         }

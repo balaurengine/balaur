@@ -8,11 +8,6 @@ pub class Fall {
     limp: bool,
 }
 
-pub struct Ax {
-    axis: any,
-    limits: [float],
-}
-
 const LIMP: float = 2.2;
 
 const UPRIGHT: float = 3.4;
@@ -27,7 +22,7 @@ impl Fall {
             influence: 0.0,
             thickness: 0.22,
             friction: 0.9,
-            axes: [Ax { axis: physics2d::AXIS_ROTATION, limits: [-0.7, 0.7] }],
+            axes: [physics2d::JointAxis { axis: physics2d::AXIS_ROTATION, limits: [-0.7, 0.7] }],
         });
     }
 

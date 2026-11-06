@@ -333,7 +333,8 @@ fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
     ];
     let now = live_state(state);
     if now != "" {
-        out.push(ui::Control { kind: "label", role: "chip", checked: true, text: "now {now}" });
+        // A chip held down that nothing clicks: the state the machine is in.
+        out.push(ui::Control { kind: "button", role: "chip", checked: true, interactive: false, focusable: false, text: "now {now}" });
     }
     out
 }
@@ -353,7 +354,7 @@ fn live_state(state: editor::State) -> str {
         return "";
     }
     let now = found.state_machine.current_state();
-    if now.kind() == "str" { now.as_str() } else { "" }
+    if now != nil { now.unwrap() } else { "" }
 }
 
 /// Every row the dock shows: the states, the new-state row, the transitions,

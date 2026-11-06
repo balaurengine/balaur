@@ -1,13 +1,13 @@
 name: All
 
-# The one entry point: the other four are reusable workflows, called from here
-# rather than each subscribing to pushes itself. Lint reads the code, test runs
-# it, docs checks both kinds of documentation, build produces the downloads.
+# The one entry point: every other workflow is reusable and called from here.
+# A push to main refreshes the nightly; a published release gets its files.
 on:
   push:
     branches: [main, master]
-    tags: ["v*"]
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:

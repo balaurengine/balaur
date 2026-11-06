@@ -40,7 +40,9 @@ fn close(a: f32, b: f32) -> bool {
 #[test]
 fn a_grid_lays_its_children_into_the_columns_its_track_list_names() {
     let grid = toml::toml! {
-        kind = "grid" grid_columns = "100 1fr" width = 300.0 gap = [10.0, 6.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "grid" width = 300.0 padding = 0.0 x = 0.0 y = 0.0
+        widget_grid = { grid_columns = "100 1fr" }
+        widget_layout = { gap = [10.0, 6.0] }
     };
     let (_dir, rects, _) = laid_out(
         &grid.into(),
@@ -72,8 +74,7 @@ fn a_grid_lays_its_children_into_the_columns_its_track_list_names() {
 
 #[test]
 fn a_grid_with_no_columns_named_draws_two_equal_ones() {
-    let grid =
-        toml::toml! { kind = "grid" width = 210.0 gap = [10.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let grid = toml::toml! { kind = "grid" width = 210.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [10.0, 0.0] } };
     let (_dir, rects, _) = laid_out(&grid.into(), &[block(0.0, 20.0), block(0.0, 20.0)]);
     assert!(
         close(rects[0].width(), 100.0) && close(rects[1].width(), 100.0),
@@ -84,11 +85,14 @@ fn a_grid_with_no_columns_named_draws_two_equal_ones() {
 #[test]
 fn a_child_names_a_grid_area_and_takes_its_cells() {
     let grid = toml::toml! {
-        kind = "grid" grid_columns = "50 50" grid_rows = "20 20" areas = ["head head", "side main"]
-        gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "grid" padding = 0.0 x = 0.0 y = 0.0
+        widget_grid = { grid_columns = "50 50", grid_rows = "20 20", areas = ["head head", "side main"] }
+        widget_layout = { gap = [0.0, 0.0] }
     };
-    let main = toml::toml! { kind = "label" text = "" row = "main" column = "main" };
-    let head = toml::toml! { kind = "label" text = "" row = "head" column = "head" };
+    let main =
+        toml::toml! { kind = "label" text = "" widget_child = { row = "main", column = "main" } };
+    let head =
+        toml::toml! { kind = "label" text = "" widget_child = { row = "head", column = "head" } };
     let (_dir, rects, _) = laid_out(&grid.into(), &[main.into(), head.into()]);
     assert!(
         close(rects[0].min.x, 50.0) && close(rects[0].min.y, 20.0),
@@ -105,9 +109,11 @@ fn a_child_names_a_grid_area_and_takes_its_cells() {
 #[test]
 fn a_child_placed_by_line_and_span_lands_there() {
     let grid = toml::toml! {
-        kind = "grid" grid_columns = "repeat(3, 40)" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "grid" padding = 0.0 x = 0.0 y = 0.0
+        widget_grid = { grid_columns = "repeat(3, 40)" }
+        widget_layout = { gap = [0.0, 0.0] }
     };
-    let wide = toml::toml! { kind = "label" text = "" column = "2 / span 2" height = 10.0 };
+    let wide = toml::toml! { kind = "label" text = "" height = 10.0 widget_child = { column = "2 / span 2" } };
     let (_dir, rects, _) = laid_out(&grid.into(), &[wide.into()]);
     assert!(
         close(rects[0].min.x, 40.0) && close(rects[0].width(), 80.0),
@@ -119,8 +125,9 @@ fn a_child_placed_by_line_and_span_lands_there() {
 #[test]
 fn a_column_flow_fills_down_before_across() {
     let grid = toml::toml! {
-        kind = "grid" grid_columns = "30" grid_rows = "20 20" auto_flow = "column" auto_columns = "30"
-        gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "grid" padding = 0.0 x = 0.0 y = 0.0
+        widget_grid = { grid_columns = "30", grid_rows = "20 20", auto_flow = "column", auto_columns = "30" }
+        widget_layout = { gap = [0.0, 0.0] }
     };
     let (_dir, rects, _) = laid_out(
         &grid.into(),
@@ -144,8 +151,8 @@ fn a_track_list_that_does_not_read_is_refused_naming_its_key() {
     let err = balaur::components::add(
         &app.engine,
         node,
-        "widget",
-        Some(&toml::toml! { kind = "grid" grid_columns = "1fr wide" }.into()),
+        "widget_grid",
+        Some(&toml::toml! { grid_columns = "1fr wide" }.into()),
     )
     .expect_err("a word that is no track");
     assert!(format!("{err:#}").contains("grid_columns"), "{err:#}");
@@ -159,8 +166,8 @@ fn a_gap_written_as_one_number_is_refused() {
     let err = balaur::components::add(
         &app.engine,
         node,
-        "widget",
-        Some(&toml::toml! { kind = "row" gap = 8.0 }.into()),
+        "widget_layout",
+        Some(&toml::toml! { gap = 8.0 }.into()),
     )
     .expect_err("a number where a pair goes");
     assert!(format!("{err:#}").contains("gap"), "{err:#}");
@@ -168,8 +175,7 @@ fn a_gap_written_as_one_number_is_refused() {
 
 #[test]
 fn a_flow_spaces_its_children_across_and_its_lines_down_by_the_gap_pair() {
-    let flow =
-        toml::toml! { kind = "flow" width = 100.0 gap = [4.0, 12.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let flow = toml::toml! { kind = "flow" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [4.0, 12.0] } };
     let (_dir, rects, _) = laid_out(
         &flow.into(),
         &[block(48.0, 10.0), block(48.0, 10.0), block(48.0, 10.0)],
@@ -186,7 +192,7 @@ fn a_flow_spaces_its_children_across_and_its_lines_down_by_the_gap_pair() {
 
 #[test]
 fn an_absolute_child_sits_at_its_inset_and_takes_no_room() {
-    let column = toml::toml! { kind = "column" width = 200.0 height = 100.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let column = toml::toml! { kind = "column" width = 200.0 height = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } };
     let pinned = toml::toml! {
         kind = "label" text = "" width = 30.0 height = 10.0 absolute = true inset = [-1.0, 5.0, 8.0, -1.0]
     };
@@ -205,8 +211,7 @@ fn an_absolute_child_sits_at_its_inset_and_takes_no_room() {
 
 #[test]
 fn max_width_caps_a_child_that_grows() {
-    let row =
-        toml::toml! { kind = "row" width = 300.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let row = toml::toml! { kind = "row" width = 300.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } };
     let capped =
         toml::toml! { kind = "label" text = "" grow = 1.0 max_width = 120.0 height = 10.0 };
     let (_dir, rects, _) = laid_out(&row.into(), &[capped.into()]);
@@ -215,7 +220,7 @@ fn max_width_caps_a_child_that_grows() {
 
 #[test]
 fn an_aspect_ratio_sets_the_height_a_width_leaves_open() {
-    let column = toml::toml! { kind = "column" gap = [0.0, 0.0] padding = 0.0 align_items = "start" x = 0.0 y = 0.0 };
+    let column = toml::toml! { kind = "column" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0], align_items = "start" } };
     let shaped = toml::toml! { kind = "label" text = "" width = 120.0 aspect_ratio = 2.0 };
     let (_dir, rects, _) = laid_out(&column.into(), &[shaped.into()]);
     assert!(close(rects[0].height(), 60.0), "{:?}", rects[0]);
@@ -223,7 +228,7 @@ fn an_aspect_ratio_sets_the_height_a_width_leaves_open() {
 
 #[test]
 fn a_margin_keeps_room_round_a_child() {
-    let column = toml::toml! { kind = "column" gap = [0.0, 0.0] padding = 0.0 align_items = "start" x = 0.0 y = 0.0 };
+    let column = toml::toml! { kind = "column" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0], align_items = "start" } };
     let spaced = toml::toml! { kind = "label" text = "" width = 40.0 height = 10.0 margin = [6.0, 9.0, 0.0, 3.0] };
     let (_dir, rects, whole) = laid_out(&column.into(), &[spaced.into(), block(40.0, 10.0)]);
     assert!(
@@ -249,13 +254,13 @@ fn a_border_keeps_its_band_clear_and_the_stroke_is_painted_that_wide() {
     // what it draws.
     let column = add_widget(
         &app,
-        &toml::toml! { kind = "column" padding = 0.0 gap = [0.0, 0.0] x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "column" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } }.into(),
     );
     let row = add_child_widget(
         &app,
         column,
         "row",
-        &toml::toml! { kind = "row" stroke = "#ff0000" border = [4.0, 4.0, 4.0, 4.0] padding = 0.0 gap = [0.0, 0.0] align_items = "start" }.into(),
+        &toml::toml! { kind = "row" stroke = "#ff0000" border = [4.0, 4.0, 4.0, 4.0] padding = 0.0 widget_layout = { gap = [0.0, 0.0], align_items = "start" } }.into(),
     );
     let kid = add_child_widget(&app, row, "c", &block(20.0, 10.0));
     let ctx = egui::Context::default();
@@ -286,9 +291,10 @@ fn a_border_keeps_its_band_clear_and_the_stroke_is_painted_that_wide() {
 
 #[test]
 fn content_box_sizing_puts_the_padding_outside_the_stated_width() {
-    let column = toml::toml! { kind = "column" gap = [0.0, 0.0] padding = 0.0 align_items = "start" x = 0.0 y = 0.0 };
+    let column = toml::toml! { kind = "column" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0], align_items = "start" } };
     let boxed = toml::toml! {
-        kind = "row" width = 50.0 height = 10.0 padding = 5.0 box_sizing = "content"
+        kind = "row" width = 50.0 height = 10.0 padding = 5.0
+        widget_box = { box_sizing = "content" }
     };
     let (_dir, rects, _) = laid_out(&column.into(), &[boxed.into()]);
     assert!(close(rects[0].width(), 60.0), "{:?}", rects[0]);
@@ -296,7 +302,7 @@ fn content_box_sizing_puts_the_padding_outside_the_stated_width() {
 
 #[test]
 fn a_right_to_left_row_starts_at_its_right_edge() {
-    let row = toml::toml! { kind = "row" width = 200.0 direction = "right_to_left" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let row = toml::toml! { kind = "row" width = 200.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { direction = "right_to_left", gap = [0.0, 0.0] } };
     let (_dir, rects, _) = laid_out(&row.into(), &[block(30.0, 10.0), block(30.0, 10.0)]);
     assert!(
         close(rects[0].max.x, 200.0),
@@ -311,7 +317,9 @@ fn a_right_to_left_row_starts_at_its_right_edge() {
 #[test]
 fn overflow_scroll_keeps_the_scrollbar_width_clear() {
     let column = toml::toml! {
-        kind = "column" width = 100.0 overflow = "scroll" scrollbar_width = 12.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "column" width = 100.0 padding = 0.0 x = 0.0 y = 0.0
+        widget_box = { overflow = "scroll", scrollbar_width = 12.0 }
+        widget_layout = { gap = [0.0, 0.0] }
     };
     let (_dir, rects, _) = laid_out(&column.into(), &[block(0.0, 10.0)]);
     assert!(close(rects[0].width(), 88.0), "{:?}", rects[0]);
@@ -319,7 +327,7 @@ fn overflow_scroll_keeps_the_scrollbar_width_clear() {
 
 #[test]
 fn align_self_moves_one_child_off_its_parent_s_alignment() {
-    let column = toml::toml! { kind = "column" width = 100.0 align_items = "start" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let column = toml::toml! { kind = "column" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { align_items = "start", gap = [0.0, 0.0] } };
     let ended =
         toml::toml! { kind = "label" text = "" width = 20.0 height = 10.0 align_self = "end" };
     let (_dir, rects, _) = laid_out(&column.into(), &[block(20.0, 10.0), ended.into()]);
@@ -330,7 +338,8 @@ fn align_self_moves_one_child_off_its_parent_s_alignment() {
 #[test]
 fn align_content_centres_the_lines_a_flow_wrapped() {
     let flow = toml::toml! {
-        kind = "flow" width = 100.0 height = 100.0 align_content = "center" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "flow" width = 100.0 height = 100.0 padding = 0.0 x = 0.0 y = 0.0
+        widget_layout = { align_content = "center", gap = [0.0, 0.0] }
     };
     let (_dir, rects, _) = laid_out(&flow.into(), &[block(60.0, 10.0), block(60.0, 10.0)]);
     assert!(
@@ -343,7 +352,9 @@ fn align_content_centres_the_lines_a_flow_wrapped() {
 fn safe_align_keeps_an_overflowing_child_s_start_in_view() {
     let centred = |safe: bool| {
         let column = toml::toml! {
-            kind = "column" width = 50.0 align_items = "center" safe_align = safe gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+            kind = "column" width = 50.0 padding = 0.0 x = 0.0 y = 0.0
+            widget_layout = { align_items = "center", gap = [0.0, 0.0] }
+            widget_box = { safe_align = safe }
         };
         let (_dir, rects, _) = laid_out(&column.into(), &[block(80.0, 10.0)]);
         rects[0].min.x
@@ -354,8 +365,7 @@ fn safe_align_keeps_an_overflowing_child_s_start_in_view() {
 
 #[test]
 fn a_width_percent_takes_that_share_of_the_container() {
-    let row =
-        toml::toml! { kind = "row" width = 200.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let row = toml::toml! { kind = "row" width = 200.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } };
     let share = toml::toml! { kind = "label" text = "" width_percent = 25.0 height = 10.0 };
     let (_dir, rects, _) = laid_out(&row.into(), &[share.into()]);
     assert!(close(rects[0].width(), 50.0), "{:?}", rects[0]);
@@ -363,7 +373,7 @@ fn a_width_percent_takes_that_share_of_the_container() {
 
 #[test]
 fn a_reversed_row_lays_its_children_from_the_far_end() {
-    let row = toml::toml! { kind = "row" width = 100.0 reverse = true gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let row = toml::toml! { kind = "row" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { reverse = true, gap = [0.0, 0.0] } };
     let (_dir, rects, _) = laid_out(&row.into(), &[block(20.0, 10.0), block(30.0, 10.0)]);
     assert!(
         close(rects[0].max.x, 100.0) && close(rects[1].max.x, 80.0),
@@ -374,7 +384,7 @@ fn a_reversed_row_lays_its_children_from_the_far_end() {
 #[test]
 fn a_row_told_to_wrap_does_and_balance_evens_its_lines() {
     let row = |wrap: &str| {
-        let params = toml::toml! { kind = "row" width = 100.0 wrap_children = wrap gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+        let params = toml::toml! { kind = "row" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { wrap_children = wrap, gap = [0.0, 0.0] } };
         let four = [
             block(30.0, 10.0),
             block(30.0, 10.0),
@@ -404,7 +414,8 @@ fn a_row_told_to_wrap_does_and_balance_evens_its_lines() {
 #[test]
 fn min_lines_spreads_a_balanced_row_over_that_many_lines() {
     let row = toml::toml! {
-        kind = "row" width = 300.0 wrap_children = "balance" min_lines = 3 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0
+        kind = "row" width = 300.0 padding = 0.0 x = 0.0 y = 0.0
+        widget_layout = { wrap_children = "balance", min_lines = 3, gap = [0.0, 0.0] }
     };
     let (_dir, rects, _) = laid_out(
         &row.into(),
@@ -418,8 +429,7 @@ fn min_lines_spreads_a_balanced_row_over_that_many_lines() {
 
 #[test]
 fn basis_and_shrink_override_what_grow_derives() {
-    let row =
-        toml::toml! { kind = "row" width = 100.0 gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 };
+    let row = toml::toml! { kind = "row" width = 100.0 padding = 0.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 0.0] } };
     let squeezed = toml::toml! { kind = "label" text = "" basis = 80.0 shrink = 1.0 height = 10.0 };
     let held = toml::toml! { kind = "label" text = "" basis = 80.0 shrink = 0.0 height = 10.0 };
     let (_dir, rects, _) = laid_out(&row.into(), &[squeezed.into(), held.into()]);
@@ -438,20 +448,31 @@ fn every_layout_key_reads_back_as_it_was_written() {
     let (_dir, app) = app();
     let written = toml::toml! {
         kind = "grid" absolute = true max_width = 300.0 max_height = 200.0 aspect_ratio = 1.5
-        margin = [1.0, 2.0, 3.0, 4.0] border = [1.0, 1.0, 2.0, 2.0] box_sizing = "content"
-        direction = "right_to_left" overflow = "hidden" scrollbar_width = 6.0 contain = ["layout", "paint"]
-        align_self = "center" align_content = "between" safe_align = true width_percent = 50.0
-        height_percent = 40.0 wrap_children = "balance" min_lines = 2 basis = 10.0 shrink = 2.0
-        grid_columns = "100 1fr" grid_rows = "auto" auto_columns = "20" auto_rows = "30"
-        auto_flow = "column_dense" areas = ["a b"] row = "1 / 3" column = "span 2" gap = [3.0, 5.0]
+        margin = [1.0, 2.0, 3.0, 4.0] border = [1.0, 1.0, 2.0, 2.0]
+        align_self = "center" width_percent = 50.0
+        height_percent = 40.0 basis = 10.0 shrink = 2.0
+        widget_box = { box_sizing = "content", overflow = "hidden", scrollbar_width = 6.0, contain = ["layout", "paint"], safe_align = true }
+        widget_layout = { direction = "right_to_left", align_content = "between", wrap_children = "balance", min_lines = 2, gap = [3.0, 5.0] }
+        widget_grid = { grid_columns = "100 1fr", grid_rows = "auto", auto_columns = "20", auto_rows = "30", auto_flow = "column_dense", areas = ["a b"] }
+        widget_child = { row = "1 / 3", column = "span 2" }
     };
     let entity = add_widget(&app, &written.clone().into());
     for (key, value) in &written {
-        assert_eq!(
-            &property(&app, entity, key),
-            value,
-            "`{key}` came back changed"
-        );
+        let Some(rows) = value.as_table().filter(|_| key.starts_with("widget_")) else {
+            assert_eq!(
+                &property(&app, entity, key),
+                value,
+                "`{key}` came back changed"
+            );
+            continue;
+        };
+        for (row, value) in rows {
+            assert_eq!(
+                &beside_property(&app, entity, key, row),
+                value,
+                "`{key}.{row}` came back changed"
+            );
+        }
     }
 }
 
@@ -460,7 +481,7 @@ fn a_panel_s_caption_keeps_its_children_below_it() {
     let (_dir, app) = app();
     let panel = add_widget(
         &app,
-        &toml::toml! { kind = "panel" text = "Caption" padding = 6.0 gap = [0.0, 4.0] x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "panel" text = "Caption" padding = 6.0 x = 0.0 y = 0.0 widget_layout = { gap = [0.0, 4.0] } }.into(),
     );
     let kid = add_child_widget(
         &app,
@@ -488,7 +509,7 @@ fn a_panel_s_caption_sits_at_its_top_in_a_centred_row() {
     let (_dir, app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" align_items = "center" gap = [12.0, 12.0] x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 widget_layout = { align_items = "center", gap = [12.0, 12.0] } }
             .into(),
     );
     add_child_widget(
@@ -501,7 +522,7 @@ fn a_panel_s_caption_sits_at_its_top_in_a_centred_row() {
         &app,
         row,
         "p",
-        &toml::toml! { kind = "panel" text = "Caption" padding = 6.0 gap = [4.0, 4.0] }.into(),
+        &toml::toml! { kind = "panel" text = "Caption" padding = 6.0 widget_layout = { gap = [4.0, 4.0] } }.into(),
     );
     let kid = add_child_widget(
         &app,
@@ -534,13 +555,14 @@ fn a_list_in_a_row_still_runs_its_rows_down() {
     let (_dir, app) = app();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" align_items = "center" x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "row" x = 0.0 y = 0.0 widget_layout = { align_items = "center" } }
+            .into(),
     );
     add_child_widget(
         &app,
         row,
         "l",
-        &toml::toml! { kind = "list" items = [{ label = "first" }, { label = "second" }, { label = "third" }] width = 160.0 height = 120.0 }
+        &toml::toml! { kind = "list" width = 160.0 height = 120.0 widget_rows = { items = [{ label = "first" }, { label = "second" }, { label = "third" }] } }
             .into(),
     );
     let ctx = egui::Context::default();
@@ -568,7 +590,7 @@ fn themed_row(roles: &str, children: &[toml::Value]) -> (Vec<egui::Rect>, egui::
     .unwrap();
     let row = add_widget(
         &app,
-        &toml::toml! { kind = "row" theme = "themes/t.toml" align_items = "start" gap = [0.0, 0.0] padding = 0.0 x = 0.0 y = 0.0 }
+        &toml::toml! { kind = "row" theme = "themes/t.toml" padding = 0.0 x = 0.0 y = 0.0 widget_layout = { align_items = "start", gap = [0.0, 0.0] } }
             .into(),
     );
     let kids: Vec<Entity> = children

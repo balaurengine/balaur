@@ -5,18 +5,19 @@
 // Hooks: one function per operation, `hooks::<name>` once a
 // script says `use addons::gamend::hooks;`.
 //
-// A call takes the path's own parameters, then `params` for the request
-// body and `options` for the query where the operation has them; either
-// may be left out when the call has nothing to put in it. It answers the
-// id `gamend::rest` answers, to await with `task::wait`. With a path
-// parameter or a required field left out it sends nothing, logs which,
-// and answers nil.
+// A call takes the path's own parameters as text (`reply["id"].text()`
+// for an id a reply holds), then `params` for the request body and
+// `options` for the query where the operation has them; either may be
+// left out when the call has nothing to put in it. It answers the id
+// `gamend::rest` answers, to await with `task::wait`. With a path
+// parameter empty or a required field left out it sends nothing and
+// logs which, and the id answers an `error` naming it.
 
 use core;
 
 /// Invoke a hook function
 /// `POST /api/v1/hooks/call`
-pub fn call_hook(params: any) -> any {
+pub fn call_hook(params: any) -> int {
     if !core::given(params, "plugin") {
         return core::missing("gamend::hooks::call_hook", "plugin");
     }
@@ -28,7 +29,7 @@ pub fn call_hook(params: any) -> any {
 
 /// List available hook functions
 /// `GET /api/v1/hooks`
-pub fn list_hooks(options: any) -> any {
+pub fn list_hooks(options: any) -> int {
     let query = core::query(options, ["page", "page_size"]);
     gamend::rest("GET", "/api/v1/hooks{query}")
 }

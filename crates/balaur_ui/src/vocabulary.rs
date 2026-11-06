@@ -34,7 +34,6 @@ pub(crate) mod words {
     pub(crate) const CODE: &str = "code";
     pub(crate) const TABLE: &str = "table";
     pub(crate) const TOAST: &str = "toast";
-    pub(crate) const INSPECTOR: &str = "inspector";
     /// The widget kinds, in the order the picker offers them.
     pub(crate) const WIDGET_KINDS: &[&str] = &[
         LABEL,
@@ -55,7 +54,6 @@ pub(crate) mod words {
         LIST,
         TREE,
         TABLE,
-        INSPECTOR,
         SLIDER,
         NUMBER_FIELD,
         PROGRESS_BAR,
@@ -407,7 +405,6 @@ pub(crate) mod words {
 pub(crate) mod keys {
     /// Which page a `tabs` widget shows.
     pub(crate) const CURRENT_PAGE: &str = "current_page";
-    pub(crate) const ALIGN_ITEMS: &str = "align_items";
     /// A `fold`'s theme: the picture its header draws for the arrow, and the
     /// frame around what it shows while open.
     pub(crate) const ARROW: &str = "arrow";
@@ -422,8 +419,6 @@ pub(crate) mod keys {
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const CHECKED: &str = "checked";
-    pub(crate) const RADIO_GROUP: &str = "radio_group";
-    pub(crate) const TOGGLE: &str = "toggle";
     pub(crate) const PICKED_COLOR: &str = "picked_color";
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
@@ -444,11 +439,8 @@ pub(crate) mod keys {
     pub(crate) const GAP: &str = "gap";
     pub(crate) const GROW: &str = "grow";
     pub(crate) const GUTTER_COLOR: &str = "gutter_color";
-    pub(crate) const SPLITTER_WIDTH: &str = "splitter_width";
     pub(crate) const HEIGHT: &str = "height";
-    pub(crate) const ICON: &str = "icon";
     pub(crate) const ICON_COLOR: &str = "icon_color";
-    pub(crate) const ICON_SIZE: &str = "icon_size";
     pub(crate) const IMAGE: &str = "image";
     pub(crate) const INSET: &str = "inset";
     pub(crate) const SYNTAX_COMMENT: &str = "syntax_comment";
@@ -458,18 +450,9 @@ pub(crate) mod keys {
     pub(crate) const SYNTAX_PUNCTUATION: &str = "syntax_punctuation";
     pub(crate) const SYNTAX_STRING: &str = "syntax_string";
     pub(crate) const SYNTAX_TYPE: &str = "syntax_type";
-    pub(crate) const KEEP_OPEN: &str = "keep_open";
-    pub(crate) const JUSTIFY: &str = "justify";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const WHOLE_WINDOW: &str = "whole_window";
-    pub(crate) const TEXT_BACKGROUND: &str = "text_background";
     pub(crate) const TEXT_STYLE: &str = "text_style";
-    pub(crate) const LINE_BREAK: &str = "line_break";
-    pub(crate) const TRUNCATE_AT: &str = "truncate_at";
-    pub(crate) const MAX_LINES: &str = "max_lines";
-    pub(crate) const TAB_WIDTH: &str = "tab_width";
-    pub(crate) const MARKUP: &str = "markup";
-    pub(crate) const AXIS: &str = "axis";
     pub(crate) const MAX_HEIGHT: &str = "max_height";
     pub(crate) const MAX_WIDTH: &str = "max_width";
     pub(crate) const HIDE_NARROWER: &str = "hide_narrower";
@@ -480,27 +463,13 @@ pub(crate) mod keys {
     pub(crate) const MIN_WIDTH: &str = "min_width";
     pub(crate) const ON_CHANGE: &str = "on_change";
     pub(crate) const ON_CLICK: &str = "on_click";
-    pub(crate) const ON_LINK: &str = "on_link";
     pub(crate) const ON_FOCUS: &str = "on_focus";
     pub(crate) const ON_DOUBLE_CLICK: &str = "on_double_click";
     pub(crate) const ON_BLUR: &str = "on_blur";
-    pub(crate) const ON_COMMIT: &str = "on_commit";
-    pub(crate) const ON_CARET: &str = "on_caret";
-    pub(crate) const ON_ACTIVATE: &str = "on_activate";
-    pub(crate) const ON_FOLD: &str = "on_fold";
-    pub(crate) const ON_OPENED: &str = "on_opened";
-    pub(crate) const ON_CLOSED: &str = "on_closed";
-    pub(crate) const ON_SCROLLED: &str = "on_scrolled";
-    pub(crate) const ON_CLOSE_REQUEST: &str = "on_close_request";
-    pub(crate) const ON_SUBMIT: &str = "on_submit";
     pub(crate) const OPEN: &str = "open";
-    pub(crate) const OPTIONS: &str = "options";
-    pub(crate) const ITEMS: &str = "items";
     pub(crate) const PADDING: &str = "padding";
     pub(crate) const PADDING_X: &str = "padding_x";
     pub(crate) const PADDING_Y: &str = "padding_y";
-    pub(crate) const PLACEHOLDER: &str = "placeholder";
-    pub(crate) const PREFIX: &str = "prefix";
     pub(crate) const PROBLEM_COLOR: &str = "problem_color";
     pub(crate) const CORNER_RADIUS: &str = "corner_radius";
     /// Whether an overlay answers the pointer. Off for one that is read over
@@ -510,9 +479,6 @@ pub(crate) mod keys {
     pub(crate) const ROLE: &str = "role";
     /// The row a `fold` event names.
     pub(crate) const ROW: &str = "row";
-    pub(crate) const ROW_HEIGHT: &str = "row_height";
-    pub(crate) const TITLE_BAR: &str = "title_bar";
-    pub(crate) const HEADER: &str = "header";
     pub(crate) const REVERSE: &str = "reverse";
     /// The mark a `mark` event names, beside its `row`.
     pub(crate) const MARK: &str = "mark";
@@ -535,16 +501,10 @@ pub(crate) mod keys {
     pub(crate) const SECOND: &str = "second";
     pub(crate) const DISTANCE: &str = "distance";
     pub(crate) const VISION: &str = "vision";
-    pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";
-    pub(crate) const MULTI_SELECT: &str = "multi_select";
-    pub(crate) const SHORTCUT: &str = "shortcut";
-    pub(crate) const WHILE_TYPING: &str = "while_typing";
-    pub(crate) const TAKES_TYPING: &str = "takes_typing";
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
-    pub(crate) const SUFFIX: &str = "suffix";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_ALIGN: &str = "text_align";
     pub(crate) const TEXT_COLOR: &str = "text_color";
@@ -552,14 +512,14 @@ pub(crate) mod keys {
     pub(crate) const THEME: &str = "theme";
     pub(crate) const TOOLTIP: &str = "tooltip";
     pub(crate) const CURSOR: &str = "cursor";
-    pub(crate) const TRAILING: &str = "trailing";
     pub(crate) const ICON_FILL: &str = "icon_fill";
-    pub(crate) const TRUNCATE: &str = "truncate";
     pub(crate) const VALUE: &str = "value";
+    pub(crate) const SCROLL_OFFSET: &str = "scroll_offset";
+    pub(crate) const WIDTHS: &str = "widths";
+    pub(crate) const SORT: &str = "sort";
     pub(crate) const SAFE_AREA: &str = "safe_area";
     pub(crate) const WARNING_COLOR: &str = "warning_color";
     pub(crate) const WIDTH: &str = "width";
-    pub(crate) const WRAP: &str = "wrap";
     pub(crate) const X: &str = "x";
     pub(crate) const Y: &str = "y";
 
@@ -568,34 +528,20 @@ pub(crate) mod keys {
     pub(crate) const ASPECT_RATIO: &str = "aspect_ratio";
     pub(crate) const MARGIN: &str = "margin";
     pub(crate) const BORDER: &str = "border";
-    pub(crate) const BOX_SIZING: &str = "box_sizing";
-    pub(crate) const DIRECTION: &str = "direction";
-    pub(crate) const OVERFLOW: &str = "overflow";
-    pub(crate) const SCROLLBAR_WIDTH: &str = "scrollbar_width";
-    pub(crate) const CONTAIN: &str = "contain";
     pub(crate) const ALIGN_SELF: &str = "align_self";
-    pub(crate) const ALIGN_CONTENT: &str = "align_content";
-    pub(crate) const SAFE_ALIGN: &str = "safe_align";
     pub(crate) const WIDTH_PERCENT: &str = "width_percent";
     pub(crate) const HEIGHT_PERCENT: &str = "height_percent";
-    pub(crate) const WRAP_CHILDREN: &str = "wrap_children";
-    pub(crate) const MIN_LINES: &str = "min_lines";
     pub(crate) const BASIS: &str = "basis";
     pub(crate) const SHRINK: &str = "shrink";
     pub(crate) const GRID_COLUMNS: &str = "grid_columns";
     pub(crate) const GRID_ROWS: &str = "grid_rows";
     pub(crate) const AUTO_COLUMNS: &str = "auto_columns";
     pub(crate) const AUTO_ROWS: &str = "auto_rows";
-    pub(crate) const AUTO_FLOW: &str = "auto_flow";
     pub(crate) const AREAS: &str = "areas";
     /// A grid child's column placement, beside its `row`.
     pub(crate) const COLUMN: &str = "column";
 
     // What the egui widget behind a kind takes.
-    pub(crate) const SENSE: &str = "sense";
-    pub(crate) const SHOW_TOOLTIP_WHEN_ELIDED: &str = "show_tooltip_when_elided";
-    pub(crate) const INDETERMINATE: &str = "indeterminate";
-    pub(crate) const DRAG_SPEED: &str = "drag_speed";
     /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";
     pub(crate) const CONSTRAIN: &str = "constrain";
@@ -620,60 +566,10 @@ pub(crate) mod pool {
     /// The roles a row wears where its spec names none.
     pub(crate) const TEXT_LABEL: &str = "text_label";
     pub(crate) const LAYOUT_CELLS: &str = "layout_cells";
-}
-
-/// What an `inspector` reads off a property's spec, the datatypes it draws,
-/// and what its `change` event carries.
-pub(crate) mod inspect {
-    pub(crate) const TYPE: &str = "type";
-    pub(crate) const DEFAULT: &str = "default";
-    pub(crate) const MIN: &str = "min";
-    pub(crate) const MAX: &str = "max";
-    pub(crate) const STEP: &str = "step";
-    pub(crate) const UNIT: &str = "unit";
-    pub(crate) const DESCRIPTION: &str = "description";
-    pub(crate) const READONLY: &str = "readonly";
-    pub(crate) const OPTIONS: &str = "options";
-    pub(crate) const ASSET: &str = "asset";
-    pub(crate) const OF: &str = "of";
-    pub(crate) const FIELDS: &str = "fields";
-    pub(crate) const KEY: &str = "key";
-    pub(crate) const CLASS: &str = "class";
-    pub(crate) const DECIMALS: &str = "decimals";
-    pub(crate) const DEGREES: &str = "degrees";
-
-    pub(crate) const FLOAT: &str = "float";
-    pub(crate) const INT: &str = "int";
-    pub(crate) const BOOL: &str = "bool";
-    pub(crate) const ENUM: &str = "enum";
-    pub(crate) const VEC2: &str = "vec2";
-    pub(crate) const VEC3: &str = "vec3";
-    pub(crate) const VEC4: &str = "vec4";
-    pub(crate) const COLOR: &str = "color";
-    pub(crate) const FLAGS: &str = "flags";
-    pub(crate) const LIST: &str = "list";
-    pub(crate) const MAP: &str = "map";
-    pub(crate) const RECORD: &str = "record";
-
-    /// What a `change` event's table holds: the property, the steps into
-    /// its value, the value now there, and a verb in place of a value.
-    pub(crate) const PROPERTY: &str = "property";
-    pub(crate) const PATH: &str = "path";
-    pub(crate) const VALUE: &str = "value";
-    pub(crate) const VERB: &str = "verb";
-    /// An inline asset written to a file, and a file copied inline.
-    pub(crate) const SAVE: &str = "save";
-    pub(crate) const EMBED: &str = "embed";
-
-    /// The theme entries a row's parts wear.
-    pub(crate) const CHIP: &str = "chip";
-    pub(crate) const CHIP_FLAG: &str = "chip_flag";
-    pub(crate) const INPUT: &str = "input";
-    pub(crate) const TEXT_CAPTION: &str = "text_caption";
-    pub(crate) const TEXT_CODE_QUIET: &str = "text_code_quiet";
-    pub(crate) const TEXT_HINT: &str = "text_hint";
-    pub(crate) const ACTION_DOCK_SECONDARY: &str = "action_dock_secondary";
-    pub(crate) const LAYOUT_ACTIONS: &str = "layout_actions";
+    /// A row placed at a height of its own in a host laid out by hand.
+    pub(crate) const TOP: &str = "y";
+    /// Where a row keeps its controls, from the row.
+    pub(crate) const CELLS_PATH: &str = "H/C";
 }
 
 /// The state tables a theme entry holds, by CSS's words. `checked` answers

@@ -8,6 +8,7 @@
 //! The buffer is process-global because the subscriber is process-global.
 
 use crate::time::Instant;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Write as _;
 use std::sync::Mutex;
@@ -55,6 +56,13 @@ struct Buffer {
 }
 
 static BUFFER: Mutex<Option<Buffer>> = Mutex::new(None);
+
+thread_local! {
+    /// What this thread logged since a test asked, apart from the ring: the
+    /// tests of one binary share the ring, and another's lines can push a
+    /// test's own out of it before it reads them.
+    static HEARD: RefCell<Option<Vec<LogEntry>>> = const { RefCell::new(None) };
+}
 
 /// Lock the buffer, recovering from poisoning.
 ///
@@ -119,6 +127,11 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
                 fields: visitor.fields,
             };
             file::append(&entry);
+            HEARD.with(|heard| {
+                if let Some(heard) = heard.borrow_mut().as_mut() {
+                    heard.push(entry.clone());
+                }
+            });
             buffer.entries.push_back(entry);
         }
         // Outside the lock: the wake may log, and this layer would take it again.
@@ -311,8 +324,10 @@ mod logcat {
     }
 }
 
-/// Capture only, without stderr output. For tests.
+/// Capture only, without stderr output, and what the calling thread logs
+/// kept for [`heard`] too. For tests.
 pub fn capture_for_test() {
+    HEARD.with(|heard| heard.borrow_mut().get_or_insert_with(Vec::new).clear());
     open_buffer();
     // wasmtime's `log::trace!` lines, a few per script call, would fill the
     // ring before a test reads it.
@@ -375,16 +390,27 @@ pub fn total() -> u64 {
     lock_buffer().as_ref().map_or(0, |buffer| buffer.total)
 }
 
+/// Empties the ring, and what this thread logged since [`capture_for_test`].
 pub fn clear() {
     if let Some(buffer) = lock_buffer().as_mut() {
         buffer.entries.clear();
     }
+    HEARD.with(|heard| {
+        if let Some(heard) = heard.borrow_mut().as_mut() {
+            heard.clear();
+        }
+    });
+}
+
+/// What this thread logged since it called [`capture_for_test`] or [`clear`],
+/// oldest first, whatever other threads logged meanwhile.
+pub fn heard() -> Vec<LogEntry> {
+    HEARD.with(|heard| heard.borrow().clone().unwrap_or_default())
 }
 
 /// Whether this thread is reporting `key` under `site` for the first time. A
 /// problem hit every frame is logged once, not sixty times a second.
 pub fn first_time(site: &'static str, key: &str) -> bool {
-    use std::cell::RefCell;
     use std::collections::{HashMap, HashSet};
     thread_local! {
         static SAID: RefCell<HashMap<&'static str, HashSet<String>>> = RefCell::new(HashMap::new());

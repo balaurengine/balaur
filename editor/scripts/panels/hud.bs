@@ -1,15 +1,18 @@
 // The HUD's one script: the axes, the zoom and the folded bottom dock's
 // handle along the scene's foot, shown and read as the Editor says.
 
+use editor;
+
 pub class Hud {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Hud {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "stage_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "stage_changed", source);
     }
 
     pub fn on_stage_changed(_change: any) {
@@ -17,46 +20,43 @@ impl Hud {
     }
 
     pub fn zoom_out() {
-        self.editor.call("stage_verb", "zoom_out");
+        self.editor.unwrap().stage_verb("zoom_out");
     }
 
     pub fn zoom_in() {
-        self.editor.call("stage_verb", "zoom_in");
+        self.editor.unwrap().stage_verb("zoom_in");
     }
 
     pub fn open_bottom() {
-        self.editor.call("stage_verb", "open_bottom");
+        self.editor.unwrap().stage_verb("open_bottom");
     }
 
     fn refresh() {
-        let view = self.editor.call("hud_view");
-        if !(view.kind() == "map") {
-            return;
-        }
-        self.node.set_visible(view["shown"].as_bool());
-        self.node.widget.height = view["height"].as_float();
-        self.node.patch_component("widget", { "inset": view["inset"] });
-        if !view["shown"].as_bool() {
+        let view = self.editor.unwrap().hud_view();
+        self.node.set_visible(view.shown);
+        self.node.widget.height = view.height;
+        self.node.patch_component("widget", { "inset": view.inset });
+        if !view.shown {
             return;
         }
         let axes = self.node.get_node("Axes/Row");
-        axes.get_node("X").patch_component("widget", { "text_color": view["x_ink"].as_str() });
-        axes.get_node("Y").patch_component("widget", { "text_color": view["y_ink"].as_str() });
+        axes.get_node("X").patch_component("widget", { "text_color": view.x_ink });
+        axes.get_node("Y").patch_component("widget", { "text_color": view.y_ink });
         let zoom = self.node.get_node("Zoom/Row");
         for name in ["Out", "In"] {
             let patched = zoom.get_node(name);
-            patched.widget.width = view["step"].as_float();
-            patched.widget.height = view["step"].as_float();
-            patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
+            patched.widget.width = view.step;
+            patched.widget.height = view.step;
+            patched.patch_component("widget", { "text_color": view.quiet_ink });
         }
-        zoom.get_node("In").widget.icon = view["add_icon"].as_str();
-        zoom.get_node("Reading").widget.text = view["zoom"].as_str();
+        zoom.get_node("In").widget_button.icon = view.add_icon;
+        zoom.get_node("Reading").widget.text = view.zoom;
         let bottom = self.node.get_node("Bottom");
-        bottom.set_visible(view["bottom"].as_bool());
+        bottom.set_visible(view.bottom);
         let patched = bottom.get_node("Open");
-        patched.widget.icon = view["bottom_icon"].as_str();
-        patched.widget.width = view["step"].as_float() + 6.0;
-        patched.widget.height = view["step"].as_float() + 6.0;
-        patched.patch_component("widget", { "text_color": view["quiet_ink"].as_str() });
+        patched.widget_button.icon = view.bottom_icon;
+        patched.widget.width = view.step + 6.0;
+        patched.widget.height = view.step + 6.0;
+        patched.patch_component("widget", { "text_color": view.quiet_ink });
     }
 }

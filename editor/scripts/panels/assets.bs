@@ -1,11 +1,13 @@
 // The Assets tab's one script: it fills the cards and the strip over them
 // from what the Editor, which owns the files, hands it, and answers both.
 
+use editor;
+
 pub class Assets {
     node: Node,
     query: str,
     renaming: bool,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 pub struct Field {
@@ -16,9 +18,11 @@ impl Assets {
     pub fn init() {
         self.query = "";
         self.renaming = false;
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "assets_changed", self.editor);
-        events::listen(self.node, "outline_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, "assets_changed", source);
+        events::listen(self.node, "outline_changed", source);
     }
 
     /// A file was made, moved or reloaded, a card picked or an import moved on.
@@ -39,19 +43,26 @@ impl Assets {
     // A second click on the selected card reports the same row, and that is
     // the one that opens it, so the click is heard rather than a change.
     pub fn card_clicked(_value: any, node: Node) {
-        self.editor.call("assets_pick", node.widget.text);
+        self.editor.unwrap().assets_pick(node.widget.text);
     }
 
     pub fn card_dropped(value: any) {
-        self.editor.call("assets_dropped", value);
+        self.editor.unwrap().assets_dropped(value);
     }
 
     pub fn name_submitted(value: any) {
-        self.editor.call("assets_verb", "rename_to", value);
+        self.editor.unwrap().assets_verb("rename_to", value.as_str());
     }
 
     pub fn verb(_value: any, node: Node) {
-        self.editor.call("assets_verb", node.name(), "");
+        self.editor.unwrap().assets_verb(node.name(), "");
+    }
+
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
     }
 
     /// Fill what shows from the Editor's answer: on a word that it moved, and
@@ -61,46 +72,43 @@ impl Assets {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("assets_view", self.query);
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().assets_view(self.query);
         let tools = self.node.get_node("Tools");
-        tools.get_node("Up").set_visible(view["dir"].as_str() != "");
+        tools.get_node("Up").set_visible(view.dir != "");
         let patched = tools.get_node("Where");
-        patched.set_visible(!view["renaming"].as_bool());
-        patched.widget.text = view["where"].as_str();
+        patched.set_visible(!view.renaming);
+        patched.widget.text = view.where;
         // The field's text only as it opens: a refresh while it is up would take
         // the typing back.
         let field = Field { text: nil };
-        if view["renaming"].as_bool() && !self.renaming {
-            field.text = view["name"];
+        if view.renaming && !self.renaming {
+            field.text = view.name;
         }
-        self.renaming = view["renaming"].as_bool();
-        tools.get_node("Name").set_visible(view["renaming"].as_bool());
+        self.renaming = view.renaming;
+        tools.get_node("Name").set_visible(view.renaming);
         tools.get_node("Name").patch_component("widget", field);
-        tools.get_node("Count").widget.text = view["count"].as_str();
+        tools.get_node("Count").widget.text = view.count;
         let patched = tools.get_node("Import");
-        patched.widget.text = view["import_text"].as_str();
-        patched.widget.tooltip = view["import_tip"].as_str();
-        patched.widget.checked = view["importing"].as_bool();
-        tools.get_node("Folder").widget.text = view["folder_text"].as_str();
-        tools.get_node("Local").set_visible(view["local"].as_bool());
+        patched.widget.text = view.import_text;
+        patched.widget.tooltip = view.import_tip;
+        patched.widget_check.checked = view.importing;
+        tools.get_node("Folder").widget.text = view.folder_text;
+        tools.get_node("Local").set_visible(view.local);
         let patched = tools.get_node("Move");
-        patched.set_visible(view["move_to"].as_str() != "");
-        patched.widget.tooltip = "Move the selected item into deps/{view["move_to"].as_str()}";
-        tools.get_node("Update").set_visible(view["update"].as_bool());
+        patched.set_visible(view.move_to != "");
+        patched.widget.tooltip = "Move the selected item into deps/{view.move_to}";
+        tools.get_node("Update").set_visible(view.update);
         let patched = tools.get_node("Source");
-        patched.set_visible(view["source_tip"].as_str() != "");
-        patched.widget.tooltip = view["source_tip"].as_str();
+        patched.set_visible(view.source_tip != "");
+        patched.widget.tooltip = view.source_tip;
         let patched = tools.get_node("Rename");
-        patched.widget.role = if view["chosen"].as_bool() { "action_dock" } else { "action_dock_quiet" };
-        patched.widget.tooltip = if view["chosen"].as_bool() { "Rename the selected item" } else { "Select an item first" };
+        patched.widget.role = if view.chosen { "action_dock" } else { "action_dock_quiet" };
+        patched.widget.tooltip = if view.chosen { "Rename the selected item" } else { "Select an item first" };
         let patched = tools.get_node("Delete");
-        patched.widget.role = if view["chosen"].as_bool() { "action_dock_danger" } else { "action_dock_quiet" };
-        patched.widget.tooltip = if view["chosen"].as_bool() { "Delete the selected item" } else { "Select an item first" };
+        patched.widget.role = if view.chosen { "action_dock_danger" } else { "action_dock_quiet" };
+        patched.widget.tooltip = if view.chosen { "Delete the selected item" } else { "Select an item first" };
         let patched = self.node.get_node("Cards");
-        patched.widget.items = view["items"];
-        patched.widget.text = view["picked"].as_str();
+        patched.widget_rows.items = view.items;
+        patched.widget.text = view.picked;
     }
 }

@@ -313,7 +313,7 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let y = math::sin(a) * FIELD * 0.4;
         let z = math::sin(a) * FIELD;
         let hit = physics3d::shapecast(physics3d::ShapeQuery {
-            shape: { "kind": "sphere", "radius": 0.8 },
+            shape: physics3d::Shape { kind: "sphere", radius: 0.8 },
             origin: vec3(x, y, z),
             direction: vec3(-x, -y, -z),
             max_distance: 2.0,

@@ -58,7 +58,6 @@ pub(crate) fn register_widget_component(reg: &mut Registry<'_>) {
 /// tables beside them onto the [`Widget`] it built.
 fn apply(eng: &Engine, entity: Entity, params: &toml::Value, whole: &ApplyFn) -> Result<()> {
     check_class_tables(params)?;
-    check_shapes(params)?;
     whole(eng, entity, params)?;
     if let Ok(mut widget) = eng.world().get::<&mut Widget>(entity) {
         widget.classes = classes_of(params);
@@ -111,7 +110,7 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
     let Some(name) = WidgetProperties::NAMES.get(index) else {
         return false;
     };
-    let inspector = {
+    {
         let world = eng.world();
         let (Ok(asked), Ok(mut widget)) = (
             world.get::<&WidgetProperties>(entity),
@@ -122,15 +121,13 @@ fn one_property(eng: &Engine, entity: Entity, index: usize) -> bool {
         if !put_one(&mut widget, &asked, name) {
             return false;
         }
-        widget.kind == w::INSPECTOR
-    };
-    told(eng, entity, inspector);
+    }
+    crate::widget::arena::widget_changed(entity);
     true
 }
 
-/// Build the [`Widget`] whole from the properties, refusing what the types
-/// alone cannot judge: a grid track that does not parse, a `submit_key` that
-/// is not a chord.
+/// Build the [`Widget`] whole from the properties and the components beside
+/// them.
 fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
     let mut next = {
         let world = eng.world();
@@ -146,51 +143,32 @@ fn rebuild(eng: &Engine, entity: Entity) -> Result<()> {
         next
     };
     dress(eng, &mut next);
-    crate::widget::grid::check(&next.layout)?;
-    let inspector = next.kind == w::INSPECTOR;
     eng.insert_one(entity, next)
         .map_err(|_| anyhow!("node is dead"))?;
-    told(eng, entity, inspector);
-    Ok(())
-}
-
-/// Tell the arena that a widget was written, and the inspectors' state where
-/// the widget is one.
-pub(crate) fn told(eng: &Engine, entity: Entity, inspector: bool) {
     crate::widget::arena::widget_changed(entity);
-    if inspector {
-        crate::widget::inspector::noticed(eng, entity);
-    }
-}
-
-/// Refuse a `gap` written as one number: it is a pair now, and a number read
-/// as one would lay a scene out differently from what it says.
-fn check_shapes(params: &toml::Value) -> Result<()> {
-    let tables = std::iter::once(params).chain(class_tables(params).map(|(_, table)| table));
-    for table in tables {
-        if table
-            .get(k::GAP)
-            .is_some_and(|gap| balaur_core::components::as_f64(gap).is_some())
-        {
-            bail!("widget: `gap` takes [across, down], not one number");
-        }
-    }
     Ok(())
 }
 
-/// Refuse a key a class table invents, as the base table's are refused.
+/// Refuse what a class table could not write: a key it invents, a row no
+/// component the widget's kind reads holds, a value of the wrong shape.
 fn check_class_tables(params: &toml::Value) -> Result<()> {
+    let kind = params
+        .get(k::KIND)
+        .and_then(toml::Value::as_str)
+        .unwrap_or(w::LABEL);
     for (word, table) in class_tables(params) {
         let Some(table) = table.as_table() else {
             bail!("widget: `{word}` is a screen class and takes a table of properties");
         };
-        for key in table.keys() {
+        for (key, value) in table {
             if key == k::KIND {
                 bail!("widget: `{word}.{key}` -- a widget cannot change kind with the screen");
             }
-            if !WidgetProperties::NAMES.contains(&key.as_str()) {
-                bail!("widget: `{word}.{key}` is not a widget property");
-            }
+            let written = match WidgetProperties::NAMES.iter().position(|name| name == key) {
+                Some(index) => WidgetProperties::default().write(index, value.into()),
+                None => crate::widget::beside::check_class_row(kind, key, value),
+            };
+            written.map_err(|why| anyhow!("widget: `{word}.{key}` {why}"))?;
         }
     }
     Ok(())
@@ -272,6 +250,9 @@ pub(crate) fn for_classes(
 ) -> Option<Widget> {
     let tables = widget.classes.as_ref()?;
     let mut merged: Option<WidgetProperties> = None;
+    let mut beside: Vec<(&str, &toml::Value)> = Vec::new();
+    let world = eng.world();
+    let held = || world.get::<&WidgetProperties>(entity).ok();
     // Broad to narrow, so the narrowest class named wins the key.
     for (word, table) in tables.iter() {
         if !active.contains(word) {
@@ -279,20 +260,27 @@ pub(crate) fn for_classes(
         }
         for (key, value) in table {
             let Some(index) = WidgetProperties::NAMES.iter().position(|name| name == key) else {
+                beside.push((key.as_str(), value));
                 continue;
             };
             if merged.is_none() {
-                let world = eng.world();
-                let held = world.get::<&WidgetProperties>(entity).ok()?;
-                merged = Some(WidgetProperties::clone(&held));
+                merged = Some(WidgetProperties::clone(&*held()?));
             }
             // A value the property refuses leaves what the widget holds.
-            let _ = merged.as_mut()?.write(index, value);
+            let _ = merged.as_mut()?.write(index, value.into());
         }
     }
-    let merged = merged?;
+    if merged.is_none() && beside.is_empty() {
+        return None;
+    }
+    let merged = match merged {
+        Some(merged) => merged,
+        None => WidgetProperties::clone(&*held()?),
+    };
     let mut classed = widget_of(&merged);
-    crate::widget::beside::put_all(&eng.world(), entity, &merged, &mut classed);
+    crate::widget::beside::put_all(&world, entity, &merged, &mut classed);
+    crate::widget::beside::put_class_rows(&world, entity, &merged.kind.0, &beside, &mut classed);
+    drop(world);
     classed.classes.clone_from(&widget.classes);
     dress(eng, &mut classed);
     Some(classed)
@@ -323,11 +311,6 @@ fn edges(named: &[Edge]) -> [bool; 4] {
     out
 }
 
-/// Whether `contain` names layout containment, then paint containment.
-fn containment(named: &[crate::widget::properties::Containment]) -> [bool; 2] {
-    [w::contain::LAYOUT, w::contain::PAINT].map(|word| named.iter().any(|held| held.0 == word))
-}
-
 /// Redo the fields of `widget` that `names` fill, each a property with a
 /// field of its own: the event pump writes a reader's edit onto the
 /// properties, and the widget follows them here.
@@ -344,7 +327,8 @@ pub(crate) fn follow(widget: &mut Widget, asked: &WidgetProperties, names: &[&st
 ///
 /// `alone` is a property with a field of its own; `whole` is one read into a
 /// part built with others, or checked once the widget is built, which a write
-/// of it rebuilds the widget for.
+/// of it rebuilds the widget for: `kind` above all, which decides the
+/// components beside it the widget reads.
 macro_rules! cache_fields {
     (
         $widget:ident, $asked:ident;
@@ -374,7 +358,6 @@ macro_rules! cache_fields {
 cache_fields! {
     widget, asked;
     alone {
-        k::KIND => widget.kind = asked.kind.0.clone();
         k::TEXT => widget.text = asked.text.clone();
         k::ENABLED => widget.disabled = !asked.enabled;
         k::ANCHOR => widget.anchor = asked.anchor.0.clone();
@@ -405,25 +388,7 @@ cache_fields! {
         k::HIDE_SHORTER => widget.hide_shorter = asked.hide_shorter;
         k::HIDE_TALLER => widget.hide_taller = asked.hide_taller;
         k::PADDING => widget.padding = asked.padding.0;
-        k::GAP => widget.gap = asked.gap;
-        k::ALIGN_ITEMS => widget.align = asked.align_items.0.clone();
-        k::JUSTIFY => widget.justify = asked.justify.0.clone();
-        k::ALIGN_CONTENT => widget.layout.align_content = asked.align_content.0.clone();
-        k::WRAP_CHILDREN => widget.layout.wrap_children = asked.wrap_children.0.clone();
-        k::MIN_LINES => widget.layout.min_lines =
-            asked.min_lines.clamp(1, i64::from(u16::MAX)) as u16;
-        k::DIRECTION => widget.layout.direction = asked.direction.0.clone();
-        k::OVERFLOW => widget.layout.overflow = asked.overflow.0.clone();
         k::BORDER => widget.layout.border = asked.border.map(Bits::of);
-        k::BOX_SIZING => widget.layout.box_sizing = asked.box_sizing.0.clone();
-        k::SAFE_ALIGN => widget.layout.safe_align = asked.safe_align;
-        k::CONTAIN => widget.layout.contain = containment(&asked.contain);
-        k::SCROLLBAR_WIDTH => widget.layout.scrollbar_width = Bits::of(asked.scrollbar_width);
-        k::AXIS => widget.axis = asked.axis.0.clone();
-        k::AUTO_FLOW => widget.layout.auto_flow = asked.auto_flow.0.clone();
-        k::HEADER => widget.header = asked.header;
-        k::TITLE_BAR => widget.title_bar = asked.title_bar;
-        k::ROW_HEIGHT => widget.row_height = asked.row_height;
         k::THEME => widget.theme = asked.theme.clone();
         k::ROLE => widget.role = asked.role.clone();
         k::FILL => widget.fill = asked.fill.clone();
@@ -432,81 +397,70 @@ cache_fields! {
         k::CORNER_RADIUS => widget.radius = asked.corner_radius;
         k::DASHED => widget.dashed = asked.dashed;
         k::FADE_IN => egui(widget).fade_in = asked.fade_in;
-        k::ICON => widget.icon = asked.icon.clone();
-        k::ICON_COLOR => widget.icon_color = asked.icon_color.clone();
-        k::ICON_SIZE => widget.icon_size = asked.icon_size;
-        k::IMAGE => widget.source = asked.image.clone();
-        k::SLICE => widget.slice = asked.slice;
         k::FONT => widget.font = asked.font.clone();
         k::FONT_SIZE => widget.font_size = asked.font_size;
         k::FONT_WEIGHT => widget.font_weight = asked.font_weight as f32;
         k::FONT_STYLE => widget.font_style = asked.font_style.0.clone();
         k::TEXT_KEY => widget.text_key = asked.text_key.clone();
-        k::MARKUP => widget.markup = asked.markup;
-        k::TEXT_ALIGN => widget.text_align = asked.text_align.0.clone();
-        k::WRAP => widget.wrap = asked.wrap;
-        k::TRUNCATE => widget.truncate = asked.truncate;
-        k::SHOW_TOOLTIP_WHEN_ELIDED => egui(widget).show_tooltip_when_elided =
-            asked.show_tooltip_when_elided;
-        k::PREFIX => egui(widget).prefix = asked.prefix.clone();
-        k::SUFFIX => widget.suffix = asked.suffix.clone();
-        k::TRAILING => widget.trailing = asked.trailing.clone();
         k::TOOLTIP => widget.tooltip = asked.tooltip.clone();
-        k::SELECTABLE => widget.selectable = asked.selectable;
         k::ON_CLICK => widget.on_click = asked.on_click.clone();
         k::ON_CHANGE => widget.on_change = asked.on_change.clone();
-        k::ON_SUBMIT => widget.on_submit = asked.on_submit.clone();
         k::ON_FOCUS => widget.on_focus = asked.on_focus.clone();
-        k::ON_LINK => widget.on_link = asked.on_link.clone();
         k::ON_DOUBLE_CLICK => widget.on_double_click = asked.on_double_click.clone();
         k::ON_BLUR => widget.on_blur = asked.on_blur.clone();
-        k::ON_COMMIT => widget.on_commit = asked.on_commit.clone();
-        k::ON_CARET => widget.on_caret = asked.on_caret.clone();
-        k::ON_ACTIVATE => widget.on_activate = asked.on_activate.clone();
-        k::ON_FOLD => widget.on_fold = asked.on_fold.clone();
-        k::ON_OPENED => widget.on_opened = asked.on_opened.clone();
-        k::ON_CLOSED => widget.on_closed = asked.on_closed.clone();
-        k::ON_SCROLLED => widget.on_scrolled = asked.on_scrolled.clone();
-        k::ON_CLOSE_REQUEST => widget.on_close_request = asked.on_close_request.clone();
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
         k::FOCUSABLE => widget.focusable = asked.focusable;
         k::NEIGHBOUR_UP => widget.neighbours[0] = asked.neighbour_up.clone();
         k::NEIGHBOUR_DOWN => widget.neighbours[1] = asked.neighbour_down.clone();
         k::NEIGHBOUR_LEFT => widget.neighbours[2] = asked.neighbour_left.clone();
         k::NEIGHBOUR_RIGHT => widget.neighbours[3] = asked.neighbour_right.clone();
-        k::SENSE => egui(widget).sense = asked.sense.0.clone();
         k::CURSOR => widget.cursor = asked.cursor.0.clone();
-        k::SHORTCUT => widget.shortcut = asked.shortcut.clone();
-        k::WHILE_TYPING => widget.while_typing = asked.while_typing;
-        k::TAKES_TYPING => widget.takes_typing = asked.takes_typing;
         k::CONTEXT => widget.context = asked.context.clone();
-        k::OPEN => widget.open = asked.open;
-        k::CURRENT_PAGE => widget.active = asked.current_page.clone();
-        k::KEEP_OPEN => widget.keep_open = asked.keep_open;
-        k::CHECKED => widget.checked = asked.checked;
-        k::OPTIONS => widget.options.clone_from(&asked.options);
-        k::ITEMS => widget.items.clone_from(&asked.items);
-        k::SELECTION => widget.selection.clone_from(&asked.selection);
-        k::MULTI_SELECT => widget.multi = asked.multi_select;
-        k::RADIO_GROUP => widget.radio_group = asked.radio_group.clone();
-        k::TOGGLE => widget.toggle = asked.toggle;
-        k::INDETERMINATE => egui(widget).indeterminate = asked.indeterminate;
-        k::SPLITTER_WIDTH => widget.handle = asked.splitter_width;
-        k::REVERSE => widget.reverse = asked.reverse;
     }
-    whole [
-        k::GRID_COLUMNS, k::GRID_ROWS, k::AUTO_COLUMNS, k::AUTO_ROWS, k::AREAS, k::ROW,
-        k::COLUMN, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,
-        k::TAB_WIDTH,
-    ] {
-        widget.layout.grid_columns = asked.grid_columns.clone();
-        widget.layout.grid_rows = asked.grid_rows.clone();
-        widget.layout.auto_columns = asked.auto_columns.clone();
-        widget.layout.auto_rows = asked.auto_rows.clone();
-        widget.layout.areas.clone_from(&asked.areas);
-        widget.layout.row = asked.row.clone();
-        widget.layout.column = asked.column.clone();
+    whole [k::KIND, k::TEXT_STYLE] {
+        widget.kind = asked.kind.0.clone();
         widget.text_look = Arc::new(TextLook::of(asked));
+    }
+}
+
+/// A value of property `index` other than what `held` holds, for a test
+/// writing each property in turn.
+#[cfg(test)]
+pub(crate) fn changed_value<F: Fields>(held: &F, index: usize) -> toml::Value {
+    let value = held.read(index).expect("every property reads");
+    let spec = F::specs().swap_remove(index);
+    let options = spec
+        .get("options")
+        .or_else(|| spec.get("of").and_then(|of| of.get("options")))
+        .and_then(toml::Value::as_array);
+    match (&value, options) {
+        (toml::Value::String(word), Some(options)) => options
+            .iter()
+            .find(|option| option.as_str() != Some(word))
+            .cloned()
+            .expect("an enum offers two words"),
+        (toml::Value::Array(_), Some(options)) => toml::Value::Array(vec![options[1].clone()]),
+        (toml::Value::String(_), None) => toml::Value::String("7".into()),
+        (toml::Value::Boolean(flag), _) => toml::Value::Boolean(!flag),
+        (toml::Value::Integer(number), _) => toml::Value::Integer(number + 3),
+        (toml::Value::Float(number), _) => toml::Value::Float(number + 3.0),
+        (toml::Value::Array(items), None) if items.is_empty() => {
+            let of = spec.get("of").and_then(|of| of.get("type"));
+            toml::Value::Array(vec![
+                if of.and_then(toml::Value::as_str) == Some("record") {
+                    toml::Value::Table(toml::map::Map::new())
+                } else {
+                    toml::Value::String("7".into())
+                },
+            ])
+        }
+        (toml::Value::Array(items), None) => toml::Value::Array(
+            items
+                .iter()
+                .map(|item| toml::Value::Float(item.as_float().unwrap_or(0.0) + 0.25))
+                .collect(),
+        ),
+        (other, _) => panic!("no changed value for {other}"),
     }
 }
 
@@ -613,9 +567,9 @@ mod tests {
         for (index, name) in WidgetProperties::NAMES.iter().enumerate() {
             let mut asked = base.clone();
             let mut widget = widget_of(&asked);
-            let changed = changed_value(&asked, index);
+            let changed = changed_value::<WidgetProperties>(&asked, index);
             asked
-                .write(index, &changed)
+                .write(index, (&changed).into())
                 .expect("the value fits the property");
             if !put_one(&mut widget, &asked, name) {
                 continue;
@@ -625,45 +579,6 @@ mod tests {
                 format!("{:?}", widget_of(&asked)),
                 "`{name}` written alone left the widget other than a whole build"
             );
-        }
-    }
-
-    /// A value of property `index` other than what `asked` holds.
-    fn changed_value(asked: &WidgetProperties, index: usize) -> toml::Value {
-        let held = asked.read(index).expect("every property reads");
-        let spec = WidgetProperties::specs().swap_remove(index);
-        let options = spec
-            .get("options")
-            .or_else(|| spec.get("of").and_then(|of| of.get("options")))
-            .and_then(toml::Value::as_array);
-        match (&held, options) {
-            (toml::Value::String(word), Some(options)) => options
-                .iter()
-                .find(|option| option.as_str() != Some(word))
-                .cloned()
-                .expect("an enum offers two words"),
-            (toml::Value::Array(_), Some(options)) => toml::Value::Array(vec![options[1].clone()]),
-            (toml::Value::String(_), None) => toml::Value::String("7".into()),
-            (toml::Value::Boolean(flag), _) => toml::Value::Boolean(!flag),
-            (toml::Value::Integer(number), _) => toml::Value::Integer(number + 3),
-            (toml::Value::Float(number), _) => toml::Value::Float(number + 3.0),
-            (toml::Value::Array(items), None) if items.is_empty() => {
-                let of = spec.get("of").and_then(|of| of.get("type"));
-                toml::Value::Array(vec![
-                    if of.and_then(toml::Value::as_str) == Some("record") {
-                        toml::Value::Table(toml::map::Map::new())
-                    } else {
-                        toml::Value::String("7".into())
-                    },
-                ])
-            }
-            (toml::Value::Array(items), None) => toml::Value::Array(
-                items
-                    .iter()
-                    .map(|item| toml::Value::Float(item.as_float().unwrap_or(0.0) + 0.25))
-                    .collect(),
-            ),
-            (other, _) => panic!("no changed value for {other}"),
         }
     }
 }

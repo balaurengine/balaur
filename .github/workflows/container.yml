@@ -1,5 +1,5 @@
 # The engine as a container image, published to GHCR. See docker/README.md.
-# `main` refreshes `:nightly`, a `v*` tag `:<version>` and `:latest`, once that run's release is made.
+# `main` refreshes `:nightly`, a published release `:<version>` and `:latest`, once that run's files are on it.
 name: container
 
 on:

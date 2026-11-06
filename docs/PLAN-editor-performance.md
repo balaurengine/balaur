@@ -3,7 +3,8 @@
 > kind now places its body the same way and the Profiler and Cost docks are
 > on it, so §2 step 1 is built and still no crate has been added. §2 step 4
 > and §3 step 2, the inspector, built 2026-10-17 as an `inspector` kind, and
-> §0 records that too. §2 step 3 is not built.
+> §0 records that too; that kind went 2026-11-03 (PLAN-editor-as-scene §9.4).
+> §2 step 3 is not built.
 >
 > Sections 5 to 7 ask a different question, on `examples/hello`: what the frame
 > costs outside the docks. The instrument in §7 is built and the allocation
@@ -67,8 +68,8 @@ Read the spread, not the middle: two runs of the same command differ by up to
 intermittently, and until that is found only the ratios here are safe to
 quote.
 
-**Built 2026-10-17, the inspector on an `inspector` kind; to be removed
-(PLAN-editor-as-scene §9.4, §10 below).** The widget names
+**Built 2026-10-17, the inspector on an `inspector` kind; removed 2026-11-03
+(PLAN-editor-as-scene §9.4, §10 below).** The widget named
 a node and one of its components. Every pass it reads the registry's schema
 and the node and fills the pool's own rows, so `inspector.bs` states one
 control for a run of properties instead of a table a row. An edit comes back
@@ -630,7 +631,7 @@ settled. A strip whose inputs did not move is not stated again.
 - A self-test run fills anyway and warns when the controls changed under a
   key that did not, so a key missing an input fails e2e. The 80 states run
   clean on `hello` and `angrynerds`.
-- `ui::edit(node, value)` changes a widget as the reader would. A script's own
+- `ui::edit_text(node, value)` and its siblings change a widget as the reader would. A script's own
   write is not an edit and reaches no `on`, so a self-test types with it.
 - Keyed so far: the menu, the top bar, the status bar, each dock's tab strips,
   and the inspector's foot and form.
@@ -982,7 +983,7 @@ order, each in the doc that owns it:
    2026-10-28: the engine writes the scene back and keeps what each write
    replaced; `S.doc`, its revision and the mirror rebuild are gone, undo is
    a list of changes and play keeps the scene's text for stop.
-7. The Inspector as a viewer (PLAN-editor-as-scene §9.4).
+7. The Inspector as a viewer (PLAN-editor-as-scene §9.4). Built 2026-11-03.
 8. Order, groups and the derive, a property by its index (PLAN-property-types
    §5, PLAN-balaur-script §9 step 6). Built 2026-10-28: order and groups,
    every schema in PLAN-component-order's order, the Inspector, settings and
@@ -1036,8 +1037,11 @@ An edit re-reads two of the shell's 608 widgets and re-solves only those
 about 5 % of the frame, some 0.3 M: the budget holds for the editor's own
 work. The rest is the frame any visible change costs, the editor's or the
 game's: the egui pass over every widget, about 2 M, and the render, about
-2.4 M, of which a sixth is Metal buffers made afresh each frame in the
-kiss3d fork's egui renderer. Neither is incremental layout's: taffy is
+2.4 M, of which a sixth is Metal buffers made afresh each frame. That
+was first put on the fork's egui renderer; a profile on 2026-11-03 puts
+four in five on kiss3d's own buffer writes (materials, shadows, instance
+data, lines), each `Queue::write_buffer` a staging buffer of its own, and
+the fifth on egui-wgpu's vertex and index upload. Neither is incremental layout's: taffy is
 under 0.6 M of it. The order above moved for that
 measurement: of the 650 M, the panels and the Inspector were 580 M and
 the document's own copy 60 M, so the change log's panels (PLAN-editor-as-
@@ -1092,6 +1096,30 @@ A tab reloaded twice failed the third boot with "Cannot allocate Wasm memory
 for new instance": every `.bs` module reserves its own memory, and a tab's
 earlier reservations are not yet freed. One memory imported by every module
 would reserve once.
+
+**Staging buffers, 2026-11-03 to 2026-11-06.** A sample of the `bench:text`
+run put 6.3 % of the main thread in wgpu-core's `StagingBuffer::new`: a
+Metal buffer made for every `Queue::write_buffer` and freed once the GPU has
+copied from it. The kiss3d fork's `Context::write_buffer` now writes into a
+`StagingBelt`, whose chunks come back as the GPU finishes, and puts the
+copies first in the next submission, where the queue's land too
+(`src/context/uploads.rs`); a frame drawing a retained egui pass uploads
+nothing. A write over 256 KiB, or past 4 MiB in one submission, still goes
+through the queue. Instructions a frame past boot, from runs of 300 and
+1,100 frames, four of each:
+
+| a frame | before | after |
+| --- | ---: | ---: |
+| idle | 24.4 to 25.1 M | 23.6 to 24.7 M |
+| the Inspector writes `text2d.text` | 27.7 to 29.1 M | 27.0 to 28.0 M |
+
+The sample after puts 2.6 % there: 41 of its 107 samples are egui-wgpu's
+vertex and index upload, the rest new `GPUVec` buffers for the 2D text a
+reshape makes. `edit_cost.sh` moves no more than its noise, about 1 M
+between runs at the load these ran at, since it subtracts an idle frame
+that pays the same writes. egui-wgpu's upload goes through a belt too, on the
+egui fork's `balaur-zeno-glyphs` since 2026-11-06: 23.2 and 23.3 M idle and
+26.9 and 27.0 M editing, two runs each.
 
 ## 11. What a frame allocates
 

@@ -3,7 +3,7 @@
 //! Booleans come from `i_overlay`, which works in fixed-point integers
 //! internally and so lands on the same vertices on every platform; the
 //! triangulation is the engine's own ear clipping. A polygon is a list of
-//! `[x, y]` pairs or vectors, outline order, either winding.
+//! `Vec2`s, outline order, either winding.
 //!
 //! [`trace`] and [`simplify`] are the shape half of the editor's Trace
 //! button: an alpha mask in, an outline out. They are here rather than in
@@ -214,16 +214,8 @@ fn point_to_segment(p: Vec2, a: Vec2, b: Vec2) -> f32 {
 
 fn point_of(value: &Value) -> Result<Vec2> {
     match value {
-        Value::Vec2([x, y]) | Value::Vec3([x, y, _]) => Ok(Vec2::new(*x, *y)),
-        Value::List(pair) if pair.len() >= 2 => {
-            let n = |v: &Value| match v {
-                Value::Num(n) => Ok(*n as f32),
-                Value::Int(n) => Ok(*n as f32),
-                other => Err(anyhow!("a coordinate should be a number, got {other:?}")),
-            };
-            Ok(Vec2::new(n(&pair[0])?, n(&pair[1])?))
-        }
-        other => Err(anyhow!("a point is [x, y] or a vector, got {other:?}")),
+        Value::Vec2([x, y]) => Ok(Vec2::new(*x, *y)),
+        other => Err(anyhow!("a point is a Vec2, got {other:?}")),
     }
 }
 
@@ -621,7 +613,7 @@ fn install_boolean_api(m: &mut Module<Engine>) {
         m.describe(&[(
             op.word(),
             &[],
-            "(a: list, b: list, opts: BooleanOptions?) -> list",
+            "(a: [Vec2], b: [Vec2], opts: BooleanOptions?) -> [[[Vec2]]]",
             doc,
         )]);
         m.function(
@@ -636,15 +628,15 @@ fn install_boolean_api(m: &mut Module<Engine>) {
 
 pub fn install_geometry2d_api(m: &mut Module<Engine>) {
     m.module_doc(
-        "Polygons on the plane as lists of `[x, y]` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
+        "Polygons on the plane as lists of `Vec2` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );
     m.describe(&[
-        ("triangulate", &[], "(polygon: list) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
-        ("contains", &[], "(polygon: list, point: vec2) -> bool", "Whether a point lies inside the polygon; a point on an edge counts as inside."),
-        ("segments_intersect", &[], "(a1: vec2, a2: vec2, b1: vec2, b2: vec2) -> vec2", "Where two segments cross, or nil when they do not; touching at an endpoint counts."),
-        ("area", &[], "(polygon: list) -> float", "The polygon's area, always positive whatever its winding."),
-        ("is_clockwise", &[], "(polygon: list) -> bool", "Whether the points run clockwise, with y up."),
-        ("convex_hull", &[], "(points: list) -> list", "The smallest convex polygon around the points, counter-clockwise."),
+        ("triangulate", &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
+        ("contains", &[], "(polygon: [Vec2], point: Vec2) -> bool", "Whether a point lies inside the polygon; a point on an edge counts as inside."),
+        ("segments_intersect", &[], "(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Vec2?", "Where two segments cross, or nil when they do not; touching at an endpoint counts."),
+        ("area", &[], "(polygon: [Vec2]) -> float", "The polygon's area, always positive whatever its winding."),
+        ("is_clockwise", &[], "(polygon: [Vec2]) -> bool", "Whether the points run clockwise, with y up."),
+        ("convex_hull", &[], "(points: [Vec2]) -> [Vec2]", "The smallest convex polygon around the points, counter-clockwise."),
     ]);
     m.function("triangulate", |_: &Engine, polygon: Value| {
         let points = polygon_of(&polygon)?;

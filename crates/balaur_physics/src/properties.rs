@@ -363,15 +363,13 @@ pub struct ParticlePair {
 #[derive(Clone, Debug, PartialEq, Record)]
 pub struct SoftRegion {
     pub particles: Vec<i64>,
+    #[property(asset = "soft_material")]
+    pub soft_material: String,
     #[property(default = 1.0)]
     pub stiffness_scale: f32,
     #[property(default = 1.0)]
     pub tear_resistance: f32,
-    pub shape_matching: bool,
     pub pinned: bool,
-    pub hz: f32,
-    #[property(default = 1.0)]
-    pub damping: f32,
 }
 
 /// An edge of a soft body with a spring of its own.

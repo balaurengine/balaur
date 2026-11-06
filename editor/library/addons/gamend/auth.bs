@@ -14,7 +14,7 @@ pub const ASK_EVERY: float = 1.0;
 
 /// The providers this server offers, as `list_auth_providers` reports them.
 pub async fn providers() -> any {
-    let reply = await task::wait(authentication::list_auth_providers().as_int());
+    let reply = await task::wait(authentication::list_auth_providers());
     if !core::ok(reply) {
         log::warn(core::error_of(reply));
         return {};
@@ -44,11 +44,11 @@ pub async fn sign_in(provider: str) -> any {
     session
 }
 
-fn sign_in_start(provider: str) -> any {
+fn sign_in_start(provider: str) -> int {
     authentication::oauth_request(provider)
 }
 
-fn sign_in_status(session: str) -> any {
+fn sign_in_status(session: str) -> int {
     authentication::oauth_session_status(session)
 }
 
@@ -60,18 +60,18 @@ pub async fn link(provider: str) -> bool {
     status.kind() == "map"
 }
 
-fn link_start(provider: str) -> any {
+fn link_start(provider: str) -> int {
     authentication::link_provider_request(provider)
 }
 
-fn link_status(session: str) -> any {
+fn link_status(session: str) -> int {
     authentication::link_session_status(session)
 }
 
 /// Start with `start`, open the page it answers, and ask with `status`
 /// until the player is done there. The completed status, or nil.
-async fn provider_page(provider: str, start: fn(str) -> any, status: fn(str) -> any) -> any {
-    let started = await task::wait(start(provider).as_int());
+async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> int) -> any {
+    let started = await task::wait(start(provider));
     if !core::ok(started) {
         log::warn(core::error_of(started));
         return nil;
@@ -86,7 +86,7 @@ async fn provider_page(provider: str, start: fn(str) -> any, status: fn(str) -> 
     while waited < SIGN_IN_TIMEOUT {
         await task::seconds(ASK_EVERY);
         waited += ASK_EVERY;
-        let reply = await task::wait(status(session).as_int());
+        let reply = await task::wait(status(session));
         if !core::ok(reply) {
             continue;
         }
@@ -115,7 +115,7 @@ async fn provider_page(provider: str, start: fn(str) -> any, status: fn(str) -> 
 /// `client::resend_confirmation`), or `validation_failed` (the password).
 pub async fn confirm_registration(email: str, code: str, password: str) -> any {
     let params: any = { "email": email, "code": code, "password": password };
-    let reply = await task::wait(authentication::confirm_registration(params).as_int());
+    let reply = await task::wait(authentication::confirm_registration(params));
     if !core::ok(reply) {
         log::warn(core::error_of(reply));
         return nil;

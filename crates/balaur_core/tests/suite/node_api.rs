@@ -41,6 +41,54 @@ fn set_transform(eng: &Engine, node: &Value, prop: &str, v: [f32; 3]) {
     .unwrap();
 }
 
+#[test]
+fn set_property_writes_one_property_by_name_and_leaves_the_rest() {
+    let app = app();
+    let eng = &app.engine;
+    let root = spawn(&app, "Written");
+    set_transform(eng, &root, "scale", [2.0, 2.0, 2.0]);
+    let took = call(
+        eng,
+        "set_property",
+        &[
+            root.clone(),
+            Value::Str("transform".into()),
+            Value::Str("position".into()),
+            Value::Vec3([1.0, 2.0, 3.0]),
+        ],
+    )
+    .unwrap();
+    assert_eq!(took, Value::Bool(true));
+    assert_near(transform_of(eng, &root, "position"), [1.0, 2.0, 3.0]);
+    assert_near(transform_of(eng, &root, "scale"), [2.0, 2.0, 2.0]);
+}
+
+#[test]
+fn set_property_answers_false_for_a_value_refused_and_errors_on_a_name_nothing_has() {
+    let app = app();
+    let eng = &app.engine;
+    let root = spawn(&app, "Written");
+    set_transform(eng, &root, "position", [0.0, 0.0, 0.0]);
+    let write = |key: &str, value: Value| {
+        call(
+            eng,
+            "set_property",
+            &[
+                root.clone(),
+                Value::Str("transform".into()),
+                Value::Str(key.into()),
+                value,
+            ],
+        )
+    };
+    assert_eq!(
+        write("position", Value::Str("nowhere".into())).unwrap(),
+        Value::Bool(false),
+        "a value the component refuses goes to the log, and the script goes on"
+    );
+    assert!(write("no_such_property", Value::Num(1.0)).is_err());
+}
+
 fn transform_of(eng: &Engine, node: &Value, prop: &str) -> [f32; 3] {
     let got = call(
         eng,

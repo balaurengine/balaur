@@ -10,8 +10,8 @@
 //!
 //! ```bs
 //! pub async fn init() {
-//!     let me = await task::wait(platform::sign_in().as_int());
-//!     let proof = await task::wait(apple::identity().as_int());
+//!     let me = await task::wait(platform::sign_in());
+//!     let proof = await task::wait(apple::identity());
 //!     gamend::call_hook(self.socket, "auth", "game_center", proof);
 //! }
 //! ```
@@ -623,32 +623,32 @@ fn install_apple_api(m: &mut Module<Engine>) {
         (
             "available",
             &[],
-            "",
+            "() -> bool",
             "Whether this build has Apple's frameworks behind it.",
         ),
         (
             "authenticated",
             &[],
-            "",
+            "() -> bool",
             "Whether Game Center has a signed-in player right now.",
         ),
         (
             "identity",
             &[],
-            "",
+            "() -> int",
             "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
         ),
         (
             "sign_in",
             &[],
-            "",
+            "() -> int",
             "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`.",
         ),
         (
             "credential_state",
             &[],
-            "",
-            "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown.",
+            "(user: string) -> int",
+            "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown, and return the id the answer carries.",
         ),
     ]);
     m.function("available", |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
@@ -674,20 +674,30 @@ fn install_apple_api(m: &mut Module<Engine>) {
 
 /// Game Center's own screens.
 fn install_screens_api(m: &mut Module<Engine>) {
+    m.records(&[
+        (
+            "ShowDashboardOptions",
+            "{ state: string? }",
+            "The page Game Center's dashboard opens on: default, leaderboards, achievements, challenges, profile, dashboard or friends.",
+        ),
+        (
+            "AccessPointOptions",
+            "{ location: string? }",
+            "The corner Game Center's access point sits in: top_leading, top_trailing, bottom_leading or bottom_trailing.",
+        ),
+    ]);
     m.describe(&[
         (
             "show_dashboard",
             &[],
-            "(opts: table?) -> int",
-            "Open Game Center's dashboard over the game; `state` picks the page \
-: default, leaderboards, achievements, challenges, profile, dashboard or friends.",
+            "(opts: ShowDashboardOptions?) -> int",
+            "Open Game Center's dashboard over the game, and return the id its `dashboard_closed` answer carries.",
         ),
         (
             "access_point",
             &[],
-            "(active: bool, opts: table?) -> bool",
-            "Show or hide Game Center's floating access point, and answer whether it is showing; \
-             `location` is a corner: top_leading, top_trailing, bottom_leading or bottom_trailing.",
+            "(active: bool, opts: AccessPointOptions?) -> bool",
+            "Show or hide Game Center's floating access point, and answer whether it is showing.",
         ),
     ]);
     m.function("show_dashboard", |eng: &Engine, opts: Option<Value>| {
@@ -760,29 +770,34 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
 /// Notifications, push and URLs: everything that arrives rather than
 /// answers.
 fn install_arrivals_api(m: &mut Module<Engine>) {
+    m.records(&[(
+        "NotifyOptions",
+        "{ title: string?, after: float?, id: string? }",
+        "A local notification's `title`, how many seconds from now it shows (`after`) and the `id` to cancel or recognise it by.",
+    )]);
     m.describe(&[
         (
             "request_notifications",
             &[],
-            "",
-            "Ask the player to allow notifications, and answer with what they said.",
+            "() -> int",
+            "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said.",
         ),
         (
             "notify",
             &[],
-            "",
-            "Schedule a local notification. The options take `title`, `after` in seconds and an `id` to cancel or recognise it by.",
+            "(body: string, opts: NotifyOptions?) -> int",
+            "Schedule a local notification, and return the id its `scheduled` answer carries.",
         ),
         (
             "cancel_notification",
             &[],
-            "",
+            "(id: string)",
             "Drop a scheduled notification, and take a delivered one out of the shade.",
         ),
         (
             "register_for_push",
             &[],
-            "",
+            "() -> bool",
             "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
         ),
     ]);
@@ -839,7 +854,7 @@ fn install_device_arrivals_api(m: &mut Module<Engine>) {
             return Err(anyhow!("a notification id should be a string, got {id:?}"));
         };
         backend::cancel_notification(&id);
-        Ok(Value::Bool(true))
+        Ok(())
     });
     m.function("register_for_push", |_: &Engine, ()| {
         Ok(Value::Bool(backend::request_push_token()))
@@ -853,19 +868,19 @@ fn install_listen_for_api(m: &mut Module<Engine>) {
         (
             "listen_for_urls",
             &[],
-            "",
+            "() -> bool",
             "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         ),
         (
             "listen_for_invites",
             &[],
-            "",
+            "() -> bool",
             "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         ),
         (
             "listen_for_cloud_changes",
             &[],
-            "",
+            "() -> bool",
             "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         ),
     ]);
@@ -882,36 +897,48 @@ fn install_listen_for_api(m: &mut Module<Engine>) {
 
 /// The store's own calls, all of them one payload or none.
 fn install_store_api(m: &mut Module<Engine>) {
+    m.records(&[
+        (
+            "Product",
+            "{ id: string, title: string, description: string, price: float, display_price: string, kind: string }",
+            "One row of a `products` answer's `products`: `let rows: [apple::Product] = reply[\"products\"];`.",
+        ),
+        (
+            "Transaction",
+            "{ id: string, product: string, purchased_at: float, quantity: int, revoked: bool, upgraded: bool, jws: string, verified: bool }",
+            "A purchase the App Store holds: one row of an `entitlements` answer's `items`, and what a `purchased` answer or a `transaction` arrival carries. `jws` is what a server verifies.",
+        ),
+    ]);
     m.describe(&[
         (
             "products",
             &[],
-            "",
-            "Ask the App Store about a list of product ids, and answer with what it knows: title, description, price and display price.",
+            "(ids: [string]) -> int",
+            "Ask the App Store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`.",
         ),
         (
             "purchase",
             &[],
-            "",
-            "Buy a product. The answer is `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
+            "(product: string) -> int",
+            "Buy a product, and return the id its answer carries: `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
         ),
         (
             "entitlements",
             &[],
-            "",
-            "What this player currently owns, each with the signed transaction a server checks.",
+            "() -> int",
+            "What this player currently owns: returns the id whose `entitlements` answer holds them as `items`, each a `Transaction`.",
         ),
         (
             "restore_purchases",
             &[],
-            "",
-            "Ask the App Store to hand this device's purchases back: the button a review expects a game to have.",
+            "() -> int",
+            "Ask the App Store to hand this device's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries.",
         ),
         (
             "finish_purchase",
             &[],
-            "",
-            "Tell StoreKit a transaction is dealt with. One that is never finished comes back on every launch.",
+            "(transaction: string) -> int",
+            "Tell StoreKit a transaction is dealt with, and return the id its `finished` answer carries. One that is never finished comes back on every launch.",
         ),
     ]);
     m.function("products", |eng: &Engine, ids: Value| {

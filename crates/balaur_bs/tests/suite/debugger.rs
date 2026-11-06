@@ -229,10 +229,13 @@ mod parked {
         assert_eq!((p.line, p.reason), (5, StopReason::Breakpoint));
         assert_eq!(local(&p, 0, "i"), Value::Int(0));
         assert!(rt.paused().is_some());
-        assert!(
-            rt.call("crash", &[Value::Int(0)]).is_err(),
-            "ran beside a parked call"
+        // A call beside the parked one runs above its frames, trap or not.
+        assert_eq!(
+            rt.call("crash", &[Value::Int(1)]).unwrap(),
+            Value::Float(2.0)
         );
+        assert!(rt.call("crash", &[Value::Int(9)]).is_err());
+        assert!(rt.paused().is_some(), "the stop still holds");
 
         let p = paused(rt.resume(Command::StepOver).unwrap());
         assert_eq!((p.line, p.reason), (6, StopReason::Step));

@@ -105,10 +105,11 @@ fn load(dir: &std::path::Path, scene: &str) -> App {
     app
 }
 
-fn logged_at(level: &str) -> Vec<String> {
+// The lines about one node: other tests in this process log at the same time.
+fn logged_at(level: &str, node: &str) -> Vec<String> {
     balaur_core::logbuf::recent(200)
         .into_iter()
-        .filter(|entry| entry.level == level)
+        .filter(|entry| entry.level == level && entry.message.contains(node))
         .map(|entry| entry.message)
         .collect()
 }
@@ -129,11 +130,10 @@ const UNKNOWN_KEY_SAID: &str = "scene key 'cloner' on node 'Host' has no registe
 
 #[test]
 fn a_scene_key_nothing_handles_is_an_error_and_is_kept() {
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let dir = project(&[]);
     let app = load(dir.path(), UNKNOWN_KEY);
-    let errors = logged_at("error");
+    let errors = logged_at("error", "'Host'");
     assert!(
         errors.iter().any(|error| error.contains(UNKNOWN_KEY_SAID)),
         "{errors:?}"
@@ -153,16 +153,15 @@ fn a_scene_key_nothing_handles_is_an_error_and_is_kept() {
 
 #[test]
 fn a_scene_key_nothing_handles_only_warns_where_a_module_may_own_it() {
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let dir = project(&[]);
     let app = app_in(dir.path());
     app.engine
         .insert_resource(balaur_core::project::LacksKeyOwner);
     let root = app.engine.root();
     balaur_core::project::instantiate_scene(&app.engine, UNKNOWN_KEY, root, false).unwrap();
-    assert_eq!(logged_at("error"), Vec::<String>::new());
-    let warnings = logged_at("warn");
+    assert_eq!(logged_at("error", "'Host'"), Vec::<String>::new());
+    let warnings = logged_at("warn", "'Host'");
     assert!(
         warnings
             .iter()
@@ -177,15 +176,14 @@ fn a_scene_key_nothing_handles_only_warns_where_a_module_may_own_it() {
 
 #[test]
 fn a_scene_key_a_component_answers_logs_nothing() {
-    balaur_core::logbuf::capture_for_test();
-    balaur_core::logbuf::clear();
+    let _log = crate::observability::hold_the_log();
     let dir = project(&[]);
     load(
         dir.path(),
         "[[nodes]]\nid = \"n_host\"\nname = \"Host\"\n\n[nodes.marker]\nlabel = \"host\"\n",
     );
-    assert_eq!(logged_at("error"), Vec::<String>::new());
-    assert_eq!(logged_at("warn"), Vec::<String>::new());
+    assert_eq!(logged_at("error", "'Host'"), Vec::<String>::new());
+    assert_eq!(logged_at("warn", "'Host'"), Vec::<String>::new());
 }
 
 #[test]
@@ -280,6 +278,47 @@ label = "box"
     let marker = nodes[0]["marker"].as_table().unwrap();
     assert_eq!(marker["label"].as_str(), Some("box"));
     assert_eq!(marker["size"].as_float(), Some(4.0));
+}
+
+#[test]
+fn a_node_says_what_it_changes_of_the_prefab_that_built_it() {
+    let dir = project(&[("scenes/enemy.toml", ENEMY)]);
+    let app = load(
+        dir.path(),
+        r#"
+[[nodes]]
+id = "n_scene"
+name = "Scene"
+
+[[nodes]]
+id = "n_enemy"
+name = "Enemy"
+parent = "n_scene"
+instance = "scenes/enemy.toml"
+
+[nodes.overrides.Arm.marker]
+size = 5.0
+"#,
+    );
+    let (scene, arm, hand) = {
+        let world = app.engine.world();
+        (
+            scene_root(&app),
+            find_node(&world, scene_root(&app), "Enemy/Arm").unwrap(),
+            find_node(&world, scene_root(&app), "Enemy/Arm/Hand").unwrap(),
+        )
+    };
+    let said = balaur_core::scene_toml::overrides_of(&app.engine, arm);
+    assert_eq!(said["marker"]["size"].as_float(), Some(5.0));
+    assert_eq!(said["marker"].as_table().unwrap().len(), 1);
+    assert!(
+        balaur_core::scene_toml::overrides_of(&app.engine, hand).is_empty(),
+        "what is as the prefab asks is no override"
+    );
+    assert!(
+        balaur_core::scene_toml::overrides_of(&app.engine, scene).is_empty(),
+        "no prefab built the scene's own node"
+    );
 }
 
 #[test]

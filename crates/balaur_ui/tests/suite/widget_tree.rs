@@ -271,19 +271,19 @@ fn a_click_with_no_draw_pass_runs_the_buttons_rows_and_skips_a_disabled_one() {
 fn a_toggle_button_stays_down_and_lets_its_group_up() {
     let (_dir, mut app) = app();
     let checked = |app: &balaur_core::App, entity| {
-        balaur::components::get(&app.engine, entity, "widget")
+        balaur::components::get(&app.engine, entity, "widget_check")
             .and_then(|w| w.get("checked").cloned())
             .and_then(|v| v.as_bool())
     };
     let alone = add_widget(
         &app,
-        &toml::toml! { kind = "button" text = "Map" toggle = true }.into(),
+        &toml::toml! { kind = "button" text = "Map" widget_check = { toggle = true } }.into(),
     );
     let tabs: Vec<_> = ["Food", "Verbs"]
         .into_iter()
         .map(|text| {
             let params =
-                toml::toml! { kind = "button" text = text toggle = true radio_group = "tabs" };
+                toml::toml! { kind = "button" text = text widget_check = { toggle = true, radio_group = "tabs" } };
             add_widget(&app, &params.into())
         })
         .collect();

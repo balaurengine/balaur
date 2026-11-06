@@ -240,11 +240,14 @@ pub fn report(sink: Sink) -> any {
 
 /// The headers every call carries: the run's id, and the player's token
 /// once there is one, so an early line is adopted when the run signs in.
-pub fn headers(sink: Sink) -> any {
-    let out: any = { "content-type": "application/json", "x-gamend-session": sink.run };
+pub fn headers(sink: Sink) -> [http::Header] {
+    let out = [
+        http::Header { name: "content-type", value: "application/json" },
+        http::Header { name: "x-gamend-session", value: sink.run },
+    ];
     let session = gamend::session();
     if session != nil && session.unwrap().access_token != "" {
-        out["authorization"] = "Bearer " + session.unwrap().access_token;
+        out.push(http::Header { name: "authorization", value: "Bearer " + session.unwrap().access_token });
     }
     out
 }

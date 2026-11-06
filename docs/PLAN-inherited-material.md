@@ -226,16 +226,15 @@ Two things follow, in order:
 ## 4. The inspector says where a material came from
 
 Today the inspector draws an empty `material` property as empty, and
-`material_rows` in `editor/scripts/inspector.bs` returns early on an empty
-reference. A node drawing an inherited material would look unstyled, and
-people would set it per node anyway, which is the habit the feature exists to
-break.
+the rows under it return early on an empty reference. A node drawing an
+inherited material would look unstyled, and people would set it per node
+anyway, which is the habit the feature exists to break.
 
 - `inherited_material(S)` in the inspector walks the live node up with
   `node.material()` until one names a material, stopping at the edited
   scene's root. No new binding was needed.
 - An empty `material` or `source` row shows `from <node>: <file>` as its
-  placeholder, and `material_rows` draws that material's shader and params as
+  placeholder, and `walk_material` draws that material's shader and params as
   it does for an owned one. When the source is the node's own `material`
   component, the rows are left to that component's row.
 - Typing a reference into the row sets the node's own, which takes over.

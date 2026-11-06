@@ -2,10 +2,12 @@
 // for the three docks, each told its side by the node it is on; the Editor
 // owns which panels a dock holds and fills its row when asked.
 
+use editor;
+
 pub class Dock {
     node: Node,
     side: str,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 fn side_of(name: str) -> str {
@@ -21,17 +23,15 @@ fn side_of(name: str) -> str {
 impl Dock {
     pub fn init() {
         self.side = side_of(self.node.name());
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "docks_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
     }
 
     pub fn on_docks_changed(_change: any) {
-        let shown = self.editor.call("dock_fill", self.side);
-        // Told once it is visible, so a panel that fills itself never reads
-        // itself as hidden and skips the fill.
-        if shown.kind() == "str" && shown.as_str() != "" {
-            self.node.get_node(shown.as_str()).call("refresh");
-        }
+        // A panel this shows fills on the same word, heard after this: it
+        // listened once its dock had, as the dock's child.
+        self.editor.unwrap().dock_fill(self.side);
     }
 
     /// The tabs, the "+N" list and the fold run the Editor's own handlers, so

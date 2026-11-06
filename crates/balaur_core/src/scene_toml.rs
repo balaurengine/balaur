@@ -211,7 +211,20 @@ fn write_overrides(
     out: &mut toml::Table,
 ) {
     let empty = toml::Table::new();
-    let base = asks.get(path).unwrap_or(&empty);
+    let entry = changes_over(eng, entity, asks.get(path).unwrap_or(&empty));
+    if !entry.is_empty() {
+        out.insert(path.to_string(), toml::Value::Table(entry));
+    }
+    for child in children_of(eng, entity) {
+        if stable_id(eng, child).starts_with(built) {
+            let inner = format!("{path}/{}", name_of(eng, child));
+            write_overrides(eng, child, &inner, built, asks, out);
+        }
+    }
+}
+
+/// What `entity` changes of what a prefab asks of it, property by property.
+fn changes_over(eng: &Engine, entity: Entity, base: &toml::Table) -> toml::Table {
     let mut entry = toml::Table::new();
     NodeKeys::of_node(eng, entity).write_over(&NodeKeys::of_table(base), &mut entry);
     if let Some(toml::Value::Table(script)) = script_of(eng, entity) {
@@ -246,15 +259,55 @@ fn write_overrides(
             entry.insert(name, changed);
         }
     }
-    if !entry.is_empty() {
-        out.insert(path.to_string(), toml::Value::Table(entry));
-    }
-    for child in children_of(eng, entity) {
-        if stable_id(eng, child).starts_with(built) {
-            let inner = format!("{path}/{}", name_of(eng, child));
-            write_overrides(eng, child, &inner, built, asks, out);
+    entry
+}
+
+/// What `entity` changes of what the prefab that built it asks, as a node's
+/// `overrides` entry holds it; empty for a node no prefab built, or one whose
+/// prefab cannot be read now.
+#[must_use]
+pub fn overrides_of(eng: &Engine, entity: Entity) -> toml::Table {
+    let Some((source, path)) = prefab_path(eng, entity) else {
+        return toml::Table::new();
+    };
+    let Ok(asks) = prefab_asks(eng, &source, &mut Vec::new()) else {
+        return toml::Table::new();
+    };
+    let empty = toml::Table::new();
+    changes_over(eng, entity, asks.get(&path).unwrap_or(&empty))
+}
+
+/// The outermost prefab that built `entity` and its path in it: what a save
+/// writes it under, since a prefab's nodes carry the instance's id as a prefix.
+fn prefab_path(eng: &Engine, entity: Entity) -> Option<(String, String)> {
+    let id = stable_id(eng, entity);
+    let mut found = None;
+    let mut names = Vec::new();
+    let mut at = Some(entity);
+    while let Some(node) = at {
+        if let Ok(instanced) = eng.world().get::<&Instanced>(node)
+            && (node == entity || id.starts_with(&format!("{}/", stable_id(eng, node))))
+        {
+            let path = if names.is_empty() {
+                ITSELF.to_string()
+            } else {
+                names
+                    .iter()
+                    .rev()
+                    .cloned()
+                    .collect::<Vec<String>>()
+                    .join("/")
+            };
+            found = Some((instanced.source.clone(), path));
         }
+        names.push(name_of(eng, node));
+        at = eng
+            .world()
+            .get::<&crate::scene::Parent>(node)
+            .ok()
+            .map(|p| p.0);
     }
+    found
 }
 
 /// What a component holds for each property nobody asked of it.

@@ -103,16 +103,10 @@ impl Recipe {
                 ));
             }
             w::FOLLOW => {
-                let table = match opts.get(k::FOLLOW) {
+                follow = Some(match opts.get(k::FOLLOW) {
                     Some(value) => balaur_core::node_api::to_toml(value)?,
                     None => toml::Value::Table(toml::map::Map::new()),
-                };
-                if !table.is_table() {
-                    return Err(anyhow!(
-                        "a ragdoll's `follow` is a follow3d or follow2d table"
-                    ));
-                }
-                follow = Some(table);
+                });
             }
             other => {
                 return Err(anyhow!(
@@ -121,13 +115,12 @@ impl Recipe {
                 ));
             }
         }
-        let axes = match opts.get(k::AXES) {
-            Some(value) => match balaur_core::node_api::to_toml(value)? {
-                toml::Value::Array(records) => records,
-                _ => return Err(anyhow!("a ragdoll's `axes` is a list of axis records")),
-            },
-            None => Vec::new(),
-        };
+        let axes = opts
+            .list(k::AXES)
+            .unwrap_or_default()
+            .iter()
+            .map(balaur_core::node_api::to_toml)
+            .collect::<Result<Vec<_>>>()?;
         let mut body = toml::map::Map::new();
         for key in [k::LINEAR_DAMPING, k::ANGULAR_DAMPING, k::GRAVITY_SCALE] {
             if opts.get(key).is_some() {
@@ -182,7 +175,6 @@ fn layers(items: &[Value]) -> Result<toml::Value> {
         .iter()
         .map(|item| match item {
             Value::Int(n) => Ok(toml::Value::String(n.to_string())),
-            Value::Str(text) => Ok(toml::Value::String(text.clone())),
             _ => Err(anyhow!("a layer is a number from 1 to 32")),
         })
         .collect::<Result<Vec<_>>>()
@@ -713,6 +705,34 @@ pub(crate) fn blend_system(eng: &Engine, _dt: f32) {
     }
 }
 
+/// What a 3D ragdoll's joints and follows take.
+const OPTION_RECORDS_3D: &[balaur_script::RecordDoc] = &[
+    (
+        "JointAxis",
+        "{ axis: string, limits: [float]?, motor: string?, motor_target: float?, motor_target_velocity: float?, motor_max_force: float?, motor_model: string?, stiffness: float?, damping: float? }",
+        "One `axes` record of a joint: the free axis it limits and drives, how far it may travel, low then high, and its motor.",
+    ),
+    (
+        "FollowOptions",
+        "{ kind: string?, translation_axes: [string]?, rotation_axes: [string]?, position_gain: Vec3?, velocity_gain: Vec3?, rotation_gain: Vec3?, spin_gain: Vec3?, integral_gain: Vec3?, rotation_integral_gain: Vec3?, target_linear_velocity: Vec3?, target_angular_velocity: Vec3? }",
+        "A `follow3d`'s rows, every one but `target`, which a ragdoll sets to each body's bone.",
+    ),
+];
+
+/// What a 2D ragdoll's joints and follows take.
+const OPTION_RECORDS_2D: &[balaur_script::RecordDoc] = &[
+    (
+        "JointAxis",
+        "{ axis: string, limits: [float]?, motor: string?, motor_target: float?, motor_target_velocity: float?, motor_max_force: float?, motor_model: string?, stiffness: float?, damping: float? }",
+        "One `axes` record of a joint: the free axis it limits and drives, how far it may travel, low then high, and its motor.",
+    ),
+    (
+        "FollowOptions",
+        "{ kind: string?, translation_axes: [string]?, rotation_axes: [string]?, position_gain: Vec2?, velocity_gain: Vec2?, rotation_gain: float?, spin_gain: float?, integral_gain: Vec2?, rotation_integral_gain: float?, target_linear_velocity: Vec2?, target_angular_velocity: float? }",
+        "A `follow2d`'s rows, every one but `target`, which a ragdoll sets to each body's bone.",
+    ),
+];
+
 /// `ragdoll`, on both `physics2d` and `physics3d`.
 pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
     let doc = if dim3 {
@@ -735,9 +755,14 @@ pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
          `shape` one of `capsule`, `rectangle` or `circle` and `axes` records on `rotation`. \
          Answers the body nodes it made."
     };
+    m.records(if dim3 {
+        OPTION_RECORDS_3D
+    } else {
+        OPTION_RECORDS_2D
+    });
     m.records(&[(
         "RagdollOptions",
-        "{ shape: string?, thickness: float?, density: float?, friction: float?, restitution: float?, collision_layer: any, collision_mask: any, linear_damping: float?, angular_damping: float?, gravity_scale: float?, continuous_collision: bool?, axes: any, articulation: bool?, collide_connected: bool?, drive: string?, stiffness: float?, damping: float?, follow: any, influence: float?, parent: node? }",
+        "{ shape: string?, thickness: float?, density: float?, friction: float?, restitution: float?, collision_layer: [int]?, collision_mask: [int]?, linear_damping: float?, angular_damping: float?, gravity_scale: float?, continuous_collision: bool?, axes: [JointAxis]?, articulation: bool?, collide_connected: bool?, drive: string?, stiffness: float?, damping: float?, follow: FollowOptions?, influence: float?, parent: node? }",
         "How a ragdoll is built: each bone's shape and surface, each body's damping, the joints' limits, and how it is driven.",
     )]);
     m.describe(&[(

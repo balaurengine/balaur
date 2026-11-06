@@ -1,16 +1,20 @@
 // The Import tab's one script: the file the Assets tab has selected, filled
 // by the Editor when the selection, the file or a setting moved.
 
+use editor;
+
 pub class Import {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Import {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "docks_changed", source);
         for word in ["assets_changed", "outline_changed"] {
-            events::listen(self.node, word, self.editor);
+            events::listen(self.node, word, source);
         }
     }
 
@@ -28,24 +32,28 @@ impl Import {
         self.refresh();
     }
 
+    /// The dock showed or hid this panel: shown, it fills.
+    pub fn on_docks_changed(_change: any) {
+        if self.node.visible() {
+            self.refresh();
+        }
+    }
+
     /// Fill what shows: on a word, and from the dock once it is visible.
     pub fn refresh() {
         if self.node.visible() == false {
             return;
         }
-        let view = self.editor.call("import_fill");
-        if !(view.kind() == "map") {
-            return;
-        }
+        let view = self.editor.unwrap().import_fill();
         let patched = self.node.get_node("Name");
-        patched.set_visible(view["ready"].as_bool());
-        patched.widget.text = view["name"].as_str();
+        patched.set_visible(view.ready);
+        patched.widget.text = view.name;
         let patched = self.node.get_node("From");
-        patched.set_visible(view["ready"].as_bool());
-        patched.widget.text = view["from"].as_str();
+        patched.set_visible(view.ready);
+        patched.widget.text = view.from;
         let patched = self.node.get_node("Nothing");
-        patched.set_visible(!view["ready"].as_bool());
-        patched.widget.text = view["says"].as_str();
-        self.node.get_node("Scroll").set_visible(view["ready"].as_bool());
+        patched.set_visible(!view.ready);
+        patched.widget.text = view.says;
+        self.node.get_node("Scroll").set_visible(view.ready);
     }
 }

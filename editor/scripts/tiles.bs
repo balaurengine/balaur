@@ -82,9 +82,9 @@ pub struct Layer {
 /// What the Tiles panel's cards are cut from: the tiles as rows, the one
 /// held, and the sheet they are cut from.
 pub struct Palette {
-    items: [ui::Item],
-    picked: str,
-    sheet: str,
+    internal items: [ui::Item],
+    internal picked: str,
+    internal sheet: str,
 }
 
 /// The tool's own state, hung on `state.tiles`. `stroke` is the button held down

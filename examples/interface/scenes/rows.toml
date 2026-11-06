@@ -19,6 +19,7 @@ x = 0
 y = 0
 width = 900
 padding = 16
+[nodes.widget_layout]
 gap = [12, 12]
 
 [[nodes]]
@@ -36,8 +37,9 @@ name = "Views"
 parent = "sheet"
 [nodes.widget]
 kind = "row"
-gap = [12, 12]
 height = 300
+[nodes.widget_layout]
+gap = [12, 12]
 
 [[nodes]]
 id = "list_box"
@@ -46,6 +48,7 @@ parent = "views"
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]
@@ -66,9 +69,10 @@ name = "List"
 parent = "list_box"
 [nodes.widget]
 kind = "list"
+grow = 1
+[nodes.widget_rows]
 multi_select = true
 row_height = 22
-grow = 1
 [nodes.widget_list]
 reorderable = true
 on_move = "on_move"
@@ -80,6 +84,7 @@ parent = "views"
 [nodes.widget]
 kind = "column"
 grow = 1
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]
@@ -97,9 +102,10 @@ name = "Outline"
 parent = "tree_box"
 [nodes.widget]
 kind = "tree"
-row_height = 22
 font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
+[nodes.widget_rows]
+row_height = 22
 [nodes.widget_list]
 reorderable = true
 on_move = "on_move"
@@ -111,6 +117,7 @@ parent = "views"
 [nodes.widget]
 kind = "column"
 grow = 1.3
+[nodes.widget_layout]
 gap = [6, 6]
 
 [[nodes]]
@@ -131,11 +138,12 @@ parent = "table_box"
 [nodes.widget]
 kind = "table"
 text = "Torus"
+font = "fonts/JetBrainsMono-Regular.ttf"
+grow = 1
+[nodes.widget_rows]
 # A click on a header sorts by that column and the next turns it round; the
 # shares are the scene's until a drag on a seam writes its own.
 row_height = 22
-font = "fonts/JetBrainsMono-Regular.ttf"
-grow = 1
 [nodes.widget_table]
 titles = ["name", "kind", "size>"]
 sortable = true

@@ -172,13 +172,13 @@ stateDiagram-v2
 |---|---|
 | Waiting: `after=Some(id)` with `id` in `tweens`, `pending=Some(spec)`, `running=true` | Sits out every step. `is_tween_running` answers true. |
 | Running: `running=true`, `after` empty or naming nothing | `time` moves by `fixed_dt * speed`. A node tween writes its pose and fires its calls. |
-| Spent: `running=false`, `value=true` | A value tween that ran out, kept to the next frame. `is_tween_running` answers false, and `tween_value_of` answers where it landed. |
-| Gone: no entry in `tweens` | `is_tween_running` false, `tween_value_of` nil, `stop` a no-op. |
+| Spent: `running=false`, `value=true` | A value tween that ran out, kept to the next frame. `is_tween_running` answers false, and `tween_float_of` answers where it landed. |
+| Gone: no entry in `tweens` | `is_tween_running` false, `tween_float_of` nil, `stop_tween` a no-op. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | none | `start`, spec `then` names a live tween | Waiting | Keeps the spec in `pending`. |
-| none | `start`, `start_to`, `start_script`, `start_value` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. |
+| none | `start`, `start_to`, `start_script`, `start_float` | Running | Builds the clip and reads the start values. The handle counts up and is never reused. |
 | Waiting | `advance_system` finds `after` names nothing, then `begin` | Running | Rebuilds the clip, so `by` and a captured `from` read the node now. |
 | Waiting | `begin` fails | Gone | Warns. No event. |
 | Running | `advance` passes a step's end | Running | Announces `tween_step` `#{ tween, step }`. |
@@ -186,12 +186,12 @@ stateDiagram-v2
 | Running | `advance`, clip over, loops done, a node tween | Gone | Announces `tween_finished` with the handle. |
 | Running | `advance`, clip over, loops done, a value tween | Spent | No event. |
 | Spent | Top of the next `advance_system` | Gone | Dropped. |
-| any | `tween::stop`, script `animation.stop(handle)` | Gone | No event. |
+| any | `tween::stop`, script `animation.stop_tween(handle)` | Gone | No event. |
 | any | The node freed (`advance_system`) | Gone | No event. |
 
 Starts in Running or Waiting. Ends in Gone. `release_unheld` then lets go of script functions no live tween names.
 
-Refused or ignored: `start` errors on no steps, an unknown property, a target that names no node, or a `speed` not above 0. `start_value` errors on ends of different widths. `stop` on an unknown handle is a no-op.
+Refused or ignored: `start` errors on no steps, an unknown property, a target that names no node, or a `speed` not above 0. `start_float` errors on a negative length. `stop_tween` on an unknown handle is a no-op.
 
 Held by a pause, a `process` mode or a parked scene: `advance_system` skips the tween through `process::ticks` on `tween.node`, which for a value tween is the root. A freeze returns early. A `call` step aimed at a held script still runs.
 
@@ -2453,7 +2453,6 @@ Starts in None. Ends with the run.
 | `SwitchMode` | `crates/balaur_animation/src/machine.rs` | `Immediate` (`immediate`, default), `Sync` (`sync`), `AtEnd` (`at_end`) | Asset data on a transition, read by `ready` and `enter`. `Immediate` and `Sync` wait for `fades` to empty, and `Sync` keeps the playhead. `AtEnd` waits for the clip's end, or starts its fade so it ends with the clip. |
 | `Effect` | `crates/balaur_animation/src/system.rs` | `Patch`, `Call`, `Invoke`, `TweenFinished`, `TweenLooped`, `TweenStep`, `Looped`, `Deform`, `Shown` | What a fixed step wants done once the borrows are gone. |
 | `Moved` | `crates/balaur_animation/src/machine.rs` | `entity`, `left`, `entered` | One machine's change on a step, for `announce`. |
-| `Stoppable` | `crates/balaur_animation/src/bindings.rs` | `Node`, `Tween` | What script `animation.stop` was handed. |
 | `Event` | `crates/balaur_physics/src/shared/events.rs` | `Started`, `Stopped`, `Force`, `Tear` | One thing a step reported, before delivery. |
 | Sweep status | `crates/balaur_physics/src/shared/character.rs` | `converged`, `out_of_iterations`, `failed`, `penetrating` | How one collision's sweep ended, in `move_character`'s answer. |
 | `TouchPhase` | `crates/balaur_input/src/lib.rs` | `Start` (`start`), `Move` (`move`), `End` (`end`), `Cancel` (`cancel`) | What one report says a finger did. |

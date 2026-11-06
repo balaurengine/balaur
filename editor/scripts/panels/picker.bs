@@ -2,26 +2,29 @@
 // take turns on it, and whichever is up fills it through the Editor. What is
 // typed runs the field's own handler first, then the rows follow it.
 
+use editor;
+
 pub class Picker {
     node: Node,
-    editor: Node,
+    editor: editor::Editor?,
 }
 
 impl Picker {
     pub fn init() {
-        self.editor = scene::get_node("Editor");
-        events::listen(self.node, "picker_changed", self.editor);
+        let source = scene::get_node("Editor");
+        self.editor = source.script;
+        events::listen(self.node, "picker_changed", source);
     }
 
     pub fn on_picker_changed(_change: any) {
-        self.editor.call("picker_fill");
+        self.editor.unwrap().picker_fill();
     }
 
     pub fn closed() {
-        self.editor.call("picker_closed");
+        self.editor.unwrap().picker_closed();
     }
 
     pub fn refill() {
-        self.editor.call("picker_fill");
+        self.editor.unwrap().picker_fill();
     }
 }

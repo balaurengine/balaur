@@ -148,6 +148,7 @@ EDITOR_STATES=(
   test:sheet_close test:settings test:export_runtime
   test:drop test:events                     # drag-in; the Events view
   test:library test:rows test:pool test:camera_document test:warnings
+  test:inspector_rows                       # a row's edit, its log, the window
   test:pen                                  # anchors, a handle, its asset
   test:picture                              # the scene drawn by a second run
 )

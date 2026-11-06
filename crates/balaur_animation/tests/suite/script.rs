@@ -242,12 +242,12 @@ fn a_script_defines_a_clip_of_its_own_and_plays_it() {
 pub class Define { node: Node }
 impl Define {
     fn init() {
-        let keys: [any] = [
-            { "time": 0.0, "value": [0.0, 0.0, 0.0] },
-            { "time": 1.0, "value": [0.0, 8.0, 0.0] },
+        let keys = [
+            animation::Key { time: 0.0, value: [0.0, 0.0, 0.0] },
+            animation::Key { time: 1.0, value: [0.0, 8.0, 0.0] },
         ];
-        let track: any = { "property": "position", "keys": keys };
-        self.node.animation.add_clip("hurt", { "length": 1.0, "tracks": [track] });
+        let track = animation::Track { property: "position", keys: keys };
+        self.node.animation.add_clip("hurt", animation::Clip { length: 1.0, tracks: [track] });
         self.node.animation.play("hurt");
     }
 }
@@ -267,6 +267,40 @@ impl Define {
     assert!(
         (height(&app, entity) - 8.0).abs() < 1e-2,
         "the clip the script defined did not drive the node: {}",
+        height(&app, entity)
+    );
+}
+
+/// What the editor does: a clip it read from a file is an `any` until the
+/// call types it.
+#[test]
+fn a_clip_read_as_an_any_reaches_the_call_by_its_keys() {
+    let script = r#"
+pub class Define { node: Node }
+impl Define {
+    fn init() {
+        let clip: any = {
+            "length": 1.0,
+            "tracks": [{
+                "property": "position",
+                "keys": [
+                    { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+                    { "time": 1.0, "value": [0.0, 8.0, 0.0] },
+                ],
+            }],
+        };
+        self.node.animation.add_clip("hurt", clip);
+        self.node.animation.play("hurt");
+    }
+}
+"#;
+    let dir = project(("define.bs", script));
+    let mut app = app_in(dir.path());
+    let entity = hero(&app, "define.bs");
+    tick(&mut app, 61);
+    assert!(
+        (height(&app, entity) - 8.0).abs() < 1e-2,
+        "the clip did not drive the node: {}",
         height(&app, entity)
     );
 }
@@ -343,7 +377,7 @@ impl Halt {
     }
     fn update(dt: float) {
         if self.node.animation.time() > 0.1 {
-            animation::stop(self.node);
+            self.node.animation.stop();
         }
     }
 }
@@ -391,7 +425,7 @@ impl Mover {
         animation::tween(self.node, animation::Tween { steps: [step] });
     }
     pub fn halt() {
-        animation::stop(self.handle);
+        animation::stop_tween(self.handle);
     }
 }
 "#;
@@ -440,8 +474,6 @@ fn a_script_reads_a_tween_handle_back_and_stops_by_it() {
         other => panic!("a tween handle should be a plain number, not {other:?}"),
     };
 
-    // `animation::stop` is one verb: the same name that ends a node's clip
-    // ends a tween when it is handed the tween's handle.
     call(&app, entity, "halt");
     let stopped = height(&app, entity);
     tick(&mut app, 20);
@@ -500,13 +532,14 @@ impl Mover {
             ease: "linear",
         };
         self.handle = animation::tween(self.node, animation::Tween { steps: [step] });
-        self.meter = animation::tween_value(0.0, 10.0, 0.5, "linear");
+        self.meter = animation::tween_float(0.0, 10.0, 0.5, "linear");
     }
     fn update(dt: float) {
         // The frame a value tween ends still answers its last value; after
-        // it, `tween_value_of` answers nil, which a `float` reads as 0.
-        if !self.over {
-            self.read = animation::tween_value_of(self.meter);
+        // it, `tween_float_of` answers nil.
+        let now = animation::tween_float_of(self.meter);
+        if now != nil {
+            self.read = now.unwrap();
         }
         self.over = !animation::is_tween_running(self.meter);
     }
@@ -546,19 +579,19 @@ const CONSTANTS: &str = r#"
 pub class Constants { node: Node }
 impl Constants {
     fn init() {
-        let keys: [any] = [
-            { "time": 0.0, "value": [0.0, 0.0, 0.0] },
-            { "time": 1.0, "value": [0.0, 2.0, 0.0], "ease": animation::EASE_IN_OUT_SINE },
+        let keys = [
+            animation::Key { time: 0.0, value: [0.0, 0.0, 0.0] },
+            animation::Key { time: 1.0, value: [0.0, 2.0, 0.0], ease: animation::EASE_IN_OUT_SINE },
         ];
-        let track: any = {
-            "property": animation::PROPERTY_POSITION,
-            "interpolation": animation::INTERPOLATION_CUBIC,
-            "keys": keys,
+        let track = animation::Track {
+            property: animation::PROPERTY_POSITION,
+            interpolation: animation::INTERPOLATION_CUBIC,
+            keys: keys,
         };
-        self.node.animation.add_clip("swing", {
-            "length": 1.0,
-            "loop_mode": animation::LOOP_PINGPONG,
-            "tracks": [track],
+        self.node.animation.add_clip("swing", animation::Clip {
+            length: 1.0,
+            loop_mode: animation::LOOP_PINGPONG,
+            tracks: [track],
         });
         self.node.animation.play("wave");
         self.node.animation.play("swing", animation::PlayOptions { blend_time: 0.5, ease: animation::EASE_IN_QUAD });

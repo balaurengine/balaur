@@ -137,8 +137,16 @@ fn add_all(state: &mut editor::State, owner: Node, declared: any) {
             "owner": owner,
         });
     }
-    for rows in util::list_or_empty(declared["inspector_sections"]) {
-        state.registry.inspector_sections.push({ "rows": rows, "owner": owner });
+    // A section is a component of the plugin's own: a schema, and the methods
+    // that read and write it.
+    for section in util::list_or_empty(declared["inspector_sections"]) {
+        state.registry.inspector_sections.push({
+            "component": section["component"],
+            "schema": section["schema"],
+            "read": section["read"],
+            "write": section["write"],
+            "owner": owner,
+        });
     }
     for draw in util::list_or_empty(declared["overlays"]) {
         state.registry.overlays.push({ "draw": draw, "owner": owner });
@@ -182,38 +190,24 @@ pub fn run(state: &mut editor::State, command: any) {
     ask(command, "run", {});
 }
 
-/// The rows each plugin's inspector section asks for, after the built-ins: a
-/// section returns row specs as `pool.bs` takes them, and draws nothing.
-pub fn section_rows(state: &mut editor::State, tokens: any, node: Node) {
+/// The sections plugins registered, in the order they did.
+pub fn sections(state: editor::State) -> [any] {
+    state.registry.inspector_sections
+}
+
+/// What a section's component holds on `node`, as a table by property; nil
+/// where the plugin has nothing to say of this node.
+pub fn section_values(entry: any, node: Node) -> any {
+    ask(entry, "read", { "node": node })
+}
+
+/// One of a section's rows edited: its plugin's `write` method hears it.
+pub fn section_write(state: editor::State, component: str, property: str, value: any) {
     for entry in state.registry.inspector_sections {
-        for row in util::list_or_empty(ask(entry, "rows", { "theme": tokens, "node": node })) {
-            inspector::add_row(state, calls_back(entry, util::map_or_empty(row)));
+        if entry["component"].as_str() == component && entry["write"] != nil {
+            ask(entry, "write", { "property": property, "value": value });
         }
     }
-}
-
-// A control naming a `call` presses back into the plugin: that method runs
-// on the plugin's node with the control's `data`.
-fn calls_back(entry: any, row: any) -> ui::Row {
-    let controls: [ui::Control] = [];
-    for control in util::list_or_empty(row["controls"]) {
-        let call = control["call"];
-        if call.kind() == "str" {
-            let data: any = { "owner": entry["owner"], "call": call, "payload": control["data"] };
-            control.remove("call");
-            controls.push(pool::on(control, pressed, data));
-        } else {
-            controls.push(control);
-        }
-    }
-    let out = util::copy(row);
-    out["controls"] = controls;
-    out
-}
-
-fn pressed(state: &mut editor::State, data: any, _value: any) {
-    data["owner"].as_node().call(data["call"].as_str(), data["payload"]);
-    changed(state);
 }
 
 /// Viewport lines a plugin draws, kept with the editor's own until what they
@@ -260,8 +254,8 @@ pub fn fill_dialogs(state: &mut editor::State) {
             kind: "panel",
             role: "sheet",
             width: DIALOG_WIDTH,
-            padding: [12, 6, 12, 8],
-            gap: [6, 6],
+            padding: ui::sides(12, 6, 12, 8),
+            gap: vec2(6, 6),
             controls: body,
         });
     }
@@ -291,7 +285,7 @@ fn row_controls(row: any) -> ui::Control {
     for one in util::list_or_empty(row["controls"]) {
         controls.push(one);
     }
-    ui::Control { kind: "row", gap: [6, 6], align_items: "center", controls: controls }
+    ui::Control { kind: "row", gap: vec2(6, 6), align_items: "center", controls: controls }
 }
 
 /// What a plugin's docks and dialogs show moved.

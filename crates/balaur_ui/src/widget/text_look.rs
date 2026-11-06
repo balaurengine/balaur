@@ -39,33 +39,19 @@ impl Default for TextLook {
 }
 
 /// The channels a scene writes, as the widget's other colour keys read them.
-fn color_of(quad: [f32; 4]) -> Color32 {
+pub(crate) fn color_of(quad: [f32; 4]) -> Color32 {
     let byte = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
     Color32::from_rgba_unmultiplied(byte(quad[0]), byte(quad[1]), byte(quad[2]), byte(quad[3]))
 }
 
 impl TextLook {
-    /// What a widget's properties say, over the defaults. The style it names
-    /// is read in by [`Self::dress_with`], which needs the asset layer.
+    /// What a widget's own properties say, over the defaults. The style it
+    /// names is read in by [`Self::dress_with`], which needs the asset layer,
+    /// and how its lines break is `widget_text`'s or `widget_field`'s.
     pub(crate) fn of(asked: &WidgetProperties) -> Self {
-        let base = Self::default();
-        let tab = asked.tab_width;
         Self {
-            options: balaur_text::Options {
-                line_break: balaur_text::LineBreak::of(&asked.line_break.0),
-                truncate_at: balaur_text::TruncateAt::of(&asked.truncate_at.0),
-                max_lines: u32::try_from(asked.max_lines.max(0)).unwrap_or(u32::MAX),
-                max_height: None,
-                tab_width: if tab >= 1 {
-                    tab.min(64) as u16
-                } else {
-                    base.options.tab_width
-                },
-                ..base.options
-            },
             text_style: asked.text_style.clone(),
-            background: color_of(asked.text_background),
-            ..base
+            ..Self::default()
         }
     }
 

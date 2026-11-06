@@ -427,20 +427,6 @@ fn apply_system(eng: &Engine, _dt: f32) {
     let signals = settle_clicks(eng, &clicked, &mut typed, &mut emitted);
     // The pool's controls hear their edits and clicks here, before any named
     // handler, so a strip nobody refilled still answers.
-    let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
-    // An inspector's rows are heard as one edit from the inspector itself.
-    for (entity, value) in crate::widget::inspector::heard(eng, &emitted, &hit) {
-        let method = eng
-            .world()
-            .get::<&Widget>(entity)
-            .ok()
-            .map(|widget| widget.on_change.to_string())
-            .filter(|method| !method.is_empty());
-        if let Some(method) = method {
-            typed.push((entity, method, value.clone()));
-        }
-        emitted.push((entity, CHANGE_EVENT, value));
-    }
     crate::widget::pool::heard(eng, &emitted);
     // A pointer event is a core hook: its rows, and the node's own
     // `on_pointer_*`, as a world node's. The widget's own events are emitted.
@@ -590,10 +576,6 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.height = *height;
             &[k::HEIGHT]
         }
-        Edit::Active(name) => {
-            asked.current_page = name.as_str().into();
-            &[k::CURRENT_PAGE]
-        }
         Edit::Moved([dx, dy]) => {
             let (sx, sy) = crate::widget::window::drag_signs(&asked.anchor.0);
             asked.x += dx * sx;
@@ -604,25 +586,14 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.text = text.as_str().into();
             &[k::TEXT]
         }
-        Edit::Open(open) => {
-            asked.open = *open;
-            &[k::OPEN]
-        }
         // A dropdown shows what was picked; a menu keeps its caption.
         Edit::Choice(choice) if asked.kind.0 != w::MENU => {
             asked.text = choice.as_str().into();
             &[k::TEXT]
         }
-        Edit::Picked(row, rows) => {
+        Edit::Picked(row, _) => {
             asked.text = row.as_str().into();
-            asked.selection = rows.iter().map(|row| row.as_str().into()).collect();
-            &[k::TEXT, k::SELECTION]
-        }
-        // The column a table's rows are ordered by is the table's
-        // (`widget_table`, in `besides_written`); which way is the widget's.
-        Edit::Sorted(_, reverse) => {
-            asked.reverse = *reverse;
-            &[k::REVERSE]
+            &[k::TEXT]
         }
         _ => &[],
     }
@@ -718,32 +689,56 @@ fn settle_edits(
 /// it changes are a kind's own: a picked colour, a table's column shares
 /// and the column it sorts by. Written down so the scene keeps them.
 fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
-    use crate::widget::beside::{self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable};
+    use crate::widget::beside::{
+        self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable, WidgetWindow,
+    };
+    use crate::widget::beside_box::{WidgetFold, WidgetTabs};
+    use crate::widget::beside_controls::WidgetRows;
     match edit {
-        Edit::Value(value) => beside::edit::<WidgetRange>(eng, entity, |held| held.value = *value),
+        Edit::Picked(_, rows) => {
+            beside::edit::<WidgetRows>(eng, entity, &[k::SELECTION], |held| {
+                held.selection = rows.iter().map(|row| row.as_str().into()).collect();
+            });
+        }
+        Edit::Active(name) => {
+            beside::edit::<WidgetTabs>(eng, entity, &[k::CURRENT_PAGE], |held| {
+                held.current_page = name.as_str().into();
+            });
+        }
+        // Whichever the kind reads: the other leaves the node as it is.
+        Edit::Open(open) => {
+            beside::edit::<WidgetFold>(eng, entity, &[k::OPEN], |held| held.open = *open);
+            beside::edit::<WidgetWindow>(eng, entity, &[k::OPEN], |held| held.open = *open);
+        }
+        Edit::Value(value) => {
+            beside::edit::<WidgetRange>(eng, entity, &[k::VALUE], |held| held.value = *value);
+        }
         // Written down as well as heard, so `scroll_offset` reads back where
         // the reader left it.
         Edit::Scrolled(offset) => {
-            beside::edit::<WidgetScroll>(eng, entity, |held| held.scroll_offset = *offset);
+            beside::edit::<WidgetScroll>(eng, entity, &[k::SCROLL_OFFSET], |held| {
+                held.scroll_offset = *offset;
+            });
         }
         Edit::Color(rgba) => {
-            beside::edit::<WidgetColorPicker>(eng, entity, |held| held.picked_color = *rgba);
+            beside::edit::<WidgetColorPicker>(eng, entity, &[k::PICKED_COLOR], |held| {
+                held.picked_color = *rgba;
+            });
         }
         // The chrome a reader dragged, reported to nobody, as a seam between
         // two containers is.
-        Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, |held| {
+        Edit::Widths(shares) => beside::edit::<WidgetTable>(eng, entity, &[k::WIDTHS], |held| {
             held.widths = shares.iter().copied().map(Numeral::of).collect();
         }),
-        Edit::Sorted(column, _) => {
-            beside::edit::<WidgetTable>(eng, entity, |held| held.sort = column.as_str().into());
+        Edit::Sorted(column, reverse) => {
+            beside::edit::<WidgetTable>(eng, entity, &[k::SORT, k::REVERSE], |held| {
+                held.sort = column.as_str().into();
+                held.reverse = *reverse;
+            });
         }
         _ => {}
     }
 }
-
-/// A widget as the click pass writes it: the properties, and the widget the
-/// layer reads, which follows them.
-type Settled<'a> = (Entity, &'a mut WidgetProperties, &'a mut Widget);
 
 /// Tick what this frame's clicks tick, and collect the handlers.
 fn settle_clicks(
@@ -754,65 +749,95 @@ fn settle_clicks(
 ) -> Vec<(Entity, String)> {
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
     let mut signals = Vec::new();
-    if hit.is_empty() {
-        return signals;
-    }
-    // The grouped checks this tick ticked, unticked in a second pass: the loop
-    // below holds one widget at a time and a group's siblings are others.
+    // The grouped checks this tick ticked, unticked below: the rest of a
+    // group are other widgets.
     let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
-    let world = eng.world();
-    for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
-        if !hit.contains(&entity) {
+    for entity in hit {
+        let Some(said) = click_of(eng, entity) else {
             continue;
-        }
+        };
         // A click on a check or toggle is the tick itself, by mouse or by
         // `accept`. One in a group is a radio: it ticks and stays ticked, and
         // the pass below unticks the rest of its group.
-        if flips(widget) {
-            let grouped = !widget.radio_group.is_empty();
-            let was = asked.checked;
+        if said.flips {
+            let grouped = !said.radio_group.is_empty();
             // Grouped, a click picks: it ticks and a second click leaves it
             // ticked, because something in the group has to be. On its own, a
             // click flips.
-            asked.checked = if grouped { true } else { !was };
-            follow(widget, asked, &[k::CHECKED]);
-            if widget.checked != was {
-                crate::widget::arena::widget_changed(entity);
-                emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
-                if !widget.on_change.is_empty() {
-                    changes.push((
-                        entity,
-                        widget.on_change.to_string(),
-                        Value::Bool(widget.checked),
-                    ));
-                }
+            let now = grouped || !said.checked;
+            set_checked(eng, entity, now);
+            if now != said.checked {
+                told_checked(entity, now, &said.on_change, changes, emitted);
             }
             if grouped {
-                ticked.push((entity, widget.radio_group.clone()));
+                ticked.push((entity, said.radio_group));
             }
         }
-        if !widget.on_click.is_empty() {
-            signals.push((entity, widget.on_click.to_string()));
+        if !said.on_click.is_empty() {
+            signals.push((entity, said.on_click.to_string()));
         }
     }
     for (struck, group) in &ticked {
-        for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
-            if entity == *struck || !flips(widget) || widget.radio_group != *group {
-                continue;
-            }
-            if !asked.checked {
-                continue;
-            }
-            asked.checked = false;
-            follow(widget, asked, &[k::CHECKED]);
-            crate::widget::arena::widget_changed(entity);
-            emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
-            if !widget.on_change.is_empty() {
-                changes.push((entity, widget.on_change.to_string(), Value::Bool(false)));
-            }
+        let others: Vec<(Entity, smol_str::SmolStr)> = eng
+            .world()
+            .query::<(Entity, &Widget)>()
+            .iter()
+            .filter(|(entity, widget)| {
+                *entity != *struck
+                    && flips(widget)
+                    && widget.radio_group == *group
+                    && widget.checked
+            })
+            .map(|(entity, widget)| (entity, widget.on_change.clone()))
+            .collect();
+        for (entity, on_change) in others {
+            set_checked(eng, entity, false);
+            told_checked(entity, false, &on_change, changes, emitted);
         }
     }
     signals
+}
+
+/// What a click on one widget has to know of it.
+struct ClickOf {
+    flips: bool,
+    checked: bool,
+    radio_group: smol_str::SmolStr,
+    on_change: smol_str::SmolStr,
+    on_click: smol_str::SmolStr,
+}
+
+fn click_of(eng: &Engine, entity: Entity) -> Option<ClickOf> {
+    let world = eng.world();
+    let widget = world.get::<&Widget>(entity).ok()?;
+    Some(ClickOf {
+        flips: flips(&widget),
+        checked: widget.checked,
+        radio_group: widget.radio_group.clone(),
+        on_change: widget.on_change.clone(),
+        on_click: widget.on_click.clone(),
+    })
+}
+
+fn set_checked(eng: &Engine, entity: Entity, now: bool) {
+    use crate::widget::beside::edit;
+    use crate::widget::beside_controls::WidgetCheck;
+    edit::<WidgetCheck>(eng, entity, &[k::CHECKED], |held| held.checked = now);
+}
+
+/// A check's new state said from its node, and to its handler where it names
+/// one.
+fn told_checked(
+    entity: Entity,
+    now: bool,
+    on_change: &str,
+    changes: &mut Vec<(Entity, String, Value)>,
+    emitted: &mut Vec<(Entity, &'static str, Value)>,
+) {
+    emitted.push((entity, CHANGE_EVENT, Value::Bool(now)));
+    if !on_change.is_empty() {
+        changes.push((entity, on_change.to_owned(), Value::Bool(now)));
+    }
 }
 
 /// A widget a click ticks and unticks: a `checkbox`, or a `toggle` button.

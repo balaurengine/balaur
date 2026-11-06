@@ -307,13 +307,13 @@ fn forward_of(found: any) -> [float] {
 }
 
 // One segment onto `out`, in `render::draw_lines`' eleven numbers.
-fn push_line_3d(out: [any], from: [any], to: [any], color: [float], width: float) {
+fn push_line_3d(out: [float], from: [float], to: [float], color: [float], width: float) {
     out.extend([from[0], from[1], from[2], to[0], to[1], to[2], color[0], color[1], color[2], width, 0.0]);
 }
 
 /// A ring of `radius` about `center` in the plane spanned by `first_axis` and
 /// `second_axis`.
-fn push_ring_3d(out: [any], center: [any], first_axis: [float], second_axis: [float], radius: float, color: [float], width: float) {
+fn push_ring_3d(out: [float], center: [float], first_axis: [float], second_axis: [float], radius: float, color: [float], width: float) {
     let previous = util::vector_add(center, util::vector_scale(first_axis, radius));
     for step in 1..25 {
         let step_angle = (step as float) / 24.0 * math::PI * 2.0;
@@ -361,7 +361,7 @@ pub fn lights3d(state: &mut editor::State) {
             key.push("{light}");
         }
         if camera {
-            key.push(found.get_component("camera3d", "fov"));
+            key.push(found.component_property("camera3d", "fov"));
         }
         marked.push(Marked { node: found, light: light, camera: camera, selected: selected });
     }
@@ -369,7 +369,7 @@ pub fn lights3d(state: &mut editor::State) {
         render::draw_lines(state.overlay3d.lines);
         return;
     }
-    let out: [any] = [];
+    let out: [float] = [];
     for marked_node in marked {
         if marked_node.light != nil {
             light3d_gizmo(out, marked_node.node, marked_node.light, marked_node.selected, tokens);
@@ -383,7 +383,7 @@ pub fn lights3d(state: &mut editor::State) {
     state.overlay3d.lines = out;
 }
 
-fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: any) {
+fn light3d_gizmo(out: [float], found: Node, light: any, selected: bool, tokens: any) {
     let color = if selected {
         util::rgb(tokens["primary_text"].as_str())
     } else {
@@ -448,7 +448,7 @@ fn light3d_gizmo(out: [any], found: Node, light: any, selected: bool, tokens: an
 /// far plane, which is usually past the whole scene.
 const FRUSTUM_REACH: float = 4.0;
 
-fn camera_gizmo(out: [any], state: editor::State, found: Node, selected: bool, tokens: any) {
+fn camera_gizmo(out: [float], state: editor::State, found: Node, selected: bool, tokens: any) {
     let color = if selected {
         util::rgb(tokens["primary_text"].as_str())
     } else {
