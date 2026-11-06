@@ -263,6 +263,153 @@ fn a_script_holds_another_nodes_script_as_its_class() {
     assert_eq!(field(&app, "Editor/Panel", "seen"), Some(Int(13)));
 }
 
+// Reads the editor off its node on every update: `node.script` is nil unless
+// the two share an instance.
+const READER: &str = "use editor;
+pub class Panel { node: Node, seen: int }
+impl Panel {
+    fn update(dt: float) {
+        let found: editor::Editor? = self.node.parent().script;
+        if found != nil {
+            self.seen = found.unwrap().edit();
+        }
+    }
+}
+";
+
+fn reading_panel() -> tempfile::TempDir {
+    let dir = editor_and_panel(EDITOR);
+    std::fs::write(dir.path().join("scripts/panel.bs"), READER).unwrap();
+    dir
+}
+
+fn seen(app: &balaur::App) -> i64 {
+    match field(app, "Editor/Panel", "seen") {
+        Some(balaur_script::Value::Int(seen)) => seen,
+        other => panic!("seen is {other:?}"),
+    }
+}
+
+/// A panel holding `editor::Editor?` under a profiler's counters: the two stay
+/// one instance, so the link is no nil, and each counts in its own rows.
+#[test]
+fn a_typed_link_holds_under_the_profiler() {
+    use balaur_script::ScriptHost as _;
+    let dir = reading_panel();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 2);
+    assert_eq!(seen(&app), 2);
+    let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();
+    host.set_profiling(true);
+    ticked(&mut app, 3);
+    assert_eq!(seen(&app), 5, "the link holds through the rebuild");
+    let rows = host.function_costs();
+    let row = |name: &str| rows.iter().find(|(function, _, _)| function == name);
+    assert!(
+        row("Editor.edit").is_some_and(|(_, calls, _)| *calls >= 2),
+        "{rows:?}"
+    );
+    assert!(
+        row("Panel.update").is_some_and(|(_, calls, _)| *calls >= 2),
+        "{rows:?}"
+    );
+    host.set_profiling(false);
+    ticked(&mut app, 2);
+    assert_eq!(seen(&app), 7, "and back");
+    assert!(host.function_costs().is_empty());
+}
+
+/// A breakpoint in the file a panel holds: the panel has no probes, its typed
+/// call runs into the editor's, and the stop is in the editor's file.
+#[test]
+fn a_typed_link_holds_under_a_debuggers_probes() {
+    use balaur_script::{StepMode, Value::Int};
+    let dir = reading_panel();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 1);
+    let host = app.engine.script_host().unwrap();
+    assert_eq!(
+        host.set_breakpoints("scripts/editor.bs", &[3]).unwrap(),
+        [4]
+    );
+    ticked(&mut app, 1);
+    let stop = host.paused().expect("the typed call stopped in the editor");
+    assert_eq!((stop.path.as_str(), stop.line), ("scripts/editor.bs", 4));
+    assert_eq!(stop.frames.len(), 1, "the panel has no probes");
+    assert_eq!(stop.frames[0].function, "Editor.edit");
+    assert_eq!(stop.frames[0].path, "scripts/editor.bs");
+    assert!(app.engine.is_frozen());
+
+    host.set_breakpoints("scripts/editor.bs", &[]).unwrap();
+    host.resume(StepMode::Continue);
+    assert!(host.paused().is_none());
+    assert_eq!(field(&app, "Editor", "edits"), Some(Int(2)));
+    ticked(&mut app, 2);
+    assert_eq!(seen(&app), 4, "the link holds once the probes are gone");
+}
+
+/// A debugger on the panel's own file: the cast runs in a unit with probes.
+#[test]
+fn a_typed_link_reads_in_a_file_with_probes() {
+    use balaur_script::StepMode;
+    let dir = reading_panel();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 1);
+    let host = app.engine.script_host().unwrap();
+    host.set_breakpoints("scripts/panel.bs", &[7]).unwrap();
+    ticked(&mut app, 1);
+    let stop = host.paused().expect("the link is not nil, so line 7 runs");
+    assert_eq!((stop.path.as_str(), stop.line), ("scripts/panel.bs", 7));
+    host.set_breakpoints("scripts/panel.bs", &[]).unwrap();
+    host.resume(StepMode::Continue);
+    assert!(host.paused().is_none());
+    assert_eq!(seen(&app), 2);
+    ticked(&mut app, 1);
+    assert_eq!(seen(&app), 3);
+}
+
+/// Every file with probes, on the engine the instance runs on.
+#[test]
+fn a_typed_link_holds_under_break_on_error() {
+    let dir = reading_panel();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 1);
+    let host = app.engine.script_host().unwrap();
+    host.set_break_on_error(true);
+    ticked(&mut app, 2);
+    assert_eq!(seen(&app), 3);
+    assert!(host.paused().is_none());
+    host.set_break_on_error(false);
+    ticked(&mut app, 1);
+    assert_eq!(seen(&app), 4);
+}
+
+/// A reload under each build keeps the one editor rather than a copy of it.
+#[test]
+fn a_reload_keeps_the_typed_link_under_every_build() {
+    use balaur_script::ScriptHost as _;
+    let dir = reading_panel();
+    let mut app = booted(dir.path());
+    ticked(&mut app, 1);
+    let host = balaur::script_bs::BsHost::of(&app.engine).unwrap();
+    host.set_profiling(true);
+    ticked(&mut app, 1);
+    let edit = |by: i64| EDITOR.replace("self.edits += 1;", &format!("self.edits += {by};"));
+    std::fs::write(dir.path().join("scripts/editor.bs"), edit(10)).unwrap();
+    host.reload("scripts/editor.bs").unwrap();
+    ticked(&mut app, 1);
+    assert_eq!(seen(&app), 12, "under counters");
+    host.set_profiling(false);
+    ticked(&mut app, 1);
+
+    host.set_breakpoints("scripts/editor.bs", &[]).unwrap();
+    host.set_break_on_error(true);
+    std::fs::write(dir.path().join("scripts/editor.bs"), edit(100)).unwrap();
+    host.reload("scripts/editor.bs").unwrap();
+    ticked(&mut app, 1);
+    assert_eq!(seen(&app), 122, "under probes");
+}
+
 // A `str` field, so a second holder of the object is refused: the wait starts
 // once the plain method that asked for it has returned.
 const ASKER: &str = "pub class Asker { node: Node, heard: str }

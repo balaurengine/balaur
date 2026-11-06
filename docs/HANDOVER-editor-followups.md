@@ -144,14 +144,12 @@ worktree `kiss3d-c1` holds nothing committed and can go with
      and what it cost. The gamend addon's hand-written modules are copies of
      gamend's `clients/balaur_template` and its generated ones
      `sdkgen/balaur.py`'s output: rewritten there too, for the owner to commit.
-   - Typed calls between scripts: blocked. A whole-file build (profiler,
-     debugger, browser) makes each file its own instance, so
-     `let editor: editor::Editor? = node.script;` is nil there; tried on the
-     39 panels and reverted (the profiler rebuild also went from 4 s to 64 s).
-     Needs those builds to link a project as units first
-     (`balaur_script_bs/src/host/units.rs`, `as_units`), and the compiler to
-     build a unit with probes, counters and metering; a native build links
-     units since 2026-10-30. `dock.bs` calling the shown panel's `refresh`
+   - Typed calls between scripts: unblocked 2026-11-03. Every build a host
+     runs links a project as units, so
+     `let editor: editor::Editor? = node.script;` holds under a profiler, a
+     debugger and in a browser (PLAN-bs-linking). Left: the 39 panels calling
+     the Editor by its type, tried once and reverted while those builds made
+     each file its own instance. `dock.bs` calling the shown panel's `refresh`
      by name is the one dynamic dispatch left.
 5. **The editor runs native** (§9 step 7): done. A native build holds
    units and links them; the editor downloads carry the library, and

@@ -140,6 +140,13 @@ fn an_exported_spinner_runs_as_native_code() {
     assert_eq!(host.runs_natively("scripts/spinner.bs"), Some(true));
     ticked(&mut app, FRAMES);
     assert_eq!(spun(&app), module);
+    // A profiler's counters are in no native build: its engine runs them.
+    balaur_script::ScriptHost::set_profiling(&host, true);
+    ticked(&mut app, 2);
+    assert_eq!(host.runs_natively("scripts/spinner.bs"), Some(false));
+    balaur_script::ScriptHost::set_profiling(&host, false);
+    ticked(&mut app, 2);
+    assert_eq!(host.runs_natively("scripts/spinner.bs"), Some(true));
 }
 
 #[test]

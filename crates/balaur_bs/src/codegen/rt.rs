@@ -17,8 +17,6 @@ pub(crate) const G_DBG_BASE: u32 = 3;
 pub(crate) const G_DBG_FLAGS: u32 = 4;
 pub(crate) const G_DBG_BREAKS: u32 = 5;
 pub(crate) const GLOBALS: usize = 6;
-/// Only in a metered module, after the rest.
-pub(crate) const G_FUEL: u32 = 6;
 /// Only in a unit, imported after the rest: where its static data, its own
 /// `fn` table slots and its link slots start.
 pub(crate) const G_MEMORY_BASE: u32 = 6;

@@ -513,7 +513,7 @@ impl<'a> FnGen<'a> {
         if !self.g.meter {
             return;
         }
-        let fuel = super::rt::G_FUEL;
+        let fuel = self.g.fuel;
         self.emit([
             I::GlobalGet(fuel),
             I::I32Const(1),
@@ -977,7 +977,7 @@ impl<'a> FnGen<'a> {
         self.e(I::End);
     }
 
-    /// A shadow frame: [function][statement][size][pad], then one slot per local.
+    /// A shadow frame: [function][statement][size][unit], then one slot per local.
     pub(crate) fn dbg_enter(&mut self, size: u32) -> Vec<I<'static>> {
         let Some((frame, func)) = self.dbg else {
             return vec![];
@@ -1008,6 +1008,11 @@ impl<'a> FnGen<'a> {
             I::LocalGet(frame),
             I::I32Const(size as i32),
             I::I32Store(mem(8, 2)),
+        ]);
+        out.extend([
+            I::LocalGet(frame),
+            self.g.dbg_unit.map_or(I::I32Const(0), I::GlobalGet),
+            I::I32Store(mem(12, 2)),
         ]);
         out
     }

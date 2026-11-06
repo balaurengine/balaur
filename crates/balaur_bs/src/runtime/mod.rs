@@ -168,9 +168,16 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(compiled: &Compiled, host: HostFns, limits: Limits) -> Result<Runtime, RunError> {
         let meta = Arc::new(compiled.meta.clone());
-        let state = Rc::new(RefCell::new(
-            host::HostState::new(meta.clone(), host).map_err(|msg| RunError { msg, line: None })?,
-        ));
+        let mut state = host::HostState::new(&compiled.key, meta.clone(), host)
+            .map_err(|msg| RunError { msg, line: None })?;
+        let mut units = vec![meta.clone()];
+        for (key, unit) in &compiled.linked {
+            let unit_meta = Arc::new(unit.meta.clone());
+            state.counted |= unit_meta.profiled;
+            state.debugger.add_unit(key, unit_meta.clone());
+            units.push(unit_meta);
+        }
+        let state = Rc::new(RefCell::new(state));
         let setup = Setup {
             wasm: &compiled.wasm,
             meta: &meta,
@@ -183,14 +190,6 @@ impl Runtime {
         };
         let wasm = engine::instantiate(limits.engine, setup)
             .map_err(|msg| RunError { msg, line: None })?;
-        let units = std::iter::once(meta.clone())
-            .chain(
-                compiled
-                    .linked
-                    .iter()
-                    .map(|(_, unit)| Arc::new(unit.meta.clone())),
-            )
-            .collect();
         let mut rt = Runtime {
             wasm,
             host: state,
@@ -243,7 +242,11 @@ impl Runtime {
             .map_err(|msg| RunError { msg, line: None })?;
         let mut units = self.units.borrow_mut();
         if index == units.len() {
-            units.push(Arc::new(unit.meta.clone()));
+            let meta = Arc::new(unit.meta.clone());
+            let mut host = self.host.borrow_mut();
+            host.counted |= meta.profiled;
+            host.debugger.add_unit(key, meta.clone());
+            units.push(meta);
         }
         Ok(index)
     }
@@ -859,14 +862,12 @@ impl Runtime {
         Ok(p)
     }
 
+    // A call while another is parked runs above its frames on the shadow stack,
+    // and any stop in it is passed by.
     fn invoke(&mut self, name: &str, args: &[Raw], results: usize) -> Result<Vec<Raw>, RunError> {
-        // A parked call owns the shadow stack until it goes on.
-        if self.parked_call.is_some() {
-            return fail("the script is stopped at a breakpoint");
-        }
         self.error_stop = None;
         self.refuel();
-        self.sync_debugger();
+        self.sync_debugger()?;
         self.wasm
             .call_in(self.unit, name, args, results)
             .map_err(|msg| self.trapped(msg))
@@ -877,11 +878,15 @@ impl Runtime {
     fn trapped(&mut self, msg: String) -> RunError {
         let msg = self.trap_message(msg);
         let line = self.trap_line();
-        if self.meta.debug {
+        if self.host.borrow().debugger.probed() {
             self.error_stop = self.stack_at_trap();
         }
-        if !self.nested && self.wasm.has_func(words::DBG_RESET) {
-            let _ = self.wasm.call(words::DBG_RESET, &[], 0);
+        match self.parked_call.as_ref().and_then(|call| call.top) {
+            Some(top) => self.wasm.set_global(words::DBG_SP, top),
+            None if !self.nested && self.wasm.has_func(words::DBG_RESET) => {
+                let _ = self.wasm.call(words::DBG_RESET, &[], 0);
+            }
+            None => {}
         }
         RunError { msg, line }
     }
@@ -913,17 +918,28 @@ impl Runtime {
         }
     }
 
-    // Debug builds: the breakpoint table and the stepping flag, before running.
-    fn sync_debugger(&mut self) {
-        if !self.meta.debug {
-            return;
-        }
-        let Some((table, flags)) = self.host.borrow_mut().debugger.take_table() else {
-            return;
+    // Debug builds: each unit's breakpoint table and the stepping flag, before
+    // running, each unit they fill made now.
+    fn sync_debugger(&mut self) -> Result<(), RunError> {
+        let tables = {
+            let mut host = self.host.borrow_mut();
+            if !host.debugger.probed() {
+                return Ok(());
+            }
+            host.debugger.take_tables()
         };
-        let at = self.wasm.global(words::DBG_BREAKS).unwrap_or(0) as u32 as usize;
-        self.wasm.write(at, &table);
+        let Some((tables, flags)) = tables else {
+            return Ok(());
+        };
+        for (unit, table) in tables {
+            self.wasm
+                .make(unit)
+                .map_err(|msg| RunError { msg, line: None })?;
+            let at = self.wasm.global_in(unit, words::DBG_BREAKS).unwrap_or(0);
+            self.wasm.write(at as u32 as usize, &table);
+        }
         self.wasm.set_global(words::DBG_FLAGS, flags);
+        Ok(())
     }
 
     fn trap_line(&mut self) -> Option<u32> {
@@ -942,7 +958,7 @@ impl Runtime {
     }
 
     fn shadow(&mut self) -> Option<Vec<debugger::Shadow>> {
-        if !self.meta.debug {
+        if !self.host.borrow().debugger.probed() {
             return None;
         }
         let (base, top) = (

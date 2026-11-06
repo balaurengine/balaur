@@ -81,7 +81,7 @@ impl BsHost {
             task,
             done,
         };
-        match self.poll_held(file, &mut rt, inst, p)? {
+        match self.poll_held(&mut rt, inst, p)? {
             Polled::Waiting(p) => self.inner.tasks.borrow_mut().push(p),
             Polled::Done(v, _) => return Ok(Some(v)),
             Polled::Stopped => {}
@@ -155,18 +155,12 @@ impl BsHost {
             return Ok(Polled::Waiting(p));
         };
         let _turn = balaur_core::dependencies::calling(&self.inner.engine, &inst.path);
-        self.poll_held(&file, &mut rt, &inst, p)
+        self.poll_held(&mut rt, &inst, p)
     }
 
-    // One poll of `p` with its instance's object; in a file built for the
-    // debugger a stop holds both, and a trap may hold its stack.
-    fn poll_held(
-        &self,
-        file: &File,
-        rt: &mut Runtime,
-        inst: &Instance,
-        mut p: Pending,
-    ) -> Result<Polled> {
+    // One poll of `p` with its instance's object; in an instance with probes a
+    // stop holds both, and a trap may hold its stack.
+    fn poll_held(&self, rt: &mut Runtime, inst: &Instance, mut p: Pending) -> Result<Polled> {
         let Some(mut obj) = inst.obj.borrow_mut().take() else {
             return Ok(Polled::Waiting(p));
         };
@@ -174,14 +168,18 @@ impl BsHost {
         // the object, as one while a plain method runs is.
         *inst.lent.borrow_mut() = rt.share(&obj);
         let before = rt.steps();
-        let step = poll(rt, file.compiled.meta.debug, &mut p.task, &mut obj);
+        let steppable = rt.steppable() && !self.is_held();
+        let step = poll(rt, steppable, &mut p.task, &mut obj);
         self.charge(&p.path, before, rt.steps());
+        let step = match step {
+            Ok(Step::Paused(paused)) => {
+                self.hold_task(obj, p, paused);
+                return Ok(Polled::Stopped);
+            }
+            other => other,
+        };
         if let Some(lent) = inst.lent.borrow_mut().take() {
             rt.drop_object(lent);
-        }
-        if let Ok(Step::Paused(_)) = step {
-            self.hold_task(obj, p);
-            return Ok(Polled::Stopped);
         }
         *inst.obj.borrow_mut() = Some(obj);
         match step {
@@ -249,11 +247,11 @@ enum Polled {
 
 fn poll(
     rt: &mut Runtime,
-    debug: bool,
+    steppable: bool,
     task: &mut Task,
     obj: &mut Object,
 ) -> Result<Step, RunError> {
-    if debug {
+    if steppable {
         rt.poll_steppable(task, Some(obj))
     } else {
         Ok(rt.poll(task, Some(obj))?.map_or(Step::Waiting, Step::Done))
