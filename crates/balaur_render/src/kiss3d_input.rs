@@ -10,6 +10,8 @@ use kiss3d::window::Window;
 /// is installed). Answers whether any arrived; without the plugin nothing
 /// counts them, so it answers as though one did.
 pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
+    // A screen reader's request is input too: a lazy UI owes it a pass.
+    let heard = crate::access::hear_reader(&app.engine, window);
     let Some(input) = app.engine.try_resource::<InputSnapshot>() else {
         return true;
     };
@@ -20,7 +22,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     input.set_keyboard_taken(window.is_egui_capturing_keyboard());
     #[cfg(target_family = "wasm")]
     input.set_command_is_meta(apple_browser());
-    let mut seen = false;
+    let mut seen = heard;
     let mut closing = false;
     for event in window.events().iter() {
         seen = true;
