@@ -1,43 +1,34 @@
 name: All
 
-# The one entry point and the only file with triggers: every other workflow is
-# reusable, called from here. A push or pull request runs lint, docs, test and
-# build; the nightly schedule runs fuzz; a published release moves its channel.
+# The one entry point: the other four are reusable workflows, called from here
+# rather than each subscribing to pushes itself. Lint reads the code, test runs
+# it, docs checks both kinds of documentation, build produces the downloads.
 on:
   push:
     branches: [main, master]
     tags: ["v*"]
   pull_request:
-  schedule:
-    - cron: "17 3 * * *"
-  release:
-    types: [published]
   workflow_dispatch:
 
 concurrency:
-  # The event is in the group so the nightly fuzz never queues behind a push.
-  group: all-${{ github.event_name }}-${{ github.ref }}
+  group: all-${{ github.ref }}
   # Superseding a branch is free; superseding `main` is not. A cancelled run
   # saves no build cache and leaves no verdict on the commit that made it.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   lint:
-    if: ${{ github.event_name != 'schedule' && github.event_name != 'release' }}
     uses: ./.github/workflows/lint.yml
 
   docs:
-    if: ${{ github.event_name != 'schedule' && github.event_name != 'release' }}
     uses: ./.github/workflows/docs.yml
 
   test:
-    if: ${{ github.event_name != 'schedule' && github.event_name != 'release' }}
     uses: ./.github/workflows/test.yml
 
   # Runs on pull requests too; build.yml skips the one job that publishes.
   # The token stays writable because a called workflow cannot grant itself more.
   build:
-    if: ${{ github.event_name != 'schedule' && github.event_name != 'release' }}
     permissions:
       contents: write
       id-token: write
@@ -50,7 +41,6 @@ jobs:
   # No `needs`: the signing image holds no engine, so a pull request hears
   # about it in minutes rather than after the build matrix.
   container-signer:
-    if: ${{ github.event_name != 'schedule' && github.event_name != 'release' }}
     permissions:
       contents: read
       packages: write
@@ -60,25 +50,10 @@ jobs:
   # and pushed only with its release, so `:nightly` never names a build the release lacks.
   container:
     needs: build
-    if: ${{ !cancelled() && github.event_name != 'schedule' && github.event_name != 'release' }}
+    if: ${{ !cancelled() }}
     permissions:
       contents: read
       packages: write
     uses: ./.github/workflows/container.yml
     with:
       publish: ${{ needs.build.outputs.released == 'true' }}
-
-  # Never a push gate: twenty minutes a target, each night.
-  fuzz:
-    if: ${{ github.event_name == 'schedule' }}
-    uses: ./.github/workflows/fuzz.yml
-
-  # Publishing a version points that line's rolling tag at it; the nightly
-  # moves its own tag, and stable rides GitHub's `latest`.
-  channel:
-    if: ${{ github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') }}
-    permissions:
-      contents: write
-    uses: ./.github/workflows/channel.yml
-    with:
-      tag: ${{ github.event.release.tag_name }}

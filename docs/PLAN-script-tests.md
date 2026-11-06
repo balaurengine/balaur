@@ -84,8 +84,9 @@ compared.
 - run: never brings the host down, under the fuel limit
 
 Locally `cargo fuzz run` (nightly, `cargo install cargo-fuzz`); in CI
-`fuzz.yml` from `runner.yml`'s nightly run, twenty minutes a target, seeded from the corpus,
-never the push gate.
+`test.yml`'s `balaur script tests` job on every push and pull request,
+twenty minutes a target, seeded from the corpus; a find fails the run and is
+uploaded to become a corpus program.
 
 Built 2026-10-30 beside them: `tests/suite/mutants.rs`, the same checks over
 mutants of every corpus program from a seeded generator, 12 a program on
