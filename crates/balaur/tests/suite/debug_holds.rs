@@ -159,7 +159,9 @@ fn a_file_from_outside_the_project_stops_beside_it() {
     assert_eq!(field(&app, "game", "frames"), 2, "carried across");
     app.tick(DEFAULT_FIXED_DT);
     let stop = host.paused().expect("it stopped in its own instance");
-    assert_eq!((stop.path.as_str(), stop.line), (path.as_str(), 4));
+    // A stop names its file by the host's key, forward slashes on Windows too.
+    let key = path.replace('\\', "/");
+    assert_eq!((stop.path.as_str(), stop.line), (key.as_str(), 4));
     for _ in 0..2 {
         app.tick(DEFAULT_FIXED_DT);
     }
