@@ -146,8 +146,6 @@ name = "Size"
 parent = "numbers"
 [nodes.widget]
 kind = "number_field"
-prefix = "size"
-suffix = "px"
 width = 140
 [nodes.widget_range]
 value = 12
@@ -156,6 +154,8 @@ max = 96
 step = 1
 drag_speed = 1
 arrows = true
+prefix = "size"
+suffix = "px"
 
 [[nodes]]
 id = "speed"
@@ -163,8 +163,6 @@ name = "Speed"
 parent = "numbers"
 [nodes.widget]
 kind = "number_field"
-prefix = "speed"
-suffix = "m/s"
 width = 150
 [nodes.widget_range]
 value = 4.5
@@ -173,6 +171,8 @@ max = 20
 step = 0.5
 drag_speed = 0.5
 arrows = true
+prefix = "speed"
+suffix = "m/s"
 
 [[nodes]]
 id = "numbers_note"

@@ -22,8 +22,9 @@ parent = "complete"
 [nodes.widget]
 on_click = "list_clicked"
 kind = "list"
-row_height = 22
 font_size = 11
+[nodes.widget_rows]
+row_height = 22
 
 [[nodes]]
 id = "doc"

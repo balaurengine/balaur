@@ -3127,7 +3127,7 @@ pub fn palette_step(state: &mut editor::State) {
     for row in host.children() {
         if row.visible() == true {
             let slot = row.get_node("H").get_node("C").get_node("C0");
-            shown.push(slot.widget.checked == true);
+            shown.push(slot.widget_check.checked == true);
         }
     }
     check(shown.len() > 1, "the query narrowed the list to its matches ({shown.len()})");
@@ -4205,7 +4205,10 @@ pub fn rows_step(state: &mut editor::State) {
         log::info("selftest rowsdemo: no shell in this run, skipped");
         return;
     }
-    let widget = util::map_or_empty(tree.get_component("widget"));
+    // The tree's rows, with the two rows of the widget's own these checks read.
+    let widget = util::map_or_empty(tree.get_component("widget_rows"));
+    widget["text"] = tree.widget.text;
+    widget["context"] = tree.widget.context;
     let rows = util::list_or_empty(widget["items"]);
     if rows.len() == 0 {
         state.rows_waited = state.rows_waited + 1;

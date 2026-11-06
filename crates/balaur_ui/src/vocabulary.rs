@@ -421,8 +421,6 @@ pub(crate) mod keys {
     pub(crate) const ANCHOR: &str = "anchor";
     pub(crate) const BREAKPOINT_COLOR: &str = "breakpoint_color";
     pub(crate) const CHECKED: &str = "checked";
-    pub(crate) const RADIO_GROUP: &str = "radio_group";
-    pub(crate) const TOGGLE: &str = "toggle";
     pub(crate) const PICKED_COLOR: &str = "picked_color";
     pub(crate) const CONTEXT: &str = "context";
     pub(crate) const CURRENT_FILL: &str = "current_fill";
@@ -479,18 +477,8 @@ pub(crate) mod keys {
     pub(crate) const ON_FOCUS: &str = "on_focus";
     pub(crate) const ON_DOUBLE_CLICK: &str = "on_double_click";
     pub(crate) const ON_BLUR: &str = "on_blur";
-    pub(crate) const ON_COMMIT: &str = "on_commit";
-    pub(crate) const ON_CARET: &str = "on_caret";
-    pub(crate) const ON_ACTIVATE: &str = "on_activate";
-    pub(crate) const ON_FOLD: &str = "on_fold";
-    pub(crate) const ON_OPENED: &str = "on_opened";
-    pub(crate) const ON_CLOSED: &str = "on_closed";
-    pub(crate) const ON_SCROLLED: &str = "on_scrolled";
-    pub(crate) const ON_CLOSE_REQUEST: &str = "on_close_request";
-    pub(crate) const ON_SUBMIT: &str = "on_submit";
     pub(crate) const OPEN: &str = "open";
     pub(crate) const OPTIONS: &str = "options";
-    pub(crate) const ITEMS: &str = "items";
     pub(crate) const PADDING: &str = "padding";
     pub(crate) const PADDING_X: &str = "padding_x";
     pub(crate) const PADDING_Y: &str = "padding_y";
@@ -505,7 +493,6 @@ pub(crate) mod keys {
     pub(crate) const ROLE: &str = "role";
     /// The row a `fold` event names.
     pub(crate) const ROW: &str = "row";
-    pub(crate) const ROW_HEIGHT: &str = "row_height";
     pub(crate) const REVERSE: &str = "reverse";
     /// The mark a `mark` event names, beside its `row`.
     pub(crate) const MARK: &str = "mark";
@@ -530,14 +517,12 @@ pub(crate) mod keys {
     pub(crate) const VISION: &str = "vision";
     pub(crate) const SELECTABLE: &str = "selectable";
     pub(crate) const SELECTION: &str = "selection";
-    pub(crate) const MULTI_SELECT: &str = "multi_select";
     pub(crate) const SHORTCUT: &str = "shortcut";
     pub(crate) const WHILE_TYPING: &str = "while_typing";
     pub(crate) const TAKES_TYPING: &str = "takes_typing";
     pub(crate) const SLICE: &str = "slice";
     pub(crate) const STROKE: &str = "stroke";
     pub(crate) const STROKE_WIDTH: &str = "stroke_width";
-    pub(crate) const SUFFIX: &str = "suffix";
     pub(crate) const TEXT: &str = "text";
     pub(crate) const TEXT_ALIGN: &str = "text_align";
     pub(crate) const TEXT_COLOR: &str = "text_color";
@@ -580,7 +565,6 @@ pub(crate) mod keys {
     // What the egui widget behind a kind takes.
     pub(crate) const SENSE: &str = "sense";
     pub(crate) const SHOW_TOOLTIP_WHEN_ELIDED: &str = "show_tooltip_when_elided";
-    pub(crate) const INDETERMINATE: &str = "indeterminate";
     pub(crate) const DRAG_SPEED: &str = "drag_speed";
     /// What a `window` root takes.
     pub(crate) const MOVABLE: &str = "movable";

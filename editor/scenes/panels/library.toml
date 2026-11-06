@@ -151,8 +151,9 @@ visible = false
 on_click = "card_clicked"
 kind = "table"
 grow = 1
-row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_rows]
+row_height = 18
 [nodes.widget_table]
 sortable = true
 titles = ["template", "what it makes", "the command it is made with"]

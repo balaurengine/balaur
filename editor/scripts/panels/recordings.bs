@@ -37,7 +37,7 @@ impl Recordings {
         if !(view.kind() == "map") {
             return;
         }
-        self.node.get_node("Tools/Verify").widget.checked = view["verify"].as_bool();
+        self.node.get_node("Tools/Verify").widget_check.checked = view["verify"].as_bool();
         self.node.get_node("Nothing").set_visible(view["count"].as_int() == 0);
     }
 }

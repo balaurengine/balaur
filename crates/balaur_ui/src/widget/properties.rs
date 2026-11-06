@@ -342,9 +342,6 @@ pub(crate) struct WidgetProperties {
     /// The width of this widget's outline on each side, left, top, right and bottom, in design pixels: the layout keeps it clear inside the edge as it keeps `padding`, and the `stroke` is painted in exactly that band. All zero leaves the stroke at the theme's `stroke_width`, over the padding
     #[property(default = [0.0, 0.0, 0.0, 0.0], group = "layout")]
     pub(crate) border: [f32; 4],
-    /// The pitch of a `list` or `tree` row, in design pixels; 0 takes the font's own line height. An `inspector`'s file rows are this tall and its chips 4 less, 24 where it is 0
-    #[property(min = 0.0, group = "layout")]
-    pub(crate) row_height: f32,
     /// How this widget and everything under it is drawn; inherited from the nearest ancestor that names one
     #[property(asset = "widget_theme", group = "paint")]
     pub(crate) theme: SmolStr,
@@ -432,12 +429,6 @@ pub(crate) struct WidgetProperties {
     /// Spaces between tab stops
     #[property(default = 8, min = 1, max = 64, group = "text")]
     pub(crate) tab_width: i64,
-    /// Text drawn before a `number_field`'s or a shown `slider`'s number with a space between, and before a `text_field`'s or `text_area`'s text
-    #[property(group = "text")]
-    pub(crate) prefix: SmolStr,
-    /// Units drawn after a `number_field`'s or a shown `slider`'s number with a space between, and after a `text_field`'s or `text_area`'s text
-    #[property(group = "text")]
-    pub(crate) suffix: SmolStr,
     /// Text a button draws against its far edge, dimmer than its caption: a shortcut, or a menu's caret
     #[property(group = "text")]
     pub(crate) trailing: SmolStr,
@@ -453,9 +444,6 @@ pub(crate) struct WidgetProperties {
     /// Script method called with a `text_field`'s text after every edit, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_change: SmolStr,
-    /// Script method called with a `text_field`'s text on Enter, or when focus leaves it, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_submit: SmolStr,
     /// Script method called when focus arrives, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_focus: SmolStr,
@@ -468,30 +456,6 @@ pub(crate) struct WidgetProperties {
     /// Script method called when focus leaves, on this node or the nearest ancestor whose script declares it
     #[property(group = "events")]
     pub(crate) on_blur: SmolStr,
-    /// Script method called with the value once a drag or a typed number that changed it is over, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_commit: SmolStr,
-    /// Script method called with `{ x, y, index }` when a text widget's caret moves, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_caret: SmolStr,
-    /// Script method called with the row double-clicked in a `list`, `tree` or `table`, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_activate: SmolStr,
-    /// Script method called with `{ row, open }` when a `tree` row folds, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_fold: SmolStr,
-    /// Script method called when a popup, dialog or window comes up, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_opened: SmolStr,
-    /// Script method called when a popup, dialog or window goes away, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_closed: SmolStr,
-    /// Script method called with the offset, `[x, y]`, when a `scroll` moves, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_scrolled: SmolStr,
-    /// Script method called when a `window`'s close button is pressed, before it shuts or, with `hide_on_close` off, instead of shutting, on this node or the nearest ancestor whose script declares it
-    #[property(group = "events")]
-    pub(crate) on_close_request: SmolStr,
     /// Off, the pointer passes through to the scene: the widget is drawn, never hovered or clicked, and `ui.wants_pointer()` stays false over it. A full-screen container over the world wants this
     #[property(default = true, group = "events")]
     pub(crate) interactive: bool,
@@ -528,28 +492,4 @@ pub(crate) struct WidgetProperties {
     /// Name of a `menu` node whose rows open at the pointer on a right click or a long press; give that menu `visible = false` to show no button of its own
     #[property(group = "events")]
     pub(crate) context: SmolStr,
-    /// Whether a `checkbox` is ticked, every click flipping it and calling `on_change` with the new state; a checked `button` is held down, wearing its pressed look
-    #[property(group = "value")]
-    pub(crate) checked: bool,
-    /// The words a `dropdown` or `menu` offers; `text` is the one picked, except on a `menu` where it is the button caption. `on_change` hears every pick. An `inspector` shows the properties it names, in that order
-    #[property(group = "value")]
-    pub(crate) options: Vec<SmolStr>,
-    /// The rows a `list`, `tree` or `table` holds. `text` is the key of the one picked, and every row event reports a row by its key
-    #[property(group = "value")]
-    pub(crate) items: Vec<Item>,
-    /// The keys of the rows a `list`, `tree` or `table` has picked, one of them where it holds one. `text` is the key of the last row clicked, which is where a shift range measures from; `on_change` hears the whole list where the widget holds many, and the key where it holds one
-    #[property(group = "value")]
-    pub(crate) selection: Vec<SmolStr>,
-    /// Let a `list`, `tree` or `table` hold more than one row: the platform's command key toggles a row and shift takes the run from the last one clicked
-    #[property(group = "value")]
-    pub(crate) multi_select: bool,
-    /// A name this `checkbox` or `toggle` button shares with the ones it is exclusive with: ticking one unticks the rest, and one already ticked stays ticked. Empty leaves it flipping on its own
-    #[property(group = "value")]
-    pub(crate) radio_group: SmolStr,
-    /// A `button` a click holds down and the next releases, flipping `checked` as a `checkbox` does, before `on_click` runs: Godot's toggle mode
-    #[property(group = "value")]
-    pub(crate) toggle: bool,
-    /// Draw a `checkbox` as neither ticked nor clear, for a group whose members disagree; a click still flips `checked`
-    #[property(group = "value")]
-    pub(crate) indeterminate: bool,
 }

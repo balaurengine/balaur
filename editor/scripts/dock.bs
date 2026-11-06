@@ -671,7 +671,7 @@ pub fn timeline_fill(state: &mut editor::State) {
     let filled = scene::get_node(TIMELINE + "/Body/Head/Loop");
     if filled.is_valid() {
         filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
-        filled.widget.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
+        filled.widget_dropdown.options = [animation::LOOP_NONE, animation::LOOP_LINEAR, animation::LOOP_PINGPONG];
     }
     // The ruler carries the scale the lanes are read against: a label and a
     // rule per tick straight down through the lanes.

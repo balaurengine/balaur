@@ -69,9 +69,10 @@ name = "List"
 parent = "list_box"
 [nodes.widget]
 kind = "list"
+grow = 1
+[nodes.widget_rows]
 multi_select = true
 row_height = 22
-grow = 1
 [nodes.widget_list]
 reorderable = true
 on_move = "on_move"
@@ -101,9 +102,10 @@ name = "Outline"
 parent = "tree_box"
 [nodes.widget]
 kind = "tree"
-row_height = 22
 font = "fonts/JetBrainsMono-Regular.ttf"
 grow = 1
+[nodes.widget_rows]
+row_height = 22
 [nodes.widget_list]
 reorderable = true
 on_move = "on_move"
@@ -136,11 +138,12 @@ parent = "table_box"
 [nodes.widget]
 kind = "table"
 text = "Torus"
+font = "fonts/JetBrainsMono-Regular.ttf"
+grow = 1
+[nodes.widget_rows]
 # A click on a header sorts by that column and the next turns it round; the
 # shares are the scene's until a drag on a seam writes its own.
 row_height = 22
-font = "fonts/JetBrainsMono-Regular.ttf"
-grow = 1
 [nodes.widget_table]
 titles = ["name", "kind", "size>"]
 sortable = true

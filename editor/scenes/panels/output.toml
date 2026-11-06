@@ -88,11 +88,12 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 grow = 1
-row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
 
 [nodes.widget.touch]
 row_height = 33
+[nodes.widget_rows]
+row_height = 18
 
 [[nodes]]
 id = "nothing"

@@ -69,11 +69,10 @@ fn picture(dir: &std::path::Path) {
 fn every_option_reads_back_as_it_was_written() {
     let (_dir, app) = app();
     let written = toml::toml! {
-        kind = "slider" sense = "drag" show_tooltip_when_elided = false indeterminate = true
-        prefix = "x"
+        kind = "slider" sense = "drag" show_tooltip_when_elided = false
         movable = true constrain = true fade_in = true
         widget_separator = { spacing = 9.0, overhang = -2.0 } widget_color_picker = { alpha = "additive", inline = true } widget_menu = { popup_gap = 2.0, popup_width = 140.0, placement_fallbacks = ["above", "right_end"], close_on = "never" } widget_window = { backdrop_color = [1.0, 0.0, 0.0, 0.5], dismissable = false, resizable = true, collapsible = true, closable = false, default_open = false }
-        widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
+        widget_range = { show_value = true, logarithmic = true, smallest_positive = 0.5, largest_finite = 900.0, clamp = "edits", clamp_existing = true, smart_aim = false, drag_speed = 0.25, decimals = 2, trailing_fill = true, handle = "rect", handle_aspect = 0.75, number_format = "hex", update_while_editing = false, show_percentage = true, animate = true, prefix = "x" } widget_dropdown = { list_height = 120.0 } widget_field = { editable = false, tab_inserts = true, caret_at_end = false, clip_text = false, submit_key = "cmd+enter" } widget_scroll = { scrollbar = "always", stick_to_end = true, scroll_offset = [3.0, 40.0], min_scrolled_width = 30.0, min_scrolled_height = 20.0, animated = false, wheel_speed = [2.0, 0.5], drag_scroll = "never", wheel_scroll = false, drag_cursor = "grabbing" } widget_image = { tint = [0.5, 0.5, 1.0, 1.0], region = [1.0, 2.0, 3.0, 4.0], angle_degrees = 30.0, angle_origin = [0.0, 1.0], alt_text = "a cat" }
     };
     let entity = add_widget(&app, &written.clone().into());
     for (key, value) in &written {
@@ -99,7 +98,7 @@ fn every_option_reads_back_as_it_was_written() {
 fn a_checkbox_can_be_drawn_neither_ticked_nor_clear() {
     let line = |indeterminate: bool| {
         let (_dir, _app, _, _, out) = drawn(
-            &toml::toml! { kind = "checkbox" text = "all" indeterminate = indeterminate x = 0.0 y = 0.0 }.into(),
+            &toml::toml! { kind = "checkbox" text = "all" x = 0.0 y = 0.0 widget_check = { indeterminate = indeterminate } }.into(),
         );
         out.shapes
             .iter()
@@ -113,9 +112,9 @@ fn a_checkbox_can_be_drawn_neither_ticked_nor_clear() {
 fn a_slider_shows_its_number_in_its_decimals_between_prefix_and_suffix() {
     let (_dir, _app, _, _, out) = drawn(
         &toml::toml! {
-            kind = "slider"   prefix = "at" suffix = "m"
+            kind = "slider"
                width = 120.0 x = 0.0 y = 0.0
-            widget_range = { show_value = true, decimals = 2, value = 3.0, min = 0.0, max = 10.0 }
+            widget_range = { show_value = true, decimals = 2, value = 3.0, min = 0.0, max = 10.0, prefix = "at", suffix = "m" }
         }
         .into(),
     );
@@ -252,7 +251,7 @@ fn a_text_field_draws_what_stands_either_side_of_its_text() {
         &toml::toml! { kind = "text_field" text = "12" width = 160.0 x = 0.0 y = 0.0 }.into(),
     );
     let (_dir, _app, _, _, out) = drawn(
-        &toml::toml! { kind = "text_field" text = "12" prefix = "$" suffix = "kg" width = 160.0 x = 0.0 y = 0.0 }.into(),
+        &toml::toml! { kind = "text_field" text = "12" width = 160.0 x = 0.0 y = 0.0 widget_field = { prefix = "$", suffix = "kg" } }.into(),
     );
     let (bare, out) = (glyphs(&bare), glyphs(&out));
     assert_eq!(bare.len(), 2, "control: the number is two glyphs");
@@ -495,8 +494,8 @@ fn an_image_that_will_not_load_draws_its_alt_text() {
 fn a_menu_opens_to_the_side_its_placement_names() {
     let (_dir, _app, menu, _, out) = drawn(
         &toml::toml! {
-            kind = "menu" text = "File" options = ["Open", "Save"] x = 20.0 y = 20.0
-            widget_menu = { placement = "right", showing = true }
+            kind = "menu" text = "File" x = 20.0 y = 20.0
+            widget_menu = { placement = "right", showing = true, options = ["Open", "Save"] }
         }
         .into(),
     );
@@ -842,8 +841,8 @@ fn a_separator_s_overhang_runs_its_line_past_its_room() {
 fn a_slider_s_shown_number_stays_inside_its_box() {
     let (_dir, _app, _, _, out) = drawn(
         &toml::toml! {
-            kind = "slider"  prefix = "at" suffix = "metres"   width = 200.0 x = 0.0 y = 0.0
-            widget_range = { show_value = true, value = 3.0, max = 10.0 }
+            kind = "slider"   width = 200.0 x = 0.0 y = 0.0
+            widget_range = { show_value = true, value = 3.0, max = 10.0, prefix = "at", suffix = "metres" }
         }
         .into(),
     );

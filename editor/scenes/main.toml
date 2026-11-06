@@ -858,7 +858,6 @@ name = "Picker"
 parent = "n_editor"
 script = { source = "scripts/panels/picker.bs" }
 [nodes.widget]
-on_closed = "closed"
 kind = "dialog"
 whole_window = true
 role = "sheet_picker"
@@ -867,6 +866,7 @@ anchor = "center_top"
 y = 96
 [nodes.widget_window]
 open = false
+on_closed = "closed"
 
 [[nodes]]
 id = "picker_head"
@@ -905,13 +905,13 @@ name = "Sheet"
 parent = "n_editor"
 script = { source = "scripts/panels/sheet.bs" }
 [nodes.widget]
-on_closed = "closed"
 kind = "dialog"
 whole_window = true
 role = "sheet_dialog"
 [nodes.widget_window]
 # A `dialog` draws its caption, and the default one is the word "label".
 open = false
+on_closed = "closed"
 
 [[nodes]]
 id = "sheet_bar"

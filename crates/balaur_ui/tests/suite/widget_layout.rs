@@ -562,7 +562,7 @@ fn a_list_in_a_row_still_runs_its_rows_down() {
         &app,
         row,
         "l",
-        &toml::toml! { kind = "list" items = [{ label = "first" }, { label = "second" }, { label = "third" }] width = 160.0 height = 120.0 }
+        &toml::toml! { kind = "list" width = 160.0 height = 120.0 widget_rows = { items = [{ label = "first" }, { label = "second" }, { label = "third" }] } }
             .into(),
     );
     let ctx = egui::Context::default();

@@ -315,7 +315,7 @@ fn a_switch_flips_and_wears_its_role_s_two_states() {
     assert!(balaur_ui::click(&app.engine, flip, false));
     app.tick(1.0 / 60.0);
     assert_eq!(
-        property(&app, flip, "checked").as_bool(),
+        beside_property(&app, flip, "widget_check", "checked").as_bool(),
         Some(true),
         "the click did not flip it"
     );

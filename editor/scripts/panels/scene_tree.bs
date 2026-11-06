@@ -94,9 +94,9 @@ impl SceneTree {
         nothing.set_visible(false);
         tree.set_visible(true);
         if view["stamp"].as_str() != self.drawn {
-            tree.widget.items = view["items"];
+            tree.widget_rows.items = view["items"];
             self.drawn = view["stamp"].as_str();
         }
-        tree.widget.selection = view["chosen"];
+        tree.widget_rows.selection = view["chosen"];
     }
 }

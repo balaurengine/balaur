@@ -10,8 +10,7 @@ use egui::pos2;
 #[test]
 fn a_menu_reports_the_item_that_was_picked() {
     let (_dir, mut app) = app();
-    let params =
-        toml::toml! { kind = "menu" text = "File" options = ["Open", "Save"] x = 0.0 y = 0.0 };
+    let params = toml::toml! { kind = "menu" text = "File" x = 0.0 y = 0.0 widget_menu = { options = ["Open", "Save"] } };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
@@ -482,8 +481,8 @@ fn a_menu_row_fires_from_its_shortcut_with_the_menu_shut() {
 fn a_secondary_click_on_a_tree_row_opens_the_named_menu() {
     let (_dir, app) = app();
     let tree = toml::toml! {
-        kind = "tree" x = 10.0 y = 10.0 width = 200.0 height = 200.0
-        row_height = 18.0 items = [{ label = "One" }, { label = "Two", depth = 1 }, { label = "Three" }] context = "cm"
+        kind = "tree" x = 10.0 y = 10.0 width = 200.0 height = 200.0 context = "cm"
+        widget_rows = { row_height = 18.0, items = [{ label = "One" }, { label = "Two", depth = 1 }, { label = "Three" }] }
     };
     add_widget(&app, &tree.into());
     let menu = toml::toml! { kind = "menu" x = 300.0 y = 300.0 };

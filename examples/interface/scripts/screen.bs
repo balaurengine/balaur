@@ -59,7 +59,7 @@ impl Screen {
     fn fill(name: str, items: [ui::Item]) {
         let found = self.node.get_node(name);
         if found.is_valid() {
-            found.widget.items = items;
+            found.widget_rows.items = items;
         }
     }
 

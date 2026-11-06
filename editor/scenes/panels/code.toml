@@ -40,10 +40,11 @@ id = "editor"
 name = "Editor"
 parent = "scroll"
 [nodes.widget]
-on_caret = "caret"
 on_change = "typed"
 kind = "code"
 font_size = 13
+[nodes.widget_field]
+on_caret = "caret"
 [nodes.widget_code]
 on_gutter = "gutter"
 gutter_width = 34

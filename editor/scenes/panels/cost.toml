@@ -40,8 +40,9 @@ parent = "panel"
 [nodes.widget]
 kind = "table"
 grow = 1
-row_height = 18
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_rows]
+row_height = 18
 [nodes.widget_table]
 sortable = true
 

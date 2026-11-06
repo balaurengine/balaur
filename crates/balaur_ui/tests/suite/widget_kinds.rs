@@ -13,16 +13,16 @@ fn a_check_flips_on_click_and_reads_back() {
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);
-    assert_eq!(
-        property(&app, entity, "checked"),
-        toml::Value::Boolean(false)
+    assert!(
+        !balaur::components::has(&app.engine, entity, "widget_check"),
+        "a check that states nothing is clear, and carries nothing beside it"
     );
     let target = pos2(8.0, 8.0);
     pass(&app, &ctx, press(target, true));
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "checked"),
+        beside_property(&app, entity, "widget_check", "checked"),
         toml::Value::Boolean(true),
         "the click did not tick the box"
     );
@@ -34,7 +34,7 @@ fn a_check_flips_on_click_and_reads_back() {
     pass(&app, &ctx, press(target, false));
     consume_input(&mut app);
     assert_eq!(
-        property(&app, entity, "checked"),
+        beside_property(&app, entity, "widget_check", "checked"),
         toml::Value::Boolean(false)
     );
 }
@@ -189,7 +189,7 @@ fn a_color_swatch_paints_its_floats_as_srgb() {
 #[test]
 fn a_dropdown_takes_the_option_that_was_clicked() {
     let (_dir, mut app) = app();
-    let params = toml::toml! { kind = "dropdown" text = "One" options = ["One", "Two", "Three"] x = 0.0 y = 0.0 };
+    let params = toml::toml! { kind = "dropdown" text = "One" x = 0.0 y = 0.0 widget_dropdown = { options = ["One", "Two", "Three"] } };
     let entity = add_widget(&app, &params.into());
     let ctx = egui::Context::default();
     settle(&app, &ctx);

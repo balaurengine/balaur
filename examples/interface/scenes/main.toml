@@ -281,6 +281,7 @@ parent = "c_row"
 [nodes.widget]
 kind = "checkbox"
 text = "check"
+[nodes.widget_check]
 checked = true
 
 [[nodes]]
@@ -290,6 +291,7 @@ parent = "c_row"
 [nodes.widget]
 kind = "dropdown"
 text = "high"
+[nodes.widget_dropdown]
 options = ["low", "medium", "high"]
 
 [[nodes]]
@@ -298,11 +300,11 @@ name = "CDrag"
 parent = "c_row"
 [nodes.widget]
 kind = "number_field"
-prefix = "x"
 grow = 1
 [nodes.widget_range]
 value = 1.5
 drag_speed = 0.05
+prefix = "x"
 
 [[nodes]]
 id = "c_color"
@@ -376,9 +378,10 @@ parent = "pages"
 [nodes.widget]
 text = "Cards"
 kind = "list"
+height = 196
+[nodes.widget_rows]
 # A card's own height; the width is the room divided by the columns.
 row_height = 60
-height = 196
 [nodes.widget_list]
 # Given columns, the rows flow into a grid of cards: `ItemList` in its icon mode.
 grid_columns = "repeat(4, 1fr)"

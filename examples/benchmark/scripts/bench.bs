@@ -482,7 +482,7 @@ impl Bench {
         for c in self.cases {
             keys.push(ui::Item { label: c.key });
         }
-        menu.get_node("Cases").widget.items = keys;
+        menu.get_node("Cases").widget_rows.items = keys;
         self.show_status();
     }
 

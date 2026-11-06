@@ -63,8 +63,9 @@ parent = "panel"
 [nodes.widget]
 kind = "list"
 height = 120
-row_height = 20
 font = "fonts/JetBrainsMono-Regular.ttf"
+[nodes.widget_rows]
+row_height = 20
 
 [[nodes]]
 id = "verbs"

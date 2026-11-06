@@ -61,7 +61,7 @@ impl Meter {
             table.widget_table.sort = "";
             table.widget_table.reverse = false;
         }
-        table.widget.items = view["items"];
+        table.widget_rows.items = view["items"];
         table.set_visible(view["items"].len() > 0);
         let patched = self.node.get_node("Nothing");
         patched.set_visible(view["says"].as_str() != "");
@@ -69,7 +69,7 @@ impl Meter {
         let tools = self.node.get_node("Tools");
         tools.get_node("Headline").widget.text = view["headline"].as_str();
         if self.what == "profiler" {
-            tools.get_node("Scripts").widget.checked = view["scripts"].as_bool();
+            tools.get_node("Scripts").widget_check.checked = view["scripts"].as_bool();
         }
     }
 }

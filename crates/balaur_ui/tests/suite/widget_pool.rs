@@ -102,7 +102,7 @@ impl Root {
     app.tick(1.0 / 60.0);
     let boxed = kids(&app)[0];
     assert_eq!(
-        prop(&app, boxed, "checked"),
+        balaur_core::components::property(&app.engine, boxed, "widget_check", "checked"),
         Some(toml::Value::Boolean(false))
     );
 
@@ -110,14 +110,14 @@ impl Root {
     app.tick(1.0 / 60.0);
     assert_eq!(number(&app, "edits"), Some(1.0));
     assert_eq!(
-        prop(&app, boxed, "checked"),
+        balaur_core::components::property(&app.engine, boxed, "widget_check", "checked"),
         Some(toml::Value::Boolean(true))
     );
 
     // A write that is not the reader's is no edit.
     let mut write = toml::map::Map::new();
     write.insert("checked".into(), toml::Value::Boolean(false));
-    balaur_core::components::patch(&app.engine, boxed, "widget", &write.into()).unwrap();
+    balaur_core::components::patch(&app.engine, boxed, "widget_check", &write.into()).unwrap();
     app.tick(1.0 / 60.0);
     assert_eq!(
         number(&app, "edits"),
@@ -125,7 +125,7 @@ impl Root {
         "a script's write is not an edit"
     );
     assert_eq!(
-        prop(&app, boxed, "checked"),
+        balaur_core::components::property(&app.engine, boxed, "widget_check", "checked"),
         Some(toml::Value::Boolean(false)),
         "and the pool writes only what its own spec changed"
     );
@@ -222,7 +222,7 @@ impl Root {
         "the range went with the control that stated it"
     );
     assert_eq!(
-        prop(&app, field[0], "prefix"),
+        balaur_core::components::property(&app.engine, field[0], "widget_range", "prefix"),
         Some(toml::Value::String(String::new())),
         "and so did its letter"
     );

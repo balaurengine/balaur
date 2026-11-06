@@ -76,9 +76,10 @@ parent = "head"
 on_click = "verb"
 kind = "button"
 role = "chip"
-checked = true
 text = "Key"
 tooltip = "Insert keyframe at playhead (or press K)"
+[nodes.widget_check]
+checked = true
 
 [[nodes]]
 id = "delete"
@@ -100,10 +101,10 @@ parent = "head"
 on_change = "clip_changed"
 kind = "number_field"
 width = 72
-suffix = " s"
 tooltip = "How long the clip runs"
 [nodes.widget_range]
 drag_speed = 0.01
+suffix = " s"
 
 [[nodes]]
 id = "loop"

@@ -52,12 +52,12 @@ name = "Name"
 parent = "tools"
 visible = false
 [nodes.widget]
-on_submit = "name_submitted"
 kind = "text_field"
 role = "input_dock"
 width = 180
 [nodes.widget_field]
 placeholder = "new name"
+on_submit = "name_submitted"
 
 [[nodes]]
 id = "gap"

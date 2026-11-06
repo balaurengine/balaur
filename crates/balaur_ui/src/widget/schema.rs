@@ -400,7 +400,6 @@ cache_fields! {
         k::HIDE_TALLER => widget.hide_taller = asked.hide_taller;
         k::PADDING => widget.padding = asked.padding.0;
         k::BORDER => widget.layout.border = asked.border.map(Bits::of);
-        k::ROW_HEIGHT => widget.row_height = asked.row_height;
         k::THEME => widget.theme = asked.theme.clone();
         k::ROLE => widget.role = asked.role.clone();
         k::FILL => widget.fill = asked.fill.clone();
@@ -425,26 +424,15 @@ cache_fields! {
         k::TRUNCATE => widget.truncate = asked.truncate;
         k::SHOW_TOOLTIP_WHEN_ELIDED => egui(widget).show_tooltip_when_elided =
             asked.show_tooltip_when_elided;
-        k::PREFIX => egui(widget).prefix = asked.prefix.clone();
-        k::SUFFIX => widget.suffix = asked.suffix.clone();
         k::TRAILING => widget.trailing = asked.trailing.clone();
         k::TOOLTIP => widget.tooltip = asked.tooltip.clone();
         k::SELECTABLE => widget.selectable = asked.selectable;
         k::ON_CLICK => widget.on_click = asked.on_click.clone();
         k::ON_CHANGE => widget.on_change = asked.on_change.clone();
-        k::ON_SUBMIT => widget.on_submit = asked.on_submit.clone();
         k::ON_FOCUS => widget.on_focus = asked.on_focus.clone();
         k::ON_LINK => widget.on_link = asked.on_link.clone();
         k::ON_DOUBLE_CLICK => widget.on_double_click = asked.on_double_click.clone();
         k::ON_BLUR => widget.on_blur = asked.on_blur.clone();
-        k::ON_COMMIT => widget.on_commit = asked.on_commit.clone();
-        k::ON_CARET => widget.on_caret = asked.on_caret.clone();
-        k::ON_ACTIVATE => widget.on_activate = asked.on_activate.clone();
-        k::ON_FOLD => widget.on_fold = asked.on_fold.clone();
-        k::ON_OPENED => widget.on_opened = asked.on_opened.clone();
-        k::ON_CLOSED => widget.on_closed = asked.on_closed.clone();
-        k::ON_SCROLLED => widget.on_scrolled = asked.on_scrolled.clone();
-        k::ON_CLOSE_REQUEST => widget.on_close_request = asked.on_close_request.clone();
         k::INTERACTIVE => widget.pointer_through = !asked.interactive;
         k::FOCUSABLE => widget.focusable = asked.focusable;
         k::NEIGHBOUR_UP => widget.neighbours[0] = asked.neighbour_up.clone();
@@ -457,14 +445,6 @@ cache_fields! {
         k::WHILE_TYPING => widget.while_typing = asked.while_typing;
         k::TAKES_TYPING => widget.takes_typing = asked.takes_typing;
         k::CONTEXT => widget.context = asked.context.clone();
-        k::CHECKED => widget.checked = asked.checked;
-        k::OPTIONS => widget.options.clone_from(&asked.options);
-        k::ITEMS => widget.items.clone_from(&asked.items);
-        k::SELECTION => widget.selection.clone_from(&asked.selection);
-        k::MULTI_SELECT => widget.multi = asked.multi_select;
-        k::RADIO_GROUP => widget.radio_group = asked.radio_group.clone();
-        k::TOGGLE => widget.toggle = asked.toggle;
-        k::INDETERMINATE => egui(widget).indeterminate = asked.indeterminate;
     }
     whole [
         k::KIND, k::TEXT_STYLE, k::TEXT_BACKGROUND, k::LINE_BREAK, k::TRUNCATE_AT, k::MAX_LINES,

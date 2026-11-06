@@ -605,10 +605,9 @@ fn written(asked: &mut WidgetProperties, edit: &Edit) -> &'static [&'static str]
             asked.text = choice.as_str().into();
             &[k::TEXT]
         }
-        Edit::Picked(row, rows) => {
+        Edit::Picked(row, _) => {
             asked.text = row.as_str().into();
-            asked.selection = rows.iter().map(|row| row.as_str().into()).collect();
-            &[k::TEXT, k::SELECTION]
+            &[k::TEXT]
         }
         _ => &[],
     }
@@ -708,7 +707,13 @@ fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
         self, WidgetColorPicker, WidgetRange, WidgetScroll, WidgetTable, WidgetWindow,
     };
     use crate::widget::beside_box::{WidgetFold, WidgetTabs};
+    use crate::widget::beside_controls::WidgetRows;
     match edit {
+        Edit::Picked(_, rows) => {
+            beside::edit::<WidgetRows>(eng, entity, &[k::SELECTION], |held| {
+                held.selection = rows.iter().map(|row| row.as_str().into()).collect();
+            });
+        }
         Edit::Active(name) => {
             beside::edit::<WidgetTabs>(eng, entity, &[k::CURRENT_PAGE], |held| {
                 held.current_page = name.as_str().into();
@@ -749,10 +754,6 @@ fn besides_written(eng: &Engine, entity: Entity, edit: &Edit) {
     }
 }
 
-/// A widget as the click pass writes it: the properties, and the widget the
-/// layer reads, which follows them.
-type Settled<'a> = (Entity, &'a mut WidgetProperties, &'a mut Widget);
-
 /// Tick what this frame's clicks tick, and collect the handlers.
 fn settle_clicks(
     eng: &Engine,
@@ -762,65 +763,95 @@ fn settle_clicks(
 ) -> Vec<(Entity, String)> {
     let hit: Vec<Entity> = clicked.iter().filter_map(|key| resolve(eng, key)).collect();
     let mut signals = Vec::new();
-    if hit.is_empty() {
-        return signals;
-    }
-    // The grouped checks this tick ticked, unticked in a second pass: the loop
-    // below holds one widget at a time and a group's siblings are others.
+    // The grouped checks this tick ticked, unticked below: the rest of a
+    // group are other widgets.
     let mut ticked: Vec<(Entity, smol_str::SmolStr)> = Vec::new();
-    let world = eng.world();
-    for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
-        if !hit.contains(&entity) {
+    for entity in hit {
+        let Some(said) = click_of(eng, entity) else {
             continue;
-        }
+        };
         // A click on a check or toggle is the tick itself, by mouse or by
         // `accept`. One in a group is a radio: it ticks and stays ticked, and
         // the pass below unticks the rest of its group.
-        if flips(widget) {
-            let grouped = !widget.radio_group.is_empty();
-            let was = asked.checked;
+        if said.flips {
+            let grouped = !said.radio_group.is_empty();
             // Grouped, a click picks: it ticks and a second click leaves it
             // ticked, because something in the group has to be. On its own, a
             // click flips.
-            asked.checked = if grouped { true } else { !was };
-            follow(widget, asked, &[k::CHECKED]);
-            if widget.checked != was {
-                crate::widget::arena::widget_changed(entity);
-                emitted.push((entity, CHANGE_EVENT, Value::Bool(widget.checked)));
-                if !widget.on_change.is_empty() {
-                    changes.push((
-                        entity,
-                        widget.on_change.to_string(),
-                        Value::Bool(widget.checked),
-                    ));
-                }
+            let now = grouped || !said.checked;
+            set_checked(eng, entity, now);
+            if now != said.checked {
+                told_checked(entity, now, &said.on_change, changes, emitted);
             }
             if grouped {
-                ticked.push((entity, widget.radio_group.clone()));
+                ticked.push((entity, said.radio_group));
             }
         }
-        if !widget.on_click.is_empty() {
-            signals.push((entity, widget.on_click.to_string()));
+        if !said.on_click.is_empty() {
+            signals.push((entity, said.on_click.to_string()));
         }
     }
     for (struck, group) in &ticked {
-        for (entity, asked, widget) in &mut world.query::<Settled<'_>>() {
-            if entity == *struck || !flips(widget) || widget.radio_group != *group {
-                continue;
-            }
-            if !asked.checked {
-                continue;
-            }
-            asked.checked = false;
-            follow(widget, asked, &[k::CHECKED]);
-            crate::widget::arena::widget_changed(entity);
-            emitted.push((entity, CHANGE_EVENT, Value::Bool(false)));
-            if !widget.on_change.is_empty() {
-                changes.push((entity, widget.on_change.to_string(), Value::Bool(false)));
-            }
+        let others: Vec<(Entity, smol_str::SmolStr)> = eng
+            .world()
+            .query::<(Entity, &Widget)>()
+            .iter()
+            .filter(|(entity, widget)| {
+                *entity != *struck
+                    && flips(widget)
+                    && widget.radio_group == *group
+                    && widget.checked
+            })
+            .map(|(entity, widget)| (entity, widget.on_change.clone()))
+            .collect();
+        for (entity, on_change) in others {
+            set_checked(eng, entity, false);
+            told_checked(entity, false, &on_change, changes, emitted);
         }
     }
     signals
+}
+
+/// What a click on one widget has to know of it.
+struct ClickOf {
+    flips: bool,
+    checked: bool,
+    radio_group: smol_str::SmolStr,
+    on_change: smol_str::SmolStr,
+    on_click: smol_str::SmolStr,
+}
+
+fn click_of(eng: &Engine, entity: Entity) -> Option<ClickOf> {
+    let world = eng.world();
+    let widget = world.get::<&Widget>(entity).ok()?;
+    Some(ClickOf {
+        flips: flips(&widget),
+        checked: widget.checked,
+        radio_group: widget.radio_group.clone(),
+        on_change: widget.on_change.clone(),
+        on_click: widget.on_click.clone(),
+    })
+}
+
+fn set_checked(eng: &Engine, entity: Entity, now: bool) {
+    use crate::widget::beside::edit;
+    use crate::widget::beside_controls::WidgetCheck;
+    edit::<WidgetCheck>(eng, entity, &[k::CHECKED], |held| held.checked = now);
+}
+
+/// A check's new state said from its node, and to its handler where it names
+/// one.
+fn told_checked(
+    entity: Entity,
+    now: bool,
+    on_change: &str,
+    changes: &mut Vec<(Entity, String, Value)>,
+    emitted: &mut Vec<(Entity, &'static str, Value)>,
+) {
+    emitted.push((entity, CHANGE_EVENT, Value::Bool(now)));
+    if !on_change.is_empty() {
+        changes.push((entity, on_change.to_owned(), Value::Bool(now)));
+    }
 }
 
 /// A widget a click ticks and unticks: a `checkbox`, or a `toggle` button.

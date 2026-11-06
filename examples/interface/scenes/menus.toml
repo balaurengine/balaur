@@ -139,9 +139,10 @@ parent = "file"
 [nodes.widget]
 kind = "button"
 text = "Show grid"
-checked = true
 width = 210
 height = 24
+[nodes.widget_check]
+checked = true
 [nodes.widget_child]
 keep_open = true
 

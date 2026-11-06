@@ -76,8 +76,9 @@ parent = "n_menu"
 [nodes.widget]
 kind = "checkbox"
 text = "Draw the shapes"
-checked = true
 on_change = "on_draw"
+[nodes.widget_check]
+checked = true
 
 # A pick queues the case; the script fills the rows with the catalogue.
 [[nodes]]
@@ -87,9 +88,10 @@ parent = "n_menu"
 
 [nodes.widget]
 kind = "list"
-row_height = 22
 height = 600
 on_change = "on_pick"
+[nodes.widget_rows]
+row_height = 22
 
 [[nodes]]
 id = "n_menu_results"
