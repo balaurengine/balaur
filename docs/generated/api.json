@@ -5273,7 +5273,7 @@
       },
       "ui::patch_row": {
         "least": 3,
-        "signature": "(Node, int, [any]) -> bool"
+        "signature": "(Node, int, [ui::Control]) -> bool"
       },
       "ui::request_repaint": {
         "least": 0,
@@ -26899,7 +26899,7 @@
         "focused_widget": "The widget node focus is on, or nil.",
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
-        "patch_row": "What moved of a row `fill_row` made: each table of `patches` written to the control at its place in the row, nil for one that stands, and remembered, so the next fill compares against it. For a value that follows the node: what does not move of the row is not asked about. False where the row is not there or nothing moved.",
+        "patch_row": "What moved of a row `fill_row` made: what each of `patches` names written to the control at its place in the row, and remembered, so the next fill compares against it. For a value that follows the node: what a patch leaves out is not asked about. False where the row is not there or nothing moved.",
         "request_repaint": "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
@@ -26990,7 +26990,7 @@
         "focused_widget": "() -> Node",
         "height_class": "() -> str",
         "pasted_text": "() -> str",
-        "patch_row": "(Node, int, [any]) -> bool",
+        "patch_row": "(Node, int, [ui::Control]) -> bool",
         "request_repaint": "(ui::RepaintOptions?)",
         "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",

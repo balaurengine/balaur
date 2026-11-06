@@ -69,45 +69,45 @@ pub fn row_of(state: &mut editor::State, line: inspector::Line, value: any) -> u
 /// What moved of `line`'s row now it holds `value`, a table for each of its
 /// controls, or nil for a row that has to be built: one whose controls follow
 /// from the value, or a line that is not one value.
-pub fn patches_of(state: editor::State, line: inspector::Line, value: any) -> any {
+pub fn patches_of(state: editor::State, line: inspector::Line, value: any) -> [ui::Control]? {
     if line.kind != inspector::VALUE || line.at.component == inspector::SCRIPT {
         return nil;
     }
     let spec = line.spec;
     if spec["readonly"].as_bool() {
-        return [{ "text": readonly_text(spec, value) }];
+        return [ui::Control { text: readonly_text(spec, value) }];
     }
     let datatype = spec["type"].as_str();
     if state.registry.property_editors.has(datatype) {
         return nil;
     }
     if datatype == "float" {
-        [{ "value": shown_as(spec, number_of(value)) }]
+        [ui::Control { value: shown_as(spec, number_of(value)) }]
     } else if datatype == "int" {
-        [{ "value": number_of(value) }]
+        [ui::Control { value: number_of(value) }]
     } else if datatype == "vec2" || datatype == "vec3" || datatype == "vec4" {
         vector_patches(spec, value)
     } else if datatype == "bool" {
-        [{ "checked": value.as_bool() }]
+        [ui::Control { checked: value.as_bool() }]
     } else if datatype == "enum" {
-        [{ "text": inspector::as_text(value) }]
+        [ui::Control { text: inspector::as_text(value) }]
     } else if datatype == "color" {
         let held = util::list_or_empty(value);
-        [{ "picked_color": held }, { "text": color_text(held) }]
+        [ui::Control { picked_color: held }, ui::Control { text: color_text(held) }]
     } else if datatype == "string" || datatype == "" {
-        [{ "text": model::relative_file(state, inspector::as_text(value)).as_str() }]
+        [ui::Control { text: model::relative_file(state, inspector::as_text(value)).as_str() }]
     } else {
         nil
     }
 }
 
-fn vector_patches(spec: any, value: any) -> any {
+fn vector_patches(spec: any, value: any) -> [ui::Control] {
     let held = util::list_or_empty(value);
     let datatype = spec["type"].as_str();
     let count = if datatype == "vec4" { 4 } else if datatype == "vec2" { 2 } else { 3 };
-    let out: [any] = [];
+    let out: [ui::Control] = [];
     for slot in 0..count {
-        out.push({ "value": shown_as(spec, channel(held, slot, 0.0)) });
+        out.push(ui::Control { value: shown_as(spec, channel(held, slot, 0.0)) });
     }
     out
 }

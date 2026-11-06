@@ -359,10 +359,17 @@ impl Pool<'_> {
         let moved = self.with_memo(|memo| {
             // An edit forgot it: the next fill writes it whole.
             let Some(Value::Map(held)) = memo.written.get_mut(&mark) else {
-                return entries.clone();
+                return entries
+                    .iter()
+                    .filter(|(_, value)| *value != Value::Nil)
+                    .cloned()
+                    .collect();
             };
             let mut moved = Vec::with_capacity(entries.len());
             for (name, value) in entries {
+                if *value == Value::Nil {
+                    continue;
+                }
                 match held.iter_mut().find(|(was, _)| was == name) {
                     Some((_, written)) if written == value => {}
                     Some((_, written)) => {
@@ -884,8 +891,8 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         (
             "patch_row",
             &[],
-            "(host: node, slot: int, patches: [any]) -> bool",
-            "What moved of a row `fill_row` made: each table of `patches` written to the control at its place in the row, nil for one that stands, and remembered, so the next fill compares against it. For a value that follows the node: what does not move of the row is not asked about. False where the row is not there or nothing moved.",
+            "(host: node, slot: int, patches: [Control]) -> bool",
+            "What moved of a row `fill_row` made: what each of `patches` names written to the control at its place in the row, and remembered, so the next fill compares against it. For a value that follows the node: what a patch leaves out is not asked about. False where the row is not there or nothing moved.",
         ),
     ]);
     m.records(&[
@@ -940,6 +947,11 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
             fill_rows(eng, ops, &host, &rows, &label_w, stacked.unwrap_or(false))
         },
     );
+    install_one_row(m, ops);
+}
+
+/// `ui.fill_row` and `ui.patch_row`: a form that keeps the rows on screen.
+fn install_one_row(m: &mut Module<Engine>, ops: Ops) {
     m.function(
         "fill_row",
         move |eng: &Engine,

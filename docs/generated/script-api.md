@@ -1279,7 +1279,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
-| `patch_row` | `(Node, int, [any]) -> bool` |
+| `patch_row` | `(Node, int, [ui::Control]) -> bool` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |

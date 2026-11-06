@@ -1272,7 +1272,7 @@ fn draw_line(state: &mut editor::State, index: int) {
         let patches = drawers::patches_of(state, line, value);
         if patches != nil {
             line.shown = value;
-            ui::patch_row(form.host, slot, patches);
+            ui::patch_row(form.host, slot, patches.unwrap());
             form.written += 1;
             return;
         }

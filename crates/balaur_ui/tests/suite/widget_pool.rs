@@ -341,10 +341,10 @@ impl Root {
         if self.frame == 1 {
             ui::fill_row(host, 0, row(\"first\"), 40.0, false);
         } else if self.frame == 2 {
-            let patches: [any] = [{ \"text\": \"moved\" }];
+            let patches: [ui::Control] = [ui::Control { text: \"moved\" }];
             self.wrote = ui::patch_row(host, 0, patches);
         } else if self.frame == 3 {
-            let patches: [any] = [{ \"text\": \"moved\" }];
+            let patches: [ui::Control] = [ui::Control { text: \"moved\" }];
             self.again = ui::patch_row(host, 0, patches);
         } else if self.frame == 4 {
             ui::fill_row(host, 0, row(\"first\"), 40.0, false);
