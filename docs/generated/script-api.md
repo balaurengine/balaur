@@ -17,7 +17,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
 | [`encoding`](#encoding) | 3 | 0 |
-| [`engine`](#engine) | 30 | 0 |
+| [`engine`](#engine) | 31 | 0 |
 | [`events`](#events) | 4 | 0 |
 | [`export`](#export) | 5 | 0 |
 | [`forge`](#forge) | 5 | 0 |
