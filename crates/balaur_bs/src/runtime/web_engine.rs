@@ -430,11 +430,8 @@ fn js_err(e: &JsValue) -> String {
 
 type Import = Closure<dyn FnMut(JsValue, JsValue, Array) -> Result<JsValue, JsValue>>;
 
-// One closure per import, for a module whose imports do not all fit the
-// engine's entry points. A host function is variadic from JavaScript's side,
-// so each import is a proxy whose `apply` trap hands the Rust closure its
-// arguments as one array: a function built from source is what a page whose
-// content policy refuses `unsafe-eval` cannot have.
+// One closure per import, for a module not wired to the engine's entry points.
+// A proxy's `apply` trap hands it the arguments as an array, with no `unsafe-eval`.
 fn imports_each(
     env: &Object,
     host: &Shared,
