@@ -1,7 +1,7 @@
 //! The names a compiled module and its host agree on.
 
 pub const HOST_MODULE: &str = "env";
-pub const MEMORY: &str = "memory";
+pub const MEMORY: &str = "__memory";
 pub const ALLOC: &str = "__alloc";
 pub const FREE: &str = "__free";
 pub const LIVE: &str = "__live";

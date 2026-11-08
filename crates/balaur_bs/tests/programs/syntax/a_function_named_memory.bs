@@ -1,0 +1,5 @@
+// A script may name a function `memory`: the module's own goes by a `__` name.
+
+pub fn memory() -> str { "a" }
+
+// expect: memory() == "a"
