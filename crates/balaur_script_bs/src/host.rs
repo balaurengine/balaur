@@ -29,6 +29,7 @@ mod units;
 
 pub const EXTENSION: &str = "bs";
 /// Under the game's own data folder: what wasmtime compiled, kept across runs.
+const NODE_FIELD: &str = "node";
 const CACHE_DIR: &str = "bs-cache";
 /// An instance's memory: what grows past this traps rather than taking the
 /// game with it.
