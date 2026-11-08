@@ -225,28 +225,7 @@ impl ScriptHost<Engine> for BsHost {
             self.debug_resume(mode);
         }
         let mut todo: Vec<String> = self.inner.rebuild.take();
-        for key in self.edited() {
-            self.invalidate(&key);
-            // A module is no script of its own: what uses it reloads.
-            let users: Vec<String> = self
-                .inner
-                .files
-                .borrow()
-                .iter()
-                .filter(|(k, f)| {
-                    **k == key
-                        || f.compiled.meta.uses.contains(&key)
-                        || f.compiled.linked.iter().any(|(l, _)| *l == key)
-                })
-                .map(|(k, _)| k.clone())
-                .collect();
-            for k in users {
-                self.inner.reload_owed.borrow_mut().push(k.clone());
-                if !todo.contains(&k) {
-                    todo.push(k);
-                }
-            }
-        }
+        self.queue_users_of(&self.edited(), &mut todo);
         // Every file of an instance reloads with it, once.
         self.rebuild_keys(&todo);
         self.announce_reloads();
@@ -254,15 +233,48 @@ impl ScriptHost<Engine> for BsHost {
 
     // A new module, with every instance of the file carried across by field
     // name: its whole instance made again.
-    fn reload(&self, key: &str) -> Result<()> {
-        let key = key_of(key);
-        self.inner.reload_owed.borrow_mut().push(key.clone());
-        let built = self.rebuild_key(&key);
+    fn reload(&self, keys: &[&str]) -> Result<()> {
+        let keys: Vec<String> = keys.iter().map(|key| key_of(key)).collect();
+        self.inner
+            .reload_owed
+            .borrow_mut()
+            .extend(keys.iter().cloned());
+        let built = self.rebuild_changed(&keys);
         if built.is_err() {
-            self.inner.reload_owed.borrow_mut().retain(|k| *k != key);
+            let failed: std::collections::BTreeSet<&String> = keys.iter().collect();
+            self.inner
+                .reload_owed
+                .borrow_mut()
+                .retain(|key| !failed.contains(key));
         }
         self.announce_reloads();
         built
+    }
+
+    fn watch(&self, dir: &std::path::Path, key: &str, extensions: &[String]) -> bool {
+        use notify::Watcher as _;
+        let mut watcher = self.inner.watcher.borrow_mut();
+        let Some(watcher) = watcher.as_mut() else {
+            return false;
+        };
+        let mut asides = self.inner.watch_asides.borrow_mut();
+        if asides.iter().any(|aside| aside.at == dir) {
+            return true;
+        }
+        match watcher.watch(dir, notify::RecursiveMode::Recursive) {
+            Ok(()) => {
+                asides.push(burst::Aside {
+                    at: dir.to_path_buf(),
+                    key: key_of(key),
+                    extensions: extensions.to_vec(),
+                });
+                true
+            }
+            Err(why) => {
+                tracing::error!("watching {} for file edits: {why}", dir.display());
+                false
+            }
+        }
     }
 
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {

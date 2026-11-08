@@ -4,6 +4,7 @@
 //! or a crash loses at most that moment.
 
 use anim;
+use disk;
 use editor;
 use history;
 use manager;
@@ -44,21 +45,29 @@ pub fn step(state: &mut editor::State) {
     let now = engine::unix_time();
     write_settled(state, now);
     write_typed(state, now);
+    disk::ask(state);
 }
 
-/// Write each code buffer whose typing has rested by `now`; answers how many
-/// it wrote.
+/// Write each code buffer whose typing has rested by `now`, but for one whose
+/// file moved under it, which waits for an answer; answers how many it wrote.
 pub fn write_typed(state: &mut editor::State, now: float) -> int {
+    if state.script_dirty.len() == state.script_held.len() {
+        return 0;
+    }
     let rested: [str] = [];
     for path in state.script_dirty.keys() {
-        if now - state.script_dirty[path].as_float() >= TYPING_SETTLE {
+        if !state.script_held.has(path) && now - state.script_dirty[path].as_float() >= TYPING_SETTLE {
             rested.push(path);
         }
     }
+    shell::save_buffers(state, rested);
+    let wrote = 0;
     for path in rested {
-        shell::save_buffer(state, path);
+        if !state.script_held.has(path) {
+            wrote += 1;
+        }
     }
-    rested.len()
+    wrote
 }
 
 fn scripted(state: editor::State) -> bool {
@@ -68,5 +77,5 @@ fn scripted(state: editor::State) -> bool {
 /// Whether an edit waits to be written, which asks for the frame that writes it.
 pub fn waiting(state: editor::State) -> bool {
     let scene = history::dirty(state) && !state.playing && !state.isolated && !manager::showing(state) && !model::read_only(state);
-    !scripted(state) && (scene || state.script_dirty.len() > 0)
+    !scripted(state) && (scene || state.script_dirty.len() > state.script_held.len())
 }

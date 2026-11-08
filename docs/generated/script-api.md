@@ -297,7 +297,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `plugin_version` | `(str) -> str?` |
 | `plugins` | `() -> [str]` |
 | `quit` | `(int?)` |
-| `reload_script` | `(str) -> str` |
+| `reload_scripts` | `([str]) -> str` |
 | `reveal` | `(str)` |
 | `script_costs` | `() -> [engine::ScriptCost]` |
 | `set_content_root` | `(str)` |
@@ -313,6 +313,7 @@ The running app: its clock, command-line `args`, `user_data_dir`, loaded `plugin
 | `unix_time` | `() -> float` |
 | `user_data_directory` | `() -> str` |
 | `user_data_directory_of` | `(str) -> str` |
+| `watch` | `(str, [str]) -> bool` |
 
 ## `events`
 

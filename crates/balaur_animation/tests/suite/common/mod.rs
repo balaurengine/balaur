@@ -79,7 +79,7 @@ impl ScriptHost<balaur_core::Engine> for Calls {
     }
     fn load_state(&self, _: &[(NodeId, balaur_script::Value)]) {}
     fn pump_reloads(&self) {}
-    fn reload(&self, _: &str) -> anyhow::Result<()> {
+    fn reload(&self, _: &[&str]) -> anyhow::Result<()> {
         Ok(())
     }
     fn call_on(&self, node: NodeId, method: &str, args: &[Value]) -> Option<Value> {

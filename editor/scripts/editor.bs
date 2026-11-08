@@ -12,6 +12,7 @@ use chrome;
 use commands;
 use complete;
 use defs;
+use disk;
 use dock;
 use docks;
 use docs;
@@ -108,6 +109,16 @@ pub class State {
     // Each open buffer typed into since it was written, by its path, with
     // the wall-clock second it was last typed into.
     internal script_dirty: any,
+    // What each buffer's file held when they last agreed, by path: anything
+    // else on disk was written by something other than this editor.
+    internal script_disk: any,
+    // Buffers whose file moved under them, which the autosave leaves alone
+    // until the Changed on disk sheet has an answer for each.
+    internal script_held: any,
+    // A buffer was held since the sheet last filled.
+    internal disk_new: bool,
+    // The sheet was put up, so its being down means it was shut unanswered.
+    internal disk_up: bool,
     internal collapsed: any,
     // Moved whenever the rows the outline shows may have.
     internal outline_rows: int,
@@ -359,6 +370,10 @@ pub fn fresh_state() -> State {
         expects: {},
         opened: {},
         script_dirty: {},
+        script_disk: {},
+        script_held: {},
+        disk_new: false,
+        disk_up: false,
         collapsed: {},
         outline_rows: 0,
         // The panel `view:<id>` asked for, and the rect last logged for it.
@@ -590,6 +605,7 @@ impl Editor {
         // frame, after the screen's class has folded the docks.
         let arguments = engine::args();
         self.state.start_states = if arguments.len() > 1 { arguments[1] } else { "" };
+        disk::follow(self.state);
     }
 
     pub fn update(delta_time: float) {
@@ -1531,6 +1547,11 @@ impl Editor {
 
     /// A project file was reloaded from disk: every read of one is stale, and
     /// the Assets tab says what is there now.
+    // Files changed under the project: a script open in the code sheet follows.
+    pub fn on_files_changed(paths: any) {
+        disk::heard(self.state, paths);
+    }
+
     pub fn on_assets_reloaded(_generation: any) {
         model::forget(self.state);
         signals::changed(self.state, "assets");

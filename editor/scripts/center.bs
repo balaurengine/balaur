@@ -4,6 +4,7 @@
 
 use complete;
 use defs;
+use disk;
 use docks;
 use editor;
 use icons;
@@ -588,6 +589,12 @@ fn open_file(state: editor::State) -> OpenFile {
     }
 }
 
+/// The path of the file the code sheet has open, or "" for none.
+pub fn open_path(state: editor::State) -> str {
+    let relative_path = open_file(state).relative_path;
+    if relative_path == "" { "" } else { state.game_root + "/" + relative_path }
+}
+
 /// Say the open buffer was written from outside the editor: a format, a
 /// rename, a completion accepted. The sheet writes the text again on it.
 pub fn code_written(state: &mut editor::State) {
@@ -686,8 +693,7 @@ pub fn code_typed(state: &mut editor::State, text: str) {
         return;
     }
     let path = state.game_root + "/" + file.relative_path;
-    state.script_buffers[path] = text;
-    state.script_dirty[path] = engine::unix_time();
+    disk::edit(state, path, text);
     lint::touched(state);
     signals::bars(state);
     if !file.shading && read_hooks(state, file.relative_path, text) {

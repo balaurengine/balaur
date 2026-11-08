@@ -295,6 +295,10 @@ the node's own, and the root's children become the node's.
 
 - The host watches the project (`notify`); on save the file recompiles. A
   compile error keeps the previous unit running, reported once.
+- Writes gather into one burst, over after 60 ms of quiet or 2 s from the
+  first, so a checkout of any size is one build. Only files the host
+  remembers are read. `engine::watch` follows a directory outside the
+  project, which is how the editor hears the game it opens.
 - The new module replaces the old, and every instance of the file is carried
   across by field name, so state survives a save; a field the new struct
   dropped goes, one it added starts at its default.

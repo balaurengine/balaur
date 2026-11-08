@@ -727,17 +727,17 @@ Starts in `false`. Never ends.
 
 Which files' instances still have to hear `on_hot_reload`.
 
-Source: `crates/balaur_script_bs/src/host.rs`, `Inner.reload_owed`, `announce_reloads`; `crates/balaur_script_bs/src/host/engine_facing.rs`, `pump_reloads`, `reload`.
+Source: `crates/balaur_script_bs/src/host.rs`, `Inner.reload_owed`, `announce_reloads`; `crates/balaur_script_bs/src/host/engine_facing.rs`, `pump_reloads`, `reload`; `crates/balaur_script_bs/src/host/burst.rs`, `queue_users_of`.
 
 | State | What is true |
 |---|---|
-| key absent | No notice is owed. A build through `rebuild_key` alone tells no script. |
+| key absent | No notice is owed. A build through `rebuild_changed` alone tells no script. |
 | key present | The file's code changed. Its instances hear `on_hot_reload` once no rebuild for the key is left. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | absent | `pump_reloads`: an edit, for the file and each file using it | present | Queues the build in this pump. |
-| absent | `ScriptHost::reload` | present | Calls `rebuild_key`, then `announce_reloads`. |
+| absent | `ScriptHost::reload` | present | Calls `rebuild_changed`, then `announce_reloads`. |
 | present | the build fails in `pump_reloads` or `reload` | absent | Logs or answers the error. No notice goes out. |
 | present | `announce_reloads`, key still in `rebuild` | present | Waits for the next `pump_reloads`. |
 | present | `announce_reloads`, key not in `rebuild` | absent | `tell` calls `on_hot_reload` on the file's instances. |
@@ -745,6 +745,28 @@ Source: `crates/balaur_script_bs/src/host.rs`, `Inner.reload_owed`, `announce_re
 Starts absent. Never ends.
 
 Held by a pause, a `process` mode or a parked scene: `tell` filters neither a pause nor a mode. It reads `instances`, so a parked instance hears nothing and catches up in `on_parked_changed`. It passes over an instance under `frozen_root` or in the stopped file, and that notice is not owed again.
+
+### Watcher burst
+
+What the file watcher has reported that nothing has acted on. One burst is one batch, however many files it names.
+
+Source: `crates/balaur_script_bs/src/host/burst.rs`, `Burst`, `settled_burst`, `edited`.
+
+| State | What is true |
+|---|---|
+| empty | Nothing is waiting. |
+| gathering | Paths have been heard, and a wake is due when the quiet would end. |
+
+| From | Trigger | To | What it does |
+|---|---|---|---|
+| empty | `pump_reloads` drains an event | gathering | Records the path when it is a script or an extension `engine::watch` named. |
+| gathering | Another event | gathering | Records it and starts the quiet time again. |
+| gathering | 60 ms of quiet, or 2 s since the first event | empty | Says `files_changed` once, reads only the keys the host remembers, and queues one build. |
+| any | The watcher lost count | gathering | Sets `rescan`: every remembered key is read, and `files_changed` carries an empty list. |
+
+Starts empty. Never ends.
+
+Refused or ignored: a run with no watcher gathers nothing.
 
 ### Debug adapter client
 
@@ -1965,20 +1987,27 @@ Held by a pause, a `process` mode or a parked scene: `state.playing` closes the 
 
 Whether an open code buffer has text not yet written. It is held per path.
 
-Source: `editor/scripts/editor.bs`, `State.script_dirty`; `editor/scripts/autosave.bs`, `write_typed`; `editor/scripts/shell.bs`, `save_buffer`.
+Source: `editor/scripts/editor.bs`, `State.script_dirty`, `State.script_held`; `editor/scripts/autosave.bs`, `write_typed`; `editor/scripts/shell.bs`, `save_buffers`; `editor/scripts/disk.bs`.
 
 | State | What is true |
 |---|---|
 | path absent | The buffer matches its file. |
 | path present | Holds the wall-clock second it was last typed into. |
+| held | Present, and its file moved under it. The autosave leaves it until it is answered. |
 
 | From | Trigger | To | What it does |
 |---|---|---|---|
 | any | `center::code_typed`, `complete` insert, `refactor::apply`, `shell::format_active` | present | Updates the buffer and the time. |
 | any | showcase `edit_source` | present | Updates the buffer and holds `true` in place of a time. |
-| present | `write_typed`, 1.5 s rested | absent | `save_buffer`: writes, ends a session with `"reload"` for a script, and reloads it. |
+| present | `write_typed`, 1.5 s rested | absent | `save_buffers`: writes them, ends a session with `"reload"` for a script, and reloads them in one build. |
 | present | `shell::save_active` | absent | `save_buffer`, at once. |
 | present | `carry_script_state`, a script renamed | absent | Moves the buffer to the new path. |
+| absent | `disk::heard`, the file changed | absent | Drops the buffer, so the code sheet shows the file. |
+| present | `disk::heard`, the file came to hold the buffer's text | absent | Nothing is owed either way. |
+| present | `disk::heard`, or `disk::moved_under` from a save, the file holds other text | held | Lists it on the Changed on disk sheet. |
+| held | Reload, or Reload all | absent | Drops the buffer. |
+| held | Keep, or Keep all | absent | `save_buffers` writes over the file. |
+| held | The sheet shut unanswered, then `disk::edit` | present | The next write holds it again and the sheet comes back. |
 
 Starts absent. Never ends.
 

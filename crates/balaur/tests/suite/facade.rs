@@ -464,7 +464,7 @@ fn reload_script_picks_up_a_rewritten_file() {
     std::fs::write(
         dir.path().join("scripts/editor.bs"),
         "pub class Editor { node: Node }\n\
-         impl Editor { pub fn reload() { engine::reload_script(\"scripts/root.bs\"); } }\n",
+         impl Editor { pub fn reload() { engine::reload_scripts([\"scripts/root.bs\"]); } }\n",
     )
     .unwrap();
     std::fs::write(

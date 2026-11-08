@@ -126,9 +126,19 @@ pub trait ScriptHost<C: ?Sized> {
     /// where swapping code is safe.
     fn pump_reloads(&self);
 
-    /// Force a reload of one script, for tools editing files outside the
-    /// watched root.
-    fn reload(&self, key: &str) -> Result<()>;
+    /// Force a reload of these scripts in one build, for tools editing files
+    /// outside the watched root.
+    fn reload(&self, keys: &[&str]) -> Result<()>;
+
+    /// Follow a directory outside the project: `dir` as the watcher reports
+    /// it, `key` what its files are called. A script loaded from under it
+    /// reloads when its file changes, and each file with one of `extensions`,
+    /// or any file when that is empty, is said as `files_changed`. Answers
+    /// whether this run follows anything.
+    fn watch(&self, _dir: &std::path::Path, _key: &str, _extensions: &[String]) -> bool {
+        false
+    }
+
 
     /// Call a method on one node's instance: how a signal reaches a
     /// handler, and how one script calls another.

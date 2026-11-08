@@ -24,6 +24,7 @@ mod holds;
 mod profile;
 mod tasks;
 mod tools;
+mod burst;
 mod units;
 
 pub const EXTENSION: &str = "bs";
@@ -174,12 +175,16 @@ struct Inner {
     /// run that does not watch (a pack, or `watch` off). Never a poll: the
     /// watcher wakes the loop when a file is written.
     events: Option<std::sync::mpsc::Receiver<notify::Result<notify::Event>>>,
-    _watcher: Option<notify::RecommendedWatcher>,
+    watcher: RefCell<Option<notify::RecommendedWatcher>>,
     /// `root` as the watcher reports paths under it.
     watch_root: PathBuf,
     /// Each `path` dependency's folder as the watcher reports paths under
     /// it, with the `deps/<alias>` its scripts are keyed under.
     watch_mounts: Vec<(PathBuf, String)>,
+    /// Each folder `watch` added.
+    watch_asides: RefCell<Vec<burst::Aside>>,
+    /// What the watcher has heard and nothing has acted on yet.
+    burst: RefCell<burst::Burst>,
     /// Every engine function a script compiled for export calls, as
     /// [`api::line`]: what the pack records.
     called: RefCell<std::collections::BTreeSet<String>>,
@@ -270,7 +275,12 @@ impl BsHost {
             // The watcher's own thread hands file events in and nothing goes out:
             // the channel never leaves the process, so a replay has nothing to stop.
             let (tx, rx) = std::sync::mpsc::channel(); // in-process: file events only
-            match notify::recommended_watcher(move |res| {
+            match notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+                // inotify reports every open and read, the engine's own among
+                // them: waking on one would keep a sleeping loop awake.
+                if res.as_ref().is_ok_and(|event| event.kind.is_access()) {
+                    return;
+                }
                 let _ = tx.send(res);
                 balaur_core::wake::wake();
             })
@@ -307,9 +317,11 @@ impl BsHost {
                 held: RefCell::default(),
                 holds: Cell::new(0),
                 events,
-                _watcher: watcher,
+                watcher: RefCell::new(watcher),
                 watch_root,
                 watch_mounts,
+                watch_asides: RefCell::default(),
+                burst: RefCell::default(),
                 called: RefCell::default(),
                 tasks: RefCell::default(),
                 waiting_starts: RefCell::default(),
@@ -722,51 +734,6 @@ impl BsHost {
         Ok(f)
     }
 
-    /// The `.bs` files the watcher saw written since the last pump, as keys
-    /// under the root; a file or module not loaded is dropped by the caller.
-    /// Only a file whose text changed: macOS reports writes from just before
-    /// the watch began, and a reload drops every task the file has parked.
-    fn edited(&self) -> Vec<String> {
-        let Some(events) = &self.inner.events else {
-            return vec![];
-        };
-        let mut keys: Vec<String> = vec![];
-        while let Ok(event) = events.try_recv() {
-            let Ok(event) = event else { continue };
-            // inotify reports every open and read; only a write changes what
-            // a path holds.
-            if matches!(event.kind, notify::EventKind::Access(_)) {
-                continue;
-            }
-            for path in event.paths {
-                if path.extension().and_then(|e| e.to_str()) != Some(EXTENSION) {
-                    continue;
-                }
-                let key = if let Ok(rel) = path.strip_prefix(&self.inner.watch_root) {
-                    key_of(&rel.to_string_lossy())
-                } else if let Some((rel, folder)) = self
-                    .inner
-                    .watch_mounts
-                    .iter()
-                    .find_map(|(at, folder)| Some((path.strip_prefix(at).ok()?, folder)))
-                {
-                    format!("{folder}/{}", key_of(&rel.to_string_lossy()))
-                } else {
-                    continue;
-                };
-                if !keys.contains(&key) {
-                    keys.push(key);
-                }
-            }
-        }
-        keys.retain(|key| {
-            let before = self.inner.read.borrow().get(key).cloned();
-            // A file gone is a change; `source` records what it read.
-            self.source(key).is_err() || self.inner.read.borrow().get(key) != before.as_ref()
-        });
-        keys
-    }
-
     fn instance(&self, node: NodeId) -> Option<(Rc<File>, Rc<Instance>)> {
         let inst = self
             .inner
@@ -814,27 +781,20 @@ impl BsHost {
     // one place a script whose fields moved can bring them forward. A parked
     // one catches up when it returns.
     fn announce_reloads(&self) {
-        let owed: Vec<String> = {
+        let owed: HashSet<String> = {
             let rebuilding = self.inner.rebuild.borrow();
             let mut owed = self.inner.reload_owed.borrow_mut();
-            let (waiting, ready) = std::mem::take(&mut *owed)
+            let (waiting, ready): (Vec<String>, Vec<String>) = std::mem::take(&mut *owed)
                 .into_iter()
                 .partition(|key| rebuilding.contains(key));
             *owed = waiting;
-            ready
+            ready.into_iter().collect()
         };
         if !owed.is_empty() {
             self.tell(balaur_core::hooks::ON_HOT_RELOAD, &[], |inst| {
                 owed.contains(&inst.path)
             });
         }
-    }
-
-    // `key` read again and its instance made again, with no word to its script.
-    pub(crate) fn rebuild_key(&self, key: &str) -> Result<()> {
-        self.invalidate(key);
-        self.rebuild_instance(place_of(key), &[key.to_string()])
-            .map(|_| ())
     }
 
     // `update` and `fixed_update` run every frame, so an async one would

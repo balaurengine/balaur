@@ -158,7 +158,7 @@ impl balaur_script::ScriptHost<balaur_core::Engine> for PackedHost {
     }
     fn load_state(&self, _: &[(balaur_script::NodeId, balaur_script::Value)]) {}
     fn pump_reloads(&self) {}
-    fn reload(&self, _: &str) -> anyhow::Result<()> {
+    fn reload(&self, _: &[&str]) -> anyhow::Result<()> {
         Ok(())
     }
     fn call_on(
