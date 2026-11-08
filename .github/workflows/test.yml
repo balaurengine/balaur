@@ -102,6 +102,7 @@ jobs:
         run: ./scripts/editor_native.sh
       # The same corpus on the browser's own WebAssembly engine, beside wasmi,
       # in Node. The runner's version is the `wasm-bindgen` in Cargo.lock.
+      # Node refuses code from strings, as the site's content policy does.
       - uses: taiki-e/install-action@v2
         if: runner.os == 'Linux'
         with:
@@ -111,6 +112,7 @@ jobs:
         shell: bash
         env:
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+          NODE_ARGS: --disallow-code-generation-from-strings
         run: |
           rustup target add wasm32-unknown-unknown
           cargo test -p balaur_bs --target wasm32-unknown-unknown --features web --test web

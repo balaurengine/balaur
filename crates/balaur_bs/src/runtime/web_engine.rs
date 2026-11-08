@@ -7,7 +7,7 @@ use super::engine::{
 };
 use super::host::{direct_arities, direct_call, direct_result, dispatch};
 use crate::{Compiled, Slot, words};
-use js_sys::{Array, BigInt, Function, Object, Reflect, Uint8Array, WebAssembly};
+use js_sys::{Array, BigInt, Function, Object, Proxy, Reflect, Uint8Array, WebAssembly};
 use rustc_hash::FxHashMap;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -428,10 +428,13 @@ fn js_err(e: &JsValue) -> String {
     e.as_string().unwrap_or_else(|| format!("{e:?}"))
 }
 
-type Import = Closure<dyn FnMut(Array) -> Result<JsValue, JsValue>>;
+type Import = Closure<dyn FnMut(JsValue, JsValue, Array) -> Result<JsValue, JsValue>>;
 
 // One closure per import, for a module whose imports do not all fit the
-// engine's entry points.
+// engine's entry points. A host function is variadic from JavaScript's side,
+// so each import is a proxy whose `apply` trap hands the Rust closure its
+// arguments as one array: a function built from source is what a page whose
+// content policy refuses `unsafe-eval` cannot have.
 fn imports_each(
     env: &Object,
     host: &Shared,
@@ -440,18 +443,9 @@ fn imports_each(
     unit: usize,
 ) -> Result<Vec<Import>, String> {
     let mut keep = vec![];
-    // A host function is variadic from JavaScript's side; this hands the Rust
-    // closure its arguments as one array. Built only here: a page whose
-    // content policy refuses `unsafe-eval` runs direct modules alone.
-    let shim = (!one_each.is_empty()).then(|| {
-        Function::new_with_args(
-            "f",
-            "return function(){ return f(Array.prototype.slice.call(arguments)); }",
-        )
-    });
     for (index, imp) in one_each.iter().enumerate() {
         let (host, live, params) = (host.clone(), live.clone(), imp.params.clone());
-        let f: Import = Closure::new(move |a: Array| {
+        let f: Import = Closure::new(move |_target: JsValue, _this: JsValue, a: Array| {
             let args: Args = params
                 .iter()
                 .enumerate()
@@ -469,12 +463,10 @@ fn imports_each(
                 _ => out.into_iter().map(to_js).collect::<Array>().into(),
             })
         });
-        let wrapped = shim
-            .as_ref()
-            .ok_or_else(|| "no shim for an import".to_string())?
-            .call1(&JsValue::NULL, f.as_ref())
-            .map_err(|error| js_err(&error))?;
-        Reflect::set(env, &imp.name.as_str().into(), &wrapped).map_err(|error| js_err(&error))?;
+        let function: &JsValue = f.as_ref();
+        let handler = Object::new();
+        set(&handler, "apply", function)?;
+        set(env, &imp.name, &Proxy::new(function, &handler))?;
         keep.push(f);
     }
     Ok(keep)
