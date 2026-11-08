@@ -9,7 +9,6 @@ use wesl::syntax::{Attribute, GlobalDeclaration, Ident, TranslationUnit};
 
 use crate::material::{Material3d, Param};
 use crate::prelinked::Linked;
-#[cfg(feature = "compile")]
 use crate::vocabulary::words;
 
 /// The struct a shader declares to take a material's values.

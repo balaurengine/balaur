@@ -14,6 +14,7 @@ use balaur_core::digest::Hasher;
 
 use crate::material::{Field, FieldType};
 use crate::vocabulary::keys;
+#[cfg(feature = "compile")]
 use crate::vocabulary::words;
 
 const FIELDS: &str = "fields";
