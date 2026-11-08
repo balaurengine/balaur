@@ -78,8 +78,8 @@ Generated files skip themselves by their banner.
 `scripts/string_lints.py` covers shipped `.rs` and `.bs`, by crate or script
 package. Tests, the editor's `selftest.bs` and `showcase.bs`, generated files,
 `const` items, a callback's method name (`on_click: "handle"`, `.call("step")`)
-a reader's text (`text: "reset"`) and what a macro or a `cfg` must take as a
-literal (`quote!`, `toml!`, `json!`, a file's own `macro_rules!`) are left out. A word is lower-case, snake or kebab, two
+a reader's text (`text: "reset"`) and what must stay a literal (a class field's
+default, `cfg`, `quote!`, `toml!`, `json!`, a file's own `macro_rules!`) are left out. A word is lower-case, snake or kebab, two
 characters or more. `--project <path>` lints a game's own scripts, without its
 `addons/`, which answer where they are written.
 

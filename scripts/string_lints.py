@@ -70,6 +70,8 @@ CLOSERS = {"(": ")", "{": "}", "[": "]"}
 CALLBACK_BEFORE = re.compile(r'\bon_\w+"?\s*:\s*$|\.call\(\s*$')
 # What a reader sees is text, however much it looks like a word.
 DISPLAY_BEFORE = re.compile(r'\b(?:text|label|title|tooltip|placeholder|help)"?\s*:\s*$')
+# A class field's default must be a literal: the compiler refuses a constant there.
+FIELD_DEFAULT_BEFORE = re.compile(r"^\s*(?:pub\s+|internal\s+)?[a-z_]\w*\s*:\s*[\w:?\[\]]+\s*=\s*$")
 KIND_FIELD_BEFORE = re.compile(r'\bkind"?\s*:\s*$')
 
 
@@ -191,8 +193,10 @@ def scan_file(path: Path) -> Scan | None:
                 continue
             before = masked[max(0, start - 48):start]
             raw_before = text[max(0, start - 48):start]
+            line_start = text.rfind("\n", 0, start) + 1
             if (NON_WORD_CALL.search(before) or CALLBACK_BEFORE.search(raw_before)
-                    or DISPLAY_BEFORE.search(raw_before)):
+                    or DISPLAY_BEFORE.search(raw_before)
+                    or (not rust and FIELD_DEFAULT_BEFORE.search(text[line_start:start]))):
                 continue
             compared = bool(
                 COMPARE_BEFORE.search(before)

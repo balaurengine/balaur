@@ -103,7 +103,7 @@ pub class Gamend {
     ids: { str: any },
     kv_draft: str,
     kv_key: str,
-    filter: str = ALL,
+    filter: str = "all",
     // The activity rows opened, by `seq`.
     open: { str: any },
     // The newest message's `seq` acted on, by topic.
