@@ -80,11 +80,11 @@ mod imp {
     /// The published editor build for the machine this runs on.
     fn host_target() -> Result<&'static str> {
         if cfg!(target_os = "macos") {
-            Ok("macos-universal")
+            Ok(crate::vocabulary::words::targets::MACOS_UNIVERSAL)
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
-            Ok("windows-x64")
+            Ok(crate::vocabulary::words::targets::WINDOWS_X64)
         } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
-            Ok("windows-arm64")
+            Ok(crate::vocabulary::words::targets::WINDOWS_ARM64)
         } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
             Ok("linux-x64")
         } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
@@ -307,7 +307,7 @@ mod imp {
             return Ok(None);
         };
         let id = text.trim().to_string();
-        let own = crate::version::build_id().unwrap_or("dev");
+        let own = crate::version::build_id().unwrap_or(crate::vocabulary::words::update::DEV);
         Ok(Some(Published {
             downgrade: crate::version::is_downgrade(&id, own),
             source: source.to_string(),
@@ -368,7 +368,7 @@ mod imp {
     ) -> Result<String> {
         let source = source(tag, channel)?;
         let base = source.base();
-        let own = crate::version::build_id().unwrap_or("dev");
+        let own = crate::version::build_id().unwrap_or(crate::vocabulary::words::update::DEV);
         let found = published(tag, channel)?;
         let published = found.id.as_str();
         if published == own {
@@ -397,7 +397,7 @@ mod imp {
 
     pub(crate) fn run(opts: &crate::UpdateOpts) -> Result<()> {
         let found = published(opts.version.as_deref(), opts.channel.as_deref())?;
-        let own = crate::version::build_id().unwrap_or("dev");
+        let own = crate::version::build_id().unwrap_or(crate::vocabulary::words::update::DEV);
         tracing::info!("installed: {own}; {}: {}", found.source, found.id);
         if opts.check {
             return Ok(());

@@ -20,6 +20,8 @@ use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
+use crate::vocabulary::words;
+use crate::vocabulary::words::functions as f;
 use crate::vocabulary::{Opts, component as c, keys as k, map};
 
 crate::shared::query::functions!(
@@ -107,12 +109,12 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
 pub(crate) fn install_query_api(m: &mut Module<Engine>) {
     m.records(RECORDS);
     m.describe(&[(
-        "raycast",
+        f::RAYCAST,
         &[],
         "(opts: RayQuery) -> Hit?",
         "The first collider a ray meets, or nothing.",
     )]);
-    m.function("raycast", |eng: &Engine, opts: Value| {
+    m.function(f::RAYCAST, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
@@ -149,12 +151,12 @@ pub(crate) fn install_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_raycast_all_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "raycast_all",
+        f::RAYCAST_ALL,
         &[],
         "(opts: RayQuery) -> [Hit]",
         "Every collider a ray meets, nearest first.",
     )]);
-    m.function("raycast_all", |eng: &Engine, opts: Value| {
+    m.function(f::RAYCAST_ALL, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
@@ -199,9 +201,9 @@ pub(crate) fn install_raycast_all_api(m: &mut Module<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_shapecast_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("shapecast", &[], "(opts: ShapeQuery) -> Hit?", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
+        (f::SHAPECAST, &[], "(opts: ShapeQuery) -> Hit?", "Sweep a shape along a direction until it hits something: a thick raycast, and how a camera avoids walls."),
     ]);
-    m.function("shapecast", |eng: &Engine, opts: Value| {
+    m.function(f::SHAPECAST, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
@@ -244,12 +246,12 @@ pub(crate) fn install_shapecast_api(m: &mut Module<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("closest_point", &[], "(opts: PointQuery) -> Closest?", "The closest point on any collider to a world point."),
-        ("overlap_point", &[], "(opts: PointQuery) -> [node]", "Every collider containing a world point."),
-        ("overlap_shape", &[], "(opts: ShapeQuery) -> [node]", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
-        ("overlap_aabb", &[], "(opts: BoxQuery) -> [node]", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
+        (f::CLOSEST_POINT, &[], "(opts: PointQuery) -> Closest?", "The closest point on any collider to a world point."),
+        (f::OVERLAP_POINT, &[], "(opts: PointQuery) -> [node]", "Every collider containing a world point."),
+        (f::OVERLAP_SHAPE, &[], "(opts: ShapeQuery) -> [node]", "Every collider a shape overlaps where it stands: an explosion's reach, a melee arc."),
+        (f::OVERLAP_AABB, &[], "(opts: BoxQuery) -> [node]", "Every collider whose bounds meet an axis-aligned box; cheaper and looser than shape_hits."),
     ]);
-    m.function("closest_point", |eng: &Engine, opts: Value| {
+    m.function(f::CLOSEST_POINT, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
@@ -276,10 +278,10 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
             (k::NODE, Value::Node(entity.to_bits().get())),
             (k::POINT, Value::Vec3(scalar::a3(p))),
             (k::INSIDE, Value::Bool(projection.is_inside)),
-            ("distance", Value::Num(f64::from((p - point).length()))),
+            (f::DISTANCE, Value::Num(f64::from((p - point).length()))),
         ]))
     });
-    m.function("overlap_point", |eng: &Engine, opts: Value| {
+    m.function(f::OVERLAP_POINT, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let point = scalar::v3a(opts.vec3(k::POINT, [0.0; 3]));
@@ -295,7 +297,7 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
             .collect();
         node_list(&mut hits, &eng.world())
     });
-    m.function("overlap_shape", |eng: &Engine, opts: Value| {
+    m.function(f::OVERLAP_SHAPE, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
@@ -313,7 +315,7 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
             .collect();
         node_list(&mut hits, &eng.world())
     });
-    m.function("overlap_aabb", |eng: &Engine, opts: Value| {
+    m.function(f::OVERLAP_AABB, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let min = scalar::v3a(opts.vec3(k::MIN, [0.0; 3]));
@@ -339,14 +341,14 @@ pub(crate) fn install_volume_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("distance", &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
-        ("closest_points", &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders."),
-        ("intersects", &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
-        ("contacts", &[c::COLLIDER_3D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
-        ("max_contact_impulse", &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
+        (f::DISTANCE, &[], "(a: node, b: node) -> float", "The gap between two nodes' colliders, zero when they touch or overlap."),
+        (f::CLOSEST_POINTS, &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders."),
+        (f::INTERSECTS, &[], "(a: node, b: node) -> bool", "Whether two nodes' colliders overlap right now, sensor or not."),
+        (words::DRAW_CONTACTS, &[c::COLLIDER_3D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
+        (f::MAX_CONTACT_IMPULSE, &[c::COLLIDER_3D], "", "The hardest contact this node took in the last step, zero when nothing touched it: a damage threshold in one number."),
+        (f::TIME_OF_IMPACT, &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
-    m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
+    m.function(f::DISTANCE, |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |world, first, second| {
             crate::rapier3d::parry::query::distance(
                 first.position(),
@@ -362,7 +364,7 @@ pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
         })
     });
     m.function(
-        "closest_points",
+        f::CLOSEST_POINTS,
         |eng: &Engine, (a, b): (NodeId, NodeId)| {
             with_pair(eng, a, b, |_, first, second| {
                 let found = crate::rapier3d::parry::query::closest_points(
@@ -386,7 +388,7 @@ pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "time_of_impact",
+        f::TIME_OF_IMPACT,
         |eng: &Engine, (a, b, opts): (NodeId, NodeId, Value)| {
             let opts = Opts(Some(&opts));
             let (va, vb) = (
@@ -426,10 +428,10 @@ pub(crate) fn install_pair_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_pair_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_world_list_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
-        ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
+        (f::BODIES, &[], "() -> [node]", "Every node with a rigid body, sorted."),
+        (f::ACTIVE_BODIES, &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
     ]);
-    m.function("bodies", |eng: &Engine, ()| {
+    m.function(f::BODIES, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
@@ -437,7 +439,7 @@ pub(crate) fn install_world_list_api(m: &mut Module<Engine>) {
     });
     // Awake bodies only: a game that walks every body each frame to read a
     // position is doing the one thing sleeping was meant to save.
-    m.function("active_bodies", |eng: &Engine, ()| {
+    m.function(f::ACTIVE_BODIES, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state
@@ -454,13 +456,13 @@ pub(crate) fn install_world_list_api(m: &mut Module<Engine>) {
             .collect();
         node_list(&mut nodes, &eng.world())
     });
-    m.function("contacts", |eng: &Engine, node: NodeId| {
+    m.function(words::DRAW_CONTACTS, |eng: &Engine, node: NodeId| {
         contact_list(eng, node)
     });
-    m.function("max_contact_impulse", |eng: &Engine, node: NodeId| {
+    m.function(f::MAX_CONTACT_IMPULSE, |eng: &Engine, node: NodeId| {
         max_contact_impulse(eng, node)
     });
-    m.function("intersects", |eng: &Engine, (a, b): (NodeId, NodeId)| {
+    m.function(f::INTERSECTS, |eng: &Engine, (a, b): (NodeId, NodeId)| {
         with_pair(eng, a, b, |_, first, second| {
             crate::rapier3d::parry::query::intersection_test(
                 first.position(),

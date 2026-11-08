@@ -5,6 +5,7 @@
 
 /// A sound file's decoder keys and a bus's, for their readers and the script
 /// tables alike.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
     /// A sound file's import keys for its decoder, beside core's own.
     pub(crate) const GAPLESS: &str = "gapless";
@@ -41,4 +42,12 @@ pub(crate) mod settings {
     pub(crate) const DEVICE: &str = "audio/device";
     pub(crate) const DITHER_BITS: &str = "audio/dither_bits";
     pub(crate) const SAMPLE_RATE_HZ: &str = "audio/sample_rate_hz";
+}
+
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
+pub(crate) mod words {
+
+    pub(crate) mod general {
+        pub(crate) const AUDIO: &str = "audio";
+    }
 }

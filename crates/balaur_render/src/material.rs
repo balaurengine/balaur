@@ -25,6 +25,9 @@ pub use crate::material_surface::{
     AlphaMode, Builtin, Parallax, Surface, SurfaceSsr, TraceSurface, View, builtin_of,
 };
 use crate::material_surface::{parse_builtin, parse_surface};
+use crate::vocabulary::words;
+
+const FEATURES: &str = "features";
 
 /// The asset type name, and what an `asset`-typed property asks for.
 pub const MATERIAL_ASSET_TYPE: &str = "material";
@@ -75,7 +78,7 @@ impl Param {
     /// both sides of a mismatch.
     pub(crate) fn type_name(&self) -> &'static str {
         match self {
-            Param::Float(_) => "f32",
+            Param::Float(_) => words::shader_types::F32,
             Param::Vec2(_) => "vec2<f32>",
             Param::Vec3(_) => "vec3<f32>",
             Param::Vec4(_) => "vec4<f32>",
@@ -185,7 +188,7 @@ impl Material3d {
     pub fn reads_screen(&self) -> bool {
         self.features
             .iter()
-            .any(|(name, on)| name == "screen" && *on)
+            .any(|(name, on)| name == words::SCREEN && *on)
     }
 
     /// Whether `features` asks for a colour per vertex. Only a material that
@@ -339,12 +342,12 @@ pub(crate) fn parse_param(name: &str, value: &toml::Value) -> Result<Param> {
 /// kiss3d's own material, and its `[params]` are that material's.
 pub fn parse(value: &toml::Value) -> Result<Material3d> {
     let shader = value
-        .get("shader")
+        .get(k::SHADER)
         .and_then(toml::Value::as_str)
         .unwrap_or_default()
         .to_string();
     if shader.is_empty() {
-        if value.get("features").is_some() {
+        if value.get(FEATURES).is_some() {
             bail!("a material with no `shader` has no `@if` flags to set in `features`");
         }
         let mut params = Vec::new();
@@ -361,7 +364,7 @@ pub fn parse(value: &toml::Value) -> Result<Material3d> {
         bail!("`view` draws kiss3d's own debug material, so a material naming a `shader` has none");
     }
     let mut features = Vec::new();
-    if let Some(table) = value.get("features").and_then(toml::Value::as_table) {
+    if let Some(table) = value.get(FEATURES).and_then(toml::Value::as_table) {
         for (name, on) in table {
             let on = on
                 .as_bool()

@@ -11,6 +11,7 @@ use serde::Deserialize as _;
 use crate::rapier3d::pipeline::PhysicsWorld;
 use crate::rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 use crate::vocabulary::component as c;
+use crate::vocabulary::words;
 use crate::{PhysicsState3d, collider, events, joint, softbody, vehicle};
 
 /// The rapier world plus the maps tying it to entities.
@@ -434,5 +435,5 @@ const CARRIED: &[crate::shared::beside::Carried] = &[
 ];
 
 pub(crate) fn build_physics_snapshot(reg: &mut Registry<'_>) {
-    reg.add_snapshot_source("physics", save_physics, load_physics);
+    reg.add_snapshot_source(words::general::PHYSICS, save_physics, load_physics);
 }

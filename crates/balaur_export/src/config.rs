@@ -9,6 +9,8 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::{Context, Result};
 
 /// What `balaur new` writes into a project, and what the editor offers. An
@@ -158,7 +160,7 @@ pub(crate) fn tags_for(source: &str, target: Option<&str>) -> Result<balaur::tag
     let mut tags = target.map_or_else(balaur::tags::Tags::current, balaur::tags::Tags::for_target);
     let resolved = balaur::settings::resolve(source, &tags)?;
     let own = resolved
-        .get("export")
+        .get(words::config::EXPORT)
         .and_then(|export| export.get("tags"))
         .and_then(toml::Value::as_array);
     for name in own.into_iter().flatten().filter_map(toml::Value::as_str) {
@@ -194,7 +196,7 @@ pub(crate) fn orientation_of(manifest: &toml::Table) -> balaur::project::Orienta
 pub(crate) fn application_name(manifest: &toml::Table) -> String {
     manifest
         .get("application")
-        .and_then(|a| a.get("name"))
+        .and_then(|a| a.get(keys::NAME))
         .and_then(toml::Value::as_str)
         .unwrap_or_default()
         .trim()
@@ -257,7 +259,7 @@ impl Default for WindowsConfig {
 
 impl WindowsConfig {
     pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
-        table_of(manifest, "windows", project)
+        table_of(manifest, words::native::WINDOWS, project)
     }
 }
 
@@ -271,7 +273,7 @@ impl ExportConfig {
     /// The table out of a manifest already resolved for a target, so the
     /// exporter reads the file once.
     pub(crate) fn from_manifest(manifest: &toml::Table, project: &Path) -> Result<Self> {
-        table_of(manifest, "export", project)
+        table_of(manifest, words::config::EXPORT, project)
     }
 
     /// A path the project named, resolved against the project directory so a

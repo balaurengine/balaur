@@ -33,6 +33,11 @@ use smol_str::SmolStr;
 
 use crate::engine::Engine;
 use crate::time::Instant;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const FRAME: &str = "frame";
+const WALL: &str = "wall";
 
 thread_local! {
     /// What the run spent before its first frame, summed by name in the order
@@ -163,14 +168,14 @@ pub fn note_first_frame() {
 /// The stages, in the order [`crate::app::Stage`] declares them, so a table
 /// reads the way a frame runs.
 pub const STAGE_NAMES: [&str; 8] = [
-    "first",
+    keys::FIRST,
     "pre_update",
     "update",
     "fixed_update",
     "post_update",
     "scene_sync",
     "render",
-    "last",
+    keys::LAST,
 ];
 
 /// The last completed frame, and what it is worth against a 60 Hz budget.
@@ -338,8 +343,8 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
         }
     }
     Value::Map(vec![
-        ("frame".to_string(), seconds(timings.frame)),
-        ("wall".to_string(), seconds(timings.wall)),
+        (FRAME.to_string(), seconds(timings.frame)),
+        (WALL.to_string(), seconds(timings.wall)),
         (
             "fixed_steps".to_string(),
             Value::Int(i64::from(timings.fixed_steps)),
@@ -352,7 +357,10 @@ pub fn table(eng: &Engine) -> balaur_script::Value {
                     .into_iter()
                     .map(|(name, d)| {
                         Value::Map(vec![
-                            ("name".to_string(), Value::text(name.as_str())),
+                            (
+                                words::scene_toml::NAME.to_string(),
+                                Value::text(name.as_str()),
+                            ),
                             ("seconds".to_string(), seconds(d)),
                         ])
                     })
@@ -508,7 +516,7 @@ impl TimingLog {
         let _ = writeln!(
             out,
             "{:width$}  {:>9}  {:>9}  {:>8.1}%   over {} frames",
-            "frame",
+            FRAME,
             millis(self.frame_total / frames),
             millis(self.frame_worst),
             100.0 * Timings::share(self.frame_total / frames),
@@ -518,7 +526,7 @@ impl TimingLog {
             let _ = writeln!(
                 out,
                 "{:width$}  {:>9}  {:>9}  {:>8.1}%   frame to frame",
-                "wall",
+                WALL,
                 millis(self.wall_total / frames),
                 millis(self.wall_worst),
                 100.0 * Timings::share(self.wall_total / frames),

@@ -1,0 +1,8 @@
+// The kinds of asset the importer and the library sort.
+
+internal const AUDIO: str = "audio";
+internal const IMAGE: str = "image";
+internal const MATERIAL: str = "material";
+internal const MODEL: str = "model";
+internal const SKY: str = "sky";
+internal const TEXTURE: str = "texture";

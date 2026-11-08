@@ -8,6 +8,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::project::SceneNode;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// Every script a project's scenes attach, with the components the nodes
 /// attaching it carry.
@@ -43,7 +45,7 @@ pub fn scene_attachments(
                 }
                 continue;
             }
-            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            if path.extension().and_then(|e| e.to_str()) != Some(words::modules::TOML) {
                 continue;
             }
             let Ok(bytes) = fs.read(&path) else {
@@ -55,7 +57,7 @@ pub fn scene_attachments(
             let Ok(document) = text.parse::<toml::Table>() else {
                 continue;
             };
-            let Some(nodes) = document.get("nodes").and_then(toml::Value::as_array) else {
+            let Some(nodes) = document.get(keys::NODES).and_then(toml::Value::as_array) else {
                 continue;
             };
             for node in nodes {
@@ -89,8 +91,8 @@ fn attachment(node: &toml::Value) -> Option<(String, Option<Vec<String>>)> {
         return Some((source.to_string(), Some(parsed.extra.into_keys().collect())));
     }
     // `script` is a table whose `source` is the path.
-    let script = match node.get("script") {
-        Some(toml::Value::Table(table)) => table.get("source")?.as_str()?.to_string(),
+    let script = match node.get(keys::SCRIPT) {
+        Some(toml::Value::Table(table)) => table.get(keys::SOURCE)?.as_str()?.to_string(),
         _ => return None,
     };
     (!script.is_empty()).then_some((script, None))

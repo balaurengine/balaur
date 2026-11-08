@@ -4,6 +4,8 @@
 
 use editor;
 
+const RESIZED: str = "resized";
+
 pub class Manager {
     node: Node,
     editor: editor::Editor?,
@@ -14,7 +16,7 @@ impl Manager {
         let source = scene::get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, "manager_changed", source);
-        events::listen(self.node, "resized", self.node.get_node("ManagerBody"));
+        events::listen(self.node, RESIZED, self.node.get_node("ManagerBody"));
     }
 
     pub fn on_manager_changed(_change: any) {

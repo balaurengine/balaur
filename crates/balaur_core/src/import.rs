@@ -16,6 +16,7 @@ use std::rc::Rc;
 
 use crate::engine::Engine;
 use crate::project::ProjectFiles;
+use crate::vocabulary::words as vocab;
 
 /// The kinds a file sorts into. A kind names its defaults table in
 /// `project.toml` and the settings its reader looks for.
@@ -141,11 +142,20 @@ pub fn kind_of(path: &str) -> Option<&'static str> {
     match extension.as_str() {
         // The formats `balaur_asset::pixels` reads. An SVG is rasterized, which a
         // build without the `svg` feature leaves to `balaur export`.
-        "png" | "webp" | "jpg" | "jpeg" | "svg" => Some(kinds::TEXTURE),
-        "ogg" | "wav" | "mp3" | "flac" => Some(kinds::AUDIO),
+        vocab::file_types::PNG
+        | vocab::file_types::WEBP
+        | vocab::file_types::JPG
+        | vocab::file_types::JPEG
+        | vocab::file_types::SVG => Some(kinds::TEXTURE),
+        vocab::file_types::OGG
+        | vocab::file_types::WAV
+        | vocab::file_types::MP3
+        | vocab::file_types::FLAC => Some(kinds::AUDIO),
         face if FACE_EXTENSIONS.contains(&face) => Some(kinds::FONT),
-        "fnt" => Some(kinds::FONT),
-        "glb" | "gltf" | "obj" => Some(kinds::MODEL),
+        vocab::file_types::FNT => Some(kinds::FONT),
+        vocab::file_types::GLB | vocab::file_types::GLTF | vocab::file_types::OBJ => {
+            Some(kinds::MODEL)
+        }
         _ => None,
     }
 }

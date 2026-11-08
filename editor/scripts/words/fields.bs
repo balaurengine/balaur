@@ -1,0 +1,35 @@
+// The fields of the records the editor passes around.
+
+internal const BASE: str = "base";
+internal const CATEGORY: str = "category";
+internal const COLOR: str = "color";
+internal const COUNT: str = "count";
+internal const DATA: str = "data";
+internal const DESCRIPTION: str = "description";
+internal const DOC: str = "doc";
+internal const FN: str = "fn";
+internal const HELP: str = "help";
+internal const ICON: str = "icon";
+internal const ID: str = "id";
+internal const INDEX: str = "index";
+internal const KEY: str = "key";
+internal const KEYS: str = "keys";
+internal const KIND: str = "kind";
+internal const LABEL: str = "label";
+internal const LENGTH: str = "length";
+internal const MARK: str = "mark";
+internal const METHOD: str = "method";
+internal const NAME: str = "name";
+internal const NAMES: str = "names";
+internal const ONLY: str = "only";
+internal const ORDER: str = "order";
+internal const ROW: str = "row";
+internal const ROWS: str = "rows";
+internal const TAG: str = "tag";
+internal const TAGS: str = "tags";
+internal const TEXT: str = "text";
+internal const TITLE: str = "title";
+internal const TYPE: str = "type";
+internal const VALUE: str = "value";
+internal const VERSION: str = "version";
+internal const WHEN: str = "when";

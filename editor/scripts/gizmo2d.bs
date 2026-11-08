@@ -16,6 +16,16 @@ use signals;
 use tiles;
 use util;
 use viewport;
+use words::components;
+use words::fields;
+use words::gizmo_parts;
+use words::layout_fields;
+use words::tools;
+
+const WORLD_END_X: str = "world_end_x";
+const WORLD_END_Y: str = "world_end_y";
+const WORLD_START_X: str = "world_start_x";
+const WORLD_START_Y: str = "world_start_y";
 
 /// What a node covers in its own space, before its scale and turn: a centre
 /// off its origin (a text aligned to its start sits to the right of it) and
@@ -115,29 +125,29 @@ fn local_point(geometry: Geometry, offset_x: float, offset_y: float) -> [float] 
 
 // The 2D half extents a node renders/collides with (`None` when it has none).
 fn shape_box(found: Node) -> LocalBox? {
-    let shape = if found.has_component("shape2d") {
+    let shape = if found.has_component(components::SHAPE2D) {
         found.shape2d.shape
-    } else if found.has_component("collider2d") {
+    } else if found.has_component(components::COLLIDER2D) {
         found.collider2d.shape
     } else {
         return nil;
     };
-    if !(shape.kind() == "map") {
+    if !(shape.kind() == types::KIND_MAP) {
         return nil;
     }
-    let kind = shape["kind"];
+    let kind = shape[fields::KIND];
     if kind == render::SHAPE_CIRCLE {
-        let radius = shape["radius"];
+        let radius = shape[layout_fields::RADIUS];
         let reach = if radius == nil { 0.5 } else { radius.as_float() };
         return LocalBox { centre: [0.0, 0.0], half: [reach, reach] };
     }
     if kind == render::SHAPE_CAPSULE {
-        let radius = shape["radius"];
+        let radius = shape[layout_fields::RADIUS];
         let reach = if radius == nil { 0.5 } else { radius.as_float() };
-        let height = shape["height"];
+        let height = shape[layout_fields::HEIGHT];
         return LocalBox { centre: [0.0, 0.0], half: [reach, (if height == nil { 2.0 } else { height.as_float() }) / 2.0] };
     }
-    let asked = shape["size"];
+    let asked = shape[layout_fields::SIZE];
     let size = util::list2_or(if asked == nil { nil } else { asked }, [1.0, 1.0]);
     LocalBox { centre: [0.0, 0.0], half: [size[0] / 2.0, size[1] / 2.0] }
 }
@@ -280,18 +290,18 @@ fn hit_test(state: editor::State, geometry: Geometry, world_x: float, world_y: f
     let local_x = local.x;
     let local_y = local.y;
     if math::sqrt(local_x * local_x + local_y * local_y) <= geometry.ring {
-        return part("ring", []);
+        return part(gizmo_parts::RING, []);
     }
     for signs in handle_signs() {
         let at = handle_local(geometry, signs);
         let handle_x = at.x;
         let handle_y = at.y;
         if (local_x - handle_x) * (local_x - handle_x) + (local_y - handle_y) * (local_y - handle_y) <= geometry.pick * geometry.pick {
-            return part("handle", [signs[0], signs[1]]);
+            return part(gizmo_parts::HANDLE, [signs[0], signs[1]]);
         }
     }
     if util::abs(local_x) <= geometry.half_extents[0] && util::abs(local_y) <= geometry.half_extents[1] {
-        return part("face", []);
+        return part(gizmo_parts::FACE, []);
     }
     nil
 }
@@ -357,7 +367,7 @@ pub fn draw(state: editor::State) {
     let half_y = geometry.half_extents[1];
     // Frame: in steadyum the 2D translate picker covers the whole interior,
     // so a translate hover/drag highlights all four edges.
-    let box_color = if is_hot(hot, "face") { viewport::hover_color() } else { viewport::orange() };
+    let box_color = if is_hot(hot, gizmo_parts::FACE) { viewport::hover_color() } else { viewport::orange() };
     let corners = [
         local_point(geometry, -half_x, -half_y),
         local_point(geometry, half_x, -half_y),
@@ -370,14 +380,14 @@ pub fn draw(state: editor::State) {
     for signs in handle_signs() {
         let hot_handle = if hot != nil {
             let part = hot.unwrap();
-            part.kind == "handle" && part.signs[0] == signs[0] && part.signs[1] == signs[1]
+            part.kind == gizmo_parts::HANDLE && part.signs[0] == signs[0] && part.signs[1] == signs[1]
         } else {
             false
         };
         draw_handle_marker(geometry, signs, if hot_handle { viewport::hover_color() } else { viewport::orange() });
     }
     // Rotation circle, same stroke and colours as the frame.
-    let ring_color = if is_hot(hot, "ring") { viewport::hover_color() } else { viewport::orange() };
+    let ring_color = if is_hot(hot, gizmo_parts::RING) { viewport::hover_color() } else { viewport::orange() };
     let previous = local_point(geometry, geometry.ring, 0.0);
     for step in 1..49 {
         let angle = (step as float) / 48.0 * math::PI * 2.0;
@@ -392,7 +402,7 @@ fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, 
     let found = model::selected_node(state);
     let position = found.transform.position;
     let scale = found.transform.scale;
-    let rotation = model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]);
+    let rotation = model::transform_part(found, animation::PROPERTY_ROTATION_EULER, [0.0, 0.0, 0.0]);
     let drag = gizmo::Drag {
         part: part,
         // Every selected root's pose at the start; each frame applies one
@@ -414,7 +424,7 @@ fn start_drag(state: &mut editor::State, geometry: Geometry, part: gizmo::Part, 
         half_extents: [geometry.half_extents[0], geometry.half_extents[1]],
         start_angle: math::atan2((world_y.as_float() - geometry.center[1]), world_x.as_float() - geometry.center[0]),
     };
-    if part.kind == "handle" {
+    if part.kind == gizmo_parts::HANDLE {
         // The opposite corner/edge stays fixed in world space.
         drag.anchor = local_point(geometry, -part.signs[0] * geometry.half_extents[0], -part.signs[1] * geometry.half_extents[1]);
     }
@@ -427,13 +437,13 @@ fn apply_drag(state: &mut editor::State, world_x: any, world_y: any) {
         return;
     }
     let pivot = [drag.center[0], drag.center[1], 0.0];
-    if drag.part.kind == "face" {
+    if drag.part.kind == gizmo_parts::FACE {
         let delta = [world_x.as_float() - drag.mouse[0], world_y.as_float() - drag.mouse[1], 0.0];
         selection::move_by(state, drag.set, delta, viewport::snapping(state));
-    } else if drag.part.kind == "ring" {
+    } else if drag.part.kind == gizmo_parts::RING {
         let current_angle = math::atan2((world_y.as_float() - drag.center[1]), world_x.as_float() - drag.center[0]);
         selection::rotate_by(state, drag.set, 2, current_angle - drag.start_angle, pivot);
-    } else if drag.part.kind == "handle" {
+    } else if drag.part.kind == gizmo_parts::HANDLE {
         // steadyum drive_single_drag: per-axis factor from the cursor's
         // world travel projected on the box's (rotated) axes; Shift applies
         // the dominant factor to every active axis.
@@ -569,14 +579,14 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let pointer = viewport::pointer(state);
     let over_viewport = viewport::owns_pointer(state, pointer.x, pointer.y);
     // The Rig bone, Polygon and Tiles tools own the click: no gizmo hover.
-    if state.tool == "bone" || state.tool == "polygon" || state.tool == "tiles" || state.tool == "pen" {
+    if state.tool == tools::BONE || state.tool == tools::POLYGON || state.tool == tools::TILES || state.tool == tools::PEN {
         state.gizmo.hover = nil;
         state.gizmo.drag = nil;
-        if state.tool == "bone" {
+        if state.tool == tools::BONE {
             rig::update(state, over_viewport, world_x, world_y);
-        } else if state.tool == "polygon" {
+        } else if state.tool == tools::POLYGON {
             polygon::update(state, over_viewport, world_x, world_y);
-        } else if state.tool == "pen" {
+        } else if state.tool == tools::PEN {
             pen::update(state, over_viewport, world_x, world_y);
         } else {
             tiles::update(state, over_viewport, world_x, world_y);
@@ -606,7 +616,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
             start_drag(state, geometry.unwrap(), part, world_x, world_y);
         } else {
             state.gizmo.in_viewport = true;
-            if state.tool == "select" {
+            if state.tool == tools::SELECT {
                 let best = pick(state, world_x, world_y);
                 if best != nil {
                     let best = best.unwrap();
@@ -618,14 +628,14 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
                     // changes when the drag is released. Screen and world
                     // both, because one draws and the other tests.
                     state.gizmo.marquee = {
-                        "start_x": pointer.x,
-                        "start_y": pointer.y,
-                        "end_x": pointer.x,
-                        "end_y": pointer.y,
-                        "world_start_x": world_x,
-                        "world_start_y": world_y,
-                        "world_end_x": world_x,
-                        "world_end_y": world_y,
+                        layout_fields::START_X: pointer.x,
+                        layout_fields::START_Y: pointer.y,
+                        layout_fields::END_X: pointer.x,
+                        layout_fields::END_Y: pointer.y,
+                        WORLD_START_X: world_x,
+                        WORLD_START_Y: world_y,
+                        WORLD_END_X: world_x,
+                        WORLD_END_Y: world_y,
                     };
                 }
             }
@@ -634,15 +644,15 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let marquee: any = state.gizmo.marquee;
     if marquee != nil {
         let box_drag = marquee.unwrap();
-        box_drag["end_x"] = pointer.x;
-        box_drag["end_y"] = pointer.y;
-        box_drag["world_end_x"] = world_x;
-        box_drag["world_end_y"] = world_y;
+        box_drag[layout_fields::END_X] = pointer.x;
+        box_drag[layout_fields::END_Y] = pointer.y;
+        box_drag[WORLD_END_X] = world_x;
+        box_drag[WORLD_END_Y] = world_y;
         if !input::mouse_down(input::MOUSE_BUTTON_LEFT) {
             state.gizmo.marquee = nil;
             state.gizmo.in_viewport = false;
-            if util::abs(box_drag["end_x"].as_float() - box_drag["start_x"].as_float()) > 3.0 || util::abs(box_drag["end_y"].as_float() - box_drag["start_y"].as_float()) > 3.0 {
-                let rows = rows_in_box(state, box_drag["world_start_x"].as_float(), box_drag["world_start_y"].as_float(), box_drag["world_end_x"].as_float(), box_drag["world_end_y"].as_float());
+            if util::abs(box_drag[layout_fields::END_X].as_float() - box_drag[layout_fields::START_X].as_float()) > 3.0 || util::abs(box_drag[layout_fields::END_Y].as_float() - box_drag[layout_fields::START_Y].as_float()) > 3.0 {
+                let rows = rows_in_box(state, box_drag[WORLD_START_X].as_float(), box_drag[WORLD_START_Y].as_float(), box_drag[WORLD_END_X].as_float(), box_drag[WORLD_END_Y].as_float());
                 if rows.len() > 0 {
                     history::commit(state);
                     selection::set(state, rows);
@@ -672,14 +682,14 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let delta_y = dragged.unwrap().delta_y;
     let found = dragged.unwrap().node;
     let world_per_pixel = viewport::world_per_pixel(state);
-    if state.tool == "move" {
+    if state.tool == tools::MOVE {
         selection::nudge(state, [delta_x * world_per_pixel, (-delta_y) * world_per_pixel, 0.0], viewport::snapping(state));
-    } else if state.tool == "rotate" {
+    } else if state.tool == tools::ROTATE {
         // The live node, like every other writer here.
         selection::spin(state, 2, (-delta_x) * 0.01);
-    } else if state.tool == "scale" {
+    } else if state.tool == tools::SCALE {
         selection::grow(state, util::clamp(1.0 - delta_y * 0.01, 0.2, 5.0), true);
-    } else if state.tool == "zoom" {
+    } else if state.tool == tools::ZOOM {
         shell::set_zoom(state, state.zoom - delta_y * 0.5);
     }
 }

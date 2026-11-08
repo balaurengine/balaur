@@ -8,8 +8,12 @@
 
 use anyhow::{Context, Result, anyhow, bail};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_core::assets::refuse_keys;
 use balaur_core::components::as_f64;
+
+const TERRAINS: &str = "terrains";
 
 /// How a terrain's tiles are chosen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -330,14 +334,14 @@ pub(super) fn check_keys(value: &toml::Value) -> Result<()> {
             .map(Vec::as_slice)
             .unwrap_or_default()
     };
-    for (index, terrain) in list_at("terrains").iter().enumerate() {
+    for (index, terrain) in list_at(TERRAINS).iter().enumerate() {
         refuse_keys(terrain, "a terrain", TERRAIN_KEYS)
             .with_context(|| format!("terrain {index}"))?;
     }
-    for (index, rule) in list_at("rules").iter().enumerate() {
+    for (index, rule) in list_at(words::tile_rules::RULES).iter().enumerate() {
         refuse_keys(rule, "a rule", RULE_KEYS).with_context(|| format!("rule {index}"))?;
         let alternates = rule
-            .get("tiles")
+            .get(keys::TILES)
             .and_then(toml::Value::as_array)
             .map(Vec::as_slice)
             .unwrap_or_default();
@@ -351,7 +355,7 @@ pub(super) fn check_keys(value: &toml::Value) -> Result<()> {
 
 /// `[[terrains]]` on a tileset.
 pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
-    let Some(list) = value.get("terrains") else {
+    let Some(list) = value.get(TERRAINS) else {
         return Ok(Vec::new());
     };
     let list = list
@@ -369,12 +373,12 @@ pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
                 .get("value")
                 .and_then(toml::Value::as_integer)
                 .map_or(index as u32 + 1, |value| value as u32);
-            let mode = match table.get("kind").and_then(toml::Value::as_str) {
-                None | Some("rules") => Mode::Rules,
-                Some("sides") => Mode::Sides,
-                Some("corners") => Mode::Corners,
-                Some("corners_and_sides") => Mode::CornersAndSides,
-                Some("quarters") => Mode::Quarters,
+            let mode = match table.get(keys::KIND).and_then(toml::Value::as_str) {
+                None | Some(words::tile_rules::RULES) => Mode::Rules,
+                Some(words::tile_rules::SIDES) => Mode::Sides,
+                Some(words::tile_rules::CORNERS) => Mode::Corners,
+                Some(words::tile_rules::CORNERS_AND_SIDES) => Mode::CornersAndSides,
+                Some(words::tile_rules::QUARTERS) => Mode::Quarters,
                 Some(other) => bail!("terrain '{name}': '{other}' is not a kind"),
             };
             let first_tile = table
@@ -399,7 +403,7 @@ pub fn parse_terrains(value: &toml::Value) -> Result<Vec<Terrain>> {
 /// [`Quarter::index`] order. Sheets disagree about that order, so a terrain
 /// whose block is not five in a row names them.
 fn quarters_of(name: &str, table: &toml::Value, first: u32) -> Result<[u32; QUARTER_TILES]> {
-    let Some(list) = table.get("quarters") else {
+    let Some(list) = table.get(keys::QUARTERS) else {
         let mut tiles = [first; QUARTER_TILES];
         for (index, tile) in tiles.iter_mut().enumerate() {
             *tile = first + index as u32;
@@ -446,7 +450,7 @@ pub fn parse_rules(value: &toml::Value, terrains: &[Terrain]) -> Result<Vec<Rule
 }
 
 fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result<Rule> {
-    let terrain = match table.get("terrain") {
+    let terrain = match table.get(keys::TERRAIN) {
         Some(toml::Value::String(name)) => terrains
             .iter()
             .find(|terrain| terrain.name == *name)
@@ -487,8 +491,8 @@ fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result
         .unwrap_or(&Vec::new())
     {
         match word.as_str() {
-            Some("rotate") => transforms |= ROTATE,
-            Some("mirror") => transforms |= MIRROR,
+            Some(words::tile_rules::ROTATE) => transforms |= ROTATE,
+            Some(words::tile_rules::MIRROR) => transforms |= MIRROR,
             other => bail!("rule {index}: '{other:?}' is not a transform"),
         }
     }
@@ -499,14 +503,14 @@ fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result
         tiles,
         transforms,
         chance: chance_of(index, table)?,
-        outside: match table.get("outside") {
+        outside: match table.get(keys::OUTSIDE) {
             None | Some(toml::Value::String(_)) => match table
-                .get("outside")
+                .get(keys::OUTSIDE)
                 .and_then(toml::Value::as_str)
-                .unwrap_or("empty")
+                .unwrap_or(words::tile_rules::EMPTY)
             {
-                "empty" => Outside::Empty,
-                "same" => Outside::Same,
+                words::tile_rules::EMPTY => Outside::Empty,
+                words::tile_rules::SAME => Outside::Same,
                 other => bail!("rule {index}: '{other}' is not an outside"),
             },
             Some(toml::Value::Integer(value)) => Outside::Value(*value as u32),
@@ -518,7 +522,7 @@ fn parse_rule(index: usize, table: &toml::Value, terrains: &[Terrain]) -> Result
 /// `chance`, which is a fraction: anything outside 0..=1 is a typo that would
 /// otherwise read as a rule that never fires.
 fn chance_of(index: usize, table: &toml::Value) -> Result<f32> {
-    let chance = table.get("chance").and_then(as_f64).unwrap_or(1.0) as f32;
+    let chance = table.get(keys::CHANCE).and_then(as_f64).unwrap_or(1.0) as f32;
     if !(0.0..=1.0).contains(&chance) {
         bail!("rule {index}: `chance` is a fraction of 0 to 1, not {chance}");
     }
@@ -526,11 +530,11 @@ fn chance_of(index: usize, table: &toml::Value) -> Result<f32> {
 }
 
 fn parse_tiles_of(index: usize, table: &toml::Value) -> Result<Vec<(u32, u32)>> {
-    if let Some(tile) = table.get("tile").and_then(toml::Value::as_integer) {
+    if let Some(tile) = table.get(keys::TILE).and_then(toml::Value::as_integer) {
         return Ok(vec![(tile as u32, 1)]);
     }
     let list = table
-        .get("tiles")
+        .get(keys::TILES)
         .and_then(toml::Value::as_array)
         .ok_or_else(|| anyhow!("rule {index} needs a `tile`, or `tiles` to pick between"))?;
     if list.is_empty() {
@@ -541,7 +545,7 @@ fn parse_tiles_of(index: usize, table: &toml::Value) -> Result<Vec<(u32, u32)>> 
             toml::Value::Integer(tile) => Ok((*tile as u32, 1)),
             table => {
                 let tile = table
-                    .get("tile")
+                    .get(keys::TILE)
                     .and_then(toml::Value::as_integer)
                     .ok_or_else(|| anyhow!("rule {index}: an alternate needs a `tile`"))?;
                 let weight = table

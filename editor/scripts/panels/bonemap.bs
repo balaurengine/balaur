@@ -3,6 +3,7 @@
 // open and empty it.
 
 use editor;
+use signals;
 
 pub class Bonemap {
     node: Node,
@@ -13,8 +14,8 @@ impl Bonemap {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
-        for word in ["bonemap_changed", "outline_changed"] {
+        events::listen(self.node, signals::DOCKS, source);
+        for word in ["bonemap_changed", signals::OUTLINE] {
             events::listen(self.node, word, source);
         }
     }

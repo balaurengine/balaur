@@ -2,7 +2,11 @@
 // handles over the viewport, shown as the Editor says when the workspace, the
 // docks, the room or a chip moved.
 
+use center;
 use editor;
+use words::components;
+use words::dock_fields;
+use words::layout_fields;
 
 pub class Stage {
     node: Node,
@@ -24,7 +28,7 @@ impl Stage {
 
     pub fn open(_value: any, node: Node) {
         let side = node.parent().name();
-        self.editor.unwrap().stage_verb(if side == "Left" { "open_left" } else { "open_right" });
+        self.editor.unwrap().stage_verb(if side == "Left" { center::OPEN_LEFT } else { center::OPEN_RIGHT });
     }
 
     fn refresh() {
@@ -32,12 +36,12 @@ impl Stage {
         self.node.get_node("Safe").set_visible(view.safe);
         let patched = self.node.get_node("Resolution");
         patched.set_visible(view.resolution);
-        patched.patch_component("widget", { "inset": view.res_inset });
+        patched.patch_component(components::WIDGET, { dock_fields::INSET: view.res_inset });
         for side in ["Left", "Right"] {
             let handle = if side == "Left" { view.left } else { view.right };
             let sheet = self.node.get_node(side);
             sheet.set_visible(handle.shown);
-            sheet.patch_component("widget", { "padding": view.pad });
+            sheet.patch_component(components::WIDGET, { layout_fields::PADDING: view.pad });
             let patched = sheet.get_node("Open");
             patched.widget_button.icon = handle.icon;
             patched.widget.tooltip = handle.tooltip;

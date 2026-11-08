@@ -1,0 +1,7 @@
+// The fields of polygons, skins and painted weights.
+
+internal const BONES: str = "bones";
+internal const CELLS: str = "cells";
+internal const POSITIONS: str = "positions";
+internal const SKIN: str = "skin";
+internal const WEIGHTS: str = "weights";

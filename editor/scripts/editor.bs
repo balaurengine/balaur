@@ -57,6 +57,15 @@ use util;
 use viewport;
 use weights;
 use window;
+use words::changes;
+use words::fields;
+use words::layout_fields;
+use words::project_fields;
+use words::tabs;
+use words::tools;
+
+const ALL: str = "all";
+const VIEWPORT: str = "viewport";
 
 /// The Editor node's script: the node it runs on and everything it keeps.
 pub class Editor {
@@ -305,9 +314,9 @@ const FORM_BY: int = 30;
 /// Every field the editor keeps, at its starting value.
 pub fn fresh_state() -> State {
     State {
-        workspace: "scene",
-        tool: "select",
-        doctab: "scene",
+        workspace: tabs::SCENE,
+        tool: tools::SELECT,
+        doctab: tabs::SCENE,
         // A shader opened from a material; empty means the code pane shows
         // the selected node's script instead.
         shader_rel: "",
@@ -461,7 +470,7 @@ pub fn fresh_state() -> State {
         clip: nil,
         hooks_source: "",
         hooks_live: [],
-        log_level: "all",
+        log_level: ALL,
         log_query: "",
         // Per-frame and per-session caches, built on first use.
         log_cache: nil,
@@ -658,14 +667,14 @@ impl Editor {
     /// A pooled control's edit, for the function its spec's data names: see
     /// `pool::on`.
     pub fn handle(data: any, value: any, control: Node) {
-        let handler: fn(&mut State, any, any) = data["fn"];
+        let handler: fn(&mut State, any, any) = data[fields::FN];
         handler(self.state, data, value);
         refill_panel(control);
     }
 
     /// The same for Enter in a field: see `pool::on_submit`.
     pub fn handle_submit(data: any, value: any, control: Node) {
-        let handler: fn(&mut State, any, any) = data["submit"];
+        let handler: fn(&mut State, any, any) = data[project_fields::SUBMIT];
         handler(self.state, data, value);
         refill_panel(control);
     }
@@ -874,7 +883,7 @@ fn report_view(state: &mut State) {
     }
     let rect = state.layout[side.unwrap()];
     let scale = state.ui_scale;
-    let line = "viewrect {state.view_shot} {rect["x"].as_float() * scale} {rect["y"].as_float() * scale} {rect["width"].as_float() * scale} {rect["height"].as_float() * scale}";
+    let line = "viewrect {state.view_shot} {rect["x"].as_float() * scale} {rect["y"].as_float() * scale} {rect[layout_fields::WIDTH].as_float() * scale} {rect[layout_fields::HEIGHT].as_float() * scale}";
     if line != state.view_logged {
         state.view_logged = line;
         log::info(line);
@@ -937,10 +946,10 @@ fn viewport_step(state: &mut State) {
 fn draw_overlays(state: &mut State) {
     state.overlays_frame = state.frame;
     if manager::showing(state) {
-        render::clear_retained("viewport");
+        render::clear_retained(VIEWPORT);
         return;
     }
-    render::begin_retained("viewport");
+    render::begin_retained(VIEWPORT);
     if state.mode2d {
         overlays::grid2d(state);
     }
@@ -1026,7 +1035,7 @@ impl Editor {
 
     // The eye or the lock at the right of an outliner row.
     pub fn on_outline_changed(_change: any) {
-        signals::heard(self.state, "outline_changed");
+        signals::heard(self.state, signals::OUTLINE);
         follow_document(self.state);
         relayout_if_moved(self.state);
     }
@@ -1054,13 +1063,13 @@ impl Editor {
     }
 
     pub fn on_inspector_changed(_change: any) {
-        signals::heard(self.state, "inspector_changed");
+        signals::heard(self.state, signals::INSPECTOR);
         relayout_if_moved(self.state);
         widget_layer(self.state);
     }
 
     pub fn on_docks_changed(_change: any) {
-        signals::heard(self.state, "docks_changed");
+        signals::heard(self.state, signals::DOCKS);
         relayout_if_moved(self.state);
     }
 
@@ -1072,7 +1081,7 @@ impl Editor {
     }
 
     pub fn on_problems_changed(_change: any) {
-        signals::heard(self.state, "problems_changed");
+        signals::heard(self.state, signals::PROBLEMS_CHANGED);
     }
 
     pub fn on_docs_changed(_change: any) {
@@ -1080,7 +1089,7 @@ impl Editor {
     }
 
     pub fn on_assets_changed(_change: any) {
-        signals::heard(self.state, "assets_changed");
+        signals::heard(self.state, signals::ASSETS_CHANGED);
     }
 
     pub fn on_library_changed(_change: any) {
@@ -1096,18 +1105,18 @@ impl Editor {
     }
 
     pub fn on_recordings_changed(_change: any) {
-        signals::heard(self.state, "recordings_changed");
+        signals::heard(self.state, signals::RECORDINGS);
     }
 
     pub fn on_debugger_changed(_change: any) {
-        signals::heard(self.state, "debugger_changed");
+        signals::heard(self.state, signals::DEBUGGER_CHANGED);
         // A body play built, or one stopping took away, can warn without the
         // document moving.
         lint::node_warnings(self.state);
     }
 
     pub fn on_play_frame(_change: any) {
-        signals::heard(self.state, "play_frame");
+        signals::heard(self.state, signals::PLAY);
     }
 
     // What the pointer did, which is when the viewport's tools and the camera
@@ -1141,12 +1150,12 @@ impl Editor {
     }
 
     pub fn on_chrome_changed(_change: any) {
-        signals::heard(self.state, "chrome_changed");
+        signals::heard(self.state, signals::CHROME);
         relayout_if_moved(self.state);
     }
 
     pub fn on_status_changed(_change: any) {
-        signals::heard(self.state, "status_changed");
+        signals::heard(self.state, signals::STATUS);
     }
 
     pub fn on_sheet_changed(_change: any) {
@@ -1162,7 +1171,7 @@ impl Editor {
     }
 
     pub fn on_plugins_changed(_change: any) {
-        signals::heard(self.state, "plugins_changed");
+        signals::heard(self.state, signals::PLUGINS_CHANGED);
     }
 
     /// The scene's nodes in tree order, for a plugin reading the scene: a
@@ -1200,7 +1209,7 @@ impl Editor {
     /// A plugin property editor's control writing its value: `data.at` is
     /// the `at` its `controls` method was handed.
     pub fn inspector_write(data: any, value: any, control: Node) {
-        let at: inspector::AtTop = data["at"];
+        let at: inspector::AtTop = data[layout_fields::AT];
         inspector::write_at(self.state, at, value);
         refill_panel(control);
     }
@@ -1320,7 +1329,7 @@ impl Editor {
     }
 
     pub fn on_code_changed(_change: any) {
-        signals::heard(self.state, "code_changed");
+        signals::heard(self.state, signals::CODE_CHANGED);
     }
 
     pub fn on_complete_changed(_change: any) {
@@ -1386,7 +1395,7 @@ impl Editor {
     }
 
     pub fn on_timeline_changed(_change: any) {
-        signals::heard(self.state, "timeline_changed");
+        signals::heard(self.state, signals::TIMELINE);
     }
 
     /// Fill the Weights tab from the polygon being edited.
@@ -1483,7 +1492,7 @@ impl Editor {
     }
 
     pub fn on_rail_changed(_change: any) {
-        signals::heard(self.state, "rail_changed");
+        signals::heard(self.state, signals::RAIL);
         relayout_if_moved(self.state);
     }
 
@@ -1493,7 +1502,7 @@ impl Editor {
     }
 
     pub fn on_stage_changed(_change: any) {
-        signals::heard(self.state, "stage_changed");
+        signals::heard(self.state, signals::STAGE);
         relayout_if_moved(self.state);
     }
 
@@ -1533,7 +1542,7 @@ impl Editor {
     /// the Assets tab says what is there now.
     pub fn on_assets_reloaded(_generation: any) {
         model::forget(self.state);
-        signals::changed(self.state, "assets");
+        signals::changed(self.state, changes::ASSETS);
         lint::touched(self.state);
         lint::node_warnings(self.state);
     }
@@ -1736,7 +1745,7 @@ impl Editor {
     }
 
     pub fn tree_mark(event: any) {
-        left::mark_clicked(self.state, event["row"].as_str(), event["mark"].as_str());
+        left::mark_clicked(self.state, event[fields::ROW].as_str(), event[fields::MARK].as_str());
     }
 
     pub fn tree_delete() {

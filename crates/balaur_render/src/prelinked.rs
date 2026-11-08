@@ -13,6 +13,13 @@ use anyhow::{Context as _, Result, anyhow};
 use balaur_core::digest::Hasher;
 
 use crate::material::{Field, FieldType};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const FIELDS: &str = "fields";
+const KEY: &str = "key";
+const PROBES: &str = "probes";
+const WGSL: &str = "wgsl";
 
 /// Where an export writes the table, deflated TOML, inside the pack.
 pub const PRELINKED: &str = ".balaur/shaders.toml.deflate";
@@ -200,7 +207,8 @@ pub fn link_everything(eng: &balaur_core::Engine, pack: &balaur_core::Pack) {
     // A material is a document, so the pack keeps it with the scenes.
     for (path, text) in &pack.scenes {
         let is_material = text.parse::<toml::Table>().is_ok_and(|t| {
-            t.get("type").and_then(toml::Value::as_str)
+            t.get(words::material_check::TYPE)
+                .and_then(toml::Value::as_str)
                 == Some(crate::material::MATERIAL_ASSET_TYPE)
         });
         if !is_material {
@@ -229,9 +237,9 @@ fn write(table: &BTreeMap<u64, Linked>) -> String {
         .iter()
         .map(|(key, linked)| {
             let mut row = toml::map::Map::new();
-            row.insert("key".into(), toml::Value::String(format!("{key:016x}")));
-            row.insert("wgsl".into(), toml::Value::String(linked.wgsl.clone()));
-            row.insert("probes".into(), toml::Value::Boolean(linked.probes));
+            row.insert(KEY.into(), toml::Value::String(format!("{key:016x}")));
+            row.insert(WGSL.into(), toml::Value::String(linked.wgsl.clone()));
+            row.insert(PROBES.into(), toml::Value::Boolean(linked.probes));
             let fields = linked
                 .fields
                 .iter()
@@ -243,12 +251,12 @@ fn write(table: &BTreeMap<u64, Linked>) -> String {
                     ])
                 })
                 .collect();
-            row.insert("fields".into(), toml::Value::Array(fields));
+            row.insert(FIELDS.into(), toml::Value::Array(fields));
             toml::Value::Table(row)
         })
         .collect();
     let mut root = toml::map::Map::new();
-    root.insert("shader".into(), toml::Value::Array(rows));
+    root.insert(keys::SHADER.into(), toml::Value::Array(rows));
     toml::to_string(&toml::Value::Table(root)).unwrap_or_default()
 }
 
@@ -256,19 +264,19 @@ fn parse(text: &str) -> Result<BTreeMap<u64, Linked>> {
     let root: toml::Table = text.parse().context("the prelinked shaders do not parse")?;
     let mut table = BTreeMap::new();
     for row in root
-        .get("shader")
+        .get(keys::SHADER)
         .and_then(toml::Value::as_array)
         .into_iter()
         .flatten()
     {
         let key = row
-            .get("key")
+            .get(KEY)
             .and_then(toml::Value::as_str)
             .and_then(|k| u64::from_str_radix(k, 16).ok())
             .context("a prelinked shader has no key")?;
         let mut fields = Vec::new();
         for field in row
-            .get("fields")
+            .get(FIELDS)
             .and_then(toml::Value::as_array)
             .into_iter()
             .flatten()
@@ -288,13 +296,13 @@ fn parse(text: &str) -> Result<BTreeMap<u64, Linked>> {
             key,
             Linked {
                 wgsl: row
-                    .get("wgsl")
+                    .get(WGSL)
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
                 fields,
                 probes: row
-                    .get("probes")
+                    .get(PROBES)
                     .and_then(toml::Value::as_bool)
                     .unwrap_or(false),
             },

@@ -40,6 +40,8 @@ use anyhow::{Context, Result};
 use crate::components::Schema;
 use crate::engine::Engine;
 use crate::tags::{OVERRIDE, Tags};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// Whose setting this is, and therefore where it is written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,7 +86,7 @@ impl SettingDef {
         self.spec
             .get("applies")
             .and_then(toml::Value::as_str)
-            .is_none_or(|when| when == "now")
+            .is_none_or(|when| when == words::NOW)
     }
 }
 
@@ -218,7 +220,7 @@ impl Answer {
     fn of(eng: &Engine, path: &str) -> Self {
         Self {
             stated: read_stated(eng, path),
-            default: def(eng, path).and_then(|d| d.spec.get("default").cloned()),
+            default: def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()),
         }
     }
 }
@@ -314,7 +316,7 @@ pub fn table(eng: &Engine, path: &str) -> toml::value::Table {
 /// happened to match would write that value back onto the base key.
 #[must_use]
 pub fn base(eng: &Engine, path: &str) -> Option<toml::Value> {
-    stored(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get("default").cloned()))
+    stored(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()))
 }
 
 /// One path's value as loaded, with no definition behind it: what an override
@@ -687,7 +689,7 @@ pub fn build_core_settings(eng: &Engine) {
     let parse = |name: &str, text: &str| crate::components::ComponentDef::parse_schema(name, text);
     define_group(
         eng,
-        "application",
+        keys::APPLICATION,
         Scope::Project,
         &parse(
             "settings.application",
@@ -719,7 +721,7 @@ strict = { type = "bool", default = false, applies = "restart", help = "`balaur 
     );
     define_group(
         eng,
-        "save",
+        words::modules::SAVE,
         Scope::Project,
         &parse(
             "settings.save",
@@ -731,7 +733,7 @@ migrate_script = { type = "string", default = "", help = "A script whose migrate
     );
     define_group(
         eng,
-        "locale",
+        words::functions::LOCALE,
         Scope::Project,
         &parse(
             "settings.locale",
@@ -856,7 +858,7 @@ lod_distance = { type = "float", default = 20.0, min = 0.01, order = 3, applies 
 fn build_time_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::Rc<Schema>) {
     define_group(
         eng,
-        "time",
+        keys::TIME,
         Scope::Project,
         &parse(
             "settings.time",

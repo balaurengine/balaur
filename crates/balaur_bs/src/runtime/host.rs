@@ -5,6 +5,7 @@ use super::args::{CallArgs, Params, Slots, vector_width};
 use super::debugger::{self, Debugger};
 use super::engine::{ImportCtx, Raw, Raws, Shared};
 use super::values::{Reader, Value, encode_plain, width};
+use crate::vocabulary::words as vocab;
 use crate::{Meta, Ty, words};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -181,19 +182,19 @@ pub(crate) struct Release {
 
 fn math(name: &str) -> Option<Kind> {
     let one: Option<fn(f64) -> f64> = match name {
-        "sin" => Some(libm::sin),
-        "cos" => Some(libm::cos),
-        "tan" => Some(libm::tan),
-        "asin" => Some(libm::asin),
-        "acos" => Some(libm::acos),
-        "atan" => Some(libm::atan),
-        "exp" => Some(libm::exp),
-        "ln" => Some(libm::log),
+        vocab::math::SIN => Some(libm::sin),
+        vocab::math::COS => Some(libm::cos),
+        vocab::math::TAN => Some(libm::tan),
+        vocab::math::ASIN => Some(libm::asin),
+        vocab::math::ACOS => Some(libm::acos),
+        vocab::math::ATAN => Some(libm::atan),
+        vocab::math::EXP => Some(libm::exp),
+        vocab::math::LN => Some(libm::log),
         _ => None,
     };
     one.map(Kind::Unary).or(match name {
-        "atan2" => Some(Kind::Binary(libm::atan2)),
-        "pow" => Some(Kind::Binary(libm::pow)),
+        vocab::math::ATAN2 => Some(Kind::Binary(libm::atan2)),
+        vocab::math::POW => Some(Kind::Binary(libm::pow)),
         _ => None,
     })
 }

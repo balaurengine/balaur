@@ -28,7 +28,7 @@ and in full at <https://balaurengine.org/docs/building>.
 
 ```bash
 cargo check                     # the loop while writing
-scripts/precommit.sh --files    # fmt and the five lints that only read files
+scripts/precommit.sh --files    # fmt and the six lints that only read files
 scripts/precommit.sh --lints    # the lint job: every clippy shape, cargo-deny
 scripts/precommit.sh            # the above, plus the tests and both kinds of docs
 scripts/precommit.sh --e2e      # adds the socket suites and the example pipeline
@@ -54,7 +54,7 @@ times, so read yours rather than this.
 | --- | ---: | ---: | --- |
 | `cargo check -p <crate>` | n/a | seconds | that crate and what depends on it |
 | `cargo check --workspace` | a full build | 23 s | fingerprinting 400 crates |
-| `scripts/precommit.sh --files` | 7 s | 7 s | rustfmt, then five Python passes |
+| `scripts/precommit.sh --files` | 7 s | 7 s | rustfmt, then six Python passes |
 | `scripts/precommit.sh --lints` | a full build | 6 s | thirteen clippy shapes on macOS, ten elsewhere, a target tree each |
 | `scripts/precommit.sh` | a full build | 48 m | every test, one process each |
 | `scripts/precommit.sh --e2e` | a full build | 48 m plus the pipeline | every example project; the editor states on four of them |

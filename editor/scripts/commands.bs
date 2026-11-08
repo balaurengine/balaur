@@ -17,6 +17,21 @@ use shell;
 use theme;
 use tiles;
 use window;
+use words::tools;
+use words::verbs;
+
+const BREAK: str = "break";
+const CANCEL: str = "cancel";
+const CONTINUE: str = "continue";
+const DEFINITION: str = "definition";
+const FORMAT: str = "format";
+const REDO_Y: str = "redo_y";
+const RELOAD: str = "reload";
+const RENAME_SYMBOL: str = "rename_symbol";
+const REPLACE: str = "replace";
+const STEP_INTO: str = "step_into";
+const STEP_OUT: str = "step_out";
+const STEP_OVER: str = "step_over";
 
 pub struct KeysView {
     internal stopped: bool,
@@ -25,7 +40,7 @@ pub struct KeysView {
 
 /// What the keys need to know to say which of them are live.
 pub fn keys_view(state: editor::State) -> KeysView {
-    KeysView { stopped: state.debug.paused.kind() == "map", playing: state.playing }
+    KeysView { stopped: state.debug.paused.kind() == types::KIND_MAP, playing: state.playing }
 }
 
 /// Run the command `name`. A command with nothing to act on does nothing.
@@ -34,81 +49,81 @@ pub fn run(state: &mut editor::State, name: str) {
         workspace(state, name);
         return;
     }
-    if name == "palette" {
+    if name == verbs::PALETTE {
         if state.palette {
             shell::close_palette(state);
         } else {
             shell::open_palette(state, "");
         }
-    } else if name == "save" {
+    } else if name == verbs::SAVE {
         shell::save_active(state);
-    } else if name == "format" {
+    } else if name == FORMAT {
         shell::format_active(state);
-    } else if name == "definition" {
+    } else if name == DEFINITION {
         shell::goto_definition(state);
-    } else if name == "rename_symbol" {
+    } else if name == RENAME_SYMBOL {
         refactor::open(state, "rename");
-    } else if name == "replace" {
-        refactor::open(state, "replace");
-    } else if name == "focus" {
+    } else if name == REPLACE {
+        refactor::open(state, REPLACE);
+    } else if name == verbs::FOCUS {
         shell::toggle_focus(state);
-    } else if name == "split" {
+    } else if name == verbs::SPLIT {
         shell::toggle_split(state);
-    } else if name == "zoom_in" {
+    } else if name == verbs::ZOOM_IN {
         shell::ask_ui_scale(state, state.ui_scale + 0.125);
-    } else if name == "zoom_out" {
+    } else if name == verbs::ZOOM_OUT {
         shell::ask_ui_scale(state, state.ui_scale - 0.125);
-    } else if name == "settings" {
+    } else if name == verbs::SETTINGS {
         settings::open(state);
-    } else if name == "export" {
+    } else if name == verbs::EXPORT {
         exporter::open(state);
-    } else if name == "continue" {
+    } else if name == CONTINUE {
         shell::resume(state, debugger::CONTINUE);
-    } else if name == "step_over" {
+    } else if name == STEP_OVER {
         shell::resume(state, debugger::STEP_OVER);
-    } else if name == "step_into" {
+    } else if name == STEP_INTO {
         shell::resume(state, debugger::STEP_INTO);
-    } else if name == "step_out" {
+    } else if name == STEP_OUT {
         shell::resume(state, debugger::STEP_OUT);
-    } else if name == "play" {
+    } else if name == verbs::PLAY {
         shell::toggle_play(state);
-    } else if name == "break" {
+    } else if name == BREAK {
         debugger::request_break();
-    } else if name == "add_child" {
+    } else if name == verbs::ADD_CHILD {
         model::add_child(state);
-    } else if name == "attach_script" {
+    } else if name == verbs::ATTACH_SCRIPT {
         shell::attach_script(state);
-    } else if name == "reload" {
+    } else if name == RELOAD {
         shell::reload_scripts(state);
-    } else if name == "copy" {
+    } else if name == verbs::COPY {
         copy(state);
-    } else if name == "redo" {
+    } else if name == verbs::REDO {
         shell::redo(state);
-    } else if name == "redo_y" {
+    } else if name == REDO_Y {
         shell::redo(state);
-    } else if name == "undo" {
+    } else if name == verbs::UNDO {
         shell::undo(state);
-    } else if name == "theme" {
+    } else if name == verbs::THEME {
         theme::toggle(state);
-    } else if name == "select_all" {
+    } else if name == verbs::SELECT_ALL {
         selection::select_all(state);
-    } else if name == "ungroup" {
+    } else if name == verbs::UNGROUP {
         arrange::ungroup(state);
-    } else if name == "group" {
+    } else if name == verbs::GROUP {
         arrange::group(state);
-    } else if name == "unlock_all" {
+    } else if name == verbs::UNLOCK_ALL {
         arrange::unlock_all(state);
-    } else if name == "lock" {
+    } else if name == verbs::LOCK {
         arrange::toggle_locked(state);
-    } else if name == "show_all" {
+    } else if name == verbs::SHOW_ALL {
         arrange::show_all(state);
-    } else if name == "hide" {
+    } else if name == verbs::HIDE {
         arrange::toggle_hidden(state);
-    } else if name == "isolate" {
+    } else if name == verbs::ISOLATE {
         arrange::toggle_isolate(state);
-    } else if name == "key" {
+    } else if name == tools::KEY {
         key(state);
-    } else if name == "cancel" {
+    } else if name == CANCEL {
         cancel(state);
     } else {
         log::warn("no command named {name}");

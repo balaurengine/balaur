@@ -6,6 +6,8 @@
 //! export in flight is [`crate::jobs`], which every verb of this shape shares;
 //! what is here is the event itself.
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_script::Value;
 use serde::{Deserialize, Serialize};
 
@@ -22,8 +24,8 @@ impl ExportEvent {
     fn kind(&self) -> &'static str {
         match self {
             Self::Started { .. } => "started",
-            Self::Done { .. } => "done",
-            Self::Failed { .. } => "failed",
+            Self::Done { .. } => keys::DONE,
+            Self::Failed { .. } => words::export_shared::FAILED,
         }
     }
 
@@ -43,14 +45,14 @@ impl crate::jobs::Reported for ExportEvent {
     /// script reads `kind` and then the field that kind carries.
     fn value(&self) -> Value {
         let mut pairs = vec![
-            ("kind".into(), Value::Str(self.kind().into())),
+            (keys::KIND.into(), Value::Str(self.kind().into())),
             ("target".into(), Value::Str(self.target().into())),
         ];
         match self {
             Self::Started { .. } => {}
-            Self::Done { path, .. } => pairs.push(("path".into(), Value::Str(path.clone()))),
+            Self::Done { path, .. } => pairs.push((keys::PATH.into(), Value::Str(path.clone()))),
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.clone())));
+                pairs.push((keys::MESSAGE.into(), Value::Str(message.clone())));
             }
         }
         Value::Map(pairs)
@@ -76,7 +78,7 @@ pub(crate) fn preview(project: &std::path::Path, path: &str, target: &str) -> Va
     let count = |n: u64| Value::Int(i64::try_from(n).unwrap_or(i64::MAX));
     let (drawn_width, drawn_height) = shown.drawn.unwrap_or((0, 0));
     Value::Map(vec![
-        ("source".into(), Value::Str(shown.source)),
+        (keys::SOURCE.into(), Value::Str(shown.source)),
         ("before".into(), count(shown.before as u64)),
         ("after".into(), count(shown.after as u64)),
         ("width".into(), count(u64::from(shown.width))),

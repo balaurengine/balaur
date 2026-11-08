@@ -17,6 +17,21 @@ use session;
 use shell;
 use theme;
 use util;
+use words::dock_fields;
+use words::fields;
+use words::general;
+use words::layout_fields;
+use words::log_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::roles;
+use words::tabs;
+use words::theme_tokens;
+use words::verbs;
+
+const FILE: str = "file";
+const TAB_WORKSPACE: str = "tab_workspace";
+const REPLAYING: str = "replaying";
 
 /// The mark and the name at the head of the bar.
 pub struct Brand {
@@ -120,7 +135,7 @@ fn declared_icon(state: editor::State) -> str {
     if text == nil {
         return "";
     }
-    toml::parse(text.unwrap())["application"]["icon"].as_str()
+    toml::parse(text.unwrap())[project_fields::APPLICATION][fields::ICON].as_str()
 }
 
 // Answered once per session: whether the project ships a mark is up to five disk
@@ -146,13 +161,13 @@ fn plural(count: int, word: str) -> str {
 // Where the first workspace pill starts, after the brand.
 fn workspaces_x(state: editor::State) -> float {
     let name = if state.compact { 0.0 } else { 3.0 + NAME_WIDTH };
-    state.layout["bar"]["x"].as_float() + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
+    state.layout[dock_fields::BAR]["x"].as_float() + PAD_X + 2.0 + MARK_WIDTH + name + 8.0
 }
 
 /// Where one workspace pill's centre lands in the bar, in design px, so the
 /// showcase's drawn cursor can be put on the pill its verb presses.
 pub fn workspace_spot(state: editor::State, id: str) -> Spot {
-    let bar: any = state.layout["bar"];
+    let bar: any = state.layout[dock_fields::BAR];
     let per = layout::workspace_width(state);
     let slot = 0;
     let workspaces = defs::workspaces();
@@ -168,47 +183,47 @@ pub fn workspace_spot(state: editor::State, id: str) -> Spot {
         return spot;
     }
     // `return`: a bare tuple after a block parses as a call on the block.
-    return Spot { x: workspaces_x(state) + ((slot as float) + 0.5) * per, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
+    return Spot { x: workspaces_x(state) + ((slot as float) + 0.5) * per, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
 
 /// Where a document tab's centre lands: the scene's, then the script's.
 pub fn doc_spot(state: editor::State, id: str) -> Spot {
-    let bar: any = state.layout["bar"];
+    let bar: any = state.layout[dock_fields::BAR];
     let per = layout::workspace_width(state);
     let first = workspaces_x(state) + (defs::workspaces().len() as float) * per + 12.0;
-    let slot = if id == "script" { 1.0 } else { 0.0 };
+    let slot = if id == tabs::SCRIPT { 1.0 } else { 0.0 };
     let found = strip_spot(state, defs::workspaces().len() + (slot as int));
     if found != nil {
         let spot = found.unwrap();
         return spot;
     }
-    return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
+    return Spot { x: first + slot * (TAB_WIDTH + 4.0) + TAB_WIDTH / 2.0, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
 
 /// Where the Focus chip sits, so the showcase's drawn cursor lands on the
 /// control its verb presses. The strip runs workspaces, documents, split,
 /// focus, the spring, then the transport, so it is two slots back.
 pub fn focus_spot(state: editor::State) -> Spot {
-    let bar: any = state.layout["bar"];
+    let bar: any = state.layout[dock_fields::BAR];
     let found = strip_spot(state, transport_slot(state) - 2);
     if found != nil {
         let spot = found.unwrap();
         return spot;
     }
-    return Spot { x: bar["x"].as_float() + bar["width"].as_float() / 2.0, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
+    return Spot { x: bar["x"].as_float() + bar[layout_fields::WIDTH].as_float() / 2.0, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
 
 /// Where one of the transport's three buttons sits: play, pause, stop.
 pub fn transport_spot(state: editor::State, index: int) -> Spot {
-    let bar: any = state.layout["bar"];
+    let bar: any = state.layout[dock_fields::BAR];
     let found = strip_spot(state, transport_slot(state) + index);
     if found != nil {
         let spot = found.unwrap();
         return spot;
     }
     let command_width = if state.compact { COMMAND_WIDTH_COMPACT } else { COMMAND_WIDTH };
-    let block = (bar["x"].as_float() + bar["width"].as_float()) - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
-    return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar["y"].as_float() + bar["height"].as_float() / 2.0 };
+    let block = (bar["x"].as_float() + bar[layout_fields::WIDTH].as_float()) - PAD_X - THEME_WIDTH - 4.0 - command_width - 6.0 - BLOCK_WIDTH;
+    return Spot { x: block + 14.0 + (index as float) * BUTTON_PITCH, y: bar["y"].as_float() + bar[layout_fields::HEIGHT].as_float() / 2.0 };
 }
 
 // The transport comes after the workspaces, the open documents, the split, the
@@ -276,7 +291,7 @@ fn menu_key(state: &mut editor::State) -> [any] {
     [
         state.workspace,
         "{state.docks}",
-        docks::name(state, "outline"),
+        docks::name(state, tabs::OUTLINE),
         state.registry.panels.len(),
     ]
 }
@@ -320,39 +335,39 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
     for workspace in defs::workspaces() {
         let id = workspace.id;
         out.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             height: height,
-            role: "tab_workspace",
+            role: roles::TAB_WORKSPACE,
             checked: state.workspace == id,
             text: if state.compact { "" } else { workspace.name },
             icon: workspace.icon,
             tooltip: workspace.name,
             on_click: "handle",
-            data: { "fn": on_workspace_pressed, "id": id },
+            data: { fields::FN: on_workspace_pressed, fields::ID: id },
         });
     }
     for entry in doc_controls(state, tokens, height) {
         out.push(entry);
     }
     out.push(ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         height: height,
-        icon: icons::ui("split"),
-        role: "tab_workspace",
+        icon: icons::ui(icons::SPLIT),
+        role: roles::TAB_WORKSPACE,
         checked: state.split,
         text: if state.compact { "" } else { "Split" },
         tooltip: "Show the code and the viewport at once (⌘\\)",
         on_click: "handle",
-        data: { "fn": on_split_pressed },
+        data: { fields::FN: on_split_pressed },
     });
     // Beside the split, because the two are the same question: how much of the
     // window the code is worth.
     let can_focus = state.focus || shell::focus_target(state);
     out.push(ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         height: height,
-        icon: icons::ui(if state.focus { "unfocus" } else { "focus" }),
-        role: "tab_workspace",
+        icon: icons::ui(if state.focus { "unfocus" } else { verbs::FOCUS }),
+        role: roles::TAB_WORKSPACE,
         checked: state.focus,
         text: if state.compact { "" } else { "Focus" },
         enabled: can_focus,
@@ -364,43 +379,43 @@ fn bar_controls(state: editor::State, tokens: any) -> [ui::Control] {
             "The selection has no script to focus"
         },
         on_click: "handle",
-        data: { "fn": on_focus_pressed },
+        data: { fields::FN: on_focus_pressed },
     });
     // The spring: what is after it sits against the bar's right edge.
-    out.push(ui::Control { kind: "row", grow: 1 });
+    out.push(ui::Control { kind: ui::WIDGET_ROW, grow: 1 });
     for entry in transport_controls(state) {
         out.push(entry);
     }
     out.push(ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         height: row_height(state),
         width: icon_width(state),
         padding: ui::all_sides(0),
-        role: "item_bar",
+        role: roles::ITEM_BAR,
         text: "",
-        icon: if tokens["dark"].as_bool() { icons::ui("dark") } else { icons::ui("light") },
+        icon: if tokens[panel_keys::DARK].as_bool() { icons::ui(icons::DARK) } else { icons::ui(icons::LIGHT) },
         tooltip: "Toggle theme",
         on_click: "handle",
-        data: { "fn": on_theme_pressed },
+        data: { fields::FN: on_theme_pressed },
     });
     let named = !state.compact;
     out.push(ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         height: row_height(state),
-        role: "item_bar",
+        role: roles::ITEM_BAR,
         width: if named { 0.0 } else { icon_width(state) },
         padding: ui::all_sides(if named { -1.0 } else { 0.0 }),
         text: if named { "Run a command" } else { "" },
-        icon: icons::ui("search"),
+        icon: icons::ui(icons::SEARCH),
         tooltip: "⌘K",
         on_click: "handle",
-        data: { "fn": on_command_pressed },
+        data: { fields::FN: on_command_pressed },
     });
     out
 }
 
 fn on_workspace_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"].as_str();
+    let id: str = data[fields::ID].as_str();
     shell::set_workspace(state, id);
 }
 
@@ -426,7 +441,7 @@ fn doc_controls(state: editor::State, tokens: any, height: float) -> [ui::Contro
     let node = model::selected_node(state);
     let out: [ui::Control] = [];
     let scene = util::last_segment(state.scene_rel) + (if history::dirty(state) { " ●" } else { "" });
-    for entry in doc_tab(state, "scene", icons::panel("scene"), scene, false, height) {
+    for entry in doc_tab(state, tabs::SCENE, icons::panel(icons::SCENE), scene, false, height) {
         out.push(entry);
     }
     if state.script_open {
@@ -438,12 +453,12 @@ fn doc_controls(state: editor::State, tokens: any, height: float) -> [ui::Contro
         } else {
             "no script"
         };
-        for entry in doc_tab(state, "script", icons::ui("scriptfile"), label, true, height) {
+        for entry in doc_tab(state, tabs::SCRIPT, icons::ui(icons::SCRIPTFILE), label, true, height) {
             out.push(entry);
         }
     }
     if state.events_open {
-        for entry in doc_tab(state, "events", icons::ui("events"), "bindings", true, height) {
+        for entry in doc_tab(state, tabs::EVENTS, icons::ui(icons::EVENTS), verbs::BINDINGS, true, height) {
             out.push(entry);
         }
     }
@@ -453,40 +468,40 @@ fn doc_controls(state: editor::State, tokens: any, height: float) -> [ui::Contro
 // One tab: the label, and the close mark beside it when it closes.
 fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool, height: float) -> [ui::Control] {
     let active = state.doctab == id;
-    let role = "tab_workspace";
+    let role = TAB_WORKSPACE;
     // Built by pushing: a `[` after an `if` block is read as indexing it.
     let inner: [ui::Control] = [];
     inner.push(ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         height: height,
         text: label,
         icon: icon,
         role: role,
         checked: active,
         corner_radius: 0,
-        fill: "none",
+        fill: general::NONE,
         padding: ui::sides(7, -1, 7, -1),
         on_click: "handle",
-        data: { "fn": on_doc_picked, "id": id },
+        data: { fields::FN: on_doc_picked, fields::ID: id },
     });
     if closable {
         inner.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             height: height,
             width: 13,
             padding: ui::all_sides(0),
             text: "",
-            icon: icons::ui("close"),
+            icon: icons::ui(icons::CLOSE),
             role: role,
             checked: active,
             corner_radius: 0,
-            fill: "none",
+            fill: general::NONE,
             tooltip: "Close",
             on_click: "handle",
-            data: { "fn": on_doc_close_pressed, "id": id },
+            data: { fields::FN: on_doc_close_pressed, fields::ID: id },
         });
     }
-    inner.push(ui::Control { kind: "row", width: 5 });
+    inner.push(ui::Control { kind: ui::WIDGET_ROW, width: 5 });
     // One tile: the row carries the fill and the corners, and the halves
     // inside it paint nothing.
     let out: [ui::Control] = [];
@@ -494,18 +509,18 @@ fn doc_tab(state: editor::State, id: str, icon: str, label: str, closable: bool,
         height: height,
         corner_radius: 4,
         controls: inner,
-        fill: if active { "primary_bg" } else { "none" },
+        fill: if active { theme_tokens::PRIMARY_BG } else { general::NONE },
     });
     out
 }
 
 fn on_doc_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"].as_str();
+    let id: str = data[fields::ID].as_str();
     shell::open_doc(state, id);
 }
 
 fn on_doc_close_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"].as_str();
+    let id: str = data[fields::ID].as_str();
     shell::close_doc(state, id);
 }
 
@@ -520,21 +535,21 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
     };
     [
         ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: "",
             icon: icons::ui("play"),
             height: row_height(state),
             width: icon_width(state),
             padding: ui::all_sides(0),
             icon_size: PLAY_SIZE,
-            role: "icon_action_primary",
+            role: roles::ICON_ACTION_PRIMARY,
             checked: state.playing,
             tooltip: if state.playing { "Stop the scene (F5)" } else { "Run the scene (F5)" },
             on_click: "handle",
-            data: { "fn": on_play_pressed },
+            data: { fields::FN: on_play_pressed },
         },
         ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: "",
             icon: icons::ui("pause"),
             enabled: running,
@@ -542,7 +557,7 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             width: icon_width(state),
             padding: ui::all_sides(0),
             icon_size: STEP_SIZE,
-            role: "icon_action_primary",
+            role: roles::ICON_ACTION_PRIMARY,
             checked: paused,
             tooltip: if !running {
                 "Run the scene first"
@@ -552,10 +567,10 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
                 "Pause simulation"
             },
             on_click: "handle",
-            data: { "fn": on_pause_pressed, "replaying": replaying },
+            data: { fields::FN: on_pause_pressed, REPLAYING: replaying },
         },
         ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: "",
             icon: icons::ui("stop"),
             enabled: running,
@@ -563,10 +578,10 @@ fn transport_controls(state: editor::State) -> [ui::Control] {
             width: icon_width(state),
             padding: ui::all_sides(0),
             icon_size: STEP_SIZE,
-            role: "icon_action_primary",
+            role: roles::ICON_ACTION_PRIMARY,
             tooltip: if running { "Stop" } else { "Nothing is running" },
             on_click: "handle",
-            data: { "fn": on_stop_pressed, "replaying": replaying },
+            data: { fields::FN: on_stop_pressed, REPLAYING: replaying },
         },
     ]
 }
@@ -576,7 +591,7 @@ fn on_play_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data["replaying"].as_bool();
+    let replaying: bool = data[REPLAYING].as_bool();
     if replaying {
         session::toggle_pause(state);
     } else {
@@ -585,7 +600,7 @@ fn on_pause_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_stop_pressed(state: &mut editor::State, data: any, _value: any) {
-    let replaying: bool = data["replaying"].as_bool();
+    let replaying: bool = data[REPLAYING].as_bool();
     if replaying {
         session::close(state);
     } else {
@@ -612,15 +627,15 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
     let lines: [ui::Control] = [];
     for source in state.jobs.keys() {
         let job = state.jobs[source];
-        let name = job["name"].as_str();
-        let done = job["done"].as_int();
-        let files = job["files"].as_int();
-        let line = if job["over"].as_str() == "" {
+        let name = job[fields::NAME].as_str();
+        let done = job[log_fields::DONE].as_int();
+        let files = job[project_fields::FILES].as_int();
+        let line = if job[layout_fields::OVER].as_str() == "" {
             if files > 0 { "{name} {done}/{files}" } else { name }
         } else {
-            "{name} {job["over"].as_str()} · {done} {plural(done, "file")}"
+            "{name} {job["over"].as_str()} · {done} {plural(done, FILE)}"
         };
-        lines.push(ui::Control { kind: "label", role: "text_note", text: line, text_color: tokens["text_muted"] });
+        lines.push(ui::Control { kind: "label", role: "text_note", text: line, text_color: tokens[theme_tokens::TEXT_MUTED] });
     }
     ui::fill_strip(IMPORTS + "/Lines", lines);
     let totals = dropin::job_totals(state);
@@ -634,18 +649,18 @@ pub fn fill_imports(state: &mut editor::State) -> FillImports {
 
 /// The status strip, what its script asks for on `status_changed`.
 pub fn fill_status(state: &mut editor::State) {
-    ui::fill_strip(STATUS_NODE, status_controls(state, state.theme, state.layout["bottom"]["width"].as_float()));
+    ui::fill_strip(STATUS_NODE, status_controls(state, state.theme, state.layout[dock_fields::BOTTOM][layout_fields::WIDTH].as_float()));
 }
 
 /// What the strip is built from: `status_mode` carries the pause, the play,
 /// the frame rate while playing and an import in flight; the rows and the
 /// steps taken stand for the node and script counts.
 pub fn status_key(state: editor::State) -> [any] {
-    [status_mode(state), state.playing, state.theme_revision, state.layout["bottom"]["width"], state.nodes.len(), state.history.past.len(), state.workspace, state.tool]
+    [status_mode(state), state.playing, state.theme_revision, state.layout[dock_fields::BOTTOM][layout_fields::WIDTH], state.nodes.len(), state.history.past.len(), state.workspace, state.tool]
 }
 
 fn status_mode(state: editor::State) -> str {
-    if state.debug.paused.kind() == "map" {
+    if state.debug.paused.kind() == types::KIND_MAP {
         return "paused · {state.debug.paused_rel}:{state.debug.paused["line"]}";
     }
     if state.playing {
@@ -661,23 +676,23 @@ fn status_mode(state: editor::State) -> str {
 }
 
 fn status_controls(state: editor::State, tokens: any, room: float) -> [ui::Control] {
-    let stopped = state.debug.paused.kind() == "map";
+    let stopped = state.debug.paused.kind() == types::KIND_MAP;
     let lamp = (if stopped {
-        tokens["primary_text"]
+        tokens[theme_tokens::PRIMARY_TEXT]
     } else if state.playing {
-        tokens["success_text"]
+        tokens[theme_tokens::SUCCESS_TEXT]
     } else {
-        tokens["text_subtle"]
+        tokens[theme_tokens::TEXT_SUBTLE]
     }).as_str();
     let out: [ui::Control] = [
-        ui::Control { kind: "row", width: 6, corner_radius: 0 },
-        ui::Control { kind: "row", width: 5, height: 5, corner_radius: 3, fill: lamp },
+        ui::Control { kind: ui::WIDGET_ROW, width: 6, corner_radius: 0 },
+        ui::Control { kind: ui::WIDGET_ROW, width: 5, height: 5, corner_radius: 3, fill: lamp },
         ui::Control {
-            kind: "label",
+            kind: ui::WIDGET_LABEL,
             corner_radius: 0,
             text: status_mode(state),
-            role: "text_caption",
-            text_color: tokens["text_muted"].as_str(),
+            role: roles::TEXT_CAPTION,
+            text_color: tokens[theme_tokens::TEXT_MUTED].as_str(),
         },
     ];
     // Narrow: the columns go one at a time rather than running together.
@@ -686,32 +701,32 @@ fn status_controls(state: editor::State, tokens: any, room: float) -> [ui::Contr
         let nodes = stats.nodes;
         let scripts = stats.scripts;
         out.push(ui::Control {
-            kind: "label",
+            kind: ui::WIDGET_LABEL,
             corner_radius: 0,
-            text: "{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, "script")}",
+            text: "{nodes} {plural(nodes, "node")} · {scripts} {plural(scripts, tabs::SCRIPT)}",
             role: "text_caption",
-            text_color: tokens["text_subtle"].as_str(),
+            text_color: tokens[theme_tokens::TEXT_SUBTLE].as_str(),
         });
     }
     if room > 560.0 {
         out.push(ui::Control {
-            kind: "label",
+            kind: ui::WIDGET_LABEL,
             corner_radius: 0,
             text: "kiss3d · wgpu",
-            role: "text_caption",
-            text_color: tokens["text_subtle"].as_str(),
+            role: roles::TEXT_CAPTION,
+            text_color: tokens[theme_tokens::TEXT_SUBTLE].as_str(),
         });
     }
-    out.push(ui::Control { kind: "row", corner_radius: 0, grow: 1 });
+    out.push(ui::Control { kind: ui::WIDGET_ROW, corner_radius: 0, grow: 1 });
     if room > 420.0 {
         out.push(ui::Control {
-            kind: "label",
+            kind: ui::WIDGET_LABEL,
             corner_radius: 0,
             text: "{defs::workspace_name(state.workspace)} · {defs::tool_name(state.tool)}",
-            role: "text_caption",
-            text_color: tokens["text_subtle"].as_str(),
+            role: roles::TEXT_CAPTION,
+            text_color: tokens[theme_tokens::TEXT_SUBTLE].as_str(),
         });
     }
-    out.push(ui::Control { kind: "row", width: 6, corner_radius: 0 });
+    out.push(ui::Control { kind: ui::WIDGET_ROW, width: 6, corner_radius: 0 });
     out
 }

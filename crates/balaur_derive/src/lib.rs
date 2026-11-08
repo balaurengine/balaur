@@ -13,11 +13,15 @@
 //! `balaur_core::components::derived`, so a crate deriving needs `balaur_core`
 //! and nothing else.
 
+use crate::vocabulary::words;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as Tokens;
 use quote::quote;
 use syn::spanned::Spanned;
 use syn::{Data, DeriveInput, Expr, ExprLit, Fields, Lit, Meta, UnOp};
+
+const OPTION: &str = "option";
+mod vocabulary;
 
 /// `#[derive(Component)]`: see the crate docs. Needs `#[component(name = "...")]`.
 #[proc_macro_derive(Component, attributes(component, property))]
@@ -183,10 +187,10 @@ fn property_attrs(field: &syn::Field) -> syn::Result<PropertyAttrs> {
                 // it (`color` on four floats, `node` on a path), or is a
                 // flag: `readonly`.
                 match key.as_str() {
-                    "color" | "node" | "flags" => {
+                    words::COLOR | words::NODE | words::FLAGS => {
                         found
                             .keys
-                            .push(("type".to_owned(), syn::parse_quote!(#key)));
+                            .push((words::TYPE.to_owned(), syn::parse_quote!(#key)));
                     }
                     _ => found.keys.push((key, syn::parse_quote!(true))),
                 }
@@ -194,15 +198,15 @@ fn property_attrs(field: &syn::Field) -> syn::Result<PropertyAttrs> {
             }
             let value: Expr = meta.value()?.parse()?;
             match key.as_str() {
-                "name" => match &value {
+                words::NAME => match &value {
                     Expr::Lit(ExprLit {
                         lit: Lit::Str(text),
                         ..
                     }) => found.name = Some(text.value()),
                     _ => return Err(meta.error("`name` takes text")),
                 },
-                "default" => found.default = Some(value),
-                "description" => {
+                words::DEFAULT => found.default = Some(value),
+                words::DESCRIPTION => {
                     return Err(meta.error("a property's description is its doc comment"));
                 }
                 _ => found.keys.push((key, value)),
@@ -211,12 +215,12 @@ fn property_attrs(field: &syn::Field) -> syn::Result<PropertyAttrs> {
         })?;
     }
     // A property naming its asset type is an asset.
-    if found.keys.iter().any(|(key, _)| key == "asset")
-        && !found.keys.iter().any(|(key, _)| key == "type")
+    if found.keys.iter().any(|(key, _)| key == words::ASSET)
+        && !found.keys.iter().any(|(key, _)| key == words::TYPE)
     {
         found
             .keys
-            .push(("type".to_owned(), syn::parse_quote!("asset")));
+            .push((words::TYPE.to_owned(), syn::parse_quote!("asset")));
     }
     Ok(found)
 }
@@ -264,7 +268,7 @@ fn component_attrs(input: &DeriveInput) -> syn::Result<ComponentAttrs> {
             continue;
         }
         attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("name") {
+            if meta.path.is_ident(words::NAME) {
                 let text: syn::LitStr = meta.value()?.parse()?;
                 name = Some(text.value());
                 Ok(())
@@ -600,11 +604,11 @@ fn expand_enum(input: &DeriveInput) -> syn::Result<Tokens> {
         }
         let mut name = snake(&variant.ident.to_string());
         for attr in &variant.attrs {
-            if !attr.path().is_ident("option") {
+            if !attr.path().is_ident(OPTION) {
                 continue;
             }
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("name") {
+                if meta.path.is_ident(words::NAME) {
                     let text: syn::LitStr = meta.value()?.parse()?;
                     name = text.value();
                     Ok(())
@@ -710,15 +714,15 @@ fn variant_option(variant: &syn::Variant) -> syn::Result<(String, bool)> {
     let mut name = snake(&variant.ident.to_string());
     let mut chosen = false;
     for attr in &variant.attrs {
-        if !attr.path().is_ident("option") {
+        if !attr.path().is_ident(OPTION) {
             continue;
         }
         attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("name") {
+            if meta.path.is_ident(words::NAME) {
                 let text: syn::LitStr = meta.value()?.parse()?;
                 name = text.value();
                 Ok(())
-            } else if meta.path.is_ident("default") {
+            } else if meta.path.is_ident(words::DEFAULT) {
                 chosen = true;
                 Ok(())
             } else {

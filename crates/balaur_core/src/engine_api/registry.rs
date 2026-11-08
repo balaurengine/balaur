@@ -6,6 +6,8 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// The names of every registered component TYPE, not the components on any
 /// node. Pairs with `scene.component_schema(name)`.
@@ -83,11 +85,11 @@ pub(super) fn preset_info(eng: &Engine, args: &[Value]) -> Result<Value> {
     }
     Ok(Value::Map(vec![
         (
-            "description".to_string(),
+            keys::DESCRIPTION.to_string(),
             Value::Str(def.description.clone()),
         ),
         (
-            "tags".to_string(),
+            words::settings_api::TAGS.to_string(),
             Value::List(def.tags.iter().cloned().map(Value::text).collect()),
         ),
         (
@@ -119,9 +121,12 @@ pub(super) fn warnings(eng: &Engine, args: &[Value]) -> Result<Value> {
             .map(|found| {
                 let property = found.warning.property.map_or(Value::Nil, Value::Str);
                 Value::Map(vec![
-                    ("component".to_string(), Value::Str(found.component)),
+                    (keys::COMPONENT.to_string(), Value::Str(found.component)),
                     ("property".to_string(), property),
-                    ("message".to_string(), Value::Str(found.warning.message)),
+                    (
+                        words::MESSAGE.to_string(),
+                        Value::Str(found.warning.message),
+                    ),
                 ])
             })
             .collect(),

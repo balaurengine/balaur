@@ -1,0 +1,36 @@
+// The verbs a menu row, the palette and a hotkey name.
+
+internal const ABOUT: str = "about";
+internal const ADD_CHILD: str = "add_child";
+internal const ATTACH_SCRIPT: str = "attach_script";
+internal const BINDINGS: str = "bindings";
+internal const COPY: str = "copy";
+internal const COST: str = "cost";
+internal const EXPORT: str = "export";
+internal const FOCUS: str = "focus";
+internal const GROUP: str = "group";
+internal const HIDE: str = "hide";
+internal const ISOLATE: str = "isolate";
+internal const LIBRARY: str = "library";
+internal const LOCK: str = "lock";
+internal const PALETTE: str = "palette";
+internal const PLAY: str = "play";
+internal const POPULATE: str = "populate";
+internal const PROJECTS: str = "projects";
+internal const RAGDOLL: str = "ragdoll";
+internal const REDO: str = "redo";
+internal const RESET: str = "reset";
+internal const SAVE: str = "save";
+internal const SEARCH: str = "search";
+internal const SELECT_ALL: str = "select_all";
+internal const SETTINGS: str = "settings";
+internal const SHOW_ALL: str = "show_all";
+internal const SPLIT: str = "split";
+internal const STATEMACHINE: str = "statemachine";
+internal const THEME: str = "theme";
+internal const TIMELINE: str = "timeline";
+internal const UNDO: str = "undo";
+internal const UNGROUP: str = "ungroup";
+internal const UNLOCK_ALL: str = "unlock_all";
+internal const ZOOM_IN: str = "zoom_in";
+internal const ZOOM_OUT: str = "zoom_out";

@@ -11,6 +11,9 @@ use serde_json::{Value, json};
 #[cfg(not(target_family = "wasm"))]
 use super::rest::Client;
 use super::rest::required;
+use crate::vocabulary::words;
+
+const DATA: &str = "data";
 
 /// A logged-in identity: the token pair plus who it belongs to.
 ///
@@ -83,7 +86,7 @@ pub(crate) fn login_request(credentials: &Credentials) -> (&'static str, Value) 
         } => {
             let mut body = json!({ "email": email, "password": password });
             if let Some(username) = username {
-                body["username"] = json!(username);
+                body[words::auth::USERNAME] = json!(username);
             }
             ("/api/v1/register", body)
         }
@@ -124,11 +127,11 @@ pub(crate) fn session_of(body: &Value, status: u16, what: &str) -> Result<Sessio
         return Err(anyhow!("{what} failed ({status}): {error}"));
     }
     Ok(Session {
-        access_token: required(body, &["data", "access_token"], what)?.to_string(),
-        refresh_token: required(body, &["data", "refresh_token"], what)?.to_string(),
-        user_id: required(body, &["data", "user_id"], what)?.to_string(),
-        username: required(body, &["data", "username"], what)?.to_string(),
-        display_name: required(body, &["data", "display_name"], what)?.to_string(),
+        access_token: required(body, &[DATA, words::inspect::ACCESS_TOKEN], what)?.to_string(),
+        refresh_token: required(body, &[DATA, words::inspect::REFRESH_TOKEN], what)?.to_string(),
+        user_id: required(body, &[DATA, words::inspect::USER_ID], what)?.to_string(),
+        username: required(body, &[DATA, words::auth::USERNAME], what)?.to_string(),
+        display_name: required(body, &[DATA, words::inspect::DISPLAY_NAME], what)?.to_string(),
         expires_in: body
             .pointer("/data/expires_in")
             .and_then(Value::as_u64)

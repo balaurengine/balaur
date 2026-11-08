@@ -9,9 +9,11 @@ mod ldtk;
 mod scene_check;
 pub mod shrink;
 mod tiled_map;
+mod vocabulary;
 
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::words;
 use anyhow::{Context, Result};
 use balaur_asset::glb::{Beside, SideReader};
 use balaur_core::files;
@@ -110,9 +112,9 @@ enum Route {
 fn route(name: &Path, layers: &[String]) -> Result<Route> {
     let extension = extension_of(name);
     Ok(match extension.as_str() {
-        "aseprite" | "ase" => Route::Sprite,
-        "gif" => Route::Gif,
-        "tmx" | "ldtk" => Route::Level,
+        words::ASEPRITE | words::ASE => Route::Sprite,
+        words::GIF => Route::Gif,
+        words::TMX | words::LDTK => Route::Level,
         _ if !layers.is_empty() => {
             anyhow::bail!("--layer picks layers of an .aseprite file; {extension} has none")
         }
@@ -344,7 +346,7 @@ fn import_level(file: &Path, sink: &mut dyn Sink) -> Result<Imported> {
     let stem = import_stem(file)?;
     let ldtk = file
         .extension()
-        .is_some_and(|extension| extension.eq_ignore_ascii_case("ldtk"));
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(words::LDTK));
     let imported = if ldtk {
         crate::ldtk::import(file, &stem)
     } else {

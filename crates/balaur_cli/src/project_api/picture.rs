@@ -13,6 +13,11 @@ use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const PICTURE: &str = "picture";
+const WRITE: &str = "write";
 
 /// Frames the run takes before its picture: a text is laid out and an image
 /// uploaded a frame or two after the scene is built.
@@ -31,14 +36,14 @@ impl Reported for PictureEvent {
     fn value(&self) -> Value {
         let (kind, path, message) = match self {
             Self::Written { path } => ("written", path, None),
-            Self::Failed { path, message } => ("failed", path, Some(message)),
+            Self::Failed { path, message } => (words::export_shared::FAILED, path, Some(message)),
         };
         let mut pairs = vec![
-            ("kind".into(), Value::Str(kind.into())),
-            ("path".into(), Value::Str(path.clone())),
+            (keys::KIND.into(), Value::Str(kind.into())),
+            (keys::PATH.into(), Value::Str(path.clone())),
         ];
         if let Some(message) = message {
-            pairs.push(("message".into(), Value::Str(message.clone())));
+            pairs.push((keys::MESSAGE.into(), Value::Str(message.clone())));
         }
         Value::Map(pairs)
     }
@@ -57,7 +62,7 @@ impl AsMut<Reporting<PictureEvent>> for PictureState {
 pub(super) fn declare(reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
     reg.insert_resource(PictureState(Reporting::new(PathBuf::new())));
     reg.add_system(Stage::First, pump::<PictureState, PictureEvent>);
-    let mut m = reg.script_module("picture")?;
+    let mut m = reg.script_module(PICTURE)?;
     install_picture_api(&mut m);
     Ok(())
 }
@@ -68,35 +73,32 @@ fn install_picture_api(m: &mut Module<Engine>) {
     );
     m.describe(&[
         (
-            "write",
+            WRITE,
             &[],
             "(project: string, scene: string) -> string?",
             "Write a picture of the project at `project`, of `scene` (project-relative; its main scene when empty), as the files on disk say. Answers where the PNG will be: `[export] output`'s `picture` folder, or beside the project's manifest. The `picture_event` event reports it, `{ kind: \"written\", path }` or `{ kind: \"failed\", path, message }`. Nil where no second process can run, as in a browser tab.",
         ),
     ]);
-    m.function(
-        "write",
-        |eng: &Engine, (project, scene): (String, String)| {
-            Ok(
-                write(eng, Path::new(&project), &scene).map_or(Value::Nil, |path| {
-                    Value::Str(path.to_string_lossy().into_owned())
-                }),
-            )
-        },
-    );
+    m.function(WRITE, |eng: &Engine, (project, scene): (String, String)| {
+        Ok(
+            write(eng, Path::new(&project), &scene).map_or(Value::Nil, |path| {
+                Value::Str(path.to_string_lossy().into_owned())
+            }),
+        )
+    });
 }
 
 /// Where a picture of `scene` lands: the folder `[export] output` names, or
 /// the project's own, under the scene's name.
 fn output_of(project: &Path, scene: &str) -> PathBuf {
     let stem = Path::new(scene).file_stem().map_or_else(
-        || "picture".to_string(),
+        || PICTURE.to_string(),
         |stem| stem.to_string_lossy().into_owned(),
     );
     let name = format!("{stem}.png");
     balaur_export::ExportConfig::load(project, None)
         .ok()
-        .and_then(|config| config.output_for(project, "picture", &name))
+        .and_then(|config| config.output_for(project, PICTURE, &name))
         .unwrap_or_else(|| project.join(name))
 }
 
@@ -164,7 +166,7 @@ fn main_scene_of(project: &Path) -> String {
         .and_then(|text| text.parse::<toml::Table>().ok())
         .and_then(|manifest| {
             manifest
-                .get("application")?
+                .get(keys::APPLICATION)?
                 .get("main_scene")?
                 .as_str()
                 .map(str::to_string)

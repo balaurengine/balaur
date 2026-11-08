@@ -6,8 +6,16 @@ use editor;
 use manager;
 use util;
 use window;
+use words::fields;
+use words::general;
+use words::inspector_fields;
+use words::log_fields;
+use words::roles;
+use words::statuses;
+use words::theme_tokens;
 
 const SHEET: str = "about";
+const URL: str = "url";
 
 const SITE: str = "https://balaurengine.org";
 
@@ -41,29 +49,29 @@ fn specs(state: editor::State) -> [ui::Row] {
     let out: [ui::Row] = [
         ui::Row {
             height: 56,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
-                    kind: "panel",
-                    role: "sheet_logo",
+                    kind: ui::WIDGET_PANEL,
+                    role: roles::SHEET_LOGO,
                     controls: [
-                        ui::Control { kind: "image", image: manager::LOGO, width: 44 },
+                        ui::Control { kind: ui::WIDGET_IMAGE, image: manager::LOGO, width: 44 },
                     ],
                 },
                 ui::Control {
-                    kind: "column",
+                    kind: ui::WIDGET_COLUMN,
                     role: "layout_about",
                     controls: [
-                        ui::Control { kind: "label", role: "text_title", text: "Balaur " + mine["version"].as_str() },
-                        ui::Control { kind: "label", role: "text_caption", text: manager::build_line(mine) },
+                        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur " + mine[fields::VERSION].as_str() },
+                        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: manager::build_line(mine) },
                     ],
                 },
             ],
         },
     ];
-    fact(out, "Version", mine["version"].as_str());
-    fact(out, "Build", (if mine["source"].as_bool() == true { "from a checkout" } else { mine["id"].as_str() }));
-    fact(out, "Channel", (if mine["channel"].as_str() == "" { "none" } else { mine["channel"].as_str() }));
+    fact(out, "Version", mine[fields::VERSION].as_str());
+    fact(out, "Build", (if mine[inspector_fields::SOURCE].as_bool() == true { "from a checkout" } else { mine[fields::ID].as_str() }));
+    fact(out, "Channel", (if mine[log_fields::CHANNEL].as_str() == "" { general::NONE } else { mine[log_fields::CHANNEL].as_str() }));
     fact(out, "Platform", engine::target().os);
     fact(out, "License", "MIT");
     // A tab runs the build the page served it, so it has no line to follow.
@@ -72,7 +80,7 @@ fn specs(state: editor::State) -> [ui::Row] {
     }
     out.push(ui::Row {
         height: 30,
-        slot_role: "layout_actions",
+        slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             link("balaurengine.org", SITE),
             link("Source", SOURCE),
@@ -87,8 +95,8 @@ fn fact(out: [ui::Row], name: str, value: str) {
         height: 22,
         controls: [
             ui::Control {
-                kind: "label",
-                role: "text_code",
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CODE,
                 grow: 1,
                 text: value,
             },
@@ -99,17 +107,17 @@ fn fact(out: [ui::Row], name: str, value: str) {
 
 fn link(text: str, url: str) -> ui::Control {
     ui::Control {
-        kind: "button",
-        role: "chip",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::CHIP,
         text: text,
         tooltip: url,
         on_click: "handle",
-        data: { "fn": on_link_clicked, "url": url },
+        data: { fields::FN: on_link_clicked, URL: url },
     }
 }
 
 fn on_link_clicked(state: any, data: any, _value: any) {
-    let url: str = data["url"].as_str();
+    let url: str = data[URL].as_str();
     engine::open_url(url);
 }
 
@@ -119,45 +127,45 @@ fn on_link_clicked(state: any, data: any, _value: any) {
 fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
     let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
-    let line = if mine["channel"].as_str() == "" { "nightly" } else { mine["channel"].as_str() };
+    let line = if mine[log_fields::CHANNEL].as_str() == "" { "nightly" } else { mine[log_fields::CHANNEL].as_str() };
     let newest = manager::newest_on(state, line);
-    let fresh = newest["order"].as_str() == "newer";
+    let fresh = newest[fields::ORDER].as_str() == statuses::NEWER;
     let controls: [ui::Control] = [
         ui::Control {
-            kind: "label",
-            role: "text_code",
+            kind: ui::WIDGET_LABEL,
+            role: roles::TEXT_CODE,
             font_size: 11,
             grow: 1,
             text: line + ": " + manager::standing(state, line),
-            text_color: (if fresh { tokens["success_text"] } else { tokens["text_subtle"] }).as_str(),
+            text_color: (if fresh { tokens[theme_tokens::SUCCESS_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str(),
         },
     ];
     // Up to date already says it; only a release to move to gets a press.
-    if newest["id"].as_str() != "" && newest["order"].as_str() != "same" {
+    if newest[fields::ID].as_str() != "" && newest[fields::ORDER].as_str() != statuses::SAME {
         let press = manager::press_spec(state, newest, mine);
         if press != nil {
             controls.push(press.unwrap());
         }
     }
     controls.push(ui::Control {
-        kind: "button",
-        role: "action_form",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ACTION_FORM,
         text: if state.manager.reading { "Checking" } else { "Check" },
         on_click: "handle",
-        data: { "fn": on_check_clicked },
+        data: { fields::FN: on_check_clicked },
     });
-    out.push(ui::Row { height: 30, slot_role: "layout_actions", controls: controls });
-    if mine["held"].as_str() != "" {
-        out.push(say(mine["held"].as_str(), tokens["text_subtle"].as_str()));
+    out.push(ui::Row { height: 30, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+    if mine[inspector_fields::HELD].as_str() != "" {
+        out.push(say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
     let said = if state.manager.failed != "" { state.manager.failed } else { state.manager.note };
     if said != "" {
-        out.push(say(said, (if state.manager.failed != "" { tokens["warning_text"] } else { tokens["text_subtle"] }).as_str()));
+        out.push(say(said, (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str()));
     }
     if manager::installing(state) {
         out.push(ui::Row {
             height: 22,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: manager::progress_controls(state),
         });
     }
@@ -172,8 +180,8 @@ fn say(text: str, ink: str) -> ui::Row {
         height: 0,
         controls: [
             ui::Control {
-                kind: "label",
-                role: "text_code_quiet",
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CODE_QUIET,
                 font_size: 11,
                 grow: 1,
                 wrap: true,

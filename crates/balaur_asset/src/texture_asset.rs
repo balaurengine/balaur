@@ -17,6 +17,7 @@ use balaur_core::assets::TEXTURE_ASSET_TYPE;
 use balaur_core::engine::Engine;
 use balaur_core::import::{self, Resolved, kinds};
 
+use crate::vocabulary::keys;
 /// The key naming the image a texture reads.
 pub use balaur_core::assets::SOURCE;
 
@@ -54,7 +55,7 @@ pub fn parse(value: &toml::Value) -> Result<TextureAsset> {
         bail!("`{source}` is not an image a texture reads");
     }
     let mut settings = table.clone();
-    for key in ["type", "id", SOURCE] {
+    for key in [keys::TYPE, keys::ID, SOURCE] {
         settings.remove(key);
     }
     Ok(TextureAsset {

@@ -23,6 +23,7 @@ mod prelude;
 mod reach;
 pub mod runtime;
 mod stored;
+mod vocabulary;
 pub mod words;
 
 pub use ast::{Pos, Ty};

@@ -2,6 +2,10 @@
 // lines arrived, and answers its clear, its levels and its search.
 
 use editor;
+use signals;
+
+const ALL: str = "all";
+const ERROR: str = "error";
 
 pub class Output {
     node: Node,
@@ -11,18 +15,18 @@ pub class Output {
 }
 
 fn LEVELS() -> [str] {
-    ["error", "warn", "all"]
+    [ERROR, "warn", ALL]
 }
 
 impl Output {
     pub fn init() {
-        self.level = "all";
+        self.level = ALL;
         self.query = "";
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
         events::listen(self.node, "logged");
-        events::listen(self.node, "outline_changed", source);
+        events::listen(self.node, signals::OUTLINE, source);
     }
 
     pub fn on_logged(_total: any) {

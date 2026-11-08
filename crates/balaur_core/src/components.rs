@@ -117,6 +117,8 @@ mod written;
 use values::{defaults_of, expand_colors, fill_records, overlay};
 pub use values::{merge_defaults, properties, rgba};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 pub use accepts::{AcceptsFn, refuse_unknown_keys};
 use attached::mark;
 pub use attached::{Attached, MAX_COMPONENTS, TRANSFORM_BIT, attached_of};
@@ -577,10 +579,10 @@ impl Passes {
 /// Whether a colour, an asset or a record sits anywhere in one property's
 /// spec, a composite's contents included: `[color, asset, record]`.
 fn scan_for_passes(spec: &toml::Value, found: &mut [bool; 3]) {
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("color") => found[0] = true,
-        Some("asset") => found[1] = true,
-        Some("record") => found[2] = true,
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::COLOR) => found[0] = true,
+        Some(words::datatypes::ASSET) => found[1] = true,
+        Some(words::datatypes::RECORD) => found[2] = true,
         _ => {}
     }
     for inner in inner_specs(spec) {

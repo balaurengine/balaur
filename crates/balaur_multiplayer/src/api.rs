@@ -5,6 +5,7 @@ use balaur_core::rollback::{self, PlayerId};
 use balaur_script::{Module, Value};
 
 use crate::options::Options;
+use crate::vocabulary::words;
 use crate::vocabulary::{Status, install_constants};
 use crate::wire::Control;
 use crate::{MultiplayerState, Phase, lobby, slot_value};
@@ -175,7 +176,10 @@ fn leave(state: &mut MultiplayerState) {
             state.reset();
             state.tell(
                 crate::EventKind::Closed,
-                vec![("reason", Value::Str(String::from("left")))],
+                vec![(
+                    words::lobby::REASON,
+                    Value::Str(String::from(words::api::LEFT)),
+                )],
             );
         }
         return;
@@ -189,7 +193,10 @@ fn leave(state: &mut MultiplayerState) {
     state.reset();
     state.tell(
         crate::EventKind::Closed,
-        vec![("reason", Value::Str(String::from("left")))],
+        vec![(
+            words::lobby::REASON,
+            Value::Str(String::from(words::api::LEFT)),
+        )],
     );
 }
 
@@ -217,7 +224,9 @@ fn install_play(m: &mut Module<Engine>) {
             Ok(Value::Nil)
         },
     );
-    m.function("players", |eng: &Engine, (): ()| Ok(players(eng)));
+    m.function(words::options::PLAYERS, |eng: &Engine, (): ()| {
+        Ok(players(eng))
+    });
     m.function("local_player", |eng: &Engine, (): ()| {
         Ok(state(eng).borrow().local.map_or(Value::Nil, slot_value))
     });
@@ -264,8 +273,11 @@ fn players(eng: &Engine) -> Value {
                 Status::Present
             };
             Value::Map(vec![
-                (String::from("slot"), slot_value(member.slot)),
-                (String::from("name"), Value::Str(member.name.clone())),
+                (String::from(words::lobby::SLOT), slot_value(member.slot)),
+                (
+                    String::from(words::lobby::NAME),
+                    Value::Str(member.name.clone()),
+                ),
                 (String::from("bot"), Value::Bool(member.bot)),
                 (
                     String::from("local"),

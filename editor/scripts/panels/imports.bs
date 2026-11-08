@@ -2,6 +2,7 @@
 // down on its own clock once the last of the batch has been over a while.
 
 use editor;
+use signals;
 
 pub class Imports {
     node: Node,
@@ -14,7 +15,7 @@ impl Imports {
         let source = scene::get_node("Editor");
         self.editor = source.script;
         self.until = 0.0;
-        events::listen(self.node, "assets_changed", source);
+        events::listen(self.node, signals::ASSETS_CHANGED, source);
     }
 
     pub fn on_assets_changed(_change: any) {

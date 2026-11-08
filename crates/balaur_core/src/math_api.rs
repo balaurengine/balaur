@@ -14,6 +14,7 @@ use balaur_script::{Module, Value};
 
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number};
+use crate::vocabulary::words;
 
 pub const MATH_OPS: &[EngineOp] = &[
     EngineOp {
@@ -155,7 +156,7 @@ pub fn install_math_api(m: &mut Module<Engine>) {
         ("cosh", &[], "(x: float) -> float", "The hyperbolic cosine."),
         ("tanh", &[], "(x: float) -> float", "The hyperbolic tangent, between -1 and 1."),
         ("exp", &[], "(power: float) -> float", "e raised to the given power."),
-        ("log", &[], "(x: float) -> float", "The natural logarithm; -INF at zero and NaN below it."),
+        (words::modules::LOG, &[], "(x: float) -> float", "The natural logarithm; -INF at zero and NaN below it."),
         ("log10", &[], "(x: float) -> float", "The base-10 logarithm; -INF at zero and NaN below it."),
         ("pow", &[], "(base: float, exponent: float) -> float", "The first argument raised to the power of the second."),
         ("sqrt", &[], "(x: float) -> float", "The square root; NaN for a negative argument."),

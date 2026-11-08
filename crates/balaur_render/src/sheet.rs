@@ -8,6 +8,9 @@ use balaur_plugin::Registry;
 
 use crate::vocabulary::keys as k;
 
+const FRAMES: &str = "frames";
+const RECT: &str = "rect";
+
 pub const SPRITE_SHEET_ASSET_TYPE: &str = "sprite_sheet";
 
 /// One frame of the sheet: where it sits on the texture, and how long a
@@ -95,7 +98,7 @@ impl SpriteSheet {
         // A grid says the shape; a `frames` list says every rect. One or the
         // other, so a sheet has one answer for where a frame sits.
         let frames = if grid.is_some() {
-            if value.get("frames").is_some() {
+            if value.get(FRAMES).is_some() {
                 bail!("a sprite_sheet takes `columns` and `rows`, or `frames`, not both");
             }
             Vec::new()
@@ -151,7 +154,7 @@ fn parse_grid(value: &toml::Value) -> Result<Option<[u32; 2]>> {
 
 fn parse_frames(value: &toml::Value) -> Result<Vec<SheetFrame>> {
     let items = value
-        .get("frames")
+        .get(FRAMES)
         .and_then(toml::Value::as_array)
         .ok_or_else(|| anyhow!("a sprite_sheet needs a `frames` list"))?;
     if items.is_empty() {
@@ -160,7 +163,7 @@ fn parse_frames(value: &toml::Value) -> Result<Vec<SheetFrame>> {
     let mut frames = Vec::with_capacity(items.len());
     for (index, item) in items.iter().enumerate() {
         let rect = item
-            .get("rect")
+            .get(RECT)
             .ok_or_else(|| anyhow!("frame {index} needs a `rect` of [x, y, w, h]"))?;
         let [x, y, w, h] = numbers::<4>(rect, &format!("frame {index}'s `rect`"))?;
         if x < 0 || y < 0 || w <= 0 || h <= 0 {
@@ -245,7 +248,7 @@ fn parse_slices(value: &toml::Value) -> Result<Vec<SheetSlice>> {
     let mut slices = Vec::with_capacity(table.len());
     for (name, slice) in table {
         let rect = slice
-            .get("rect")
+            .get(RECT)
             .ok_or_else(|| anyhow!("slice '{name}' needs a `rect` of [x, y, w, h]"))?;
         let [x, y, w, h] = numbers::<4>(rect, &format!("slice '{name}'s `rect`"))?;
         let center = slice

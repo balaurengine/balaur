@@ -2,6 +2,7 @@
 // what they show moved, the document moved, or the stage they sit on did.
 
 use editor;
+use signals;
 
 pub class Dialogs {
     node: Node,
@@ -12,7 +13,7 @@ impl Dialogs {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        for word in ["plugins_changed", "outline_changed", "stage_changed"] {
+        for word in [signals::PLUGINS_CHANGED, "outline_changed", "stage_changed"] {
             events::listen(self.node, word, source);
         }
     }

@@ -6,6 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::engine::Engine;
+use crate::vocabulary::words;
 
 /// What never changes for one run: recorded once, in the recording's
 /// header, so a replay on another machine answers as the original did.
@@ -34,7 +35,7 @@ impl PlatformFacts {
     /// This build, on this machine.
     pub fn current(eng: &Engine) -> Self {
         let os = if cfg!(target_family = "wasm") {
-            "web"
+            words::platforms::WEB
         } else {
             std::env::consts::OS
         };
@@ -107,7 +108,7 @@ pub struct WallClock {
     reason = "the wall clock seeds an id made once per install, outside any tick"
 )]
 fn device_id(eng: &Engine) -> String {
-    let path = crate::save::home(eng).join("device_id");
+    let path = crate::save::home(eng).join(words::functions::DEVICE_ID);
     let fs = crate::files::backend(eng);
     if let Ok(bytes) = fs.read(&path) {
         let text = String::from_utf8_lossy(&bytes).trim().to_string();

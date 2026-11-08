@@ -1,0 +1,18 @@
+// The fields of a project, its files and its settings.
+
+internal const APPLICATION: str = "application";
+internal const ASSETS: str = "assets";
+internal const FEATURES: str = "features";
+internal const FILE: str = "file";
+internal const FILES: str = "files";
+internal const FONTS: str = "fonts";
+internal const IS_DIR: str = "is_dir";
+internal const OPEN: str = "open";
+internal const PATH: str = "path";
+internal const PROJECT: str = "project";
+internal const ROLES: str = "roles";
+internal const RUN: str = "run";
+internal const SIZES: str = "sizes";
+internal const SUBMIT: str = "submit";
+internal const THEME: str = "theme";
+internal const WRITE: str = "write";

@@ -6,6 +6,7 @@ use super::rt::{
 };
 use super::{Gen, Site};
 use crate::ast::{BinOp, Expr, ExprKind, Pos, Ty};
+use crate::vocabulary::words;
 use crate::{Error, Probe, VarInfo};
 use std::collections::HashMap;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
@@ -662,7 +663,7 @@ impl<'a> FnGen<'a> {
     /// The `any` is released after; false for a type it cannot become.
     pub(crate) fn unbox_any(&mut self, want: &Ty) -> bool {
         let read = match want {
-            Ty::Fn(..) => Some("as_int"),
+            Ty::Fn(..) => Some(words::methods::AS_INT),
             Ty::Struct(_) | Ty::Array(_) | Ty::Optional(_) => None,
             _ => match any_read(want) {
                 Some(read) => Some(read),
@@ -1076,9 +1077,9 @@ impl<'a> FnGen<'a> {
 /// The function that makes a vector or a colour, for one of those structs.
 pub(crate) fn vector_fn(name: &str) -> Option<&'static str> {
     match name {
-        "Vec2" => Some("vec2"),
-        "Vec3" => Some("vec3"),
-        "Color" => Some("color"),
+        "Vec2" => Some(words::builtins::VEC2),
+        "Vec3" => Some(words::builtins::VEC3),
+        "Color" => Some(words::builtins::COLOR),
         _ => None,
     }
 }
@@ -1087,11 +1088,11 @@ pub(crate) fn vector_fn(name: &str) -> Option<&'static str> {
 /// of that, as nothing else asks what the value holds.
 pub(crate) fn any_read(want: &Ty) -> Option<&'static str> {
     match want {
-        Ty::Int => Some("as_int"),
-        Ty::Float => Some("as_float"),
-        Ty::Bool => Some("as_bool"),
-        Ty::Str => Some("as_str"),
-        Ty::Node => Some("as_node"),
+        Ty::Int => Some(words::methods::AS_INT),
+        Ty::Float => Some(words::methods::AS_FLOAT),
+        Ty::Bool => Some(words::methods::AS_BOOL),
+        Ty::Str => Some(words::methods::AS_STR),
+        Ty::Node => Some(words::methods::AS_NODE),
         _ => None,
     }
 }
@@ -1119,15 +1120,15 @@ fn record_wanted(want: &Ty) -> Option<&str> {
 
 pub(crate) fn show(t: &Ty) -> String {
     match t {
-        Ty::Int => "int".into(),
-        Ty::Float => "float".into(),
-        Ty::Bool => "bool".into(),
-        Ty::Str => "str".into(),
+        Ty::Int => words::keywords::INT.into(),
+        Ty::Float => words::keywords::FLOAT.into(),
+        Ty::Bool => words::keywords::BOOL.into(),
+        Ty::Str => words::keywords::STR.into(),
         Ty::Node => "Node".into(),
         Ty::Void => "nothing".into(),
         Ty::Array(e) => format!("[{}]", show(e)),
         Ty::Struct(s) => crate::maps::shown(s).to_string(),
-        Ty::Any => "any".into(),
+        Ty::Any => words::keywords::ANY.into(),
         Ty::Optional(t) => format!("{}?", show(t)),
         Ty::Map(key, value) => format!("{{ {}: {} }}", show(key), show(value)),
         Ty::Fn(params, ret, refs) => {

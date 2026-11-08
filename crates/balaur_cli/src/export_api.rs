@@ -20,6 +20,8 @@ use balaur_script::{Module, Value};
 
 use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
 use crate::jobs::pump;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// The project being edited plus what only a desktop install has: the
 /// per-user runtime cache the roots are read from.
@@ -52,7 +54,7 @@ impl ExportPlugin {
 
 impl balaur_plugin::Plugin for ExportPlugin {
     fn name(&self) -> &'static str {
-        "export"
+        words::export_api::EXPORT
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -61,7 +63,7 @@ impl balaur_plugin::Plugin for ExportPlugin {
         balaur_export::settings::declare(reg.engine());
         reg.insert_resource(ExportState(ExportCore::new(self.project.clone())));
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
-        let mut m = reg.script_module("export")?;
+        let mut m = reg.script_module(words::export_api::EXPORT)?;
         install_export_api(&mut m);
         Ok(())
     }
@@ -89,23 +91,23 @@ fn install_export_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("targets", &[], "() -> [Target]", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
-        ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
-        ("output", &[], "(target: string) -> string", "Where an export for this target will be written, as the project's `[export] output` decides."),
-        ("running_count", &[], "() -> int", "How many exports are in flight."),
-        ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
+        (words::functions::TARGETS, &[], "() -> [Target]", "Every target, each `{ name, runtime, bundle, installed, fetchable, note }`: the runtime the project's `[export] runtime` puts it on, whether that is already here, whether a missing one could be fetched, and what a signed build of it would also need."),
+        (words::functions::START, &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target, on a thread. `download` allows fetching a missing template, `sign` names an identity, `output` overrides where it lands. Answers false while a recording plays."),
+        (words::functions::OUTPUT, &[], "(target: string) -> string", "Where an export for this target will be written, as the project's `[export] output` decides."),
+        (words::functions::RUNNING_COUNT, &[], "() -> int", "How many exports are in flight."),
+        (words::functions::PREVIEW, &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
     ]);
-    m.function("targets", |eng: &Engine, ()| {
+    m.function(words::functions::TARGETS, |eng: &Engine, ()| {
         let project = eng.resource::<ExportState>().borrow().0.project.clone();
         Ok(targets(&project))
     });
     m.function(
-        "start",
+        words::functions::START,
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
             Ok(start(eng, &target, opts.as_ref()))
         },
     );
-    m.function("output", |eng: &Engine, target: String| {
+    m.function(words::functions::OUTPUT, |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
         let project = state.borrow().0.project.clone();
         let config = balaur_export::ExportConfig::load(&project, Some(&target)).unwrap_or_default();
@@ -117,11 +119,11 @@ fn install_export_api(m: &mut Module<Engine>) {
                 .into_owned(),
         ))
     });
-    m.function("running_count", |_: &Engine, ()| {
+    m.function(words::functions::RUNNING_COUNT, |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.load(std::sync::atomic::Ordering::Relaxed)).unwrap_or(i64::MAX))
     });
     m.function(
-        "preview",
+        words::functions::PREVIEW,
         |eng: &Engine, (path, target): (String, String)| {
             let project = eng.resource::<ExportState>().borrow().0.project.clone();
             Ok(crate::export_shared::preview(&project, &path, &target))
@@ -144,18 +146,18 @@ fn targets(project: &std::path::Path) -> Value {
                 .unwrap_or_else(|_| (*name).to_string());
             let installed = balaur_export::runtime_installed(&runtime, &roots);
             Value::Map(vec![
-                ("name".into(), Value::Str((*name).into())),
+                (keys::NAME.into(), Value::Str((*name).into())),
                 ("runtime".into(), Value::Str(runtime)),
                 (
                     "bundle".into(),
                     Value::Bool(balaur_export::ships_bundle(name)),
                 ),
-                ("installed".into(), Value::Bool(installed)),
+                (keys::INSTALLED.into(), Value::Bool(installed)),
                 (
                     "fetchable".into(),
                     Value::Bool(crate::version::release_tag().is_some()),
                 ),
-                ("note".into(), Value::Str(note(name).into())),
+                (keys::NOTE.into(), Value::Str(note(name).into())),
             ])
         })
         .collect();
@@ -166,9 +168,15 @@ fn targets(project: &std::path::Path) -> Value {
 /// itself, so a row says it before the click rather than after.
 fn note(target: &str) -> &'static str {
     match target {
-        "macos-universal" | "ios" if !cfg!(target_os = "macos") => "signing needs macOS",
-        "android" => "an installable APK needs the Android SDK, an AAB bundletool too",
-        "windows-x64" | "windows-arm64" if !cfg!(windows) => "signing needs osslsigncode",
+        words::targets::MACOS_UNIVERSAL | words::targets::IOS if !cfg!(target_os = "macos") => {
+            "signing needs macOS"
+        }
+        words::targets::ANDROID => {
+            "an installable APK needs the Android SDK, an AAB bundletool too"
+        }
+        words::targets::WINDOWS_X64 | words::targets::WINDOWS_ARM64 if !cfg!(windows) => {
+            "signing needs osslsigncode"
+        }
         _ => "",
     }
 }
@@ -185,7 +193,7 @@ fn start(eng: &Engine, target: &str, opts: Option<&Value>) -> bool {
                 Some(Value::Str(identity)) => Some(identity.clone()),
                 _ => None,
             },
-            match opt(opts, "output") {
+            match opt(opts, words::functions::OUTPUT) {
                 Some(Value::Str(path)) => Some(PathBuf::from(path)),
                 _ => None,
             },
@@ -230,9 +238,10 @@ fn run_export(
 ) -> Result<PathBuf> {
     let fetch = move |wanted: &str| crate::runtimes::obtain(wanted, true);
     let config = balaur_export::ExportConfig::load(project, Some(target))?;
-    let name = project
-        .file_name()
-        .map_or_else(|| "game".to_string(), |n| n.to_string_lossy().into_owned());
+    let name = project.file_name().map_or_else(
+        || words::web_export::GAME.to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    );
     let landed = output.clone().or_else(|| {
         config
             .output_for(project, target, &name)

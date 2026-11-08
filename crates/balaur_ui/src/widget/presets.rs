@@ -65,7 +65,7 @@ pub(crate) fn register_widget_presets(reg: &mut Registry<'_>) -> Result<()> {
             words::DIALOG,
             "A panel over everything, with the screen behind it dimmed and deaf",
         ),
-        ("separator", "A line between siblings"),
+        (words::SEPARATOR, "A line between siblings"),
         (
             words::WINDOW,
             "A panel with a title bar, moved by dragging it and shut by its cross",

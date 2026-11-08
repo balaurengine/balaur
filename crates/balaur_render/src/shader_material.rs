@@ -26,6 +26,7 @@ use crate::bind_layout::{material_group, uniform_entry};
 use crate::material::{Compiled, PARAMS_GROUP};
 use crate::pipeline::Pipelines2d;
 use crate::probe::Probe;
+use crate::vocabulary::words;
 
 /// Matches `FrameUniforms` in `shaders/sprite.wesl`.
 #[repr(C)]
@@ -221,7 +222,7 @@ fn bind_group_layouts(screen: bool) -> [wgpu::BindGroupLayout; 3] {
 /// The same group for a `camera.post` material, which has params but never a
 /// probe: a full-screen pass has no caret to preview a value at.
 pub(crate) fn post_params_group(values: &[u8]) -> Option<(wgpu::BindGroupLayout, wgpu::BindGroup)> {
-    material_group(values, None, "material")
+    material_group(values, None, words::shader_material::MATERIAL)
 }
 
 fn build_pipeline(
@@ -268,7 +269,7 @@ impl ShaderMaterial {
                 ..Default::default()
             })
         });
-        let params = material_group(&compiled.params, probe, "material");
+        let params = material_group(&compiled.params, probe, words::shader_material::MATERIAL);
         let mut groups = vec![
             Some(&frame_layout),
             Some(&object_layout),

@@ -457,7 +457,7 @@ pub fn file_definition(path: &str) -> Option<(&'static str, toml::Value)> {
         _ => return None,
     };
     let mut table = toml::Table::new();
-    table.insert("type".into(), toml::Value::String(type_name.into()));
+    table.insert(TYPE.into(), toml::Value::String(type_name.into()));
     table.insert(SOURCE.into(), toml::Value::String(path.to_string()));
     Some((type_name, toml::Value::Table(table)))
 }
@@ -771,7 +771,7 @@ fn read_definition(eng: &Engine, key: &AssetRef, reference: &str) -> Result<Defi
 
 fn declared_type(value: &toml::Value) -> Option<String> {
     value
-        .get("type")
+        .get(TYPE)
         .and_then(toml::Value::as_str)
         .map(str::to_string)
 }

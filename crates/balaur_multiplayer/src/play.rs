@@ -13,6 +13,7 @@ use balaur_net::transport::LinkState;
 use balaur_script::Value;
 
 use crate::lobby::Starting;
+use crate::vocabulary::words;
 use crate::vocabulary::{EventKind, Role};
 use crate::wire::Control;
 use crate::{MultiplayerState, Phase, slot_value};
@@ -151,7 +152,10 @@ fn begin(app: &mut App, state: &Rc<RefCell<MultiplayerState>>) {
     s.began = Some(Instant::now());
     s.absent.clear();
     s.desync_told = false;
-    s.tell(EventKind::Started, vec![("slot", slot_value(local))]);
+    s.tell(
+        EventKind::Started,
+        vec![(words::lobby::SLOT, slot_value(local))],
+    );
 }
 
 /// What scripts set for this machine's slots, into the next tick.
@@ -169,7 +173,7 @@ fn feed(state: &MultiplayerState, net: &mut NetSession) {
 fn settle(state: &mut MultiplayerState, net: &mut NetSession) -> bool {
     if std::mem::take(&mut state.leave_asked) {
         net.broadcast_control(&Control::Bye.to_value());
-        end(state, net, "left");
+        end(state, net, words::api::LEFT);
         return false;
     }
     let host = state.role == Some(Role::Host);
@@ -259,7 +263,10 @@ fn mark_absent(state: &mut MultiplayerState, net: &mut NetSession, slot: PlayerI
     let name = state.name_of(slot);
     state.tell(
         EventKind::Left,
-        vec![("slot", slot_value(slot)), ("name", Value::Str(name))],
+        vec![
+            (words::lobby::SLOT, slot_value(slot)),
+            (words::lobby::NAME, Value::Str(name)),
+        ],
     );
 }
 
@@ -269,6 +276,6 @@ fn end(state: &mut MultiplayerState, net: &mut NetSession, reason: &str) {
     state.reset();
     state.tell(
         EventKind::Closed,
-        vec![("reason", Value::Str(reason.to_string()))],
+        vec![(words::lobby::REASON, Value::Str(reason.to_string()))],
     );
 }

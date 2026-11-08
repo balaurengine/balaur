@@ -10,6 +10,8 @@ use anyhow::{Result, bail};
 use balaur_script::Value;
 
 use crate::Engine;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// One variable's declared type, which is what a value written into it is
 /// coerced to. Spelled the way an `exports()` spec is.
@@ -24,10 +26,10 @@ pub enum VarType {
 impl VarType {
     fn of(word: &str) -> Option<Self> {
         match word {
-            "bool" => Some(Self::Bool),
-            "int" => Some(Self::Int),
-            "float" => Some(Self::Float),
-            "string" | "text" => Some(Self::Text),
+            words::datatypes::BOOL => Some(Self::Bool),
+            words::datatypes::INT => Some(Self::Int),
+            words::datatypes::FLOAT => Some(Self::Float),
+            words::datatypes::STRING | words::TEXT => Some(Self::Text),
             _ => None,
         }
     }
@@ -36,10 +38,10 @@ impl VarType {
     #[must_use]
     pub fn word(self) -> &'static str {
         match self {
-            Self::Bool => "bool",
-            Self::Int => "int",
-            Self::Float => "float",
-            Self::Text => "string",
+            Self::Bool => words::datatypes::BOOL,
+            Self::Int => words::datatypes::INT,
+            Self::Float => words::datatypes::FLOAT,
+            Self::Text => words::datatypes::STRING,
         }
     }
 
@@ -160,12 +162,12 @@ pub fn declare_from_toml(eng: &Engine, table: &toml::Table) -> Result<()> {
         let (kind, value) = match row {
             toml::Value::Table(spec) => {
                 let word = spec
-                    .get("type")
+                    .get(keys::TYPE)
                     .and_then(toml::Value::as_str)
-                    .unwrap_or("float");
+                    .unwrap_or(words::datatypes::FLOAT);
                 let kind = VarType::of(word)
                     .ok_or_else(|| anyhow::anyhow!("variable `{name}`: no type `{word}`"))?;
-                let value = spec.get("value").map_or(Value::Num(0.0), from_toml);
+                let value = spec.get(keys::VALUE).map_or(Value::Num(0.0), from_toml);
                 (kind, value)
             }
             other => (kind_of(other), from_toml(other)),

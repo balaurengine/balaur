@@ -13,6 +13,8 @@
 use std::cell::RefCell;
 use std::path::Path;
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_script::Value;
 use wasm_bindgen::JsValue;
 
@@ -40,14 +42,18 @@ pub(crate) fn set_kept(rows: &js_sys::Array) {
     let mut out = Vec::with_capacity(rows.length() as usize);
     for index in 0..rows.length() {
         let row = rows.get(index);
-        let Some(id) = read(&row, "id").as_string() else {
+        let Some(id) = read(&row, keys::ID).as_string() else {
             continue;
         };
-        let name = read(&row, "name").as_string().unwrap_or_else(|| id.clone());
+        let name = read(&row, keys::NAME)
+            .as_string()
+            .unwrap_or_else(|| id.clone());
         out.push(Kept {
             id,
             name,
-            modified: read(&row, "modified").as_f64().unwrap_or_default(),
+            modified: read(&row, words::web_store::MODIFIED)
+                .as_f64()
+                .unwrap_or_default(),
         });
     }
     KEPT.with(|kept| *kept.borrow_mut() = out);
@@ -62,16 +68,16 @@ pub(crate) fn recent() -> Vec<Value> {
             .iter()
             .map(|row| {
                 Value::Map(vec![
-                    ("path".into(), Value::Str(row.id.clone())),
-                    ("name".into(), Value::Str(row.name.clone())),
-                    ("opened".into(), Value::Num(row.modified)),
+                    (keys::PATH.into(), Value::Str(row.id.clone())),
+                    (keys::NAME.into(), Value::Str(row.name.clone())),
+                    (keys::OPENED.into(), Value::Num(row.modified)),
                     (
-                        "when".into(),
+                        keys::WHEN.into(),
                         Value::Str(crate::project_api::said_ago(
                             (now - row.modified).max(0.0) as i64
                         )),
                     ),
-                    ("version".into(), Value::Str(String::new())),
+                    (keys::VERSION.into(), Value::Str(String::new())),
                     ("exists".into(), Value::Bool(true)),
                 ])
             })
@@ -85,13 +91,13 @@ pub(crate) fn open(id: &Path) -> Value {
     let id = id.to_string_lossy().into_owned();
     if !KEPT.with(|kept| kept.borrow().iter().any(|row| row.id == id)) {
         return Value::Map(vec![(
-            "error".into(),
+            keys::ERROR.into(),
             Value::text(format!("this browser keeps no project called {id}")),
         )]);
     }
     match ask_for(&id) {
         Ok(()) => Value::Map(Vec::new()),
-        Err(e) => Value::Map(vec![("error".into(), Value::Str(e))]),
+        Err(e) => Value::Map(vec![(keys::ERROR.into(), Value::Str(e))]),
     }
 }
 

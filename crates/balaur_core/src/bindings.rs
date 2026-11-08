@@ -12,6 +12,8 @@ use crate::App;
 use crate::components::derived::{self, Component, Property, Record, Written};
 use crate::hecs::Entity;
 use crate::variables::{Variables, as_num};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use crate::{Engine, hooks};
 
 /// What a binding does when its event fires and its condition holds.
@@ -209,8 +211,8 @@ fn parse_compare(text: &str) -> Result<Condition> {
 fn literal(text: &str) -> Value {
     let text = text.trim();
     match text {
-        "true" => return Value::Bool(true),
-        "false" => return Value::Bool(false),
+        words::TRUE => return Value::Bool(true),
+        words::FALSE => return Value::Bool(false),
         _ => {}
     }
     if let Ok(number) = text.parse::<f64>() {
@@ -325,10 +327,10 @@ pub fn parse_binding(row: &toml::Value) -> Result<Binding> {
         when: parse_condition(&when_source)?,
         when_source,
         action,
-        target: text("target"),
+        target: text(words::TARGET),
         // The record fills a row that names no value with an empty string,
         // and a row that names none acts on nothing.
-        value: match row.get("value") {
+        value: match row.get(keys::VALUE) {
             Some(toml::Value::String(s)) if s.is_empty() => Value::Nil,
             Some(held) => value_of(held),
             None => Value::Nil,
@@ -378,8 +380,8 @@ impl Default for RowValue {
 
 impl Property for RowValue {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        spec.entry("type")
-            .or_insert_with(|| toml::Value::String("string".into()));
+        spec.entry(keys::TYPE)
+            .or_insert_with(|| toml::Value::String(words::datatypes::STRING.into()));
     }
 
     fn to_value(&self) -> toml::Value {
@@ -410,7 +412,7 @@ fn after_write(eng: &Engine, entity: Entity, _written: Written) -> Result<()> {
         };
         derived::to_table(&*asked)
     };
-    let rows = match table.get("rows") {
+    let rows = match table.get(keys::ROWS) {
         Some(toml::Value::Array(rows)) => {
             rows.iter().map(parse_binding).collect::<Result<Vec<_>>>()?
         }

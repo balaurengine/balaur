@@ -3,6 +3,8 @@
 //! render. Kept apart from the table that names the ops.
 
 use crate::engine::Engine;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
     m.module_doc(
@@ -41,20 +43,20 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("time", &[], "() -> float", "Seconds of engine time since the app started, accumulated as a float."),
+        (keys::TIME, &[], "() -> float", "Seconds of engine time since the app started, accumulated as a float."),
         ("timings", &[], "() -> Timings?", "What the last frame cost, in seconds: `{ frame, fixed_steps, stages, spans }`. Presentation only: branching a `fixed_update` on wall time desyncs, and nothing records it."),
         ("set_script_profiling", &[], "(on: bool)", "Start or stop counting what each script costs. Turning it on clears the tally; on from off, or off from on, rebuilds every Balaur Script file between frames, with counters or without, carrying its fields across."),
         ("script_costs", &[], "() -> [ScriptCost]", "What each script has cost since `set_script_profiling(true)`, dearest first: a list of `{ path, calls, instructions }`, `calls` the engine's calls into it. A file counts the statements it ran: not seconds, so the number is the same on every machine."),
         ("function_costs", &[], "() -> [FunctionCost]", "What each function has cost since `set_script_profiling(true)`, dearest first: a list of `{ function, calls, instructions }`, a function's own statements without its callees'. A function of a module two files use counts once for the two."),
         ("delta", &[], "() -> float", "Seconds the frame in progress covers, the same number a system is handed."),
-        ("tick", &[], "() -> int", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
+        (keys::TICK, &[], "() -> int", "Which frame this is, counted whole: what simulation code branches on instead of `time`."),
         ("change_tick", &[], "() -> int", "The change tick now, stepped before every system runs and never put back. Keep it where a script last looked, and `scene.changed_since` answers what moved after it."),
         ("set_paused", &[], "(on: bool)", "Pause or resume the game. Every node whose `process` mode is `pausable` stops ticking, physics holds both worlds, and the frame loop keeps drawing; an `always` subtree is what a pause menu runs in. Every script's `on_paused_changed(bool)` follows, the ones the pause just stopped included."),
-        ("paused", &[], "() -> bool", "Whether the game is paused."),
+        (words::functions::PAUSED, &[], "() -> bool", "Whether the game is paused."),
         ("set_time_scale", &[], "(scale: float)", "Multiply wall-clock time before the simulation is owed it: 0.5 is slow motion, 2.0 fast forward, each still whole fixed steps. Zero stops time without stopping a single node. A replay and a networked session drive by tick and ignore it."),
         ("time_scale", &[], "() -> float", "What time is being multiplied by; 1.0 is real time."),
         ("tick_hz", &[], "() -> int", "How many fixed steps a second this run takes, from `[time] tick_hz`. 60 unless the project says otherwise."),
-        ("quit", &[], "(code: int?)", "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out."),
+        (words::functions::QUIT, &[], "(code: int?)", "Ask the app to shut down; the frame in flight still finishes, and the process exits with `code`, 0 when left out."),
         ("args", &[], "() -> [string]", "The command-line arguments the app was started with, empty when it was given none."),
         ("set_content_root", &[], "(root: string)", "Play the content of the project at `root`: its `strings/` catalogues and its `fonts/` are read from there, and the subtree `debugger.set_scope` names draws in them. For a host running a project other than its own: the editor, whose own root has neither. An empty string plays the project's own again."),
         ("environment", &[], "(name: string) -> string?", "An environment variable's value, nil when it is unset. Nil on the web, which has none. Outside the simulation, like `args`: a replay does not record it."),
@@ -66,8 +68,8 @@ pub(crate) fn document_engine(m: &mut balaur_script::Module<Engine>) {
         ("plugins", &[], "() -> [string]", "Every plugin this build loaded, named, in load order."),
         ("has_plugin", &[], "(name: string) -> bool", "Whether one plugin loaded, so a game shipped without `http` can say so rather than call into a module that is not there."),
         ("plugin_version", &[], "(name: string) -> string?", "The version of one loaded plugin, or nil when it did not load."),
-        ("target", &[], "() -> Target", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
-        ("device_id", &[], "() -> string", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
+        (words::TARGET, &[], "() -> Target", "Where this runs: `{ os, web, mobile, touchscreen, editor, dev }`, `dev` being a run from the sources rather than an exported pack. Recorded in a session's header, so a replay on another machine answers as the original did."),
+        (words::functions::DEVICE_ID, &[], "() -> string", "One id per install, made on first use and kept in the user directory: what a device login sends. Recorded with the session."),
         ("unix_time", &[], "() -> float", "The wall clock at the top of this tick, in seconds since 1970. Read once per frame and recorded, so a replay sees the time the recording saw."),
         ("focused", &[], "() -> bool", "Whether the window is in front of the player this tick; every script's `on_focused_changed(bool)` is called when it changes. True with no window."),
         ("dark_mode", &[], "() -> bool", "Whether the system is in dark mode this tick; every script's `on_dark_mode_changed(bool)` is called when it changes. False where nothing says."),
@@ -148,7 +150,7 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("root", &[], "() -> node", "The tree's root node."),
+        (words::functions::ROOT, &[], "() -> node", "The tree's root node."),
         ("get_node", &[], "(path: string) -> node?", "The node at an `A/B/C` path from the root, where `..` climbs to the parent; nil when nothing matches."),
         ("node_by_id", &[], "(id: string, under: node?) -> node?", "The node carrying a stable id, which survives the rename and the reparent a path does not; nil when nothing carries it. `under` bounds the search to one subtree, for a tool holding more than one tree."),
         ("with_component", &[], "(component: string) -> [node]", "Every node carrying the named component, in tree order. What a script asks instead of walking the tree itself."),
@@ -157,7 +159,7 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("removed_since", &[], "(component: string, tick: int) -> [node]", "The nodes the component came off after change tick `tick`, freed ones included, oldest first: what the frame it came off in and the next still hear."),
         ("tagged", &[], "(tag: string) -> [node]", "Every node filed under a tag, in tree order; what a scene's `tags` key and `node.add_tag` feed."),
         ("instantiate", &[], "(source: string, parent: node?, opts: InstantiateOptions?)", "Build a scene document (TOML text, not a path) under a parent. `scripts: false` names each node's script without running it; `root` is the project the text names its files from, when it is not this one, and every path is made absolute against it."),
-        ("to_toml", &[], "(root: node, opts: ToTomlOptions?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it."),
+        (words::functions::TO_TOML, &[], "(root: node, opts: ToTomlOptions?) -> string", "The scene under a node, that node its root, as a scene file's text: what `instantiate` builds again. Each component is what was asked of it, a prefab's nodes are their instance's `overrides`, and `root` writes every path under that project's root as it spells it."),
         ("attach_scripts", &[], "(root: node)", "Run every script the nodes under a node name, children first: what starts a scene built with `scripts: false`."),
         ("keep_changes", &[], "(root: node?)", "Keep every change under a node as it happens, each with what it replaced, until `take_changes` hands them over; nil stops, and what was kept goes. An editor's undo, which the `changed` event serves a frame late and merged."),
         ("take_changes", &[], "() -> [Change]", "The changes kept since the last take, oldest first, emptying the list: `{ node, kind, id }` with `kind` one of `component` (`component`, `properties`, `was`: the table asked before), `attached`, `removed` (`was`), `added` (`parent`), `freed` (`parent`, `place`, `was`: the subtree as scene text), `renamed` (`was`), `moved` (`parent`, `was`: `{ parent, place }`), `script` (`was`: `{ source, props }`, nil for none) and `keys` (`was`: every one of the node's own keys, `visible` to `tags`). Parents are stable ids, so a change outlives the nodes it names."),
@@ -177,7 +179,7 @@ pub(crate) fn document_scene(m: &mut balaur_script::Module<Engine>) {
         ("variables", &[], "() -> [Variable]", "Every declared variable as `{ name, type, value }`, in name order."),
         ("switch", &[], "(path: string, options: SwitchOptions?)", "Go to another scene at the end of this tick, so a script asking inside `update` is not moving the tree it runs in. The scene left stays built and parked, and a scene already parked comes back as it was, with no node built and no `init` run; each of their scripts is told `on_parked_changed`. A parked scene does not update, draw, take input or hear a hook, an event or a call, and a task its script awaits holds until it returns. A script reaching it can still read and write its components; it takes no new node or script. A digest and a snapshot cover it, a save holds nothing of it, and the change log says nothing of a park or a return. A file edited since the scene was built is built again on the way back. `fade` is seconds of crossover: the old scene's roots fade out to the clear colour over the first half, the switch happens, and the new scene's fade in over the second. What stays parked is bounded by itself: past 20,000 parked nodes the scene left longest ago is freed, and a system memory warning frees them all; a scene freed is built again the next time it is asked for, its `init` running. Reset is a switch to the file already there, which frees it and builds it again; to come back to a scene new from elsewhere, `unload` it first."),
         ("parked", &[], "() -> [string]", "Every scene `switch` kept built, by the path it was asked for, oldest first."),
-        ("unload", &[], "(path: string)", "Lets go of a scene: frees it if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks."),
+        (words::functions::UNLOAD, &[], "(path: string)", "Lets go of a scene: frees it if it is parked, its scripts' `on_free` running as for any node freed, and drops what its file and prefabs have cached, the parsed text and the pictures they name. The scene running stays where it is, and a picture something still draws is read again when it next asks."),
         ("bindable_events", &[], "(node: node?) -> [string]", "Every event a `[[nodes.bindings.rows]]` row may answer, in the order an editor offers them: the core hooks, and on a node the `emitted:` events it and its components announce."),
         ("binding_actions", &[], "() -> [string]", "Every action a binding row may do, in the order an editor offers them."),
     ]);
@@ -199,19 +201,19 @@ pub(crate) fn document_assets(m: &mut balaur_script::Module<Engine>) {
         "Asset definitions by reference: a project path, `file#entry` for one entry, `#id` for a scene block, or `id://<id>` from `assets/index.toml`. A script gets the definition table.",
     );
     m.describe(&[
-        ("load", &[], "(reference: string) -> map", "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
-        ("duplicate", &[], "(reference: string) -> map", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
-        ("exists", &[], "(reference: string) -> bool", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
+        (words::functions::LOAD, &[], "(reference: string) -> map", "The definition table behind a reference, from the cache; an error when the reference resolves to nothing."),
+        (words::window_modes::DUPLICATE, &[], "(reference: string) -> map", "A private copy of a definition, read past the cache, so editing it disturbs no other holder of that reference."),
+        (words::functions::EXISTS, &[], "(reference: string) -> bool", "Whether a reference resolves to a definition that is really there; false rather than an error when it does not."),
         ("reload", &[], "(reference: string)", "Forget a reference so the next load re-reads its file, along with every entry cut from that same file."),
         ("invalidate", &[], "()", "Declare everything derived from project files stale (a shader a material links, say) so it is rebuilt from disk; for a file the watcher does not cover. A script hears this and every reload with `events::listen(this.node, \"assets_reloaded\")`, as `on_assets_reloaded(generation)`."),
-        ("save", &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
-        ("directory", &[], "(type_name: string) -> string", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
+        (words::modules::SAVE, &[], "(reference: string, definition: any)", "Write a definition table to the project-relative file a reference names; an error unless it names a whole file."),
+        (words::functions::DIRECTORY, &[], "(type_name: string) -> string", "The project-relative directory files of an asset type belong in; empty when the type is unknown or declared none."),
         ("schema", &[], "(type_name: string) -> map?", "The properties a record asset type holds, in the order it writes them; nil for a type that is not a record."),
         ("kind_of", &[], "(path: string) -> string", "Which importer kind a file is by its extension — `texture`, `audio`, `font` or `model` — or empty for one none claims. A `.ttf`, `.otf`, `.ttc` or `.fnt` is a font."),
-        ("rename", &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.bs` is the script's own value, and `id://` is the reference that survives a move."),
-        ("id", &[], "(path: string) -> string?", "The id `assets/index.toml` gives a file, or nil when it has none."),
+        (words::functions::RENAME, &[], "(from: string, to: string) -> [string]", "Move a file or directory and rewrite every reference to it in the project's `.toml` files, comments kept; answers the files rewritten. Paths as `fs.*` takes them, so an editor refactors the game it has open by absolute path. Script sources are not rewritten: a path in a `.bs` is the script's own value, and `id://` is the reference that survives a move."),
+        (words::locales::ID, &[], "(path: string) -> string?", "The id `assets/index.toml` gives a file, or nil when it has none."),
         ("assign_id", &[], "(path: string) -> string", "The id a file has, giving it one if it has none: a digest of the path and content, written to `assets/index.toml` and, for an asset document, as its top-level `id`. Reference it as `id://<id>` afterwards."),
-        ("path", &[], "(reference: string) -> string", "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index."),
+        (words::dependencies::PATH, &[], "(reference: string) -> string", "The path an `id://` reference resolves to in the running project; a path comes back as itself, and an unknown id is an error naming the index."),
     ]);
 }
 
@@ -240,7 +242,7 @@ pub(crate) fn document_strings(m: &mut balaur_script::Module<Engine>) {
     );
     m.describe(&[
         ("tr", &[], "(key: string, args: table?) -> string", "The string for a key in the current locale. `{name}` in it is replaced by the argument called `name`, and an `n` argument also picks the plural form the locale's language calls for."),
-        ("locale", &[], "() -> string", "The locale in force."),
+        (words::functions::LOCALE, &[], "() -> string", "The locale in force."),
         ("set_locale", &[], "(locale: string)", "Switch locale; the next `tr` answers in it, which for a widget showing a key is the next frame."),
         ("locales", &[], "() -> [string]", "Every locale the project ships a `strings/<locale>.toml` for, in name order."),
         ("system_locale", &[], "() -> string?", "The locale the operating system reports, like `en-US`, or nil when it says nothing; recorded with the session. A run starts in the shipped locale nearest it unless `[locale] initial` says."),
@@ -252,12 +254,12 @@ pub(crate) fn document_save(m: &mut balaur_script::Module<Engine>) {
         "Save games: a table in, a table out, stored per user. `[save] version` stamps each file; `[save] migrate_script` names the script whose `migrate_save(version, data)` upgrades older ones.",
     );
     m.describe(&[
-        ("write", &[], "(slot: string, data: any)", "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one. A script hears this and every `remove` with `events::listen(this.node, \"saved\")`, as `on_saved(count)`."),
-        ("read", &[], "(slot: string) -> map?", "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for."),
+        (words::functions::WRITE, &[], "(slot: string, data: any)", "Write a table to a named slot, stamped with the project's save version. Written beside the target and renamed over it, so a crash mid-save cannot destroy the last one. A script hears this and every `remove` with `events::listen(this.node, \"saved\")`, as `on_saved(count)`."),
+        (words::functions::READ, &[], "(slot: string) -> map?", "The table in a slot, brought forward to this build's version; nil when the slot was never written. An error when the file was written by a newer build, or when it needs a migration the project declares no script for."),
         ("slots", &[], "() -> [string]", "Every slot that has been written, in name order."),
-        ("remove", &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
-        ("version", &[], "() -> int", "The save version this build writes, from `[save] version`."),
-        ("directory", &[], "() -> string", "The directory slots are kept in, not created until something is written."),
+        (words::functions::REMOVE, &[], "(slot: string)", "Delete a slot. Not an error when it was not there."),
+        (words::functions::VERSION, &[], "() -> int", "The save version this build writes, from `[save] version`."),
+        (words::functions::DIRECTORY, &[], "() -> string", "The directory slots are kept in, not created until something is written."),
     ]);
 }
 
@@ -283,14 +285,14 @@ pub(crate) fn document_log(m: &mut balaur_script::Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("info", &[], "(message: string)", "Write a line at info level, tagged as coming from a script."),
+        (words::functions::INFO, &[], "(message: string)", "Write a line at info level, tagged as coming from a script."),
         ("warn", &[], "(message: string)", "Write a line at warning level, tagged as coming from a script."),
         ("error", &[], "(message: string)", "Write a line at error level, tagged as coming from a script."),
         ("print", &[], "(line: string)", "Write a line to standard output as it stands, with no level or tag and not into the buffer: what a headless run prints for a tool to read."),
         ("recent", &[], "(n: int?) -> [Entry]", "The last n buffered entries, 100 by default, each `{ seq, time, level, tag, message, fields }`."),
         ("since", &[], "(cursor: int?) -> Batch", "What was logged after `cursor` (a `seq`, 0 for all the buffer holds), as `{ entries, cursor, missed }`: pass `cursor` back next time, and `missed` counts lines the buffer dropped before they were read. A script hears that there is more with `events::listen(this.node, \"logged\")`, as `on_logged(total)`, rather than asking every frame."),
         ("file", &[], "() -> string?", "The file this run's log is written to, or nil when it keeps none. `[log] file` turns it off and `[log] keep` says how many past runs stay beside it."),
-        ("clear", &[], "()", "Empty the buffer, so a console reading it starts again from nothing."),
+        (words::functions::CLEAR, &[], "()", "Empty the buffer, so a console reading it starts again from nothing."),
     ]);
 }
 
@@ -300,10 +302,10 @@ pub(crate) fn document_random(m: &mut balaur_script::Module<Engine>) {
     );
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
-        ("float", &[], "() -> float", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        (words::datatypes::FLOAT, &[], "() -> float", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
         ("uuid", &[], "() -> string", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
         ("range", &[], "(low: float, high: float) -> float", "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments."),
-        ("int", &[], "(low: int, high: int) -> int", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
+        (words::datatypes::INT, &[], "(low: int, high: int) -> int", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),
     ]);
 }
 
@@ -317,13 +319,13 @@ pub(crate) fn document_fs(m: &mut balaur_script::Module<Engine>) {
         "One entry of a directory listing.",
     )]);
     m.describe(&[
-        ("read", &[], "(path: string) -> string?", "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read."),
-        ("write", &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in."),
-        ("exists", &[], "(path: string) -> bool", "Whether a project-relative path has anything at it, file or directory."),
-        ("list", &[], "(path: string) -> [Entry]", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
-        ("remove", &[], "(path: string) -> bool", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
+        (words::functions::READ, &[], "(path: string) -> string?", "A whole file as text, project-relative unless absolute and found inside the pack in a packed run; nil when it cannot be read."),
+        (words::functions::WRITE, &[], "(path: string, text: string)", "Write text to a project-relative file, creating the directory it goes in."),
+        (words::functions::EXISTS, &[], "(path: string) -> bool", "Whether a project-relative path has anything at it, file or directory."),
+        (words::datatypes::LIST, &[], "(path: string) -> [Entry]", "A directory's entries as `{ name, is_dir }`, sorted, dotfiles skipped; empty for a directory that is not there."),
+        (words::functions::REMOVE, &[], "(path: string) -> bool", "Delete a project-relative file, or a directory and everything under it; false when there was nothing there."),
         ("create_directory", &[], "(path: string)", "Create a project-relative directory and every parent it needs."),
-        ("rename", &[], "(from: string, to: string)", "Move a project-relative file or directory, creating the destination's parent first."),
+        (words::functions::RENAME, &[], "(from: string, to: string)", "Move a project-relative file or directory, creating the destination's parent first."),
         ("copy", &[], "(from: string, to: string)", "Copy a file byte for byte, creating the destination's parent first. What `read` and `write` cannot do for an image or a model."),
         ("modified_time", &[], "(path: string) -> float?", "When a file last changed, in seconds since the Unix epoch; nil for one that is not there."),
     ]);
@@ -334,8 +336,8 @@ pub(crate) fn document_toml(m: &mut balaur_script::Module<Engine>) {
         "TOML text to and from script tables, the format of scene files, asset definitions and component properties.",
     );
     m.describe(&[
-        ("parse", &[], "(text: string) -> map", "The table a TOML document describes; nil for text that does not parse."),
-        ("encode", &[], "(value: any) -> string", "A table written back out as TOML text; a node or callback in it is not data and is an error."),
+        (words::functions::PARSE, &[], "(text: string) -> map", "The table a TOML document describes; nil for text that does not parse."),
+        (words::functions::ENCODE, &[], "(value: any) -> string", "A table written back out as TOML text; a node or callback in it is not data and is an error."),
         ("patch", &[], "(existing: string, table: any) -> string", "The document's text with this table's keys written into it, keeping every comment, the key order and any table the value does not name. What a tool saving a hand-written file uses instead of `encode`."),
     ]);
 }
@@ -343,7 +345,7 @@ pub(crate) fn document_toml(m: &mut balaur_script::Module<Engine>) {
 pub(crate) fn document_json(m: &mut balaur_script::Module<Engine>) {
     m.module_doc("JSON text to and from script values. Its `null` keeps nil through a round trip.");
     m.describe(&[
-        ("parse", &[], "(text: string) -> any", "The value a JSON document describes; nil for text that does not parse, as for `null`."),
-        ("encode", &[], "(value: any) -> string", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
+        (words::functions::PARSE, &[], "(text: string) -> any", "The value a JSON document describes; nil for text that does not parse, as for `null`."),
+        (words::functions::ENCODE, &[], "(value: any) -> string", "A value written back out as JSON text; NaN, infinity, a node or a callback has no JSON form and is an error."),
     ]);
 }

@@ -1,6 +1,10 @@
 // The same property, read as the whole table: the spelling `component_read`
 // replaced, kept so the pair prices it.
 
+const RADIUS: str = "radius";
+const SHAPE: str = "shape";
+const SHAPE2D: str = "shape2d";
+
 pub class ComponentTable {
     node: Node,
     seen: float,
@@ -8,8 +12,8 @@ pub class ComponentTable {
 
 impl ComponentTable {
     fn update(dt: float) {
-        let radius = self.node.get_component("shape2d")["shape"]["radius"];
-        self.seen = if radius.kind() == "float" { radius.as_float() } else { 0.0 };
-        self.node.shape2d.shape = { "radius": self.seen };
+        let radius = self.node.get_component(SHAPE2D)[SHAPE][RADIUS];
+        self.seen = if radius.kind() == types::KIND_FLOAT { radius.as_float() } else { 0.0 };
+        self.node.shape2d.shape = { RADIUS: self.seen };
     }
 }

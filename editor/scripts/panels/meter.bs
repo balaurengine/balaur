@@ -3,6 +3,9 @@
 // reads on a clock, because what it shows is the cost of the frames.
 
 use editor;
+use signals;
+use words::tabs;
+use words::verbs;
 
 pub class Meter {
     node: Node,
@@ -16,10 +19,10 @@ const EVERY: float = 0.25;
 
 impl Meter {
     pub fn init() {
-        self.what = if self.node.name() == "Profiler" { "profiler" } else { "cost" };
+        self.what = if self.node.name() == "Profiler" { tabs::PROFILER } else { verbs::COST };
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
         self.titled = "";
         self.next = 0.0;
     }
@@ -76,7 +79,7 @@ impl Meter {
         patched.widget.text = view.says;
         let tools = self.node.get_node("Tools");
         tools.get_node("Headline").widget.text = view.headline;
-        if self.what == "profiler" {
+        if self.what == tabs::PROFILER {
             tools.get_node("Scripts").widget_check.checked = view.scripts;
         }
     }

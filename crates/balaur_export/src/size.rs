@@ -16,6 +16,7 @@ use balaur::import::{keys, number, sidecar_of, words};
 
 use crate::config::ExportConfig;
 use crate::recode::{self, AudioMode, FontMode, ImageMode, Saving};
+use crate::vocabulary::words as vocab;
 
 /// Code points every subset face keeps, whatever the project shows: a game
 /// that prints a number or a slash should not lose it to a scan.
@@ -56,7 +57,7 @@ impl std::fmt::Display for Summary {
                 if self.dropped.len() == 1 {
                     "asset"
                 } else {
-                    "assets"
+                    vocab::bundle::ASSETS
                 },
                 kb(self.dropped_bytes)
             )?;

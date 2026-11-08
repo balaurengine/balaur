@@ -32,6 +32,8 @@ use balaur_script::{NodeId, Value};
 
 use crate::engine::Engine;
 use crate::scene::{Children, Name, NodeScript, Parent};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// State a subsystem owns, in a form that survives being put down and picked
 /// back up.
@@ -160,10 +162,10 @@ impl CheckpointRing {
 pub fn build_core_sources(app: &mut crate::app::App) {
     // First: it decides which entities exist, and every source below writes
     // into them.
-    app.add_snapshot_source("nodes", save_nodes, load_nodes);
+    app.add_snapshot_source(keys::NODES, save_nodes, load_nodes);
     app.add_snapshot_source("transforms", save_transforms, load_transforms);
     app.add_snapshot_source("appearance", save_appearance, load_appearance);
-    app.add_snapshot_source("tags", save_tags, load_tags);
+    app.add_snapshot_source(words::settings_api::TAGS, save_tags, load_tags);
     app.add_snapshot_source(crate::process::KEY, save_process, load_process);
     // The clock, so restoring a tick puts the tick number back too: a
     // rollback that re-ran tick 40 while the engine still counted 47 would
@@ -172,8 +174,8 @@ pub fn build_core_sources(app: &mut crate::app::App) {
         "clock",
         |eng| serde_json::json!({ "tick": eng.tick(), "time": eng.time() }),
         |eng, value| {
-            let tick = value.get("tick").and_then(serde_json::Value::as_u64);
-            let time = value.get("time").and_then(serde_json::Value::as_f64);
+            let tick = value.get(keys::TICK).and_then(serde_json::Value::as_u64);
+            let time = value.get(keys::TIME).and_then(serde_json::Value::as_f64);
             if let (Some(tick), Some(time)) = (tick, time) {
                 eng.set_clock(tick, time);
             }
@@ -182,7 +184,7 @@ pub fn build_core_sources(app: &mut crate::app::App) {
     // Script instances, through the host's own save/load contract. Core never
     // learns the language; NodeId carries no serde, so it travels as bits.
     app.add_snapshot_source(
-        "scripts",
+        words::replay_api::SCRIPTS,
         |eng| {
             let Some(host) = eng.script_host() else {
                 return serde_json::Value::Null;

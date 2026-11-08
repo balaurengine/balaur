@@ -73,6 +73,7 @@ pub fn widget_drawn_size(entity: balaur_core::hecs::Entity) -> Option<egui::Vec2
 /// bar overflows and the icons stop matching; the zoom grows all three.
 pub const TOUCH_TARGET: f32 = 44.0;
 
+use crate::vocabulary::words;
 pub use api::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
 
 /// Where this project puts the lines between the screen classes, and whether
@@ -262,7 +263,7 @@ pub struct UiPlugin;
 
 impl balaur_plugin::Plugin for UiPlugin {
     fn name(&self) -> &'static str {
-        "ui"
+        words::general::UI
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -289,7 +290,7 @@ impl balaur_plugin::Plugin for UiPlugin {
                 Ok(std::rc::Rc::new(widget::theme::parse(value)) as std::rc::Rc<dyn std::any::Any>)
             },
         );
-        api::install_ui_api(&mut reg.script_module("ui")?);
+        api::install_ui_api(&mut reg.script_module(words::general::UI)?);
         widget::input::register(reg);
         // Before `widget`, so a scene gives a node these first and builds
         // its widget once, with their rows.

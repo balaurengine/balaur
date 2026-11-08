@@ -7,6 +7,8 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// Every declared field of a `record` value, so a scene naming one of two
 /// fields still hands `apply` both. A key no field answers to is dropped:
@@ -27,12 +29,12 @@ pub(super) fn fill_records(
 }
 
 fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("record") => {
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::RECORD) => {
             // A value that is no table is left for the component's own read
             // to refuse, rather than filled into a record it never was.
             let (Some(fields), Some(held)) = (
-                spec.get("fields").and_then(toml::Value::as_table),
+                spec.get(keys::FIELDS).and_then(toml::Value::as_table),
                 value.as_table().cloned(),
             ) else {
                 return;
@@ -48,7 +50,7 @@ fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
             }
             *value = toml::Value::Table(whole);
         }
-        Some("variant") => {
+        Some(words::datatypes::VARIANT) => {
             if !value.is_table() {
                 return;
             }
@@ -60,8 +62,8 @@ fn fill_record_value(spec: &toml::Value, value: &mut toml::Value) {
                 table.insert(schema::KIND.into(), toml::Value::String(kind));
             }
         }
-        Some("list" | "map") => {
-            if let Some(of) = spec.get("of") {
+        Some(words::datatypes::LIST | words::datatypes::MAP) => {
+            if let Some(of) = spec.get(keys::OF) {
                 for inner in held_mut(value) {
                     fill_record_value(of, inner);
                 }
@@ -117,8 +119,8 @@ pub(super) fn expand_colors(
 /// or a record is written the same way as one held by the property itself.
 fn expand_color_value(prop: &str, spec: &toml::Value, value: &mut toml::Value) {
     // `type` is the spec's datatype key (see the module docs).
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("color") => {
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::COLOR) => {
             let Some(text) = value.as_str() else {
                 return;
             };
@@ -132,14 +134,14 @@ fn expand_color_value(prop: &str, spec: &toml::Value, value: &mut toml::Value) {
                 );
             }
         }
-        Some("list" | "map") => {
-            if let Some(of) = spec.get("of") {
+        Some(words::datatypes::LIST | words::datatypes::MAP) => {
+            if let Some(of) = spec.get(keys::OF) {
                 for inner in held_mut(value) {
                     expand_color_value(prop, of, inner);
                 }
             }
         }
-        Some("record" | "variant") => {
+        Some(words::datatypes::RECORD | words::datatypes::VARIANT) => {
             for (field, inner) in fields_mut(spec, value) {
                 expand_color_value(prop, field, inner);
             }
@@ -165,15 +167,15 @@ pub(super) fn fields_mut<'a>(
     spec: &'a toml::Value,
     value: &'a mut toml::Value,
 ) -> Vec<(&'a toml::Value, &'a mut toml::Value)> {
-    let record = match spec.get("type").and_then(toml::Value::as_str) {
-        Some("variant") => match schema::active_variant(spec, value) {
+    let record = match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::VARIANT) => match schema::active_variant(spec, value) {
             Some((_, record)) => record,
             None => return Vec::new(),
         },
         _ => spec,
     };
     let (Some(fields), Some(table)) = (
-        record.get("fields").and_then(toml::Value::as_table),
+        record.get(keys::FIELDS).and_then(toml::Value::as_table),
         value.as_table_mut(),
     ) else {
         return Vec::new();
@@ -198,7 +200,7 @@ pub(super) fn defaults_of(schema: &toml::Value) -> toml::map::Map<String, toml::
     let mut out = toml::map::Map::new();
     if let Some(table) = schema.as_table() {
         for (prop, spec) in table {
-            if let Some(default) = spec.get("default") {
+            if let Some(default) = spec.get(keys::DEFAULT) {
                 out.insert(prop.clone(), default.clone());
             }
         }
@@ -218,7 +220,7 @@ pub(super) fn overlay(
             for (k, v) in params {
                 let merged = schema.get(k).and_then(|spec| {
                     // Nothing held yet: a variant's fields fall over its default.
-                    over_variant(spec, out.get(k).or_else(|| spec.get("default")), v)
+                    over_variant(spec, out.get(k).or_else(|| spec.get(keys::DEFAULT)), v)
                 });
                 out.insert(k.clone(), merged.unwrap_or_else(|| v.clone()));
             }
@@ -232,7 +234,7 @@ pub(super) fn overlay(
                 other.to_string()
             };
             let hint = match schema.as_table() {
-                Some(t) if other.is_str() && t.contains_key("kind") => {
+                Some(t) if other.is_str() && t.contains_key(words::KIND) => {
                     format!("{{ kind = {shown} }}")
                 }
                 Some(t) if t.len() == 1 => match t.keys().next() {
@@ -250,7 +252,7 @@ pub(super) fn overlay(
 
 /// Whether a property is a `variant`, whose write is merged over what is held.
 pub(super) fn is_variant(spec: &toml::Value) -> bool {
-    spec.get("type").and_then(toml::Value::as_str) == Some("variant")
+    spec.get(keys::TYPE).and_then(toml::Value::as_str) == Some(words::datatypes::VARIANT)
 }
 
 /// A `variant` written over the one held: a table naming no `kind`, or the
@@ -344,8 +346,8 @@ fn resolve_asset_value(
     spec: &toml::Value,
     value: &mut toml::Value,
 ) -> Result<()> {
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("asset") => {
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::ASSET) => {
             let type_name = spec
                 .get("asset")
                 .and_then(toml::Value::as_str)
@@ -354,14 +356,14 @@ fn resolve_asset_value(
                 *value = toml::Value::String(reference);
             }
         }
-        Some("list" | "map") => {
-            if let Some(of) = spec.get("of") {
+        Some(words::datatypes::LIST | words::datatypes::MAP) => {
+            if let Some(of) = spec.get(keys::OF) {
                 for inner in held_mut(value) {
                     resolve_asset_value(eng, prop, of, inner)?;
                 }
             }
         }
-        Some("record" | "variant") => {
+        Some(words::datatypes::RECORD | words::datatypes::VARIANT) => {
             for (field, inner) in fields_mut(spec, value) {
                 resolve_asset_value(eng, prop, field, inner)?;
             }
@@ -399,7 +401,7 @@ fn asset_reference(
         // `mesh` or a `path2d`, and the schema can only name one of them.
         toml::Value::Table(table) => {
             let declared = table
-                .get("type")
+                .get(keys::TYPE)
                 .and_then(toml::Value::as_str)
                 .unwrap_or(type_name);
             Ok(Some(

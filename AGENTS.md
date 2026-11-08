@@ -78,6 +78,25 @@ schema line and the reader behind it cannot drift apart.
 `scripts/house_lints.py` enforces it (`vocabulary-literal`) in every crate
 that keeps one; `docs/NAMING.md` N17 says which crates do not yet.
 
+A script does the same. A word it compares or looks up is a `const` at the top
+of the file, in one file of the package when several share it, or the engine's
+own constant where one exists: `ui::WIDGET_BUTTON`, never `"widget_button"`.
+
+Words are grouped by what they are, never kept in one long list. In Rust that
+is a topic module inside `words`, `words::datatypes::FLOAT`; a script has one
+file per topic under `scripts/words/`, `datatypes::FLOAT`. A list short enough
+to read at a glance stays flat, and a word only one file spells is a `const` at
+that file's top.
+
+`scripts/string_lints.py` holds both languages to it, in shipped code. It fails
+a word-shaped literal that respells a constant in reach, is compared or matched
+(`== "idle"`, `"idle" =>`), or appears twice in a file or three times in a
+package. A generated file answers to its generator, and a test may spell a word,
+though one it shares with the code should name the same constant. Older
+findings sit in `scripts/string_lints_baseline.txt`, so only a new spelling
+fails; name the word, and `--update-baseline` shrinks the file. A game runs it
+with `--project .`.
+
 ## Comments
 
 Prefer a name; a comment is a second thing to keep true. Write one only for:
@@ -199,7 +218,7 @@ shipped into the devlog post the site pairs with a built row.
 | Command | What it covers |
 | --- | --- |
 | `cargo check` | the loop while the code is still moving |
-| `scripts/precommit.sh --files` | fmt and the five lints that only read files |
+| `scripts/precommit.sh --files` | fmt and the six lints that only read files |
 | `scripts/precommit.sh --lints` | the above, plus every clippy shape and cargo-deny |
 | `scripts/precommit.sh` | the above, plus the tests and both kinds of docs |
 | `scripts/precommit.sh --e2e` | the above, plus the socket suites and the example pipeline |

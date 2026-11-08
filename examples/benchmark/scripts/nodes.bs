@@ -5,14 +5,18 @@
 use load;
 use world;
 
+const ORDER: str = "order";
+const REVERSE: str = "reverse";
+const UPDATE: str = "update";
+
 const ITERATIONS: int = 50000;
 const REPEATS: int = 5;
 
 pub fn all() -> [load::Case] {
     [
         adding(),
-        deleting("delete_children_in_order", "order"),
-        deleting("delete_children_reverse", "reverse"),
+        deleting("delete_children_in_order", ORDER),
+        deleting("delete_children_reverse", REVERSE),
         deleting("delete_children_random", "random"),
         getting(),
     ]
@@ -32,7 +36,7 @@ fn case(name: str, stages: [str]) -> load::Case {
 /// named alike, as the Godot case is: formatting a fresh name per child
 /// costs the script more than the engine costs to add it.
 fn adding() -> load::Case {
-    let c = case("add_children", ["update"]);
+    let c = case("add_children", [UPDATE]);
     c.run = add_all;
     c
 }
@@ -51,7 +55,7 @@ fn add_all(w: world::World, c: load::Case) {
 /// intent and the destruction runs in `last`), so the loop and the work it
 /// asks for land in two stages, and the case reads both.
 fn deleting(name: str, order: str) -> load::Case {
-    let c = case(name, ["update", "last"]);
+    let c = case(name, [UPDATE, "last"]);
     c.order = order;
     c.prepare = make_children;
     c.run = free_all;
@@ -75,11 +79,11 @@ fn free_all(w: world::World, c: load::Case) {
 }
 
 fn ordered(children: [Node], order: str) -> [Node] {
-    if order == "order" {
+    if order == ORDER {
         return children;
     }
     let out: [Node] = [];
-    if order == "reverse" {
+    if order == REVERSE {
         let i = children.len();
         while i > 0 {
             i -= 1;
@@ -104,7 +108,7 @@ fn ordered(children: [Node], order: str) -> [Node] {
 /// `get_node` on every node of a randomly nested tree, by the path from its
 /// root, as `benchmarks/scene_nodes/get_node.gd` does.
 fn getting() -> load::Case {
-    let c = case("get_node", ["update"]);
+    let c = case("get_node", [UPDATE]);
     c.prepare = make_tree;
     c.run = look_up_all;
     c

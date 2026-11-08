@@ -3,6 +3,7 @@
 
 use super::func::{FnGen, R, err};
 use crate::ast::{Block, Expr, ExprKind, Part, Pos, Program, Stmt, StmtKind, Ty};
+use crate::vocabulary::words;
 use crate::{HostApi, HostSignature};
 use wasm_encoder::{Instruction as I, ValType};
 
@@ -207,11 +208,16 @@ impl FnGen<'_> {
         args: &[Expr],
         pos: Pos,
     ) -> R<()> {
-        if self.prelude || !matches!(name, "component_property" | "patch_component") {
+        if self.prelude
+            || !matches!(
+                name,
+                words::host_calls::COMPONENT_PROPERTY | words::host_calls::PATCH_COMPONENT
+            )
+        {
             return Ok(());
         }
         let (comp, prop, value) = match args {
-            [comp, prop] if name == "component_property" => (comp, prop, None),
+            [comp, prop] if name == words::host_calls::COMPONENT_PROPERTY => (comp, prop, None),
             [
                 comp,
                 Expr {
@@ -259,7 +265,7 @@ impl FnGen<'_> {
     /// Why `node.comp.prop` names nothing: no such component, or no such
     /// property on it, with the names it does have.
     fn no_property(&self, comp: &str, prop: &str) -> String {
-        if comp == "widget" && prop == "visible" {
+        if comp == words::host_calls::WIDGET && prop == words::host_calls::VISIBLE {
             return "`widget.visible` is gone: `node.set_visible(on)` and `node.visible()` are the one flag"
                 .to_string();
         }

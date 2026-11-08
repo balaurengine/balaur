@@ -5,6 +5,7 @@
 mod func;
 mod unit;
 
+use crate::vocabulary::words;
 use std::fmt::Write as _;
 use wasmparser::{ExternalKind, FuncType, Operator, Parser, Payload, TypeRef, ValType};
 
@@ -477,7 +478,7 @@ pub(crate) fn c_type(t: ValType) -> &'static str {
         ValType::I32 => "uint32_t",
         ValType::I64 => "uint64_t",
         ValType::F64 => "double",
-        _ => "float",
+        _ => words::keywords::FLOAT,
     }
 }
 

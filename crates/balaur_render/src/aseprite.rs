@@ -12,6 +12,7 @@
 use std::fmt::Write as _;
 use std::io::Cursor;
 
+use crate::vocabulary::words;
 use anyhow::{Context as _, Result, anyhow, bail};
 use aseprite_loader::binary::chunks::slice::SliceChunk;
 use aseprite_loader::binary::chunks::tags::AnimationDirection;
@@ -150,7 +151,7 @@ fn rect(r: [u32; 4]) -> String {
 const fn direction_name(direction: AnimationDirection) -> &'static str {
     match direction {
         AnimationDirection::Reverse => "reverse",
-        AnimationDirection::PingPong => "pingpong",
+        AnimationDirection::PingPong => words::PINGPONG,
         AnimationDirection::PingPongReverse => "pingpong_reverse",
         AnimationDirection::Forward | AnimationDirection::Unknown(_) => "forward",
     }
@@ -242,19 +243,19 @@ fn sequence(
 ) -> (Vec<u32>, &'static str) {
     let forward: Vec<u32> = (from..=to).collect();
     let (run, loop_mode) = match direction {
-        AnimationDirection::Reverse => (forward.iter().rev().copied().collect(), "linear"),
-        AnimationDirection::PingPong => (forward, "pingpong"),
+        AnimationDirection::Reverse => (forward.iter().rev().copied().collect(), words::LINEAR),
+        AnimationDirection::PingPong => (forward, words::PINGPONG),
         AnimationDirection::PingPongReverse => {
-            (forward.iter().rev().copied().collect(), "pingpong")
+            (forward.iter().rev().copied().collect(), words::PINGPONG)
         }
-        AnimationDirection::Forward | AnimationDirection::Unknown(_) => (forward, "linear"),
+        AnimationDirection::Forward | AnimationDirection::Unknown(_) => (forward, words::LINEAR),
     };
     let Some(times) = repeat.filter(|n| *n > 0) else {
         return (run, loop_mode);
     };
     // A counted play is unrolled and stops: the clip format loops for ever
     // or not at all.
-    let cycle: Vec<u32> = if loop_mode == "pingpong" && run.len() > 2 {
+    let cycle: Vec<u32> = if loop_mode == words::PINGPONG && run.len() > 2 {
         run.iter()
             .chain(run[1..run.len() - 1].iter().rev())
             .copied()
@@ -265,7 +266,7 @@ fn sequence(
     let unrolled = std::iter::repeat_n(cycle, usize::from(times))
         .flatten()
         .collect();
-    (unrolled, "none")
+    (unrolled, words::NONE)
 }
 
 fn clips_toml(file: &AsepriteFile<'_>, stem: &str, packed: &[Packed]) -> Option<String> {
@@ -274,7 +275,7 @@ fn clips_toml(file: &AsepriteFile<'_>, stem: &str, packed: &[Packed]) -> Option<
         if packed.len() < 2 {
             return None;
         }
-        vec![(stem.to_string(), (0..=last).collect(), "linear")]
+        vec![(stem.to_string(), (0..=last).collect(), words::LINEAR)]
     } else {
         file.tags()
             .iter()

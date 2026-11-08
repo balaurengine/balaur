@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 
+use crate::vocabulary::words;
 use anyhow::{Context as _, Result};
 
 /// Format `.bs` files in place, or say which would change under `--check`.
@@ -75,7 +76,7 @@ fn collect_scripts(dir: &std::path::Path, out: &mut Vec<PathBuf>) {
         let path = entry.path();
         if path.is_dir() {
             collect_scripts(&path, out);
-        } else if path.extension().is_some_and(|e| e == "bs") {
+        } else if path.extension().is_some_and(|e| e == words::deps::BS) {
             out.push(path);
         }
     }

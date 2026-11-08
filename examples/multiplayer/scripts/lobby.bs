@@ -2,6 +2,9 @@
 // `balaur run examples/multiplayer -- host` in one terminal and `-- join`
 // in another. A join retries each second until the host is up.
 
+const HOST: str = "host";
+const JOIN: str = "join";
+
 pub class Lobby {
     node: Node,
     retry_in: int,
@@ -16,9 +19,9 @@ impl Lobby {
         self.retry_in = 0;
         self.joining = false;
         for arg in engine::args() {
-            if arg == "host" {
+            if arg == HOST {
                 self.host();
-            } else if arg == "join" {
+            } else if arg == JOIN {
                 self.join();
             }
         }

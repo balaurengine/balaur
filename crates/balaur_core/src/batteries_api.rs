@@ -13,6 +13,8 @@ use balaur_script::Value;
 use crate::engine::Engine;
 use crate::engine_api::{integer, number, text};
 use crate::rng::Pcg32;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 pub(crate) fn assets_load(eng: &Engine, args: &[Value]) -> Result<Value> {
     let definition = crate::assets::definition(eng, text(args, 0)?)?;
@@ -116,17 +118,17 @@ pub(crate) fn assets_schema(eng: &Engine, args: &[Value]) -> Result<Value> {
 /// line lands in the same stream, and the same `logbuf`, as an engine one --
 /// which is what makes `log.recent` able to show both.
 pub(crate) fn log_info(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::info!(target: "script", "{}", text(args, 0)?);
+    tracing::info!(target: words::SCRIPT, "{}", text(args, 0)?);
     Ok(Value::Nil)
 }
 
 pub(crate) fn log_warn(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::warn!(target: "script", "{}", text(args, 0)?);
+    tracing::warn!(target: words::SCRIPT, "{}", text(args, 0)?);
     Ok(Value::Nil)
 }
 
 pub(crate) fn log_error(_: &Engine, args: &[Value]) -> Result<Value> {
-    tracing::error!(target: "script", "{}", text(args, 0)?);
+    tracing::error!(target: words::SCRIPT, "{}", text(args, 0)?);
     Ok(Value::Nil)
 }
 
@@ -182,8 +184,8 @@ fn log_entry(e: &crate::logbuf::LogEntry) -> Value {
         .iter()
         .map(|(name, value)| {
             Value::Map(vec![
-                ("name".into(), Value::Str(name.clone())),
-                ("value".into(), Value::Str(value.clone())),
+                (words::scene_toml::NAME.into(), Value::Str(name.clone())),
+                (keys::VALUE.into(), Value::Str(value.clone())),
             ])
         })
         .collect();
@@ -192,11 +194,11 @@ fn log_entry(e: &crate::logbuf::LogEntry) -> Value {
             "seq".into(),
             Value::Int(i64::try_from(e.seq).unwrap_or(i64::MAX)),
         ),
-        ("time".into(), Value::Num(e.time)),
+        (keys::TIME.into(), Value::Num(e.time)),
         ("level".into(), Value::Str(e.level.clone())),
         ("tag".into(), Value::Str(e.tag.clone())),
         ("message".into(), Value::Str(e.message.clone())),
-        ("fields".into(), Value::List(fields)),
+        (keys::FIELDS.into(), Value::List(fields)),
     ])
 }
 

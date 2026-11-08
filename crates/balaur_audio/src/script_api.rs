@@ -14,6 +14,31 @@ use crate::{
     AudioState, Playback, play_on, publish_playback_times, read_sound, seek_on, skip_on, stop_on,
 };
 
+const BUS_EFFECTS: &str = "bus_effects";
+const BUS_LIMIT: &str = "bus_limit";
+const BUS_VOLUME_LINEAR: &str = "bus_volume_linear";
+const BUSES: &str = "buses";
+const CUES: &str = "cues";
+const DEVICE_READY: &str = "device_ready";
+const DEVICES: &str = "devices";
+const DISTANCE_GAIN: &str = "distance_gain";
+const EMITTER_POSITION: &str = "emitter_position";
+const IS_PLAYING: &str = "is_playing";
+const LISTENER_POSITION: &str = "listener_position";
+const PAN: &str = "pan";
+const PLAY: &str = "play";
+const PLAY_CUE: &str = "play_cue";
+const SEEK: &str = "seek";
+const SET_BUS_VOLUME_LINEAR: &str = "set_bus_volume_linear";
+const SET_EMITTER_POSITION: &str = "set_emitter_position";
+const SET_PITCH_SCALE: &str = "set_pitch_scale";
+const SET_VOLUME_LINEAR: &str = "set_volume_linear";
+const SKIP: &str = "skip";
+const SOUND: &str = "sound";
+const STOP: &str = "stop";
+const STOP_ALL: &str = "stop_all";
+const STOP_PLAYBACK: &str = "stop_playback";
+
 /// One key out of a script options table, or `None` if the table, the key or
 /// its type is missing. A typo in an options table should not stop the frame.
 fn opt<'a>(opts: Option<&'a Value>, key: &str) -> Option<&'a Value> {
@@ -46,19 +71,19 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
         Value::Str(crate::FINISHED_EVENT.to_string()),
     );
     m.describe(&[
-        ("stop_playback", &[], "", "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."),
-        ("set_volume_linear", &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
-        ("set_pitch_scale", &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
-        ("device_ready", &[], "() -> bool", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
-        ("is_playing", &[], "", "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device."),
-        ("stop_all", &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
-        ("play", &["sound"], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
-        ("stop", &["sound"], "", "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone."),
-        ("seek", &["sound"], "", "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone."),
-        ("skip", &["sound"], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `finished`."),
-        ("devices", &[], "() -> [string]", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
+        (STOP_PLAYBACK, &[], "", "Silence the sound a handle names, over the `fade_out_time` its `sound` had; a finished, stopped or unknown handle is left alone."),
+        (SET_VOLUME_LINEAR, &[], "", "Set a playing handle's linear gain, where 1 is the file's own level."),
+        (SET_PITCH_SCALE, &[], "", "Set a playing handle's speed multiplier, which carries its pitch with it."),
+        (DEVICE_READY, &[], "() -> bool", "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound."),
+        (IS_PLAYING, &[], "", "Whether a handle's sound is still going: false once it plays out or is stopped, on the same tick with or without an output device."),
+        (STOP_ALL, &[], "", "Silence everything at once and clear the playback every `sound` component was holding."),
+        (PLAY, &[SOUND], "", "Start the node's own `sound` from the top, replacing what it had going, and return the new handle."),
+        (STOP, &[SOUND], "", "Silence what the node's `sound` started, over its `fade_out_time`; a node carrying none is left alone."),
+        (SEEK, &[SOUND], "", "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone."),
+        (SKIP, &[SOUND], "", "Move the node's sound on to the next file in its `queue`. Past the last one it has played out, and the node announces `finished`."),
+        (DEVICES, &[], "() -> [string]", "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none."),
     ]);
-    m.function("stop_playback", |eng: &Engine, handle: i64| {
+    m.function(STOP_PLAYBACK, |eng: &Engine, handle: i64| {
         eng.resource::<AudioState>()
             .borrow_mut()
             .release(handle_of(handle));
@@ -66,7 +91,7 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
         Ok(())
     });
     m.function(
-        "set_volume_linear",
+        SET_VOLUME_LINEAR,
         |eng: &Engine, (handle, volume): (i64, f32)| {
             bus::ensure_loaded(eng);
             let buses = eng.resource::<Buses>();
@@ -79,7 +104,7 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "set_pitch_scale",
+        SET_PITCH_SCALE,
         |eng: &Engine, (handle, pitch): (i64, f32)| {
             eng.resource::<AudioState>()
                 .borrow_mut()
@@ -87,42 +112,42 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
             Ok(())
         },
     );
-    m.function("device_ready", |eng: &Engine, ()| {
+    m.function(DEVICE_READY, |eng: &Engine, ()| {
         crate::ensure_loaded(eng);
         let state = eng.resource::<AudioState>();
         let mut state = state.borrow_mut();
         state.open_if_needed();
         Ok(state.device.is_some())
     });
-    m.function("is_playing", |eng: &Engine, handle: i64| {
+    m.function(IS_PLAYING, |eng: &Engine, handle: i64| {
         Ok(eng
             .resource::<AudioState>()
             .borrow()
             .is_playing(handle_of(handle)))
     });
-    m.function("stop_all", |eng: &Engine, ()| {
+    m.function(STOP_ALL, |eng: &Engine, ()| {
         eng.resource::<AudioState>().borrow_mut().stop_all();
         publish_playback_times(eng);
         Ok(())
     });
-    m.function("play", |eng: &Engine, node: NodeId| {
+    m.function(PLAY, |eng: &Engine, node: NodeId| {
         play_on(eng, entity_of(node)?)
     });
     install_mixing_api(m);
     install_positional_api(m);
-    m.function("stop", |eng: &Engine, node: NodeId| {
+    m.function(STOP, |eng: &Engine, node: NodeId| {
         stop_on(eng, entity_of(node)?);
         Ok(())
     });
-    m.function("seek", |eng: &Engine, (node, seconds): (NodeId, f64)| {
+    m.function(SEEK, |eng: &Engine, (node, seconds): (NodeId, f64)| {
         seek_on(eng, entity_of(node)?, seconds);
         Ok(())
     });
-    m.function("skip", |eng: &Engine, node: NodeId| {
+    m.function(SKIP, |eng: &Engine, node: NodeId| {
         skip_on(eng, entity_of(node)?);
         Ok(())
     });
-    m.function("devices", |_: &Engine, ()| {
+    m.function(DEVICES, |_: &Engine, ()| {
         Ok(Value::List(
             crate::devices().into_iter().map(Value::text).collect(),
         ))
@@ -136,15 +161,15 @@ pub(crate) fn install_audio_api(m: &mut Module<Engine>) {
 /// and this is about all of them at once.
 fn install_mixing_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("buses", &[], "() -> [string]", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
-        ("bus_volume_linear", &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
-        ("set_bus_volume_linear", &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
-        ("bus_limit", &[], "(bus: string) -> BusLimit?", "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none."),
-        ("bus_effects", &[], "(bus: string) -> BusEffects?", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
-        ("cues", &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
-        ("play_cue", &[], "(name: string, options: CueOptions?) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
+        (BUSES, &[], "() -> [string]", "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order."),
+        (BUS_VOLUME_LINEAR, &[], "(bus: string) -> float", "One bus's own gain, without its parents'."),
+        (SET_BUS_VOLUME_LINEAR, &[], "(bus: string, volume: float)", "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is."),
+        (BUS_LIMIT, &[], "(bus: string) -> BusLimit?", "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none."),
+        (BUS_EFFECTS, &[], "(bus: string) -> BusEffects?", "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on."),
+        (CUES, &[], "() -> [string]", "Every sound named in `audio/cues.toml`, in name order."),
+        (PLAY_CUE, &[], "(name: string, options: CueOptions?) -> int?", "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared."),
     ]);
-    m.function("cues", |eng: &Engine, ()| {
+    m.function(CUES, |eng: &Engine, ()| {
         cue::ensure_loaded(eng);
         let names = eng.resource::<cue::Cues>().borrow().names();
         Ok(Value::List(names.into_iter().map(Value::text).collect()))
@@ -169,7 +194,7 @@ fn install_mixing_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.function(
-        "play_cue",
+        PLAY_CUE,
         |eng: &Engine, (name, opts): (String, Option<Value>)| {
             cue::ensure_loaded(eng);
             crate::ensure_loaded(eng);
@@ -215,28 +240,28 @@ fn install_mixing_api(m: &mut Module<Engine>) {
 }
 
 fn install_bus_readers(m: &mut Module<Engine>) {
-    m.function("buses", |eng: &Engine, ()| {
+    m.function(BUSES, |eng: &Engine, ()| {
         bus::ensure_loaded(eng);
         let names = eng.resource::<bus::Buses>().borrow().names();
         Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });
-    m.function("bus_limit", |eng: &Engine, name: String| {
+    m.function(BUS_LIMIT, |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
         let limit = eng.resource::<bus::Buses>().borrow().limit(&name);
         Ok(limit.map_or(Value::Nil, limit_table))
     });
-    m.function("bus_effects", |eng: &Engine, name: String| {
+    m.function(BUS_EFFECTS, |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
         let effects = eng.resource::<bus::Buses>().borrow().effects(&name);
         Ok(effects.map_or(Value::Nil, |effects| effects_table(&effects)))
     });
-    m.function("bus_volume_linear", |eng: &Engine, name: String| {
+    m.function(BUS_VOLUME_LINEAR, |eng: &Engine, name: String| {
         bus::ensure_loaded(eng);
         let volume = eng.resource::<bus::Buses>().borrow().volume(&name);
         Ok(volume)
     });
     m.function(
-        "set_bus_volume_linear",
+        SET_BUS_VOLUME_LINEAR,
         |eng: &Engine, (name, volume): (String, f32)| {
             // A mix being set is audio to come: the device starts opening.
             crate::ensure_loaded(eng);
@@ -306,24 +331,24 @@ fn effects_table(effects: &Effects) -> Value {
 /// emitter behind a handle that was played with a `position`.
 fn install_positional_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("listener_position", &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, else the current camera's."),
-        ("emitter_position", &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
-        ("set_emitter_position", &[], "(handle: int, position: Vec3)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
-        ("distance_gain", &[], "(handle: int) -> float?", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
-        ("pan", &[], "(handle: int) -> float?", "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right."),
+        (LISTENER_POSITION, &[], "() -> vec3", "Where the ears are: the current `listener` node's world position, else the current camera's."),
+        (EMITTER_POSITION, &[], "(handle: int) -> vec3?", "Where a handle played with a `position` is; nil for a flat or unknown one."),
+        (SET_EMITTER_POSITION, &[], "(handle: int, position: Vec3)", "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved."),
+        (DISTANCE_GAIN, &[], "(handle: int) -> float?", "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range."),
+        (PAN, &[], "(handle: int) -> float?", "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right."),
     ]);
-    m.function("listener_position", |eng: &Engine, ()| {
+    m.function(LISTENER_POSITION, |eng: &Engine, ()| {
         let state = eng.resource::<AudioState>();
         let position = state.borrow().listener().position;
         Ok(Value::Vec3([position.x, position.y, position.z]))
     });
-    m.function("emitter_position", |eng: &Engine, handle: i64| {
+    m.function(EMITTER_POSITION, |eng: &Engine, handle: i64| {
         let state = eng.resource::<AudioState>();
         let position = state.borrow().emitter_position(handle_of(handle));
         Ok(position.map_or(Value::Nil, |at| Value::Vec3([at.x, at.y, at.z])))
     });
     m.function(
-        "set_emitter_position",
+        SET_EMITTER_POSITION,
         |eng: &Engine, (handle, position): (i64, Value)| {
             let Some(position) = point(Some(&position)) else {
                 bail!(
@@ -340,12 +365,12 @@ fn install_positional_api(m: &mut Module<Engine>) {
     // The two halves of a placement, so a script can show what the mix is
     // doing: a debug overlay, or a subtitle only for a sound near enough to
     // hear.
-    m.function("distance_gain", |eng: &Engine, handle: i64| {
+    m.function(DISTANCE_GAIN, |eng: &Engine, handle: i64| {
         let state = eng.resource::<AudioState>();
         let placement = state.borrow().placement_of(handle_of(handle));
         Ok(placement.map_or(Value::Nil, |placed| Value::Num(f64::from(placed.gain))))
     });
-    m.function("pan", |eng: &Engine, handle: i64| {
+    m.function(PAN, |eng: &Engine, handle: i64| {
         let state = eng.resource::<AudioState>();
         let placement = state.borrow().placement_of(handle_of(handle));
         Ok(placement.map_or(Value::Nil, |placed| Value::Num(f64::from(placed.pan))))

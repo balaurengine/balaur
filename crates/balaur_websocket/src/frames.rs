@@ -26,6 +26,7 @@ use tungstenite::protocol::frame::coding::{Control, Data, OpCode};
 use tungstenite::protocol::frame::{Frame, FrameHeader, FrameSocket};
 use tungstenite::stream::{MaybeTlsStream, Mode};
 
+use crate::vocabulary::words;
 use crate::{SocketCommand, SocketEvent, SocketOptions};
 
 type Socket = FrameSocket<MaybeTlsStream<mio::net::TcpStream>>;
@@ -90,7 +91,7 @@ fn open(url: &str, options: &SocketOptions) -> Result<(Socket, Option<Deflate>)>
         // size, so the server must not be invited to pick a smaller one.
         request.headers_mut().insert(
             "Sec-WebSocket-Extensions",
-            HeaderValue::from_static("permessage-deflate"),
+            HeaderValue::from_static(words::PERMESSAGE_DEFLATE),
         );
     }
     let host = request
@@ -240,7 +241,7 @@ pub(crate) fn deflate_params(value: &str, offered: bool) -> Result<Option<Deflat
     for extension in value.split(',').map(str::trim).filter(|e| !e.is_empty()) {
         let mut parts = extension.split(';').map(str::trim);
         let name = parts.next().unwrap_or_default();
-        if name != "permessage-deflate" {
+        if name != words::PERMESSAGE_DEFLATE {
             bail!("the server accepted an extension that was not offered: {name}");
         }
         if !offered {
@@ -253,10 +254,10 @@ pub(crate) fn deflate_params(value: &str, offered: bool) -> Result<Option<Deflat
         for param in parts {
             let (key, _value) = param.split_once('=').unwrap_or((param, ""));
             match key.trim() {
-                "server_no_context_takeover" => accepted.server_takeover = false,
-                "client_no_context_takeover" => accepted.client_takeover = false,
+                words::SERVER_NO_CONTEXT_TAKEOVER => accepted.server_takeover = false,
+                words::CLIENT_NO_CONTEXT_TAKEOVER => accepted.client_takeover = false,
                 // Any window the server keeps fits inside ours.
-                "server_max_window_bits" => {}
+                words::SERVER_MAX_WINDOW_BITS => {}
                 other => bail!("permessage-deflate parameter `{other}` was not offered"),
             }
         }

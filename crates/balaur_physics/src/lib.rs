@@ -102,6 +102,12 @@ use balaur_core::digest::{Entry, Hasher, node_label};
 
 use balaur_core::fixed_dt;
 
+const CLEAR: &str = "clear";
+const IS_PAUSED: &str = "is_paused";
+const SET_PAUSED: &str = "set_paused";
+const SET_SLEEPING_ALLOWED: &str = "set_sleeping_allowed";
+const SLEEPING_ALLOWED: &str = "sleeping_allowed";
+
 pub struct PhysicsState3d {
     pub world: PhysicsWorld,
     /// Insertion-ordered with an unseeded hasher: iteration order must be
@@ -204,13 +210,13 @@ pub struct PhysicsPlugin;
 
 impl balaur_plugin::Plugin for PhysicsPlugin {
     fn name(&self) -> &'static str {
-        "physics"
+        w::general::PHYSICS
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         balaur_core::settings::define_group(
             reg.engine(),
-            "physics",
+            w::general::PHYSICS,
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema(
                 "settings.physics",
@@ -251,7 +257,11 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
         // Before the clip, which writes only the channels it keys.
         reg.insert_resource(ragdoll::BlendMemory::default());
         reg.add_system(Stage::PreUpdate, ragdoll::restore_system);
-        reg.add_snapshot_source("ragdoll", ragdoll::save_memory, ragdoll::load_memory);
+        reg.add_snapshot_source(
+            w::functions::RAGDOLL,
+            ragdoll::save_memory,
+            ragdoll::load_memory,
+        );
         ragdoll::register_ragdoll_component(reg);
         material::register_physics_material_asset(reg);
         soft_material::register_soft_material_asset(reg);
@@ -382,7 +392,7 @@ fn world_settings_schema() -> String {
 /// Velocity and sleep state, which no component `get` reports: two peers
 /// can agree on every position and still be about to diverge.
 fn build_physics_digest(reg: &mut Registry<'_>) {
-    reg.add_digest_source("physics", |eng, out| {
+    reg.add_digest_source(w::general::PHYSICS, |eng, out| {
         let Some(state) = eng.try_resource::<PhysicsState3d>() else {
             return;
         };
@@ -673,15 +683,15 @@ fn install_world_controls(m: &mut Module<Engine>) {
         "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
     );
     m.describe(&[
-        ("set_paused", &[], "", "Stop or resume stepping both worlds; nodes keep their poses."),
-        ("is_paused", &[], "", "Whether stepping is stopped."),
-        ("set_sleeping_allowed", &[], "", "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later."),
-        ("sleeping_allowed", &[], "", "Whether resting bodies are allowed to fall asleep."),
-        ("clear", &[], "", "Remove every body and collider from both worlds, as a play-in-editor session does on stop."),
+        (SET_PAUSED, &[], "", "Stop or resume stepping both worlds; nodes keep their poses."),
+        (IS_PAUSED, &[], "", "Whether stepping is stopped."),
+        (SET_SLEEPING_ALLOWED, &[], "", "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later."),
+        (SLEEPING_ALLOWED, &[], "", "Whether resting bodies are allowed to fall asleep."),
+        (CLEAR, &[], "", "Remove every body and collider from both worlds, as a play-in-editor session does on stop."),
     ]);
     // Everything here spans BOTH worlds: editors and games treat
     // "physics" as one simulation. Per-dimension calls live in physics3d/2d.
-    m.function("set_paused", |eng: &Engine, paused: bool| {
+    m.function(SET_PAUSED, |eng: &Engine, paused: bool| {
         let state = eng.resource::<PhysicsState3d>();
         state.borrow_mut().paused = paused;
         dim2::set_paused(eng, paused);
@@ -689,7 +699,7 @@ fn install_world_controls(m: &mut Module<Engine>) {
     });
     // Spans BOTH worlds: `set_paused` pauses them together, so one answer
     // is the truth for both.
-    m.function("is_paused", |eng: &Engine, ()| {
+    m.function(IS_PAUSED, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();
         let v = state.borrow().paused;
         Ok(v)
@@ -697,21 +707,21 @@ fn install_world_controls(m: &mut Module<Engine>) {
     // Allow or forbid bodies falling asleep (editors expose this as the
     // "Sleep bodies" toggle). Spans BOTH worlds, and applies to bodies
     // added later as well as to the ones alive now.
-    m.function("set_sleeping_allowed", |eng: &Engine, allowed: bool| {
+    m.function(SET_SLEEPING_ALLOWED, |eng: &Engine, allowed: bool| {
         set_sleeping_allowed(eng, allowed);
         dim2::set_sleeping_allowed(eng, allowed);
         Ok(())
     });
     // Reads back what `set_sleeping_allowed` last wrote (true by default).
     // Spans BOTH worlds, because the setter writes both.
-    m.function("sleeping_allowed", |eng: &Engine, ()| {
+    m.function(SLEEPING_ALLOWED, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();
         let v = state.borrow().sleeping_allowed;
         Ok(v)
     });
     // Remove every body and collider (editors use this to reset a
     // play-in-editor session). Spans BOTH worlds.
-    m.function("clear", |eng: &Engine, ()| {
+    m.function(CLEAR, |eng: &Engine, ()| {
         clear(eng);
         dim2::clear(eng);
         Ok(())

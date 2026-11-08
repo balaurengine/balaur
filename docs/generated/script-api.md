@@ -56,6 +56,7 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
+| [`types`](#types) | 0 | 8 |
 | [`ui`](#ui) | 43 | 65 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
@@ -1247,6 +1248,23 @@ TOML text to and from script tables, the format of scene files, asset definition
 | `encode` | `(any) -> str` |
 | `parse` | `(str) -> any` |
 | `patch` | `(str, any) -> str` |
+
+## `types`
+
+The names of a value's type: what `kind()` answers on an `any`.
+
+**Constants** (8):
+
+| Name | Value |
+| --- | --- |
+| `KIND_NIL` | `"nil"` |
+| `KIND_BOOL` | `"bool"` |
+| `KIND_INT` | `"int"` |
+| `KIND_FLOAT` | `"float"` |
+| `KIND_STRING` | `"str"` |
+| `KIND_LIST` | `"list"` |
+| `KIND_MAP` | `"map"` |
+| `KIND_NODE` | `"node"` |
 
 ## `ui`
 

@@ -27,6 +27,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::engine::Engine;
+use crate::vocabulary::words;
 
 /// Bumped when a change makes an older file unplayable.
 pub const FORMAT: u32 = 3;
@@ -530,7 +531,7 @@ impl Recorder {
             }
             self.log_cursor = entry.time;
             out.push(Event {
-                kind: "log".into(),
+                kind: words::modules::LOG.into(),
                 label: format!("[{}] {}", entry.tag, entry.message),
                 data: Some(serde_json::json!({ "level": entry.level, "tag": entry.tag })),
             });
@@ -548,7 +549,7 @@ impl Drop for Recorder {
             return;
         }
         let trailer = Trailer {
-            reason: "quit".into(),
+            reason: words::functions::QUIT.into(),
             tick: 0,
             digest: None,
         };
@@ -812,7 +813,7 @@ impl PlayState {
         match self {
             Self::Stopped => "stopped",
             Self::Playing => "playing",
-            Self::Paused => "paused",
+            Self::Paused => words::functions::PAUSED,
             Self::Seeking => "seeking",
         }
     }

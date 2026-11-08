@@ -17,6 +17,11 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 
 use crate::engine::Engine;
+use crate::vocabulary::words;
+
+const FEW: &str = "few";
+const ONE: &str = "one";
+const OTHER: &str = "other";
 
 /// What `project.toml` says about languages, read through the settings
 /// registry so a platform may start in its own.
@@ -98,41 +103,52 @@ fn category(language: &str, n: i64) -> &'static str {
     let abs = n.unsigned_abs();
     match language {
         // One form for everything: no count changes the wording.
-        "ja" | "zh" | "ko" | "vi" | "th" | "id" => "other",
+        words::locales::JA
+        | words::locales::ZH
+        | words::locales::KO
+        | words::locales::VI
+        | words::locales::TH
+        | words::locales::ID => OTHER,
         // Romanian: 1 is one; 0 and 2..=19 (and the same mod 100) are few.
-        "ro" | "mo" => {
+        words::locales::RO | words::locales::MO => {
             if n == 1 {
-                "one"
+                ONE
             } else if abs == 0 || (1..=19).contains(&(abs % 100)) {
-                "few"
+                FEW
             } else {
-                "other"
+                OTHER
             }
         }
         // The Slavic shape: 1 but not 11; 2-4 but not 12-14; the rest many.
-        "ru" | "uk" | "be" | "pl" | "hr" | "sr" | "bs" => {
+        words::locales::RU
+        | words::locales::UK
+        | words::locales::BE
+        | words::locales::PL
+        | words::locales::HR
+        | words::locales::SR
+        | words::locales::BS => {
             let (ten, hundred) = (abs % 10, abs % 100);
             if ten == 1 && hundred != 11 {
-                "one"
+                ONE
             } else if (2..=4).contains(&ten) && !(12..=14).contains(&hundred) {
-                "few"
+                FEW
             } else {
                 "many"
             }
         }
         // French counts 0 and 1 alike.
-        "fr" | "pt" => {
+        words::locales::FR | words::locales::PT => {
             if abs <= 1 {
-                "one"
+                ONE
             } else {
-                "other"
+                OTHER
             }
         }
         _ => {
             if n == 1 {
-                "one"
+                ONE
             } else {
-                "other"
+                OTHER
             }
         }
     }
@@ -225,14 +241,15 @@ pub fn closest(reported: &str, shipped: &[String]) -> Option<String> {
             .cloned()
     };
     let region = match language {
-        "zh" if ["hant", "tw", "hk", "mo"]
-            .iter()
-            .any(|part| tag.split('_').any(|held| held == *part)) =>
+        words::locales::ZH
+            if ["hant", "tw", "hk", "mo"]
+                .iter()
+                .any(|part| tag.split('_').any(|held| held == *part)) =>
         {
             "zh_tw"
         }
-        "zh" => "zh_cn",
-        "nb" | "nn" => "no",
+        words::locales::ZH => "zh_cn",
+        words::locales::NB | words::locales::NN => "no",
         _ => "",
     };
     spelled(&tag)
@@ -298,7 +315,7 @@ pub fn locales(eng: &Engine) -> Vec<String> {
             .unwrap_or_default()
     });
     {
-        for (name, _) in crate::files::backend(eng).list(&root.join("strings")) {
+        for (name, _) in crate::files::backend(eng).list(&root.join(words::modules::STRINGS)) {
             if let Some(locale) = name.strip_suffix(".toml") {
                 out.push(locale.to_string());
             }
@@ -378,7 +395,7 @@ fn lookup(eng: &Engine, locale: &str, key: &str, count: Option<i64>) -> Option<S
         Entry::One(text) => Some(text.clone()),
         Entry::Plural(forms) => {
             let wanted = category(language_of(locale), count.unwrap_or(0));
-            forms.get(wanted).or_else(|| forms.get("other")).cloned()
+            forms.get(wanted).or_else(|| forms.get(OTHER)).cloned()
         }
     }
 }

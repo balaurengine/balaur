@@ -6,6 +6,7 @@ use smol_str::SmolStr;
 
 use super::ComponentRegistry;
 use crate::Engine;
+use crate::vocabulary::words;
 
 /// Whether a component takes a key its schema does not declare, given the
 /// key and its value: a state's name on `states`, a screen class on `widget`.
@@ -36,7 +37,7 @@ pub fn refuse_unknown_keys(eng: &Engine, name: &str, params: Option<&toml::Value
     for (key, value) in table {
         let declared = def.schema.get(key).is_some();
         if !declared && !accepts.is_some_and(|accepts| accepts(key, value)) {
-            if key == "visible" {
+            if key == words::VISIBLE {
                 bail!(
                     "`{name}` has no property `visible`: it is the node's, `visible = false` beside its `name`"
                 );

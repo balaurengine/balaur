@@ -1,0 +1,21 @@
+// The datatypes a schema property declares.
+
+internal const ASSET: str = "asset";
+internal const BOOL: str = "bool";
+internal const COLOR: str = "color";
+internal const ENUM: str = "enum";
+internal const FEATURE: str = "feature";
+internal const FLAGS: str = "flags";
+internal const FLOAT: str = "float";
+internal const INT: str = "int";
+internal const LIST: str = "list";
+internal const MAP: str = "map";
+internal const NODE: str = "node";
+internal const RECORD: str = "record";
+internal const SCRIPT_PATH: str = "script_path";
+internal const SHADER: str = "shader";
+internal const STRING: str = "string";
+internal const VARIANT: str = "variant";
+internal const VEC2: str = "vec2";
+internal const VEC3: str = "vec3";
+internal const VEC4: str = "vec4";

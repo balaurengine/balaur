@@ -9,6 +9,8 @@ use wesl::syntax::{Attribute, GlobalDeclaration, Ident, TranslationUnit};
 
 use crate::material::{Material3d, Param};
 use crate::prelinked::Linked;
+#[cfg(feature = "compile")]
+use crate::vocabulary::words;
 
 /// The struct a shader declares to take a material's values.
 #[cfg(feature = "compile")]
@@ -40,7 +42,7 @@ impl FieldType {
 
     pub(crate) fn name(self) -> &'static str {
         match self {
-            FieldType::F32 => "f32",
+            FieldType::F32 => words::shader_types::F32,
             FieldType::Vec2 => "vec2<f32>",
             FieldType::Vec3 => "vec3<f32>",
             FieldType::Vec4 => "vec4<f32>",
@@ -59,17 +61,19 @@ impl FieldType {
     #[cfg(feature = "compile")]
     fn parse(ty: &wesl::syntax::TypeExpression) -> Option<Self> {
         let arg_is_f32 = || match &ty.template_args {
-            Some(args) if args.len() == 1 => args[0].expression.to_string() == "f32",
+            Some(args) if args.len() == 1 => {
+                args[0].expression.to_string() == words::shader_types::F32
+            }
             _ => false,
         };
         match ty.ident.name().as_str() {
-            "f32" => Some(FieldType::F32),
-            "vec2f" => Some(FieldType::Vec2),
-            "vec3f" => Some(FieldType::Vec3),
-            "vec4f" => Some(FieldType::Vec4),
-            "vec2" if arg_is_f32() => Some(FieldType::Vec2),
-            "vec3" if arg_is_f32() => Some(FieldType::Vec3),
-            "vec4" if arg_is_f32() => Some(FieldType::Vec4),
+            words::shader_types::F32 => Some(FieldType::F32),
+            words::shader_types::VEC2F => Some(FieldType::Vec2),
+            words::shader_types::VEC3F => Some(FieldType::Vec3),
+            words::shader_types::VEC4F => Some(FieldType::Vec4),
+            words::shader_types::VEC2 if arg_is_f32() => Some(FieldType::Vec2),
+            words::shader_types::VEC3 if arg_is_f32() => Some(FieldType::Vec3),
+            words::shader_types::VEC4 if arg_is_f32() => Some(FieldType::Vec4),
             _ => None,
         }
     }
@@ -255,7 +259,7 @@ fn link_transparent(
             _ => None,
         })?;
     let returns = fragment.return_type.as_ref()?.to_string().replace(' ', "");
-    if returns != "vec4<f32>" && returns != "vec4f" {
+    if returns != "vec4<f32>" && returns != words::shader_types::VEC4F {
         return None;
     }
     let input = fragment
@@ -316,7 +320,13 @@ pub fn compile(
     plugin_modules: &[(String, String)],
     morph: bool,
 ) -> Result<Compiled> {
-    let key = material_key("material", material, source, plugin_modules, morph);
+    let key = material_key(
+        words::shader_material::MATERIAL,
+        material,
+        source,
+        plugin_modules,
+        morph,
+    );
     let linked = crate::prelinked::cached(key, || {
         link_material(material, source, plugin_modules, morph)
     })?;
@@ -396,7 +406,7 @@ fn link_material(
     // rewrote it: the binding either survived stripping or it did not.
     let probes = linked.syntax.global_declarations.iter().any(|d| {
         matches!(d.node(), GlobalDeclaration::Declaration(v)
-            if v.ident.name().as_str() == "balaur_probe")
+            if v.ident.name().as_str() == words::shader_types::BALAUR_PROBE)
     });
     Ok(Linked {
         wgsl: crate::shaders::wgsl(&linked)?,

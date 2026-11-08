@@ -11,6 +11,7 @@ use balaur_script::Value;
 
 use crate::links::{self, Listener};
 use crate::options::Options;
+use crate::vocabulary::words;
 use crate::vocabulary::{EventKind, Role};
 use crate::wire::{Control, Member, PROTOCOL};
 use crate::{MultiplayerState, Phase, slot_value};
@@ -68,7 +69,7 @@ pub(crate) fn host(state: &mut MultiplayerState, eng: &Engine, options: Options)
             listener.cert_hash.clone().map_or(Value::Nil, Value::text),
         ),
         (
-            String::from("transport"),
+            String::from(words::options::TRANSPORT),
             Value::Str(options.transport.name().into()),
         ),
     ]);
@@ -86,7 +87,10 @@ pub(crate) fn host(state: &mut MultiplayerState, eng: &Engine, options: Options)
         arriving: Vec::new(),
         links: Vec::new(),
     });
-    state.tell(EventKind::Connected, vec![("slot", slot_value(0))]);
+    state.tell(
+        EventKind::Connected,
+        vec![(words::lobby::SLOT, slot_value(0))],
+    );
     Ok(answer)
 }
 
@@ -162,8 +166,8 @@ pub(crate) fn add_bot(state: &mut MultiplayerState, name: &str) -> Option<Player
     state.tell(
         EventKind::Joined,
         vec![
-            ("slot", slot_value(slot)),
-            ("name", Value::Str(name.into())),
+            (words::lobby::SLOT, slot_value(slot)),
+            (words::lobby::NAME, Value::Str(name.into())),
         ],
     );
     Some(slot)
@@ -229,7 +233,10 @@ pub(crate) fn poll_host(state: &mut MultiplayerState) {
         }
         state.tell(
             EventKind::Left,
-            vec![("slot", slot_value(slot)), ("name", Value::Str(name))],
+            vec![
+                (words::lobby::SLOT, slot_value(slot)),
+                (words::lobby::NAME, Value::Str(name)),
+            ],
         );
     }
     let cap = state.options.as_ref().map_or(0, |o| o.players);
@@ -301,7 +308,10 @@ fn admit(state: &mut MultiplayerState, mut link: Box<dyn Transport>, hello: Cont
     lobby.links.push((slot, link));
     state.tell(
         EventKind::Joined,
-        vec![("slot", slot_value(slot)), ("name", Value::Str(name))],
+        vec![
+            (words::lobby::SLOT, slot_value(slot)),
+            (words::lobby::NAME, Value::Str(name)),
+        ],
     );
 }
 
@@ -348,7 +358,7 @@ pub(crate) fn poll_join(state: &mut MultiplayerState) {
         };
         joiner.link.close();
         state.reset();
-        state.tell(kind, vec![("reason", Value::Str(reason))]);
+        state.tell(kind, vec![(words::lobby::REASON, Value::Str(reason))]);
     }
 }
 
@@ -361,12 +371,18 @@ fn heard(state: &mut MultiplayerState, control: Control) -> bool {
             }
             state.local = Some(slot);
             state.roster = roster;
-            state.tell(EventKind::Connected, vec![("slot", slot_value(slot))]);
+            state.tell(
+                EventKind::Connected,
+                vec![(words::lobby::SLOT, slot_value(slot))],
+            );
         }
         Control::Refuse { reason } => {
             leave(state);
             state.reset();
-            state.tell(EventKind::Failed, vec![("reason", Value::Str(reason))]);
+            state.tell(
+                EventKind::Failed,
+                vec![(words::lobby::REASON, Value::Str(reason))],
+            );
             return false;
         }
         Control::Roster { roster } => changed_roster(state, roster),
@@ -398,7 +414,7 @@ fn heard(state: &mut MultiplayerState, control: Control) -> bool {
             state.tell(
                 EventKind::Closed,
                 vec![(
-                    "reason",
+                    words::lobby::REASON,
                     Value::Str(String::from("the host closed the lobby")),
                 )],
             );
@@ -417,8 +433,8 @@ fn changed_roster(state: &mut MultiplayerState, roster: Vec<crate::wire::Member>
             state.tell(
                 EventKind::Joined,
                 vec![
-                    ("slot", slot_value(member.slot)),
-                    ("name", Value::Str(member.name.clone())),
+                    (words::lobby::SLOT, slot_value(member.slot)),
+                    (words::lobby::NAME, Value::Str(member.name.clone())),
                 ],
             );
         }
@@ -428,8 +444,8 @@ fn changed_roster(state: &mut MultiplayerState, roster: Vec<crate::wire::Member>
             state.tell(
                 EventKind::Left,
                 vec![
-                    ("slot", slot_value(member.slot)),
-                    ("name", Value::Str(member.name.clone())),
+                    (words::lobby::SLOT, slot_value(member.slot)),
+                    (words::lobby::NAME, Value::Str(member.name.clone())),
                 ],
             );
         }

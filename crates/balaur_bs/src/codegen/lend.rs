@@ -4,6 +4,7 @@
 
 use super::func::{FnGen, LVal, MemPlace, R};
 use crate::ast::{BinOp, Expr, ExprKind, Part, Ty};
+use crate::vocabulary::words;
 use wasm_encoder::Instruction as I;
 
 /// The expressions directly inside `e`; `None` for one holding statements,
@@ -158,7 +159,7 @@ impl FnGen<'_> {
                 !self.takes_no_ref(callee) && args.iter().any(|arg| mentions(arg, name))
             }
             ExprKind::Method(base, method, args) => {
-                method != "len"
+                method != words::methods::LEN
                     && (mentions(base, name) || args.iter().any(|arg| mentions(arg, name)))
             }
             _ => false,

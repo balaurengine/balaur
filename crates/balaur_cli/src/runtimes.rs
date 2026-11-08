@@ -8,9 +8,9 @@ use std::path::PathBuf;
 #[cfg(not(target_family = "wasm"))]
 pub(crate) fn cache_dir() -> Option<PathBuf> {
     dirs::data_dir().map(|d| {
-        d.join("balaur")
+        d.join(words::general::BALAUR)
             .join("runtimes")
-            .join(crate::version::build_id().unwrap_or("dev"))
+            .join(crate::version::build_id().unwrap_or(words::update::DEV))
     })
 }
 
@@ -24,6 +24,7 @@ pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf
     anyhow::bail!("runtime download is not available in this build")
 }
 
+use crate::vocabulary::words;
 #[cfg(all(not(target_family = "wasm"), feature = "editor"))]
 pub(crate) use fetch::obtain;
 #[cfg(not(target_family = "wasm"))]
@@ -57,7 +58,14 @@ mod fetch {
 
     /// Whether `target`'s runtime is a directory, published as a tarball.
     fn is_bundle(target: &str) -> bool {
-        matches!(target.split('-').next(), Some("ios" | "android" | "web"))
+        matches!(
+            target.split('-').next(),
+            Some(
+                crate::vocabulary::words::targets::IOS
+                    | crate::vocabulary::words::targets::ANDROID
+                    | crate::vocabulary::words::targets::WEB
+            )
+        )
     }
 
     fn asset_name(target: &str) -> String {
@@ -118,7 +126,7 @@ mod fetch {
         std::io::stderr().flush()?;
         let mut answer = String::new();
         std::io::stdin().read_line(&mut answer)?;
-        if !matches!(answer.trim(), "y" | "Y" | "yes") {
+        if !matches!(answer.trim(), "y" | "Y" | crate::vocabulary::words::YES) {
             bail!("not downloading; install the runtime manually or pass --runtime <file>");
         }
         Ok(())

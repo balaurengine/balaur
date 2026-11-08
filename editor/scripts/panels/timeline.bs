@@ -3,6 +3,9 @@
 // and a clip asked for. A key's own dot seeks to it.
 
 use editor;
+use signals;
+
+const RESIZED: str = "resized";
 
 pub class Timeline {
     node: Node,
@@ -13,11 +16,11 @@ impl Timeline {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
-        for word in ["timeline_changed", "play_frame", "outline_changed"] {
+        events::listen(self.node, signals::DOCKS, source);
+        for word in [signals::TIMELINE, "play_frame", "outline_changed"] {
             events::listen(self.node, word, source);
         }
-        events::listen(self.node, "resized", self.node);
+        events::listen(self.node, RESIZED, self.node);
     }
 
     pub fn on_timeline_changed(_change: any) {

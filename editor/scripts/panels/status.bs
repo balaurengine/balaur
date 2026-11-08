@@ -2,6 +2,7 @@
 // is, and the workspace and tool in hand, filled when any of them moved.
 
 use editor;
+use signals;
 
 pub class Status {
     node: Node,
@@ -12,7 +13,7 @@ impl Status {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "status_changed", source);
+        events::listen(self.node, signals::STATUS, source);
     }
 
     pub fn on_status_changed(_change: any) {

@@ -2,6 +2,9 @@
 // when the document, the selection, the tool, play, the camera or a file moved.
 
 use editor;
+use signals;
+
+const ASSETS_RELOADED: str = "assets_reloaded";
 
 pub class Overlays {
     node: Node,
@@ -13,19 +16,19 @@ impl Overlays {
         let source = scene::get_node("Editor");
         self.editor = source.script;
         for word in [
-            "outline_changed",
-            "inspector_changed",
-            "stage_changed",
-            "play_frame",
-            "timeline_changed",
-            "recordings_changed",
-            "plugins_changed",
-            "chrome_changed",
+            signals::OUTLINE,
+            signals::INSPECTOR,
+            signals::STAGE,
+            signals::PLAY,
+            signals::TIMELINE,
+            signals::RECORDINGS,
+            signals::PLUGINS_CHANGED,
+            signals::CHROME,
         ] {
             events::listen(self.node, word, source);
         }
         events::listen(self.node, "camera_moved");
-        events::listen(self.node, "assets_reloaded");
+        events::listen(self.node, ASSETS_RELOADED);
     }
 
     pub fn on_outline_changed(_change: any) {

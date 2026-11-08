@@ -11,6 +11,7 @@ mod native;
 mod node_ops;
 mod store;
 mod tool_verbs;
+mod vocabulary;
 mod waits;
 
 pub use balaur_bs::analysis::{builtins, value_types};

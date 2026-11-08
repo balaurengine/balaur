@@ -2,6 +2,106 @@
 // icons chain each font family falls back to; every weight of the set shares
 // its codepoints, so a solid shell is the font file and nothing else.
 
+use words::asset_kinds;
+use words::components;
+use words::general;
+use words::statuses;
+use words::tabs;
+use words::theme_modes;
+use words::theme_tokens;
+use words::tools;
+use words::verbs;
+use words::window_marks;
+
+const TRANSFORM: str = "transform";
+internal const ADD: str = "add";
+const ALIGN_BOTTOM: str = "align-bottom";
+internal const ALIGN_CENTER_H: str = "align-center-h";
+const ALIGN_CENTER_V: str = "align-center-v";
+internal const ALIGN_LEFT: str = "align-left";
+internal const ALIGN_RIGHT: str = "align-right";
+const ALIGN_TOP: str = "align-top";
+const ANIMATION_PLAYER: str = "animation_player";
+const ARROW_LINE_DOWN: str = "arrow-line-down";
+const ARROW_LINE_LEFT: str = "arrow-line-left";
+const ARROW_LINE_RIGHT: str = "arrow-line-right";
+internal const ASSETS: str = "assets";
+const AUDIO_PLAYER: str = "audio_player";
+const BONE2D: str = "bone2d";
+const BONE3D: str = "bone3d";
+internal const BONEMAP: str = "bonemap";
+const BOOKMARK: str = "bookmark";
+const CAMERA: str = "camera";
+const CARET_DOWN: str = "caret-down";
+const CARET_LEFT: str = "caret-left";
+const CARET_OPEN: str = "caret-open";
+const CARET_RIGHT: str = "caret-right";
+const CARET_SHUT: str = "caret-shut";
+const CARET_UP: str = "caret-up";
+internal const CHECK: str = "check";
+internal const CLOSE: str = "close";
+internal const DEBUGGER: str = "debugger";
+internal const DISTRIBUTE_H: str = "distribute-h";
+const DISTRIBUTE_V: str = "distribute-v";
+internal const DOCS: str = "docs";
+const ENVIRONMENT: str = "environment";
+const EYE_CLOSED: str = "eye-closed";
+const FILTER: str = "filter";
+const HIDDEN: str = "hidden";
+internal const INSTANCE: str = "instance";
+const MESH: str = "mesh";
+const MINIMIZE: str = "minimize";
+const MULTIMESH2D: str = "multimesh2d";
+const MULTIMESH3D: str = "multimesh3d";
+internal const OPEN: str = "open";
+internal const OUTPUT: str = "output";
+const PAUSE: str = "pause";
+internal const SCRIPTFILE: str = "scriptfile";
+const SELECT_ALL: str = "select-all";
+const SHAPE2D: str = "shape2d";
+const SHAPE3D: str = "shape3d";
+const SHUT: str = "shut";
+const SKELETON: str = "skeleton";
+const SPRITE: str = "sprite";
+const STEP_INTO: str = "step-into";
+const STEP_OUT: str = "step-out";
+const STEP_OVER: str = "step-over";
+const TEXT3D: str = "text3d";
+const TILE_COLLISION: str = "tile_collision";
+const TILEMAP: str = "tilemap";
+const TILESET: str = "tileset";
+const UNFOCUS: str = "unfocus";
+const UNLOCK: str = "unlock";
+const VIEWMODE: str = "viewmode";
+const WIDGET: str = "widget";
+const WORLD: str = "world";
+const BODY: str = "body";
+internal const BONE: str = "bone";
+internal const COST: str = "cost";
+internal const DARK: str = "dark";
+internal const EVENTS: str = "events";
+internal const EXPORT: str = "export";
+internal const IMPORT: str = "import";
+internal const INSPECTOR: str = "inspector";
+internal const LIBRARY: str = "library";
+internal const LIGHT: str = "light";
+internal const OUTLINE: str = "outline";
+internal const PATH: str = "path";
+internal const POLYGON: str = "polygon";
+internal const PROBLEMS: str = "problems";
+internal const PROFILER: str = "profiler";
+internal const RECORDINGS: str = "recordings";
+internal const RESET: str = "reset";
+internal const RESTORE: str = "restore";
+internal const SCENE: str = "scene";
+internal const SEARCH: str = "search";
+internal const SPLIT: str = "split";
+internal const STATEMACHINE: str = "statemachine";
+internal const TILES: str = "tiles";
+internal const TIMELINE: str = "timeline";
+internal const VISIBLE: str = "visible";
+internal const WEIGHTS: str = "weights";
+
 /// A component's glyph and the theme token it is drawn in.
 pub struct Component {
     internal glyph: str,
@@ -10,25 +110,25 @@ pub struct Component {
 
 /// A viewport tool, by `defs::tools` id.
 pub fn tool(id: str) -> str {
-    if id == "select" {
+    if id == tools::SELECT {
         "\u{e1dc}"
-    } else if id == "move" {
+    } else if id == tools::MOVE {
         "\u{e0a4}"
-    } else if id == "rotate" {
+    } else if id == tools::ROTATE {
         "\u{e036}"
-    } else if id == "scale" {
+    } else if id == tools::SCALE {
         "\u{e0a2}"
-    } else if id == "zoom" {
+    } else if id == tools::ZOOM {
         "\u{e30c}"
-    } else if id == "key" {
+    } else if id == tools::KEY {
         "\u{e1ec}"
-    } else if id == "bone" {
+    } else if id == tools::BONE {
         "\u{e7f2}"
-    } else if id == "polygon" {
+    } else if id == tools::POLYGON {
         "\u{e6d0}"
-    } else if id == "pen" {
+    } else if id == tools::PEN {
         "\u{e64a}"
-    } else if id == "tiles" {
+    } else if id == tools::TILES {
         "\u{e464}"
     } else {
         "\u{e1dc}"
@@ -37,15 +137,15 @@ pub fn tool(id: str) -> str {
 
 /// A workspace, by `defs::workspaces` id.
 pub fn workspace(id: str) -> str {
-    if id == "scene" {
+    if id == tabs::SCENE {
         "\u{e1da}"
-    } else if id == "script" {
+    } else if id == tabs::SCRIPT {
         "\u{e1bc}"
-    } else if id == "animation" {
+    } else if id == tabs::ANIMATION {
         "\u{e19a}"
-    } else if id == "physics" {
+    } else if id == tabs::PHYSICS {
         "\u{e6ce}"
-    } else if id == "ui" {
+    } else if id == tabs::UI {
         "\u{e6d6}"
     } else {
         "\u{e1da}"
@@ -58,86 +158,86 @@ pub fn workspace(id: str) -> str {
 /// `model::node_icon` gives the tree, so a `body2d` section and a node holding
 /// one read as the same thing in both panels.
 pub fn component(name: str) -> Component {
-    if name == "transform" {
-        return Component { glyph: tool("move"), token: "node_default" };
+    if name == TRANSFORM {
+        return Component { glyph: tool(tools::MOVE), token: theme_tokens::NODE_DEFAULT };
     }
-    if name == "widget" {
-        return Component { glyph: workspace("ui"), token: "node_ui" };
+    if name == WIDGET {
+        return Component { glyph: workspace(tabs::UI), token: "node_ui" };
     }
-    if name == "script" {
-        return Component { glyph: ui("scriptfile"), token: "node_default" };
+    if name == tabs::SCRIPT {
+        return Component { glyph: ui(SCRIPTFILE), token: theme_tokens::NODE_DEFAULT };
     }
-    if name == "bone2d" || name == "bone3d" || name == "skeleton" {
-        return Component { glyph: tool("bone"), token: "node_bone" };
+    if name == BONE2D || name == BONE3D || name == SKELETON {
+        return Component { glyph: tool(tools::BONE), token: theme_tokens::NODE_BONE };
     }
-    if name == "polygon" || name == "shape2d" || name == "sprite" || name == "text2d" || name == "multimesh2d" {
-        return Component { glyph: tool("polygon"), token: "node_2d" };
+    if name == tools::POLYGON || name == SHAPE2D || name == SPRITE || name == components::TEXT2D || name == MULTIMESH2D {
+        return Component { glyph: tool(tools::POLYGON), token: theme_tokens::NODE_2D };
     }
-    if name == "shape3d" || name == "mesh" || name == "text3d" || name == "multimesh3d" {
-        return Component { glyph: workspace("scene"), token: "node_3d" };
+    if name == SHAPE3D || name == MESH || name == TEXT3D || name == MULTIMESH3D {
+        return Component { glyph: workspace(tabs::SCENE), token: "node_3d" };
     }
-    if name.starts_with("body") || name.starts_with("collider") || name.starts_with("character") || name.starts_with("joint") || name.starts_with("softbody") || name.starts_with("wheel") || name.starts_with("vehicle") || name == "tile_collision" || name == "ragdoll" {
-        return Component { glyph: workspace("physics"), token: "node_physics" };
+    if name.starts_with(BODY) || name.starts_with("collider") || name.starts_with("character") || name.starts_with("joint") || name.starts_with("softbody") || name.starts_with("wheel") || name.starts_with("vehicle") || name == TILE_COLLISION || name == verbs::RAGDOLL {
+        return Component { glyph: workspace(tabs::PHYSICS), token: theme_tokens::NODE_PHYSICS };
     }
-    if name.starts_with("camera") || name == "light" || name == "environment" {
-        return Component { glyph: ui("viewmode"), token: "node_default" };
+    if name.starts_with(CAMERA) || name == theme_modes::LIGHT || name == ENVIRONMENT {
+        return Component { glyph: ui(VIEWMODE), token: theme_tokens::NODE_DEFAULT };
     }
-    if name == "animation" || name == "animation_player" {
-        return Component { glyph: panel("timeline"), token: "node_default" };
+    if name == tabs::ANIMATION || name == ANIMATION_PLAYER {
+        return Component { glyph: panel(verbs::TIMELINE), token: theme_tokens::NODE_DEFAULT };
     }
-    if name == "tilemap" || name == "tileset" {
-        return Component { glyph: panel("tiles"), token: "node_2d" };
+    if name == TILEMAP || name == TILESET {
+        return Component { glyph: panel(tools::TILES), token: theme_tokens::NODE_2D };
     }
-    if name == "audio" || name == "audio_player" {
-        return Component { glyph: panel("recordings"), token: "node_default" };
+    if name == asset_kinds::AUDIO || name == AUDIO_PLAYER {
+        return Component { glyph: panel(tabs::RECORDINGS), token: theme_tokens::NODE_DEFAULT };
     }
-    if name == "bindings" || name == "events" {
-        return Component { glyph: ui("events"), token: "node_default" };
+    if name == verbs::BINDINGS || name == tabs::EVENTS {
+        return Component { glyph: ui(tabs::EVENTS), token: theme_tokens::NODE_DEFAULT };
     }
-    Component { glyph: node("world"), token: "node_default" }
+    Component { glyph: node(WORLD), token: theme_tokens::NODE_DEFAULT }
 }
 
 /// A dock panel, by its tab id.
 pub fn panel(id: str) -> str {
-    if id == "scene" {
+    if id == tabs::SCENE {
         "\u{e67c}"
-    } else if id == "outline" {
+    } else if id == tabs::OUTLINE {
         "\u{e2f0}"
-    } else if id == "inspector" {
+    } else if id == tabs::INSPECTOR {
         "\u{e432}"
-    } else if id == "import" {
+    } else if id == tabs::IMPORT {
         "\u{e2c6}"
-    } else if id == "output" {
+    } else if id == OUTPUT {
         "\u{eae8}"
-    } else if id == "problems" {
+    } else if id == tabs::PROBLEMS {
         "\u{e4e0}"
-    } else if id == "assets" {
+    } else if id == ASSETS {
         "\u{e24a}"
-    } else if id == "docs" {
+    } else if id == DOCS {
         "\u{e02f}"
-    } else if id == "timeline" {
+    } else if id == verbs::TIMELINE {
         "\u{e792}"
-    } else if id == "debugger" {
+    } else if id == DEBUGGER {
         "\u{e5f4}"
-    } else if id == "recordings" {
+    } else if id == tabs::RECORDINGS {
         "\u{e3ee}"
-    } else if id == "profiler" {
+    } else if id == tabs::PROFILER {
         "\u{e150}"
-    } else if id == "tiles" {
+    } else if id == tools::TILES {
         "\u{e464}"
-    } else if id == "weights" {
+    } else if id == tabs::WEIGHTS {
         "\u{e3ec}"
-    } else if id == "bonemap" {
+    } else if id == BONEMAP {
         "\u{e0b0}"
-    } else if id == "statemachine" {
+    } else if id == verbs::STATEMACHINE {
         "\u{e6d0}"
-    } else if id == "library" {
+    } else if id == verbs::LIBRARY {
         "\u{e468}"
-    } else if id == "material" {
+    } else if id == asset_kinds::MATERIAL {
         "\u{e6c8}"
-    } else if id == "cost" {
+    } else if id == verbs::COST {
         "\u{e462}"
-    } else if id == "events" {
+    } else if id == tabs::EVENTS {
         "\u{e2e2}"
     } else {
         "\u{e546}"
@@ -146,135 +246,135 @@ pub fn panel(id: str) -> str {
 
 /// The shell's own controls.
 pub fn ui(name: str) -> str {
-    if name == "add" {
+    if name == ADD {
         // Fill draws a stroke-only glyph as a solid tile, which is too heavy
         // for a mark this small: these two are letters, not icons.
         "+"
-    } else if name == "close" {
+    } else if name == CLOSE {
         "×"
-    } else if name == "check" {
+    } else if name == CHECK {
         "\u{e182}"
-    } else if name == "reset" {
+    } else if name == verbs::RESET {
         "\u{e038}"
-    } else if name == "settings" {
+    } else if name == verbs::SETTINGS {
         "\u{e270}"
-    } else if name == "about" {
+    } else if name == verbs::ABOUT {
         "\u{e2ce}"
-    } else if name == "export" {
+    } else if name == verbs::EXPORT {
         "\u{eaf0}"
-    } else if name == "minimize" {
+    } else if name == MINIMIZE {
         "\u{e32a}"
-    } else if name == "open" {
+    } else if name == OPEN {
         "\u{e13c}"
-    } else if name == "shut" {
+    } else if name == SHUT {
         "\u{e136}"
-    } else if name == "caret-open" {
+    } else if name == CARET_OPEN {
         "\u{e136}"
-    } else if name == "caret-shut" {
+    } else if name == CARET_SHUT {
         "\u{e13a}"
-    } else if name == "search" {
+    } else if name == verbs::SEARCH {
         "\u{e30c}"
-    } else if name == "dark" {
+    } else if name == theme_modes::DARK {
         "\u{e330}"
-    } else if name == "light" {
+    } else if name == theme_modes::LIGHT {
         "\u{e472}"
-    } else if name == "play" {
+    } else if name == verbs::PLAY {
         "\u{e3d0}"
-    } else if name == "pause" {
+    } else if name == PAUSE {
         "\u{e39e}"
-    } else if name == "stop" {
+    } else if name == statuses::STOP {
         "\u{e46c}"
-    } else if name == "instance" {
+    } else if name == INSTANCE {
         "\u{e1ca}"
-    } else if name == "events" {
+    } else if name == tabs::EVENTS {
         "\u{e2e2}"
-    } else if name == "split" {
+    } else if name == verbs::SPLIT {
         "\u{e546}"
-    } else if name == "focus" {
+    } else if name == verbs::FOCUS {
         "\u{e1d0}"
-    } else if name == "unfocus" {
+    } else if name == UNFOCUS {
         "\u{e1ce}"
-    } else if name == "restore" {
+    } else if name == window_marks::RESTORE {
         "\u{e13c}"
-    } else if name == "collapse" {
+    } else if name == window_marks::COLLAPSE {
         "\u{e136}"
-    } else if name == "caret-left" {
+    } else if name == CARET_LEFT {
         "\u{e138}"
-    } else if name == "caret-right" {
+    } else if name == CARET_RIGHT {
         "\u{e13a}"
-    } else if name == "caret-up" {
+    } else if name == CARET_UP {
         "\u{e13c}"
-    } else if name == "caret-down" {
+    } else if name == CARET_DOWN {
         "\u{e136}"
-    } else if name == "arrow-line-left" {
+    } else if name == ARROW_LINE_LEFT {
         "\u{e062}"
-    } else if name == "arrow-line-right" {
+    } else if name == ARROW_LINE_RIGHT {
         "\u{e064}"
-    } else if name == "arrow-line-down" {
+    } else if name == ARROW_LINE_DOWN {
         "\u{e05c}"
-    } else if name == "step-over" {
+    } else if name == STEP_OVER {
         "\u{e08c}"
-    } else if name == "step-into" {
+    } else if name == STEP_INTO {
         "\u{e05c}"
-    } else if name == "step-out" {
+    } else if name == STEP_OUT {
         "\u{e066}"
-    } else if name == "scriptfile" {
+    } else if name == SCRIPTFILE {
         "\u{e914}"
-    } else if name == "lock" {
+    } else if name == verbs::LOCK {
         "\u{e2fa}"
-    } else if name == "unlock" {
+    } else if name == UNLOCK {
         "\u{e306}"
-    } else if name == "visible" {
+    } else if name == components::VISIBLE {
         "\u{e220}"
-    } else if name == "hidden" {
+    } else if name == HIDDEN {
         "\u{e224}"
-    } else if name == "eye-closed" {
+    } else if name == EYE_CLOSED {
         "\u{e222}"
-    } else if name == "align-left" {
+    } else if name == ALIGN_LEFT {
         "\u{e50e}"
-    } else if name == "align-right" {
+    } else if name == ALIGN_RIGHT {
         "\u{e510}"
-    } else if name == "align-center-h" {
+    } else if name == ALIGN_CENTER_H {
         "\u{e50c}"
-    } else if name == "align-top" {
+    } else if name == ALIGN_TOP {
         "\u{e512}"
-    } else if name == "align-bottom" {
+    } else if name == ALIGN_BOTTOM {
         "\u{e506}"
-    } else if name == "align-center-v" {
+    } else if name == ALIGN_CENTER_V {
         "\u{e50a}"
-    } else if name == "distribute-h" {
+    } else if name == DISTRIBUTE_H {
         "\u{e534}"
-    } else if name == "distribute-v" {
+    } else if name == DISTRIBUTE_V {
         "\u{e536}"
-    } else if name == "group" {
+    } else if name == verbs::GROUP {
         "\u{e6ce}"
-    } else if name == "ungroup" {
+    } else if name == verbs::UNGROUP {
         "\u{e69a}"
-    } else if name == "select-all" {
+    } else if name == SELECT_ALL {
         "\u{e69c}"
-    } else if name == "isolate" {
+    } else if name == verbs::ISOLATE {
         "\u{e1d0}"
-    } else if name == "filter" {
+    } else if name == FILTER {
         "\u{e268}"
-    } else if name == "light" {
+    } else if name == theme_modes::LIGHT {
         "\u{e2dc}"
-    } else if name == "sky" {
+    } else if name == asset_kinds::SKY {
         "\u{e288}"
-    } else if name == "camera" {
+    } else if name == CAMERA {
         "\u{e4da}"
-    } else if name == "pen" {
+    } else if name == tools::PEN {
         "\u{e64a}"
-    } else if name == "path" {
+    } else if name == general::PATH {
         "\u{e6d2}"
-    } else if name == "material" {
+    } else if name == asset_kinds::MATERIAL {
         "\u{e6c8}"
-    } else if name == "library" {
+    } else if name == verbs::LIBRARY {
         "\u{e468}"
-    } else if name == "viewmode" {
+    } else if name == VIEWMODE {
         "\u{e744}"
-    } else if name == "bookmark" {
+    } else if name == BOOKMARK {
         "\u{e0e8}"
-    } else if name == "copy" {
+    } else if name == verbs::COPY {
         "\u{e1cc}"
     } else {
         "\u{ecde}"
@@ -283,7 +383,7 @@ pub fn ui(name: str) -> str {
 
 /// A node's kind in the tree, by the role `model::node_icon` reports.
 pub fn node(role: str) -> str {
-    if role == "world" {
+    if role == WORLD {
         "\u{e18a}"
     } else {
         "\u{e18a}"

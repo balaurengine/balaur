@@ -21,6 +21,16 @@ use balaur_core::wake::Commands;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Module, Value};
 
+const CLOSE: &str = "close";
+const CONNECT: &str = "connect";
+const KIND: &str = "kind";
+const REASON: &str = "reason";
+const SEND_BYTES: &str = "send_bytes";
+const SEND_TEXT: &str = "send_text";
+const SOCKET: &str = "socket";
+const STATE: &str = "state";
+const WEBSOCKET: &str = "websocket";
+
 pub mod connection;
 #[cfg(not(target_family = "wasm"))]
 mod frames;
@@ -50,6 +60,7 @@ mod backend {
 /// The browser: the WebSocket API through web-sys.
 #[cfg(target_family = "wasm")]
 mod browser;
+mod vocabulary;
 
 #[cfg(target_family = "wasm")]
 mod backend {
@@ -354,17 +365,17 @@ pub mod state {
 fn event_value(event: SocketEvent) -> Value {
     let pairs = match event {
         SocketEvent::Open { socket } => vec![
-            ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str(kind::OPEN.into())),
+            (SOCKET.into(), id_value(socket)),
+            (KIND.into(), Value::Str(kind::OPEN.into())),
         ],
         SocketEvent::Message { socket, text } => vec![
-            ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str(kind::MESSAGE.into())),
+            (SOCKET.into(), id_value(socket)),
+            (KIND.into(), Value::Str(kind::MESSAGE.into())),
             ("text".into(), Value::Str(text)),
         ],
         SocketEvent::Binary { socket, bytes } => vec![
-            ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str(kind::BINARY.into())),
+            (SOCKET.into(), id_value(socket)),
+            (KIND.into(), Value::Str(kind::BINARY.into())),
             ("bytes".into(), Value::Bytes(bytes)),
         ],
         SocketEvent::Closed {
@@ -372,10 +383,10 @@ fn event_value(event: SocketEvent) -> Value {
             code,
             reason,
         } => vec![
-            ("socket".into(), id_value(socket)),
-            ("kind".into(), Value::Str(kind::CLOSED.into())),
+            (SOCKET.into(), id_value(socket)),
+            (KIND.into(), Value::Str(kind::CLOSED.into())),
             ("code".into(), Value::Int(i64::from(code))),
-            ("reason".into(), Value::Str(reason)),
+            (REASON.into(), Value::Str(reason)),
         ],
         SocketEvent::Failed {
             socket,
@@ -383,9 +394,9 @@ fn event_value(event: SocketEvent) -> Value {
             status,
         } => {
             let mut pairs = vec![
-                ("socket".into(), id_value(socket)),
-                ("kind".into(), Value::Str(kind::ERROR.into())),
-                ("reason".into(), Value::Str(reason)),
+                (SOCKET.into(), id_value(socket)),
+                (KIND.into(), Value::Str(kind::ERROR.into())),
+                (REASON.into(), Value::Str(reason)),
             ];
             if let Some(status) = status {
                 pairs.push(("status".into(), Value::Int(i64::from(status))));
@@ -401,17 +412,17 @@ pub struct WebSocketPlugin;
 
 impl balaur_plugin::Plugin for WebSocketPlugin {
     fn name(&self) -> &'static str {
-        "websocket"
+        WEBSOCKET
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(WebsocketState::default());
         reg.insert_resource(WebsocketSnapshot::default());
         reg.add_system(Stage::First, pump_websocket_system);
-        reg.add_replay_source("websocket", capture, restore);
+        reg.add_replay_source(WEBSOCKET, capture, restore);
         balaur_core::settings::define_group(
             reg.engine(),
-            "websocket",
+            WEBSOCKET,
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema(
                 "settings.websocket",
@@ -420,7 +431,7 @@ compression = { type = "bool", default = true, help = "Offer permessage-deflate 
 "#,
             ),
         );
-        let mut m = reg.script_module("websocket")?;
+        let mut m = reg.script_module(WEBSOCKET)?;
         install_websocket_api(&mut m);
         Ok(())
     }
@@ -475,11 +486,11 @@ fn install_websocket_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("connect", &[], "(node: node?, url: string, opts: ConnectOptions?) -> int", "Open a connection and return the id `send_text`, `send_bytes` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`. With no node, only a `task.wait` hears it."),
-        ("send_text", &[], "(socket: int, text: string) -> bool", "Queue a text frame on the connection; false when it is already gone."),
-        ("send_bytes", &[], "(socket: int, data: bytes) -> bool", "Queue a binary frame on the connection; false when it is already gone."),
-        ("close", &[], "(socket: int) -> bool", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
-        ("state", &[], "(socket: int) -> string", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
+        (CONNECT, &[], "(node: node?, url: string, opts: ConnectOptions?) -> int", "Open a connection and return the id `send_text`, `send_bytes` and `close` take, which `task.wait` resumes on with the `open` or `error` event; options are `on_event`, `compression` and `headers`. With no node, only a `task.wait` hears it."),
+        (SEND_TEXT, &[], "(socket: int, text: string) -> bool", "Queue a text frame on the connection; false when it is already gone."),
+        (SEND_BYTES, &[], "(socket: int, data: bytes) -> bool", "Queue a binary frame on the connection; false when it is already gone."),
+        (CLOSE, &[], "(socket: int) -> bool", "Ask the connection to close, which still delivers a `closed` event with its `code`; false when it was already gone."),
+        (STATE, &[], "(socket: int) -> string", "Where the connection is: `connecting`, `open`, `closing` or `closed`, each a `STATE_*` constant."),
     ]);
     for word in state::ALL {
         m.constant(
@@ -488,7 +499,7 @@ fn install_websocket_api(m: &mut Module<Engine>) {
         );
     }
     m.function(
-        "connect",
+        CONNECT,
         |eng: &Engine, (node, url, opts): (Value, String, Option<Value>)| {
             let handler = handler_of(&node, opts.as_ref(), "on_event", "on_websocket_event")?;
             let options = socket_options_of(opts.as_ref(), &WebsocketConfig::from_settings(eng))?;
@@ -498,31 +509,23 @@ fn install_websocket_api(m: &mut Module<Engine>) {
             Ok(id_value(id))
         },
     );
-    m.function(
-        "send_text",
-        |eng: &Engine, (socket, text): (i64, String)| {
-            let state = eng.resource::<WebsocketState>();
-            let sent =
-                u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_text(id, &text));
-            Ok(sent)
-        },
-    );
-    m.function(
-        "send_bytes",
-        |eng: &Engine, (socket, data): (i64, Value)| {
-            let data = balaur_core::handler::bytes_of(&data)?;
-            let state = eng.resource::<WebsocketState>();
-            let sent =
-                u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_bytes(id, data));
-            Ok(sent)
-        },
-    );
-    m.function("close", |eng: &Engine, socket: i64| {
+    m.function(SEND_TEXT, |eng: &Engine, (socket, text): (i64, String)| {
+        let state = eng.resource::<WebsocketState>();
+        let sent = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_text(id, &text));
+        Ok(sent)
+    });
+    m.function(SEND_BYTES, |eng: &Engine, (socket, data): (i64, Value)| {
+        let data = balaur_core::handler::bytes_of(&data)?;
+        let state = eng.resource::<WebsocketState>();
+        let sent = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().send_bytes(id, data));
+        Ok(sent)
+    });
+    m.function(CLOSE, |eng: &Engine, socket: i64| {
         let state = eng.resource::<WebsocketState>();
         let closed = u64::try_from(socket).is_ok_and(|id| state.borrow_mut().close(id));
         Ok(Value::Bool(closed))
     });
-    m.function("state", |eng: &Engine, socket: i64| {
+    m.function(STATE, |eng: &Engine, socket: i64| {
         let state = eng.resource::<WebsocketState>();
         let word = u64::try_from(socket).map_or(state::CLOSED, |id| state.borrow().state(id));
         Ok(Value::Str(word.to_string()))

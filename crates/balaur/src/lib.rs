@@ -42,6 +42,11 @@ use std::collections::BTreeMap;
 use anyhow::Context;
 use anyhow::{Result, bail};
 
+const BALAUR: &str = "balaur";
+const UI_ACCEPT: &str = "ui_accept";
+const UI_NEXT: &str = "ui_next";
+const UI_PREVIOUS: &str = "ui_previous";
+
 /// Every optional module: the name it goes by, the cargo feature that
 /// switches it on, and the plugin it registers.
 ///
@@ -613,7 +618,7 @@ fn drive_ui_focus(app: &mut App) {
             };
             let keyboard = {
                 let actions = actions.borrow();
-                ["ui_accept", "ui_next", "ui_previous"]
+                [UI_ACCEPT, UI_NEXT, UI_PREVIOUS]
                     .iter()
                     .any(|name| actions.is_declared(name))
                     || !(actions.binds_any_key(&balaur_input::FOCUS_KEYS)
@@ -630,11 +635,11 @@ fn drive_ui_focus(app: &mut App) {
                 let actions = actions.borrow();
                 // Accept first: a frame that both moved and accepted meant the
                 // accept, and one press cannot sensibly do two things.
-                if actions.just_pressed("ui_accept") {
+                if actions.just_pressed(UI_ACCEPT) {
                     Some(Move::Accept)
-                } else if actions.just_pressed("ui_next") {
+                } else if actions.just_pressed(UI_NEXT) {
                     Some(Move::Next)
-                } else if actions.just_pressed("ui_previous") {
+                } else if actions.just_pressed(UI_PREVIOUS) {
                     Some(Move::Previous)
                 } else {
                     None
@@ -763,7 +768,7 @@ pub fn boot_project(project_root: &str) -> Result<()> {
     app.load_project()?;
     let title = app
         .manifest()
-        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+        .map_or_else(|| BALAUR.to_string(), |m| m.name.clone());
     run(app, &title)
 }
 
@@ -778,7 +783,7 @@ pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
     keep_log(&app);
     let title = app
         .manifest()
-        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+        .map_or_else(|| BALAUR.to_string(), |m| m.name.clone());
     let ran = balaur_render::kiss3d_backend::run_windowed_async(app, &title, Some(canvas_id)).await;
     balaur_core::logbuf::flush_file();
     ran
@@ -834,6 +839,6 @@ pub fn boot_pack(bytes: &[u8]) -> Result<()> {
     app.load_project()?;
     let title = app
         .manifest()
-        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+        .map_or_else(|| BALAUR.to_string(), |m| m.name.clone());
     run(app, &title)
 }

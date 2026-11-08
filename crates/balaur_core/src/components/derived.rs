@@ -29,6 +29,8 @@ pub use toml;
 
 use super::{ComponentDef, Schema, WriteEachFn, WriteFn};
 use crate::engine::Engine;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// A property's value with nothing built: what a write hands a field and what
 /// a field hands a read, for the kinds a script passes in its call's slots.
@@ -242,14 +244,14 @@ pub fn from_table<F: Fields>(table: &toml::Value) -> Result<F> {
 
 /// A `record` spec, its fields the struct's.
 pub fn describe_record<F: Fields>(spec: &mut toml::map::Map<String, toml::Value>) {
-    spec.entry("type")
-        .or_insert_with(|| toml::Value::String("record".into()));
+    spec.entry(keys::TYPE)
+        .or_insert_with(|| toml::Value::String(words::datatypes::RECORD.into()));
     let fields = F::NAMES
         .iter()
         .zip(F::specs())
         .map(|(name, field)| ((*name).to_owned(), field))
         .collect();
-    spec.insert("fields".into(), toml::Value::Table(fields));
+    spec.insert(keys::FIELDS.into(), toml::Value::Table(fields));
 }
 
 /// A `variant` spec: each of `variants` a record spec, by the name a value's
@@ -258,9 +260,9 @@ pub fn describe_variant(
     spec: &mut toml::map::Map<String, toml::Value>,
     variants: toml::map::Map<String, toml::Value>,
 ) {
-    spec.entry("type")
-        .or_insert_with(|| toml::Value::String("variant".into()));
-    spec.insert("variants".into(), toml::Value::Table(variants));
+    spec.entry(keys::TYPE)
+        .or_insert_with(|| toml::Value::String(words::datatypes::VARIANT.into()));
+    spec.insert(keys::VARIANTS.into(), toml::Value::Table(variants));
 }
 
 /// One variant's record spec, its doc comment as its `description`.
@@ -268,7 +270,10 @@ pub fn variant_record<F: Fields>(doc: &str) -> toml::Value {
     let mut spec = toml::map::Map::new();
     describe_record::<F>(&mut spec);
     if !doc.is_empty() {
-        spec.insert("description".into(), toml::Value::String(doc.to_owned()));
+        spec.insert(
+            keys::DESCRIPTION.into(),
+            toml::Value::String(doc.to_owned()),
+        );
     }
     toml::Value::Table(spec)
 }
@@ -276,10 +281,19 @@ pub fn variant_record<F: Fields>(doc: &str) -> toml::Value {
 /// A variant that holds nothing but its name: a record with no fields.
 pub fn variant_unit(doc: &str) -> toml::Value {
     let mut spec = toml::map::Map::new();
-    spec.insert("type".into(), toml::Value::String("record".into()));
-    spec.insert("fields".into(), toml::Value::Table(toml::map::Map::new()));
+    spec.insert(
+        keys::TYPE.into(),
+        toml::Value::String(words::datatypes::RECORD.into()),
+    );
+    spec.insert(
+        keys::FIELDS.into(),
+        toml::Value::Table(toml::map::Map::new()),
+    );
     if !doc.is_empty() {
-        spec.insert("description".into(), toml::Value::String(doc.to_owned()));
+        spec.insert(
+            keys::DESCRIPTION.into(),
+            toml::Value::String(doc.to_owned()),
+        );
     }
     toml::Value::Table(spec)
 }
@@ -318,9 +332,9 @@ pub fn variant_kind<'a>(value: &'a toml::Value, options: &[&str]) -> Result<&'a 
 
 /// An `enum` spec offering `options`.
 pub fn describe_enum(spec: &mut toml::map::Map<String, toml::Value>, options: &[&str]) {
-    spec.entry("type")
-        .or_insert_with(|| toml::Value::String("enum".into()));
-    spec.entry("options").or_insert_with(|| {
+    spec.entry(keys::TYPE)
+        .or_insert_with(|| toml::Value::String(words::datatypes::ENUM.into()));
+    spec.entry(keys::OPTIONS).or_insert_with(|| {
         toml::Value::Array(
             options
                 .iter()
@@ -341,7 +355,7 @@ pub fn no_property(index: usize) -> anyhow::Error {
 }
 
 fn set_type(spec: &mut toml::map::Map<String, toml::Value>, name: &str) {
-    spec.entry("type")
+    spec.entry(keys::TYPE)
         .or_insert_with(|| toml::Value::String(name.to_owned()));
 }
 
@@ -417,7 +431,7 @@ fn floats(values: &[f32]) -> toml::Value {
 
 impl Property for f32 {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "float");
+        set_type(spec, words::datatypes::FLOAT);
     }
 
     fn to_value(&self) -> toml::Value {
@@ -442,7 +456,7 @@ impl Property for f32 {
 
 impl Property for f64 {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "float");
+        set_type(spec, words::datatypes::FLOAT);
     }
 
     fn to_value(&self) -> toml::Value {
@@ -511,7 +525,7 @@ whole_number!(i32, i64, u8, u16, u32, u64, usize);
 
 impl Property for bool {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "bool");
+        set_type(spec, words::datatypes::BOOL);
     }
 
     fn to_value(&self) -> toml::Value {
@@ -536,7 +550,7 @@ impl Property for bool {
 
 impl Property for String {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "string");
+        set_type(spec, words::datatypes::STRING);
     }
 
     fn to_value(&self) -> toml::Value {
@@ -547,7 +561,7 @@ impl Property for String {
         value
             .as_str()
             .map(str::to_owned)
-            .ok_or_else(|| wrong(value, "text"))
+            .ok_or_else(|| wrong(value, words::TEXT))
     }
 
     fn from_given(given: Given<'_>) -> Result<Self> {
@@ -564,7 +578,7 @@ impl Property for String {
 
 impl Property for smol_str::SmolStr {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "string");
+        set_type(spec, words::datatypes::STRING);
     }
 
     fn to_value(&self) -> toml::Value {
@@ -575,7 +589,7 @@ impl Property for smol_str::SmolStr {
         value
             .as_str()
             .map(Self::new)
-            .ok_or_else(|| wrong(value, "text"))
+            .ok_or_else(|| wrong(value, words::TEXT))
     }
 
     fn from_given(given: Given<'_>) -> Result<Self> {
@@ -636,7 +650,7 @@ vector!(glamx::Vec4, 4, "vec4");
 /// what a person can type; the struct keeps the quaternion it turns into.
 impl Property for glamx::Quat {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "vec3");
+        set_type(spec, words::datatypes::VEC3);
     }
 
     fn to_value(&self) -> toml::Value {
@@ -663,14 +677,14 @@ impl<T: Property> Property for Vec<T> {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
         let mut held = toml::map::Map::new();
         T::describe(&mut held);
-        if spec.get("type").and_then(toml::Value::as_str) == Some("flags") {
-            if let Some(options) = held.remove("options") {
-                spec.entry("options").or_insert(options);
+        if spec.get(keys::TYPE).and_then(toml::Value::as_str) == Some(words::datatypes::FLAGS) {
+            if let Some(options) = held.remove(keys::OPTIONS) {
+                spec.entry(keys::OPTIONS).or_insert(options);
             }
             return;
         }
-        set_type(spec, "list");
-        spec.entry("of").or_insert(toml::Value::Table(held));
+        set_type(spec, words::datatypes::LIST);
+        spec.entry(keys::OF).or_insert(toml::Value::Table(held));
     }
 
     fn to_value(&self) -> toml::Value {
@@ -692,8 +706,8 @@ impl<T: Property> Property for Vec<T> {
 
 impl<T: Property> Property for indexmap::IndexMap<String, T> {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        set_type(spec, "map");
-        spec.entry("of").or_insert_with(|| {
+        set_type(spec, words::datatypes::MAP);
+        spec.entry(keys::OF).or_insert_with(|| {
             let mut held = toml::map::Map::new();
             T::describe(&mut held);
             toml::Value::Table(held)

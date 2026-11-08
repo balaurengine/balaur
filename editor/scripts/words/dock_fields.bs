@@ -1,0 +1,13 @@
+// The fields of a saved dock layout.
+
+internal const ACTIVE: str = "active";
+internal const BAR: str = "bar";
+internal const BOTTOM: str = "bottom";
+internal const INSET: str = "inset";
+internal const LEFT: str = "left";
+internal const PANELS: str = "panels";
+internal const RAIL_ROOM: str = "rail_room";
+internal const RIGHT: str = "right";
+internal const SHUT: str = "shut";
+internal const TABS: str = "tabs";
+internal const TALL: str = "tall";

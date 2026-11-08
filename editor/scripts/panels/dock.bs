@@ -3,6 +3,8 @@
 // owns which panels a dock holds and fills its row when asked.
 
 use editor;
+use signals;
+use words::sides;
 
 pub class Dock {
     node: Node,
@@ -12,11 +14,11 @@ pub class Dock {
 
 fn side_of(name: str) -> str {
     if name == "LeftSheet" {
-        "left"
+        sides::LEFT
     } else if name == "RightSheet" {
-        "right"
+        sides::RIGHT
     } else {
-        "bottom"
+        sides::BOTTOM
     }
 }
 
@@ -25,7 +27,7 @@ impl Dock {
         self.side = side_of(self.node.name());
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
     }
 
     pub fn on_docks_changed(_change: any) {

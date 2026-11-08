@@ -2,6 +2,27 @@
 // `log_sink.bs` keeps it on its node, pumps it, and settles what it asked in a
 // `settle_reply` method; a game with its own loop writes the same.
 
+use core;
+
+const DEBUG: str = "debug";
+const ERROR: str = "error";
+const INFO: str = "info";
+const OFF: str = "off";
+const TRACE: str = "trace";
+const WARN: str = "warn";
+const ACCEPTED: str = "accepted";
+const AT: str = "at";
+const CLIENT_SESSION_ID: str = "client_session_id";
+const DROPPED: str = "dropped";
+const ENTRIES: str = "entries";
+const HEADERS: str = "headers";
+const LEVEL: str = "level";
+const LOBBY_ID: str = "lobby_id";
+const METHOD: str = "method";
+const SCREEN: str = "screen";
+const SEQ: str = "seq";
+const TIMEOUT_SECONDS: str = "timeout_seconds";
+
 /// The method on the node given to `pump` that awaits a request.
 const SETTLE_REPLY: str = "settle_reply";
 
@@ -94,7 +115,7 @@ pub fn setup(url: str) -> Sink {
         enabled: false,
         policy: 0,
         retry_in: 0.0,
-        level: "info",
+        level: INFO,
         categories: {},
         batch_max: 200,
         in_flight: 0,
@@ -193,17 +214,17 @@ pub fn settle(sink: &mut Sink, reply: any) -> bool {
     sink.in_flight = 0;
     let batch = sink.sending;
     sink.sending = [];
-    let status = reply["status"].as_int();
+    let status = reply[core::STATUS].as_int();
     if status >= 200 && status < 300 {
         // Written now, not on the next second: a run that quits after this
         // reply must not leave delivered lines to be sent again.
         spool(sink);
         sink.registered = true;
-        let counts = unwrap(parsed(reply["body"]));
-        let accepted = if counts.has("accepted") { counts["accepted"].as_int() } else { batch.len() };
+        let counts = unwrap(parsed(reply[core::BODY]));
+        let accepted = if counts.has(ACCEPTED) { counts[ACCEPTED].as_int() } else { batch.len() };
         sink.accepted += accepted;
-        if counts.has("dropped") {
-            sink.dropped = counts["dropped"].as_int();
+        if counts.has(DROPPED) {
+            sink.dropped = counts[DROPPED].as_int();
         }
         sink.last_flush = "{status} · {accepted} lines";
         return true;
@@ -233,8 +254,8 @@ pub fn report(sink: Sink) -> any {
         "run": sink.run,
         "pending": sink.pending.len(),
         "last flush": sink.last_flush,
-        "accepted": sink.accepted,
-        "dropped": sink.dropped,
+        ACCEPTED: sink.accepted,
+        DROPPED: sink.dropped,
     }
 }
 
@@ -255,15 +276,15 @@ pub fn headers(sink: Sink) -> [http::Header] {
 fn ask_policy(sink: &mut Sink, node: Node) {
     sink.retry_in = RETRY;
     let url = sink.url + POLICY_PATH;
-    let opts: any = { "headers": headers(sink), "timeout_seconds": 10.0 };
+    let opts: any = { HEADERS: headers(sink), TIMEOUT_SECONDS: 10.0 };
     sink.policy = http::request(url, opts);
     node.call(SETTLE_REPLY, sink.policy);
 }
 
 fn policy_came(sink: &mut Sink, reply: any) {
-    let status = reply["status"].as_int();
-    let policy = if status == 200 { parsed(reply["body"]) } else { nil };
-    if policy.kind() != "map" {
+    let status = reply[core::STATUS].as_int();
+    let policy = if status == 200 { parsed(reply[core::BODY]) } else { nil };
+    if policy.kind() != types::KIND_MAP {
         sink.state = "no policy ({describe(reply)}): asking again";
         return;
     }
@@ -272,22 +293,22 @@ fn policy_came(sink: &mut Sink, reply: any) {
 
 /// A reply's body as a value: parsed when it came as JSON text.
 fn parsed(body: any) -> any {
-    if body.kind() == "str" { json::parse(body.as_str()) } else { body }
+    if body.kind() == types::KIND_STRING { json::parse(body.as_str()) } else { body }
 }
 
 /// Every API answer carries its payload under `data`; a server from before
 /// that change sent it bare, so take either.
 fn unwrap(body: any) -> any {
-    if body["data"].kind() == "map" { body["data"] } else { body }
+    if body[core::DATA].kind() == types::KIND_MAP { body[core::DATA] } else { body }
 }
 
 /// What the server asked for: on or off, a level floor, per-category floors.
 pub fn apply_policy(sink: &mut Sink, policy: any) {
     sink.enabled = policy["enabled"].as_bool();
-    let level = policy["level"];
-    sink.level = if level.kind() == "str" { level.as_str() } else { "info" };
+    let level = policy[LEVEL];
+    sink.level = if level.kind() == types::KIND_STRING { level.as_str() } else { INFO };
     let most = policy["batch_max"];
-    sink.batch_max = if most.kind() == "int" && most.as_int() > 0 { most.as_int() } else { 200 };
+    sink.batch_max = if most.kind() == types::KIND_INT && most.as_int() > 0 { most.as_int() } else { 200 };
     let floors: any = {};
     let categories = policy["categories"];
     for name in categories.keys() {
@@ -321,7 +342,7 @@ fn take(sink: &mut Sink) -> bool {
         if !wanted(sink, line) {
             continue;
         }
-        if line.level == "error" {
+        if line.level == ERROR {
             urgent = true;
         }
         sink.dirty = true;
@@ -337,24 +358,24 @@ fn take(sink: &mut Sink) -> bool {
 
 fn wanted(sink: Sink, line: Line) -> bool {
     let floor = sink.categories[line.category];
-    let at = if floor.kind() == "str" { floor.as_str() } else { sink.level };
+    let at = if floor.kind() == types::KIND_STRING { floor.as_str() } else { sink.level };
     rank(line.level) >= rank(at)
 }
 
 fn rank(level: str) -> int {
-    if level == "trace" {
+    if level == TRACE {
         return 0;
     }
-    if level == "debug" {
+    if level == DEBUG {
         return 1;
     }
-    if level == "warn" {
+    if level == WARN {
         return 3;
     }
-    if level == "error" {
+    if level == ERROR {
         return 4;
     }
-    if level == "off" {
+    if level == OFF {
         return 99;
     }
     2
@@ -425,13 +446,13 @@ fn trim(sink: &mut Sink) {
 
 /// Post a batch: the request's id, or 0 when none went out.
 fn send(sink: Sink, node: Node, lines: [Line]) -> int {
-    let body = json::encode({ "session": session_payload(sink), "entries": rendered(lines) });
+    let body = json::encode({ "session": session_payload(sink), ENTRIES: rendered(lines) });
     let url = sink.url + INGEST_PATH;
     let opts: any = {
-        "method": "POST",
-        "headers": headers(sink),
-        "body": body,
-        "timeout_seconds": 15.0,
+        METHOD: "POST",
+        HEADERS: headers(sink),
+        core::BODY: body,
+        TIMEOUT_SECONDS: 15.0,
     };
     let asked = http::request(url, opts);
     node.call(SETTLE_REPLY, asked);
@@ -444,13 +465,13 @@ fn rendered(lines: [Line]) -> any {
     for line in lines {
         let message = if line.repeat > 1 { "{line.message}  (x{line.repeat})" } else { line.message };
         list.push({
-            "seq": line.seq,
-            "at": line.at,
-            "level": line.level,
+            SEQ: line.seq,
+            AT: line.at,
+            LEVEL: line.level,
             "category": line.category,
-            "message": message,
-            "lobby_id": line.lobby_id,
-            "screen": line.screen,
+            core::MESSAGE: message,
+            LOBBY_ID: line.lobby_id,
+            SCREEN: line.screen,
         });
     }
     list
@@ -459,13 +480,13 @@ fn rendered(lines: [Line]) -> any {
 /// The run described until a batch is accepted; its id alone after that.
 fn session_payload(sink: Sink) -> any {
     if sink.registered {
-        return { "client_session_id": sink.run };
+        return { CLIENT_SESSION_ID: sink.run };
     }
     let host = engine::target();
     let platform = if host.web { "web" } else { host.os };
-    let build = if host.dev { "debug" } else { "release" };
+    let build = if host.dev { DEBUG } else { "release" };
     {
-        "client_session_id": sink.run,
+        CLIENT_SESSION_ID: sink.run,
         "device_id": engine::device_id(),
         "platform": platform,
         "build": build,
@@ -489,7 +510,7 @@ fn spool(sink: &mut Sink) {
         forget_spool();
         return;
     }
-    save::write(SPOOL, { "entries": rendered(held) });
+    save::write(SPOOL, { ENTRIES: rendered(held) });
 }
 
 fn forget_spool() {
@@ -501,18 +522,18 @@ fn forget_spool() {
 fn recovered() -> [Line] {
     let out: [Line] = [];
     let spool = save::read(SPOOL);
-    if spool.kind() == "map" {
-        let entries = spool["entries"];
+    if spool.kind() == types::KIND_MAP {
+        let entries = spool[ENTRIES];
         for i in 0..entries.len() {
             let kept = entries[i];
             out.push(Line {
-                seq: kept["seq"].as_int(),
-                at: kept["at"].as_float(),
-                level: kept["level"].text(),
+                seq: kept[SEQ].as_int(),
+                at: kept[AT].as_float(),
+                level: kept[LEVEL].text(),
                 category: "recovered",
-                message: kept["message"].text(),
-                lobby_id: kept["lobby_id"].text(),
-                screen: kept["screen"].text(),
+                message: kept[core::MESSAGE].text(),
+                lobby_id: kept[LOBBY_ID].text(),
+                screen: kept[SCREEN].text(),
                 repeat: 1,
             });
         }
@@ -563,10 +584,10 @@ fn level_in(line: str) -> str {
             words.push(word);
         }
     }
-    if words.len() == 2 && (rank(words[1]) != 2 || words[1] == "info") {
+    if words.len() == 2 && (rank(words[1]) != 2 || words[1] == INFO) {
         return words[1];
     }
-    "error"
+    ERROR
 }
 
 /// Note when the run started once the clock reads, which it does from the
@@ -603,6 +624,6 @@ fn trimmed(url: str) -> str {
 }
 
 fn describe(reply: any) -> str {
-    let error = reply["error"];
-    if error.kind() == "str" { error.as_str() } else { reply["status"].text() }
+    let error = reply[ERROR];
+    if error.kind() == types::KIND_STRING { error.as_str() } else { reply[core::STATUS].text() }
 }

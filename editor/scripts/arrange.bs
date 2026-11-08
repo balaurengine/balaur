@@ -7,6 +7,12 @@ use model;
 use rig;
 use selection;
 use util;
+use words::components;
+use words::inspector_fields;
+use words::verbs;
+
+const MAX: str = "max";
+const MIN: str = "min";
 
 /// World position of a row.
 fn world_of(state: editor::State, row: int) -> [float] {
@@ -21,7 +27,7 @@ fn world_of(state: editor::State, row: int) -> [float] {
 /// Move a row so its world position becomes `target`, in local terms.
 fn move_world_to(state: &mut editor::State, row: int, target: [float]) {
     let world = world_of(state, row);
-    let local = model::transform_part(model::node(state, row), "position", [0.0, 0.0, 0.0]);
+    let local = model::transform_part(model::node(state, row), components::POSITION, [0.0, 0.0, 0.0]);
     model::set_transform(state, row, rig::Parts { position: util::vector_add(local, util::vector_subtract(target, world)), rotation_euler: [], scale: [] });
 }
 
@@ -42,9 +48,9 @@ pub fn align(state: &mut editor::State, axis: int, mode: str) {
         highest = util::max(highest, coordinate);
         sum += coordinate;
     }
-    let to = if mode == "min" {
+    let to = if mode == MIN {
         lowest
-    } else if mode == "max" {
+    } else if mode == MAX {
         highest
     } else {
         sum / rows.len() as float
@@ -133,11 +139,11 @@ pub fn group(state: &mut editor::State) {
     center = util::vector_scale(center, 1.0 / rows.len() as float);
     // The group's own position is local to whatever it lands under.
     let base = util::xyz(parent.transform.global_position());
-    history::record(state, "group");
-    let made = model::spawn(state, parent, "Group", { "transform": {
-        "position": util::vector_subtract(center, base),
-        "rotation_euler": [0.0, 0.0, 0.0],
-        "scale": [1.0, 1.0, 1.0],
+    history::record(state, verbs::GROUP);
+    let made = model::spawn(state, parent, "Group", { components::TRANSFORM: {
+        inspector_fields::POSITION: util::vector_subtract(center, base),
+        animation::PROPERTY_ROTATION_EULER: [0.0, 0.0, 0.0],
+        inspector_fields::SCALE: [1.0, 1.0, 1.0],
     } });
     // Where the first member stood, so the group takes its place in the order.
     if members[0].parent() == parent {
@@ -165,7 +171,7 @@ pub fn ungroup(state: &mut editor::State) {
         log::info("nothing to ungroup");
         return;
     }
-    history::record(state, "ungroup");
+    history::record(state, verbs::UNGROUP);
     let up = found.parent();
     let place = found.sibling_index();
     for child in children {
@@ -199,7 +205,7 @@ pub fn toggle_hidden_of(state: &mut editor::State, rows: [int]) {
         }
     }
     let to = !any_visible;
-    history::record(state, if to { "show" } else { "hide" });
+    history::record(state, if to { "show" } else { verbs::HIDE });
     for row in rows {
         let found = model::node(state, row);
         if found.is_valid() {

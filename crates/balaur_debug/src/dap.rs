@@ -41,10 +41,20 @@ use anyhow::{Context, Result};
 use balaur_script::{Pause, PauseReason, ScriptHost, StepMode, Value};
 use serde_json::{Map as JsonMap, Value as Json, json};
 
+use crate::vocabulary::words;
 use balaur_core::Stage;
 use balaur_core::app::App;
 use balaur_core::engine::Engine;
 use balaur_core::project::ProjectRoot;
+
+const BODY: &str = "body";
+const BREAKPOINT: &str = "breakpoint";
+const COMMAND: &str = "command";
+const CONTINUED: &str = "continued";
+const EVENT: &str = "event";
+const SEQ: &str = "seq";
+const SUCCESS: &str = "success";
+const TYPE: &str = "type";
 
 /// The one thread a client sees. The engine runs the game on a single thread
 /// and stops all of it at once, so there is exactly one, always id 1.
@@ -348,7 +358,7 @@ impl Session {
             return;
         }
         self.seq += 1;
-        message.insert("seq".into(), json!(self.seq));
+        message.insert(SEQ.into(), json!(self.seq));
         let body = Json::Object(message).to_string();
         let framed = format!("Content-Length: {}\r\n\r\n{body}", body.len());
         wire.backlog.fetch_add(1, Ordering::Relaxed);
@@ -359,26 +369,26 @@ impl Session {
 
     fn event(&mut self, name: &str, body: Json) {
         let mut message = JsonMap::new();
-        message.insert("type".into(), json!("event"));
-        message.insert("event".into(), json!(name));
-        message.insert("body".into(), body);
-        self.send(message, name == "output");
+        message.insert(TYPE.into(), json!("event"));
+        message.insert(EVENT.into(), json!(name));
+        message.insert(BODY.into(), body);
+        self.send(message, name == words::OUTPUT);
     }
 
     fn respond(&mut self, request: &Json, body: Result<Json, String>) {
         let mut message = JsonMap::new();
-        message.insert("type".into(), json!("response"));
-        message.insert("request_seq".into(), request["seq"].clone());
-        message.insert("command".into(), request["command"].clone());
+        message.insert(TYPE.into(), json!("response"));
+        message.insert("request_seq".into(), request[SEQ].clone());
+        message.insert(COMMAND.into(), request[COMMAND].clone());
         match body {
             Ok(body) => {
-                message.insert("success".into(), json!(true));
+                message.insert(SUCCESS.into(), json!(true));
                 if !body.is_null() {
-                    message.insert("body".into(), body);
+                    message.insert(BODY.into(), body);
                 }
             }
             Err(reason) => {
-                message.insert("success".into(), json!(false));
+                message.insert(SUCCESS.into(), json!(false));
                 message.insert("message".into(), json!(reason));
             }
         }
@@ -386,29 +396,29 @@ impl Session {
     }
 
     fn dispatch(&mut self, eng: &Engine, request: &Json) {
-        if request["type"] != json!("request") {
+        if request[TYPE] != json!("request") {
             return;
         }
-        let command = request["command"].as_str().unwrap_or_default().to_string();
+        let command = request[COMMAND].as_str().unwrap_or_default().to_string();
         let arguments = &request["arguments"];
         let answer = match command.as_str() {
-            "initialize" => Ok(capabilities()),
+            words::INITIALIZE => Ok(capabilities()),
             // The game is already running: an attach and a launch are both
             // just this client saying hello.
-            "attach" | "launch" | "configurationDone" => {
+            words::ATTACH | words::LAUNCH | "configurationDone" => {
                 self.configured = true;
                 Ok(Json::Null)
             }
             "setBreakpoints" => self.set_breakpoints(eng, arguments),
             "setExceptionBreakpoints" => self.set_exception_breakpoints(eng, arguments),
-            "threads" => Ok(json!({ "threads": [{ "id": THREAD_ID, "name": "game" }] })),
+            words::THREADS => Ok(json!({ "threads": [{ "id": THREAD_ID, "name": "game" }] })),
             "stackTrace" => self.stack_trace(),
-            "scopes" => self.scopes(arguments),
-            "variables" => self.variables(arguments),
-            "evaluate" => self.evaluate(arguments),
-            "pause" => self.request_break(eng),
-            "continue" | "next" | "stepIn" | "stepOut" => self.resume(eng, &command),
-            "disconnect" | "terminate" => self.disconnect(eng, &command),
+            words::SCOPES => self.scopes(arguments),
+            words::VARIABLES => self.variables(arguments),
+            words::EVALUATE => self.evaluate(arguments),
+            words::PAUSE => self.request_break(eng),
+            words::CONTINUE | words::NEXT | "stepIn" | "stepOut" => self.resume(eng, &command),
+            words::DISCONNECT | words::TERMINATE => self.disconnect(eng, &command),
             other => Err(format!(
                 "the balaur debug adapter does not support `{other}`"
             )),
@@ -416,12 +426,12 @@ impl Session {
         self.respond(request, answer);
         // The client may only configure once it has been told the adapter is
         // ready, and being told is the response to `initialize` going first.
-        if command == "initialize" {
+        if command == words::INITIALIZE {
             self.event("initialized", Json::Null);
         }
-        if command == "continue" {
+        if command == words::CONTINUE {
             // A continue reports for every thread, and there is one.
-            self.event("continued", json!({ "threadId": THREAD_ID }));
+            self.event(CONTINUED, json!({ "threadId": THREAD_ID }));
         }
     }
 
@@ -455,7 +465,7 @@ impl Session {
     ) -> Result<Json, String> {
         let on = arguments["filters"]
             .as_array()
-            .is_some_and(|f| f.iter().any(|filter| filter == "error"));
+            .is_some_and(|f| f.iter().any(|filter| filter == words::ERROR));
         host(eng)?.set_break_on_error(on);
         Ok(Json::Null)
     }
@@ -566,7 +576,7 @@ impl Session {
 
     fn resume(&mut self, eng: &Engine, command: &str) -> Result<Json, String> {
         let mode = match command {
-            "next" => StepMode::Over,
+            words::NEXT => StepMode::Over,
             "stepIn" => StepMode::Into,
             "stepOut" => StepMode::Out,
             _ => StepMode::Continue,
@@ -595,7 +605,7 @@ impl Session {
         self.reported_stop = false;
         self.stop = None;
         self.configured = false;
-        if command == "terminate" {
+        if command == words::TERMINATE {
             eng.request_quit();
         }
         Ok(Json::Null)
@@ -607,9 +617,9 @@ impl Session {
         match (paused, self.reported_stop) {
             (Some(pause), false) => {
                 let (reason, description) = match pause.reason {
-                    PauseReason::Breakpoint => ("breakpoint", "Hit breakpoint"),
+                    PauseReason::Breakpoint => (BREAKPOINT, "Hit breakpoint"),
                     PauseReason::Step => ("step", "Stepped"),
-                    PauseReason::Pause => ("pause", "Paused"),
+                    PauseReason::Pause => (words::PAUSE, "Paused"),
                     PauseReason::Error => ("exception", "Script error"),
                 };
                 let text = pause.message.clone();
@@ -629,7 +639,7 @@ impl Session {
             (None, true) => {
                 self.reported_stop = false;
                 self.stop = None;
-                self.event("continued", json!({ "threadId": THREAD_ID }));
+                self.event(CONTINUED, json!({ "threadId": THREAD_ID }));
             }
             _ => {}
         }
@@ -657,7 +667,7 @@ impl Session {
             self.remember_lines(&path, &landed);
             for breakpoint in self.breakpoint_list(&path, &landed) {
                 self.event(
-                    "breakpoint",
+                    BREAKPOINT,
                     json!({ "reason": "changed", "breakpoint": breakpoint }),
                 );
             }
@@ -673,10 +683,10 @@ impl Session {
             );
             self.dropped = 0;
             let mut message = JsonMap::new();
-            message.insert("type".into(), json!("event"));
-            message.insert("event".into(), json!("output"));
+            message.insert(TYPE.into(), json!("event"));
+            message.insert(EVENT.into(), json!(words::OUTPUT));
             message.insert(
-                "body".into(),
+                BODY.into(),
                 json!({ "category": "console", "output": note }),
             );
             self.send(message, false);
@@ -688,11 +698,11 @@ impl Session {
         for entry in fresh {
             self.log_cursor = entry.time;
             let category = match entry.level.as_str() {
-                "error" | "warn" => "stderr",
+                words::ERROR | words::WARN => "stderr",
                 _ => "stdout",
             };
             self.event(
-                "output",
+                words::OUTPUT,
                 json!({
                     "category": category,
                     "output": format!("[{}] {}\n", entry.tag, entry.message),
@@ -758,7 +768,7 @@ fn capabilities() -> Json {
         "supportsTerminateRequest": true,
         "supportsExceptionFilterOptions": true,
         "exceptionBreakpointFilters": [{
-            "filter": "error",
+            "filter": words::ERROR,
             "label": "Uncaught script errors",
             "description": "Stop where a script throws. Puts every synchronous call through the stepping executor.",
             "default": false,

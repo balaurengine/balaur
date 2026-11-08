@@ -14,6 +14,11 @@ use balaur_script::{Module, Value};
 
 use crate::Engine;
 
+const DRAWS: &str = "draws";
+const STATS: &str = "stats";
+const TEXTURE_BYTES: &str = "texture_bytes";
+const TRIANGLES: &str = "triangles";
+
 /// One node's cost this frame.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NodeCost {
@@ -208,12 +213,9 @@ fn image_bytes(eng: &Engine, path: &str, on_surface: bool) -> u64 {
 fn cost_value(name: &str, cost: &NodeCost) -> Value {
     Value::Map(vec![
         ("node".into(), Value::Str(name.to_string())),
-        ("draws".into(), Value::Num(f64::from(cost.draws))),
-        ("triangles".into(), Value::Num(f64::from(cost.triangles))),
-        (
-            "texture_bytes".into(),
-            Value::Num(cost.texture_bytes as f64),
-        ),
+        (DRAWS.into(), Value::Num(f64::from(cost.draws))),
+        (TRIANGLES.into(), Value::Num(f64::from(cost.triangles))),
+        (TEXTURE_BYTES.into(), Value::Num(cost.texture_bytes as f64)),
         ("copies".into(), Value::Num(f64::from(cost.copies))),
     ])
 }
@@ -221,7 +223,7 @@ fn cost_value(name: &str, cost: &NodeCost) -> Value {
 /// `render.stats`: the frame's totals and a row per node that drew.
 pub(crate) fn install_stats_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "stats",
+        STATS,
         &[],
         "() -> Stats",
         "What this frame draws: `{ draws, triangles, texture_bytes, textures, nodes }`, where `nodes` is a row per node that drew, each `{ node, draws, triangles, texture_bytes, copies }`. Presentation, never simulation: nothing in the digest reads it.",
@@ -238,18 +240,15 @@ pub(crate) fn install_stats_api(m: &mut Module<Engine>) {
             "What one node costs a frame: its path and the work it adds.",
         ),
     ]);
-    m.function("stats", |eng: &Engine, ()| {
+    m.function(STATS, |eng: &Engine, ()| {
         measure(eng);
         let stats = eng.resource::<Stats>();
         let stats = stats.borrow();
         let total = stats.total();
         Ok(Value::Map(vec![
-            ("draws".into(), Value::Num(f64::from(total.draws))),
-            ("triangles".into(), Value::Num(f64::from(total.triangles))),
-            (
-                "texture_bytes".into(),
-                Value::Num(stats.texture_bytes as f64),
-            ),
+            (DRAWS.into(), Value::Num(f64::from(total.draws))),
+            (TRIANGLES.into(), Value::Num(f64::from(total.triangles))),
+            (TEXTURE_BYTES.into(), Value::Num(stats.texture_bytes as f64)),
             ("textures".into(), Value::Num(f64::from(stats.textures))),
             (
                 "nodes".into(),

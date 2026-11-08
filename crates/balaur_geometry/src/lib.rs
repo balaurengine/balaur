@@ -14,4 +14,5 @@ pub mod skeleton;
 pub mod stroke;
 pub mod tiles;
 pub mod triangulate;
+mod vocabulary;
 pub mod voxels;

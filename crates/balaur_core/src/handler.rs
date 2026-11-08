@@ -13,6 +13,8 @@ use anyhow::{Result, anyhow};
 use balaur_script::{Module, NodeId, Value};
 
 use crate::Engine;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// Where one piece of finished work reports: a method on one node's script,
 /// dispatched through `ScriptHost::call_on`.
@@ -76,7 +78,7 @@ pub fn headers_of(opts: Option<&Value>) -> Result<Vec<(String, String)>> {
                         "a header's `{key}` should be a string, got {other:?}"
                     )),
                 };
-                Ok((text("name")?, text("value")?))
+                Ok((text(words::scene_toml::NAME)?, text(keys::VALUE)?))
             })
             .collect(),
         Some(Value::Nil) | None => Ok(Vec::new()),

@@ -6,6 +6,7 @@ use editor;
 use model;
 use signals;
 use util;
+use words::project_fields;
 
 /// One undo step: the changes the action made, the selection and the scene's
 /// `[[assets]]` as they were before it, and what it was called.
@@ -35,7 +36,7 @@ const COALESCE: float = 0.4;
 // The scene's `[[assets]]` travel with the step: a tool writes a block there,
 // and undoing it has to put the block back.
 fn step(state: editor::State, label: str, changes: [any]) -> Step {
-    let assets = state.scene_doc["assets"];
+    let assets = state.scene_doc[project_fields::ASSETS];
     let kept = if assets == nil { assets } else { util::deep(assets) };
     Step { changes: changes, selected: model::selected_ids(state), assets: kept, label: label }
 }
@@ -105,8 +106,8 @@ fn restore(state: &mut editor::State, into: [Step], from: [Step]) -> str? {
     }
     held.changes = scene::take_changes();
     into.push(held);
-    if top.assets != nil && blocks_text(top.assets) != blocks_text(state.scene_doc["assets"]) {
-        state.scene_doc["assets"] = top.assets;
+    if top.assets != nil && blocks_text(top.assets) != blocks_text(state.scene_doc[project_fields::ASSETS]) {
+        state.scene_doc[project_fields::ASSETS] = top.assets;
         // A scene's blocks are read when it is built, so it is built again.
         model::build(state, model::scene_text(state));
     }
@@ -119,7 +120,7 @@ fn restore(state: &mut editor::State, into: [Step], from: [Step]) -> str? {
 
 // The scene's `[[assets]]` as text, to tell two apart.
 fn blocks_text(assets: any) -> str {
-    if assets == nil { "" } else { toml::encode({ "assets": assets }) }
+    if assets == nil { "" } else { toml::encode({ project_fields::ASSETS: assets }) }
 }
 
 // Both return the label of the step they moved through, or `nil` when the

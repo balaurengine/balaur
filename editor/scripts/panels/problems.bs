@@ -2,6 +2,7 @@
 // move, and hands the Editor a pick to open.
 
 use editor;
+use signals;
 
 pub class Problems {
     node: Node,
@@ -12,8 +13,8 @@ impl Problems {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
-        for word in ["problems_changed", "outline_changed"] {
+        events::listen(self.node, signals::DOCKS, source);
+        for word in [signals::PROBLEMS_CHANGED, signals::OUTLINE] {
             events::listen(self.node, word, source);
         }
     }

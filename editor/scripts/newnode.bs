@@ -12,6 +12,13 @@ use style;
 use textedit;
 use util;
 use window;
+use words::fields;
+use words::form_fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::project_fields;
+use words::roles;
+use words::theme_tokens;
 
 pub struct Entry {
     internal name: str,
@@ -85,7 +92,7 @@ fn everything(state: editor::State) -> [Entry] {
         // `transform` is not a node to add: `add_child` has already given the
         // new node one, and every node in the tree carries it. A component a
         // preset is named for is that preset's row, once.
-        if name == "transform" || util::contains(presets, name) {
+        if name == model::TRANSFORM || util::contains(presets, name) {
             continue;
         }
         let tags = scene::component_tags(name);
@@ -169,16 +176,16 @@ pub fn fill(state: &mut editor::State) {
     } else {
         "Nodes, components, 2d, physics…"
     };
-    let mark = if state.newnode_change { icons::ui("reset") } else { icons::ui("add") };
+    let mark = if state.newnode_change { icons::ui("reset") } else { icons::ui(icons::ADD) };
     let host = window::picker(state, {
-        "width": 520.0,
-        "mark": mark,
-        "placeholder": placeholder,
-        "query": state.newnode_query,
-        "rows_h": (specs.len() as float) * (row_height + 2.0) + 4.0,
-        "on_change": "handle",
-        "on_submit": "handle_submit",
-        "data": { "fn": on_query_typed, "submit": on_query_submitted },
+        layout_fields::WIDTH: 520.0,
+        fields::MARK: mark,
+        form_fields::PLACEHOLDER: placeholder,
+        form_fields::QUERY: state.newnode_query,
+        form_fields::ROWS_H: (specs.len() as float) * (row_height + 2.0) + 4.0,
+        form_fields::ON_CHANGE: "handle",
+        form_fields::ON_SUBMIT: "handle_submit",
+        fields::DATA: { fields::FN: on_query_typed, project_fields::SUBMIT: on_query_submitted },
     });
     ui::fill_rows(host, specs);
 }
@@ -200,7 +207,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::
     // Ahead of the groups and in none of them: a node with no components has
     // no dimension to be filed under.
     if !state.newnode_change && (query == "" || "empty node".contains(query)) {
-        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens["text_subtle"].as_str(), add_empty, {}));
+        out.push(row_spec(row_height, "Empty node  ·  a transform and nothing else", icons::node("world"), tokens[theme_tokens::TEXT_SUBTLE].as_str(), add_empty, {}));
     }
     for group in groups() {
         let title = group[1];
@@ -222,7 +229,7 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::
             // the tree draw a component with.
             let mark = icons::component(row.name);
             let caption = if row.note == "" { row.name } else { row.name + "  ·  " + row.note };
-            out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_row, { "row": row }));
+            out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_row, { fields::ROW: row }));
         }
     }
     if out.len() == 0 {
@@ -232,14 +239,14 @@ fn row_specs(state: &mut editor::State, tokens: any, row_height: float) -> [ui::
 }
 
 fn caption_row(text: str, height: float, wrap: bool) -> ui::Row {
-    let label: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, text: text, wrap: wrap };
+    let label: ui::Control = ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: text, wrap: wrap };
     ui::Row { height: height, controls: [label] }
 }
 
 // A component's own colour token, or the plain text colour.
 fn tint_of(tokens: any, token: str) -> str {
     let tint = tokens[token];
-    if tint == nil { tokens["primary_text"].as_str() } else { tint.as_str() }
+    if tint == nil { tokens[theme_tokens::PRIMARY_TEXT].as_str() } else { tint.as_str() }
 }
 
 fn add_empty(state: &mut editor::State, _data: any, _value: any) {
@@ -248,7 +255,7 @@ fn add_empty(state: &mut editor::State, _data: any, _value: any) {
 }
 
 fn place_row(state: &mut editor::State, data: any, _value: any) {
-    let row: Entry = data["row"];
+    let row: Entry = data[fields::ROW];
     place(state, row);
 }
 
@@ -264,13 +271,13 @@ fn source_specs(state: &mut editor::State, tokens: any, row_height: float) -> [u
         }
         let keys = source.parts.keys();
         let mark = icons::component(if keys.len() > 0 { keys[0] } else { "" });
-        out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, { "source": source }));
+        out.push(row_spec(row_height, caption, mark.glyph, tint_of(tokens, mark.token), place_source_row, { inspector_fields::SOURCE: source }));
     }
     out
 }
 
 fn place_source_row(state: &mut editor::State, data: any, _value: any) {
-    let source: Entry = data["source"];
+    let source: Entry = data[inspector_fields::SOURCE];
     place_source(state, source);
 }
 
@@ -278,8 +285,8 @@ fn place_source_row(state: &mut editor::State, data: any, _value: any) {
 // styling: the tree and the inspector draw the same pair.
 fn row_spec(row_height: float, caption: str, mark: str, color: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Row {
     let button = pool::on(ui::Control {
-        kind: "button",
-        role: "item_picker",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ITEM_PICKER,
         grow: 1,
         text: caption,
         icon: mark,

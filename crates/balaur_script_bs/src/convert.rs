@@ -6,6 +6,8 @@ use balaur_bs::{Meta, Ty};
 use balaur_script::Value as N;
 use smol_str::SmolStr;
 
+const ORIGIN: &str = "origin";
+
 /// What a value crossing here may be declared as: the records a script's
 /// module knows, or the engine's own.
 pub(crate) trait Records {
@@ -99,8 +101,8 @@ fn columns<const N: usize>(axes: &[(SmolStr, L)]) -> [f32; N] {
 // The seam's transform as a script's, or `None` when `v` is not that one.
 fn transform(name: &str, v: &N) -> Option<L> {
     let (columns, axes, vector, width): (&[f32], &[&str], &str, usize) = match (name, v) {
-        ("Transform2d", N::Transform2d(c)) => (c, &["x", "y", "origin"], "Vec2", 2),
-        ("Transform3d", N::Transform3d(c)) => (c, &["x", "y", "z", "origin"], "Vec3", 3),
+        ("Transform2d", N::Transform2d(c)) => (c, &["x", "y", ORIGIN], "Vec2", 2),
+        ("Transform3d", N::Transform3d(c)) => (c, &["x", "y", "z", ORIGIN], "Vec3", 3),
         _ => return None,
     };
     let (_, names) = VEC.iter().find(|(n, _)| *n == vector)?;

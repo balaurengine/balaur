@@ -29,6 +29,13 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::vocabulary::{keys as k, pool as p, words as w};
 
+const ALL_SIDES: &str = "all_sides";
+const FILL_ROW: &str = "fill_row";
+const FILL_ROWS: &str = "fill_rows";
+const FILL_STRIP: &str = "fill_strip";
+const PATCH_ROW: &str = "patch_row";
+const SIDES_WORD: &str = "sides";
+
 type Spec = BTreeMap<String, Value>;
 type Op = fn(&Engine, &[Value]) -> Result<Value>;
 
@@ -85,9 +92,9 @@ impl Ops {
             scene_node: KERNEL_OPS
                 .iter()
                 .flat_map(|ops| ops.iter())
-                .find(|o| o.module == "scene" && o.name == "get_node")?
+                .find(|o| o.module == w::SCENE && o.name == w::GET_NODE)?
                 .call,
-            node: node_op("get_node")?,
+            node: node_op(w::GET_NODE)?,
             children: node_op("children")?,
             add_child: node_op("add_child")?,
             get: node_op("component_property")?,
@@ -95,7 +102,7 @@ impl Ops {
             patch: node_op("patch_component")?,
             has: node_op("has_component")?,
             remove: node_op("remove_component")?,
-            visible: node_op("visible")?,
+            visible: node_op(w::overflow::VISIBLE)?,
             set_visible: node_op("set_visible")?,
         })
     }
@@ -879,37 +886,37 @@ const CONTROL: &str = "{ kind: string?, controls: [Control]?, on_click: string?,
 pub(crate) fn install_pool(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "sides",
+            SIDES_WORD,
             &[],
             "(left: float, top: float, right: float, bottom: float) -> Sides",
             "A `Sides` for a control's `padding`, `margin` or `inset`.",
         ),
         (
-            "all_sides",
+            ALL_SIDES,
             &[],
             "(size: float) -> Sides",
             "A `Sides` the same on every side.",
         ),
         (
-            "fill_strip",
+            FILL_STRIP,
             &[],
             "(host: string, controls: [Control]) -> bool",
             "Put one widget node per control table under the node at `host`, made, reused and hidden as the list changes; a node is written only when its table changed. A control's `on_click` or `on_change` hears the reader's edit and `on_submit` hears Enter as they happen: a function, or the name of a method, called on the nearest node above the control whose script has it with the control's `data` and then the edit. So a strip that did not change need not be filled again, and a control carrying `controls` is a row holding them. True when a control's table differed from the last one written to it.",
         ),
         (
-            "fill_rows",
+            FILL_ROWS,
             &[],
             "(host: string, rows: [Row], label_width: float?, stacked: bool?) -> bool",
             "`fill_strip` for a form: each row table is a `label` and its `controls`, laid beside `label_width`, or above the controls when `stacked`. A row with no `label` spans both columns; `height`, `tooltip`, `label_role` and `slot_role` dress it.",
         ),
         (
-            "fill_row",
+            FILL_ROW,
             &[],
             "(host: node, slot: int, row: Row?, label_width: float?, stacked: bool?) -> bool",
             "One row of `fill_rows`, on the row node at `slot` under `host`, made with any before it that are missing, or that node hidden for nil. The others are left as they are, so a form of hundreds of rows writes the few on screen and, as they scroll, the ones entering: a row's `y` places it at that height in a host as tall as the whole form.",
         ),
         (
-            "patch_row",
+            PATCH_ROW,
             &[],
             "(host: node, slot: int, patches: [Control]) -> bool",
             "What moved of a row `fill_row` made: what each of `patches` names written to the control at its place in the row, and remembered, so the next fill compares against it. For a value that follows the node: what a patch leaves out is not asked about. False where the row is not there or nothing moved.",
@@ -947,20 +954,20 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
         return;
     };
     m.function(
-        "sides",
+        SIDES_WORD,
         |_: &Engine, (left, top, right, bottom): (f64, f64, f64, f64)| {
             Ok(sides_of([left, top, right, bottom]))
         },
     );
-    m.function("all_sides", |_: &Engine, size: f64| Ok(sides_of([size; 4])));
+    m.function(ALL_SIDES, |_: &Engine, size: f64| Ok(sides_of([size; 4])));
     m.function(
-        "fill_strip",
+        FILL_STRIP,
         move |eng: &Engine, (host, controls): (String, Value)| {
             fill_strip(eng, ops, &host, &controls)
         },
     );
     m.function(
-        "fill_rows",
+        FILL_ROWS,
         move |eng: &Engine,
               (host, rows, label_w, stacked): (String, Value, Option<f64>, Option<bool>)| {
             let label_w = Value::Num(label_w.unwrap_or(0.0));
@@ -973,7 +980,7 @@ pub(crate) fn install_pool(m: &mut Module<Engine>) {
 /// `ui.fill_row` and `ui.patch_row`: a form that keeps the rows on screen.
 fn install_one_row(m: &mut Module<Engine>, ops: Ops) {
     m.function(
-        "fill_row",
+        FILL_ROW,
         move |eng: &Engine,
               (host, slot, row, label_w, stacked): (
             balaur_script::NodeId,
@@ -994,7 +1001,7 @@ fn install_one_row(m: &mut Module<Engine>, ops: Ops) {
         },
     );
     m.function(
-        "patch_row",
+        PATCH_ROW,
         move |eng: &Engine, (host, slot, patches): (balaur_script::NodeId, i64, Value)| {
             patch_row(
                 eng,

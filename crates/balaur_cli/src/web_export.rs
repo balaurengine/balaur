@@ -24,6 +24,8 @@ use balaur_script::{Module, Value};
 use crate::export_shared::{ExportCore, ExportEvent, PREVIEW_DOC};
 use crate::jobs::pump;
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 /// The file a web bundle keeps its pack under, as the shell page loads it.
 use balaur::standalone::BUNDLED_PACK;
 
@@ -65,7 +67,7 @@ impl WebExportPlugin {
 
 impl balaur_plugin::Plugin for WebExportPlugin {
     fn name(&self) -> &'static str {
-        "export"
+        words::export_api::EXPORT
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -74,7 +76,7 @@ impl balaur_plugin::Plugin for WebExportPlugin {
             runtimes: self.runtimes.clone(),
         });
         reg.add_system(Stage::First, pump::<ExportState, ExportEvent>);
-        let mut m = reg.script_module("export")?;
+        let mut m = reg.script_module(words::export_api::EXPORT)?;
         install_export_api(&mut m);
         Ok(())
     }
@@ -102,37 +104,37 @@ fn install_export_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("targets", &[], "() -> [Target]", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
-        ("start", &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
-        ("output", &[], "(target: string) -> string", "The file name an export for this target produces."),
-        ("running_count", &[], "() -> int", "How many exports are in flight."),
-        ("preview", &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
+        (words::functions::TARGETS, &[], "() -> [Target]", "Every target this tab can build, each `{ name, runtime, bundle, installed, fetchable, note }`."),
+        (words::functions::START, &[], "(target: string, options: StartOptions?) -> bool", "Export the edited project for one target. The bytes go to the page to download rather than into the project. Answers false while a recording plays."),
+        (words::functions::OUTPUT, &[], "(target: string) -> string", "The file name an export for this target produces."),
+        (words::functions::RUNNING_COUNT, &[], "() -> int", "How many exports are in flight."),
+        (words::functions::PREVIEW, &[], "(path: string, target: string) -> Preview?", PREVIEW_DOC),
     ]);
-    m.function("targets", |eng: &Engine, ()| {
+    m.function(words::functions::TARGETS, |eng: &Engine, ()| {
         let project = eng.resource::<ExportState>().borrow().core.project.clone();
         Ok(targets(&project))
     });
     m.function(
-        "start",
+        words::functions::START,
         |eng: &Engine, (target, opts): (String, Option<Value>)| {
             let _ = opts;
             Ok(start(eng, &target))
         },
     );
-    m.function("output", |eng: &Engine, target: String| {
+    m.function(words::functions::OUTPUT, |eng: &Engine, target: String| {
         let state = eng.resource::<ExportState>();
         let project = state.borrow().core.project.clone();
         let name = name_of(&project);
         Ok(Value::Str(match target.as_str() {
-            "web" => format!("{name}-web.zip"),
+            words::targets::WEB => format!("{name}-web.zip"),
             _ => format!("{name}.bpak"),
         }))
     });
-    m.function("running_count", |_: &Engine, ()| {
+    m.function(words::functions::RUNNING_COUNT, |_: &Engine, ()| {
         Ok(i64::try_from(RUNNING.with(std::cell::Cell::get)).unwrap_or(i64::MAX))
     });
     m.function(
-        "preview",
+        words::functions::PREVIEW,
         |eng: &Engine, (path, target): (String, String)| {
             let project = eng.resource::<ExportState>().borrow().core.project.clone();
             Ok(crate::export_shared::preview(&project, &path, &target))
@@ -144,26 +146,35 @@ fn install_export_api(m: &mut Module<Engine>) {
 /// nothing to install, because the pack is built here and the runtime a
 /// bundle ships is served beside this page.
 fn targets(project: &Path) -> Value {
-    let web = balaur_export::runtime_of(project, "web", &balaur_export::SmallestRuntime::default())
-        .unwrap_or_else(|_| "web".into());
+    let web = balaur_export::runtime_of(
+        project,
+        words::targets::WEB,
+        &balaur_export::SmallestRuntime::default(),
+    )
+    .unwrap_or_else(|_| words::targets::WEB.into());
     let rows = [
         (
-            "pack",
-            "pack".to_string(),
+            words::targets::PACK,
+            words::targets::PACK.to_string(),
             false,
             "a .bpak the engine plays anywhere",
         ),
-        ("web", web, true, "a zip to unpack on any static host"),
+        (
+            words::targets::WEB,
+            web,
+            true,
+            "a zip to unpack on any static host",
+        ),
     ]
     .into_iter()
     .map(|(name, runtime, bundle, note)| {
         Value::Map(vec![
-            ("name".into(), Value::Str(name.into())),
+            (keys::NAME.into(), Value::Str(name.into())),
             ("runtime".into(), Value::Str(runtime)),
             ("bundle".into(), Value::Bool(bundle)),
-            ("installed".into(), Value::Bool(true)),
+            (keys::INSTALLED.into(), Value::Bool(true)),
             ("fetchable".into(), Value::Bool(false)),
-            ("note".into(), Value::Str(note.into())),
+            (keys::NOTE.into(), Value::Str(note.into())),
         ])
     })
     .collect();
@@ -208,11 +219,11 @@ fn start(eng: &Engine, target: &str) -> bool {
 /// One export, leaving its bytes for the page to take.
 async fn run(project: &Path, target: &str, runtimes: &str) -> Result<String> {
     let (name, bytes) = match target {
-        "pack" => {
+        words::targets::PACK => {
             let pack = build(project)?;
             (format!("{}.bpak", name_of(project)), pack.encode())
         }
-        "web" => bundle(project, runtimes).await?,
+        words::targets::WEB => bundle(project, runtimes).await?,
         other => {
             return Err(anyhow!(
                 "'{other}' fuses the pack onto a native runtime, and a browser \
@@ -236,8 +247,11 @@ fn build(project: &Path) -> Result<balaur::Pack> {
 /// static host.
 async fn bundle(project: &Path, runtimes: &str) -> Result<(String, Vec<u8>)> {
     let pack = build(project)?;
-    let runtime =
-        balaur_export::runtime_of(project, "web", &balaur_export::SmallestRuntime::default())?;
+    let runtime = balaur_export::runtime_of(
+        project,
+        words::targets::WEB,
+        &balaur_export::SmallestRuntime::default(),
+    )?;
     balaur_export::fits(project, &pack, &runtime)?;
     let served = beside(runtimes, &runtime);
     let name = name_of(project);
@@ -299,15 +313,15 @@ fn name_of(project: &Path) -> String {
         .and_then(|text| text.parse::<toml::Table>().ok());
     let name = manifest
         .as_ref()
-        .and_then(|value| value.get("application")?.get("name")?.as_str())
-        .unwrap_or("game");
+        .and_then(|value| value.get(keys::APPLICATION)?.get(keys::NAME)?.as_str())
+        .unwrap_or(words::web_export::GAME);
     let cleaned: String = name
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
     let trimmed = cleaned.trim_matches('-').to_ascii_lowercase();
     if trimmed.is_empty() {
-        "game".to_string()
+        words::web_export::GAME.to_string()
     } else {
         trimmed
     }

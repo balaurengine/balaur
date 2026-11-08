@@ -4,6 +4,10 @@
 
 use screen;
 
+const BEFORE: str = "before";
+const ITEMS: str = "items";
+const SELECTION: str = "selection";
+
 pub class Rows {
     /// Where a picture of the screen goes, for the manual's shot.
     /// `--shot=<path>` after `--` says where; without it the screen is a
@@ -42,11 +46,11 @@ impl Rows {
         // Two rows held at once, which is what `multi` is for; a script reads
         // `selection` back rather than the one row `text` carries.
         self.fill(LIST, {
-            "items": self.cards,
-            "selection": [self.cards[1].label.unwrap(), self.cards[2].label.unwrap()],
+            ITEMS: self.cards,
+            SELECTION: [self.cards[1].label.unwrap(), self.cards[2].label.unwrap()],
         }, self.cards[2].label.unwrap());
-        self.fill("Sheet/Views/TreeBox/Outline", { "items": screen::outline() }, "");
-        self.fill("Sheet/Views/TableBox/Table", { "items": screen::table() }, "");
+        self.fill("Sheet/Views/TreeBox/Outline", { ITEMS: screen::outline() }, "");
+        self.fill("Sheet/Views/TableBox/Table", { ITEMS: screen::table() }, "");
     }
 
     /// A row dropped somewhere else in the list, which the kind reports and this
@@ -68,16 +72,16 @@ impl Rows {
             if name == moved {
                 continue;
             }
-            if name == onto && side == "before" {
+            if name == onto && side == BEFORE {
                 out.push(held);
             }
             out.push(row);
-            if name == onto && side != "before" {
+            if name == onto && side != BEFORE {
                 out.push(held);
             }
         }
         self.cards = out;
-        self.fill(LIST, { "items": out, "selection": [moved] }, moved);
+        self.fill(LIST, { ITEMS: out, SELECTION: [moved] }, moved);
     }
 
     // Late enough that the layout has settled and the rows are in.

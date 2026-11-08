@@ -97,6 +97,7 @@ files_stream() {
   step 'cargo fmt' cargo fmt --all --check || bad=1
   step 'house lints' python3 scripts/house_lints.py --fail-on-error || bad=1
   step 'comment lints' python3 scripts/comment_lints.py --fail-on-error || bad=1
+  step 'string lints' python3 scripts/string_lints.py --fail-on-error || bad=1
   step 'prose lints' python3 scripts/prose_lints.py --fail-on-error || bad=1
   step 'api lints' python3 scripts/api_lints.py --api-json docs/generated/api.json --fail-on-error || bad=1
   step 'third-party notices' python3 scripts/third_party_notices.py --check || bad=1

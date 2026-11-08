@@ -33,6 +33,8 @@ pub use options::Options;
 pub use vocabulary::{EVENT, EventKind, Role, State, Status, TransportKind};
 pub use wire::{Member, PROTOCOL};
 
+const MULTIPLAYER: &str = "multiplayer";
+
 /// Where this machine is, and everything it holds in that phase.
 pub(crate) enum Phase {
     Idle,
@@ -168,7 +170,7 @@ pub struct MultiplayerPlugin;
 
 impl balaur_plugin::Plugin for MultiplayerPlugin {
     fn name(&self) -> &'static str {
-        "multiplayer"
+        MULTIPLAYER
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -182,7 +184,7 @@ impl balaur_plugin::Plugin for MultiplayerPlugin {
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema("settings.multiplayer.match", options::SCHEMA),
         );
-        let mut m = reg.script_module("multiplayer")?;
+        let mut m = reg.script_module(MULTIPLAYER)?;
         api::install(&mut m);
         Ok(())
     }

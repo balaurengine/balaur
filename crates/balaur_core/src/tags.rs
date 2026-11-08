@@ -11,7 +11,9 @@
 //! recorded on a phone replays against the phone's settings rather than the
 //! desktop's.
 
+use crate::vocabulary::keys;
 /// The prefix an override is stored under: `override/<tag>/<path>`.
+use crate::vocabulary::words;
 pub const OVERRIDE: &str = "override";
 
 /// A machine somebody sits at.
@@ -68,7 +70,7 @@ pub fn declared_in(doc: &toml::value::Table) -> Vec<String> {
     let mut take = |table: &toml::value::Table| {
         let names = table
             .get("export")
-            .and_then(|export| export.get("tags"))
+            .and_then(|export| export.get(keys::TAGS))
             .and_then(toml::Value::as_array);
         for name in names.into_iter().flatten().filter_map(toml::Value::as_str) {
             if !found.iter().any(|held| held == name) {
@@ -89,7 +91,7 @@ pub fn declared_in(doc: &toml::value::Table) -> Vec<String> {
 #[must_use]
 pub fn built_in(doc: &toml::value::Table) -> Vec<String> {
     doc.get("build")
-        .and_then(|build| build.get("tags"))
+        .and_then(|build| build.get(keys::TAGS))
         .and_then(toml::Value::as_array)
         .into_iter()
         .flatten()
@@ -182,11 +184,11 @@ impl Tags {
         // `linux-x64-server`, `web-2d`.
         let arch = rest.split('-').next().unwrap_or_default();
         let os = match os {
-            "macos" => MACOS,
-            "windows" => WINDOWS,
-            "android" => ANDROID,
-            "ios" => IOS,
-            "web" => WEB,
+            words::platforms::MACOS => MACOS,
+            words::platforms::WINDOWS => WINDOWS,
+            words::platforms::ANDROID => ANDROID,
+            words::platforms::IOS => IOS,
+            words::platforms::WEB => WEB,
             _ => LINUX,
         };
         let mut tags = Vec::new();
@@ -201,8 +203,8 @@ impl Tags {
         // tab, and only the browser knows which is running it.
         tags.push(os.to_string());
         match arch {
-            "x64" => tags.push(X86_64.to_string()),
-            "arm64" => tags.push(ARM64.to_string()),
+            words::platforms::X64 => tags.push(X86_64.to_string()),
+            words::platforms::ARM64 => tags.push(ARM64.to_string()),
             _ if os == WEB => tags.push(WASM32.to_string()),
             _ => {}
         }
@@ -238,10 +240,10 @@ pub fn os() -> &'static str {
         WEB
     } else {
         match std::env::consts::OS {
-            "windows" => WINDOWS,
-            "macos" => MACOS,
-            "android" => ANDROID,
-            "ios" => IOS,
+            words::platforms::WINDOWS => WINDOWS,
+            words::platforms::MACOS => MACOS,
+            words::platforms::ANDROID => ANDROID,
+            words::platforms::IOS => IOS,
             _ => LINUX,
         }
     }
@@ -252,8 +254,8 @@ pub fn os() -> &'static str {
 #[must_use]
 pub fn arch() -> &'static str {
     match std::env::consts::ARCH {
-        "wasm32" => WASM32,
-        "aarch64" | "arm64" => ARM64,
+        words::platforms::WASM32 => WASM32,
+        words::platforms::AARCH64 | words::platforms::ARM64 => ARM64,
         _ => X86_64,
     }
 }

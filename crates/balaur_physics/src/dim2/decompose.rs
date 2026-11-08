@@ -9,6 +9,7 @@
 
 use crate::rapier2d::parry::transformation::{convex_hull, hertel_mehlhorn_idx};
 use crate::scalar::Vector2;
+use crate::vocabulary::words;
 use crate::vocabulary::{Opts, keys as k};
 use anyhow::{Result, anyhow};
 use balaur_core::Engine;
@@ -343,13 +344,13 @@ pub(crate) fn install_decompose_api(m: &mut Module<Engine>) {
         "How far each convex piece grows across its seams, from 0 to 1.",
     )]);
     m.describe(&[(
-        "convex_decomposition",
+        words::CONVEX_DECOMPOSITION,
         &[],
         "(polygon: [Vec2], opts: DecompositionOptions?) -> [[Vec2]]",
         "The polygon cut into convex pieces that overlap across their seams, so nothing wedges into one; `overlap` from 0 to 1 says how far each piece grows, 0.9 by default.",
     )]);
     m.function(
-        "convex_decomposition",
+        words::CONVEX_DECOMPOSITION,
         |_: &Engine, (polygon, opts): (Value, Option<Value>)| {
             let points = polygon_of(&polygon)?;
             let overlap = Opts(opts.as_ref()).f32(k::OVERLAP, 0.9);

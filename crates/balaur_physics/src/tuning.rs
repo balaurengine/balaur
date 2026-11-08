@@ -15,6 +15,12 @@ use balaur_script::{Module, Value};
 use crate::vocabulary::{Opts, keys as k, map, words as w};
 use crate::{PhysicsState2d, PhysicsState3d};
 
+const COUNTERS: &str = "counters";
+const QUARANTINED: &str = "quarantined";
+const SET_TUNING: &str = "set_tuning";
+const THREADS: &str = "threads";
+const TUNING: &str = "tuning";
+
 mod soft;
 
 /// One writer, two dimensions.
@@ -282,7 +288,7 @@ fn declare_settings(eng: &Engine) {
             &balaur_core::ComponentDef::parse_schema("settings.physics", schema),
         );
     };
-    define("physics", &soft::schema());
+    define(w::general::PHYSICS, &soft::schema());
     define(
         &format!("physics/{}", k::SOFT_RECOVERY),
         &soft::recovery_schema(),
@@ -415,14 +421,14 @@ fn capture_world(eng: &Engine) -> serde_json::Value {
         .to_array();
     serde_json::json!({
         "tuning": balaur_core::engine_api::to_json(&tuning(eng)).unwrap_or_default(),
-        "gravity_3d": gravity_3d,
-        "gravity_2d": gravity_2d,
+        k::GRAVITY_3D: gravity_3d,
+        k::GRAVITY_2D: gravity_2d,
     })
 }
 
 fn restore_world(eng: &Engine, value: &serde_json::Value) {
     if let Some(tuning) = value
-        .get("tuning")
+        .get(TUNING)
         .and_then(|json| balaur_core::engine_api::from_json(json).ok())
     {
         eng.resource::<ManifestTuning>().borrow_mut().recorded = true;
@@ -806,25 +812,25 @@ fn worlds_named(value: Value, names: [(&str, &str); 2]) -> Value {
 pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
     m.records(RECORDS);
     m.describe(&[
-        ("set_tuning", &[], "(opts: TuningOptions)", "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` record, the keys `[physics]` takes. A key at the top reaches both worlds; a `physics3d` or `physics2d` record holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml."),
-        ("tuning", &[], "() -> WorldTunings", "The solver settings each world is running with, every key `set_tuning` takes, `soft_recovery` included."),
-        ("quarantined", &[], "() -> Quarantined", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number. Empty lists are the normal answer."),
-        ("counters", &[], "() -> Counters", "What each world's last step spent its time on. The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
-        ("threads", &[], "() -> int", "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`."),
+        (SET_TUNING, &[], "(opts: TuningOptions)", "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` record, the keys `[physics]` takes. A key at the top reaches both worlds; a `physics3d` or `physics2d` record holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml."),
+        (TUNING, &[], "() -> WorldTunings", "The solver settings each world is running with, every key `set_tuning` takes, `soft_recovery` included."),
+        (QUARANTINED, &[], "() -> Quarantined", "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number. Empty lists are the normal answer."),
+        (COUNTERS, &[], "() -> Counters", "What each world's last step spent its time on. The first call turns rapier's profilers on, so the numbers arrive from the step after it."),
+        (THREADS, &[], "() -> int", "How many threads the solver is using. One in a browser, unless the page is the threaded template and called `initThreadPool`."),
     ]);
-    m.function("set_tuning", |eng: &Engine, opts: Value| {
+    m.function(SET_TUNING, |eng: &Engine, opts: Value| {
         let named = [(k::PHYSICS_3D, k::WORLD_3D), (k::PHYSICS_2D, k::WORLD_2D)];
         set_tuning(eng, &worlds_named(opts, named));
         Ok(())
     });
-    m.function("tuning", |eng: &Engine, ()| {
+    m.function(TUNING, |eng: &Engine, ()| {
         let named = [(k::WORLD_3D, k::PHYSICS_3D), (k::WORLD_2D, k::PHYSICS_2D)];
         Ok(worlds_named(tuning(eng), named))
     });
     // Rapier disables a body whose pose or velocity goes non-finite rather
     // than letting the whole world become NaN. Saying which node it was is the
     // difference between a bug report and a mystery.
-    m.function("quarantined", |eng: &Engine, ()| {
+    m.function(QUARANTINED, |eng: &Engine, ()| {
         let (state3, state2) = (
             eng.resource::<PhysicsState3d>(),
             eng.resource::<PhysicsState2d>(),
@@ -836,12 +842,12 @@ pub(crate) fn install_tuning_api(m: &mut Module<Engine>) {
             (k::PHYSICS_2D, quarantine_value(eng, dim2)?),
         ]))
     });
-    m.function("threads", |_eng: &Engine, ()| {
+    m.function(THREADS, |_eng: &Engine, ()| {
         Ok(i64::try_from(threads()).unwrap_or(i64::MAX))
     });
     // Rapier's profiler is off until something asks for it, so the first call
     // turns it on and the numbers arrive from the step after this one.
-    m.function("counters", |eng: &Engine, ()| {
+    m.function(COUNTERS, |eng: &Engine, ()| {
         let (state3, state2) = (
             eng.resource::<PhysicsState3d>(),
             eng.resource::<PhysicsState2d>(),

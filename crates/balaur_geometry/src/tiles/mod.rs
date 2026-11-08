@@ -14,8 +14,12 @@ pub mod rules;
 
 pub use rules::{Mode, Outside, Quarter, Rule, Terrain, resolve, template};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_core::assets::refuse_keys;
 use balaur_core::components::as_f64;
+
+const ANIMATION: &str = "animation";
 
 pub const TILESET_ASSET_TYPE: &str = "tileset";
 
@@ -215,7 +219,7 @@ impl TileSet {
 /// Naming the key and the tile, the terrain or the rule it was written on.
 pub fn check_tileset(value: &toml::Value) -> Result<()> {
     refuse_keys(value, "a tileset", TILESET_KEYS)?;
-    if let Some(tiles) = value.get("tiles").and_then(toml::Value::as_table) {
+    if let Some(tiles) = value.get(keys::TILES).and_then(toml::Value::as_table) {
         for (id, tile) in tiles {
             check_tile(tile).with_context(|| format!("tile {id}"))?;
         }
@@ -225,7 +229,7 @@ pub fn check_tileset(value: &toml::Value) -> Result<()> {
 
 fn check_tile(tile: &toml::Value) -> Result<()> {
     refuse_keys(tile, "a tile", TILE_KEYS)?;
-    match tile.get("animation") {
+    match tile.get(ANIMATION) {
         Some(animation) => refuse_keys(animation, "a tile's animation", TILE_ANIMATION_KEYS),
         None => Ok(()),
     }
@@ -265,9 +269,9 @@ pub fn parse_tileset(value: &toml::Value) -> Result<TileSet> {
         margin: gap("margin")?,
         columns: columns as u32,
         layout: match value.get("layout").and_then(toml::Value::as_str) {
-            None | Some("orthogonal") => Layout::Orthogonal,
-            Some("isometric") => Layout::Isometric,
-            Some("hex") => Layout::Hex,
+            None | Some(words::tile_shapes::ORTHOGONAL) => Layout::Orthogonal,
+            Some(words::tile_shapes::ISOMETRIC) => Layout::Isometric,
+            Some(words::tile_shapes::HEX) => Layout::Hex,
             Some(other) => {
                 bail!("a tileset's `layout` is orthogonal, isometric or hex, not '{other}'")
             }
@@ -301,7 +305,7 @@ fn tile_size(value: &toml::Value) -> Result<[f32; 2]> {
 
 /// The `[tiles.<id>]` tables, if the sheet carries any.
 fn parse_tiles(value: &toml::Value) -> Result<BTreeMap<u32, Tile>> {
-    let Some(tiles) = value.get("tiles") else {
+    let Some(tiles) = value.get(keys::TILES) else {
         return Ok(BTreeMap::new());
     };
     let tiles = tiles
@@ -321,8 +325,8 @@ fn parse_tile(id: u32, value: &toml::Value) -> Result<Tile> {
     let collision = match value.get("collision") {
         None => Collision::None,
         Some(toml::Value::String(word)) => match word.as_str() {
-            "full" => Collision::Full,
-            "none" => Collision::None,
+            words::tile_shapes::FULL => Collision::Full,
+            words::tile_shapes::NONE => Collision::None,
             other => {
                 bail!("tile {id}: `collision` is \"full\", \"none\" or polygons, not \"{other}\"")
             }
@@ -337,7 +341,7 @@ fn parse_tile(id: u32, value: &toml::Value) -> Result<Tile> {
         Some(toml::Value::Array(polygons)) => Collision::Shape(parse_polygons(id, polygons)?),
         Some(other) => bail!("tile {id}: `collision` cannot be {}", other.type_str()),
     };
-    let animation = match value.get("animation") {
+    let animation = match value.get(ANIMATION) {
         None => None,
         Some(table) => {
             let frames = table
@@ -357,7 +361,7 @@ fn parse_tile(id: u32, value: &toml::Value) -> Result<Tile> {
             }
             Some(Animation {
                 frames,
-                fps: table.get("fps").and_then(as_f64).unwrap_or(8.0) as f32,
+                fps: table.get(keys::FPS).and_then(as_f64).unwrap_or(8.0) as f32,
             })
         }
     };

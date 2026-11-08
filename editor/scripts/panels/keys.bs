@@ -3,6 +3,8 @@
 // then it and the step keys are the debugger's.
 
 use editor;
+use signals;
+use words::verbs;
 
 pub class Keys {
     node: Node,
@@ -17,7 +19,7 @@ impl Keys {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "debugger_changed", source);
+        events::listen(self.node, signals::DEBUGGER_CHANGED, source);
     }
 
     /// A script stopped or went on, or play started or stopped.
@@ -34,7 +36,7 @@ impl Keys {
         for name in STOPPED() {
             self.node.get_node(name).widget.enabled = state.stopped;
         }
-        self.node.get_node("play").widget.enabled = !state.stopped;
+        self.node.get_node(verbs::PLAY).widget.enabled = !state.stopped;
         self.node.get_node("break").widget.enabled = state.playing && !state.stopped;
     }
 }

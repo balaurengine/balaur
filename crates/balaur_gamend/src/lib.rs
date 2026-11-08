@@ -31,12 +31,24 @@
 
 use std::sync::mpsc::{Sender, channel};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::{Result, anyhow};
 use balaur_core::engine_api::from_json;
 use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Module, NodeId, Value};
 use serde_json::Value as Json;
+
+const CLOSE: &str = "close";
+const CONFIGURE: &str = "configure";
+const EMAIL: &str = "email";
+const GAMEND: &str = "gamend";
+const INTERRUPT: &str = "interrupt";
+const PASSWORD: &str = "password";
+const PUSH: &str = "push";
+const REFUSE: &str = "refuse";
+const REGISTER: &str = "register";
 
 mod activity;
 #[cfg(target_family = "wasm")]
@@ -46,6 +58,7 @@ pub mod client;
 mod inspect;
 mod realtime;
 mod target;
+mod vocabulary;
 #[cfg(not(target_family = "wasm"))]
 mod worker;
 
@@ -265,9 +278,9 @@ impl GamendState {
     ) -> Result<()> {
         let client = self.client(eng);
         let (kind, who) = match &credentials {
-            LoginCredentials::Device { .. } => ("login", String::from("device")),
-            LoginCredentials::EmailPassword { email, .. } => ("login", email.clone()),
-            LoginCredentials::Register { email, .. } => ("register", email.clone()),
+            LoginCredentials::Device { .. } => (kind::LOGIN, String::from("device")),
+            LoginCredentials::EmailPassword { email, .. } => (kind::LOGIN, email.clone()),
+            LoginCredentials::Register { email, .. } => (REGISTER, email.clone()),
         };
         self.activity.started(request, None, kind, who, None);
         self.io.start(eng, |report| {
@@ -288,7 +301,7 @@ impl GamendState {
         self.activity.started(
             request,
             None,
-            "rest",
+            kind::REST,
             format!("{method} {path}"),
             body.as_ref(),
         );
@@ -316,7 +329,7 @@ impl GamendState {
             self.socket_handlers.insert(socket, handler);
         }
         self.activity
-            .started(socket, None, "connect", String::from("realtime"), None);
+            .started(socket, None, words::CONNECT, String::from("realtime"), None);
         let (commands, receiver) = channel();
         let mut opened = None;
         self.io.start(eng, |report| {
@@ -365,8 +378,13 @@ impl GamendState {
     }
 
     pub fn join(&mut self, socket: u64, request: u64, topic: String, payload: Json) -> Result<()> {
-        self.activity
-            .started(request, Some(socket), "join", topic.clone(), Some(&payload));
+        self.activity.started(
+            request,
+            Some(socket),
+            words::general::JOIN,
+            topic.clone(),
+            Some(&payload),
+        );
         self.command(
             socket,
             request,
@@ -389,7 +407,7 @@ impl GamendState {
         self.activity.started(
             request,
             Some(socket),
-            "push",
+            PUSH,
             format!("{topic} {event}"),
             Some(&payload),
         );
@@ -407,7 +425,7 @@ impl GamendState {
 
     pub fn leave(&mut self, socket: u64, request: u64, topic: String) -> Result<()> {
         self.activity
-            .started(request, Some(socket), "leave", topic.clone(), None);
+            .started(request, Some(socket), words::LEAVE, topic.clone(), None);
         self.command(socket, request, SocketCommand::Leave { request, topic })
     }
 
@@ -566,25 +584,28 @@ fn event_value(event: GamendEvent) -> Value {
             username,
             display_name,
         } => vec![
-            ("request".into(), int(request)),
-            ("kind".into(), Value::Str(kind::LOGIN.into())),
-            ("user_id".into(), Value::Str(user_id)),
-            ("username".into(), Value::Str(username)),
-            ("display_name".into(), Value::Str(display_name)),
+            (keys::REQUEST.into(), int(request)),
+            (keys::KIND.into(), Value::Str(kind::LOGIN.into())),
+            (words::inspect::USER_ID.into(), Value::Str(user_id)),
+            (words::auth::USERNAME.into(), Value::Str(username)),
+            (
+                words::inspect::DISPLAY_NAME.into(),
+                Value::Str(display_name),
+            ),
         ],
         GamendEvent::RestDone {
             request,
             status,
             body,
         } => vec![
-            ("request".into(), int(request)),
-            ("kind".into(), Value::Str(kind::REST.into())),
-            ("status".into(), Value::Int(i64::from(status))),
+            (keys::REQUEST.into(), int(request)),
+            (keys::KIND.into(), Value::Str(kind::REST.into())),
+            (keys::STATUS.into(), Value::Int(i64::from(status))),
             ("body".into(), json_or_nil(&body)),
         ],
         GamendEvent::Failed { request, message } => vec![
-            ("request".into(), int(request)),
-            ("kind".into(), Value::Str(kind::ERROR.into())),
+            (keys::REQUEST.into(), int(request)),
+            (keys::KIND.into(), Value::Str(kind::ERROR.into())),
             ("error".into(), Value::Str(message)),
         ],
         GamendEvent::Replied {
@@ -592,14 +613,14 @@ fn event_value(event: GamendEvent) -> Value {
             status,
             response,
         } => vec![
-            ("request".into(), int(request)),
-            ("kind".into(), Value::Str(kind::REPLY.into())),
-            ("status".into(), Value::Str(status)),
+            (keys::REQUEST.into(), int(request)),
+            (keys::KIND.into(), Value::Str(kind::REPLY.into())),
+            (keys::STATUS.into(), Value::Str(status)),
             ("response".into(), json_or_nil(&response)),
         ],
         GamendEvent::SocketOpen { socket } => vec![
-            ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str(kind::OPEN.into())),
+            (keys::SOCKET.into(), int(socket)),
+            (keys::KIND.into(), Value::Str(kind::OPEN.into())),
         ],
         GamendEvent::SocketMessage {
             socket,
@@ -607,21 +628,21 @@ fn event_value(event: GamendEvent) -> Value {
             event,
             payload,
         } => vec![
-            ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str(kind::MESSAGE.into())),
+            (keys::SOCKET.into(), int(socket)),
+            (keys::KIND.into(), Value::Str(kind::MESSAGE.into())),
             ("topic".into(), Value::Str(topic)),
             ("event".into(), Value::Str(event)),
             ("payload".into(), json_or_nil(&payload)),
         ],
         GamendEvent::SocketClosed { socket, reason } => vec![
-            ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str(kind::CLOSED.into())),
-            ("reason".into(), Value::Str(reason)),
+            (keys::SOCKET.into(), int(socket)),
+            (keys::KIND.into(), Value::Str(kind::CLOSED.into())),
+            (keys::REASON.into(), Value::Str(reason)),
         ],
         GamendEvent::SocketError { socket, reason } => vec![
-            ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str(kind::ERROR.into())),
-            ("reason".into(), Value::Str(reason)),
+            (keys::SOCKET.into(), int(socket)),
+            (keys::KIND.into(), Value::Str(kind::ERROR.into())),
+            (keys::REASON.into(), Value::Str(reason)),
         ],
         GamendEvent::SocketReconnecting {
             socket,
@@ -629,15 +650,15 @@ fn event_value(event: GamendEvent) -> Value {
             reason,
             wait,
         } => vec![
-            ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str(kind::RECONNECTING.into())),
+            (keys::SOCKET.into(), int(socket)),
+            (keys::KIND.into(), Value::Str(kind::RECONNECTING.into())),
             ("attempt".into(), Value::Int(i64::from(attempt))),
-            ("reason".into(), Value::Str(reason)),
+            (keys::REASON.into(), Value::Str(reason)),
             ("wait".into(), Value::Num(wait)),
         ],
         GamendEvent::SocketReopened { socket, lost } => vec![
-            ("socket".into(), int(socket)),
-            ("kind".into(), Value::Str(kind::REOPENED.into())),
+            (keys::SOCKET.into(), int(socket)),
+            (keys::KIND.into(), Value::Str(kind::REOPENED.into())),
             (
                 "lost".into(),
                 Value::List(lost.into_iter().map(Value::text).collect()),
@@ -656,16 +677,16 @@ pub struct GamendPlugin;
 
 impl balaur_plugin::Plugin for GamendPlugin {
     fn name(&self) -> &'static str {
-        "gamend"
+        GAMEND
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(GamendState::default());
         reg.insert_resource(GamendSnapshot::default());
         reg.add_system(Stage::First, pump_gamend_system);
-        reg.add_replay_source("gamend", capture_gamend, restore_gamend);
+        reg.add_replay_source(GAMEND, capture_gamend, restore_gamend);
         target::declare(reg.engine());
-        let mut m = reg.script_module("gamend")?;
+        let mut m = reg.script_module(GAMEND)?;
         install_gamend_api(&mut m);
         Ok(())
     }
@@ -708,7 +729,7 @@ fn credentials_of(spec: &Value) -> Result<LoginCredentials> {
             device_id: device_id.clone(),
         });
     }
-    match (field("email"), field("password")) {
+    match (field(EMAIL), field(PASSWORD)) {
         (Some(email), Some(password)) => Ok(LoginCredentials::EmailPassword {
             email: email.clone(),
             password: password.clone(),
@@ -724,11 +745,11 @@ fn account_of(spec: &Value) -> Result<LoginCredentials> {
         Some(Value::Str(s)) => Some(s.clone()),
         _ => None,
     };
-    match (field("email"), field("password")) {
+    match (field(EMAIL), field(PASSWORD)) {
         (Some(email), Some(password)) => Ok(LoginCredentials::Register {
             email: email.clone(),
             password: password.clone(),
-            username: field("username"),
+            username: field(words::auth::USERNAME),
         }),
         _ => Err(anyhow!("an account needs an `email` and a `password`")),
     }
@@ -755,16 +776,16 @@ fn install_gamend_api(m: &mut Module<Engine>) {
         "Who signs in: a `device_id`, or an `email` and a `password`; `register` takes a `username` too, generated when left out.",
     )]);
     m.describe(&[
-        ("configure", &[], "(url: string?) -> string", "Point the plugin at another server and answer its url; with none, the one `server` answers. The first call that reaches a server does this on its own."),
-        ("login", &[], "(credentials: Credentials) -> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
-        ("register", &[], "(account: Credentials) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
-        ("rest", &[], "(method: string, path: string, body: any) -> int", "Call a path on the configured server over HTTP, and return the id whose result carries the `status` and the decoded `body`. The body is the JSON the path takes, or left out for none."),
-        ("refuse", &[], "(message: string) -> int", "Send nothing, and return an id whose `error` result carries the message: what a wrapper over `rest` answers for a call it will not make, so an await on it still resumes."),
-        ("connect", &[], "(node: node?, opts: events::ListenOptions?) -> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
+        (CONFIGURE, &[], "(url: string?) -> string", "Point the plugin at another server and answer its url; with none, the one `server` answers. The first call that reaches a server does this on its own."),
+        (kind::LOGIN, &[], "(credentials: Credentials) -> int", "Open a session from a `device_id`, or an `email` and `password`, and return the id its `login` result answers."),
+        (REGISTER, &[], "(account: Credentials) -> int", "Make an account from an `email` and a `password` (and a `username`, generated when left out) and open its session, as `login` does; its result is a `login` one. The server mails the address its confirmation link."),
+        (kind::REST, &[], "(method: string, path: string, body: any) -> int", "Call a path on the configured server over HTTP, and return the id whose result carries the `status` and the decoded `body`. The body is the JSON the path takes, or left out for none."),
+        (REFUSE, &[], "(message: string) -> int", "Send nothing, and return an id whose `error` result carries the message: what a wrapper over `rest` answers for a call it will not make, so an await on it still resumes."),
+        (words::CONNECT, &[], "(node: node?, opts: events::ListenOptions?) -> int", "Open the realtime socket and return the id `join`, `push`, `leave`, `call_hook` and `close` take, which `task.wait` resumes on with the `open` or `error` event. A dropped connection comes back on its own: the handler hears `reconnecting` before each try, then `reopened` once its topics are joined again, or `error` when it gives up."),
     ]);
     // `gamend.configure(url)` — where the server lives, for a script that
     // names its own.
-    m.function("configure", |eng: &Engine, url: Option<String>| {
+    m.function(CONFIGURE, |eng: &Engine, url: Option<String>| {
         let url = url
             .filter(|url| !url.is_empty())
             .unwrap_or_else(|| target::url(eng));
@@ -774,7 +795,7 @@ fn install_gamend_api(m: &mut Module<Engine>) {
     // `gamend.login({ device_id = ... } or { email = .., password = .. })` -> id.
     // Completion: `{ request, user_id, username, display_name }` or
     // `{ request, error }`.
-    m.function("login", |eng: &Engine, spec: Value| {
+    m.function(kind::LOGIN, |eng: &Engine, spec: Value| {
         let credentials = credentials_of(&spec)?;
         let id = eng.next_token();
         eng.resource::<GamendState>()
@@ -782,7 +803,7 @@ fn install_gamend_api(m: &mut Module<Engine>) {
             .login(eng, id, credentials)?;
         Ok(int(id))
     });
-    m.function("register", |eng: &Engine, spec: Value| {
+    m.function(REGISTER, |eng: &Engine, spec: Value| {
         let account = account_of(&spec)?;
         let id = eng.next_token();
         eng.resource::<GamendState>()
@@ -793,7 +814,7 @@ fn install_gamend_api(m: &mut Module<Engine>) {
     // `gamend.rest(method, path, body?)` -> id. Completion:
     // `{ request, status, body }` or `{ request, error }`.
     m.function(
-        "rest",
+        kind::REST,
         |eng: &Engine, (method, path, body): (String, String, Option<Value>)| {
             let body = match body {
                 None | Some(Value::Nil) => None,
@@ -810,7 +831,7 @@ fn install_gamend_api(m: &mut Module<Engine>) {
             Ok(int(id))
         },
     );
-    m.function("refuse", |eng: &Engine, message: String| {
+    m.function(REFUSE, |eng: &Engine, message: String| {
         let id = eng.next_token();
         eng.resource::<GamendState>()
             .borrow_mut()
@@ -821,7 +842,7 @@ fn install_gamend_api(m: &mut Module<Engine>) {
     // id. The worker logs in to the realtime endpoint with the current
     // session and joins the own-user topic before reporting `open`.
     m.function(
-        "connect",
+        words::CONNECT,
         |eng: &Engine, (node, opts): (Value, Option<Value>)| {
             let handler = handler_of(&node, opts.as_ref(), "on_gamend_event")?;
             let id = eng.next_token();
@@ -838,17 +859,17 @@ fn install_gamend_api(m: &mut Module<Engine>) {
 /// The per-connection half of `gamend.*`: operations on an open socket.
 fn install_gamend_socket_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("join", &[], "(socket: int, topic: string, payload: any) -> int", "Subscribe the socket to a topic and return the id the server's `reply` answers."),
-        ("push", &[], "(socket: int, topic: string, event: string, payload: any) -> int", "Send an event and its payload to a topic on the socket, returning the id the `reply` answers."),
-        ("leave", &[], "(socket: int, topic: string) -> int", "Unsubscribe the socket from a topic, returning the id the `reply` answers."),
-        ("call_hook", &[], "(socket: int, plugin: string, function: string, args: any) -> int", "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`."),
-        ("close", &[], "(socket: int) -> bool", "Shut the socket down; false when the connection was already gone."),
-        ("interrupt", &[], "(socket: int) -> bool", "Cut the connection as a network failure would, to try a game's reconnect path: the socket reports `reconnecting`, then `reopened`. False when it is already gone."),
+        (words::general::JOIN, &[], "(socket: int, topic: string, payload: any) -> int", "Subscribe the socket to a topic and return the id the server's `reply` answers."),
+        (PUSH, &[], "(socket: int, topic: string, event: string, payload: any) -> int", "Send an event and its payload to a topic on the socket, returning the id the `reply` answers."),
+        (words::LEAVE, &[], "(socket: int, topic: string) -> int", "Unsubscribe the socket from a topic, returning the id the `reply` answers."),
+        (words::functions::CALL_HOOK, &[], "(socket: int, plugin: string, function: string, args: any) -> int", "Call a server plugin's function over the socket; the reply's `response` holds `data` or `error`."),
+        (CLOSE, &[], "(socket: int) -> bool", "Shut the socket down; false when the connection was already gone."),
+        (INTERRUPT, &[], "(socket: int) -> bool", "Cut the connection as a network failure would, to try a game's reconnect path: the socket reports `reconnecting`, then `reopened`. False when it is already gone."),
     ]);
     // `gamend.join(socket, topic, payload?)` -> id; reply arrives as
     // `{ request, kind = "reply", status, response }`.
     m.function(
-        "join",
+        words::general::JOIN,
         |eng: &Engine, (socket, topic, payload): (i64, String, Option<Value>)| {
             let id = eng.next_token();
             eng.resource::<GamendState>().borrow_mut().join(
@@ -862,7 +883,7 @@ fn install_gamend_socket_api(m: &mut Module<Engine>) {
     );
     // `gamend.push(socket, topic, event, payload?)` -> id; reply as join's.
     m.function(
-        "push",
+        PUSH,
         |eng: &Engine, (socket, topic, event, payload): (i64, String, String, Option<Value>)| {
             let id = eng.next_token();
             eng.resource::<GamendState>().borrow_mut().push(
@@ -876,18 +897,21 @@ fn install_gamend_socket_api(m: &mut Module<Engine>) {
         },
     );
     // `gamend.leave(socket, topic)` -> id; reply as join's.
-    m.function("leave", |eng: &Engine, (socket, topic): (i64, String)| {
-        let id = eng.next_token();
-        eng.resource::<GamendState>()
-            .borrow_mut()
-            .leave(token_of(socket)?, id, topic)?;
-        Ok(int(id))
-    });
+    m.function(
+        words::LEAVE,
+        |eng: &Engine, (socket, topic): (i64, String)| {
+            let id = eng.next_token();
+            eng.resource::<GamendState>()
+                .borrow_mut()
+                .leave(token_of(socket)?, id, topic)?;
+            Ok(int(id))
+        },
+    );
     // `gamend.call_hook(socket, plugin, name, args?)` -> id. The server
     // hook's reply arrives as `{ request, status, response }`, where an ok
     // response is `{ data = ... }` and an error one `{ error = "..." }`.
     m.function(
-        "call_hook",
+        words::functions::CALL_HOOK,
         |eng: &Engine, (socket, plugin, name, args): (i64, String, String, Option<Value>)| {
             let args = match args {
                 None | Some(Value::Nil) => Json::Array(Vec::new()),
@@ -905,12 +929,12 @@ fn install_gamend_socket_api(m: &mut Module<Engine>) {
         },
     );
     // `gamend.close(socket)` — false when the connection is already gone.
-    m.function("close", |eng: &Engine, socket: i64| {
+    m.function(CLOSE, |eng: &Engine, socket: i64| {
         let closed = u64::try_from(socket)
             .is_ok_and(|id| eng.resource::<GamendState>().borrow_mut().close(id));
         Ok(Value::Bool(closed))
     });
-    m.function("interrupt", |eng: &Engine, socket: i64| {
+    m.function(INTERRUPT, |eng: &Engine, socket: i64| {
         let cut = u64::try_from(socket)
             .is_ok_and(|id| eng.resource::<GamendState>().borrow_mut().interrupt(id));
         Ok(Value::Bool(cut))

@@ -6,8 +6,40 @@ use editor;
 use icons;
 use signals;
 use style;
+use themewin;
 use util;
 use window;
+use words::components;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::log_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::roles;
+use words::statuses;
+use words::tabs;
+use words::theme_tokens;
+use words::verbs;
+
+const COPIED: str = "copied";
+const DOWNLOADING: str = "downloading";
+const ENGINE: str = "engine";
+const EXAMPLES: str = "examples";
+const INSTALL: str = "install";
+const INSTALLED: str = "installed";
+const NEW: str = "new";
+const OLDER: str = "older";
+const UNPACKING: str = "unpacking";
+const COVER: str = "cover";
+const EMPTY: str = "empty";
+const FORGE: str = "forge";
+const MY_GAME: str = "my-game";
+const PROJECTS: str = "projects";
+const DOWNLOAD: str = "download";
+const GONE: str = "gone";
+const HERE: str = "here";
+const MANAGER: str = "manager";
 
 pub class ManagerState {
     internal on: bool,
@@ -58,13 +90,13 @@ pub fn state() -> ManagerState {
         on: false,
         // Whether the shell under the screen is hidden; see `cover`.
         covering: false,
-        tab: "projects",
+        tab: verbs::PROJECTS,
         recent: [],
         read: false,
         filter: "",
         // The New project sheet's fields, which only exist while it is up.
-        name: "my-game",
-        template: "empty",
+        name: MY_GAME,
+        template: EMPTY,
         parent: "",
         note: "",
         failed: "",
@@ -128,14 +160,14 @@ pub fn open(state: &mut editor::State) {
     // The other two pages are not offered in a tab, so neither is a state
     // that left the screen on one of them.
     if in_tab() {
-        state.manager.tab = "projects";
+        state.manager.tab = verbs::PROJECTS;
     }
 }
 
 /// The screen, on its examples half.
 pub fn open_examples(state: &mut editor::State) {
     open(state);
-    state.manager.tab = "examples";
+    state.manager.tab = EXAMPLES;
     told(state);
 }
 
@@ -148,7 +180,7 @@ pub fn open_new(state: &mut editor::State) {
 /// The screen, on its engine half: what `--state versions` opens.
 pub fn open_versions(state: &mut editor::State) {
     open(state);
-    state.manager.tab = "engine";
+    state.manager.tab = ENGINE;
     told(state);
 }
 
@@ -184,7 +216,7 @@ pub fn close(state: &mut editor::State) {
 /// knows it as: a tab by its id, or one of the Projects tab's verbs; `None`
 /// before it has drawn.
 pub fn spot(state: editor::State, name: str) -> Spot? {
-    let node = if name == "new" {
+    let node = if name == NEW {
         scene::get_node(TOOLS() + "/New")
     } else {
         tab_node(name)
@@ -223,10 +255,10 @@ fn tabs() -> [[str]] {
     // A tab installs no engine and fetches its examples from the page it runs
     // in, so the screen there is the list of what this browser keeps.
     if in_tab() {
-        return [["projects", "Projects"]];
+        return [[PROJECTS, "Projects"]];
     }
     // `return`, because a block followed by `[` is an index.
-    return [["projects", "Projects"], ["examples", "Examples"], ["forge", "On Forge"], ["engine", "Engine"]];
+    return [[PROJECTS, "Projects"], ["examples", "Examples"], [FORGE, "On Forge"], ["engine", "Engine"]];
 }
 
 // One column under this, two above it.
@@ -244,7 +276,7 @@ fn refresh(state: &mut editor::State) {
         state.manager.parent = project::home();
     }
     if state.manager.follow == "" {
-        let mine = util::map_or_empty(release::installed())["channel"].as_str();
+        let mine = util::map_or_empty(release::installed())[log_fields::CHANNEL].as_str();
         state.manager.follow = if mine == "" { "nightly" } else { mine };
     }
 }
@@ -301,11 +333,11 @@ pub fn fill(state: &mut editor::State) {
     let column_width = page_width();
     head_note(state, tokens);
     tools(state);
-    let specs = if state.manager.tab == "engine" {
+    let specs = if state.manager.tab == ENGINE {
         engine_specs(state, tokens, column_width)
-    } else if state.manager.tab == "examples" {
+    } else if state.manager.tab == EXAMPLES {
         examples_specs(state, tokens, column_width)
-    } else if state.manager.tab == "forge" {
+    } else if state.manager.tab == tabs::FORGE {
         forge_specs(state, tokens, column_width)
     } else {
         projects_specs(state, tokens, column_width)
@@ -351,7 +383,7 @@ fn head_note(state: editor::State, tokens: any) {
     if filled.is_valid() {
         filled.set_visible(said != "");
         filled.widget.text = said;
-        filled.patch_component("widget", { "text_color": (if state.manager.failed != "" { tokens["warning_text"] } else { tokens["text_subtle"] }).as_str() });
+        filled.patch_component(components::WIDGET, { themewin::TEXT_COLOR: (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str() });
     }
     let controls = if installing(state) {
         progress_controls(state)
@@ -366,19 +398,19 @@ fn head_note(state: editor::State, tokens: any) {
 // picker and nowhere to write a template: the page it runs in is what starts
 // a project there, and this screen reopens one.
 fn tools(state: editor::State) {
-    let up = state.manager.tab == "projects";
+    let up = state.manager.tab == verbs::PROJECTS;
     let acting = !in_tab();
     util::set_visible(TOOLS(), up);
     util::set_text(TOOLS() + "/Filter", state.manager.filter);
     let filled = scene::get_node(TOOLS() + "/Open");
     if filled.is_valid() {
         filled.set_visible(acting && !state.touchscreen);
-        filled.widget_button.icon = icons::panel("assets");
+        filled.widget_button.icon = icons::panel(icons::ASSETS);
     }
     let filled = scene::get_node(TOOLS() + "/New");
     if filled.is_valid() {
         filled.set_visible(acting);
-        filled.widget_button.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui(icons::ADD);
     }
 }
 
@@ -387,8 +419,8 @@ fn say(text: str, ink: str) -> ui::Row {
         height: 0,
         controls: [
             ui::Control {
-                kind: "label",
-                role: "text_code_quiet",
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CODE_QUIET,
                 font_size: 11,
                 grow: 1,
                 wrap: true,
@@ -402,7 +434,7 @@ fn say(text: str, ink: str) -> ui::Row {
 fn rule() -> ui::Row {
     ui::Row {
         height: 1,
-        controls: [ui::Control { kind: "separator", grow: 1 }],
+        controls: [ui::Control { kind: ui::WIDGET_SEPARATOR, grow: 1 }],
     }
 }
 
@@ -415,7 +447,7 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [ui
             "Nothing opened on this machine yet. Start from an example, or make one."
         };
         let why = if state.manager.recent.len() == 0 { empty } else { "No project matches that filter." };
-        let none = [say(why, tokens["text_subtle"].as_str())];
+        let none = [say(why, tokens[theme_tokens::TEXT_SUBTLE].as_str())];
         return none;
     }
     let out: [ui::Row] = [];
@@ -430,39 +462,39 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [ui
 // about itself, when and with which engine, sits at the right edge, and a
 // phone shows when it was opened and nothing else.
 fn project_spec(state: editor::State, tokens: any, column_width: float, row: any) -> ui::Row {
-    let here = row["path"];
+    let here = row[project_fields::PATH];
     let exists = row["exists"];
     let gone = if exists == nil { true } else { exists.as_bool() } != true;
-    let built = row["version"].as_str();
+    let built = row[fields::VERSION].as_str();
     let line = util::max(style::row_height(state), 28.0);
     let controls: [ui::Control] = [
         // The engine's mark: a project keeps its own icon, and none of them
         // is open, so the row wears the editor's.
         ui::Control {
-            kind: "panel",
-            role: "sheet_logo",
+            kind: ui::WIDGET_PANEL,
+            role: roles::SHEET_LOGO,
             padding: ui::all_sides(2),
-            controls: [ui::Control { kind: "image", image: LOGO, width: 20 }],
+            controls: [ui::Control { kind: ui::WIDGET_IMAGE, image: LOGO, width: 20 }],
         },
         ui::Control {
-            kind: "column",
+            kind: ui::WIDGET_COLUMN,
             padding: ui::all_sides(0),
             controls: [
                 ui::Control {
-                    kind: "button",
+                    kind: ui::WIDGET_BUTTON,
                     role: "item_list",
-                    text: row["name"],
+                    text: row[fields::NAME],
                     height: line,
-                    text_align: "start",
-                    icon: if gone { icons::panel("problems") } else { "" },
+                    text_align: ui::ALIGN_START,
+                    icon: if gone { icons::panel(icons::PROBLEMS) } else { "" },
                     tooltip: here,
-                    text_color: if gone { tokens["text_subtle"] } else { tokens["text_default"] },
+                    text_color: if gone { tokens[theme_tokens::TEXT_SUBTLE] } else { tokens[theme_tokens::TEXT_DEFAULT] },
                     on_click: "handle",
-                    data: { "fn": on_project_pressed, "gone": gone, "here": here },
+                    data: { fields::FN: on_project_pressed, GONE: gone, HERE: here },
                 },
                 ui::Control {
-                    kind: "label",
-                    role: "text_code_quiet",
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CODE_QUIET,
                     font_size: 11,
                     truncate: true,
                     text: if gone { here.as_str() + "  ·  disk not mounted" } else { here },
@@ -471,42 +503,42 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
             grow: 1,
         },
         ui::Control {
-            kind: "label",
-            role: "text_code_quiet",
+            kind: ui::WIDGET_LABEL,
+            role: roles::TEXT_CODE_QUIET,
             padding: ui::all_sides(0),
             font_size: 11,
-            text: row["when"].as_str(),
+            text: row[fields::WHEN].as_str(),
         },
     ];
     if built != "" && !narrow(column_width) {
-        controls.push(ui::Control { kind: "label", role: "text_code_quiet", font_size: 11, text: built });
+        controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: built });
     }
     controls.push(ui::Control {
-        kind: "button",
-        role: "icon_action",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ICON_ACTION,
         text: "",
-        icon: icons::ui("close"),
+        icon: icons::ui(icons::CLOSE),
         tooltip: "Forget this project",
         on_click: "handle",
-        data: { "fn": on_forget_pressed, "here": here },
+        data: { fields::FN: on_forget_pressed, HERE: here },
     });
     ui::Row {
         height: util::max(line + 22.0, 56.0),
-        slot_role: "layout_actions",
+        slot_role: roles::LAYOUT_ACTIONS,
         controls: controls,
     }
 }
 
 fn on_project_pressed(state: &mut editor::State, data: any, _value: any) {
-    let gone: bool = data["gone"].as_bool();
-    let here: any = data["here"];
+    let gone: bool = data[GONE].as_bool();
+    let here: any = data[HERE];
     if !gone {
         go(state, here.as_str());
     }
 }
 
 fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
-    let here: any = data["here"];
+    let here: any = data[HERE];
     project::forget(here.as_str());
     state.manager.read = false;
     told(state);
@@ -515,7 +547,7 @@ fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
 fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui::Row] {
     let rows = util::list_or_empty(project::examples());
     if rows.len() == 0 {
-        let none = [say("No examples ship beside this build.", tokens["text_subtle"].as_str())];
+        let none = [say("No examples ship beside this build.", tokens[theme_tokens::TEXT_SUBTLE].as_str())];
         return none;
     }
     let across = if narrow(column_width) { 1 } else if column_width < 760.0 { 2 } else { 3 };
@@ -535,27 +567,27 @@ fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui
         out.push(ui::Row {
             height: cover_height + 54.0,
             controls: [
-                ui::Control { kind: "row", gap: vec2(SEAM, SEAM), controls: cards },
+                ui::Control { kind: ui::WIDGET_ROW, gap: vec2(SEAM, SEAM), controls: cards },
             ],
         });
         start += across;
     }
-    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped.", tokens["text_subtle"].as_str()));
+    out.push(say("Opens a copy in your projects folder, so the example stays as it shipped.", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     out
 }
 
 // The picture, the name and the line under it, on a panel the whole of which
 // a click opens a copy of: a button with nothing in it laid over the card.
 fn example_card(state: editor::State, tokens: any, width: float, cover_height: float, row: any) -> ui::Control {
-    let id = row["id"];
-    let cover = row["cover"].as_str();
+    let id = row[fields::ID];
+    let cover = row[COVER].as_str();
     let picture: ui::Control = if cover != "" {
         ui::Control {
-            kind: "image",
+            kind: ui::WIDGET_IMAGE,
             image: cover,
             width: width,
             height: cover_height,
-            fit: "cover",
+            fit: COVER,
             corner_radius: 12,
             truncate: false,
         }
@@ -563,21 +595,21 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
         // No picture shipped: the engine's own mark, so the card still reads
         // as a project rather than a blank.
         ui::Control {
-            kind: "row",
+            kind: ui::WIDGET_ROW,
             width: width,
             height: cover_height,
             corner_radius: 0,
-            justify: "center",
-            align_items: "center",
+            justify: ui::ALIGN_CENTER,
+            align_items: ui::ALIGN_CENTER,
             controls: [
-                ui::Control { kind: "panel", role: "sheet_logo", controls: [ui::Control { kind: "image", image: LOGO, width: 36 }] },
+                ui::Control { kind: ui::WIDGET_PANEL, role: roles::SHEET_LOGO, controls: [ui::Control { kind: ui::WIDGET_IMAGE, image: LOGO, width: 36 }] },
             ],
             truncate: false,
         }
     };
     ui::Control {
-        kind: "panel",
-        fill: tokens["bg_panel"],
+        kind: ui::WIDGET_PANEL,
+        fill: tokens[themewin::GROUND],
         corner_radius: 12,
         padding: ui::all_sides(0),
         width: width,
@@ -585,39 +617,39 @@ fn example_card(state: editor::State, tokens: any, width: float, cover_height: f
         controls: [
             picture,
             ui::Control {
-                kind: "label",
+                kind: ui::WIDGET_LABEL,
                 corner_radius: 0,
-                role: "text_title",
+                role: roles::TEXT_TITLE,
                 font_size: 13,
-                text: row["name"].as_str(),
+                text: row[fields::NAME].as_str(),
                 padding: ui::sides(12, 4, 12, 0),
                 truncate: false,
             },
             ui::Control {
-                kind: "label",
+                kind: ui::WIDGET_LABEL,
                 corner_radius: 0,
-                role: "text_code_quiet",
+                role: roles::TEXT_CODE_QUIET,
                 font_size: 11,
-                text: row["note"].as_str(),
+                text: row[log_fields::NOTE].as_str(),
                 padding: ui::sides(12, 0, 12, 8),
                 truncate: true,
             },
             ui::Control {
-                kind: "button",
-                role: "chip_quiet",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::CHIP_QUIET,
                 text: "",
                 absolute: true,
                 inset: ui::sides(0.0, 0.0, 0.0, 0.0),
                 tooltip: "Copy into " + state.manager.parent,
                 on_click: "handle",
-                data: { "fn": on_example_pressed, "id": id },
+                data: { fields::FN: on_example_pressed, fields::ID: id },
             },
         ],
     }
 }
 
 fn on_example_pressed(state: &mut editor::State, data: any, _value: any) {
-    let id: any = data["id"];
+    let id: any = data[fields::ID];
     open_example(state, id.as_str());
 }
 
@@ -629,59 +661,59 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
     }
     let out: [ui::Row] = [];
     if state.manager.copying != "" {
-        out.push(say("Copying {state.manager.copying} into {state.manager.parent}", tokens["text_subtle"].as_str()));
+        out.push(say("Copying {state.manager.copying} into {state.manager.parent}", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
     if state.manager.forge.len() == 0 {
-        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }, tokens["text_subtle"].as_str()));
+        out.push(say(if state.manager.forge_asked { "Asking " + forge::url() } else { "No public projects yet." }, tokens[theme_tokens::TEXT_SUBTLE].as_str()));
         return out;
     }
     for row in state.manager.forge {
-        let project = row["project"].as_str();
+        let project = row[project_fields::PROJECT].as_str();
         let tags = "";
-        for tag in util::list_or_empty(row["tags"]) {
+        for tag in util::list_or_empty(row[fields::TAGS]) {
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
-        let note = row["description"].as_str();
+        let note = row[fields::DESCRIPTION].as_str();
         out.push(ui::Row {
             height: 52.0,
             controls: [
                 ui::Control {
-                    kind: "panel",
-                    fill: tokens["bg_panel"],
+                    kind: ui::WIDGET_PANEL,
+                    fill: tokens[themewin::GROUND],
                     corner_radius: 10,
                     padding: ui::sides(12, 6, 12, 6),
                     width: column_width,
                     gap: vec2(0, 2),
                     controls: [
-                        ui::Control { kind: "label", role: "text_title", font_size: 13, text: project },
+                        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, font_size: 13, text: project },
                         ui::Control {
-                            kind: "label",
-                            role: "text_code_quiet",
+                            kind: ui::WIDGET_LABEL,
+                            role: roles::TEXT_CODE_QUIET,
                             font_size: 11,
                             truncate: true,
                             text: if tags == "" { note } else { note + " · " + tags },
                         },
                         ui::Control {
-                            kind: "button",
-                            role: "chip_quiet",
+                            kind: ui::WIDGET_BUTTON,
+                            role: roles::CHIP_QUIET,
                             text: "",
                             absolute: true,
                             inset: ui::sides(0.0, 0.0, 0.0, 0.0),
                             tooltip: "Copy into " + state.manager.parent,
                             on_click: "handle",
-                            data: { "fn": copy_forge_project, "project": project },
+                            data: { fields::FN: copy_forge_project, project_fields::PROJECT: project },
                         },
                     ],
                 },
             ],
         });
     }
-    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is.", tokens["text_subtle"].as_str()));
+    out.push(say("Opens a copy in your projects folder; the project on Forge stays as it is.", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     out
 }
 
 fn copy_forge_project(state: &mut editor::State, data: any, _value: any) {
-    let project = data["project"].as_str();
+    let project = data[project_fields::PROJECT].as_str();
     if state.manager.copying == "" && forge::copy(project, state.manager.parent) {
         state.manager.copying = project;
         told(state);
@@ -690,16 +722,16 @@ fn copy_forge_project(state: &mut editor::State, data: any, _value: any) {
 
 /// A Forge job reported: the projects a search found, or a copy made.
 pub fn forge_heard(state: &mut editor::State, event: any) {
-    let kind = event["kind"].as_str();
-    if kind == "listed" {
-        state.manager.forge = util::list_or_empty(event["rows"]);
-    } else if kind == "copied" {
+    let kind = event[fields::KIND].as_str();
+    if kind == statuses::LISTED {
+        state.manager.forge = util::list_or_empty(event[fields::ROWS]);
+    } else if kind == COPIED {
         state.manager.copying = "";
-        go(state, event["path"].as_str());
+        go(state, event[project_fields::PATH].as_str());
         return;
-    } else if kind == "failed" && (event["job"].as_str() == "copy" || event["job"].as_str() == "search") {
+    } else if kind == statuses::FAILED && (event[log_fields::JOB].as_str() == verbs::COPY || event[log_fields::JOB].as_str() == verbs::SEARCH) {
         state.manager.copying = "";
-        state.manager.failed = event["message"].as_str();
+        state.manager.failed = event[log_fields::MESSAGE].as_str();
     } else {
         return;
     }
@@ -709,14 +741,14 @@ pub fn forge_heard(state: &mut editor::State, event: any) {
 /// Copy an example into the projects folder and open the copy.
 fn open_example(state: &mut editor::State, id: str) {
     let made = util::map_or_empty(project::copy_example(id, state.manager.parent));
-    let failed = made["error"];
+    let failed = made[log_fields::ERROR];
     if failed != nil {
         let why = failed;
         state.manager.failed = why.as_str();
         told(state);
         return;
     }
-    go(state, made["path"].as_str());
+    go(state, made[project_fields::PATH].as_str());
 }
 
 // What this build is, which line it follows, and every release the project
@@ -731,50 +763,50 @@ fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> 
     let newest = newest_on(state, state.manager.follow);
     let head: [ui::Control] = [
         ui::Control {
-            kind: "column",
+            kind: ui::WIDGET_COLUMN,
             grow: 1,
             controls: [
-                ui::Control { kind: "label", role: "text_title", text: "Balaur " + mine["version"].as_str() },
-                ui::Control { kind: "label", role: "text_code_quiet", text: build_line(mine), font_size: 11 },
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur " + mine[fields::VERSION].as_str() },
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, text: build_line(mine), font_size: 11 },
             ],
         },
     ];
     if !narrow(column_width) {
-        let fresh = newest["order"].as_str() == "newer";
+        let fresh = newest[fields::ORDER].as_str() == statuses::NEWER;
         head.push(ui::Control {
-            kind: "label",
-            role: "text_code_quiet",
+            kind: ui::WIDGET_LABEL,
+            role: roles::TEXT_CODE_QUIET,
             font_size: 11,
             text: standing(state, state.manager.follow),
-            text_color: (if fresh { tokens["success_text"] } else { tokens["text_subtle"] }).as_str(),
+            text_color: (if fresh { tokens[theme_tokens::SUCCESS_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str(),
         });
     }
     head.push(ui::Control {
-        kind: "button",
-        role: "action_form",
-        icon: icons::ui("reset"),
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ACTION_FORM,
+        icon: icons::ui(icons::RESET),
         text: if state.manager.reading { "Checking" } else { "Check" },
         on_click: "handle",
-        data: { "fn": on_check_pressed },
+        data: { fields::FN: on_check_pressed },
     });
-    let out: [ui::Row] = [ui::Row { height: 44, slot_role: "layout_actions", controls: head }];
-    if mine["held"].as_str() != "" {
-        out.push(say(mine["held"].as_str(), tokens["text_subtle"].as_str()));
+    let out: [ui::Row] = [ui::Row { height: 44, slot_role: roles::LAYOUT_ACTIONS, controls: head }];
+    if mine[inspector_fields::HELD].as_str() != "" {
+        out.push(say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
-    let lines: [ui::Control] = [ui::Control { kind: "label", role: "text_caption", text: "Follow", width: 60 }];
+    let lines: [ui::Control] = [ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "Follow", width: 60 }];
     for name in util::list_or_empty(release::channels()) {
         // Bound afresh: a closure made in a loop captures the binding.
         let line = name;
         lines.push(ui::Control {
-            kind: "button",
-            role: "chip",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::CHIP,
             text: line,
             checked: state.manager.follow == line.as_str(),
             on_click: "handle",
-            data: { "fn": on_line_pressed, "line": line },
+            data: { fields::FN: on_line_pressed, layout_fields::LINE: line },
         });
     }
-    out.push(ui::Row { height: row_height + 6.0, slot_role: "layout_actions", controls: lines });
+    out.push(ui::Row { height: row_height + 6.0, slot_role: roles::LAYOUT_ACTIONS, controls: lines });
     release_specs(state, tokens, row_height, mine, out);
     out
 }
@@ -784,7 +816,7 @@ fn on_check_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_line_pressed(state: &mut editor::State, data: any, _value: any) {
-    let line: any = data["line"];
+    let line: any = data[layout_fields::LINE];
     state.manager.follow = line.as_str();
     told(state);
 }
@@ -793,29 +825,29 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
     let rows: [any] = [];
     for entry in state.manager.releases {
         let row = util::map_or_empty(entry);
-        if row["channel"].as_str() == state.manager.follow {
+        if row[log_fields::CHANNEL].as_str() == state.manager.follow {
             rows.push(row);
         }
     }
     if rows.len() == 0 {
         let empty = if state.manager.reading { "Reading the release feed." } else { "Nothing published on this line yet." };
-        out.push(say(empty, tokens["text_subtle"].as_str()));
+        out.push(say(empty, tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
     for row in rows {
-        let current = row["current"].as_bool() == true;
+        let current = row[inspector_fields::CURRENT].as_bool() == true;
         let controls: [ui::Control] = [
             ui::Control {
-                kind: "column",
+                kind: ui::WIDGET_COLUMN,
                 grow: 1,
                 controls: [
                     ui::Control {
-                        kind: "label",
-                        role: "text_title",
+                        kind: ui::WIDGET_LABEL,
+                        role: roles::TEXT_TITLE,
                         font_size: 13,
-                        text: row["id"].as_str(),
-                        text_color: (if current { tokens["primary_text"] } else { tokens["text_default"] }).as_str(),
+                        text: row[fields::ID].as_str(),
+                        text_color: (if current { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] }).as_str(),
                     },
-                    ui::Control { kind: "label", role: "text_code_quiet", font_size: 11, text: row["when"].as_str() },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: row[fields::WHEN].as_str() },
                 ],
             },
         ];
@@ -823,32 +855,32 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
         if press != nil {
             controls.push(press.unwrap());
         }
-        out.push(ui::Row { height: row_height + 14.0, slot_role: "layout_actions", controls: controls });
+        out.push(ui::Row { height: row_height + 14.0, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
         out.push(rule());
     }
     // An install that cannot replace itself has nothing to name a release for.
-    if mine["held"].as_str() != "" || installing(state) {
+    if mine[inspector_fields::HELD].as_str() != "" || installing(state) {
         return;
     }
     out.push(ui::Row {
         height: row_height,
         controls: [
             ui::Control {
-                kind: "text_field",
-                role: "input_form",
+                kind: ui::WIDGET_TEXT_FIELD,
+                role: roles::INPUT_FORM,
                 grow: 1,
                 text: state.manager.tag,
                 placeholder: "v0.2.0",
                 on_change: "handle",
-                data: { "fn": on_tag_typed },
+                data: { fields::FN: on_tag_typed },
             },
             ui::Control {
-                kind: "button",
-                role: "action_form",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::ACTION_FORM,
                 text: "Install",
                 min_width: 88,
                 on_click: "handle",
-                data: { "fn": on_install_typed_pressed },
+                data: { fields::FN: on_install_typed_pressed },
             },
         ],
         label: "Or a release by name",
@@ -879,21 +911,21 @@ pub fn cover(state: &mut editor::State, up: bool) {
 
 /// The head strip: the mark, the name, the version, and the way back.
 fn head_controls(state: editor::State, tokens: any) -> [ui::Control] {
-    let ink = if tokens["dark"].as_bool() { LOGO_DARK } else { LOGO };
+    let ink = if tokens[panel_keys::DARK].as_bool() { LOGO_DARK } else { LOGO };
     let out: [ui::Control] = [
-        ui::Control { kind: "image", role: "layout_mark", image: ink },
-        ui::Control { kind: "label", role: "text_title", text: "Balaur" },
-        ui::Control { kind: "label", role: "text_caption", text: project::version() },
-        ui::Control { kind: "row", grow: 1 },
+        ui::Control { kind: ui::WIDGET_IMAGE, role: "layout_mark", image: ink },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_TITLE, text: "Balaur" },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: project::version() },
+        ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
     ];
     if state.manager.back {
         out.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             role: "action_manager",
             tooltip: "Esc",
             text: "Back to " + state.game_name,
             on_click: "handle",
-            data: { "fn": on_back_pressed },
+            data: { fields::FN: on_back_pressed },
         });
     }
     out
@@ -910,19 +942,19 @@ fn tab_controls(state: editor::State) -> [ui::Control] {
         // Bound afresh: a closure made in a loop captures the binding.
         let id = row[0];
         out.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: row[1],
             role: "tab_manager",
             checked: state.manager.tab == id,
             on_click: "handle",
-            data: { "fn": on_page_picked, "id": id },
+            data: { fields::FN: on_page_picked, fields::ID: id },
         });
     }
     out
 }
 
 fn on_page_picked(state: &mut editor::State, data: any, _value: any) {
-    let id: str = data["id"].as_str();
+    let id: str = data[fields::ID].as_str();
     state.manager.tab = id;
 }
 
@@ -934,7 +966,7 @@ fn shown(state: editor::State) -> [any] {
     let out: [any] = [];
     for entry in state.manager.recent {
         let row = util::map_or_empty(entry);
-        let haystack = (row["name"].as_str() + " " + row["path"].as_str()).to_lower();
+        let haystack = (row[fields::NAME].as_str() + " " + row[project_fields::PATH].as_str()).to_lower();
         if haystack.contains(query) {
             out.push(entry);
         }
@@ -945,10 +977,10 @@ fn shown(state: editor::State) -> [any] {
 /// The build in one line: its id and the line it follows, or where it came
 /// from when it came from no release.
 pub fn build_line(mine: any) -> str {
-    if mine["source"].as_bool() == true {
+    if mine[inspector_fields::SOURCE].as_bool() == true {
         return "built from a checkout";
     }
-    mine["id"].as_str() + "  ·  following " + mine["channel"].as_str()
+    mine[fields::ID].as_str() + "  ·  following " + mine[log_fields::CHANNEL].as_str()
 }
 
 /// Ask the feed what every line holds, unless a read is already out. The
@@ -966,7 +998,7 @@ pub fn check(state: &mut editor::State) {
 // keep, so each moving says so to both.
 fn told(state: &mut editor::State) {
     window::changed(state);
-    signals::changed(state, "manager");
+    signals::changed(state, MANAGER);
 }
 
 /// Whether an install is in flight.
@@ -982,35 +1014,35 @@ fn no_install() -> Installing {
 /// both read what this keeps.
 pub fn heard(state: &mut editor::State, report: any) {
     let release_event = util::map_or_empty(report);
-    let kind = release_event["kind"].as_str();
-    if kind == "listed" {
+    let kind = release_event[fields::KIND].as_str();
+    if kind == statuses::LISTED {
         let rows: [any] = [];
-        for row in util::list_or_empty(release_event["rows"]) {
+        for row in util::list_or_empty(release_event[fields::ROWS]) {
             rows.push(row);
         }
         state.manager.releases = rows;
         state.manager.reading = false;
-    } else if kind == "downloading" {
+    } else if kind == DOWNLOADING {
         state.manager.installing = Installing {
-            tag: release_event["tag"].as_str(),
-            done: release_event["done"].as_int(),
+            tag: release_event[fields::TAG].as_str(),
+            done: release_event[log_fields::DONE].as_int(),
             total: release_event["total"].as_int(),
             unpacking: false,
         };
-    } else if kind == "unpacking" {
+    } else if kind == UNPACKING {
         state.manager.installing.unpacking = true;
-    } else if kind == "installed" {
+    } else if kind == INSTALLED {
         state.manager.installing = no_install();
         state.manager.failed = "";
-        state.manager.note = release_event["note"].as_str();
+        state.manager.note = release_event[log_fields::NOTE].as_str();
         log::info(state.manager.note);
-    } else if kind == "failed" {
-        if release_event["job"].as_str() == "install" {
+    } else if kind == statuses::FAILED {
+        if release_event[log_fields::JOB].as_str() == INSTALL {
             state.manager.installing = no_install();
         } else {
             state.manager.reading = false;
         }
-        state.manager.failed = release_event["message"].as_str();
+        state.manager.failed = release_event[log_fields::MESSAGE].as_str();
     }
     told(state);
 }
@@ -1019,7 +1051,7 @@ pub fn heard(state: &mut editor::State, report: any) {
 pub fn newest_on(state: editor::State, channel: str) -> any {
     for entry in state.manager.releases {
         let row = util::map_or_empty(entry);
-        if row["channel"].as_str() == channel {
+        if row[log_fields::CHANNEL].as_str() == channel {
             return row;
         }
     }
@@ -1029,18 +1061,18 @@ pub fn newest_on(state: editor::State, channel: str) -> any {
 /// What the newest release on a line means for this build, in a few words.
 pub fn standing(state: editor::State, channel: str) -> str {
     let newest = newest_on(state, channel);
-    let id = newest["id"].as_str();
+    let id = newest[fields::ID].as_str();
     if id == "" {
         return if state.manager.reading { "checking" } else { "no release on this line" };
     }
-    let order = newest["order"].as_str();
-    if order == "same" {
+    let order = newest[fields::ORDER].as_str();
+    if order == statuses::SAME {
         return "up to date";
     }
-    if order == "newer" {
+    if order == statuses::NEWER {
         return id + " is newer";
     }
-    if order == "older" {
+    if order == OLDER {
         return id + " is older than this build";
     }
     id + " is published"
@@ -1049,44 +1081,44 @@ pub fn standing(state: editor::State, channel: str) -> str {
 /// The verb a release row carries, as a control: what `row_press` draws.
 /// Nil where there is none: an install already running, or a held build.
 pub fn press_spec(state: editor::State, row: any, mine: any) -> ui::Control? {
-    if row["current"].as_bool() == true {
-        return ui::Control { kind: "label", role: "text_code_quiet", font_size: 11, text: "installed" };
+    if row[inspector_fields::CURRENT].as_bool() == true {
+        return ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: INSTALLED };
     }
     if installing(state) {
         return nil;
     }
-    let download = row["download"].as_str();
+    let download = row[DOWNLOAD].as_str();
     if download != "" {
         return ui::Control {
-            kind: "button",
-            role: "action_form",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ACTION_FORM,
             text: "Download",
             min_width: 88,
             on_click: "handle",
-            data: { "fn": on_download_pressed, "download": download },
+            data: { fields::FN: on_download_pressed, DOWNLOAD: download },
         };
     }
-    if mine["held"].as_str() != "" {
+    if mine[inspector_fields::HELD].as_str() != "" {
         return nil;
     }
-    let tag = row["tag"].as_str();
+    let tag = row[fields::TAG].as_str();
     ui::Control {
-        kind: "button",
-        role: "action_form",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ACTION_FORM,
         min_width: 88,
-        text: if row["order"].as_str() == "older" { "Downgrade" } else { "Install" },
+        text: if row[fields::ORDER].as_str() == OLDER { "Downgrade" } else { "Install" },
         on_click: "handle",
-        data: { "fn": on_install_row_pressed, "tag": tag },
+        data: { fields::FN: on_install_row_pressed, fields::TAG: tag },
     }
 }
 
 fn on_download_pressed(state: &mut editor::State, data: any, _value: any) {
-    let download: str = data["download"].as_str();
+    let download: str = data[DOWNLOAD].as_str();
     engine::open_url(download);
 }
 
 fn on_install_row_pressed(state: &mut editor::State, data: any, _value: any) {
-    let tag: str = data["tag"].as_str();
+    let tag: str = data[fields::TAG].as_str();
     put(state, "", tag);
 }
 
@@ -1109,8 +1141,8 @@ pub fn progress_controls(state: editor::State) -> [ui::Control] {
         0.0
     };
     [
-        ui::Control { kind: "label", role: "text_code_quiet", font_size: 11, text: said, value: 0.0 },
-        ui::Control { kind: "progress_bar", width: 200, height: 4, value: part },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: said, value: 0.0 },
+        ui::Control { kind: ui::WIDGET_PROGRESS_BAR, width: 200, height: 4, value: part },
     ]
 }
 
@@ -1128,10 +1160,10 @@ pub fn new_fill(state: &mut editor::State) {
     }
     let ids: [str] = [];
     for row in util::list_or_empty(project::templates()) {
-        ids.push(util::map_or_empty(row)["id"].as_str());
+        ids.push(util::map_or_empty(row)[fields::ID].as_str());
     }
     if ids.len() == 0 {
-        ids.push("empty");
+        ids.push(EMPTY);
     }
     let row_height = util::max(style::row_height(state), 30.0);
     let specs: [ui::Row] = [
@@ -1139,13 +1171,13 @@ pub fn new_fill(state: &mut editor::State) {
             height: row_height,
             controls: [
                 ui::Control {
-                    kind: "text_field",
-                    role: "input_form",
+                    kind: ui::WIDGET_TEXT_FIELD,
+                    role: roles::INPUT_FORM,
                     grow: 1,
                     text: state.manager.name,
                     placeholder: "my-game",
                     on_change: "handle",
-                    data: { "fn": on_name_typed },
+                    data: { fields::FN: on_name_typed },
                 },
             ],
             label: "name",
@@ -1154,13 +1186,13 @@ pub fn new_fill(state: &mut editor::State) {
             height: row_height,
             controls: [
                 ui::Control {
-                    kind: "dropdown",
-                    role: "choice_form",
+                    kind: ui::WIDGET_DROPDOWN,
+                    role: roles::CHOICE_FORM,
                     grow: 1,
                     text: state.manager.template,
                     options: ids,
                     on_change: "handle",
-                    data: { "fn": on_template_picked },
+                    data: { fields::FN: on_template_picked },
                 },
             ],
             label: "from",
@@ -1169,8 +1201,8 @@ pub fn new_fill(state: &mut editor::State) {
             height: row_height,
             controls: [
                 ui::Control {
-                    kind: "label",
-                    role: "text_code_quiet",
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CODE_QUIET,
                     font_size: 11,
                     grow: 1,
                     truncate: true,
@@ -1185,8 +1217,8 @@ pub fn new_fill(state: &mut editor::State) {
             height: 0,
             controls: [
                 ui::Control {
-                    kind: "label",
-                    role: "note_warning",
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::NOTE_WARNING,
                     grow: 1,
                     wrap: true,
                     text: state.manager.failed,
@@ -1196,16 +1228,16 @@ pub fn new_fill(state: &mut editor::State) {
     }
     specs.push(ui::Row {
         height: row_height,
-        slot_role: "layout_actions",
+        slot_role: roles::LAYOUT_ACTIONS,
         controls: [
-            ui::Control { kind: "row", grow: 1 },
+            ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
             ui::Control {
-                kind: "button",
-                role: "action_form_primary",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::ACTION_FORM_PRIMARY,
                 text: "Create",
                 min_width: 140,
                 on_click: "handle",
-                data: { "fn": on_create_pressed },
+                data: { fields::FN: on_create_pressed },
             },
         ],
     });
@@ -1225,10 +1257,10 @@ fn on_create_pressed(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn create(state: &mut editor::State) {
-    let name = if state.manager.name == "" { "my-game" } else { state.manager.name };
+    let name = if state.manager.name == "" { MY_GAME } else { state.manager.name };
     let path = state.manager.parent + "/" + name;
     let made = util::map_or_empty(project::create(path, state.manager.template));
-    let failed = made["error"];
+    let failed = made[log_fields::ERROR];
     if failed != nil {
         let why = failed;
         state.manager.failed = why.as_str();
@@ -1266,7 +1298,7 @@ pub fn go(state: &mut editor::State, path: str) {
         return;
     }
     let answer = util::map_or_empty(project::open(path));
-    let failed = answer["error"];
+    let failed = answer[log_fields::ERROR];
     if failed != nil {
         let why = failed;
         state.manager.failed = why.as_str();

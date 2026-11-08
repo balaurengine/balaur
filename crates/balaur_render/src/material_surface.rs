@@ -461,7 +461,7 @@ fn trace_of(word: &str) -> Result<TraceSurface> {
 /// Read a material's `[surface]` table.
 pub(crate) fn parse_surface(value: &toml::Value) -> Result<Surface> {
     let base = Surface::default();
-    let Some(table) = value.get("surface") else {
+    let Some(table) = value.get(k::SURFACE) else {
         return Ok(base);
     };
     if let Some(table) = table.as_table() {

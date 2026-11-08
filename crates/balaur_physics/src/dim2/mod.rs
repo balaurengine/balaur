@@ -40,8 +40,11 @@ use query::overlaps_value;
 
 use balaur_core::digest::{Entry, Hasher, node_label};
 
+use crate::vocabulary::words;
 use crate::vocabulary::{component as c, hook};
 use balaur_core::fixed_dt;
+
+const PHYSICS_2D: &str = "physics2d";
 
 pub struct PhysicsState2d {
     pub world: PhysicsWorld2,
@@ -646,13 +649,13 @@ fn load_physics2d(eng: &Engine, value: &serde_json::Value) {
 }
 
 fn build_physics2d_snapshot(reg: &mut Registry<'_>) {
-    reg.add_snapshot_source("physics2d", save_physics2d, load_physics2d);
+    reg.add_snapshot_source(PHYSICS_2D, save_physics2d, load_physics2d);
 }
 
 /// The 2D twin of the 3D source: velocity and sleep state, which no
 /// component `get` reports.
 fn build_physics2d_digest(reg: &mut Registry<'_>) {
-    reg.add_digest_source("physics2d", |eng, out| {
+    reg.add_digest_source(PHYSICS_2D, |eng, out| {
         let Some(state) = eng.try_resource::<PhysicsState2d>() else {
             return;
         };
@@ -714,25 +717,28 @@ fn install_physics2d_api(m: &mut Module<Engine>) {
         "The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.",
     );
     m.describe(&[
-        ("set_gravity", &[], "", "Set the 2D world's gravity, in units per second squared."),
-        ("apply_impulse", &[c::BODY_2D], "", "Add an instant change in momentum, as if the body were struck."),
-        ("set_linear_velocity", &[c::BODY_2D], "", "Set how fast the body travels, in units per second."),
-        ("linear_velocity", &[c::BODY_2D], "", "How fast the body is travelling, in units per second."),
-        ("set_angular_velocity", &[c::BODY_2D], "", "Set how fast the body spins, in radians per second."),
-        ("angular_velocity", &[c::BODY_2D], "", "How fast the body is spinning, in radians per second."),
-        ("max_contact_impulse", &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
-        ("overlaps", &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
+        (words::functions::SET_GRAVITY, &[], "", "Set the 2D world's gravity, in units per second squared."),
+        (words::functions::APPLY_IMPULSE, &[c::BODY_2D], "", "Add an instant change in momentum, as if the body were struck."),
+        (words::functions::SET_LINEAR_VELOCITY, &[c::BODY_2D], "", "Set how fast the body travels, in units per second."),
+        (words::functions::LINEAR_VELOCITY, &[c::BODY_2D], "", "How fast the body is travelling, in units per second."),
+        (words::functions::SET_ANGULAR_VELOCITY, &[c::BODY_2D], "", "Set how fast the body spins, in radians per second."),
+        (words::functions::ANGULAR_VELOCITY, &[c::BODY_2D], "", "How fast the body is spinning, in radians per second."),
+        (words::functions::MAX_CONTACT_IMPULSE, &[c::BODY_2D], "", "The hardest contact this body took in the last step, zero when nothing touched it."),
+        (words::functions::OVERLAPS, &[c::COLLIDER_2D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
     ]);
     crate::ragdoll::install_ragdoll_api(m, false);
     // No reader by design (N8): the rapier world holds the gravity vector;
     // add `physics2d.gravity` when a caller needs to read it back.
-    m.function("set_gravity", |eng: &Engine, (x, y): (f32, f32)| {
-        let state = eng.resource::<PhysicsState2d>();
-        state.borrow_mut().world.gravity = scalar::v2(x, y);
-        Ok(())
-    });
     m.function(
-        "apply_impulse",
+        words::functions::SET_GRAVITY,
+        |eng: &Engine, (x, y): (f32, f32)| {
+            let state = eng.resource::<PhysicsState2d>();
+            state.borrow_mut().world.gravity = scalar::v2(x, y);
+            Ok(())
+        },
+    );
+    m.function(
+        words::functions::APPLY_IMPULSE,
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse(scalar::v2(x, y), true);
@@ -740,38 +746,45 @@ fn install_physics2d_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "set_linear_velocity",
+        words::functions::SET_LINEAR_VELOCITY,
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_linvel(scalar::v2(x, y), true);
             })
         },
     );
-    m.function("linear_velocity", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            let v = state.world.bodies[handle].linvel();
-            (v.x, v.y)
-        })
-    });
     m.function(
-        "set_angular_velocity",
+        words::functions::LINEAR_VELOCITY,
+        |eng: &Engine, node: NodeId| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                let v = state.world.bodies[handle].linvel();
+                (v.x, v.y)
+            })
+        },
+    );
+    m.function(
+        words::functions::SET_ANGULAR_VELOCITY,
         |eng: &Engine, (node, w): (NodeId, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_angvel(w, true);
             })
         },
     );
-    m.function("angular_velocity", |eng: &Engine, node: NodeId| {
-        with_body(eng, entity_of(node)?, |state, handle| {
-            state.world.bodies[handle].angvel()
-        })
-    });
-    m.function("max_contact_impulse", |eng: &Engine, node: NodeId| {
-        Ok(max_contact_impulse(eng, entity_of(node)?))
-    });
+    m.function(
+        words::functions::ANGULAR_VELOCITY,
+        |eng: &Engine, node: NodeId| {
+            with_body(eng, entity_of(node)?, |state, handle| {
+                state.world.bodies[handle].angvel()
+            })
+        },
+    );
+    m.function(
+        words::functions::MAX_CONTACT_IMPULSE,
+        |eng: &Engine, node: NodeId| Ok(max_contact_impulse(eng, entity_of(node)?)),
+    );
     // Sensor pairs only: rapier's narrow phase reports an intersection only
     // when at least one of the two colliders is a sensor.
-    m.function("overlaps", |eng: &Engine, node: NodeId| {
+    m.function(words::functions::OVERLAPS, |eng: &Engine, node: NodeId| {
         overlaps_value(eng, node)
     });
 }

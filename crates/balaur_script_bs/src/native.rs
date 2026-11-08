@@ -3,6 +3,7 @@
 
 #[cfg(feature = "c")]
 use crate::host::{BsHost, key_of};
+use crate::vocabulary::words;
 #[cfg(feature = "c")]
 use anyhow::{Context, Result, anyhow};
 
@@ -63,7 +64,7 @@ pub(crate) fn load_beside_executable() -> bool {
     *LOADED.get_or_init(|| {
         let os = std::env::consts::OS;
         // Android opens it by name from the app's own libraries.
-        let path = if os == "android" {
+        let path = if os == words::ANDROID {
             std::path::PathBuf::from(native_scripts_file(os))
         } else {
             let Some(path) = std::env::current_exe()
@@ -82,7 +83,7 @@ pub(crate) fn load_beside_executable() -> bool {
                 tracing::info!("the scripts run as native code: {n} module(s)");
                 true
             }
-            Err(e) if os == "android" && e.contains("not found") => false,
+            Err(e) if os == words::ANDROID && e.contains("not found") => false,
             Err(e) => {
                 tracing::error!("{}: {e}; scripts run interpreted", path.display());
                 false

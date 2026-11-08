@@ -13,6 +13,8 @@ use balaur_script::Value;
 
 use crate::engine::Engine;
 use crate::engine_api::text;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// The events a `[[nodes.bindings.rows]]` row may answer, for the Events view:
 /// the core hooks, then on a node what it and its components announce.
@@ -64,13 +66,15 @@ pub(crate) fn scene_switch(eng: &Engine, args: &[Value]) -> Result<Value> {
     let fade = args
         .get(1)
         .and_then(|options| match options {
-            Value::Map(pairs) => pairs
-                .iter()
-                .find(|(key, _)| key == "fade")
-                .and_then(|(_, v)| match v {
-                    Value::Num(n) => Some(*n as f32),
-                    _ => None,
-                }),
+            Value::Map(pairs) => {
+                pairs
+                    .iter()
+                    .find(|(key, _)| key == words::FADE)
+                    .and_then(|(_, v)| match v {
+                        Value::Num(n) => Some(*n as f32),
+                        _ => None,
+                    })
+            }
             _ => None,
         })
         .unwrap_or(0.0);
@@ -126,12 +130,18 @@ pub(crate) fn scene_variables(eng: &Engine, _args: &[Value]) -> Result<Value> {
             .map(|name| {
                 let spec = variables.spec(&name);
                 Value::Map(vec![
-                    ("name".into(), Value::Str(name.clone())),
+                    (words::scene_toml::NAME.into(), Value::Str(name.clone())),
                     (
-                        "type".into(),
-                        Value::Str(spec.map_or("float", |s| s.kind.word()).to_string()),
+                        keys::TYPE.into(),
+                        Value::Str(
+                            spec.map_or(words::datatypes::FLOAT, |s| s.kind.word())
+                                .to_string(),
+                        ),
                     ),
-                    ("value".into(), spec.map_or(Value::Nil, |s| s.value.clone())),
+                    (
+                        keys::VALUE.into(),
+                        spec.map_or(Value::Nil, |s| s.value.clone()),
+                    ),
                 ])
             })
             .collect(),

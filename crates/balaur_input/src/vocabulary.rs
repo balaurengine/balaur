@@ -2,6 +2,7 @@
 //! reader and the reference cannot disagree about a word.
 
 /// The closed word sets.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod words {
     /// A pad's power, as SDL3 names its states.
     pub(crate) const POWER_UNKNOWN: &str = "unknown";
@@ -26,9 +27,37 @@ pub(crate) mod words {
     pub(crate) const FALLOFF_LINEAR: &str = "linear";
     pub(crate) const FALLOFF_EXPONENTIAL: &str = "exponential";
     pub(crate) const FALLOFFS: &[&str] = &[FALLOFF_INVERSE, FALLOFF_LINEAR, FALLOFF_EXPONENTIAL];
+
+    pub(crate) mod bindings {
+        pub(crate) const ALT: &str = "alt";
+        pub(crate) const AXIS: &str = "axis";
+        pub(crate) const BACK: &str = "back";
+        pub(crate) const CMD: &str = "cmd";
+        pub(crate) const CTRL: &str = "ctrl";
+        pub(crate) const FORWARD: &str = "forward";
+        pub(crate) const GAMEPAD: &str = "gamepad";
+        pub(crate) const KEYS: &str = "keys";
+        pub(crate) const LEFT: &str = "left";
+        pub(crate) const MIDDLE: &str = "middle";
+        pub(crate) const MOUSE: &str = "mouse";
+        pub(crate) const RIGHT: &str = "right";
+        pub(crate) const SHIFT: &str = "shift";
+    }
+
+    pub(crate) mod phases {
+        pub(crate) const CANCEL: &str = "cancel";
+        pub(crate) const END: &str = "end";
+        pub(crate) const MOVE: &str = "move";
+        pub(crate) const START: &str = "start";
+    }
+
+    pub(crate) mod general {
+        pub(crate) const INPUT: &str = "input";
+    }
 }
 
 /// Every key the pad verbs read and answer with.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
     /// `gamepad_rumble`'s options.
     pub(crate) const STRONG: &str = "strong";

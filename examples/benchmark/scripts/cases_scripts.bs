@@ -5,6 +5,12 @@
 use load;
 use world;
 
+const CIRCLE: str = "circle";
+const KIND: str = "kind";
+const RADIUS: str = "radius";
+const SHAPE: str = "shape";
+const SHAPE2D: str = "shape2d";
+
 /// How many nodes a shape case builds. One number, so the shapes are read
 /// against each other rather than against their own counts.
 const COUNT: int = 2000;
@@ -41,7 +47,7 @@ fn plain(w: world::World, i: int) -> Node {
     let node = world::plain(w, i);
     let at = world::grid(i, 20000, PITCH);
     node.transform.position = vec3(at.x, at.y, 0.0);
-    node.set_component("shape2d", { "shape": { "kind": "circle", "radius": 2.0 } });
+    node.set_component(SHAPE2D, { SHAPE: { KIND: CIRCLE, RADIUS: 2.0 } });
     node.add_child("a");
     node.add_child("b");
     node

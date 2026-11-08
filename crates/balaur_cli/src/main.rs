@@ -359,6 +359,7 @@ enum Command {
 }
 
 mod traces;
+mod vocabulary;
 #[cfg(all(target_arch = "wasm32", feature = "window"))]
 mod web;
 #[cfg(all(target_arch = "wasm32", feature = "window", feature = "editor"))]
@@ -372,12 +373,17 @@ use traces::{log_timings, print_timings, record_to, trace_digest_to};
 // Rayon's pool, built from Web Workers because `std::thread` spawns none on
 // this target. The page awaits `initThreadPool` before `start`; only the
 // shared-memory template has it, and rapier's solver is what uses it.
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 #[cfg(all(target_family = "wasm", target_feature = "atomics"))]
 #[allow(
     unreachable_pub,
     reason = "exported to the page by wasm-bindgen, not to another crate"
 )]
 pub use wasm_bindgen_rayon::init_thread_pool;
+
+const ENGINE: &str = "engine";
+const QUIT: &str = "quit";
 
 /// In a browser there is no command line: the page calls `web::start` with
 /// a canvas and a pack instead, and wasm-bindgen runs this empty `main` on
@@ -389,10 +395,10 @@ fn main() {}
 #[cfg(not(target_arch = "wasm32"))]
 fn log_level() -> tracing::level_filters::LevelFilter {
     match std::env::var("RUST_LOG").ok().as_deref() {
-        Some("debug") => tracing::level_filters::LevelFilter::DEBUG,
-        Some("trace") => tracing::level_filters::LevelFilter::TRACE,
-        Some("warn") => tracing::level_filters::LevelFilter::WARN,
-        Some("error") => tracing::level_filters::LevelFilter::ERROR,
+        Some(words::log_levels::DEBUG) => tracing::level_filters::LevelFilter::DEBUG,
+        Some(words::log_levels::TRACE) => tracing::level_filters::LevelFilter::TRACE,
+        Some(words::log_levels::WARN) => tracing::level_filters::LevelFilter::WARN,
+        Some(words::log_levels::ERROR) => tracing::level_filters::LevelFilter::ERROR,
         _ => tracing::level_filters::LevelFilter::INFO,
     }
 }
@@ -592,7 +598,7 @@ fn play_pack(pack: &Path, frames: Option<u64>) -> Result<()> {
     }
     let title = app
         .manifest()
-        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+        .map_or_else(|| words::general::BALAUR.to_string(), |m| m.name.clone());
     balaur::run(app, &title)
 }
 
@@ -752,7 +758,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
         .transpose()?;
     let mut config = AppConfig::dev(path.to_string_lossy().as_ref());
     config.script_args.clone_from(args);
-    let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
+    let mut app = balaur::timings::boot(ENGINE, || balaur::standard_app(config))?;
     // Before the project loads, so a client that waits can have breakpoints
     // in place by the time `init` runs.
     let _debugger = debugger::start_debugger(&mut app, *debug, *debug_wait)?;
@@ -773,7 +779,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     if *touch {
         pretend_touchscreen(&app);
     }
-    balaur::timings::boot("project", || app.load_project())?;
+    balaur::timings::boot(keys::PROJECT, || app.load_project())?;
     if *fixed_tick {
         app.set_fixed_dt(Some(balaur::fixed_dt()));
     }
@@ -787,7 +793,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     }
     let title = app
         .manifest()
-        .map_or_else(|| "balaur".to_string(), |m| m.name.clone());
+        .map_or_else(|| words::general::BALAUR.to_string(), |m| m.name.clone());
     // Registered last, so the frame it folds in is the whole frame.
     let timings = opts.timings.then(|| log_timings(&mut app));
     let engine = app.engine.clone();
@@ -804,7 +810,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
             }
             None => app.run(),
         }
-        balaur_core::replay::stop_recording(&engine, "quit");
+        balaur_core::replay::stop_recording(&engine, QUIT);
         balaur::logbuf::flush_file();
         if let Some(log) = &timings {
             print_timings(log);
@@ -825,7 +831,7 @@ fn run_project(opts: &RunOpts) -> Result<()> {
     } else {
         balaur::run(app, &title)
     };
-    balaur_core::replay::stop_recording(&engine, "quit");
+    balaur_core::replay::stop_recording(&engine, QUIT);
     if let Some(log) = &timings {
         print_timings(log);
     }
@@ -966,7 +972,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     if let Some(state) = opening {
         config.script_args.push(state);
     }
-    let mut app = balaur::timings::boot("engine", || balaur::standard_app(config))?;
+    let mut app = balaur::timings::boot(ENGINE, || balaur::standard_app(config))?;
     // Registered here rather than in the engine: these are the CLI's library,
     // and the editor is the only app with a button for them.
     #[cfg(not(target_family = "wasm"))]
@@ -986,7 +992,7 @@ fn edit_project(opts: &EditOpts) -> Result<()> {
     if *touch {
         pretend_touchscreen(&app);
     }
-    balaur::timings::boot("project", || app.load_project())?;
+    balaur::timings::boot(keys::PROJECT, || app.load_project())?;
     // The engine read the *editor's* `[input]`, so hand it the game's: without
     // this every action a played game asks for reads zero.
     #[cfg(not(target_arch = "wasm32"))]

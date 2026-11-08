@@ -726,7 +726,7 @@ fn fold_header(
     let strip = Rect::from_min_size(room.min, vec2(room.width(), tall + pad.top + pad.bottom));
     let frame = Brush::of(ui).slot();
     // Sensed before the bar's children are drawn, so theirs sit on top.
-    let header = ui.interact(strip, ui.scope_id().with(("fold", entity)), Sense::click());
+    let header = ui.interact(strip, ui.scope_id().with((w::FOLD, entity)), Sense::click());
     if header.clicked() {
         at.edits.push((entity, Edit::Open(!open)));
     }

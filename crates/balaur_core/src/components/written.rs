@@ -8,6 +8,8 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// What component `index` of `entity` holds, spelled for a scene: an inline
 /// asset as its definition, a colour as `#rrggbb` (`#rrggbbaa` when it is not
@@ -108,13 +110,13 @@ fn spell_table(eng: &Engine, schema: &Schema, held: &mut toml::Value) {
 
 /// One value as an author writes it, wherever the spec puts it.
 fn spell(eng: &Engine, spec: &toml::Value, value: &mut toml::Value) {
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("color") => {
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::COLOR) => {
             if let Some(hex) = hex_of(value) {
                 *value = toml::Value::String(hex);
             }
         }
-        Some("asset") => {
+        Some(words::datatypes::ASSET) => {
             if let Some(body) = value
                 .as_str()
                 .and_then(|reference| crate::assets::inline_body(eng, reference))
@@ -122,13 +124,13 @@ fn spell(eng: &Engine, spec: &toml::Value, value: &mut toml::Value) {
                 *value = body;
             }
         }
-        Some("record" | "variant") => {
+        Some(words::datatypes::RECORD | words::datatypes::VARIANT) => {
             for (field, inner) in super::values::fields_mut(spec, value) {
                 spell(eng, field, inner);
             }
         }
-        Some("list" | "map") => {
-            if let Some(of) = spec.get("of") {
+        Some(words::datatypes::LIST | words::datatypes::MAP) => {
+            if let Some(of) = spec.get(keys::OF) {
                 for inner in super::values::held_mut(value) {
                     spell(eng, of, inner);
                 }

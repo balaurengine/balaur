@@ -3,6 +3,9 @@ use crate::ast::{
     Arm, BinOp, Block, EnumDecl, Expr, ExprKind, ExternDecl, Field, FnDecl, Param, Part, Pattern,
     Pos, Program, Stmt, StmtKind, Ty, UnOp, Variant,
 };
+use crate::vocabulary::words;
+
+const MUT: &str = "mut";
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Tok {
@@ -342,8 +345,8 @@ impl Parser {
             keep(prog, &name);
             return Ok(());
         }
-        let class = self.is_kw("class");
-        if self.eat_kw("struct") || self.eat_kw("class") {
+        let class = self.is_kw(words::parse::CLASS);
+        if self.eat_kw("struct") || self.eat_kw(words::parse::CLASS) {
             let at = self.pos();
             let name = self.ident()?;
             if class {
@@ -362,8 +365,8 @@ impl Parser {
                 prog.fns.push(f);
             }
         } else if self.eat_kw("extern") {
-            let is_async = self.eat_kw("async");
-            if !self.eat_kw("fn") {
+            let is_async = self.eat_kw(words::parse::ASYNC);
+            if !self.eat_kw(words::keywords::FN) {
                 return self.fail("expected `fn` after `extern`");
             }
             let pos = self.pos();
@@ -580,8 +583,8 @@ impl Parser {
         owner: Option<String>,
     ) -> Result<FnDecl, Error> {
         let pos = self.pos();
-        let is_async = self.eat_kw("async");
-        if !self.eat_kw("fn") {
+        let is_async = self.eat_kw(words::parse::ASYNC);
+        if !self.eat_kw(words::keywords::FN) {
             return self.fail("expected `fn`");
         }
         let name = self.ident()?;
@@ -608,14 +611,14 @@ impl Parser {
         let mut params = Vec::new();
         while !self.eat(")") {
             if self.eat("&") {
-                self.eat_kw("mut");
+                self.eat_kw(MUT);
             }
-            if !self.eat_kw("self") {
+            if !self.eat_kw(words::keywords::SELF) {
                 let pos = self.pos();
                 let name = self.ident()?;
                 self.want(":")?;
                 // `&T` is read as `T`; `&mut T` hands back what the callee wrote.
-                let by_ref = self.eat("&") && self.eat_kw("mut");
+                let by_ref = self.eat("&") && self.eat_kw(MUT);
                 params.push(Param {
                     name,
                     ty: self.ty()?,
@@ -646,11 +649,11 @@ impl Parser {
     }
 
     fn base_ty(&mut self) -> Result<Ty, Error> {
-        if self.eat_kw("fn") {
+        if self.eat_kw(words::keywords::FN) {
             self.want("(")?;
             let (mut params, mut refs) = (vec![], vec![]);
             while !self.eat(")") {
-                refs.push(self.eat("&") && self.eat_kw("mut"));
+                refs.push(self.eat("&") && self.eat_kw(MUT));
                 params.push(self.ty()?);
                 if !self.eat(",") {
                     self.want(")")?;
@@ -684,11 +687,11 @@ impl Parser {
             n = format!("{n}::{}", self.ident()?);
         }
         Ok(match n.as_str() {
-            "int" => Ty::Int,
-            "float" => Ty::Float,
-            "bool" => Ty::Bool,
-            "str" => Ty::Str,
-            "any" => Ty::Any,
+            words::keywords::INT => Ty::Int,
+            words::keywords::FLOAT => Ty::Float,
+            words::keywords::BOOL => Ty::Bool,
+            words::keywords::STR => Ty::Str,
+            words::keywords::ANY => Ty::Any,
             "Node" => Ty::Node,
             _ => Ty::Struct(n),
         })
@@ -699,8 +702,8 @@ impl Parser {
         let mut b = Block::default();
         while !self.eat("}") {
             let pos = self.pos();
-            let kind = if self.eat_kw("let") {
-                self.eat_kw("mut");
+            let kind = if self.eat_kw(words::general::LET) {
+                self.eat_kw(MUT);
                 let name = self.ident()?;
                 let ty = if self.eat(":") {
                     Some(self.ty()?)
@@ -711,17 +714,17 @@ impl Parser {
                 let init = self.expr(false)?;
                 self.want(";")?;
                 StmtKind::Let { name, ty, init }
-            } else if self.eat_kw("while") {
+            } else if self.eat_kw(words::general::WHILE) {
                 let cond = self.expr(true)?;
                 StmtKind::While {
                     cond,
                     body: self.block()?,
                 }
-            } else if self.eat_kw("loop") {
+            } else if self.eat_kw(words::general::LOOP) {
                 StmtKind::Loop(self.block()?)
-            } else if self.eat_kw("for") {
+            } else if self.eat_kw(words::general::FOR) {
                 let var = self.ident()?;
-                if !self.eat_kw("in") {
+                if !self.eat_kw(words::general::IN) {
                     return self.fail("expected `in`");
                 }
                 let first = self.expr(true)?;
@@ -740,7 +743,7 @@ impl Parser {
                         body: self.block()?,
                     }
                 }
-            } else if self.eat_kw("return") {
+            } else if self.eat_kw(words::general::RETURN) {
                 let v = if self.is(";") {
                     None
                 } else {
@@ -755,7 +758,7 @@ impl Parser {
                 self.want(";")?;
                 StmtKind::Continue
             } else {
-                let block_like = self.is_kw("if");
+                let block_like = self.is_kw(words::keywords::IF);
                 let e = self.expr(false)?;
                 let op = match self.peek() {
                     Tok::P("=") => Some(None),
@@ -844,7 +847,7 @@ impl Parser {
         let pos = self.pos();
         // `f(&mut s)`, as Rust writes it: the parameter says how it is passed.
         if self.eat("&") {
-            self.eat_kw("mut");
+            self.eat_kw(MUT);
             return self.unary(ns);
         }
         if self.eat("-") {
@@ -859,7 +862,7 @@ impl Parser {
                 pos,
             });
         }
-        if self.eat_kw("await") {
+        if self.eat_kw(words::general::AWAIT) {
             return Ok(Expr {
                 kind: ExprKind::Await(Box::new(self.unary(ns)?)),
                 pos,
@@ -965,25 +968,25 @@ impl Parser {
                 self.i += 1;
                 self.map()?
             }
-            Tok::Ident(s) if s == "true" || s == "false" => {
+            Tok::Ident(s) if s == words::keywords::TRUE || s == words::keywords::FALSE => {
                 self.i += 1;
-                ExprKind::Bool(s == "true")
+                ExprKind::Bool(s == words::keywords::TRUE)
             }
-            Tok::Ident(s) if s == "self" => {
+            Tok::Ident(s) if s == words::keywords::SELF => {
                 self.i += 1;
                 ExprKind::SelfRef
             }
-            Tok::Ident(s) if s == "nil" => self.nil()?,
-            Tok::Ident(s) if s == "match" => {
+            Tok::Ident(s) if s == words::keywords::NIL => self.nil()?,
+            Tok::Ident(s) if s == words::keywords::MATCH => {
                 self.i += 1;
                 self.match_expr()?
             }
-            Tok::Ident(s) if s == "if" => {
+            Tok::Ident(s) if s == words::keywords::IF => {
                 self.i += 1;
                 let cond = self.expr(true)?;
                 let then = self.block()?;
-                let els = if self.eat_kw("else") {
-                    if self.is_kw("if") {
+                let els = if self.eat_kw(words::general::ELSE) {
+                    if self.is_kw(words::keywords::IF) {
                         let inner = self.primary(false)?;
                         Some(Block {
                             stmts: vec![],

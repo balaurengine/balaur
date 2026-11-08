@@ -8,6 +8,10 @@ use balaur_script::{Module, Value};
 use crate::theme::parse_hex;
 use crate::vocabulary::{keys as k, tokens, weights};
 
+const COLORS_APART: &str = "colors_apart";
+const CONTRAST: &str = "contrast";
+const CONTRAST_PAIRS: &str = "contrast_pairs";
+
 /// The ratio body text needs, and the one large or bold text needs.
 pub const AA: f64 = 4.5;
 pub const AA_LARGE: f64 = 3.0;
@@ -281,20 +285,20 @@ fn lab([r, g, b]: [f64; 3]) -> [f64; 3] {
 pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "contrast",
+            CONTRAST,
             &[],
             "(a: string, b: string) -> float",
             "The WCAG contrast ratio between two `#rrggbb` colours, 1 to 21. Body text wants 4.5, large or bold text 3.",
         ),
         (
-            "contrast_pairs",
+            CONTRAST_PAIRS,
             &[],
             "(theme: table, ground: string) -> [ContrastPair]",
             "Every ink a `widget_theme` document's roles draw on the fill each draws it on, as `{ role, ink, fill, ratio, need }`. A role with no fill is read on the `ground` token; `need` is 3 for large or bold text and 4.5 otherwise.",
         ),
     ]);
     m.describe(&[(
-        "colors_apart",
+        COLORS_APART,
         &[],
         "(theme: table) -> [ColorsApart]",
         "Every pair of a `widget_theme` document's colours that say something by hue (`primary`, `success`, `warning`, `danger`), closest first, as `{ first, second, distance, vision }`: how far apart they stand in CIELAB for the colour vision that sees them closest. Under 10 the two read as one colour to that reader.",
@@ -304,7 +308,7 @@ pub(crate) fn install(m: &mut Module<Engine>) {
         "{ first: string, second: string, distance: float, vision: string }",
         "Two colours a theme says something with, and how far apart they stand for the reader who sees them closest.",
     )]);
-    m.function("colors_apart", |_: &Engine, doc: Value| {
+    m.function(COLORS_APART, |_: &Engine, doc: Value| {
         let doc = balaur_core::node_api::to_toml(&doc)?;
         Ok(Value::List(
             apart(&doc)
@@ -325,14 +329,14 @@ pub(crate) fn install(m: &mut Module<Engine>) {
         "{ role: string, ink: string, fill: string, ratio: float, need: float }",
         "One ink drawn on one fill: the role, the two colour names, their contrast ratio and the ratio it needs.",
     )]);
-    m.function("contrast", |_: &Engine, (a, b): (String, String)| {
+    m.function(CONTRAST, |_: &Engine, (a, b): (String, String)| {
         let (Some(a), Some(b)) = (parse_hex(&a), parse_hex(&b)) else {
             anyhow::bail!("contrast takes two #rrggbb colours, got '{a}' and '{b}'");
         };
         Ok(Value::Num(ratio(a, b)))
     });
     m.function(
-        "contrast_pairs",
+        CONTRAST_PAIRS,
         |_: &Engine, (doc, ground): (Value, String)| {
             let doc = balaur_core::node_api::to_toml(&doc)?;
             let pairs = pairs(&doc, &ground)

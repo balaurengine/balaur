@@ -10,6 +10,7 @@
 //! matching text: the AST is what says which statement a line holds and where
 //! a `return` ends.
 
+use crate::vocabulary::words;
 use anyhow::{Result, anyhow, bail};
 use wesl::syntax::{
     Attribute, BuiltinValue, CompoundStatement, Expression, Function, GlobalDeclaration, Statement,
@@ -179,10 +180,12 @@ fn position_of(unit: &TranslationUnit, fragment: &Function) -> Option<String> {
 /// How a value of `ty` becomes the four channels the preview draws.
 fn encode(ty: &str, name: &str) -> Result<String> {
     Ok(match ty {
-        "f32" => format!("vec4<f32>({name}, {name}, {name}, 1.0)"),
-        "vec2" | "vec2f" => format!("vec4<f32>({name}, 0.0, 1.0)"),
-        "vec3" | "vec3f" => format!("vec4<f32>({name}, 1.0)"),
-        "vec4" | "vec4f" => name.to_string(),
+        words::shader_types::F32 => format!("vec4<f32>({name}, {name}, {name}, 1.0)"),
+        words::shader_types::VEC2 | words::shader_types::VEC2F => {
+            format!("vec4<f32>({name}, 0.0, 1.0)")
+        }
+        words::shader_types::VEC3 | words::shader_types::VEC3F => format!("vec4<f32>({name}, 1.0)"),
+        words::shader_types::VEC4 | words::shader_types::VEC4F => name.to_string(),
         other => {
             bail!("`{other}` is not a value the preview can draw: f32, vec2, vec3 and vec4 are")
         }

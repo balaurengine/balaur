@@ -12,7 +12,16 @@
 use anyhow::{Result, anyhow};
 
 use crate::glb::{Beside, Model, SideReader, floats, percent_decoded, slug, uri_bytes};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_core::collections::DetHashMap;
+
+const ALPHA_CUTOFF: &str = "alpha_cutoff";
+const IOR: &str = "ior";
+const JPG: &str = "jpg";
+const PNG: &str = "png";
+const THICKNESS: &str = "thickness";
+const TRANSMISSION: &str = "transmission";
 
 /// What a primitive with no material of its own draws with. A `part` may name
 /// it, so it needs a name nothing else can take.
@@ -112,7 +121,11 @@ fn sampling_of(texture: &gltf::texture::Texture<'_>, colour: bool) -> String {
          mipmaps = {mipmaps}\nanisotropy = {anisotropy}\nsrgb = {colour}\n",
         wrap(sampler.wrap_s()),
         wrap(sampler.wrap_t()),
-        if filter { "nearest" } else { "linear" },
+        if filter {
+            "nearest"
+        } else {
+            words::glb::LINEAR
+        },
     )
 }
 
@@ -149,9 +162,9 @@ impl Images<'_> {
             }
             gltf::image::Source::Uri { uri, .. } => {
                 let extension = if uri.starts_with("data:image/jpeg") {
-                    "jpg"
+                    JPG
                 } else {
-                    "png"
+                    PNG
                 };
                 (
                     format!("{}_{}.{extension}", self.stem, image.index()),
@@ -163,8 +176,8 @@ impl Images<'_> {
                     .view_bytes(&view)
                     .ok_or_else(|| anyhow!("the embedded texture's buffer view is out of range"))?;
                 let extension = match mime_type {
-                    "image/jpeg" => "jpg",
-                    _ => "png",
+                    "image/jpeg" => JPG,
+                    _ => PNG,
                 };
                 (
                     format!("{}_{}.{extension}", self.stem, image.index()),
@@ -373,8 +386,8 @@ impl Surface {
     /// This material as an `[[assets]]` entry the scene declares.
     pub(crate) fn asset(&self) -> toml::Value {
         let mut entry = toml::map::Map::new();
-        entry.insert("id".into(), toml::Value::String(self.id.clone()));
-        entry.insert("type".into(), toml::Value::String("material".into()));
+        entry.insert(keys::ID.into(), toml::Value::String(self.id.clone()));
+        entry.insert(keys::TYPE.into(), toml::Value::String("material".into()));
         entry.insert(
             "shader".into(),
             toml::Value::String(MATERIAL_SHADER_PATH.into()),
@@ -418,18 +431,15 @@ impl Surface {
             toml::Value::Float(self.reflectance.into()),
         );
         params.insert(
-            "alpha_cutoff".into(),
+            ALPHA_CUTOFF.into(),
             toml::Value::Float(self.alpha_cutoff.into()),
         );
         params.insert(
-            "transmission".into(),
+            TRANSMISSION.into(),
             toml::Value::Float(self.transmission.into()),
         );
-        params.insert("ior".into(), toml::Value::Float(self.ior.into()));
-        params.insert(
-            "thickness".into(),
-            toml::Value::Float(self.thickness.into()),
-        );
+        params.insert(IOR.into(), toml::Value::Float(self.ior.into()));
+        params.insert(THICKNESS.into(), toml::Value::Float(self.thickness.into()));
         for (slot, file) in &self.maps {
             params.insert(
                 (*slot).into(),
@@ -455,7 +465,7 @@ impl Surface {
             ),
         );
         surface.insert(
-            "alpha_cutoff".into(),
+            ALPHA_CUTOFF.into(),
             toml::Value::Float(self.alpha_cutoff.into()),
         );
         surface.insert(
@@ -463,14 +473,11 @@ impl Surface {
             toml::Value::Boolean(self.double_sided),
         );
         surface.insert(
-            "transmission".into(),
+            TRANSMISSION.into(),
             toml::Value::Float(self.transmission.into()),
         );
-        surface.insert("ior".into(), toml::Value::Float(self.ior.into()));
-        surface.insert(
-            "thickness".into(),
-            toml::Value::Float(self.thickness.into()),
-        );
+        surface.insert(IOR.into(), toml::Value::Float(self.ior.into()));
+        surface.insert(THICKNESS.into(), toml::Value::Float(self.thickness.into()));
         surface.insert(
             "attenuation_distance".into(),
             toml::Value::Float(self.attenuation_distance.into()),

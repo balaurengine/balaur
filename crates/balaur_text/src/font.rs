@@ -149,7 +149,7 @@ pub fn read(table: &toml::Value) -> Font {
 /// Register the `font` asset, whose definitions sit in `fonts/` beside the
 /// faces they name.
 pub fn register_font_asset(reg: &mut Registry<'_>) {
-    reg.register_record_asset(FONT_ASSET_TYPE, "fonts", DOC, schema(), parse);
+    reg.register_record_asset(FONT_ASSET_TYPE, w::fonts::FONTS, DOC, schema(), parse);
 }
 
 #[cfg(test)]

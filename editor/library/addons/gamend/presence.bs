@@ -3,14 +3,15 @@
 // in the script store, so every script reads the same one.
 
 const ROSTER_KEY: str = "gamend:users";
+const ID: str = "id";
 
 /// Remember a user payload, as a `user_updated` or a member event carries it.
 pub fn cache(user: any) {
-    if user.kind() != "map" || !user.has("id") {
+    if user.kind() != types::KIND_MAP || !user.has(ID) {
         return;
     }
     let roster = all();
-    roster[user["id"].text()] = user;
+    roster[user[ID].text()] = user;
     script::store(ROSTER_KEY, roster);
 }
 
@@ -22,7 +23,7 @@ pub fn user(id: str) -> any {
 /// Everyone cached, by id.
 pub fn all() -> any {
     let kept = script::stored(ROSTER_KEY);
-    if kept.kind() == "map" { kept } else { {} }
+    if kept.kind() == types::KIND_MAP { kept } else { {} }
 }
 
 /// Forget everyone: the roster after a sign-out.

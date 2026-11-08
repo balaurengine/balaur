@@ -1,6 +1,11 @@
 //! The neutral value type crossing the engine/script boundary.
 
+use crate::vocabulary::words;
 use anyhow::{Result, bail};
+
+const BOOL: &str = "bool";
+const NUMBER: &str = "number";
+const STRING: &str = "string";
 
 /// A value a script can pass or receive.
 ///
@@ -52,17 +57,17 @@ impl Value {
     pub const fn type_name(&self) -> &'static str {
         match self {
             Self::Nil => "nil",
-            Self::Bool(_) => "bool",
+            Self::Bool(_) => BOOL,
             Self::Int(_) => "int",
-            Self::Num(_) => "number",
-            Self::Str(_) => "string",
+            Self::Num(_) => NUMBER,
+            Self::Str(_) => STRING,
             Self::Bytes(_) => "bytes",
             Self::Vec2(_) => "vec2",
             Self::Vec3(_) => "vec3",
             Self::Color(_) => "color",
             Self::Transform2d(_) => "transform2d",
             Self::Transform3d(_) => "transform3d",
-            Self::Node(_) => "node",
+            Self::Node(_) => words::value::NODE,
             Self::List(_) => "list",
             Self::Map(_) => "map",
             Self::Many(_) => "several values",
@@ -243,7 +248,7 @@ impl FromArg for bool {
     fn from_arg(v: Option<&Value>) -> Result<Self> {
         match v {
             Some(Value::Bool(b)) => Ok(*b),
-            other => Err(want(other, "bool")),
+            other => Err(want(other, BOOL)),
         }
     }
     fn read(args: &dyn Args, index: usize) -> Result<Self> {
@@ -258,7 +263,7 @@ impl FromArg for String {
     fn from_arg(v: Option<&Value>) -> Result<Self> {
         match v {
             Some(Value::Str(s)) => Ok(s.clone()),
-            other => Err(want(other, "string")),
+            other => Err(want(other, STRING)),
         }
     }
     fn read(args: &dyn Args, index: usize) -> Result<Self> {
@@ -277,7 +282,7 @@ impl FromArg for NodeId {
     fn from_arg(v: Option<&Value>) -> Result<Self> {
         match v {
             Some(Value::Node(bits)) => Ok(Self(*bits)),
-            other => Err(want(other, "node")),
+            other => Err(want(other, words::value::NODE)),
         }
     }
     fn read(args: &dyn Args, index: usize) -> Result<Self> {

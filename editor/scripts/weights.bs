@@ -8,7 +8,23 @@ use model;
 use polygon;
 use rig;
 use signals;
+use themewin;
 use util;
+use words::fields;
+use words::geometry_fields;
+use words::layout_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::roles;
+use words::theme_tokens;
+
+const ALL: str = "all";
+const AUTO: str = "auto";
+const BIND: str = "bind";
+const NORMALIZE: str = "normalize";
+const SMOOTH: str = "smooth";
+const UNBIND: str = "unbind";
+const WEIGHTS: str = "weights";
 
 pub class WeightsState {
     editing: int?,
@@ -50,15 +66,15 @@ fn table(state: editor::State) -> Table? {
 }
 
 fn weight_of(bone: any, at: int) -> float {
-    (util::list_or_empty(bone["weights"])[at]).as_float()
+    (util::list_or_empty(bone[geometry_fields::WEIGHTS])[at]).as_float()
 }
 
 fn set_weight(bone: any, at: int, value: float) {
-    if bone["weights"].kind() != "list" {
+    if bone[geometry_fields::WEIGHTS].kind() != types::KIND_LIST {
         let none: [float] = [];
-        bone["weights"] = none;
+        bone[geometry_fields::WEIGHTS] = none;
     }
-    let weights = bone["weights"];
+    let weights = bone[geometry_fields::WEIGHTS];
     while weights.len() <= at {
         weights.push(0.0);
     }
@@ -79,7 +95,7 @@ fn begin(state: &mut editor::State, label: str) -> bool {
 
 fn done(state: &mut editor::State) {
     polygon::write(state);
-    signals::changed(state, "weights");
+    signals::changed(state, WEIGHTS);
 }
 
 // Bind: give every listed vertex all of its weight to the active bone.
@@ -205,7 +221,7 @@ pub fn smooth(state: &mut editor::State) {
     }
     // Read the whole table first: smoothing in place would feed each
     // vertex the neighbour that was already smoothed.
-    let count = listing.mesh["positions"].len();
+    let count = listing.mesh[geometry_fields::POSITIONS].len();
     let was: [[float]] = [];
     for bone in listing.bones {
         let row: [float] = [];
@@ -232,7 +248,7 @@ pub fn smooth(state: &mut editor::State) {
 // hundreds of vertices, not hundreds of thousands.
 fn edges(mesh: any) -> any {
     let out: any = {};
-    let outline = mesh["positions"].len() - polygon::internal_count(mesh);
+    let outline = mesh[geometry_fields::POSITIONS].len() - polygon::internal_count(mesh);
     for vertex in 0..outline {
         join(out, vertex, if vertex == outline - 1 { 0 } else { vertex + 1 });
     }
@@ -248,7 +264,7 @@ fn edges(mesh: any) -> any {
 fn join(out: any, first: int, second: int) {
     for pair in [[first, second], [second, first]] {
         let key = "{pair[0]}";
-        if out[key].kind() != "list" {
+        if out[key].kind() != types::KIND_LIST {
             let none: [int] = [];
             out[key] = none;
         }
@@ -274,7 +290,7 @@ fn bone_segments(state: editor::State, bones: any) -> [rig::Geometry?] {
     }
     let out: [rig::Geometry?] = [];
     for bone in bones {
-        let found = root.get_node(bone["path"].as_str());
+        let found = root.get_node(bone[project_fields::PATH].as_str());
         let doc_index = model::index_of_node(state, found);
         out.push(if doc_index != nil { rig::geometry(state, doc_index.unwrap()) } else { nil });
     }
@@ -309,50 +325,50 @@ pub fn fill(state: editor::State) {
 
 /// A verb by the name of its button.
 pub fn verb(state: &mut editor::State, name: str) {
-    if name == "bind" {
+    if name == BIND {
         bind(state);
-    } else if name == "unbind" {
+    } else if name == UNBIND {
         unbind(state);
-    } else if name == "normalize" {
+    } else if name == NORMALIZE {
         normalize(state);
-    } else if name == "auto" {
+    } else if name == AUTO {
         auto(state);
-    } else if name == "smooth" {
+    } else if name == SMOOTH {
         smooth(state);
-    } else if name == "all" {
+    } else if name == ALL {
         polygon::clear_pick(state);
     }
 }
 
 fn label(text: str, width: float, role: str) -> ui::Control {
-    ui::Control { kind: "label", role: role, font_size: 11, width: width, text: text }
+    ui::Control { kind: ui::WIDGET_LABEL, role: role, font_size: 11, width: width, text: text }
 }
 
 fn header(state: editor::State, listing: Table) -> [ui::Control] {
-    let out = [label("vertex", NAME_WIDTH, "text_code_quiet")];
+    let out = [label("vertex", NAME_WIDTH, roles::TEXT_CODE_QUIET)];
     let active = if state.polygon.bone != nil { state.polygon.bone.unwrap() } else { -1 };
     for bone_index in 0..listing.bones.len() {
-        let path = listing.bones[bone_index]["path"].as_str();
+        let path = listing.bones[bone_index][project_fields::PATH].as_str();
         // The bone's own last segment: a full path is wider than the column
         // and the tooltip carries the rest.
         out.push(ui::Control {
-            kind: "button",
-            role: "chip",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::CHIP,
             width: CELL_WIDTH,
             height: 20,
             text: util::leaf(path),
             tooltip: path,
             checked: active == bone_index,
             on_click: "handle",
-            data: { "fn": pick_bone, "at": bone_index },
+            data: { fields::FN: pick_bone, layout_fields::AT: bone_index },
         });
     }
-    out.push(label("sum", CELL_WIDTH, "text_code_quiet"));
+    out.push(label("sum", CELL_WIDTH, roles::TEXT_CODE_QUIET));
     out
 }
 
 fn pick_bone(state: &mut editor::State, data: any, _value: any) {
-    state.polygon.bone = data["at"].as_int();
+    state.polygon.bone = data[layout_fields::AT].as_int();
     signals::inspector(state);
 }
 
@@ -360,15 +376,15 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
     let hover = state.polygon.hover != nil && state.polygon.hover.unwrap() == at;
     let controls: [ui::Control] = [
         ui::Control {
-            kind: "button",
-            role: "chip",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::CHIP,
             width: NAME_WIDTH - 6.0,
             height: 20,
             text: "{at}",
             tooltip: "Show this vertex alone in the viewport",
             checked: hover,
             on_click: "handle",
-            data: { "fn": show_vertex_alone, "at": at },
+            data: { fields::FN: show_vertex_alone, layout_fields::AT: at },
         },
     ];
     let total = 0.0;
@@ -376,33 +392,33 @@ fn vertex_row(state: editor::State, listing: Table, at: int) -> ui::Row {
         let was = weight_of(listing.bones[bone_at], at);
         total += was;
         controls.push(ui::Control {
-            kind: "number_field",
+            kind: ui::WIDGET_NUMBER_FIELD,
             width: CELL_WIDTH - 6.0,
             value: was,
             drag_speed: 0.01,
             decimals: 2,
             min: 0.0,
             max: 1.0,
-            fill: if was > 0.0 { "bg_control" } else { "bg_panel" },
+            fill: if was > 0.0 { theme_tokens::BG_CONTROL } else { themewin::GROUND },
             on_change: "handle",
-            data: { "fn": type_weight, "bone": bone_at, "at": at },
+            data: { fields::FN: type_weight, panel_keys::BONE: bone_at, layout_fields::AT: at },
         });
     }
     // A sum that is not one is what a Normalise is for, so it is said rather
     // than silently corrected.
     let off = util::abs(total - 1.0) > 0.01 && total > 0.0;
-    controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { "text_code_quiet" }));
+    controls.push(label(util::fixed(total, 2), CELL_WIDTH, if off { "text_caption_primary" } else { roles::TEXT_CODE_QUIET }));
     ui::Row { height: ROW_HEIGHT, controls: controls }
 }
 
 fn show_vertex_alone(state: &mut editor::State, data: any, _value: any) {
-    polygon::pick_vertex(state, data["at"].as_int(), false);
+    polygon::pick_vertex(state, data[layout_fields::AT].as_int(), false);
 }
 
 fn type_weight(state: &mut editor::State, data: any, now: any) {
     if begin(state, "set weight") {
         // By its place: the table this row was filled from is a frame old.
-        set_weight(polygon::bones(state)[data["bone"].as_int()], data["at"].as_int(), now.as_float());
+        set_weight(polygon::bones(state)[data[panel_keys::BONE].as_int()], data[layout_fields::AT].as_int(), now.as_float());
         done(state);
     }
 }

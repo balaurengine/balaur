@@ -2,6 +2,7 @@
 // builds for the workspace, and hands it a pick.
 
 use editor;
+use signals;
 
 pub class Outline {
     node: Node,
@@ -12,7 +13,7 @@ impl Outline {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        for word in ["outline_changed", "inspector_changed", "docks_changed"] {
+        for word in [signals::OUTLINE, signals::INSPECTOR, signals::DOCKS] {
             events::listen(self.node, word, source);
         }
     }

@@ -572,17 +572,14 @@ impl Typing<'_> {
             escape: false,
         };
         ui.memory_mut(|mem| mem.set_focus_lock_filter(self.id, filter));
-        let (events, held) = ui.input(|i| (i.filtered_events(&filter), i.modifiers));
+        let events = ui.input(|i| i.filtered_events(&filter));
         let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
         let mut typeset = relay(field);
         let mut changed = false;
         let mut cut = false;
         for event in &events {
             let done = match event {
-                egui::Event::Text(text) if text != "\n" && text != "\r" => {
-                    // A chord's letter is not typed: ⌘C copies.
-                    (held.alt || !held.command) && self.insert(field, text)
-                }
+                egui::Event::Text(text) if text != "\n" && text != "\r" => self.insert(field, text),
                 egui::Event::Paste(text) => self.insert(field, text),
                 egui::Event::Copy => {
                     self.copy(ui, field);

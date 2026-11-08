@@ -9,6 +9,7 @@ use anyhow::{Result, anyhow};
 use serde_json::Value;
 
 use super::auth::Session;
+use crate::vocabulary::words;
 
 /// What a call produced: the status and the decoded JSON body (`Null` when
 /// the body is empty or not JSON).
@@ -126,7 +127,7 @@ impl Client {
             "GET" => {
                 let mut r = self.agent.get(&prepared.url);
                 if let Some(token) = &prepared.bearer {
-                    r = r.header("authorization", token);
+                    r = r.header(words::rest::AUTHORIZATION, token);
                 }
                 r.header(super::RUN_HEADER, super::run_id()).call()?
             }
@@ -135,13 +136,13 @@ impl Client {
             "DELETE" => {
                 let mut r = self.agent.delete(&prepared.url);
                 if let Some(token) = &prepared.bearer {
-                    r = r.header("authorization", token);
+                    r = r.header(words::rest::AUTHORIZATION, token);
                 }
                 let r = r.header(super::RUN_HEADER, super::run_id());
                 match prepared.body.as_deref() {
                     Some(body) => r
                         .force_send_body()
-                        .header("content-type", "application/json")
+                        .header(words::rest::CONTENT_TYPE, "application/json")
                         .send(body)?,
                     None => r.call()?,
                 }
@@ -153,10 +154,10 @@ impl Client {
                     _ => self.agent.patch(&prepared.url),
                 };
                 if let Some(token) = &prepared.bearer {
-                    r = r.header("authorization", token);
+                    r = r.header(words::rest::AUTHORIZATION, token);
                 }
                 r.header(super::RUN_HEADER, super::run_id())
-                    .header("content-type", "application/json")
+                    .header(words::rest::CONTENT_TYPE, "application/json")
                     .send(prepared.body.as_deref().unwrap_or("{}"))?
             }
             other => anyhow::bail!("unsupported method `{other}`"),

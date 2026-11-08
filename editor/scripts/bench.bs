@@ -6,6 +6,12 @@
 
 use editor;
 use model;
+use words::components;
+use words::datatypes;
+
+const ENGINE_TEXT: str = "engine_text";
+const ONE: str = "one";
+const TWO: str = "two";
 
 /// One edit, every frame while a bench runs.
 pub fn step(state: &mut editor::State) {
@@ -17,14 +23,14 @@ pub fn step(state: &mut editor::State) {
         return;
     }
     let flip = state.frame % 2 == 0;
-    if state.bench == "text" {
-        model::set_component_property(state, "text2d", "text", if flip { "one" } else { "two" });
-    } else if state.bench == "color" {
-        model::set_component_property(state, "text2d", "color", if flip { [1.0, 0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0, 1.0] });
-    } else if state.bench == "position" {
-        model::set_component_property(state, "transform", "position", [if flip { 0.0 } else { 0.5 }, 0.0, 0.0]);
-    } else if state.bench == "engine_text" {
-        found.text2d.text = if flip { "one" } else { "two" };
+    if state.bench == components::TEXT {
+        model::set_component_property(state, components::TEXT2D, components::TEXT, if flip { ONE } else { TWO });
+    } else if state.bench == datatypes::COLOR {
+        model::set_component_property(state, components::TEXT2D, datatypes::COLOR, if flip { [1.0, 0.0, 0.0, 1.0] } else { [0.0, 1.0, 0.0, 1.0] });
+    } else if state.bench == components::POSITION {
+        model::set_component_property(state, components::TRANSFORM, components::POSITION, [if flip { 0.0 } else { 0.5 }, 0.0, 0.0]);
+    } else if state.bench == ENGINE_TEXT {
+        found.text2d.text = if flip { ONE } else { TWO };
     }
     ui::request_repaint();
 }

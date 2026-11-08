@@ -1,0 +1,28 @@
+// The components and properties the editor draws for itself.
+
+internal const BODY2D: str = "body2d";
+internal const BODY3D: str = "body3d";
+internal const BONE2D: str = "bone2d";
+internal const BONE3D: str = "bone3d";
+internal const CAMERA3D: str = "camera3d";
+internal const CHARACTER2D: str = "character2d";
+internal const CHARACTER3D: str = "character3d";
+internal const COLLIDER2D: str = "collider2d";
+internal const COLLIDER3D: str = "collider3d";
+internal const FONT: str = "font";
+internal const LINE2D: str = "line2d";
+internal const MESH: str = "mesh";
+internal const MULTIMESH2D: str = "multimesh2d";
+internal const MULTIMESH3D: str = "multimesh3d";
+internal const POSITION: str = "position";
+internal const SHAPE2D: str = "shape2d";
+internal const SHAPE3D: str = "shape3d";
+internal const SOFT_SKIN3D: str = "soft_skin3d";
+internal const SPRITE: str = "sprite";
+internal const TEXT: str = "text";
+internal const TEXT2D: str = "text2d";
+internal const TEXT3D: str = "text3d";
+internal const TILEMAP: str = "tilemap";
+internal const TRANSFORM: str = "transform";
+internal const VISIBLE: str = "visible";
+internal const WIDGET: str = "widget";

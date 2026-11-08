@@ -17,6 +17,7 @@ use kiss3d::resource::RenderTarget;
 use kiss3d::wgpu;
 
 use crate::material::Compiled;
+use crate::vocabulary::words as vocab;
 
 /// Matches `PostFrame` in `shaders/post.wesl`.
 #[repr(C)]
@@ -95,7 +96,7 @@ impl PostMaterial {
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),
+                entry_point: Some(vocab::pipeline::VS_MAIN),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 // The triangle comes from the vertex index; there is nothing to
                 // feed it.

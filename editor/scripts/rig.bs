@@ -12,6 +12,17 @@ use selection;
 use shell;
 use util;
 use viewport;
+use words::components;
+use words::fields;
+use words::inspector_fields;
+use words::panel_keys;
+use words::theme_tokens;
+use words::tools;
+
+const ANGLE: str = "angle";
+const CHAIN_COUNT: str = "chain_count";
+const REST_POSITION: str = "rest_position";
+const REST_ROTATION: str = "rest_rotation";
 
 pub class RigState {
     internal hover: int?,
@@ -68,12 +79,12 @@ const HANDLE_PIXELS: float = 7.0;
 const CHAIN_WIDTH: float = 3.6;
 
 pub fn is_bone(found: Node) -> bool {
-    found.is_valid() && (found.has_component("bone2d") || found.has_component("bone3d"))
+    found.is_valid() && (found.has_component(components::BONE2D) || found.has_component(components::BONE3D))
 }
 
 /// The bone component as the node asks for it.
 fn bone_data(found: Node) -> any {
-    util::map_or_empty(found.authored(if found.has_component("bone2d") { "bone2d" } else { "bone3d" }))
+    util::map_or_empty(found.authored(if found.has_component(components::BONE2D) { components::BONE2D } else { components::BONE3D }))
 }
 
 fn first_child_bone(state: editor::State, row: int) -> int? {
@@ -106,15 +117,15 @@ pub fn geometry(state: editor::State, row: int) -> Geometry? {
         util::xyz(child_ref.transform.global_position())
     } else {
         let bone = bone_data(found);
-        let length = bone["length"].as_float();
+        let length = bone[fields::LENGTH].as_float();
         if length <= 0.0 {
             length = TIP_LENGTH;
         }
-        let angle = found.transform.global_rotation_euler().z + bone["angle"].as_float();
+        let angle = found.transform.global_rotation_euler().z + bone[ANGLE].as_float();
         let scale_x = found.transform.global_scale().x;
         // A 3D tip bone points along its own y, the way an imported joint
         // chain grows; a 2D one along `angle`.
-        if found.has_component("bone3d") {
+        if found.has_component(components::BONE3D) {
             [origin.x, origin.y + length * scale_x, origin.z]
         } else {
             [origin.x + math::cos(angle) * length * scale_x, origin.y + math::sin(angle) * length * scale_x, origin.z]
@@ -255,13 +266,13 @@ fn draw_bone_3d(spine: Geometry, color: [float]) {
 // workspace, the tool, or a selected bone.
 pub fn draw(state: editor::State) {
     let selected_bone = is_bone(model::selected_node(state));
-    let show = state.workspace == defs::WORKSPACE_ANIMATION || state.tool == "bone" || selected_bone;
+    let show = state.workspace == defs::WORKSPACE_ANIMATION || state.tool == tools::BONE || selected_bone;
     if !show {
         return;
     }
     let tokens = state.theme;
-    let bone_ink = util::rgb(tokens["node_bone"].as_str());
-    let accent = util::rgb(tokens["primary_text"].as_str());
+    let bone_ink = util::rgb(tokens[theme_tokens::NODE_BONE].as_str());
+    let accent = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
     for row in 0..state.nodes.len() {
         let node = state.nodes[row];
         if is_bone(node) {
@@ -315,20 +326,20 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     if !found.is_valid() {
         return nil;
     }
-    let bone_path = modifier_component["bone"].as_str();
+    let bone_path = modifier_component[panel_keys::BONE].as_str();
     let driven = if bone_path == "" { found } else { found.get_node(bone_path) };
     if !driven.is_valid() {
         return nil;
     }
-    let target_path = modifier_component["target"].as_str();
+    let target_path = modifier_component[inspector_fields::TARGET].as_str();
     let target: Node = nil;
     if target_path != "" {
         target = found.get_node(target_path);
     }
     let chain: [int] = [];
     let at = model::index_of_node(state, driven);
-    let limit = util::max(1, (modifier_component["chain_count"].as_float() as int));
-    let authored_kind = modifier_component["kind"];
+    let limit = util::max(1, (modifier_component[CHAIN_COUNT].as_float() as int));
+    let authored_kind = modifier_component[fields::KIND];
     let kind = if authored_kind == nil { animation::MODIFIER_LOOK_AT } else { authored_kind.as_str() };
     // `look_at` drives one bone whatever the chain says; `two_bone_ik` is
     // three by definition. The rest walk as far as `chain` allows.
@@ -337,7 +348,7 @@ fn modifier_reach(state: editor::State, row: int) -> ModifierReach? {
     } else if kind == animation::MODIFIER_TWO_BONE_IK {
         3
     } else {
-        if modifier_component["chain_count"].as_float() > 0.0 {
+        if modifier_component[CHAIN_COUNT].as_float() > 0.0 {
             limit
         } else {
             64
@@ -467,7 +478,7 @@ pub fn drag_handle(state: &mut editor::State, row: int, world_x: float, world_y:
     if modifier_component == nil || !found.is_valid() {
         return;
     }
-    let target = found.get_node(modifier_component["target"].as_str());
+    let target = found.get_node(modifier_component[inspector_fields::TARGET].as_str());
     if !target.is_valid() {
         return;
     }
@@ -479,7 +490,7 @@ pub fn drag_handle(state: &mut editor::State, row: int, world_x: float, world_y:
     // The click is in world space; a target under a moved parent has to take
     // it in that parent's frame, the way `add_bone` places a bone.
     let local = in_frame(target.parent(), world_x, world_y);
-    let depth = model::transform_part(target, "position", [0.0, 0.0, 0.0])[2];
+    let depth = model::transform_part(target, components::POSITION, [0.0, 0.0, 0.0])[2];
     model::set_transform(state, at.unwrap(), Parts { position: [local.x, local.y, depth], rotation_euler: [], scale: [] });
 }
 
@@ -525,7 +536,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         let found = bone.as_node();
         let at = model::index_of_node(state, found);
         if at != nil {
-            let key = if found.has_component("bone3d") { "bone3d" } else { "bone2d" };
+            let key = if found.has_component(components::BONE3D) { components::BONE3D } else { components::BONE2D };
             was[found.path()] = Was { index: at.unwrap(), key: key, data: util::map_or_empty(found.authored(key)) };
         }
     }
@@ -548,11 +559,11 @@ pub fn mirror(state: &mut editor::State, axis: str) {
         } else {
             mine
         };
-        let rest = reflect_rest(util::map_or_empty(source["data"]), axis);
+        let rest = reflect_rest(util::map_or_empty(source[fields::DATA]), axis);
         moved += 1;
-        let live = model::node(state, mine["index"].as_int());
+        let live = model::node(state, mine[fields::INDEX].as_int());
         if live.is_valid() {
-            live.set_component(mine["key"].as_str(), rest);
+            live.set_component(mine[fields::KEY].as_str(), rest);
         }
     }
     apply_rest(state);
@@ -564,7 +575,7 @@ pub fn mirror(state: &mut editor::State, axis: str) {
 // left-handed one.
 fn reflect_rest(data: any, axis: str) -> any {
     let out = util::map_or_empty(util::copy(data));
-    let authored_position = out["rest_position"];
+    let authored_position = out[REST_POSITION];
     let position = util::list_or_empty(if authored_position == nil { [] } else { authored_position });
     if position.len() >= 2 {
         let flipped: [float] = [];
@@ -573,21 +584,21 @@ fn reflect_rest(data: any, axis: str) -> any {
             let sign = if (axis == "x" && coordinate == 0) || (axis == "y" && coordinate == 1) { -1.0 } else { 1.0 };
             flipped.push(value.as_float() * sign);
         }
-        out["rest_position"] = flipped;
+        out[REST_POSITION] = flipped;
     }
-    let rotation = out["rest_rotation"];
-    if rotation.kind() == "list" {
+    let rotation = out[REST_ROTATION];
+    if rotation.kind() == types::KIND_LIST {
         let turned = util::list3_or(rotation, [0.0, 0.0, 0.0]);
-        out["rest_rotation"] = [turned[0], turned[1], -turned[2]];
+        out[REST_ROTATION] = [turned[0], turned[1], -turned[2]];
     } else {
-        out["rest_rotation"] = -rotation.as_float();
+        out[REST_ROTATION] = -rotation.as_float();
     }
     // The gizmo angle is measured from +x; a mirror over y leaves it negated,
     // and one over x reflects it about the vertical instead.
-    let was = out["angle"];
+    let was = out[ANGLE];
     if was != nil {
         let angle = -was.as_float();
-        out["angle"] = if axis == "x" { math::PI + angle } else { angle };
+        out[ANGLE] = if axis == "x" { math::PI + angle } else { angle };
     } else {
         nil
     }
@@ -598,13 +609,13 @@ fn reflect_rest(data: any, axis: str) -> any {
 // selected. Every bone at once is a wall of text; the Rig tool names them
 // all, because placing one is when the chain's shape is the question.
 fn label_bone(state: editor::State, row: int, node: Node, spine: Geometry, ink: [float]) {
-    if state.tool != "bone" && state.rig.hover != row && row != state.selected {
+    if state.tool != tools::BONE && state.rig.hover != row && row != state.selected {
         return;
     }
     let options = render::TextOptions {
         font_size: 28.0,
         color: color(ink[0], ink[1], ink[2], 1.0),
-        text_align: "center",
+        text_align: ui::ALIGN_CENTER,
         pixels_per_unit: LABEL_PIXELS_PER_UNIT,
     };
     if state.mode2d {
@@ -631,14 +642,14 @@ pub fn add_bone(state: &mut editor::State, parent_index: int, world_x: float, wo
         local_y = local.y;
     }
     // A 3D rig has no click to place a bone by, so it grows one unit up.
-    let component = if state.mode2d { "bone2d" } else { "bone3d" };
+    let component = if state.mode2d { components::BONE2D } else { components::BONE3D };
     let rest: any = if state.mode2d {
-        { "rest_position": [local_x, local_y], "rest_rotation": 0.0 }
+        { REST_POSITION: [local_x, local_y], REST_ROTATION: 0.0 }
     } else {
-        { "rest_position": [local_x, local_y, 0.0] }
+        { REST_POSITION: [local_x, local_y, 0.0] }
     };
     let child = model::spawn(state, parent_node, "Bone", {
-        "transform": { "position": [local_x, local_y, 0.0] },
+        components::TRANSFORM: { inspector_fields::POSITION: [local_x, local_y, 0.0] },
         component: rest,
     });
     model::reindex(state);
@@ -716,7 +727,7 @@ fn sync_bones(state: &mut editor::State, root_index: int, transforms: bool) {
                 scale: util::xyz(found.transform.scale),
             });
         } else {
-            let component = if found.has_component("bone3d") { "bone3d" } else { "bone2d" };
+            let component = if found.has_component(components::BONE3D) { components::BONE3D } else { components::BONE2D };
             found.set_component(component, found.get_component(component));
         }
     }

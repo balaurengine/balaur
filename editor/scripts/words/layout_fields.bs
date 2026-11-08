@@ -1,0 +1,18 @@
+// Where a thing sits and how much room it takes.
+
+internal const AT: str = "at";
+internal const END_X: str = "end_x";
+internal const END_Y: str = "end_y";
+internal const HALF: str = "half";
+internal const HEIGHT: str = "height";
+internal const LINE: str = "line";
+internal const OVER: str = "over";
+internal const PADDING: str = "padding";
+internal const RADIUS: str = "radius";
+internal const SIZE: str = "size";
+internal const START_X: str = "start_x";
+internal const START_Y: str = "start_y";
+internal const STEP: str = "step";
+internal const TO: str = "to";
+internal const WHOLE: str = "whole";
+internal const WIDTH: str = "width";

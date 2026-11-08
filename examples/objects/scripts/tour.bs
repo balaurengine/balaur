@@ -2,6 +2,9 @@
 // `balaur run examples/objects -- shots=<dir>` writes one PNG per pose there,
 // which is how the website's pictures of this example are made.
 
+const FLAT: str = "flat";
+const SHOTS: str = "shots";
+
 pub class Tour {
     node: Node,
     root: Node,
@@ -26,7 +29,7 @@ fn POSES() -> [Pose] {
         Pose { slug: "multimesh", eye: [1.0, 3.6, -26.0], at: [1.0, 0.4, -36.0] },
         Pose { slug: "text", eye: [0.0, 3.0, -39.5], at: [0.0, 0.9, -48.0] },
         // Past the end of the ground: an empty backdrop for the 2D layer.
-        Pose { slug: "flat", eye: [0.0, 3.0, 40.0], at: [0.0, 1.0, 50.0] },
+        Pose { slug: FLAT, eye: [0.0, 3.0, 40.0], at: [0.0, 1.0, 50.0] },
     ]
 }
 
@@ -48,7 +51,7 @@ impl Tour {
         scene::instantiate(scene::source("scenes/flat.toml").unwrap(), self.node);
         for arg in engine::args() {
             let parts = arg.split("=");
-            if parts.len() == 2 && parts[0] == "shots" {
+            if parts.len() == 2 && parts[0] == SHOTS {
                 self.shots = parts[1];
             }
         }
@@ -63,7 +66,7 @@ impl Tour {
         camera.transform.position = vec3(e[0], e[1], e[2]);
         camera.camera3d.look_at = vec3(pose.at[0], pose.at[1], pose.at[2]);
         // The 2D shapes sit over every 3D view, so only the flat pose shows them.
-        self.node.get_node("Layer2D/Flat").set_visible(pose.slug == "flat");
+        self.node.get_node("Layer2D/Flat").set_visible(pose.slug == FLAT);
     }
 
     pub fn update(dt: float) {
