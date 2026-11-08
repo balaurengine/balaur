@@ -3865,7 +3865,7 @@ dependencies = [
 [[package]]
 name = "kiss3d"
 version = "0.47.0"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#f4fb152aad78e359a9014c06d72ac7baa2cfaced"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#603ea30a0f07b3f5e4545a6ba89676e47fe17591"
 dependencies = [
  "accesskit_ios",
  "accesskit_winit",
@@ -3903,7 +3903,7 @@ dependencies = [
 [[package]]
 name = "kiss3d-macro"
 version = "0.36.1"
-source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#f4fb152aad78e359a9014c06d72ac7baa2cfaced"
+source = "git+https://github.com/Ughuuu/kiss3d.git?branch=balaur-wrapped-surface#603ea30a0f07b3f5e4545a6ba89676e47fe17591"
 dependencies = [
  "proc-macro2",
  "quote",
