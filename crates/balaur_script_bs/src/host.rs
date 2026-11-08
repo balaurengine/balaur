@@ -18,13 +18,13 @@ use std::rc::{Rc, Weak};
 use std::sync::Arc;
 use tasks::{Pending, WaitingStart};
 
+mod burst;
 mod debug;
 mod engine_facing;
 mod holds;
 mod profile;
 mod tasks;
 mod tools;
-mod burst;
 mod units;
 
 pub const EXTENSION: &str = "bs";

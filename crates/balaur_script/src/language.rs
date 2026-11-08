@@ -139,7 +139,6 @@ pub trait ScriptHost<C: ?Sized> {
         false
     }
 
-
     /// Call a method on one node's instance: how a signal reaches a
     /// handler, and how one script calls another.
     /// `args` reach the method as its arguments, after the instance itself.
