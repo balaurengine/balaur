@@ -24,6 +24,7 @@ pub(crate) fn obtain(_target: &str, _assume_yes: bool) -> anyhow::Result<PathBuf
     anyhow::bail!("runtime download is not available in this build")
 }
 
+#[cfg(not(target_family = "wasm"))]
 use crate::vocabulary::words;
 #[cfg(all(not(target_family = "wasm"), feature = "editor"))]
 pub(crate) use fetch::obtain;

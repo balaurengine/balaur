@@ -9,6 +9,7 @@ use anyhow::{Result, anyhow};
 use serde_json::Value;
 
 use super::auth::Session;
+#[cfg(not(target_family = "wasm"))]
 use crate::vocabulary::words;
 
 /// What a call produced: the status and the decoded JSON body (`Null` when

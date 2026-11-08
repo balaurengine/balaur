@@ -3,6 +3,7 @@
 
 #[cfg(feature = "c")]
 use crate::host::{BsHost, key_of};
+#[cfg(all(feature = "native", not(target_arch = "wasm32")))]
 use crate::vocabulary::words;
 #[cfg(feature = "c")]
 use anyhow::{Context, Result, anyhow};
