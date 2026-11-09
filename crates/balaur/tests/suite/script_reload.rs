@@ -117,7 +117,7 @@ fn a_watched_directory_says_what_changed_and_reloads_its_scripts() {
     let node = balaur::node_id_of(node);
     host.attach_with_props(node, &script, &[]).unwrap();
 
-    let told = balaur_script::Value::Str(script.clone());
+    let told = balaur_script::Value::Str(format!("{key}/scripts/visitor.bs"));
     let mut heard = false;
     let mut reloaded = false;
     // A watch begins a moment after it is asked for, so the file is written

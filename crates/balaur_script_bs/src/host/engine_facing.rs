@@ -265,7 +265,7 @@ impl ScriptHost<Engine> for BsHost {
             Ok(()) => {
                 asides.push(burst::Aside {
                     at: dir.to_path_buf(),
-                    key: key_of(key),
+                    key: key.to_string(),
                     extensions: extensions.to_vec(),
                 });
                 true

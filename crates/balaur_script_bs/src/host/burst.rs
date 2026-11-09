@@ -19,7 +19,8 @@ const LONGEST: Duration = Duration::from_secs(2);
 pub(super) struct Aside {
     /// As the watcher reports paths under it.
     pub(super) at: PathBuf,
-    /// What its files are called.
+    /// The folder as it was named, which `files_changed` spells paths from:
+    /// a caller finds them under its own spelling, backslashes and all.
     pub(super) key: String,
     /// What `files_changed` names from it; empty is every file.
     pub(super) extensions: Vec<String>,
@@ -62,7 +63,7 @@ impl BsHost {
             return;
         }
         let key = if let Some(whole) = aside.and_then(|aside| aside.spell(path)) {
-            whole
+            key_of(&whole)
         } else if let Ok(rel) = path.strip_prefix(&self.inner.watch_root) {
             key_of(&rel.to_string_lossy())
         } else if let Some((rel, folder)) = self
