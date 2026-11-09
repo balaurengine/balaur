@@ -27,6 +27,7 @@ internal const RAIL: str = "rail_changed";
 internal const STAGE: str = "stage_changed";
 const ASSETS: str = "assets";
 const ASSETS_RELOADED: str = "assets_reloaded";
+const FILES_CHANGED: str = "files_changed";
 const BONEMAP: str = "bonemap";
 const CODE: str = "code";
 const COMPLETE: str = "complete";
@@ -87,7 +88,7 @@ pub fn hear_boxes(state: editor::State, editor: Node) {
 /// viewport's tools look at it.
 pub fn hear_engine(editor: Node) {
     for word in [
-        ASSETS_RELOADED, "debugger_stopped", "pasted", "pasted_image",
+        ASSETS_RELOADED, FILES_CHANGED, "debugger_stopped", "pasted", "pasted_image",
         "pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured",
         "files_dropped",
     ] {

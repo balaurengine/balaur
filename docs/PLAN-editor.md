@@ -67,7 +67,7 @@ Each of these is something the editor works around today.
 
 | Missing | Editor workaround now | Shape |
 |---|---|---|
-| A change feed | `model::source` caches with a 0.5 s TTL and re-reads; the Assets dock lists directories on the same timer | `fs::changed()` returning the paths the host's own `notify` watcher saw this frame, the way `input::dropped_files` reports drops. `engine::watch(dir)` adds a root, so a game's directory hot-reloads inside the editor (today only the editor's root is watched; play-in-editor reloads on ⌘S by calling `engine::reload_script`). |
+| A change feed | `model::source` caches with a 0.5 s TTL and re-reads; the Assets dock lists directories on the same timer | Built for code: `engine::watch(dir, extensions)` adds a root, so a game's scripts hot reload inside the editor, and `files_changed` tells the code sheet. The timers remain for the Assets dock and `model::source`. |
 | `ui::drag_source` / `ui::drop_target` | none: nothing can be dragged from the Assets dock onto a node or a property | egui's DnD, payload a string |
 | `task::paused()` | a flag in `S` | a token the debugger wakes |
 | `engine::export(root)`, `assets::import(path)` | CLI only | the two verbs an Export button and an Import command need, async-capable |

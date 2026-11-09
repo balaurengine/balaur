@@ -2,6 +2,7 @@
 // screen is, and what anything else needing a window should be.
 
 use about;
+use disk;
 use editor;
 use exporter;
 use fonts;
@@ -123,6 +124,8 @@ pub fn fill(state: &mut editor::State) {
         populate::fill(state);
     } else if state.window.open == MANAGER_NEW {
         manager::new_fill(state);
+    } else if state.window.open == disk::SHEET {
+        disk::fill(state);
     }
 }
 
@@ -176,6 +179,16 @@ pub fn sheet_form(state: &mut editor::State, id: str, title: str, actions: [ui::
     // that fills it shows it. Hidden, the rows beside it take the whole sheet.
     util::hide(SIDE);
     Hosts { side: SIDE, side_rows: SIDE_ROWS, form: FORM }
+}
+
+/// Hold the sheet up to `width` by `height`, for a question with no form to
+/// make room for. Called after `sheet_form`, which sizes it for a form.
+pub fn fit(width: float, height: float) {
+    let filled = scene::get_node(SHEET);
+    if filled.is_valid() {
+        filled.widget.width = width;
+        filled.widget.height = height;
+    }
 }
 
 const SIDE: str = "Editor/Sheet/SheetBody/SheetSplit/SheetSide";

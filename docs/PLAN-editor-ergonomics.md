@@ -176,7 +176,10 @@ out. Each step today asks for something the editor should have known.
   way, and a script or shader buffer once its typing rests for 1.5 s, which
   is when it compiles; ⌘S still writes at once. A dependency's scene is
   read-only and is not written. A run started with `--state` keeps its
-  edits off disk. `test:autosave`.
+  edits off disk. `test:autosave`. A file changed from outside reloads a
+  buffer with nothing unsaved. Buffers with edits wait on one list, answered
+  per file or all together. A burst of writes is one batch. `disk.bs`,
+  `test:disk_changed`.
 
 ## 2. The surface
 

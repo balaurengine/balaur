@@ -287,6 +287,7 @@ state draws the rows as a sheet: no offscreen run can click a popup open.
 | Font sheet | `selftest::font_sheet` — every script the chain covers, the three faces, the icon font | `28` | `--state font_sheet` |
 | Theme window | `themewin::draw` — `window::sheet_form`, pages down the side, each role drawn as itself | `42`, `43` | the mark menu's Theme, or `--state theme:<page>:<role>` |
 | Populate | `populate::draw` — `window::sheet_form`, one row per option of the layout picked | `44` | Populate… on a `multimesh3d` or `multimesh2d` section, or `--state populate` |
+| Changed on disk | `disk::fill` — `window::sheet_form`, a row per file with its two answers, and both for all | — | a file changed under unsaved edits, or `--state disk_changed` |
 
 The theme window is the one sheet whose rows change the chrome around them: an
 edit to a user theme is worn at once, and a bundled theme is read-only.

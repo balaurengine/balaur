@@ -1,0 +1,267 @@
+//! A code buffer against the file under it. What changes on disk while the
+//! editor is open is taken up where nothing is unsaved and asked about where
+//! something is, so neither side is written over without a word.
+
+use center;
+use editor;
+use lint;
+use model;
+use pool;
+use session;
+use shell;
+use signals;
+use util;
+use window;
+use words::project_fields;
+use words::roles;
+
+internal const SHEET: str = "disk_changed";
+const SCRIPT: str = ".bs";
+const SHADER: str = ".wesl";
+const LABEL_WIDTH: float = 0.0;
+const WIDTH: float = 520.0;
+// The sheet's title bar and padding, and a row in it.
+const HEAD_HEIGHT: float = 62.0;
+const ROW_HEIGHT: float = 36.0;
+// Rows on show before the list scrolls.
+const IN_VIEW: int = 10;
+// Rows built: past this the all-buttons are the answer, and the rest a count.
+const LISTED: int = 200;
+
+/// Follow the project's code. A run started with `--state` keeps to what it
+/// was told to do, so a suite's own writes do not come back to it.
+pub fn follow(state: &mut editor::State) {
+    if state.start_states == "" && state.game_root != "" {
+        engine::watch(state.game_root, ["bs", "wesl"]);
+    }
+}
+
+/// `text` goes into the buffer for `path`, unsaved until it is written. What
+/// the file held at the first edit is what a later change is told apart by.
+pub fn edit(state: &mut editor::State, path: str, text: str) {
+    if !state.script_disk.has(path) {
+        let held = model::source(state, relative(state, path));
+        state.script_disk[path] = if held == nil { "" } else { held.as_str() };
+    }
+    state.script_held.remove(path);
+    state.script_buffers[path] = text;
+    state.script_dirty[path] = engine::unix_time();
+}
+
+/// The buffer at `path` was just written: the file holds `text` now.
+pub fn wrote(state: &mut editor::State, path: str, text: str) {
+    state.script_disk[path] = text;
+    state.script_held.remove(path);
+}
+
+/// A file moved from `old` to `path` with its buffer written into it.
+pub fn moved(state: &mut editor::State, old: str, path: str, text: str) {
+    state.script_disk.remove(old);
+    state.script_held.remove(old);
+    wrote(state, path, text);
+}
+
+/// A burst of files changed under the project, by something else or by the
+/// editor's own write, which the text tells apart. Each path costs a lookup,
+/// and a read only where a buffer has to be compared. An empty list is more
+/// than the watcher could name: everything open is checked.
+pub fn heard(state: &mut editor::State, paths: any) {
+    let named = util::list_or_empty(paths);
+    if named.len() == 0 {
+        model::forget(state);
+        named = state.script_buffers.keys();
+        named.push(center::open_path(state));
+    }
+    let taken: [str] = [];
+    let script = false;
+    for one in named {
+        let path = one.as_str();
+        let buffer = state.script_buffers[path];
+        if buffer != nil {
+            let text = fs::read(path).or("");
+            if text == buffer.as_str() {
+                wrote(state, path, text);
+                state.script_dirty.remove(path);
+                continue;
+            }
+            let known = state.script_disk[path];
+            if known != nil && text == known.as_str() {
+                continue;
+            }
+        }
+        script = script || path.ends_with(SCRIPT);
+        if buffer != nil && state.script_dirty.has(path) {
+            hold(state, path);
+        } else if path != "" {
+            taken.push(path);
+        }
+    }
+    // The host reloads what changed by itself, and a recording cannot span that.
+    if script {
+        session::end(state, shell::RELOAD);
+    }
+    take_files(state, taken);
+    signals::bars(state);
+    ask(state);
+}
+
+fn hold(state: &mut editor::State, path: str) {
+    state.script_held[path] = true;
+    state.disk_new = true;
+}
+
+// The files win: their buffers go, and what shows is read from disk again.
+fn take_files(state: &mut editor::State, paths: [str]) {
+    if paths.len() == 0 {
+        return;
+    }
+    let shown = center::open_path(state);
+    let showing = false;
+    let shader = false;
+    for path in paths {
+        state.script_buffers.remove(path);
+        state.script_disk.remove(path);
+        state.script_held.remove(path);
+        state.script_dirty.remove(path);
+        model::forget(state, relative(state, path));
+        showing = showing || path == shown;
+        shader = shader || path.ends_with(SHADER);
+    }
+    lint::touched(state);
+    signals::bars(state);
+    if shader {
+        assets::invalidate();
+    }
+    if showing {
+        center::code_written(state);
+    }
+    log::info(if paths.len() == 1 { "reloaded {relative(state, paths[0])} from disk" } else { "reloaded {paths.len()} files from disk" });
+}
+
+/// Whether the file moved since the buffer last agreed with it, which holds
+/// the buffer. What a write checks first: the watcher can be late.
+pub fn moved_under(state: &mut editor::State, path: str) -> bool {
+    let known = state.script_disk[path];
+    if known == nil {
+        return false;
+    }
+    let text = fs::read(path).or("");
+    if text == known.as_str() || text == state.script_buffers[path].as_str() {
+        return false;
+    }
+    hold(state, path);
+    true
+}
+
+/// Bring the sheet in line with what is held. Shut unanswered, both sides
+/// stand, and it comes back with the next buffer held.
+pub fn ask(state: &mut editor::State) {
+    let up = window::showing(state, SHEET);
+    if state.script_held.len() == 0 {
+        if up {
+            window::hide(state);
+        }
+        state.disk_new = false;
+        state.disk_up = false;
+        return;
+    }
+    if up {
+        if state.disk_new {
+            state.disk_new = false;
+            window::changed(state);
+        }
+        return;
+    }
+    state.disk_up = false;
+    if state.disk_new && window::showing(state, "") {
+        state.disk_new = false;
+        state.disk_up = true;
+        window::show(state, SHEET);
+    }
+}
+
+/// Fill the sheet: what its script asks for when the list is up.
+pub fn fill(state: &mut editor::State) {
+    let actions: [ui::Control] = [];
+    if state.script_held.len() > 1 {
+        actions.push(chip("Reload all", reload_all, {}));
+        actions.push(chip("Keep all", keep_all, {}));
+    }
+    let hosts = window::sheet_form(state, SHEET, "Changed on disk", actions);
+    if util::is_nil(hosts) {
+        return;
+    }
+    let specs = rows(state);
+    let seen = if specs.len() > IN_VIEW { IN_VIEW } else { specs.len() };
+    window::fit(WIDTH, HEAD_HEIGHT + (seen as float) * ROW_HEIGHT);
+    ui::fill_rows(hosts.unwrap().form, specs, LABEL_WIDTH, false);
+}
+
+fn rows(state: editor::State) -> [ui::Row] {
+    let held = util::keys_sorted(state.script_held);
+    let out: [ui::Row] = [];
+    for at in 0..(if held.len() > LISTED { LISTED } else { held.len() }) {
+        out.push(file_row(state, held[at]));
+    }
+    if held.len() > LISTED {
+        out.push(row([ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "+{held.len() - LISTED}" }]));
+    }
+    out
+}
+
+fn file_row(state: editor::State, path: str) -> ui::Row {
+    let name = relative(state, path) + (if fs::exists(path) { "" } else { " (deleted)" });
+    let about: any = { project_fields::PATH: path };
+    row([
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: name },
+        chip("Reload", reload_one, about),
+        chip("Keep", keep_one, about),
+    ])
+}
+
+fn row(controls: [ui::Control]) -> ui::Row {
+    ui::Row { height: 28, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+}
+
+fn chip(text: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
+    pool::on(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: text }, handler, data)
+}
+
+/// Reload: what was typed since the file last agreed is dropped.
+pub fn reload_one(state: &mut editor::State, data: any, _value: any) {
+    take_files(state, [data[project_fields::PATH].as_str()]);
+    answered(state);
+}
+
+pub fn reload_all(state: &mut editor::State, _data: any, _value: any) {
+    take_files(state, state.script_held.keys());
+    answered(state);
+}
+
+/// Keep: the file is written over.
+pub fn keep_one(state: &mut editor::State, data: any, _value: any) {
+    keep(state, [data[project_fields::PATH].as_str()]);
+}
+
+pub fn keep_all(state: &mut editor::State, _data: any, _value: any) {
+    keep(state, state.script_held.keys());
+}
+
+fn keep(state: &mut editor::State, paths: [str]) {
+    for path in paths {
+        state.script_held.remove(path);
+        state.script_disk.remove(path);
+    }
+    shell::save_buffers(state, paths);
+    answered(state);
+}
+
+// The list is one shorter: what fills it is the word that something moved.
+fn answered(state: &mut editor::State) {
+    state.disk_new = true;
+    ask(state);
+}
+
+fn relative(state: editor::State, path: str) -> str {
+    shell::script_rel(state, path)
+}

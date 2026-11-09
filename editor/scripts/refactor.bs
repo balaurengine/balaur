@@ -3,6 +3,7 @@
 
 use center;
 use complete;
+use disk;
 use editor;
 use lint;
 use model;
@@ -117,8 +118,7 @@ pub fn apply(state: &mut editor::State) {
     }
     for one in state.refactor.written {
         let absolute_path = state.game_root + "/" + one.file;
-        state.script_buffers[absolute_path] = one.source;
-        state.script_dirty[absolute_path] = engine::unix_time();
+        disk::edit(state, absolute_path, one.source);
         lint::touched(state);
         signals::bars(state);
     }

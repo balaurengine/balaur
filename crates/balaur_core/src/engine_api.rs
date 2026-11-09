@@ -120,12 +120,17 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: environment,
         },
         EngineOp {
-            module: "engine",
-            name: "reload_script",
-            call: reload_script,
+            module: words::modules::ENGINE,
+            name: "reload_scripts",
+            call: crate::file_api::reload_scripts,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
+            name: "watch",
+            call: crate::file_api::engine_watch,
+        },
+        EngineOp {
+            module: words::modules::ENGINE,
             name: "user_data_directory",
             call: user_data_dir,
         },
@@ -915,18 +920,6 @@ pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
             .join("user_data")
             .join(name),
     }
-}
-
-fn reload_script(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let host = eng
-        .script_host()
-        .ok_or_else(|| anyhow!("no script backend is running"))?;
-    // A file that does not compile is the answer, not a failure of the call:
-    // the tool that saved it says what broke and carries on.
-    Ok(match host.reload(text(args, 0)?) {
-        Ok(()) => Value::text(""),
-        Err(err) => Value::text(format!("{err:#}")),
-    })
 }
 
 fn root(eng: &Engine, _: &[Value]) -> Result<Value> {

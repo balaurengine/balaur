@@ -207,6 +207,12 @@ pub const LOGGED: &str = "logged";
 /// editor's file views listen for. Queued only while someone listens.
 pub const ASSETS_RELOADED: &str = "assets_reloaded";
 
+/// What a run says from no node when a burst of file writes under a
+/// directory `engine::watch` follows has ended: a list of the paths, spelled
+/// from that directory as it was named, a file written by this run included.
+/// Empty when the watcher lost count, so anything may have changed.
+pub const FILES_CHANGED: &str = "files_changed";
+
 /// What the save slots say from no node when one was written or removed
 /// since the last pump, with their running count: what an editor's view of
 /// a game's saves listens for instead of listing the folder each frame.

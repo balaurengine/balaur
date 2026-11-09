@@ -257,7 +257,7 @@ fn a_script_holds_another_nodes_script_as_its_class() {
     )
     .unwrap();
     let host = app.engine.script_host().unwrap();
-    host.reload("scripts/editor.bs").unwrap();
+    host.reload(&["scripts/editor.bs"]).unwrap();
     ticked(&mut app, 1);
     assert_eq!(field(&app, "Editor", "edits"), Some(Int(13)));
     assert_eq!(field(&app, "Editor/Panel", "seen"), Some(Int(13)));
@@ -396,7 +396,7 @@ fn a_reload_keeps_the_typed_link_under_every_build() {
     ticked(&mut app, 1);
     let edit = |by: i64| EDITOR.replace("self.edits += 1;", &format!("self.edits += {by};"));
     std::fs::write(dir.path().join("scripts/editor.bs"), edit(10)).unwrap();
-    host.reload("scripts/editor.bs").unwrap();
+    host.reload(&["scripts/editor.bs"]).unwrap();
     ticked(&mut app, 1);
     assert_eq!(seen(&app), 12, "under counters");
     host.set_profiling(false);
@@ -405,7 +405,7 @@ fn a_reload_keeps_the_typed_link_under_every_build() {
     host.set_breakpoints("scripts/editor.bs", &[]).unwrap();
     host.set_break_on_error(true);
     std::fs::write(dir.path().join("scripts/editor.bs"), edit(100)).unwrap();
-    host.reload("scripts/editor.bs").unwrap();
+    host.reload(&["scripts/editor.bs"]).unwrap();
     ticked(&mut app, 1);
     assert_eq!(seen(&app), 122, "under probes");
 }

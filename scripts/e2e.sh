@@ -116,6 +116,7 @@ RAN='selftest ok|script: .*skip|script: showcase '
 # its assets rebound.
 EXAMPLE_STATES=(
   test:undo test:rename test:autosave       # the history, renaming, writing
+  test:disk_changed                         # a file changed under a code buffer
   test:focus                                # the shell folds round the code
   test:rig test:populate                    # a bone grown and keyed; a multimesh
   test:marks                                # the outliner's eye and lock

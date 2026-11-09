@@ -100,7 +100,7 @@ fn a_rebuild_for_the_debugger_is_no_reload_to_the_script() {
     host.set_breakpoints("scripts/game.bs", &[]).unwrap();
     assert_eq!(field(&app, "game", "reloads"), 0, "breakpoints cleared");
     app.tick(DEFAULT_FIXED_DT);
-    host.reload("scripts/game.bs").unwrap();
+    host.reload(&["scripts/game.bs"]).unwrap();
     assert_eq!(field(&app, "game", "reloads"), 1, "the control: a reload");
 }
 
@@ -117,7 +117,7 @@ fn a_reload_waits_for_the_stop_it_would_end() {
 
     let edited = GAME.replace("self.frames + 1", "self.frames + 100");
     std::fs::write(dir.path().join("scripts/game.bs"), edited).unwrap();
-    host.reload("scripts/game.bs").unwrap();
+    host.reload(&["scripts/game.bs"]).unwrap();
     assert!(host.paused().is_some(), "the stop holds through the reload");
 
     host.set_breakpoints("scripts/game.bs", &[]).unwrap();

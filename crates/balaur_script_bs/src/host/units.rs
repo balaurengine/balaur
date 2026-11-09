@@ -5,7 +5,7 @@ use super::{BsHost, CACHE_DIR, File, Home, METER, PLACES, Place, place_of, scrip
 use crate::api;
 use anyhow::{Result, anyhow};
 use balaur_bs::{Compiled, Options};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -14,6 +14,9 @@ use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Numbers this process's writes of kept units, so no two share a temporary.
 static UNIT_WRITES: AtomicU32 = AtomicU32::new(0);
+
+/// More scripts reloaded at once than this are counted in the log, not named.
+const NAMED_RELOADS: usize = 8;
 
 /// What a unit is built with, past what it says: the build each file's unit is
 /// kept under, so turning a debugger or a profiler off costs nothing.
@@ -372,12 +375,12 @@ impl BsHost {
             built.push((key.clone(), compiled, ty));
         }
         let (mut fresh, units) = self.linked_fresh(place, &built)?;
-        let unit_of = |path: &str| {
-            built
-                .iter()
-                .position(|(key, ..)| key == path)
-                .map(|at| units[at])
-        };
+        let unit_at: HashMap<&str, _> = built
+            .iter()
+            .zip(&units)
+            .map(|((key, ..), unit)| (key.as_str(), *unit))
+            .collect();
+        let unit_of = |path: &str| unit_at.get(path).copied();
         // Out of each home a member ran in: this place's, or the one beside it.
         let mut homes: Vec<Rc<Home>> = vec![];
         for (_, file) in &members {
@@ -386,7 +389,7 @@ impl BsHost {
             }
         }
         for home in &homes {
-            let paths: Vec<&str> = members
+            let paths: HashSet<&str> = members
                 .iter()
                 .filter(|(_, file)| Rc::ptr_eq(&file.home, home))
                 .map(|(key, _)| key.as_str())
@@ -432,35 +435,72 @@ impl BsHost {
                 continue;
             }
             match self.rebuild_instance(place, &at) {
+                Ok(true) if at.len() > NAMED_RELOADS => {
+                    tracing::info!("reloaded {} scripts", at.len());
+                }
                 Ok(true) => tracing::info!("reloaded {}", at.join(", ")),
                 Ok(false) => {}
                 Err(e) => {
                     tracing::error!("{e:#}");
+                    let failed: BTreeSet<&String> = at.iter().collect();
                     self.inner
                         .reload_owed
                         .borrow_mut()
-                        .retain(|key| !at.contains(key));
+                        .retain(|key| !failed.contains(key));
                 }
             }
         }
     }
 
-    /// What an edit of `key` makes stale: its source and unit, and when what
-    /// it declares changed, every unit built against that.
-    pub(super) fn invalidate(&self, key: &str) {
-        let before = self.inner.parsed.known(key);
-        self.inner.parsed.forget(key);
+    /// `keys` read again and their instances made again, with no word to
+    /// their scripts: one build however many there are.
+    pub(crate) fn rebuild_changed(&self, keys: &[String]) -> Result<()> {
+        self.invalidate(keys);
+        for place in PLACES {
+            let at: Vec<String> = keys
+                .iter()
+                .filter(|key| place_of(key) == place)
+                .cloned()
+                .collect();
+            if !at.is_empty() {
+                self.rebuild_instance(place, &at)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// What an edit of `keys` makes stale: their sources and units, and for
+    /// each whose declarations changed, every unit built against it.
+    pub(super) fn invalidate(&self, keys: &[String]) {
+        let before: Vec<Option<u64>> = keys
+            .iter()
+            .map(|key| self.inner.parsed.known(key))
+            .collect();
+        let stale: BTreeSet<&str> = keys.iter().map(String::as_str).collect();
         self.inner
             .sources
             .borrow_mut()
-            .retain(|k, v| k != key && v.is_some());
-        self.inner.units.borrow_mut().remove(key);
-        let after = self
-            .kept_source(key)
-            .and_then(|s| self.inner.parsed.declarations(key, &s).ok());
-        if before.is_some() && before != after {
+            .retain(|key, kept| !stale.contains(key.as_str()) && kept.is_some());
+        for key in keys {
+            self.inner.parsed.forget(key);
+            self.inner.units.borrow_mut().remove(key);
+        }
+        let reshaped: HashSet<&str> = keys
+            .iter()
+            .zip(before)
+            .filter(|(key, before)| {
+                let after = self
+                    .kept_source(key)
+                    .and_then(|source| self.inner.parsed.declarations(key, &source).ok());
+                before.is_some() && *before != after
+            })
+            .map(|(key, _)| key.as_str())
+            .collect();
+        if !reshaped.is_empty() {
             self.inner.units.borrow_mut().retain(|_, builds| {
-                builds.retain(|_, u| !u.meta.uses.iter().any(|k| k == key));
+                builds.retain(|_, unit| {
+                    !unit.meta.uses.iter().any(|k| reshaped.contains(k.as_str()))
+                });
                 !builds.is_empty()
             });
         }

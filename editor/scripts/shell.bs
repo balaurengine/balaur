@@ -6,6 +6,7 @@ use anim;
 use center;
 use complete;
 use defs;
+use disk;
 use docks;
 use docs;
 use dropin;
@@ -625,6 +626,7 @@ fn carry_script_state(state: &mut editor::State, old: str, rel: str) {
     if buffer != nil {
         state.script_buffers[absolute_path] = buffer;
         state.script_buffers.remove(old_absolute_path);
+        disk::moved(state, old_absolute_path, absolute_path, buffer.as_str());
     }
     if state.script_dirty.has(old_absolute_path) {
         state.script_dirty.remove(old_absolute_path);
@@ -746,8 +748,7 @@ pub fn format_active(state: &mut editor::State) {
     if formatted == source {
         return;
     }
-    state.script_buffers[absolute_path] = formatted;
-    state.script_dirty[absolute_path] = engine::unix_time();
+    disk::edit(state, absolute_path, formatted);
     lint::touched(state);
     signals::bars(state);
     // The code sheet writes its text again only when told the buffer moved.
@@ -772,43 +773,64 @@ pub fn save_active(state: &mut editor::State) {
     model::save(state);
 }
 
-/// Write one open buffer, a script's or a shader's, to its file: what ⌘S
-/// does for the code in the centre, and what the autosave does once typing
-/// stops.
+/// Write one open buffer to its file: what ⌘S does for the code in the centre.
 pub fn save_buffer(state: &mut editor::State, absolute_path: str) {
-    let buffer = state.script_buffers[absolute_path];
-    if buffer == nil {
+    save_buffers(state, [absolute_path]);
+}
+
+/// Write open buffers, scripts' or shaders', to their files, and what the
+/// autosave does once typing stops. One compile and one project check,
+/// however many there are.
+pub fn save_buffers(state: &mut editor::State, paths: [str]) {
+    let scripts: [str] = [];
+    let saved: [str] = [];
+    let shaders = false;
+    for path in paths {
+        let buffer = state.script_buffers[path];
+        if buffer == nil || disk::moved_under(state, path) {
+            continue;
+        }
+        let rel = script_rel(state, path);
+        fs::write(path, buffer.as_str());
+        disk::wrote(state, path, buffer.as_str());
+        model::forget(state, rel);
+        state.script_dirty.remove(path);
+        saved.push(rel);
+        if path.ends_with(".wesl") {
+            shaders = true;
+        } else {
+            scripts.push(path);
+        }
+    }
+    disk::ask(state);
+    if saved.len() == 0 {
         return;
     }
-    let rel = absolute_path.replace(state.game_root + "/", "");
-    fs::write(absolute_path, buffer.as_str());
-    model::forget(state, rel);
-    state.script_dirty.remove(absolute_path);
     signals::bars(state);
     // A shader is not a script: it is written and the watcher relinks the
     // materials naming it, with no unit to rebuild.
-    if absolute_path.ends_with(".wesl") {
+    if shaders {
         // The watcher covers the editor's own root, not the game's.
         assets::invalidate();
-        log::info("saved " + rel);
-        return;
     }
-    // A recording cannot survive its own code changing: the frames after a
-    // reload came from a different game. The session ends here, and what it
-    // caught until now is kept.
-    session::end(state, "reload");
-    // The reload is also the compile: it builds the unit whether or not the
-    // script is live, and leaves the old one running on a failure, so a save
-    // that does not compile can say so.
-    let failure = engine::reload_script(absolute_path);
-    // A save is the one moment the whole project is known good or not; the
-    // idle sweep only catches up to it.
-    lint::run(state);
-    if failure == "" {
-        log::info("saved " + rel);
-    } else {
-        say_failed(state, failure);
+    if scripts.len() > 0 {
+        // A recording cannot survive its own code changing: the frames after
+        // a reload came from a different game. The session ends here, and
+        // what it caught until now is kept.
+        session::end(state, RELOAD);
+        // The reload is also the compile: it builds the units whether or not
+        // the scripts are live, and leaves the old ones running on a failure,
+        // so a save that does not compile can say so.
+        let failure = engine::reload_scripts(scripts);
+        // A save is the one moment the whole project is known good or not;
+        // the idle sweep only catches up to it.
+        lint::run(state);
+        if failure != "" {
+            say_failed(state, failure);
+            return;
+        }
     }
+    log::info(if saved.len() == 1 { "saved " + saved[0] } else { "saved {saved.len()} files" });
 }
 
 /// Write a picture of the scene as a run of it draws it, at the project's
@@ -840,22 +862,17 @@ pub fn reload_scripts(state: &mut editor::State) {
     for found in state.nodes {
         let rel = model::script_rel(found);
         if rel != nil {
-            paths[rel.as_str()] = true;
+            paths[state.game_root + "/" + rel.as_str()] = true;
         }
     }
     session::end(state, RELOAD);
     model::forget(state);
-    let done = 0;
-    for rel in util::keys_sorted(paths) {
-        let failure = engine::reload_script(state.game_root + "/" + rel);
-        if failure == "" {
-            done += 1;
-        } else {
-            say_failed(state, failure);
-        }
+    let failure = engine::reload_scripts(util::keys_sorted(paths));
+    if failure != "" {
+        say_failed(state, failure);
     }
     lint::run(state);
-    log::info("reloaded {done} of {paths.len()} script(s)");
+    log::info(if failure == "" { "reloaded {paths.len()} script(s)" } else { "reloading {paths.len()} script(s) failed" });
 }
 
 // A compile failure, a line at a time and against the game's own paths: the
@@ -884,6 +901,8 @@ fn states() -> any {
         "test:every_node": selftest::every_node,
         "test:rename": selftest::rename,
         "test:autosave": selftest::autosaving,
+        "test:disk_changed": selftest::disk_changed,
+        disk::SHEET: selftest::disk_sheet,
         "light": state_light,
         "dark": state_dark,
         "play": state_play,

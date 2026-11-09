@@ -136,6 +136,41 @@ fn writable(eng: &Engine, args: &[Value], at: usize) -> Result<PathBuf> {
     Ok(path)
 }
 
+fn strings(args: &[Value], at: usize) -> Result<Vec<&str>> {
+    let Some(Value::List(items)) = args.get(at) else {
+        bail!("argument {at} has to be a list of strings");
+    };
+    items
+        .iter()
+        .map(|item| match item {
+            Value::Str(text) => Ok(text.as_str()),
+            _ => Err(anyhow!("argument {at} has to be a list of strings")),
+        })
+        .collect()
+}
+
+pub(crate) fn engine_watch(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let named = text(args, 0)?;
+    let real = resolve(eng, named)?;
+    let extensions: Vec<String> = strings(args, 1)?.into_iter().map(String::from).collect();
+    Ok(Value::Bool(
+        eng.script_host()
+            .is_some_and(|host| host.watch(&real, named, &extensions)),
+    ))
+}
+
+pub(crate) fn reload_scripts(eng: &Engine, args: &[Value]) -> Result<Value> {
+    let host = eng
+        .script_host()
+        .ok_or_else(|| anyhow!("no script backend is running"))?;
+    // A file that does not compile is the answer, not a failure of the call:
+    // the tool that saved it says what broke and carries on.
+    Ok(match host.reload(&strings(args, 0)?) {
+        Ok(()) => Value::text(""),
+        Err(err) => Value::text(format!("{err:#}")),
+    })
+}
+
 pub(crate) fn fs_read(eng: &Engine, args: &[Value]) -> Result<Value> {
     let named = &*named(eng, args, 0)?;
     if let Some(project) = packed_files(eng, named) {

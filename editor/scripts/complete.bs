@@ -3,6 +3,7 @@
 // reaches through `balaur lsp`.
 
 use center;
+use disk;
 use editor;
 use lint;
 use signals;
@@ -192,8 +193,7 @@ fn accept(state: &mut editor::State) {
         }
     }
     let path = state.game_root + "/" + state.complete.rel;
-    state.script_buffers[path] = head + state.complete.items[picked].insert + tail;
-    state.script_dirty[path] = engine::unix_time();
+    disk::edit(state, path, head + state.complete.items[picked].insert + tail);
     lint::touched(state);
     signals::bars(state);
     center::code_written(state);
