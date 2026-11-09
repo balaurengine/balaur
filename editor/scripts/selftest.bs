@@ -348,14 +348,14 @@ pub fn disk_changed(state: &mut editor::State) {
     check(autosave::write_typed(state, engine::unix_time() + rest) == 0, "and the autosave leaves it alone");
     check(fs::read(path).or("") == disk_probe(3) && state.script_buffers[path].as_str() == disk_probe(2) + typed, "both sides stand");
 
-    disk::keep_one(state, disk_about(path), nil);
+    disk::keep_one(state, disk_about(path));
     check(fs::read(path).or("") == disk_probe(2) + typed, "keeping the edits writes them over the file");
     check(!state.script_held.has(path) && !state.script_dirty.has(path) && !window::showing(state, disk::SHEET), "and answers it");
 
     disk::edit(state, path, disk_probe(2) + typed + typed);
     fs::write(path, disk_probe(4));
     disk::heard(state, [path]);
-    disk::reload_one(state, disk_about(path), nil);
+    disk::reload_one(state, disk_about(path));
     check(fs::read(path).or("") == disk_probe(4) && state.script_buffers[path] == nil, "reloading leaves the file and drops the edits");
 
     disk::edit(state, path, disk_probe(4) + typed);
@@ -367,13 +367,13 @@ pub fn disk_changed(state: &mut editor::State) {
     check(autosave::write_typed(state, engine::unix_time() + rest) == 0, "and still writes nothing");
     disk::edit(state, path, disk_probe(4) + typed + typed);
     check(autosave::write_typed(state, engine::unix_time() + rest) == 0 && window::showing(state, disk::SHEET), "the next write asks again");
-    disk::reload_all(state, nil, nil);
+    disk::reload_all(state);
 
     disk::edit(state, path, disk_probe(5) + typed);
     fs::write(path, disk_probe(6));
     shell::save_buffer(state, path);
     check(fs::read(path).or("") == disk_probe(6) && window::showing(state, disk::SHEET), "a write checks the file itself, ahead of the watcher");
-    disk::reload_all(state, nil, nil);
+    disk::reload_all(state);
 
     disk::edit(state, path, disk_probe(6) + typed);
     fs::write(path, disk_probe(6) + typed);
@@ -390,9 +390,9 @@ pub fn disk_changed(state: &mut editor::State) {
     }
     disk::heard(state, [path, other, third]);
     check(state.script_held.len() == 3 && window::showing(state, disk::SHEET), "several files changed under edits share one list");
-    disk::reload_one(state, disk_about(path), nil);
+    disk::reload_one(state, disk_about(path));
     check(state.script_held.len() == 2 && window::showing(state, disk::SHEET), "answering one leaves the others up");
-    disk::keep_all(state, nil, nil);
+    disk::keep_all(state);
     check(state.script_held.len() == 0 && !window::showing(state, disk::SHEET), "keeping all answers the rest");
     check(fs::read(other).or("") == disk_probe(7) + typed && fs::read(third).or("") == disk_probe(7) + typed, "and writes each");
 
@@ -400,7 +400,7 @@ pub fn disk_changed(state: &mut editor::State) {
     fs::write(other, disk_probe(9));
     disk::heard(state, []);
     check(state.script_held.has(other), "an empty list checks what is open");
-    disk::reload_all(state, nil, nil);
+    disk::reload_all(state);
 
     // Most of a checkout is nothing the editor holds: no read, one list.
     let many: [str] = [];
