@@ -970,8 +970,8 @@ fn apply_process(eng: &Engine, entity: Entity, named: Option<&str>, node: &str) 
 const NODE_KEYS: [&str; 6] = [
     keys::VISIBLE,
     "tint",
-    "z_index",
-    "z_as_relative",
+    keys::Z_INDEX,
+    keys::Z_AS_RELATIVE,
     crate::process::KEY,
     words::settings_api::TAGS,
 ];

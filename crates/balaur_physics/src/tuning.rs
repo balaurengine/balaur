@@ -442,13 +442,13 @@ fn restore_world(eng: &Engine, value: &serde_json::Value) {
             .map(|n| n.as_f64().map(|n| n as f32))
             .collect()
     };
-    if let Some([x, y, z]) = vector("gravity_3d")
+    if let Some([x, y, z]) = vector(k::GRAVITY_3D)
         .as_deref()
         .and_then(|v| <[f32; 3]>::try_from(v).ok())
     {
         eng.resource::<PhysicsState3d>().borrow_mut().world.gravity = crate::scalar::v3(x, y, z);
     }
-    if let Some([x, y]) = vector("gravity_2d")
+    if let Some([x, y]) = vector(k::GRAVITY_2D)
         .as_deref()
         .and_then(|v| <[f32; 2]>::try_from(v).ok())
     {

@@ -92,10 +92,8 @@ that file's top.
 a word-shaped literal that respells a constant in reach, is compared or matched
 (`== "idle"`, `"idle" =>`), or appears twice in a file or three times in a
 package. A generated file answers to its generator, and a test may spell a word,
-though one it shares with the code should name the same constant. Older
-findings sit in `scripts/string_lints_baseline.txt`, so only a new spelling
-fails; name the word, and `--update-baseline` shrinks the file. A game runs it
-with `--project .`.
+though one it shares with the code should name the same constant. A game runs
+it with `--project .`.
 
 ## Comments
 

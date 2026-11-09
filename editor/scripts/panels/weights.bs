@@ -15,7 +15,7 @@ impl Weights {
         let source = scene::get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
-        for word in ["weights_changed", "outline_changed", "inspector_changed"] {
+        for word in ["weights_changed", signals::OUTLINE, signals::INSPECTOR] {
             events::listen(self.node, word, source);
         }
     }

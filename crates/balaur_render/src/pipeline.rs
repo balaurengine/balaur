@@ -125,7 +125,7 @@ pub(crate) fn material_pipeline(
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
-            entry_point: Some("fs_main"),
+            entry_point: Some(words::pipeline::FS_MAIN),
             targets: &[Some(wgpu::ColorTargetState {
                 // The HDR rasterization target; the resolve pass tonemaps.
                 format: Context::render_format(),
@@ -252,7 +252,7 @@ pub(crate) fn prepass_pipeline(
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
-            entry_point: Some("fs_main"),
+            entry_point: Some(words::pipeline::FS_MAIN),
             targets: &[target.clone(), target.clone(), target.clone(), target],
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         }),

@@ -12,6 +12,7 @@ use balaur_script::Value;
 use crate::engine::Engine;
 use crate::engine_api::text;
 use crate::files::{self, FileBackend};
+use crate::vocabulary::words;
 
 /// The directories beyond the project's own that `fs.*` may reach.
 ///
@@ -278,7 +279,7 @@ pub(crate) fn fs_list(eng: &Engine, args: &[Value]) -> Result<Value> {
             .into_iter()
             .map(|(name, is_dir)| {
                 Value::Map(vec![
-                    ("name".into(), Value::Str(name)),
+                    (words::scene_toml::NAME.into(), Value::Str(name)),
                     ("is_dir".into(), Value::Bool(is_dir)),
                 ])
             })

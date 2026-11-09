@@ -61,6 +61,7 @@ const SCRIPTS: str = "scripts";
 const ENGINE: str = "engine";
 const EXPORT: str = "export";
 const INPUT: str = "input";
+const LIGHT: str = "light";
 const MANAGER: str = "manager";
 const SPLIT: str = "split";
 
@@ -903,8 +904,8 @@ fn states() -> any {
         "test:autosave": selftest::autosaving,
         "test:disk_changed": selftest::disk_changed,
         disk::SHEET: selftest::disk_sheet,
-        "light": state_light,
-        "dark": state_dark,
+        LIGHT: state_light,
+        panel_keys::DARK: state_dark,
         "play": state_play,
         INPUT: state_input,
         "pose": state_animdemo,

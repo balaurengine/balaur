@@ -14,6 +14,7 @@ use util;
 use window;
 use words::fields;
 use words::form_fields;
+use words::hooks;
 use words::inspector_fields;
 use words::layout_fields;
 use words::project_fields;
@@ -183,8 +184,8 @@ pub fn fill(state: &mut editor::State) {
         form_fields::PLACEHOLDER: placeholder,
         form_fields::QUERY: state.newnode_query,
         form_fields::ROWS_H: (specs.len() as float) * (row_height + 2.0) + 4.0,
-        form_fields::ON_CHANGE: "handle",
-        form_fields::ON_SUBMIT: "handle_submit",
+        form_fields::ON_CHANGE: hooks::HANDLE,
+        form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: on_query_typed, project_fields::SUBMIT: on_query_submitted },
     });
     ui::fill_rows(host, specs);

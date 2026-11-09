@@ -514,7 +514,7 @@ impl Gamend {
 
     fn activity() -> [any] {
         let chips: [any] = [];
-        for name in [ALL, "calls", "messages", "errors"] {
+        for name in [ALL, CALLS, MESSAGES, ERRORS] {
             let chip = button(self.node, name, "filter_by", { FILTER: name });
             chip[CHECKED] = self.filter == name;
             chips.push(chip);

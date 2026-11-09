@@ -86,7 +86,7 @@ const ID: str = "theme";
 internal const GROUND: str = "bg_panel";
 
 fn PAGES() -> [str] {
-    ["colors", "sizes", TEXT, CONTROLS, BOXES, "layout", "kinds", PROBLEMS]
+    [COLORS, SIZES, TEXT, CONTROLS, BOXES, LAYOUT, KINDS, PROBLEMS]
 }
 
 // The tables under a role that replace it in a state, and the class one.
@@ -118,7 +118,7 @@ fn KEYS() -> [str] {
 }
 
 fn COLOR_KEYS() -> [str] {
-    [FILL, "text_color", STROKE, ICON_COLOR, ICON_FILL]
+    [FILL, TEXT_COLOR, STROKE, ICON_COLOR, ICON_FILL]
 }
 
 // The keys a size's name may stand in for a number on.

@@ -17,7 +17,7 @@ impl Timeline {
         let source = scene::get_node("Editor");
         self.editor = source.script;
         events::listen(self.node, signals::DOCKS, source);
-        for word in [signals::TIMELINE, "play_frame", "outline_changed"] {
+        for word in [signals::TIMELINE, signals::PLAY, signals::OUTLINE] {
             events::listen(self.node, word, source);
         }
         events::listen(self.node, RESIZED, self.node);

@@ -58,9 +58,9 @@ const MESH: str = "mesh";
 // What a soft body replaces on a node: the rigid body and its shape.
 fn rigid(two_d: bool) -> [str] {
     if two_d {
-        [components::BODY2D, "collider2d", MESH_COLLIDER2D, CONVEX_DECOMPOSITION2D, components::CHARACTER2D]
+        [components::BODY2D, COLLIDER2D, MESH_COLLIDER2D, CONVEX_DECOMPOSITION2D, components::CHARACTER2D]
     } else {
-        [components::BODY3D, "collider3d", MESH_COLLIDER3D, CONVEX_DECOMPOSITION3D, components::CHARACTER3D]
+        [components::BODY3D, COLLIDER3D, MESH_COLLIDER3D, CONVEX_DECOMPOSITION3D, components::CHARACTER3D]
     }
 }
 
@@ -93,16 +93,16 @@ fn take_off(node: any, component: str) {
 fn groups() -> [[str]] {
     [
         [components::SPRITE, components::SHAPE2D, components::LINE2D, POLYGON, "text2d", components::TILEMAP],
-        ["mesh", components::SHAPE3D, components::TEXT3D],
-        [components::BODY2D, "softbody2d", components::CHARACTER2D],
-        [components::BODY3D, "softbody3d", components::CHARACTER3D, "vehicle3d"],
+        [MESH, components::SHAPE3D, components::TEXT3D],
+        [components::BODY2D, SOFTBODY2D, components::CHARACTER2D],
+        [components::BODY3D, SOFTBODY3D, components::CHARACTER3D, "vehicle3d"],
     ]
 }
 
 // Properties that mean the same on every member of a group, carried from the
 // component a new type replaces when the new one has them.
 fn carried() -> [str] {
-    ["color", "texture", MATERIAL]
+    [COLOR, TEXTURE, MATERIAL]
 }
 
 // The presets a recipe builds better than their plain parts would.

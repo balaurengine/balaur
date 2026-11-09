@@ -1,4 +1,6 @@
 // The hooks every script may define.
 
+internal const HANDLE: str = "handle";
+internal const HANDLE_SUBMIT: str = "handle_submit";
 internal const INIT: str = "init";
 internal const UPDATE: str = "update";

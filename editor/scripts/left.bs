@@ -16,6 +16,7 @@ use window;
 use words::components;
 use words::fields;
 use words::form_fields;
+use words::hooks;
 use words::layout_fields;
 use words::project_fields;
 use words::roles;
@@ -451,8 +452,8 @@ pub fn rename_fill(state: &mut editor::State) {
         form_fields::PLACEHOLDER: "Name",
         form_fields::QUERY: state.rename_text,
         form_fields::ROWS_H: row_height + 6.0,
-        form_fields::ON_CHANGE: "handle",
-        form_fields::ON_SUBMIT: "handle_submit",
+        form_fields::ON_CHANGE: hooks::HANDLE,
+        form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: on_rename_typed, project_fields::SUBMIT: on_rename_submitted },
     });
     ui::fill_rows(host, [

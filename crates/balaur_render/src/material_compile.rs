@@ -195,7 +195,7 @@ pub struct Compiled {
 
 /// The entry point every material's colour pass draws through.
 #[cfg(feature = "compile")]
-const FRAGMENT_ENTRY: &str = "fs_main";
+const FRAGMENT_ENTRY: &str = words::pipeline::FS_MAIN;
 
 /// The entry point the transparency pass draws a 3D material through.
 pub const TRANSPARENT_ENTRY: &str = "fs_oit";

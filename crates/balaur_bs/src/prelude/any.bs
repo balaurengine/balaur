@@ -13,6 +13,7 @@ const STR: int = 4;
 const LIST: int = 5;
 const MAP: int = 6;
 const NODE: int = 7;
+const NIL_WORD: str = "nil";
 
 pub fn kind(value: any) -> str {
     let tag = __tag(value);
@@ -31,7 +32,7 @@ pub fn kind(value: any) -> str {
     } else if tag == NODE {
         "node"
     } else {
-        "nil"
+        NIL_WORD
     }
 }
 
@@ -416,7 +417,7 @@ fn order_bytes(first: str, second: str) -> int {
 fn quoted(value: any) -> str {
     let tag = __tag(value);
     if tag == 0 {
-        return "nil";
+        return NIL_WORD;
     }
     if tag == BOOL {
         return if __bool(value) { "true" } else { "false" };

@@ -135,7 +135,6 @@ jobs:
       - name: scripts/comment_lints.py
         run: python3 scripts/comment_lints.py --fail-on-error
       # A word-shaped string in shipped Rust or Balaur Script is named once.
-      # Findings older than the lint sit in its baseline; a new one fails.
       - name: scripts/string_lints.py
         run: python3 scripts/string_lints.py --fail-on-error
       # Every hand-written document: none of the vocabulary a model reaches

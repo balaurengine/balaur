@@ -18,7 +18,7 @@ fn id_of(node: Node) -> str {
 impl Plugin {
     pub fn init() {
         let editor = scene::get_node("Editor");
-        for word in [signals::PLUGINS_CHANGED, "outline_changed", "inspector_changed", signals::DEBUGGER_CHANGED] {
+        for word in [signals::PLUGINS_CHANGED, signals::OUTLINE, signals::INSPECTOR, signals::DEBUGGER_CHANGED] {
             events::listen(self.node, word, editor);
         }
         events::listen(self.node, "saved");
