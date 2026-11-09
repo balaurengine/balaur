@@ -643,7 +643,7 @@ fn parse_effects(table: &toml::Value) -> anyhow::Result<Rc<dyn std::any::Any>> {
 pub(crate) fn register_camera_effects_asset(reg: &mut Registry<'_>) {
     reg.register_record_asset(
         k::CAMERA_EFFECTS,
-        "camera_effects",
+        k::CAMERA_EFFECTS,
         EFFECTS_DOC,
         effects_schema(),
         parse_effects,

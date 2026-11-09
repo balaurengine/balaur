@@ -405,7 +405,7 @@ pub(crate) fn build_desktop(
             let out = native_scripts_beside(exe, words::native::MACOS);
             let install = format!("@rpath/{}", native_scripts_file(words::native::MACOS));
             let mut slices = Vec::new();
-            for arch in [ARM64, "x86_64"] {
+            for arch in [ARM64, words::targets::X86_64] {
                 let slice = AppleSlice {
                     arch,
                     triple: format!("{arch}-apple-macos{}", request.min_macos),

@@ -548,7 +548,7 @@ pub fn compute(state: &mut editor::State) {
     let tight = state.compact;
     size(state, SHELL_WORD, PADDING, gutter(state));
     let gap = if tight { TIGHT_GAP } else { layout_state[GAP].as_float() };
-    for id in ["body", "centre", "upperrow", "stack", "upper", SHELL_WORD] {
+    for id in [BODY, CENTRE, UPPERROW, STACK, UPPER, SHELL_WORD] {
         spaced(state, id, gap);
     }
     size(state, sides::LEFT, WIDTH, tree_width);
@@ -632,7 +632,7 @@ pub fn compute(state: &mut editor::State) {
     // The scene's rect under its old name; `at` is the frame it was set on, so
     // a self-test can tell a headless run from a drawn one. An unplaced stage
     // is not published: a played game's HUD would blink out for that frame.
-    if layout_state["stage"][layout_fields::WIDTH].as_float() > 0.0 && layout_state["stage"][layout_fields::HEIGHT].as_float() > 0.0 {
+    if layout_state[STAGE][layout_fields::WIDTH].as_float() > 0.0 && layout_state[STAGE][layout_fields::HEIGHT].as_float() > 0.0 {
         state.viewport = editor::Viewport {
             x: layout_state[STAGE]["x"].as_float(),
             y: layout_state[STAGE]["y"].as_float(),

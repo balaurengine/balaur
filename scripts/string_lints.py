@@ -11,11 +11,7 @@ the constants themselves are left out.
   word-compared       one side of `==` or `!=`, or a match arm
   word-repeated       twice in one file, or three times in one package
 
-Findings that predate the lint sit in a baseline, counted per file, so only a
-new spelling fails. Every line in that file is debt.
-
-  python3 scripts/string_lints.py [--fail-on-error] [--summary] [--debt]
-  python3 scripts/string_lints.py --update-baseline
+  python3 scripts/string_lints.py [--fail-on-error] [--summary]
   python3 scripts/string_lints.py --project ../polyglot-pirates-app --summary
 """
 from __future__ import annotations
@@ -31,7 +27,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 BALAUR = Path(__file__).resolve().parent.parent
-BASELINE_NAME = "string_lints_baseline.txt"
 SKIP_DIRS = {"target", ".git", "node_modules", "build", "_build", "__pycache__", "tests", "benches"}
 # Harnesses that drive the editor and record it: test scaffolding, in main's tree.
 SCAFFOLD_SCRIPTS = {"selftest.bs", "showcase.bs"}
@@ -327,24 +322,6 @@ def findings_for(root: Path, files: list[tuple[Path, str]]) -> tuple[list[Findin
     return findings, words
 
 
-def read_baseline(path: Path) -> Counter:
-    counts: Counter = Counter()
-    if path.exists():
-        for line in path.read_text().splitlines():
-            if line and not line.startswith("#"):
-                file, rule, n = line.split("\t")
-                counts[f"{file}\t{rule}"] = int(n)
-    return counts
-
-
-def write_baseline(path: Path, counts: Counter) -> None:
-    path.write_text(
-        "# Word literals that predate the lint. Never add to this file by hand;\n"
-        "# regenerate with: python3 scripts/string_lints.py --update-baseline\n"
-        "# Every line here is debt. Deleting one is progress.\n"
-        + "".join(f"{k}\t{v}\n" for k, v in sorted(counts.items())))
-
-
 def print_summary(findings: list[Finding], words: dict[str, Counter], root: Path,
                   files: list[tuple[Path, str]]) -> None:
     by_package: dict[str, Counter] = defaultdict(Counter)
@@ -363,42 +340,19 @@ def main() -> int:
     ap.add_argument("--project", type=Path, help="lint a Balaur project's own scripts instead of the engine")
     ap.add_argument("--fail-on-error", action="store_true")
     ap.add_argument("--summary", action="store_true", help="findings per package, and its most-spelled words")
-    ap.add_argument("--update-baseline", action="store_true", help="record current findings as the accepted debt")
-    ap.add_argument("--debt", action="store_true", help="print the outstanding debt and exit")
     args = ap.parse_args()
 
     is_engine = args.project is None
     root = BALAUR if is_engine else args.project.resolve()
-    baseline = (BALAUR / "scripts" if is_engine else root) / BASELINE_NAME
     files = source_files(root, is_engine)
     findings, words = findings_for(root, files)
-    counts = Counter(f"{f.path}\t{f.rule}" for f in findings)
 
-    if args.update_baseline:
-        write_baseline(baseline, counts)
-        print(f"baseline written: {sum(counts.values())} findings across {len(counts)} entries")
-        return 0
-    base = read_baseline(baseline)
-    if args.debt:
-        print(f"outstanding debt: {sum(base.values())} findings across {len(base)} file/rule pairs")
-        for key, n in base.most_common():
-            file, rule = key.split("\t")
-            print(f"  {n:5d}  {rule:20s} {file}")
-        return 0
     if args.summary:
         print_summary(findings, words, root, files)
-
-    seen: Counter = Counter()
-    new: list[Finding] = []
     for f in findings:
-        key = f"{f.path}\t{f.rule}"
-        seen[key] += 1
-        if seen[key] > base[key]:
-            new.append(f)
-    for f in new:
         print(f"ERROR  {f.path}:{f.line}  [{f.rule}] {f.message}")
-    print(f"\n{len(new)} new findings · {sum(base.values())} accepted (debt: --debt)")
-    return 1 if (new and args.fail_on_error) else 0
+    print(f"\n{len(findings)} findings")
+    return 1 if (findings and args.fail_on_error) else 0
 
 
 if __name__ == "__main__":

@@ -171,7 +171,7 @@ pub const STAGE_NAMES: [&str; 8] = [
     keys::FIRST,
     "pre_update",
     "update",
-    "fixed_update",
+    crate::hooks::FIXED_UPDATE,
     "post_update",
     "scene_sync",
     "render",

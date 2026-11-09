@@ -199,6 +199,7 @@ pub(crate) mod words {
     }
 
     pub(crate) mod pipeline {
+        pub(crate) const FS_MAIN: &str = "fs_main";
         pub(crate) const VS_MAIN: &str = "vs_main";
     }
 

@@ -12,7 +12,7 @@ pub class Keys {
 }
 
 fn STOPPED() -> [str] {
-    ["continue", "step_over", "step_into", "step_out"]
+    ["continue", verbs::STEP_OVER, verbs::STEP_INTO, verbs::STEP_OUT]
 }
 
 impl Keys {

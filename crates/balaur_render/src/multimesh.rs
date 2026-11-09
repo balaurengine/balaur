@@ -589,7 +589,7 @@ impl CustomBuffer {
         if self.buffer.is_none() || self.capacity < copies {
             self.capacity = copies.next_power_of_two();
             self.buffer = Some(ctxt.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("instance_custom"),
+                label: Some(crate::material::INSTANCE_CUSTOM),
                 size: (self.capacity * std::mem::size_of::<[f32; 4]>()) as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,

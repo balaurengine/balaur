@@ -21,6 +21,7 @@ const POLYGON: str = "polygon";
 const RADIUS: str = "radius";
 const RANGE: str = "range";
 const RECTANGLE: str = "rectangle";
+const SAMPLE_TEXT: str = "balaur";
 const SHADOW_ENABLED: str = "shadow_enabled";
 const SHAPE: str = "shape";
 const SHAPE2D: str = "shape2d";
@@ -50,13 +51,13 @@ pub fn all() -> [load::Case] {
         kind(SHAPE2D, COUNT, 2, SHAPE2D, { SHAPE: { KIND: CIRCLE, RADIUS: 1.5 } }),
         kind("shape2d_rect", COUNT, 2, SHAPE2D, { SHAPE: { KIND: RECTANGLE, SIZE: [3.0, 3.0] } }),
         kind(POLYGON, COUNT, 2, POLYGON, { MESH: "#square" }),
-        kind(TEXT2D, 1000, 2, TEXT2D, { TEXT: "balaur", PIXELS_PER_UNIT: 32.0 }),
+        kind(TEXT2D, 1000, 2, TEXT2D, { TEXT: SAMPLE_TEXT, PIXELS_PER_UNIT: 32.0 }),
         kind(LIGHT2D, 200, 2, LIGHT2D, { KIND: POINT, RANGE: 12.0 }),
         kind(PARTICLES2D, 200, 2, PARTICLES2D, { "rate": 20.0, "lifetime": 1.0, "speed": 4.0 }),
         // 3D: the same question for meshes and lights.
         kind(SHAPE3D, COUNT_3D, 3, SHAPE3D, { SHAPE: { KIND: SPHERE, RADIUS: 0.6 } }),
         kind("shape3d_cuboid", COUNT_3D, 3, SHAPE3D, { SHAPE: { KIND: BOX, SIZE: [1.0, 1.0, 1.0] } }),
-        kind(TEXT3D, 500, 3, TEXT3D, { TEXT: "balaur", PIXELS_PER_UNIT: 64.0 }),
+        kind(TEXT3D, 500, 3, TEXT3D, { TEXT: SAMPLE_TEXT, PIXELS_PER_UNIT: 64.0 }),
         kind(LIGHT3D, 200, 3, LIGHT3D, { KIND: POINT, RANGE: 8.0, SHADOW_ENABLED: false }),
         kind("light3d_shadow", 40, 3, LIGHT3D, { KIND: POINT, RANGE: 8.0, SHADOW_ENABLED: true }),
         // Neither: the node itself, and what a component with no drawing costs.
@@ -95,7 +96,7 @@ fn widget(w: world::World, c: load::Case, i: int) {
     let at = world::grid(i, 20000, 24.0);
     node.set_component(WIDGET, {
         KIND: ui::WIDGET_LABEL,
-        TEXT: "balaur",
+        TEXT: SAMPLE_TEXT,
         ANCHOR: ui::ANCHOR_TOP_LEFT,
         "x": 8.0 + at.x,
         "y": 8.0 + at.y,

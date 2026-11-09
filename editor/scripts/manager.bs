@@ -258,7 +258,7 @@ fn tabs() -> [[str]] {
         return [[PROJECTS, "Projects"]];
     }
     // `return`, because a block followed by `[` is an index.
-    return [[PROJECTS, "Projects"], ["examples", "Examples"], [FORGE, "On Forge"], ["engine", "Engine"]];
+    return [[PROJECTS, "Projects"], [EXAMPLES, "Examples"], [FORGE, "On Forge"], [ENGINE, "Engine"]];
 }
 
 // One column under this, two above it.

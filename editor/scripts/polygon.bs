@@ -111,7 +111,7 @@ pub fn modes(state: editor::State) -> [str] {
         return [POINTS];
     }
     // An explicit return: a block followed by `[` parses as an index.
-    return ["points", "polygons", "uv", WEIGHTS];
+    return [POINTS, POLYGONS, UV, WEIGHTS];
 }
 
 pub fn mode_name(id: str) -> str {

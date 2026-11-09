@@ -17,6 +17,7 @@ use words::components;
 use words::fields;
 use words::form_fields;
 use words::gizmo_parts;
+use words::hooks;
 use words::layout_fields;
 use words::project_fields;
 use words::roles;
@@ -159,8 +160,8 @@ pub fn fill(state: &mut editor::State) {
         form_fields::PLACEHOLDER: "Open fonts: a family, serif, mono…",
         form_fields::QUERY: state.font_finding.unwrap().query,
         form_fields::ROWS_H: (specs.len() as float) * (row_height + 2.0) + 4.0,
-        form_fields::ON_CHANGE: "handle",
-        form_fields::ON_SUBMIT: "handle_submit",
+        form_fields::ON_CHANGE: hooks::HANDLE,
+        form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: typed, project_fields::SUBMIT: typed },
     });
     ui::fill_rows(host, specs);

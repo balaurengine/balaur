@@ -10,6 +10,7 @@ use editor;
 use util;
 use words::fields;
 use words::gizmo_parts;
+use words::hooks;
 use words::project_fields;
 
 const BUTTON: str = "button";
@@ -34,7 +35,7 @@ pub fn on_submit(spec: ui::Control, handler: fn(&mut editor::State, any, any), d
     let carried = if held == nil { data } else { held };
     let kept = util::copy(util::map_or_empty(carried));
     kept[project_fields::SUBMIT] = handler;
-    spec.on_submit = "handle_submit";
+    spec.on_submit = hooks::HANDLE_SUBMIT;
     spec.data = kept;
     spec
 }

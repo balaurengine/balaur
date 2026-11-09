@@ -89,10 +89,8 @@ characters or more. `--project <path>` lints a game's own scripts, without its
 | `word-compared` | a word on one side of `==` or `!=`, or a match arm |
 | `word-repeated` | a word spelled twice in one file or three times in one package |
 
-Findings older than the lint are counted per file in
-`scripts/string_lints_baseline.txt`, and only a new one fails. `--summary` prints
-findings per package with its most-spelled words, and `--debt` the outstanding
-counts.
+Every finding fails. `--summary` prints findings per package with its
+most-spelled words.
 
 ## Names
 

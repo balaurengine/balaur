@@ -14,7 +14,7 @@ impl Hooks {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        for word in [signals::CODE_CHANGED, "chrome_changed", "outline_changed"] {
+        for word in [signals::CODE_CHANGED, signals::CHROME, signals::OUTLINE] {
             events::listen(self.node, word, source);
         }
     }

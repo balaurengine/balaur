@@ -310,7 +310,7 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
         (SET_INSTANCE_COUNT, on, "(node: node, count: int)", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
         (INSTANCE_COUNT, on, "(node: node) -> int", "How many instances the node holds."),
         (SET_VISIBLE_INSTANCE_COUNT, on, "(node: node, count: int)", "How many instances draw, from the first; -1 draws them all."),
-        ("visible_instance_count", on, "(node: node) -> int", "How many instances draw; -1 is all of them."),
+        (k::VISIBLE_INSTANCE_COUNT, on, "(node: node) -> int", "How many instances draw; -1 is all of them."),
         (INSTANCES, on, "(node: node) -> [render::MultimeshInstance]", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
         (SET_INSTANCES, on, "(node: node, instances: [render::MultimeshInstance])", "Replace every instance with a list in the `multimesh` asset's shape."),
         (BUFFER, on, "(node: node) -> [float]", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
@@ -370,7 +370,7 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
             })
         },
     );
-    m.function("visible_instance_count", |eng: &Engine, node: NodeId| {
+    m.function(k::VISIBLE_INSTANCE_COUNT, |eng: &Engine, node: NodeId| {
         with_multimesh(eng, node, |multimesh| Ok(multimesh.visible_instance_count))
     });
     m.function(INSTANCES, |eng: &Engine, node: NodeId| {

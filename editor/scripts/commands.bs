@@ -29,9 +29,6 @@ const REDO_Y: str = "redo_y";
 const RELOAD: str = "reload";
 const RENAME_SYMBOL: str = "rename_symbol";
 const REPLACE: str = "replace";
-const STEP_INTO: str = "step_into";
-const STEP_OUT: str = "step_out";
-const STEP_OVER: str = "step_over";
 
 pub struct KeysView {
     internal stopped: bool,
@@ -79,11 +76,11 @@ pub fn run(state: &mut editor::State, name: str) {
         exporter::open(state);
     } else if name == CONTINUE {
         shell::resume(state, debugger::CONTINUE);
-    } else if name == STEP_OVER {
+    } else if name == verbs::STEP_OVER {
         shell::resume(state, debugger::STEP_OVER);
-    } else if name == STEP_INTO {
+    } else if name == verbs::STEP_INTO {
         shell::resume(state, debugger::STEP_INTO);
-    } else if name == STEP_OUT {
+    } else if name == verbs::STEP_OUT {
         shell::resume(state, debugger::STEP_OUT);
     } else if name == verbs::PLAY {
         shell::toggle_play(state);

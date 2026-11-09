@@ -89,7 +89,7 @@ pub(crate) fn follow_script(
     entity: Entity,
     host: &dyn balaur_script::ScriptHost<Engine>,
 ) {
-    if host.has_method(crate::node_id_of(entity), "fixed_update") {
+    if host.has_method(crate::node_id_of(entity), crate::hooks::FIXED_UPDATE) {
         enable(eng, entity);
     }
     crate::events::hearers_may_have_changed(eng, entity);
