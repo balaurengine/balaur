@@ -21,6 +21,12 @@ use crate::gamepad::{GamepadState, Pad};
 use crate::rumble::{self, Falloff, Placed, Spec, Step};
 use crate::vocabulary::{keys as k, words as w};
 
+const GAMEPAD_CAN_RUMBLE: &str = "gamepad_can_rumble";
+const GAMEPAD_RUMBLE: &str = "gamepad_rumble";
+const GAMEPAD_SET_LISTENER: &str = "gamepad_set_listener";
+const GAMEPAD_STOP_RUMBLE: &str = "gamepad_stop_rumble";
+const VIBRATE: &str = "vibrate";
+
 /// Where a placed rumble is at full strength and where it is gone, the same
 /// numbers a sound uses, so a rumble and its sound fade together.
 const DEFAULT_MIN_DISTANCE: f32 = 1.0;
@@ -195,11 +201,11 @@ fn wake_in(seconds: f32) {
 /// script waits for arrives everywhere.
 pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("gamepad_can_rumble", &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected."),
-        ("gamepad_rumble", &[], "(id: int, opts: RumbleOptions?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),
-        ("gamepad_stop_rumble", &[], "", "Silence the pad now, without the `on_gamepad_rumble_finished` a rumble's natural end sends."),
-        ("gamepad_set_listener", &[], "(id: int, position: Vec3)", "Where the pad's player is, for a rumble given a `position`; until set, a placed rumble plays at full strength."),
-        ("vibrate", &[], "(seconds: float)", "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
+        (GAMEPAD_CAN_RUMBLE, &[], "", "Whether the pad has motors to rumble; false for a pad that is not connected."),
+        (GAMEPAD_RUMBLE, &[], "(id: int, opts: RumbleOptions?) -> bool", "Rumble the pad. Options: `strong` and `weak`, the two motors at 0..1; `duration` in seconds; `delay` before it starts; `pulse` and `gap` to beat on and off; `attack`, `attack_level`, `fade` and `fade_level` to shape each pulse; `position` with `min_distance`, `max_distance`, `falloff` (`inverse`, `linear` or `exponential`) and `rolloff` to weaken it with distance from `gamepad_set_listener`. Returns whether the pad can rumble; a second rumble replaces the first."),
+        (GAMEPAD_STOP_RUMBLE, &[], "", "Silence the pad now, without the `on_gamepad_rumble_finished` a rumble's natural end sends."),
+        (GAMEPAD_SET_LISTENER, &[], "(id: int, position: Vec3)", "Where the pad's player is, for a rumble given a `position`; until set, a placed rumble plays at full strength."),
+        (VIBRATE, &[], "(seconds: float)", "Buzz the device for that many seconds: a phone's motor, or a page's `navigator.vibrate`. Nothing on a desktop, and never recorded, like rumble."),
     ]);
     for falloff in w::FALLOFFS {
         m.constant(
@@ -207,11 +213,11 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
             Value::Str((*falloff).to_string()),
         );
     }
-    m.function("vibrate", |_: &Engine, seconds: f64| {
+    m.function(VIBRATE, |_: &Engine, seconds: f64| {
         vibrate(millis(seconds));
         Ok(())
     });
-    m.function("gamepad_can_rumble", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_CAN_RUMBLE, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let v = state.borrow().pad(id).is_some_and(Pad::can_rumble);
         Ok(v)
@@ -222,7 +228,7 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
         "One rumble: the two motors, how long and when, its beat and the shape of each pulse, and a `position` that weakens it with distance from `gamepad_set_listener`.",
     )]);
     m.function(
-        "gamepad_rumble",
+        GAMEPAD_RUMBLE,
         |eng: &Engine, (id, opts): (i64, Option<Value>)| {
             let state = eng.resource::<GamepadState>();
             let can = state.borrow().pad(id).is_some_and(Pad::can_rumble);
@@ -237,7 +243,7 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
             Ok(true)
         },
     );
-    m.function("gamepad_stop_rumble", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_STOP_RUMBLE, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let mut state = state.borrow_mut();
         if state.rumble.stop(id) {
@@ -246,7 +252,7 @@ pub(crate) fn install_haptics_api(m: &mut Module<Engine>) {
         Ok(())
     });
     m.function(
-        "gamepad_set_listener",
+        GAMEPAD_SET_LISTENER,
         |eng: &Engine, (id, position): (i64, Value)| {
             let Some(position) = vec3(&position) else {
                 anyhow::bail!("gamepad_set_listener takes a Vec3");

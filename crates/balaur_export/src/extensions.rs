@@ -3,11 +3,12 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::words;
 use anyhow::{Context, Result};
 use balaur::standalone::{EXTENSIONS_DIR, extensions_beside};
 
 /// The suffix an extension library has on each desktop.
-const SUFFIXES: [&str; 3] = ["so", "dylib", "dll"];
+const SUFFIXES: [&str; 3] = ["so", "dylib", words::extensions::DLL];
 
 /// Every library in the project's `extensions/`, sorted.
 pub(crate) fn in_project(project: &Path) -> Vec<PathBuf> {
@@ -46,10 +47,10 @@ pub(crate) fn ship_for(project: &Path, template: &[u8], exe: &Path) -> Result<Ve
 /// The suffix of the libraries `executable` can load, read off its format.
 fn suffix_for(executable: &[u8]) -> Option<&'static str> {
     match executable.get(..4)? {
-        [0x7f, b'E', b'L', b'F'] => Some("so"),
+        [0x7f, b'E', b'L', b'F'] => Some(words::artifacts::SO),
         // Thin Mach-O, 32 and 64 bit, then a universal binary.
-        [0xce | 0xcf, 0xfa, 0xed, 0xfe] | [0xca, 0xfe, 0xba, 0xbe] => Some("dylib"),
-        [b'M', b'Z', ..] => Some("dll"),
+        [0xce | 0xcf, 0xfa, 0xed, 0xfe] | [0xca, 0xfe, 0xba, 0xbe] => Some(words::artifacts::DYLIB),
+        [b'M', b'Z', ..] => Some(words::extensions::DLL),
         _ => None,
     }
 }

@@ -4,6 +4,7 @@
 //! keys; the words are read back into the shaper's types here.
 
 /// The `font` and `text_style` assets' rows.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub mod keys {
     pub const SOURCE: &str = balaur_core::assets::SOURCE;
     pub const FEATURES: &str = "features";
@@ -39,6 +40,7 @@ pub(crate) fn options(words: &[&str]) -> String {
         .join(", ")
 }
 
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub mod words {
     pub const NORMAL: &str = "normal";
 
@@ -104,4 +106,18 @@ pub mod words {
     pub const OFF: &str = "off";
     /// Whether glyphs are hinted: `auto` takes the face's import setting.
     pub const HINTINGS: &[&str] = &[AUTO, ON, OFF];
+    pub(crate) const CHAR: &str = "char";
+    pub(crate) const COMMON: &str = "common";
+    pub(crate) const INFO: &str = "info";
+    pub(crate) const KERNING: &str = "kerning";
+    pub(crate) const PAGE: &str = "page";
+
+    pub(crate) mod fonts {
+        pub(crate) const FONTS: &str = "fonts";
+    }
+
+    pub(crate) mod markup {
+        pub(crate) const FONT: &str = "font";
+        pub(crate) const SIZE: &str = "size";
+    }
 }

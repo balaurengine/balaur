@@ -9,6 +9,8 @@ use crate::dim2::PhysicsState2d;
 use crate::dim2::collider::first_collider;
 use crate::rapier2d::prelude::{Aabb, Collider};
 use crate::scalar::{self, Real};
+use crate::vocabulary::words;
+use crate::vocabulary::words::functions as f;
 use crate::vocabulary::{component as c, keys as k, map};
 
 /// A node's first 2D collider, for the readers that ask one question about it.
@@ -32,17 +34,17 @@ fn corners(aabb: &Aabb) -> (Real, Real, Real, Real) {
 /// Replacing a 2D collider, and the boxes it covers.
 pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("aabb", &[c::COLLIDER_2D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
-        ("swept_aabb", &[c::COLLIDER_2D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
-        ("collision_aabb", &[c::COLLIDER_2D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
-        ("broad_phase_aabb", &[c::COLLIDER_2D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
+        (words::AABB, &[c::COLLIDER_2D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
+        (f::SWEPT_AABB, &[c::COLLIDER_2D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
+        (f::COLLISION_AABB, &[c::COLLIDER_2D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
+        (f::BROAD_PHASE_AABB, &[c::COLLIDER_2D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
     ]);
-    m.function("aabb", |eng: &Engine, node: NodeId| {
+    m.function(words::AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| {
             Ok(corners(&collider.compute_aabb()))
         })
     });
-    m.function("swept_aabb", |eng: &Engine, node: NodeId| {
+    m.function(f::SWEPT_AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |state, collider| {
             // Unclamped by speculative_distance, so the box spans the whole step.
             let dt = balaur_core::fixed_dt();
@@ -56,13 +58,13 @@ pub(crate) fn install_collider2d_api(m: &mut Module<Engine>) {
             Ok(corners(&collider.compute_swept_aabb(&next)))
         })
     });
-    m.function("collision_aabb", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLISION_AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |state, collider| {
             let prediction = state.world.integration_parameters.prediction_distance();
             Ok(corners(&collider.compute_collision_aabb(prediction)))
         })
     });
-    m.function("broad_phase_aabb", |eng: &Engine, node: NodeId| {
+    m.function(f::BROAD_PHASE_AABB, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |state, collider| {
             let params = &state.world.integration_parameters;
             Ok(corners(
@@ -93,20 +95,20 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("collider_mass", &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
-        ("collider_volume", &[c::COLLIDER_2D], "", "How much area the shape encloses."),
-        ("collider_mass_properties", &[c::COLLIDER_2D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
-        ("collider_mesh", &[c::COLLIDER_2D], "(node: node) -> ColliderMesh", "A voxel collider's outline as points and the segments between them, for drawing it or for spawning the pieces it broke into."),
-        ("pose_in_body", &[c::COLLIDER_2D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
-        ("handles", &[c::COLLIDER_2D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
+        (f::COLLIDER_MASS, &[c::COLLIDER_2D], "", "What this collider weighs, density and size together."),
+        (f::COLLIDER_VOLUME, &[c::COLLIDER_2D], "", "How much area the shape encloses."),
+        (f::COLLIDER_MASS_PROPERTIES, &[c::COLLIDER_2D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
+        (f::COLLIDER_MESH, &[c::COLLIDER_2D], "(node: node) -> ColliderMesh", "A voxel collider's outline as points and the segments between them, for drawing it or for spawning the pieces it broke into."),
+        (f::POSE_IN_BODY, &[c::COLLIDER_2D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
+        (f::HANDLES, &[c::COLLIDER_2D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
     ]);
-    m.function("collider_mass", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_MASS, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| Ok(collider.mass()))
     });
-    m.function("collider_volume", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_VOLUME, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| Ok(collider.volume()))
     });
-    m.function("collider_mass_properties", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_MASS_PROPERTIES, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| {
             let props = collider.mass_properties();
             Ok(map([
@@ -116,7 +118,7 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
             ]))
         })
     });
-    m.function("collider_mesh", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_MESH, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| {
             let (points, segments) = collider
                 .shape()
@@ -136,7 +138,7 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
             ]))
         })
     });
-    m.function("pose_in_body", |eng: &Engine, node: NodeId| {
+    m.function(f::POSE_IN_BODY, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |_, collider| {
             Ok(collider.position_wrt_parent().map_or(Value::Nil, |pose| {
                 map([
@@ -146,7 +148,7 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
             }))
         })
     });
-    m.function("handles", |eng: &Engine, node: NodeId| {
+    m.function(f::HANDLES, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
@@ -171,11 +173,11 @@ pub(crate) fn install_collider2d_reader_api(m: &mut Module<Engine>) {
 /// Cutting holes in a 2D heightfield while the game runs, and reading them.
 pub(crate) fn install_heightfield_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_heightfield_hole", &[c::COLLIDER_2D], "", "Remove or restore one segment of a heightfield's ground, numbered from the first height."),
-        ("heightfield_hole", &[c::COLLIDER_2D], "", "Whether a heightfield segment has no ground."),
+        (f::SET_HEIGHTFIELD_HOLE, &[c::COLLIDER_2D], "", "Remove or restore one segment of a heightfield's ground, numbered from the first height."),
+        (f::HEIGHTFIELD_HOLE, &[c::COLLIDER_2D], "", "Whether a heightfield segment has no ground."),
     ]);
     m.function(
-        "set_heightfield_hole",
+        f::SET_HEIGHTFIELD_HOLE,
         |eng: &Engine, (node, segment, hole): (NodeId, i64, bool)| {
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState2d>();
@@ -193,7 +195,7 @@ pub(crate) fn install_heightfield_2d_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "heightfield_hole",
+        f::HEIGHTFIELD_HOLE,
         |eng: &Engine, (node, segment): (NodeId, i64)| {
             with_first_collider(eng, node, |_, collider| {
                 let ground = collider

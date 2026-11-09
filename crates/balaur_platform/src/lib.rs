@@ -28,11 +28,28 @@
 
 use std::sync::mpsc::Sender;
 
+use crate::vocabulary::words;
 use anyhow::{Result, anyhow};
 use balaur_core::handler::{id_value, opt};
 use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
 use balaur_script::{Module, Value};
+
+const ALIAS: &str = "alias";
+const BACKEND: &str = "backend";
+const CALL: &str = "call";
+const CLOUD_READ: &str = "cloud_read";
+const CLOUD_WRITE: &str = "cloud_write";
+const ID: &str = "id";
+const KIND: &str = "kind";
+const PLATFORM: &str = "platform";
+const PLAYER: &str = "player";
+const PROGRESS: &str = "progress";
+const SET_PRESENCE: &str = "set_presence";
+const SIGN_IN: &str = "sign_in";
+const SUBMIT_SCORE: &str = "submit_score";
+const UNLOCK: &str = "unlock";
+mod vocabulary;
 
 /// How many leaderboard entries `platform.scores` reads when the call names
 /// no `count`.
@@ -78,14 +95,14 @@ impl Call {
     #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
-            Self::SignIn => "sign_in",
-            Self::Unlock { .. } => "unlock",
-            Self::Progress { .. } => "progress",
-            Self::SubmitScore { .. } => "submit_score",
-            Self::Scores { .. } => "scores",
-            Self::CloudRead { .. } => "cloud_read",
-            Self::CloudWrite { .. } => "cloud_write",
-            Self::SetPresence { .. } => "set_presence",
+            Self::SignIn => SIGN_IN,
+            Self::Unlock { .. } => UNLOCK,
+            Self::Progress { .. } => PROGRESS,
+            Self::SubmitScore { .. } => SUBMIT_SCORE,
+            Self::Scores { .. } => kind::SCORES,
+            Self::CloudRead { .. } => CLOUD_READ,
+            Self::CloudWrite { .. } => CLOUD_WRITE,
+            Self::SetPresence { .. } => SET_PRESENCE,
         }
     }
 
@@ -128,8 +145,8 @@ pub enum Period {
 impl Scope {
     fn parse(text: &str) -> Result<Self> {
         match text {
-            "global" => Ok(Self::Global),
-            "friends" => Ok(Self::Friends),
+            words::GLOBAL => Ok(Self::Global),
+            words::FRIENDS => Ok(Self::Friends),
             other => Err(anyhow!(
                 "`scope` should be \"global\" or \"friends\", got {other:?}"
             )),
@@ -140,9 +157,9 @@ impl Scope {
 impl Period {
     fn parse(text: &str) -> Result<Self> {
         match text {
-            "today" => Ok(Self::Today),
-            "week" => Ok(Self::Week),
-            "all_time" => Ok(Self::AllTime),
+            words::TODAY => Ok(Self::Today),
+            words::WEEK => Ok(Self::Week),
+            words::ALL_TIME => Ok(Self::AllTime),
             other => Err(anyhow!(
                 "`period` should be \"today\", \"week\" or \"all_time\", got {other:?}"
             )),
@@ -394,8 +411,8 @@ fn pump_platform_system(eng: &Engine, _: f32) {
 
 fn player_value(player: &Player) -> Value {
     Value::Map(vec![
-        ("id".into(), Value::Str(player.id.clone())),
-        ("alias".into(), Value::Str(player.alias.clone())),
+        (ID.into(), Value::Str(player.id.clone())),
+        (ALIAS.into(), Value::Str(player.alias.clone())),
     ])
 }
 
@@ -423,20 +440,20 @@ fn event_value(event: PlatformEvent) -> Value {
     let mut pairs = vec![("request".into(), id_value(event.request()))];
     match event {
         PlatformEvent::SignedIn { player, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::SIGNED_IN.into())));
-            pairs.push(("player".into(), player_value(&player)));
-            pairs.push(("id".into(), Value::Str(player.id)));
-            pairs.push(("alias".into(), Value::Str(player.alias)));
+            pairs.push((KIND.into(), Value::Str(kind::SIGNED_IN.into())));
+            pairs.push((PLAYER.into(), player_value(&player)));
+            pairs.push((ID.into(), Value::Str(player.id)));
+            pairs.push((ALIAS.into(), Value::Str(player.alias)));
         }
         PlatformEvent::SignedOut { .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::SIGNED_OUT.into())));
+            pairs.push((KIND.into(), Value::Str(kind::SIGNED_OUT.into())));
         }
         PlatformEvent::Done { call, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::DONE.into())));
-            pairs.push(("call".into(), Value::Str(call)));
+            pairs.push((KIND.into(), Value::Str(kind::DONE.into())));
+            pairs.push((CALL.into(), Value::Str(call)));
         }
         PlatformEvent::Scores { board, entries, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::SCORES.into())));
+            pairs.push((KIND.into(), Value::Str(kind::SCORES.into())));
             pairs.push(("board".into(), Value::Str(board)));
             pairs.push((
                 "entries".into(),
@@ -445,8 +462,8 @@ fn event_value(event: PlatformEvent) -> Value {
                         .into_iter()
                         .map(|entry| {
                             Value::Map(vec![
-                                ("player".into(), Value::Str(entry.player)),
-                                ("alias".into(), Value::Str(entry.alias)),
+                                (PLAYER.into(), Value::Str(entry.player)),
+                                (ALIAS.into(), Value::Str(entry.alias)),
                                 ("rank".into(), Value::Int(entry.rank)),
                                 ("score".into(), Value::Int(entry.score)),
                             ])
@@ -456,17 +473,17 @@ fn event_value(event: PlatformEvent) -> Value {
             ));
         }
         PlatformEvent::Read { key, value, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::READ.into())));
+            pairs.push((KIND.into(), Value::Str(kind::READ.into())));
             pairs.push(("key".into(), Value::Str(key)));
             pairs.push(("value".into(), value.map_or(Value::Nil, Value::text)));
         }
         PlatformEvent::Failed { message, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::ERROR.into())));
+            pairs.push((KIND.into(), Value::Str(kind::ERROR.into())));
             pairs.push(("error".into(), Value::Str(message)));
         }
         PlatformEvent::Unsupported { call, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::UNSUPPORTED.into())));
-            pairs.push(("call".into(), Value::Str(call)));
+            pairs.push((KIND.into(), Value::Str(kind::UNSUPPORTED.into())));
+            pairs.push((CALL.into(), Value::Str(call)));
         }
     }
     Value::Map(pairs)
@@ -477,15 +494,15 @@ pub struct PlatformPlugin;
 
 impl balaur_plugin::Plugin for PlatformPlugin {
     fn name(&self) -> &'static str {
-        "platform"
+        PLATFORM
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(PlatformState::default());
         reg.insert_resource(PlatformSnapshot::default());
         reg.add_system(Stage::First, pump_platform_system);
-        reg.add_replay_source("platform", capture, restore);
-        let mut m = reg.script_module("platform")?;
+        reg.add_replay_source(PLATFORM, capture, restore);
+        let mut m = reg.script_module(PLATFORM)?;
         install_platform_api(&mut m);
         Ok(())
     }
@@ -573,62 +590,62 @@ fn install_platform_api(m: &mut Module<Engine>) {
     ]);
     m.describe(&[
         (
-            "backend",
+            BACKEND,
             &[],
             "() -> string",
             "The name of the loaded store, or \"none\".",
         ),
         (
-            "player",
+            PLAYER,
             &[],
             "() -> Player?",
             "Who the store says is playing, or nil before a sign-in has landed.",
         ),
-        ("signed_in", &[], "() -> bool", "Whether a sign-in has landed."),
+        (kind::SIGNED_IN, &[], "() -> bool", "Whether a sign-in has landed."),
         (
-            "sign_in",
+            SIGN_IN,
             &[],
             "() -> int",
             "Ask the store who is playing, and return the id its answer carries. A later sign-out is the `platform_event` event.",
         ),
         (
-            "unlock",
+            UNLOCK,
             &[],
             "(achievement: string) -> int",
             "Award an achievement whole, and return the id its answer carries.",
         ),
         (
-            "progress",
+            PROGRESS,
             &[],
             "(achievement: string, percent: float) -> int",
             "Report an achievement's completion, 0 to 100, and return the id its answer carries.",
         ),
         (
-            "submit_score",
+            SUBMIT_SCORE,
             &[],
             "(board: string, score: int) -> int",
             "Post a score to a leaderboard, and return the id its answer carries.",
         ),
         (
-            "scores",
+            kind::SCORES,
             &[],
             "(board: string, opts: ScoresOptions?) -> int",
             "Read a leaderboard's entries, and return the id whose `scores` answer holds them as `entries`, each a `Score`.",
         ),
         (
-            "cloud_read",
+            CLOUD_READ,
             &[],
             "(key: string) -> int",
             "Read a value the store syncs between the player's devices, and return the id whose `read` answer holds it as `value`: a string, or nil when the key holds nothing.",
         ),
         (
-            "cloud_write",
+            CLOUD_WRITE,
             &[],
             "(key: string, value: string) -> int",
             "Write a value for the store to sync between the player's devices, and return the id its answer carries.",
         ),
         (
-            "set_presence",
+            SET_PRESENCE,
             &[],
             "(text: string) -> int",
             "Say what the player is doing, where the store shows it, and return the id its answer carries.",
@@ -644,7 +661,7 @@ fn install_platform_api(m: &mut Module<Engine>) {
 /// What a script can ask without waiting: which store is loaded, and who it
 /// says is playing.
 fn install_platform_reads(m: &mut Module<Engine>) {
-    m.function("backend", |eng: &Engine, ()| {
+    m.function(BACKEND, |eng: &Engine, ()| {
         Ok(Value::Str(
             eng.resource::<PlatformState>()
                 .borrow()
@@ -652,12 +669,12 @@ fn install_platform_reads(m: &mut Module<Engine>) {
                 .into(),
         ))
     });
-    m.function("player", |eng: &Engine, ()| {
+    m.function(PLAYER, |eng: &Engine, ()| {
         let state = eng.resource::<PlatformState>();
         let state = state.borrow();
         Ok(state.player().map_or(Value::Nil, player_value))
     });
-    m.function("signed_in", |eng: &Engine, ()| {
+    m.function(kind::SIGNED_IN, |eng: &Engine, ()| {
         Ok(Value::Bool(
             eng.resource::<PlatformState>().borrow().player().is_some(),
         ))
@@ -666,22 +683,22 @@ fn install_platform_reads(m: &mut Module<Engine>) {
 
 /// Signing in, and saying what the player is doing.
 fn install_platform_session(m: &mut Module<Engine>) {
-    m.function("sign_in", |eng: &Engine, ()| {
+    m.function(SIGN_IN, |eng: &Engine, ()| {
         Ok(start_call(eng, Call::SignIn))
     });
-    m.function("set_presence", |eng: &Engine, presence: Value| {
+    m.function(SET_PRESENCE, |eng: &Engine, presence: Value| {
         let text = text(Some(&presence), "what the player is doing")?;
         Ok(start_call(eng, Call::SetPresence { text }))
     });
 }
 
 fn install_platform_achievements(m: &mut Module<Engine>) {
-    m.function("unlock", |eng: &Engine, achievement: Value| {
+    m.function(UNLOCK, |eng: &Engine, achievement: Value| {
         let achievement = text(Some(&achievement), "an achievement id")?;
         Ok(start_call(eng, Call::Unlock { achievement }))
     });
     m.function(
-        "progress",
+        PROGRESS,
         |eng: &Engine, (achievement, percent): (Value, Value)| {
             let achievement = text(Some(&achievement), "an achievement id")?;
             let percent = number(Some(&percent), "a percentage")?;
@@ -698,7 +715,7 @@ fn install_platform_achievements(m: &mut Module<Engine>) {
 
 fn install_platform_leaderboards(m: &mut Module<Engine>) {
     m.function(
-        "submit_score",
+        SUBMIT_SCORE,
         |eng: &Engine, (board, score): (Value, Value)| {
             let board = text(Some(&board), "a leaderboard id")?;
             #[allow(clippy::cast_possible_truncation, reason = "a leaderboard score")]
@@ -707,7 +724,7 @@ fn install_platform_leaderboards(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "scores",
+        kind::SCORES,
         |eng: &Engine, (board, opts): (Value, Option<Value>)| {
             let board = text(Some(&board), "a leaderboard id")?;
             let opts = opts.as_ref();
@@ -738,16 +755,13 @@ fn install_platform_leaderboards(m: &mut Module<Engine>) {
 }
 
 fn install_platform_cloud(m: &mut Module<Engine>) {
-    m.function("cloud_read", |eng: &Engine, key: Value| {
+    m.function(CLOUD_READ, |eng: &Engine, key: Value| {
         let key = text(Some(&key), "a key")?;
         Ok(start_call(eng, Call::CloudRead { key }))
     });
-    m.function(
-        "cloud_write",
-        |eng: &Engine, (key, value): (Value, Value)| {
-            let key = text(Some(&key), "a key")?;
-            let value = text(Some(&value), "a value")?;
-            Ok(start_call(eng, Call::CloudWrite { key, value }))
-        },
-    );
+    m.function(CLOUD_WRITE, |eng: &Engine, (key, value): (Value, Value)| {
+        let key = text(Some(&key), "a key")?;
+        let value = text(Some(&value), "a value")?;
+        Ok(start_call(eng, Call::CloudWrite { key, value }))
+    });
 }

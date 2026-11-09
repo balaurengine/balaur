@@ -6,6 +6,7 @@ use balaur_core::components::as_f64;
 use balaur_core::settings::{self, Scope};
 
 use crate::vocabulary::settings as path;
+use crate::vocabulary::words;
 
 /// What `[audio]` asks of the output. Zero and empty mean "the device's own".
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -56,7 +57,7 @@ impl OutputSettings {
 pub(crate) fn declare_settings(eng: &Engine) {
     settings::define_group(
         eng,
-        "audio",
+        words::general::AUDIO,
         Scope::Project,
         &balaur_core::ComponentDef::parse_schema(
             "settings.audio",

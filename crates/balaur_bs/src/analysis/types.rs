@@ -3,31 +3,37 @@
 use super::{Completion, Kind};
 use crate::ast::{Expr, ExprKind, FnDecl, Pos, Program, Ty};
 use crate::codegen::show;
+use crate::vocabulary::words;
 use crate::{HostApi, HostSignature};
+
+const ORIGIN: &str = "origin";
 
 pub(crate) const PRELUDE: [(&str, &[&str]); 5] = [
     ("Vec2", &["x", "y"]),
     ("Vec3", &["x", "y", "z"]),
     ("Color", &["r", "g", "b", "a"]),
-    ("Transform2d", &["x", "y", "origin"]),
-    ("Transform3d", &["x", "y", "z", "origin"]),
+    ("Transform2d", &["x", "y", ORIGIN]),
+    ("Transform3d", &["x", "y", "z", ORIGIN]),
 ];
 
 pub(crate) const NATIVES: [(&str, &str); 3] = [
-    ("vec2", "fn vec2(x: float, y: float) -> Vec2"),
-    ("vec3", "fn vec3(x: float, y: float, z: float) -> Vec3"),
+    (words::builtins::VEC2, "fn vec2(x: float, y: float) -> Vec2"),
     (
-        "color",
+        words::builtins::VEC3,
+        "fn vec3(x: float, y: float, z: float) -> Vec3",
+    ),
+    (
+        words::builtins::COLOR,
         "fn color(r: float, g: float, b: float, a: float) -> Color",
     ),
 ];
 
 const ARRAY: [(&str, &str); 5] = [
-    ("len", "fn len() -> int"),
-    ("push", "fn push(value)"),
-    ("pop", "fn pop() -> element"),
-    ("insert", "fn insert(index: int, value)"),
-    ("remove", "fn remove(index: int) -> element"),
+    (words::methods::LEN, "fn len() -> int"),
+    (words::methods::PUSH, "fn push(value)"),
+    (words::methods::POP, "fn pop() -> element"),
+    (words::methods::INSERT, "fn insert(index: int, value)"),
+    (words::methods::REMOVE, "fn remove(index: int) -> element"),
 ];
 
 /// What a `.` hangs off: a value, or a node's component.
@@ -139,9 +145,9 @@ impl Scope<'_> {
             return Some(f.ret.clone());
         }
         Some(match name {
-            "vec2" => Ty::Struct("Vec2".into()),
-            "vec3" => Ty::Struct("Vec3".into()),
-            "color" => Ty::Struct("Color".into()),
+            words::builtins::VEC2 => Ty::Struct("Vec2".into()),
+            words::builtins::VEC3 => Ty::Struct("Vec3".into()),
+            words::builtins::COLOR => Ty::Struct("Color".into()),
             _ => return None,
         })
     }
@@ -151,16 +157,16 @@ impl Scope<'_> {
             Recv::Ty(Ty::Struct(s)) => self.method(s, name)?.ret.clone(),
             Recv::Ty(Ty::Node) => self.host.function(&format!("node.{name}"))?.ret.clone(),
             Recv::Component(c) => self.host.function(&format!("node.{c}.{name}"))?.ret.clone(),
-            Recv::Ty(Ty::Str) if name == "len" => Ty::Int,
-            Recv::Ty(Ty::Str) => prelude_ret("str", name)?,
-            Recv::Ty(Ty::Any) => prelude_ret("any", name)?,
+            Recv::Ty(Ty::Str) if name == words::methods::LEN => Ty::Int,
+            Recv::Ty(Ty::Str) => prelude_ret(words::keywords::STR, name)?,
+            Recv::Ty(Ty::Any) => prelude_ret(words::keywords::ANY, name)?,
             Recv::Ty(Ty::Array(t)) => match name {
-                "len" => Ty::Int,
-                "pop" | "remove" => (**t).clone(),
+                words::methods::LEN => Ty::Int,
+                words::methods::POP | words::methods::REMOVE => (**t).clone(),
                 _ => Ty::Void,
             },
             Recv::Ty(Ty::Optional(t)) => match name {
-                "unwrap" | "or" => (**t).clone(),
+                words::methods::UNWRAP | words::methods::OR => (**t).clone(),
                 _ => return None,
             },
             Recv::Ty(_) => return None,
@@ -275,13 +281,13 @@ impl Scope<'_> {
                 }
             }
             Recv::Ty(Ty::Str) => {
-                add("len", Kind::Method, "fn len() -> int".into());
-                for (name, params, ret) in crate::prelude::methods("str") {
+                add(words::methods::LEN, Kind::Method, "fn len() -> int".into());
+                for (name, params, ret) in crate::prelude::methods(words::keywords::STR) {
                     add(&name, Kind::Method, signature(&name, &params, &ret));
                 }
             }
             Recv::Ty(Ty::Any) => {
-                for (name, params, ret) in crate::prelude::methods("any") {
+                for (name, params, ret) in crate::prelude::methods(words::keywords::ANY) {
                     add(&name, Kind::Method, signature(&name, &params, &ret));
                 }
             }
@@ -292,8 +298,16 @@ impl Scope<'_> {
             }
             Recv::Ty(Ty::Optional(t)) => {
                 let inner = show(t);
-                add("unwrap", Kind::Method, format!("fn unwrap() -> {inner}"));
-                add("or", Kind::Method, format!("fn or({inner}) -> {inner}"));
+                add(
+                    words::methods::UNWRAP,
+                    Kind::Method,
+                    format!("fn unwrap() -> {inner}"),
+                );
+                add(
+                    words::methods::OR,
+                    Kind::Method,
+                    format!("fn or({inner}) -> {inner}"),
+                );
             }
             Recv::Ty(_) => {}
         }

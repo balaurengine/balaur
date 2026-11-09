@@ -3,6 +3,7 @@ use super::func::{FnGen, LVal, Mode, R, any_read, err, op_text, show, vector_fn}
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Part, Pos, StmtKind, Ty, UnOp};
+use crate::vocabulary::words;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 impl FnGen<'_> {
@@ -48,7 +49,13 @@ impl FnGen<'_> {
                 } else {
                     "#at"
                 };
-                self.prelude_method("any", arr, by, std::slice::from_ref(&**idx), e.pos)?
+                self.prelude_method(
+                    words::keywords::ANY,
+                    arr,
+                    by,
+                    std::slice::from_ref(&**idx),
+                    e.pos,
+                )?
             }
             ExprKind::Field(base, f) if self.type_of(base).ok() == Some(Ty::Any) => {
                 return err(
@@ -101,7 +108,12 @@ impl FnGen<'_> {
         if let ExprKind::Index(base, key) = &e.kind
             && self.map_class(base).is_some()
         {
-            return self.method(base, "get", std::slice::from_ref(&**key), e.pos);
+            return self.method(
+                base,
+                words::methods::GET,
+                std::slice::from_ref(&**key),
+                e.pos,
+            );
         }
         if let Some((node, get, _, ty)) = self.component_access(e)? {
             self.expr(&node)?;
@@ -477,7 +489,10 @@ impl FnGen<'_> {
             Ty::Int | Ty::Node => self.e(I::Call(self.g.h.str_of_i64)),
             Ty::Float => self.e(I::Call(self.g.h.str_of_f64)),
             Ty::Bool => {
-                let (yes, no) = (self.g.str_addr("true"), self.g.str_addr("false"));
+                let (yes, no) = (
+                    self.g.str_addr(words::keywords::TRUE),
+                    self.g.str_addr(words::keywords::FALSE),
+                );
                 self.e(I::If(BlockType::Result(ValType::I32)));
                 self.emit(yes);
                 self.e(I::Else);
@@ -655,7 +670,8 @@ impl FnGen<'_> {
             if (ta == tb || boxed(&ta) || boxed(&tb)) && matches!(op, BinOp::Eq | BinOp::Ne) {
                 return self.equal_as_values(op, &ta, &tb, pos);
             }
-            let read = any_read(if ta == Ty::Any { &tb } else { &ta }).unwrap_or("as_float");
+            let read =
+                any_read(if ta == Ty::Any { &tb } else { &ta }).unwrap_or(words::methods::AS_FLOAT);
             return err(
                 pos,
                 format!(

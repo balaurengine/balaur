@@ -7,6 +7,10 @@ use editor;
 use search;
 use signals;
 use util;
+use words::theme_tokens;
+
+const DOCS: str = "docs";
+const ENGINE: str = "engine";
 
 pub class DocsState {
     modules: [script::ApiModule],
@@ -31,7 +35,7 @@ pub fn state() -> DocsState {
 // reference on each call, which is not a per-frame cost worth paying.
 fn modules(state: &mut editor::State) -> [script::ApiModule] {
     if state.docs.modules.len() == 0 {
-        state.docs.pick = if state.docs.pick == "" { "engine" } else { state.docs.pick };
+        state.docs.pick = if state.docs.pick == "" { ENGINE } else { state.docs.pick };
         state.docs.modules = script::api();
     }
     state.docs.modules
@@ -42,8 +46,8 @@ fn modules(state: &mut editor::State) -> [script::ApiModule] {
 pub fn show(state: &mut editor::State, module: str, name: str) {
     state.docs.pick = module;
     state.docs.function_pick = name;
-    docks::show(state, "docs");
-    signals::changed(state, "docs");
+    docks::show(state, DOCS);
+    signals::changed(state, DOCS);
 }
 
 /// The Docs panel picked a module.
@@ -78,7 +82,7 @@ pub fn view(state: &mut editor::State, query: str) -> View {
     let module = found.unwrap();
     let items: [ui::Item] = [];
     if module.doc != "" {
-        items.push(ui::Item { label: module.doc, tint: tokens["text_muted"].as_str() });
+        items.push(ui::Item { label: module.doc, tint: tokens[theme_tokens::TEXT_MUTED].as_str() });
     }
     let shown = 0;
     for function in module.functions {
@@ -87,16 +91,16 @@ pub fn view(state: &mut editor::State, query: str) -> View {
             continue;
         }
         shown += 1;
-        let tint = if name == state.docs.function_pick { tokens["primary_text"] } else { tokens["text_default"] };
+        let tint = if name == state.docs.function_pick { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] };
         let called = if function.acts_on.len() == 0 { name } else { "node.{function.acts_on[0]}.{name}" };
         items.push(ui::Item { label: called + function.signature, tint: tint.as_str() });
         if function.doc != "" {
-            items.push(ui::Item { label: "\t  " + function.doc, tint: tokens["text_subtle"].as_str() });
+            items.push(ui::Item { label: "\t  " + function.doc, tint: tokens[theme_tokens::TEXT_SUBTLE].as_str() });
         }
     }
     if query == "" {
         for constant in module.constants {
-            items.push(ui::Item { label: "{constant.name}  {constant.value}", tint: tokens["text_subtle"].as_str() });
+            items.push(ui::Item { label: "{constant.name}  {constant.value}", tint: tokens[theme_tokens::TEXT_SUBTLE].as_str() });
         }
     }
     let says = if shown == 0 && query != "" { search::nothing_says(query) } else { "" };

@@ -1,0 +1,16 @@
+// The fields of a component or setting's schema.
+
+internal const ASSET: str = "asset";
+internal const DATATYPE: str = "datatype";
+internal const DEFAULT: str = "default";
+internal const FIELDS: str = "fields";
+internal const LOOP_MODE: str = "loop_mode";
+internal const MAX: str = "max";
+internal const MIN: str = "min";
+internal const OF: str = "of";
+internal const OPTIONS: str = "options";
+internal const PROPERTIES: str = "properties";
+internal const READONLY: str = "readonly";
+internal const SCHEMA: str = "schema";
+internal const SHAPE: str = "shape";
+internal const SPEC: str = "spec";

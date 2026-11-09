@@ -21,6 +21,7 @@ use web_sys::{AbortSignal, Headers, Request, RequestCredentials, RequestInit, Re
 use crate::client::Client;
 use crate::client::auth::{Credentials, login_request, refresh_request, session_of};
 use crate::client::rest::{Prepared, Reply, reply_of};
+use crate::vocabulary::words;
 use crate::{GamendEvent, LoginCredentials};
 
 /// The whole request, as the native client's agent is configured.
@@ -58,7 +59,9 @@ async fn send(prepared: Prepared) -> Result<Reply, String> {
     )));
     let headers = Headers::new().map_err(describe)?;
     if let Some(bearer) = &prepared.bearer {
-        headers.append("authorization", bearer).map_err(describe)?;
+        headers
+            .append(words::rest::AUTHORIZATION, bearer)
+            .map_err(describe)?;
     }
     headers
         .append(crate::client::RUN_HEADER, crate::client::run_id())
@@ -66,7 +69,7 @@ async fn send(prepared: Prepared) -> Result<Reply, String> {
     let deleting_with_body = prepared.method == "DELETE" && prepared.body.is_some();
     if matches!(prepared.method.as_str(), "POST" | "PUT" | "PATCH") || deleting_with_body {
         headers
-            .append("content-type", "application/json")
+            .append(words::rest::CONTENT_TYPE, "application/json")
             .map_err(describe)?;
         init.set_body(&JsValue::from_str(prepared.body.as_deref().unwrap_or("{}")));
     }

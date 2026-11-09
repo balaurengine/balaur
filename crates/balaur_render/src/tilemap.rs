@@ -14,6 +14,13 @@ pub use balaur_geometry::tiles::{TILESET_ASSET_TYPE, TileSet};
 
 #[cfg(feature = "window")]
 pub(crate) use crate::tilemap_mesh::{TilemapSlot, sync_tilemaps};
+use crate::vocabulary::keys;
+
+const CELL: &str = "cell";
+const SET_CELL: &str = "set_cell";
+const SET_TERRAIN: &str = "set_terrain";
+const TERRAIN: &str = "terrain";
+const TILE_DATA: &str = "tile_data";
 
 /// What a definition table holds, for the generated reference.
 const TILESET_ASSET_DOC: &str = r#"An image cut into equal tiles for `tilemap`: `texture`, `tile_size` in pixels and `columns` per row. `[tiles.<id>]` gives a tile `collision`; `[[terrains]]` auto-tiles by `kind`.
@@ -614,12 +621,12 @@ pub(crate) fn register_tilemap_component(reg: &mut Registry<'_>) {
 /// what a tile carries. Split from `install_tilemap_api` under `MAX_FN_LINES`.
 pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_terrain", &["tilemap"], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
-        ("terrain", &["tilemap"], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
-        ("tile_data", &["tilemap"], "(x: int, y: int) -> any", "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none."),
+        (SET_TERRAIN, &[keys::TILEMAP], "(x: int, y: int, terrain: int)", "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it."),
+        (TERRAIN, &[keys::TILEMAP], "(x: int, y: int) -> int", "The terrain value painted at a column and row, or -1 where nothing was painted."),
+        (TILE_DATA, &[keys::TILEMAP], "(x: int, y: int) -> any", "What the tileset says about the tile at a column and row -- its `[tiles.<id>.data]` table -- or nil where the cell is empty or the tile carries none."),
     ]);
     m.function(
-        "tile_data",
+        TILE_DATA,
         |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();
@@ -648,7 +655,7 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "terrain",
+        TERRAIN,
         |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();
@@ -672,11 +679,11 @@ pub(crate) fn install_tilemap_terrain_api(m: &mut Module<Engine>) {
 /// script edits as it plays. A write past the grid's edge grows it.
 pub(crate) fn install_tilemap_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_cell", &["tilemap"], "(x: int, y: int, tile: int)", "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame."),
-        ("cell", &["tilemap"], "(x: int, y: int) -> int", "The tile at a column and row, or -1 for an empty cell or one past the edge."),
+        (SET_CELL, &[keys::TILEMAP], "(x: int, y: int, tile: int)", "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame."),
+        (CELL, &[keys::TILEMAP], "(x: int, y: int) -> int", "The tile at a column and row, or -1 for an empty cell or one past the edge."),
     ]);
     m.function(
-        "set_cell",
+        SET_CELL,
         |eng: &Engine, (node, x, y, tile): (balaur_script::NodeId, i64, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let (x, y) = (
@@ -704,7 +711,7 @@ pub(crate) fn install_tilemap_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "set_terrain",
+        SET_TERRAIN,
         |eng: &Engine, (node, x, y, terrain): (balaur_script::NodeId, i64, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let (x, y) = (
@@ -733,7 +740,7 @@ pub(crate) fn install_tilemap_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "cell",
+        CELL,
         |eng: &Engine, (node, x, y): (balaur_script::NodeId, i64, i64)| {
             let entity = balaur_core::entity_of(node)?;
             let world = eng.world();

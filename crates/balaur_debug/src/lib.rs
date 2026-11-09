@@ -6,3 +6,4 @@
 pub mod dap;
 pub mod debugger_api;
 pub mod profile_api;
+mod vocabulary;

@@ -7,6 +7,8 @@
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 
+const VISIBILITYCHANGE: &str = "visibilitychange";
+
 /// Tell the page the game's first frame is on the canvas: a `balaur-ready`
 /// event on the window, which the page's loading screen waits for, so it
 /// gives way to the game's own first picture and never to a bare canvas.
@@ -41,7 +43,7 @@ pub(crate) async fn until_visible() {
             let options = web_sys::AddEventListenerOptions::new();
             options.set_once(true);
             let _ = document.add_event_listener_with_callback_and_add_event_listener_options(
-                "visibilitychange",
+                VISIBILITYCHANGE,
                 changed.as_ref().unchecked_ref(),
                 &options,
             );
@@ -82,7 +84,7 @@ pub(crate) async fn next_frame_or_hidden() {
         let options = web_sys::AddEventListenerOptions::new();
         options.set_once(true);
         let _ = document.add_event_listener_with_callback_and_add_event_listener_options(
-            "visibilitychange",
+            VISIBILITYCHANGE,
             hidden.as_ref().unchecked_ref(),
             &options,
         );
@@ -94,10 +96,8 @@ pub(crate) async fn next_frame_or_hidden() {
         let _ = window.cancel_animation_frame(id);
     }
     if let Some(hidden) = &on_hidden {
-        let _ = document.remove_event_listener_with_callback(
-            "visibilitychange",
-            hidden.as_ref().unchecked_ref(),
-        );
+        let _ = document
+            .remove_event_listener_with_callback(VISIBILITYCHANGE, hidden.as_ref().unchecked_ref());
     }
     drop(on_frame);
     drop(on_hidden);

@@ -21,6 +21,8 @@ use crate::properties::{Axis3d, ContactPair, Decomposition3d, Fill, LayerTest};
 use crate::vocabulary::{component as c, keys as k};
 use balaur_core::layers::Layer;
 
+use crate::vocabulary::words;
+use crate::vocabulary::words::functions as f;
 use crate::{PhysicsState3d, node_pose};
 
 /// The node's 3D collision shape, chosen by `kind`. It belongs to the node's `body3d` or the nearest body above it; without one it is static geometry.
@@ -715,7 +717,7 @@ pub(crate) const PARAMS: &[&str] = &[
 /// Collider calls that are not about creating one: asking where it is.
 pub(crate) fn install_collider_api(m: &mut Module<Engine>) {
     m.describe(&[]);
-    m.function("aabb", |eng: &Engine, node: NodeId| {
+    m.function(words::AABB, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
@@ -739,14 +741,14 @@ pub(crate) fn install_collider_api(m: &mut Module<Engine>) {
 /// `MAX_FN_LINES`.
 pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_voxel", &[c::COLLIDER_3D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
-        ("voxel", &[c::COLLIDER_3D], "", "Whether one cell of a voxel collider is filled."),
-        ("voxel_at", &[c::COLLIDER_3D], "", "The cell a world position falls in, as three whole numbers."),
+        (f::SET_VOXEL, &[c::COLLIDER_3D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
+        (f::VOXEL, &[c::COLLIDER_3D], "", "Whether one cell of a voxel collider is filled."),
+        (f::VOXEL_AT, &[c::COLLIDER_3D], "", "The cell a world position falls in, as three whole numbers."),
     ]);
     // Voxels are the one shape a game edits rather than replaces, so they get
     // calls of their own rather than going through `set_collider`.
     m.function(
-        "set_voxel",
+        f::SET_VOXEL,
         |eng: &Engine, (node, x, y, z, filled): (NodeId, i32, i32, i32, bool)| {
             with_voxels(eng, node, |voxels| {
                 voxels.set_voxel(scalar::cell(x, y, z), filled);
@@ -754,7 +756,7 @@ pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "voxel",
+        f::VOXEL,
         |eng: &Engine, (node, x, y, z): (NodeId, i32, i32, i32)| {
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState3d>();
@@ -770,7 +772,7 @@ pub(crate) fn install_voxel_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "voxel_at",
+        f::VOXEL_AT,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState3d>();
@@ -816,21 +818,21 @@ const READER_RECORDS: &[balaur_script::RecordDoc] = &[
 pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
     m.records(READER_RECORDS);
     m.describe(&[
-        ("collider_mesh", &[c::COLLIDER_3D], "(node: node) -> ColliderMesh", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
-        ("collider_mass", &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
-        ("collider_volume", &[c::COLLIDER_3D], "", "How much space the shape encloses."),
-        ("swept_aabb", &[c::COLLIDER_3D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
-        ("handles", &[c::COLLIDER_3D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
-        ("collider_mass_properties", &[c::COLLIDER_3D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
-        ("aabb", &[c::COLLIDER_3D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
+        (f::COLLIDER_MESH, &[c::COLLIDER_3D], "(node: node) -> ColliderMesh", "The collider's shape as points and triangles, including a voxel grid's, for drawing it or for spawning the pieces it broke into."),
+        (f::COLLIDER_MASS, &[c::COLLIDER_3D], "", "What this collider weighs, density and size together."),
+        (f::COLLIDER_VOLUME, &[c::COLLIDER_3D], "", "How much space the shape encloses."),
+        (f::SWEPT_AABB, &[c::COLLIDER_3D], "", "The box the collider covers over the next fixed step, from where it is to where its body's velocity and forces carry it."),
+        (f::HANDLES, &[c::COLLIDER_3D], "(node: node) -> Handles", "The rapier handles behind this node, its body and its colliders. For matching a log line against rapier's own output."),
+        (f::COLLIDER_MASS_PROPERTIES, &[c::COLLIDER_3D], "(node: node) -> MassProperties", "What this collider adds to its body, in its own space."),
+        (words::AABB, &[c::COLLIDER_3D], "", "The world-space box the collider currently occupies, as its two opposite corners."),
     ]);
-    m.function("collider_mesh", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_MESH, |eng: &Engine, node: NodeId| {
         collider_mesh_value(eng, node)
     });
-    m.function("collider_volume", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_VOLUME, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |collider| Ok(collider.volume()))
     });
-    m.function("swept_aabb", |eng: &Engine, node: NodeId| {
+    m.function(f::SWEPT_AABB, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
@@ -855,7 +857,7 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
             aabb.maxs.z,
         ))
     });
-    m.function("handles", |eng: &Engine, node: NodeId| {
+    m.function(f::HANDLES, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
@@ -891,14 +893,14 @@ pub(crate) fn install_collider_reader_api(m: &mut Module<Engine>) {
             (k::COLLIDERS, colliders),
         ]))
     });
-    m.function("collider_mass", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_MASS, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let state = eng.resource::<PhysicsState3d>();
         let state = state.borrow();
         let handle = first_collider(&state, entity)?;
         Ok(state.world.colliders[handle].mass())
     });
-    m.function("collider_mass_properties", |eng: &Engine, node: NodeId| {
+    m.function(f::COLLIDER_MASS_PROPERTIES, |eng: &Engine, node: NodeId| {
         with_first_collider(eng, node, |collider| {
             use balaur_script::Value;
             let props = collider.mass_properties();

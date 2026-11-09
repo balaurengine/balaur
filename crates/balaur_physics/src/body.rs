@@ -19,8 +19,11 @@ use balaur_script::{Module, NodeId};
 use crate::collider::{apply_collider, authored_collider};
 use crate::properties::{Axis3d, BodyKind};
 use crate::query::overlaps_value;
+use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k};
 use crate::{PhysicsState3d, node_pose};
+
+const TOTAL_INERTIA_ROTATION: &str = "total_inertia_rotation";
 
 /// A 3D rigid body simulated by rapier. `kind` is `dynamic`, `static`, `kinematic` or `kinematic_velocity`; add a `collider3d` for its shape.
 #[allow(
@@ -290,19 +293,19 @@ fn write_mass(body: &mut RigidBody, asked: &Body3d) {
 pub(crate) fn install_body_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "apply_impulse",
+            words::functions::APPLY_IMPULSE,
             &[c::BODY_3D],
             "",
             "Add an instant change in momentum, as if the body were struck.",
         ),
         (
-            "apply_impulse_at_point",
+            words::functions::APPLY_IMPULSE_AT_POINT,
             &[c::BODY_3D],
             "",
             "Strike the body at a world point, which spins it as well as moves it.",
         ),
         (
-            "apply_torque_impulse",
+            words::functions::APPLY_TORQUE_IMPULSE,
             &[c::BODY_3D],
             "",
             "Add an instant change in angular momentum, as if the body were spun.",
@@ -312,7 +315,7 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
     // `size`, `restitution`, `friction`, `density`), so one
     // vocabulary covers scripts and scene files, as `physics2d` does.
     m.function(
-        "apply_impulse",
+        words::functions::APPLY_IMPULSE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse(scalar::v3(x, y, z), true);
@@ -320,7 +323,7 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "apply_impulse_at_point",
+        words::functions::APPLY_IMPULSE_AT_POINT,
         |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse_at_point(
@@ -332,7 +335,7 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "apply_torque_impulse",
+        words::functions::APPLY_TORQUE_IMPULSE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_torque_impulse(scalar::v3(x, y, z), true);
@@ -341,7 +344,7 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
     );
     // Sensor pairs only: rapier's narrow phase reports an intersection only
     // when at least one of the two colliders is a sensor.
-    m.function("overlaps", |eng: &Engine, node: NodeId| {
+    m.function(words::functions::OVERLAPS, |eng: &Engine, node: NodeId| {
         overlaps_value(eng, node)
     });
 }
@@ -355,19 +358,19 @@ pub(crate) fn install_body_api(m: &mut Module<Engine>) {
 fn install_step_force_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "apply_force",
+            words::functions::APPLY_FORCE,
             &[c::BODY_3D],
             "",
             "Push the body for the next step only; `add_constant_force` keeps pushing.",
         ),
         (
-            "apply_force_at_point",
+            words::functions::APPLY_FORCE_AT_POINT,
             &[c::BODY_3D],
             "",
             "Push at a world point for the next step only, which also turns the body.",
         ),
         (
-            "apply_torque",
+            words::functions::APPLY_TORQUE,
             &[c::BODY_3D],
             "",
             "Turn the body for the next step only; `add_constant_torque` keeps turning it.",
@@ -375,7 +378,7 @@ fn install_step_force_api(m: &mut Module<Engine>) {
     ]);
     let dt = || balaur_core::fixed_dt();
     m.function(
-        "apply_force",
+        words::functions::APPLY_FORCE,
         move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse(scalar::v3(x, y, z) * dt(), true);
@@ -383,7 +386,7 @@ fn install_step_force_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "apply_force_at_point",
+        words::functions::APPLY_FORCE_AT_POINT,
         move |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_impulse_at_point(
@@ -395,7 +398,7 @@ fn install_step_force_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "apply_torque",
+        words::functions::APPLY_TORQUE,
         move |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].apply_torque_impulse(scalar::v3(x, y, z) * dt(), true);
@@ -408,62 +411,62 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
     install_step_force_api(m);
     m.describe(&[
         (
-            "add_constant_force",
+            words::functions::ADD_CONSTANT_FORCE,
             &[c::BODY_3D],
             "",
             "Push the body every step until the constant force is set back to zero; unlike an impulse this is spread over time.",
         ),
         (
-            "add_constant_force_at_point",
+            words::functions::ADD_CONSTANT_FORCE_AT_POINT,
             &[c::BODY_3D],
             "",
             "Push at a world point every step, which also turns the body.",
         ),
         (
-            "add_constant_torque",
+            words::functions::ADD_CONSTANT_TORQUE,
             &[c::BODY_3D],
             "",
             "Turn the body every step until the constant torque is set back to zero.",
         ),
         (
-            "set_constant_force",
+            words::functions::SET_CONSTANT_FORCE,
             &[c::BODY_3D],
             "",
             "Replace the constant force with this one; zero stops the push.",
         ),
         (
-            "set_constant_torque",
+            words::functions::SET_CONSTANT_TORQUE,
             &[c::BODY_3D],
             "",
             "Replace the constant torque with this one; zero stops the turn.",
         ),
         (
-            "constant_force",
+            words::functions::CONSTANT_FORCE,
             &[c::BODY_3D],
             "",
             "The force every step integrates until it is set back to zero.",
         ),
         (
-            "constant_torque",
+            words::functions::CONSTANT_TORQUE,
             &[c::BODY_3D],
             "",
             "The torque every step integrates until it is set back to zero.",
         ),
         (
-            "set_gravity",
+            words::functions::SET_GRAVITY,
             &[],
             "",
             "Set the 3D world's gravity, in units per second squared.",
         ),
         (
-            "wake_all",
+            words::functions::WAKE_ALL,
             &[],
             "()",
             "Wake every sleeping body in the 3D world.",
         ),
     ]);
     m.function(
-        "add_constant_force",
+        words::functions::ADD_CONSTANT_FORCE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force(scalar::v3(x, y, z), true);
@@ -471,7 +474,7 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "add_constant_force_at_point",
+        words::functions::ADD_CONSTANT_FORCE_AT_POINT,
         |eng: &Engine, (node, x, y, z, px, py, pz): (NodeId, f32, f32, f32, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_force_at_point(
@@ -483,7 +486,7 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "add_constant_torque",
+        words::functions::ADD_CONSTANT_TORQUE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].add_torque(scalar::v3(x, y, z), true);
@@ -497,11 +500,11 @@ pub(crate) fn install_force_api(m: &mut Module<Engine>) {
 /// Split from [`install_force_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("overlaps", &[c::COLLIDER_3D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
-        ("gravity", &[], "", "The 3D world's gravity."),
+        (words::functions::OVERLAPS, &[c::COLLIDER_3D], "", "The nodes this one currently intersects; rapier reports a pair only when one of the two colliders is a sensor."),
+        (words::functions::GRAVITY, &[], "", "The 3D world's gravity."),
     ]);
     m.function(
-        "set_constant_force",
+        words::functions::SET_CONSTANT_FORCE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 let body = &mut state.world.bodies[handle];
@@ -511,7 +514,7 @@ pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "set_constant_torque",
+        words::functions::SET_CONSTANT_TORQUE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 let body = &mut state.world.bodies[handle];
@@ -520,29 +523,38 @@ pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
             })
         },
     );
-    m.function("constant_force", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            let f = body.user_force();
-            (f.x, f.y, f.z)
-        })
-    });
-    m.function("constant_torque", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            let t = body.user_torque();
-            (t.x, t.y, t.z)
-        })
-    });
-    m.function("set_gravity", |eng: &Engine, (x, y, z): (f32, f32, f32)| {
-        let state = eng.resource::<PhysicsState3d>();
-        state.borrow_mut().world.gravity = scalar::v3(x, y, z);
-        Ok(())
-    });
-    m.function("gravity", |eng: &Engine, ()| {
+    m.function(
+        words::functions::CONSTANT_FORCE,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                let f = body.user_force();
+                (f.x, f.y, f.z)
+            })
+        },
+    );
+    m.function(
+        words::functions::CONSTANT_TORQUE,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                let t = body.user_torque();
+                (t.x, t.y, t.z)
+            })
+        },
+    );
+    m.function(
+        words::functions::SET_GRAVITY,
+        |eng: &Engine, (x, y, z): (f32, f32, f32)| {
+            let state = eng.resource::<PhysicsState3d>();
+            state.borrow_mut().world.gravity = scalar::v3(x, y, z);
+            Ok(())
+        },
+    );
+    m.function(words::functions::GRAVITY, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();
         let g = state.borrow().world.gravity;
         Ok((g.x, g.y, g.z))
     });
-    m.function("wake_all", |eng: &Engine, ()| {
+    m.function(words::functions::WAKE_ALL, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState3d>();
         state.borrow_mut().world.wake_up_all(true);
         Ok(())
@@ -553,82 +565,88 @@ pub(crate) fn install_force_reader_api(m: &mut Module<Engine>) {
 /// a body about itself or changes how it is simulated.
 pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("potential_energy", &[c::BODY_3D], "", "The body's gravitational potential energy over one step."),
-        ("is_moving", &[c::BODY_3D], "", "Whether the body is awake and actually going somewhere."),
-        ("effective_dominance", &[c::BODY_3D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
+        (words::functions::POTENTIAL_ENERGY, &[c::BODY_3D], "", "The body's gravitational potential energy over one step."),
+        (words::functions::IS_MOVING, &[c::BODY_3D], "", "Whether the body is awake and actually going somewhere."),
+        (words::functions::EFFECTIVE_DOMINANCE, &[c::BODY_3D], "", "The dominance rapier will use for this body: its own group, or the rank every non-dynamic body outranks with."),
         (
-            "set_linear_velocity",
+            words::functions::SET_LINEAR_VELOCITY,
             &[c::BODY_3D],
             "",
             "Set how fast the body travels, in units per second.",
         ),
         (
-            "linear_velocity",
+            words::functions::LINEAR_VELOCITY,
             &[c::BODY_3D],
             "",
             "How fast the body is travelling, in units per second.",
         ),
         (
-            "set_angular_velocity",
+            words::functions::SET_ANGULAR_VELOCITY,
             &[c::BODY_3D],
             "",
             "Set how fast the body spins, in radians per second about each axis.",
         ),
         (
-            "angular_velocity",
+            words::functions::ANGULAR_VELOCITY,
             &[c::BODY_3D],
             "",
             "How fast the body is spinning, in radians per second about each axis.",
         ),
         (
-            "velocity_at_point",
+            words::functions::VELOCITY_AT_POINT,
             &[c::BODY_3D],
             "",
             "How fast a world point on the body is moving, spin included.",
         ),
         (
-            "total_mass",
+            words::functions::TOTAL_MASS,
             &[c::BODY_3D],
             "",
             "The body's total mass: its `mass` when it states one, or what its colliders weigh.",
         ),
         (
-            "kinetic_energy",
+            words::functions::KINETIC_ENERGY,
             &[c::BODY_3D],
             "",
             "The body's kinetic energy, for a rest test the solver agrees with.",
         ),
     ]);
     m.function(
-        "set_linear_velocity",
+        words::functions::SET_LINEAR_VELOCITY,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_linvel(scalar::v3(x, y, z), true);
             })
         },
     );
-    m.function("linear_velocity", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            let v = body.linvel();
-            (v.x, v.y, v.z)
-        })
-    });
     m.function(
-        "set_angular_velocity",
+        words::functions::LINEAR_VELOCITY,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                let v = body.linvel();
+                (v.x, v.y, v.z)
+            })
+        },
+    );
+    m.function(
+        words::functions::SET_ANGULAR_VELOCITY,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             with_body(eng, entity_of(node)?, |state, handle| {
                 state.world.bodies[handle].set_angvel(scalar::v3(x, y, z), true);
             })
         },
     );
-    m.function("angular_velocity", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            let w = body.angvel();
-            (w.x, w.y, w.z)
-        })
-    });
     m.function(
-        "velocity_at_point",
+        words::functions::ANGULAR_VELOCITY,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                let w = body.angvel();
+                (w.x, w.y, w.z)
+            })
+        },
+    );
+    m.function(
+        words::functions::VELOCITY_AT_POINT,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             read_body(eng, entity_of(node)?, |body| {
                 let v = body.velocity_at_point(scalar::v3(x, y, z));
@@ -642,30 +660,38 @@ pub(crate) fn install_body_state_api(m: &mut Module<Engine>) {
 /// What a body weighs and how it is moving, read-only: the numbers a script
 /// asks about rather than the ones it sets.
 fn install_body_readers(m: &mut Module<Engine>) {
-    m.function("total_mass", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, RigidBody::mass)
-    });
-    m.function("kinetic_energy", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, RigidBody::kinetic_energy)
-    });
-    m.function("potential_energy", |eng: &Engine, node: NodeId| {
-        let gravity = {
-            let state = eng.resource::<PhysicsState3d>();
+    m.function(
+        words::functions::TOTAL_MASS,
+        |eng: &Engine, node: NodeId| read_body(eng, entity_of(node)?, RigidBody::mass),
+    );
+    m.function(
+        words::functions::KINETIC_ENERGY,
+        |eng: &Engine, node: NodeId| read_body(eng, entity_of(node)?, RigidBody::kinetic_energy),
+    );
+    m.function(
+        words::functions::POTENTIAL_ENERGY,
+        |eng: &Engine, node: NodeId| {
+            let gravity = {
+                let state = eng.resource::<PhysicsState3d>();
 
-            state.borrow().world.gravity
-        };
-        read_body(eng, entity_of(node)?, |body| {
-            body.gravitational_potential_energy(balaur_core::fixed_dt(), gravity)
-        })
-    });
-    m.function("is_moving", |eng: &Engine, node: NodeId| {
+                state.borrow().world.gravity
+            };
+            read_body(eng, entity_of(node)?, |body| {
+                body.gravitational_potential_energy(balaur_core::fixed_dt(), gravity)
+            })
+        },
+    );
+    m.function(words::functions::IS_MOVING, |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| -> bool { body.is_moving() })
     });
-    m.function("effective_dominance", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            f32::from(body.effective_dominance_group())
-        })
-    });
+    m.function(
+        words::functions::EFFECTIVE_DOMINANCE,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                f32::from(body.effective_dominance_group())
+            })
+        },
+    );
     // The step writes a dynamic body's pose into `Transform` every tick, so
     // assigning `node.position` on one is overwritten before it is seen. This
     // is the way to move one, and it says what it costs: the velocity goes.
@@ -692,10 +718,10 @@ fn pose_value(pose: &scalar::Pose) -> balaur_script::Value {
 /// Split from [`install_body_state_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("teleport", &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
-        ("predict_position", &[c::BODY_3D], "(node: node, dt: float) -> Pose", "Where the body will be after `dt` seconds at its current velocity."),
-        ("predict_position_with_forces", &[c::BODY_3D], "(node: node, dt: float) -> Pose", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
-        ("next_position", &[c::BODY_3D], "(node: node) -> Pose", "The pose a kinematic body has been told to move to."),
+        (words::functions::TELEPORT, &[c::BODY_3D], "(node: node, x: float, y: float, z: float, opts: TeleportOptions?)", "Move the body to a world position at once, clearing its velocity: what assigning the node's position cannot do, because the step writes that back every tick. A `rotation` turns it too, in Euler radians."),
+        (words::functions::PREDICT_POSITION, &[c::BODY_3D], "(node: node, dt: float) -> Pose", "Where the body will be after `dt` seconds at its current velocity."),
+        (words::functions::PREDICT_POSITION_WITH_FORCES, &[c::BODY_3D], "(node: node, dt: float) -> Pose", "The same, with the forces already applied taken into account: where a thrust or a spring will have put it."),
+        (words::functions::NEXT_POSITION, &[c::BODY_3D], "(node: node) -> Pose", "The pose a kinematic body has been told to move to."),
     ]);
     m.records(&[
         (
@@ -710,7 +736,7 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.function(
-        "teleport",
+        words::functions::TELEPORT,
         |eng: &Engine,
          (node, x, y, z, opts): (NodeId, f32, f32, f32, Option<balaur_script::Value>)| {
             let entity = entity_of(node)?;
@@ -736,7 +762,7 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "predict_position",
+        words::functions::PREDICT_POSITION,
         |eng: &Engine, (node, dt): (NodeId, f32)| {
             read_body(eng, entity_of(node)?, |body| {
                 pose_value(&body.predict_position_using_velocity(dt))
@@ -744,18 +770,21 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "predict_position_with_forces",
+        words::functions::PREDICT_POSITION_WITH_FORCES,
         |eng: &Engine, (node, dt): (NodeId, f32)| {
             read_body(eng, entity_of(node)?, |body| {
                 pose_value(&body.predict_position_using_velocity_and_forces(dt))
             })
         },
     );
-    m.function("next_position", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            pose_value(body.next_position())
-        })
-    });
+    m.function(
+        words::functions::NEXT_POSITION,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                pose_value(body.next_position())
+            })
+        },
+    );
 }
 
 /// What a body weighs and how that mass is spread, as rapier totals it from
@@ -765,31 +794,40 @@ pub(crate) fn install_body_pose_api(m: &mut Module<Engine>) {
 pub(crate) fn install_body_mass_api(m: &mut Module<Engine>) {
     use balaur_script::Value;
     m.describe(&[
-        ("world_center_of_mass", &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in world space."),
-        ("local_center_of_mass", &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in the body's own space."),
-        ("total_inertia", &[c::BODY_3D], "(node: node) -> Vec3", "The body's resistance to spin about each of its principal axes, colliders included."),
-        ("total_inertia_rotation", &[c::BODY_3D], "(node: node) -> Vec3", "How those principal axes are turned in the body's own space, as Euler radians, x first."),
-        ("effective_mass", &[c::BODY_3D], "(node: node) -> Vec3", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
-        ("effective_angular_inertia", &[c::BODY_3D], "(node: node) -> [Vec3]", "The world-space inertia the solver turns, rotation locks applied, as its three rows."),
+        (words::functions::WORLD_CENTER_OF_MASS, &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in world space."),
+        (words::functions::LOCAL_CENTER_OF_MASS, &[c::BODY_3D], "(node: node) -> Vec3", "Where the body's whole mass sits, in the body's own space."),
+        (words::functions::TOTAL_INERTIA, &[c::BODY_3D], "(node: node) -> Vec3", "The body's resistance to spin about each of its principal axes, colliders included."),
+        (TOTAL_INERTIA_ROTATION, &[c::BODY_3D], "(node: node) -> Vec3", "How those principal axes are turned in the body's own space, as Euler radians, x first."),
+        (words::functions::EFFECTIVE_MASS, &[c::BODY_3D], "(node: node) -> Vec3", "The mass the solver pushes against along each world axis: zero along a locked axis, and on any body that is not dynamic."),
+        (words::functions::EFFECTIVE_ANGULAR_INERTIA, &[c::BODY_3D], "(node: node) -> [Vec3]", "The world-space inertia the solver turns, rotation locks applied, as its three rows."),
     ]);
-    m.function("world_center_of_mass", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            Value::Vec3(scalar::a3(body.center_of_mass()))
-        })
-    });
-    m.function("local_center_of_mass", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            Value::Vec3(scalar::a3(body.local_center_of_mass()))
-        })
-    });
-    m.function("total_inertia", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            Value::Vec3(scalar::a3(
-                body.mass_properties().local_mprops.principal_inertia(),
-            ))
-        })
-    });
-    m.function("total_inertia_rotation", |eng: &Engine, node: NodeId| {
+    m.function(
+        words::functions::WORLD_CENTER_OF_MASS,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                Value::Vec3(scalar::a3(body.center_of_mass()))
+            })
+        },
+    );
+    m.function(
+        words::functions::LOCAL_CENTER_OF_MASS,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                Value::Vec3(scalar::a3(body.local_center_of_mass()))
+            })
+        },
+    );
+    m.function(
+        words::functions::TOTAL_INERTIA,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                Value::Vec3(scalar::a3(
+                    body.mass_properties().local_mprops.principal_inertia(),
+                ))
+            })
+        },
+    );
+    m.function(TOTAL_INERTIA_ROTATION, |eng: &Engine, node: NodeId| {
         read_body(eng, entity_of(node)?, |body| {
             let frame = body
                 .mass_properties()
@@ -798,22 +836,28 @@ pub(crate) fn install_body_mass_api(m: &mut Module<Engine>) {
             Value::Vec3(euler_of(frame))
         })
     });
-    m.function("effective_mass", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            Value::Vec3(scalar::a3(body.mass_properties().effective_mass()))
-        })
-    });
-    m.function("effective_angular_inertia", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            let i = body.mass_properties().effective_angular_inertia();
-            let row = |a: Real, b: Real, c: Real| Value::Vec3(scalar::a3(Vector::new(a, b, c)));
-            Value::List(vec![
-                row(i.m11, i.m12, i.m13),
-                row(i.m12, i.m22, i.m23),
-                row(i.m13, i.m23, i.m33),
-            ])
-        })
-    });
+    m.function(
+        words::functions::EFFECTIVE_MASS,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                Value::Vec3(scalar::a3(body.mass_properties().effective_mass()))
+            })
+        },
+    );
+    m.function(
+        words::functions::EFFECTIVE_ANGULAR_INERTIA,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                let i = body.mass_properties().effective_angular_inertia();
+                let row = |a: Real, b: Real, c: Real| Value::Vec3(scalar::a3(Vector::new(a, b, c)));
+                Value::List(vec![
+                    row(i.m11, i.m12, i.m13),
+                    row(i.m12, i.m22, i.m23),
+                    row(i.m13, i.m23, i.m33),
+                ])
+            })
+        },
+    );
 }
 
 /// The axis locks: what keeps a character upright and a top-down game flat.
@@ -826,59 +870,68 @@ pub(crate) fn install_body_lock_api(m: &mut Module<Engine>) {
 /// Continuous collision detection: whether a body's sweep ran this step.
 pub(crate) fn install_body_ccd_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "is_ccd_active",
+        words::functions::IS_CCD_ACTIVE,
         &[c::BODY_3D],
         "",
         "Whether the body moved fast enough last step for rapier to sweep it, with or without continuous_collision.",
     )]);
-    m.function("is_ccd_active", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| -> bool {
-            body.is_ccd_active()
-        })
-    });
+    m.function(
+        words::functions::IS_CCD_ACTIVE,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| -> bool {
+                body.is_ccd_active()
+            })
+        },
+    );
 }
 
 /// Whether a body is asleep, and how close it is to falling asleep.
 pub(crate) fn install_body_sleep_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("sleep", &[c::BODY_3D], "", "Put the body to sleep now."),
+        (words::functions::SLEEP, &[c::BODY_3D], "", "Put the body to sleep now."),
         (
-            "wake_up",
+            words::functions::WAKE_UP,
             &[c::BODY_3D],
             "",
             "Wake the body, so the next step moves it.",
         ),
         (
-            "is_sleeping",
+            words::functions::IS_SLEEPING,
             &[c::BODY_3D],
             "",
             "Whether the body is asleep and being skipped.",
         ),
         (
-            "time_since_can_sleep",
+            words::functions::TIME_SINCE_CAN_SLEEP,
             &[c::BODY_3D],
             "",
             "Seconds the body has spent under its sleep thresholds; it sleeps once this reaches time_to_sleep.",
         ),
     ]);
-    m.function("sleep", |eng: &Engine, node: NodeId| {
+    m.function(words::functions::SLEEP, |eng: &Engine, node: NodeId| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].sleep();
         })
     });
-    m.function("wake_up", |eng: &Engine, node: NodeId| {
+    m.function(words::functions::WAKE_UP, |eng: &Engine, node: NodeId| {
         with_body(eng, entity_of(node)?, |state, handle| {
             state.world.bodies[handle].wake_up(true);
         })
     });
-    m.function("is_sleeping", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| -> bool { body.is_sleeping() })
-    });
-    m.function("time_since_can_sleep", |eng: &Engine, node: NodeId| {
-        read_body(eng, entity_of(node)?, |body| {
-            body.activation().time_since_can_sleep
-        })
-    });
+    m.function(
+        words::functions::IS_SLEEPING,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| -> bool { body.is_sleeping() })
+        },
+    );
+    m.function(
+        words::functions::TIME_SINCE_CAN_SLEEP,
+        |eng: &Engine, node: NodeId| {
+            read_body(eng, entity_of(node)?, |body| {
+                body.activation().time_since_can_sleep
+            })
+        },
+    );
 }
 
 /// A dynamic body that nothing collides with: no collider on the node or

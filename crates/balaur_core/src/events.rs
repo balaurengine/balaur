@@ -33,6 +33,11 @@ use crate::hecs::Entity;
 mod observers;
 pub use observers::{Observed, ObserverFn, ObserverId, Observers, bubble, observe, unobserve};
 
+const EMIT: &str = "emit";
+const LISTEN: &str = "listen";
+const NEXT: &str = "next";
+const STOP_LISTENING: &str = "stop_listening";
+
 /// A subscriber, and where it falls in subscription order.
 ///
 /// The counter is handed out across every bucket rather than within one, so
@@ -642,32 +647,32 @@ pub fn install_events_api(m: &mut Module<Engine>) {
     )]);
     m.describe(&[
         (
-            "listen",
+            LISTEN,
             &[],
             "(node: node, name: string, from: node?)",
             "Hear an event on this node, as its script's `on_<name>(payload)`. Pass the node whose events to hear, or leave it out for every emitter. Listening twice is once.",
         ),
         (
-            "stop_listening",
+            STOP_LISTENING,
             &[],
             "(node: node, name: string, from: node?)",
             "Stop hearing an event on this node, `from` being the emitter it listened with. Not an error when it never listened.",
         ),
         (
-            "emit",
+            EMIT,
             &[],
             "(name: string, payload: any?)",
             "Queue an event from no particular node, delivered at the top of the next frame's update to whoever listens for the name from anyone.",
         ),
         (
-            "next",
+            NEXT,
             &[],
             "(name: string, from: node?) -> int",
             "A token for `task.wait` that wakes, with the payload, the next time the name is delivered from that node or, left out, from anyone: `let payload = task::wait(events::next(\"finished\", door)).await;`, a GDScript `await door.finished`.",
         ),
     ]);
     m.function(
-        "listen",
+        LISTEN,
         |eng: &Engine, (node, name, from): (NodeId, String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             subscribe(eng, crate::entity_of(node)?, &name, from);
@@ -675,7 +680,7 @@ pub fn install_events_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "stop_listening",
+        STOP_LISTENING,
         |eng: &Engine, (node, name, from): (NodeId, String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             unsubscribe(eng, crate::entity_of(node)?, &name, from);
@@ -683,14 +688,14 @@ pub fn install_events_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "emit",
+        EMIT,
         |eng: &Engine, (name, payload): (String, Option<Value>)| {
             emit(eng, &name, payload.unwrap_or(Value::Nil));
             Ok(())
         },
     );
     m.function(
-        "next",
+        NEXT,
         |eng: &Engine, (name, from): (String, Option<NodeId>)| {
             let from = from.map(crate::entity_of).transpose()?;
             Ok(i64::try_from(next(eng, &name, from)).unwrap_or(i64::MAX))

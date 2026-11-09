@@ -16,6 +16,7 @@ use balaur_core::{Engine, entity_of, node_id_of};
 use balaur_script::{Module, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
+use crate::vocabulary::words;
 use crate::vocabulary::{Opts, component as c, keys as k, map};
 
 crate::shared::query::functions!(
@@ -102,12 +103,12 @@ const RECORDS: &[balaur_script::RecordDoc] = &[
 pub(crate) fn install_physics2d_query_api(m: &mut Module<Engine>) {
     m.records(RECORDS);
     m.describe(&[(
-        "raycast",
+        words::functions::RAYCAST,
         &[],
         "(opts: RayQuery) -> Hit?",
         "The first collider a ray meets, or nothing.",
     )]);
-    m.function("raycast", |eng: &Engine, opts: Value| {
+    m.function(words::functions::RAYCAST, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let (ray, max, solid) = ray_of(&opts);
@@ -144,48 +145,51 @@ pub(crate) fn install_physics2d_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_raycast_all_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "raycast_all",
+        words::functions::RAYCAST_ALL,
         &[],
         "(opts: RayQuery) -> [Hit]",
         "Every collider a ray meets, nearest first.",
     )]);
-    m.function("raycast_all", |eng: &Engine, opts: Value| {
-        ensure_queries(eng);
-        let opts = Opts(Some(&opts));
-        let (ray, max, solid) = ray_of(&opts);
-        let mut hits = Vec::new();
-        {
-            let state = eng.resource::<PhysicsState2d>();
-            let state = state.borrow();
-            let mut groups = None;
-            let filter = filter_of(&opts, &mut groups);
-            let skip = excluded(&opts, &state);
-            for (handle, collider, hit) in state
-                .world
-                .query_pipeline_with_filter(filter)
-                .intersect_ray(ray, max, solid)
+    m.function(
+        words::functions::RAYCAST_ALL,
+        |eng: &Engine, opts: Value| {
+            ensure_queries(eng);
+            let opts = Opts(Some(&opts));
+            let (ray, max, solid) = ray_of(&opts);
+            let mut hits = Vec::new();
             {
-                if skip.contains(&handle) {
-                    continue;
-                }
-                if let Some(entity) = entity_of_collider(collider) {
-                    let point = ray.point_at(hit.time_of_impact);
-                    hits.push((
-                        entity,
-                        hit.time_of_impact,
-                        scalar::a2(point),
-                        scalar::a2(hit.normal),
-                    ));
+                let state = eng.resource::<PhysicsState2d>();
+                let state = state.borrow();
+                let mut groups = None;
+                let filter = filter_of(&opts, &mut groups);
+                let skip = excluded(&opts, &state);
+                for (handle, collider, hit) in state
+                    .world
+                    .query_pipeline_with_filter(filter)
+                    .intersect_ray(ray, max, solid)
+                {
+                    if skip.contains(&handle) {
+                        continue;
+                    }
+                    if let Some(entity) = entity_of_collider(collider) {
+                        let point = ray.point_at(hit.time_of_impact);
+                        hits.push((
+                            entity,
+                            hit.time_of_impact,
+                            scalar::a2(point),
+                            scalar::a2(hit.normal),
+                        ));
+                    }
                 }
             }
-        }
-        sort_hits(&mut hits, &eng.world())?;
-        Ok(Value::List(
-            hits.into_iter()
-                .map(|(entity, toi, point, normal)| hit_value(entity, point, normal, toi))
-                .collect(),
-        ))
-    });
+            sort_hits(&mut hits, &eng.world())?;
+            Ok(Value::List(
+                hits.into_iter()
+                    .map(|(entity, toi, point, normal)| hit_value(entity, point, normal, toi))
+                    .collect(),
+            ))
+        },
+    );
 }
 
 /// Sweeping a 2D shape rather than a ray.
@@ -193,12 +197,12 @@ pub(crate) fn install_physics2d_raycast_all_api(m: &mut Module<Engine>) {
 /// Split from [`install_physics2d_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_shapecast_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "shapecast",
+        words::functions::SHAPECAST,
         &[],
         "(opts: ShapeQuery) -> Hit?",
         "Sweep a shape along a direction until it hits something: a thick raycast.",
     )]);
-    m.function("shapecast", |eng: &Engine, opts: Value| {
+    m.function(words::functions::SHAPECAST, |eng: &Engine, opts: Value| {
         ensure_queries(eng);
         let opts = Opts(Some(&opts));
         let params = shape_params(&opts)?;
@@ -241,88 +245,97 @@ pub(crate) fn install_physics2d_shapecast_api(m: &mut Module<Engine>) {
 pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "closest_point",
+            words::functions::CLOSEST_POINT,
             &[],
             "(opts: PointQuery) -> Closest?",
             "The closest point on any collider to a world point.",
         ),
         (
-            "overlap_point",
+            words::functions::OVERLAP_POINT,
             &[],
             "(opts: PointQuery) -> [node]",
             "Every collider containing a world point: what a mouse click asks.",
         ),
         (
-            "overlap_shape",
+            words::functions::OVERLAP_SHAPE,
             &[],
             "(opts: ShapeQuery) -> [node]",
             "Every collider a shape overlaps where it stands.",
         ),
         (
-            "overlap_aabb",
+            words::functions::OVERLAP_AABB,
             &[],
             "(opts: BoxQuery) -> [node]",
             "Every collider whose bounds meet an axis-aligned box.",
         ),
         (
-            "distance",
+            words::functions::DISTANCE,
             &[],
             "(a: node, b: node) -> float",
             "The gap between two nodes' colliders, zero when they touch.",
         ),
         (
-            "intersects",
+            words::functions::INTERSECTS,
             &[],
             "(a: node, b: node) -> bool",
             "Whether two nodes' colliders overlap right now, sensor or not.",
         ),
     ]);
-    m.function("closest_point", |eng: &Engine, opts: Value| {
-        ensure_queries(eng);
-        let opts = Opts(Some(&opts));
-        let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let mut groups = None;
-        let filter = filter_of(&opts, &mut groups);
-        let found = state
-            .world
-            .query_pipeline_with_filter(filter)
-            .project_point(
-                point,
-                opts.f32(k::MAX_DISTANCE, 1000.0),
-                opts.boolean(k::HIT_FROM_INSIDE, true),
-            );
-        let Some((handle, projection)) = found else {
-            return Ok(Value::Nil);
-        };
-        let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
-            return Ok(Value::Nil);
-        };
-        let p = projection.point;
-        Ok(map([
-            (k::NODE, Value::Node(entity.to_bits().get())),
-            (k::POINT, Value::Vec2(scalar::a2(p))),
-            (k::INSIDE, Value::Bool(projection.is_inside)),
-            ("distance", Value::Num(f64::from((p - point).length()))),
-        ]))
-    });
-    m.function("overlap_point", |eng: &Engine, opts: Value| {
-        ensure_queries(eng);
-        let opts = Opts(Some(&opts));
-        let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let mut groups = None;
-        let filter = filter_of(&opts, &mut groups);
-        let mut hits: Vec<Entity> = state
-            .world
-            .query_pipeline_with_filter(filter)
-            .intersect_point(point)
-            .filter_map(|(_, collider)| entity_of_collider(collider))
-            .collect();
-        node_list(&mut hits, &eng.world())
-    });
+    m.function(
+        words::functions::CLOSEST_POINT,
+        |eng: &Engine, opts: Value| {
+            ensure_queries(eng);
+            let opts = Opts(Some(&opts));
+            let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let mut groups = None;
+            let filter = filter_of(&opts, &mut groups);
+            let found = state
+                .world
+                .query_pipeline_with_filter(filter)
+                .project_point(
+                    point,
+                    opts.f32(k::MAX_DISTANCE, 1000.0),
+                    opts.boolean(k::HIT_FROM_INSIDE, true),
+                );
+            let Some((handle, projection)) = found else {
+                return Ok(Value::Nil);
+            };
+            let Some(entity) = entity_of_collider(&state.world.colliders[handle]) else {
+                return Ok(Value::Nil);
+            };
+            let p = projection.point;
+            Ok(map([
+                (k::NODE, Value::Node(entity.to_bits().get())),
+                (k::POINT, Value::Vec2(scalar::a2(p))),
+                (k::INSIDE, Value::Bool(projection.is_inside)),
+                (
+                    words::functions::DISTANCE,
+                    Value::Num(f64::from((p - point).length())),
+                ),
+            ]))
+        },
+    );
+    m.function(
+        words::functions::OVERLAP_POINT,
+        |eng: &Engine, opts: Value| {
+            ensure_queries(eng);
+            let opts = Opts(Some(&opts));
+            let point = scalar::v2a(opts.vec2(k::POINT, [0.0; 2]));
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let mut groups = None;
+            let filter = filter_of(&opts, &mut groups);
+            let mut hits: Vec<Entity> = state
+                .world
+                .query_pipeline_with_filter(filter)
+                .intersect_point(point)
+                .filter_map(|(_, collider)| entity_of_collider(collider))
+                .collect();
+            node_list(&mut hits, &eng.world())
+        },
+    );
 }
 
 /// The 2D queries that take a shape rather than a point.
@@ -330,41 +343,47 @@ pub(crate) fn install_physics2d_volume_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_shape_query_api(m: &mut Module<Engine>) {
     m.describe(&[]);
-    m.function("overlap_shape", |eng: &Engine, opts: Value| {
-        ensure_queries(eng);
-        let opts = Opts(Some(&opts));
-        let params = shape_params(&opts)?;
-        let builder = crate::dim2::collider::query_shape(eng, &params)?;
-        let at = scalar::v2a(opts.vec2(k::AT, [0.0; 2]));
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let mut groups = None;
-        let filter = filter_of(&opts, &mut groups);
-        let mut hits: Vec<Entity> = state
-            .world
-            .query_pipeline_with_filter(filter)
-            .intersect_shape(Pose2::from_translation(at), builder.shape.as_ref())
-            .filter_map(|(_, collider)| entity_of_collider(collider))
-            .collect();
-        node_list(&mut hits, &eng.world())
-    });
-    m.function("overlap_aabb", |eng: &Engine, opts: Value| {
-        ensure_queries(eng);
-        let opts = Opts(Some(&opts));
-        let min = scalar::v2a(opts.vec2(k::MIN, [0.0; 2]));
-        let max = scalar::v2a(opts.vec2(k::MAX, [0.0; 2]));
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let mut groups = None;
-        let filter = filter_of(&opts, &mut groups);
-        let mut hits: Vec<Entity> = state
-            .world
-            .query_pipeline_with_filter(filter)
-            .intersect_aabb_conservative(crate::rapier2d::prelude::Aabb::new(min, max))
-            .filter_map(|(_, collider)| entity_of_collider(collider))
-            .collect();
-        node_list(&mut hits, &eng.world())
-    });
+    m.function(
+        words::functions::OVERLAP_SHAPE,
+        |eng: &Engine, opts: Value| {
+            ensure_queries(eng);
+            let opts = Opts(Some(&opts));
+            let params = shape_params(&opts)?;
+            let builder = crate::dim2::collider::query_shape(eng, &params)?;
+            let at = scalar::v2a(opts.vec2(k::AT, [0.0; 2]));
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let mut groups = None;
+            let filter = filter_of(&opts, &mut groups);
+            let mut hits: Vec<Entity> = state
+                .world
+                .query_pipeline_with_filter(filter)
+                .intersect_shape(Pose2::from_translation(at), builder.shape.as_ref())
+                .filter_map(|(_, collider)| entity_of_collider(collider))
+                .collect();
+            node_list(&mut hits, &eng.world())
+        },
+    );
+    m.function(
+        words::functions::OVERLAP_AABB,
+        |eng: &Engine, opts: Value| {
+            ensure_queries(eng);
+            let opts = Opts(Some(&opts));
+            let min = scalar::v2a(opts.vec2(k::MIN, [0.0; 2]));
+            let max = scalar::v2a(opts.vec2(k::MAX, [0.0; 2]));
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let mut groups = None;
+            let filter = filter_of(&opts, &mut groups);
+            let mut hits: Vec<Entity> = state
+                .world
+                .query_pipeline_with_filter(filter)
+                .intersect_aabb_conservative(crate::rapier2d::prelude::Aabb::new(min, max))
+                .filter_map(|(_, collider)| entity_of_collider(collider))
+                .collect();
+            node_list(&mut hits, &eng.world())
+        },
+    );
 }
 
 /// The 2D questions asked about two nodes rather than about the world.
@@ -372,34 +391,40 @@ pub(crate) fn install_physics2d_shape_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_physics2d_volume_query_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_physics2d_pair_query_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("closest_points", &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders; nothing when they overlap."),
-        ("time_of_impact", &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
+        (words::functions::CLOSEST_POINTS, &[], "(a: node, b: node) -> ClosestPoints?", "The nearest point on each of two nodes' colliders; nothing when they overlap."),
+        (words::functions::TIME_OF_IMPACT, &[], "(a: node, b: node, opts: ImpactOptions) -> Impact?", "When two moving colliders would meet, given each one's velocity. Nothing when they never do."),
     ]);
     install_physics2d_sweep_api(m);
-    m.function("distance", |eng: &Engine, (a, b): (NodeId, NodeId)| {
-        with_pair(eng, a, b, |first, second| {
-            crate::rapier2d::parry::query::distance(
-                first.position(),
-                first.shape(),
-                second.position(),
-                second.shape(),
-            )
-            .map(|d| Value::Num(f64::from(d.distance)))
-            .map_err(|e| anyhow!("those two shapes cannot be measured: {e}"))
-        })
-    });
-    m.function("intersects", |eng: &Engine, (a, b): (NodeId, NodeId)| {
-        with_pair(eng, a, b, |first, second| {
-            crate::rapier2d::parry::query::intersection_test(
-                first.position(),
-                first.shape(),
-                second.position(),
-                second.shape(),
-            )
-            .map(|hit| Value::Bool(hit.intersecting))
-            .map_err(|e| anyhow!("those two shapes cannot be tested: {e}"))
-        })
-    });
+    m.function(
+        words::functions::DISTANCE,
+        |eng: &Engine, (a, b): (NodeId, NodeId)| {
+            with_pair(eng, a, b, |first, second| {
+                crate::rapier2d::parry::query::distance(
+                    first.position(),
+                    first.shape(),
+                    second.position(),
+                    second.shape(),
+                )
+                .map(|d| Value::Num(f64::from(d.distance)))
+                .map_err(|e| anyhow!("those two shapes cannot be measured: {e}"))
+            })
+        },
+    );
+    m.function(
+        words::functions::INTERSECTS,
+        |eng: &Engine, (a, b): (NodeId, NodeId)| {
+            with_pair(eng, a, b, |first, second| {
+                crate::rapier2d::parry::query::intersection_test(
+                    first.position(),
+                    first.shape(),
+                    second.position(),
+                    second.shape(),
+                )
+                .map(|hit| Value::Bool(hit.intersecting))
+                .map_err(|e| anyhow!("those two shapes cannot be tested: {e}"))
+            })
+        },
+    );
 }
 
 /// The two pair questions about where colliders nearly meet.
@@ -407,7 +432,7 @@ pub(crate) fn install_physics2d_pair_query_api(m: &mut Module<Engine>) {
 /// Split from [`install_physics2d_pair_query_api`] under `MAX_FN_LINES`.
 fn install_physics2d_sweep_api(m: &mut Module<Engine>) {
     m.function(
-        "closest_points",
+        words::functions::CLOSEST_POINTS,
         |eng: &Engine, (a, b): (NodeId, NodeId)| {
             with_pair(eng, a, b, |first, second| {
                 let found = crate::rapier2d::parry::query::closest_points(
@@ -429,7 +454,7 @@ fn install_physics2d_sweep_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "time_of_impact",
+        words::functions::TIME_OF_IMPACT,
         |eng: &Engine, (a, b, opts): (NodeId, NodeId, Value)| {
             let opts = Opts(Some(&opts));
             let (va, vb) = (
@@ -487,17 +512,17 @@ fn with_pair(
 /// `install_world_list_api` in two dimensions.
 pub(crate) fn install_physics2d_world_list_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("bodies", &[], "() -> [node]", "Every node with a rigid body, sorted."),
-        ("active_bodies", &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
-        ("contacts", &[c::COLLIDER_2D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
+        (words::functions::BODIES, &[], "() -> [node]", "Every node with a rigid body, sorted."),
+        (words::functions::ACTIVE_BODIES, &[], "() -> [node]", "Every node whose body is awake this step: what a game loops over when it wants to touch only what is moving."),
+        (words::DRAW_CONTACTS, &[c::COLLIDER_2D], "(node: node) -> [Contact]", "Every contact point on this node's collider this step. Empty for a sensor, which has no contacts by definition."),
     ]);
-    m.function("bodies", |eng: &Engine, ()| {
+    m.function(words::functions::BODIES, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let mut nodes: Vec<Entity> = state.bodies.keys().copied().collect();
         node_list(&mut nodes, &eng.world())
     });
-    m.function("active_bodies", |eng: &Engine, ()| {
+    m.function(words::functions::ACTIVE_BODIES, |eng: &Engine, ()| {
         let state = eng.resource::<PhysicsState2d>();
         let state = state.borrow();
         let awake = |handle: &crate::rapier2d::prelude::RigidBodyHandle| {
@@ -515,7 +540,7 @@ pub(crate) fn install_physics2d_world_list_api(m: &mut Module<Engine>) {
             .collect();
         node_list(&mut nodes, &eng.world())
     });
-    m.function("contacts", |eng: &Engine, node: NodeId| {
+    m.function(words::DRAW_CONTACTS, |eng: &Engine, node: NodeId| {
         contact_list(eng, node)
     });
 }

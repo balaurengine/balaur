@@ -293,11 +293,16 @@ type DrawLineArgs = (
     Option<bool>,
 );
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 /// The debug-line buffers, in `balaur_core` because physics and the editor fill
 /// them too and a producer must not depend on the renderer. Published API.
 pub use balaur_core::debug_lines::{DebugLine2d, DebugLine3d};
 pub use balaur_core::debug_lines::{DebugLineBuffer2d, DebugLineBuffer3d};
 pub use draw_2d::{Draw2d, DrawBuffer2d, Drawn2d};
+
+const TEXT_2D: &str = "text2d";
+const TEXT_3D: &str = "text3d";
 
 pub struct WindowedBackend;
 
@@ -880,7 +885,7 @@ pub(crate) fn set_sprite(
 pub(crate) fn color_from_params(params: &toml::Value) -> [f32; 4] {
     let c = |i: usize, default: f64| {
         params
-            .get("color")
+            .get(keys::COLOR)
             .and_then(|v| v.as_array())
             .and_then(|a| a.get(i))
             .and_then(balaur_core::components::as_f64)
@@ -950,13 +955,13 @@ fn insert_render_resources(reg: &mut balaur_plugin::Registry<'_>) {
 
 impl balaur_plugin::Plugin for RenderPlugin {
     fn name(&self) -> &'static str {
-        "render"
+        words::general::RENDER
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         balaur_core::settings::define_group(
             reg.engine(),
-            "render",
+            words::general::RENDER,
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema(
                 "settings.render",
@@ -964,7 +969,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
             ),
         );
         insert_render_resources(reg);
-        let mut m = reg.script_module("render")?;
+        let mut m = reg.script_module(words::general::RENDER)?;
         m.module_doc(
             "What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D and 3D cameras, the backdrop, debug lines and screenshots. `window` holds the window itself.",
         );
@@ -1113,25 +1118,25 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
         )?,
     );
     reg.register_preset(
-        "text2d",
+        TEXT_2D,
         balaur_core::presets::preset(
             "A block of text in the 2D pass",
             &[
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("text2d", Some(r#"text = "Text""#))],
+            &[(TEXT_2D, Some(r#"text = "Text""#))],
         )?,
     );
     reg.register_preset(
-        "text3d",
+        TEXT_3D,
         balaur_core::presets::preset(
             "A block of text facing the camera",
             &[
                 balaur_core::components::tag::DIM_3D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("text3d", Some(r#"text = "Text""#))],
+            &[(TEXT_3D, Some(r#"text = "Text""#))],
         )?,
     );
     reg.register_preset(
@@ -1142,7 +1147,7 @@ fn register_render_presets(reg: &mut Registry<'_>) -> Result<()> {
                 balaur_core::components::tag::DIM_2D,
                 balaur_core::components::tag::RENDER,
             ],
-            &[("tilemap", None)],
+            &[(keys::TILEMAP, None)],
         )?,
     );
     reg.register_preset(

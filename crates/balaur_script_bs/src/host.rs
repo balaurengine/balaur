@@ -5,6 +5,7 @@
 
 use crate::api::{self, Registry};
 use crate::convert::{from_neutral, to_neutral};
+use crate::vocabulary::words;
 use anyhow::{Context, Result, anyhow};
 use balaur_bs::runtime::{HostFns, Limits, Object, Reentry, Runtime, Value as L};
 use balaur_bs::{Compiled, HostApi, Literal, Options, Ty};
@@ -29,13 +30,13 @@ mod units;
 
 pub const EXTENSION: &str = "bs";
 /// Under the game's own data folder: what wasmtime compiled, kept across runs.
+const NODE_FIELD: &str = "node";
 const CACHE_DIR: &str = "bs-cache";
 /// An instance's memory: what grows past this traps rather than taking the
 /// game with it.
 const MEMORY_CAP: usize = 1 << 30;
 /// A browser's engine meters no fuel, so a build for one counts its own.
 const METER: bool = cfg!(all(target_arch = "wasm32", feature = "web"));
-const NODE_FIELD: &str = "node";
 /// The project instance's own unit, which has no code: every file a unit
 /// linked to it.
 const PROJECT_KEY: &str = "#project";
@@ -1044,12 +1045,16 @@ fn report(r: Result<Option<Value>>) -> Option<Value> {
 
 fn spec(lit: &Literal, ty: &Ty) -> Value {
     let (kind, default) = match lit {
-        Literal::Int(v) => ("int", Value::Int(*v)),
-        Literal::Float(v) => ("float", Value::Num(*v)),
-        Literal::Bool(v) => ("bool", Value::Bool(*v)),
-        Literal::Str(v) => ("string", Value::Str(v.clone())),
+        Literal::Int(v) => (words::doc_types::INT, Value::Int(*v)),
+        Literal::Float(v) => (words::doc_types::FLOAT, Value::Num(*v)),
+        Literal::Bool(v) => (words::doc_types::BOOL, Value::Bool(*v)),
+        Literal::Str(v) => (words::doc_types::STRING, Value::Str(v.clone())),
     };
-    let kind = if *ty == Ty::Float { "float" } else { kind };
+    let kind = if *ty == Ty::Float {
+        words::doc_types::FLOAT
+    } else {
+        kind
+    };
     Value::Map(vec![
         ("type".into(), Value::text(kind)),
         ("default".into(), default),

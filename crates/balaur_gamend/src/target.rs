@@ -3,9 +3,13 @@
 //! editor may pick, and otherwise a run from the sources talks to the local
 //! one. The pick is an editor setting, so it can never ship in a pack.
 
+use crate::vocabulary::words;
 use balaur_core::Engine;
 use balaur_core::settings::{self, Scope};
 use balaur_script::Value;
+
+const LOCAL_URL: &str = "local_url";
+const PLUGIN: &str = "plugin";
 
 /// The settings category every key below lives under.
 const CATEGORY: &str = "gamend";
@@ -76,11 +80,11 @@ pub(crate) fn url(eng: &Engine) -> String {
     if let Some(named) = from_environment() {
         return named;
     }
-    let local = text(eng, "local_url");
+    let local = text(eng, LOCAL_URL);
     if is_local(eng) && !local.is_empty() {
         return local;
     }
-    Some(text(eng, "url"))
+    Some(text(eng, words::target::URL))
         .filter(|url| !url.is_empty())
         .unwrap_or_else(|| DEFAULT_URL.to_string())
 }
@@ -90,10 +94,13 @@ pub(crate) fn value(eng: &Engine) -> Value {
     let picked = if is_local(eng) { LOCAL } else { PRODUCTION };
     Value::Map(vec![
         (String::from("name"), Value::Str(picked.into())),
-        (String::from("url"), Value::Str(url(eng))),
-        (String::from("production"), Value::Str(text(eng, "url"))),
-        (String::from("local"), Value::Str(text(eng, "local_url"))),
-        (String::from("plugin"), Value::Str(text(eng, "plugin"))),
+        (String::from(words::target::URL), Value::Str(url(eng))),
+        (
+            String::from(PRODUCTION),
+            Value::Str(text(eng, words::target::URL)),
+        ),
+        (String::from(LOCAL), Value::Str(text(eng, LOCAL_URL))),
+        (String::from(PLUGIN), Value::Str(text(eng, PLUGIN))),
     ])
 }
 

@@ -17,6 +17,10 @@ use balaur_script::{Module, Value};
 use crate::vocabulary::{Opts, keys as k, words as w};
 use crate::{PhysicsState2d, PhysicsState3d};
 
+const DEBUG_DRAW: &str = "debug_draw";
+const DEBUG_DRAW_DEFAULTS: &str = "debug_draw_defaults";
+const SET_DEBUG_DRAW: &str = "set_debug_draw";
+
 /// What the physics debug draw shows. Written by scripts and the editor, read
 /// by this module's `draw_system` every frame.
 ///
@@ -593,11 +597,11 @@ pub(crate) fn install_debug_api(m: &mut Module<Engine>) {
         "What the debug renderer draws: one flag per mode, `soft_stress` being soft-body edges coloured by load, with `nodes`, the nodes whose bodies, colliders, joints, contacts and soft bodies alone are drawn. `enabled` left out is whether any mode is named.",
     )]);
     m.describe(&[
-        ("set_debug_draw", &[], "(modes: DebugDraw)", "Draw the physics world over the scene, as `modes` names it; `debug_draw_defaults()` is the usual shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths."),
-        ("debug_draw", &[], "() -> DebugDraw", "What the debug renderer is drawing now, every flag and `nodes` given."),
-        ("debug_draw_defaults", &[], "() -> DebugDraw", "The usual shapes, for `set_debug_draw`."),
+        (SET_DEBUG_DRAW, &[], "(modes: DebugDraw)", "Draw the physics world over the scene, as `modes` names it; `debug_draw_defaults()` is the usual shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths."),
+        (DEBUG_DRAW, &[], "() -> DebugDraw", "What the debug renderer is drawing now, every flag and `nodes` given."),
+        (DEBUG_DRAW_DEFAULTS, &[], "() -> DebugDraw", "The usual shapes, for `set_debug_draw`."),
     ]);
-    m.function("set_debug_draw", |eng: &Engine, modes: Value| {
+    m.function(SET_DEBUG_DRAW, |eng: &Engine, modes: Value| {
         let config = eng.resource::<PhysicsDebugConfig>();
         let mut config = config.borrow_mut();
         let opts = Opts(Some(&modes));
@@ -621,12 +625,12 @@ pub(crate) fn install_debug_api(m: &mut Module<Engine>) {
         Ok(())
     });
     // Reads back what the setter wrote, `enabled` and `nodes` included (N8).
-    m.function("debug_draw", |eng: &Engine, ()| {
+    m.function(DEBUG_DRAW, |eng: &Engine, ()| {
         let config = eng.resource::<PhysicsDebugConfig>();
         let config = config.borrow();
         Ok(debug_draw_value(config.enabled, config.mode, &config.nodes))
     });
-    m.function("debug_draw_defaults", |_eng: &Engine, ()| {
+    m.function(DEBUG_DRAW_DEFAULTS, |_eng: &Engine, ()| {
         let usual = PhysicsDebugConfig::default();
         Ok(debug_draw_value(true, usual.mode, &usual.nodes))
     });

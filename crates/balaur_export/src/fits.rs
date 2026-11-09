@@ -9,6 +9,7 @@ use balaur::Pack;
 use balaur::physics::worlds;
 
 use crate::config::Runtime;
+use crate::vocabulary::keys;
 
 /// Where `pack`'s scenes and scripts name one of `components` or `modules`.
 ///
@@ -130,7 +131,7 @@ fn in_scenes(pack: &Pack, components: &[&str]) -> Vec<String> {
         {
             for key in components.iter().filter(|key| node.contains_key(**key)) {
                 let name = node
-                    .get("name")
+                    .get(keys::NAME)
                     .or_else(|| node.get("id"))
                     .and_then(toml::Value::as_str)
                     .unwrap_or("?");

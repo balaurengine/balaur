@@ -32,6 +32,15 @@ use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const CANCEL: &str = "cancel";
+const CHOOSE: &str = "choose";
+const FILES: &str = "files";
+const HANDLES: &str = "handles";
+const IMPORT: &str = "import";
+const SCENE: &str = "scene";
 
 /// How many files one slice of an import writes before giving the frame back.
 ///
@@ -78,8 +87,8 @@ impl ImportEvent {
         match self {
             Self::Started { .. } => "started",
             Self::Wrote { .. } => "wrote",
-            Self::Done { .. } => "done",
-            Self::Failed { .. } => "failed",
+            Self::Done { .. } => keys::DONE,
+            Self::Failed { .. } => words::export_shared::FAILED,
             Self::Cancelled { .. } => "cancelled",
         }
     }
@@ -106,32 +115,29 @@ impl Reported for ImportEvent {
 
     fn value(&self) -> Value {
         let mut pairs = vec![
-            ("kind".into(), Value::Str(self.kind().into())),
-            ("source".into(), Value::Str(self.source().into())),
+            (keys::KIND.into(), Value::Str(self.kind().into())),
+            (keys::SOURCE.into(), Value::Str(self.source().into())),
         ];
         match self {
             Self::Started { files, .. } => {
-                pairs.push(("files".into(), count(*files)));
+                pairs.push((FILES.into(), count(*files)));
             }
             Self::Wrote {
                 path, done, files, ..
             } => {
-                pairs.push(("path".into(), Value::Str(path.clone())));
-                pairs.push(("done".into(), count(*done)));
-                pairs.push(("files".into(), count(*files)));
+                pairs.push((keys::PATH.into(), Value::Str(path.clone())));
+                pairs.push((keys::DONE.into(), count(*done)));
+                pairs.push((FILES.into(), count(*files)));
             }
             Self::Done { scene, note, .. } => {
-                pairs.push((
-                    "scene".into(),
-                    scene.clone().map_or(Value::Nil, Value::text),
-                ));
-                pairs.push(("note".into(), Value::Str(note.clone())));
+                pairs.push((SCENE.into(), scene.clone().map_or(Value::Nil, Value::text)));
+                pairs.push((keys::NOTE.into(), Value::Str(note.clone())));
             }
             Self::Failed { message, .. } => {
-                pairs.push(("message".into(), Value::Str(message.clone())));
+                pairs.push((keys::MESSAGE.into(), Value::Str(message.clone())));
             }
             Self::Cancelled { done, .. } => {
-                pairs.push(("done".into(), count(*done)));
+                pairs.push((keys::DONE.into(), count(*done)));
             }
         }
         Value::Map(pairs)
@@ -173,7 +179,7 @@ impl ImportPlugin {
 
 impl balaur_plugin::Plugin for ImportPlugin {
     fn name(&self) -> &'static str {
-        "import"
+        IMPORT
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -185,7 +191,7 @@ impl balaur_plugin::Plugin for ImportPlugin {
         // What a job reported reaches a script here, ahead of every plugin's
         // own First work.
         reg.add_system(Stage::First, pump::<ImportState, ImportEvent>);
-        let mut m = reg.script_module("import")?;
+        let mut m = reg.script_module(IMPORT)?;
         install_import_api(&mut m);
         Ok(())
     }
@@ -202,51 +208,51 @@ fn install_import_api(m: &mut Module<Engine>) {
     )]);
     m.describe(&[
         (
-            "handles",
+            HANDLES,
             &[],
             "(path: string) -> bool",
             "Whether an importer claims this file, by extension.",
         ),
         (
-            "file",
+            words::functions::FILE,
             &[],
             "(path: string) -> Imported",
             "Import one file into the edited project, in one call. A whole project is the work of seconds, so an editor keeping its frame wants `start`.",
         ),
         (
-            "start",
+            words::functions::START,
             &[],
             "(path: string, project: string?) -> bool",
             "Import one file into the edited project, or into `project` when one is named, a few files per frame, each reported as the `import_event` event: `events::listen(node, \"import_event\")`, heard as `on_import_event`, as an import starts, writes each file, finishes or fails. Answers false while a recording plays. A model and a sprite are read first and then written a slice at a time; a level walks its own folder and takes one long slice, which says so in `files`.",
         ),
         (
-            "running_count",
+            words::functions::RUNNING_COUNT,
             &[],
             "() -> int",
             "How many imports are in flight.",
         ),
         (
-            "choose",
+            CHOOSE,
             &[],
             "() -> bool",
             "Ask the reader for a file and import what they pick, reporting as `start` does. On a desktop that is the OS dialog; in a tab it is the page's own chooser, which takes several files at once so a `.gltf` can be picked with the images it names. Answers whether the asking began.",
         ),
         (
-            "cancel",
+            CANCEL,
             &[],
             "()",
             "Stop the imports in flight at the end of the file each is writing. What they had written stays where it landed; each reports `cancelled` with the count it reached.",
         ),
     ]);
-    m.function("handles", |_: &Engine, path: String| {
+    m.function(HANDLES, |_: &Engine, path: String| {
         Ok(Value::Bool(handles(Path::new(&path))))
     });
-    m.function("file", |eng: &Engine, path: String| {
+    m.function(words::functions::FILE, |eng: &Engine, path: String| {
         let project = eng.resource::<ImportState>().borrow().core.project.clone();
         Ok(import(Path::new(&path), &project))
     });
     m.function(
-        "start",
+        words::functions::START,
         |eng: &Engine, (path, project): (String, Option<String>)| {
             Ok(Value::Bool(start(
                 eng,
@@ -255,8 +261,8 @@ fn install_import_api(m: &mut Module<Engine>) {
             )))
         },
     );
-    m.function("choose", |eng: &Engine, ()| Ok(Value::Bool(choose(eng))));
-    m.function("cancel", |eng: &Engine, ()| {
+    m.function(CHOOSE, |eng: &Engine, ()| Ok(Value::Bool(choose(eng))));
+    m.function(CANCEL, |eng: &Engine, ()| {
         let state = eng.resource::<ImportState>();
         let state = state.borrow();
         // With nothing running, the press would stop the next job instead.
@@ -265,7 +271,7 @@ fn install_import_api(m: &mut Module<Engine>) {
         }
         Ok(Value::Nil)
     });
-    m.function("running_count", |eng: &Engine, ()| {
+    m.function(words::functions::RUNNING_COUNT, |eng: &Engine, ()| {
         let running = eng
             .resource::<ImportState>()
             .borrow()
@@ -757,12 +763,9 @@ fn import(file: &Path, project: &Path) -> Value {
         Ok(imported) => {
             let files = imported.files.into_iter().map(Value::text).collect();
             Value::Map(vec![
-                ("files".into(), Value::List(files)),
-                (
-                    "scene".into(),
-                    imported.scene.map_or(Value::Nil, Value::text),
-                ),
-                ("note".into(), Value::Str(imported.note)),
+                (FILES.into(), Value::List(files)),
+                (SCENE.into(), imported.scene.map_or(Value::Nil, Value::text)),
+                (keys::NOTE.into(), Value::Str(imported.note)),
             ])
         }
         Err(e) => failed(format!("{e:#}")),
@@ -772,9 +775,9 @@ fn import(file: &Path, project: &Path) -> Value {
 /// An import that wrote nothing, and why.
 fn failed(error: String) -> Value {
     Value::Map(vec![
-        ("files".into(), Value::List(Vec::new())),
-        ("note".into(), Value::text("")),
-        ("error".into(), Value::Str(error)),
+        (FILES.into(), Value::List(Vec::new())),
+        (keys::NOTE.into(), Value::text("")),
+        (keys::ERROR.into(), Value::Str(error)),
     ])
 }
 

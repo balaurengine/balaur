@@ -8,6 +8,7 @@
 
 use std::rc::Rc;
 
+use crate::vocabulary::words;
 use kiss3d::context::Context;
 use kiss3d::resource::{PipelineCache, multisample_state};
 use kiss3d::scene::Blend2d;
@@ -118,7 +119,7 @@ pub(crate) fn material_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: Some("vs_main"),
+            entry_point: Some(words::pipeline::VS_MAIN),
             buffers,
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
@@ -170,7 +171,7 @@ pub(crate) fn transparent_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: Some("vs_main"),
+            entry_point: Some(words::pipeline::VS_MAIN),
             buffers,
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },
@@ -245,7 +246,7 @@ pub(crate) fn prepass_pipeline(
         layout: Some(layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: Some("vs_main"),
+            entry_point: Some(words::pipeline::VS_MAIN),
             buffers,
             compilation_options: wgpu::PipelineCompilationOptions::default(),
         },

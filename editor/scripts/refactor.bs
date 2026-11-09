@@ -9,6 +9,10 @@ use lint;
 use model;
 use signals;
 
+const RENAME: str = "rename";
+const NAME: str = "name";
+const REFACTOR: str = "refactor";
+
 pub class RefactorState {
     open: bool,
     mode: str,
@@ -32,7 +36,7 @@ pub struct View {
 }
 
 pub fn state() -> RefactorState {
-    RefactorState { open: false, mode: "rename", from: "", to: "", hits: [], written: [] }
+    RefactorState { open: false, mode: RENAME, from: "", to: "", hits: [], written: [] }
 }
 
 /// Open over the word the caret is on, so a rename starts already filled in.
@@ -43,19 +47,19 @@ pub fn open(state: &mut editor::State, mode: str) {
     }
     state.refactor.open = true;
     state.refactor.mode = mode;
-    state.refactor.from = if mode == "rename" { word_at_caret(state, rel) } else { "" };
+    state.refactor.from = if mode == RENAME { word_at_caret(state, rel) } else { "" };
     state.refactor.to = "";
     state.refactor.hits = [];
     state.refactor.written = [];
     preview(state);
-    signals::changed(state, "refactor");
+    signals::changed(state, REFACTOR);
 }
 
 pub fn close(state: &mut editor::State) {
     state.refactor.open = false;
     state.refactor.hits = [];
     state.refactor.written = [];
-    signals::changed(state, "refactor");
+    signals::changed(state, REFACTOR);
 }
 
 // The script the code pane is showing, "" when it is showing none.
@@ -89,7 +93,7 @@ pub fn preview(state: &mut editor::State) {
         return;
     }
     let source = source_of(state, rel);
-    let renaming = state.refactor.mode == "rename";
+    let renaming = state.refactor.mode == RENAME;
     state.refactor.hits = if renaming {
         script::references(rel, source, state.refactor.from)
     } else {
@@ -119,7 +123,7 @@ pub fn apply(state: &mut editor::State) {
         signals::bars(state);
     }
     center::code_written(state);
-    let did = if state.refactor.mode == "rename" { "renamed" } else { "replaced" };
+    let did = if state.refactor.mode == RENAME { "renamed" } else { "replaced" };
     log::info("{did} {state.refactor.from} to {state.refactor.to} in {state.refactor.written.len()} files");
     close(state);
 }
@@ -130,7 +134,7 @@ pub fn view(state: editor::State) -> View {
     if !state.refactor.open {
         return View { open: false, title: "", from: "", to: "", from_hint: "", to_hint: "", count: "", hits: [], ready: false };
     }
-    let renaming = state.refactor.mode == "rename";
+    let renaming = state.refactor.mode == RENAME;
     let hits: [ui::Item] = [];
     for hit in state.refactor.hits {
         hits.push(ui::Item { label: "{hit.file}:{hit.line}" });
@@ -140,7 +144,7 @@ pub fn view(state: editor::State) -> View {
         title: if renaming { "RENAME" } else { "REPLACE" },
         from: state.refactor.from,
         to: state.refactor.to,
-        from_hint: if renaming { "name" } else { "text to find" },
+        from_hint: if renaming { NAME } else { "text to find" },
         to_hint: if renaming { "new name" } else { "replace with" },
         count: "{state.refactor.hits.len()} matches in {state.refactor.written.len()} files",
         hits: hits,
@@ -156,5 +160,5 @@ pub fn set(state: &mut editor::State, field: str, text: str) {
         state.refactor.to = text;
     }
     preview(state);
-    signals::changed(state, "refactor");
+    signals::changed(state, REFACTOR);
 }

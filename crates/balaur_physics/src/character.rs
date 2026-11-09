@@ -27,6 +27,7 @@ use balaur_script::{Module, NodeId, Value};
 
 use crate::PhysicsState3d;
 use crate::properties::{LengthMode, NodePath, SweepIgnore};
+use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k, map};
 use balaur_core::fixed_dt;
 
@@ -238,23 +239,26 @@ pub(crate) fn install_character_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("move_character", &[c::CHARACTER_3D], "(node: node, x: float, y: float, z: float) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
-        ("is_on_floor", &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
+        (words::functions::MOVE_CHARACTER, &[c::CHARACTER_3D], "(node: node, x: float, y: float, z: float) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update. It reads the world the step just wrote."),
+        (words::functions::IS_ON_FLOOR, &[c::CHARACTER_3D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
-        "move_character",
+        words::functions::MOVE_CHARACTER,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             move_character(eng, entity_of(node)?, scalar::v3(x, y, z))
         },
     );
     // A reader, not a move: sweeping a zero translation would still snap to
     // ground, write the transform and push bodies, so asking would simulate.
-    m.function("is_on_floor", |eng: &Engine, node: NodeId| {
-        let entity = entity_of(node)?;
-        let state = eng.resource::<PhysicsState3d>();
-        let grounded = state.borrow().grounded.get(&entity).copied();
-        Ok(grounded.unwrap_or(false))
-    });
+    m.function(
+        words::functions::IS_ON_FLOOR,
+        |eng: &Engine, node: NodeId| {
+            let entity = entity_of(node)?;
+            let state = eng.resource::<PhysicsState3d>();
+            let grounded = state.borrow().grounded.get(&entity).copied();
+            Ok(grounded.unwrap_or(false))
+        },
+    );
 }
 
 /// The character component writes no rapier state of its own: it is read at

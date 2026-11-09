@@ -4,6 +4,7 @@
 
 use super::func::{FnGen, LVal, R};
 use crate::ast::{Block, Expr, ExprKind, Part, Stmt, StmtKind, Ty};
+use crate::vocabulary::words;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 /// Inside an unchecked copy: the loop variable, each array's data pointer,
@@ -100,7 +101,7 @@ impl Scan<'_, '_> {
                 }
             }
             ExprKind::Method(base, name, args) => {
-                if name != "len" || !args.is_empty() {
+                if name != words::methods::LEN || !args.is_empty() {
                     self.ok = false;
                 }
                 self.expr(base);
@@ -165,7 +166,7 @@ impl Scan<'_, '_> {
 fn root(e: &Expr) -> Option<String> {
     match &e.kind {
         ExprKind::Var(n) => Some(n.clone()),
-        ExprKind::SelfRef => Some("self".into()),
+        ExprKind::SelfRef => Some(words::keywords::SELF.into()),
         ExprKind::Field(b, _) => root(b),
         _ => None,
     }

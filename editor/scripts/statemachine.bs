@@ -10,6 +10,34 @@ use selftest;
 use shell;
 use signals;
 use util;
+use words::dock_fields;
+use words::fields;
+use words::general;
+use words::inspector_fields;
+use words::layout_fields;
+use words::project_fields;
+use words::roles;
+use words::tabs;
+use words::verbs;
+
+const SM_PROBE: str = "sm_probe";
+const ADVANCE_MODE: str = "advance_mode";
+const BLEND_TIME: str = "blend_time";
+const BREAK_LOOP_AT_END: str = "break_loop_at_end";
+const CHECK: str = "check";
+const CONDITION: str = "condition";
+const EASE: str = "ease";
+const FROM: str = "from";
+const INLINE: str = "inline";
+const MACHINE: str = "machine";
+const PRIORITY: str = "priority";
+const START: str = "start";
+const SWITCH_MODE: str = "switch_mode";
+const TO: str = "to";
+const RESET: str = "reset";
+const STATE: str = "state";
+const STATES: str = "states";
+const TRANSITIONS: str = "transitions";
 
 pub class StatemachineState {
     open: int?,
@@ -56,11 +84,11 @@ fn source(state: &mut editor::State) -> Source? {
         return nil;
     }
     let component = found.authored(COMPONENT);
-    let machine = component["machine"];
-    if machine.kind() == "map" {
+    let machine = component[MACHINE];
+    if machine.kind() == types::KIND_MAP {
         return Source { doc: machine, path: nil };
     }
-    if machine.kind() == "str" && machine.as_str() != "" {
+    if machine.kind() == types::KIND_STRING && machine.as_str() != "" {
         let path = machine.as_str();
         if state.machine.file != nil {
             let held = state.machine.file.unwrap();
@@ -69,12 +97,12 @@ fn source(state: &mut editor::State) -> Source? {
             }
         }
         let loaded = assets::duplicate(util::engine_path(state.game_root, path));
-        if loaded.kind() == "map" {
+        if loaded.kind() == types::KIND_MAP {
             state.machine.file = File { path: path, doc: loaded };
             return Source { doc: loaded, path: path };
         }
     }
-    Source { doc: { "type": MACHINE_TYPE, "states": {}, "transitions": [] }, path: nil }
+    Source { doc: { fields::TYPE: MACHINE_TYPE, STATES: {}, TRANSITIONS: [] }, path: nil }
 }
 
 // A copy to change, so the edit lands after the history step: a machine in
@@ -101,10 +129,10 @@ fn write(state: &mut editor::State, found: Source, label: str) {
         log::info("{label}: {path}");
     } else {
         history::record(state, label);
-        model::selected_node(state).patch_component(COMPONENT, { "machine": found.doc });
+        model::selected_node(state).patch_component(COMPONENT, { MACHINE: found.doc });
         history::commit(state);
     }
-    signals::changed(state, "machine");
+    signals::changed(state, MACHINE);
 }
 
 /// Give the selected node a machine of its own, driving its own player.
@@ -113,19 +141,19 @@ pub fn create(state: &mut editor::State) {
         return;
     }
     history::record(state, "add state machine");
-    let machine: any = { "type": MACHINE_TYPE, "start": "", "states": {}, "transitions": [] };
-    model::selected_node(state).set_component(COMPONENT, { "machine": machine, "player": "", "active": true });
+    let machine: any = { fields::TYPE: MACHINE_TYPE, START: "", STATES: {}, TRANSITIONS: [] };
+    model::selected_node(state).set_component(COMPONENT, { MACHINE: machine, "player": "", dock_fields::ACTIVE: true });
     history::commit(state);
 }
 
 fn states(doc: any) -> any {
-    let held = doc["states"];
-    if held.kind() == "map" { held } else { {} }
+    let held = doc[STATES];
+    if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
 fn transitions(doc: any) -> [any] {
     let out: [any] = [];
-    for transition in util::list_or_empty(doc["transitions"]) {
+    for transition in util::list_or_empty(doc[TRANSITIONS]) {
         out.push(transition);
     }
     out
@@ -156,9 +184,9 @@ pub fn add_state(state: &mut editor::State, name: str) {
     let held = states(found.doc);
     let own = clips.len() == 0 || util::contains(clips, name);
     held[name] = if own { "" } else { clips[0] };
-    found.doc["states"] = held;
-    if found.doc["start"].as_str() == "" {
-        found.doc["start"] = name;
+    found.doc[STATES] = held;
+    if found.doc[START].as_str() == "" {
+        found.doc[START] = name;
     }
     write(state, found, "add state");
 }
@@ -172,16 +200,16 @@ pub fn remove_state(state: &mut editor::State, name: str) {
     let found = copy.unwrap();
     let held = states(found.doc);
     held.remove(name);
-    found.doc["states"] = held;
+    found.doc[STATES] = held;
     let kept: [any] = [];
     for transition in transitions(found.doc) {
-        if transition["from"].as_str() != name && transition["to"].as_str() != name {
+        if transition[FROM].as_str() != name && transition[layout_fields::TO].as_str() != name {
             kept.push(transition);
         }
     }
-    found.doc["transitions"] = kept;
-    if found.doc["start"].as_str() == name {
-        found.doc["start"] = "";
+    found.doc[TRANSITIONS] = kept;
+    if found.doc[START].as_str() == name {
+        found.doc[START] = "";
     }
     state.machine.open = nil;
     write(state, found, "remove state");
@@ -195,7 +223,7 @@ fn set_state_clip(state: &mut editor::State, name: str, clip: any) {
     let found = copy.unwrap();
     let held = states(found.doc);
     held[name] = if clip.as_str() == name { "" } else { clip.as_str() };
-    found.doc["states"] = held;
+    found.doc[STATES] = held;
     write(state, found, "state clip");
 }
 
@@ -205,7 +233,7 @@ fn set_start(state: &mut editor::State, name: str) {
         return;
     }
     let found = copy.unwrap();
-    found.doc["start"] = name;
+    found.doc[START] = name;
     write(state, found, "start state");
 }
 
@@ -222,9 +250,9 @@ pub fn add_transition(state: &mut editor::State) {
     }
     let to = if names.len() > 1 { names[1] } else { names[0] };
     let held = transitions(found.doc);
-    held.push({ "from": names[0], "to": to, "advance_mode": animation::ADVANCE_MODE_ENABLED });
+    held.push({ FROM: names[0], layout_fields::TO: to, ADVANCE_MODE: animation::ADVANCE_MODE_ENABLED });
     state.machine.open = held.len() - 1;
-    found.doc["transitions"] = held;
+    found.doc[TRANSITIONS] = held;
     write(state, found, "add transition");
 }
 
@@ -239,7 +267,7 @@ pub fn remove_transition(state: &mut editor::State, at: int) {
         return;
     }
     held.remove(at);
-    found.doc["transitions"] = held;
+    found.doc[TRANSITIONS] = held;
     state.machine.open = nil;
     write(state, found, "remove transition");
 }
@@ -255,12 +283,12 @@ pub fn set_field(state: &mut editor::State, at: int, key: str, value: any) {
     if at >= held.len() {
         return;
     }
-    if value.kind() == "str" && value.as_str() == "" {
+    if value.kind() == types::KIND_STRING && value.as_str() == "" {
         held[at].remove(key);
     } else {
         held[at][key] = value;
     }
-    found.doc["transitions"] = held;
+    found.doc[TRANSITIONS] = held;
     write(state, found, "edit transition");
 }
 
@@ -295,18 +323,18 @@ fn offer(state: editor::State) -> [ui::Control] {
     return [
         caption("no state machine on this node"),
         ui::Control {
-            kind: "button",
-            role: "action_form_secondary",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ACTION_FORM_SECONDARY,
             text: "add state machine",
             tooltip: "Give the node an embedded `state_machine` over its own player",
             on_click: "handle",
-            data: { "fn": on_add_machine_pressed },
+            data: { fields::FN: on_add_machine_pressed },
         },
     ];
 }
 
 fn caption(text: str) -> ui::Control {
-    ui::Control { kind: "label", role: "text_caption", text: text }
+    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: text }
 }
 
 fn on_add_machine_pressed(state: &mut editor::State, data: any, _value: any) {
@@ -317,24 +345,24 @@ fn on_add_machine_pressed(state: &mut editor::State, data: any, _value: any) {
 /// and the state it is in while the game runs.
 fn header_controls(state: editor::State, found: Source) -> [ui::Control] {
     let doc = found.doc;
-    let place = if found.path != nil { found.path.unwrap() } else { "inline" };
+    let place = if found.path != nil { found.path.unwrap() } else { INLINE };
     let out = [
         caption(place),
-        caption("start"),
+        caption(START),
         ui::Control {
-            kind: "dropdown",
-            role: "choice_form",
+            kind: ui::WIDGET_DROPDOWN,
+            role: roles::CHOICE_FORM,
             width: FIELD_WIDTH,
-            text: doc["start"].as_str(),
+            text: doc[START].as_str(),
             options: state_names(doc),
             on_change: "handle",
-            data: { "fn": on_start_picked },
+            data: { fields::FN: on_start_picked },
         },
     ];
     let now = live_state(state);
     if now != "" {
         // A chip held down that nothing clicks: the state the machine is in.
-        out.push(ui::Control { kind: "button", role: "chip", checked: true, interactive: false, focusable: false, text: "now {now}" });
+        out.push(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, checked: true, interactive: false, focusable: false, text: "now {now}" });
     }
     out
 }
@@ -367,31 +395,31 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
         let clip = machine_states[name];
         // Bound afresh: a closure made in a loop captures the binding.
         let state_name = name;
-        let control: ui::Control = if clip.kind() == "str" {
+        let control: ui::Control = if clip.kind() == types::KIND_STRING {
             ui::Control {
-                kind: "dropdown",
-                role: "choice_form",
+                kind: ui::WIDGET_DROPDOWN,
+                role: roles::CHOICE_FORM,
                 width: FIELD_WIDTH,
                 text: if clip.as_str() == "" { state_name } else { clip.as_str() },
                 options: clips,
                 on_change: "handle",
-                data: { "fn": on_state_clip_picked, "state": state_name },
+                data: { fields::FN: on_state_clip_picked, STATE: state_name },
             }
         } else {
             caption("nested machine")
         };
         out.push(ui::Row {
             height: ROW_HEIGHT,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 control,
                 ui::Control {
-                    kind: "button",
-                    role: "chip_quiet",
+                    kind: ui::WIDGET_BUTTON,
+                    role: roles::CHIP_QUIET,
                     text: "×",
                     tooltip: "Remove the state and its transitions",
                     on_click: "handle",
-                    data: { "fn": on_state_remove_pressed, "state": state_name },
+                    data: { fields::FN: on_state_remove_pressed, STATE: state_name },
                 },
             ],
             label: state_name,
@@ -399,25 +427,25 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
     }
     out.push(ui::Row {
         height: ROW_HEIGHT,
-        slot_role: "layout_actions",
+        slot_role: roles::LAYOUT_ACTIONS,
         controls: [
             ui::Control {
-                kind: "text_field",
-                role: "input_form",
+                kind: ui::WIDGET_TEXT_FIELD,
+                role: roles::INPUT_FORM,
                 width: NAME_WIDTH + FIELD_WIDTH,
                 text: state.machine.naming,
                 placeholder: "new state",
                 on_change: "handle",
                 on_submit: "handle_submit",
-                data: { "fn": on_new_state_typed, "submit": on_new_state_submitted },
+                data: { fields::FN: on_new_state_typed, project_fields::SUBMIT: on_new_state_submitted },
             },
             ui::Control {
-                kind: "button",
-                role: "action_form_secondary",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::ACTION_FORM_SECONDARY,
                 text: "add state",
                 tooltip: "A state playing the clip of its own name",
                 on_click: "handle",
-                data: { "fn": on_add_state_pressed },
+                data: { fields::FN: on_add_state_pressed },
             },
         ],
     });
@@ -426,12 +454,12 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
 }
 
 fn on_state_clip_picked(state: &mut editor::State, data: any, picked: any) {
-    let state_name: str = data["state"].as_str();
+    let state_name: str = data[STATE].as_str();
     set_state_clip(state, state_name, picked);
 }
 
 fn on_state_remove_pressed(state: &mut editor::State, data: any, _value: any) {
-    let state_name: str = data["state"].as_str();
+    let state_name: str = data[STATE].as_str();
     remove_state(state, state_name);
 }
 
@@ -459,12 +487,12 @@ fn named(state: &mut editor::State, text: str) {
 fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
     out.push(head_spec("TRANSITIONS", [
         ui::Control {
-            kind: "button",
-            role: "action_form_secondary",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ACTION_FORM_SECONDARY,
             text: "add transition",
             tooltip: "A transition between two states, opened for editing",
             on_click: "handle",
-            data: { "fn": on_add_transition_pressed },
+            data: { fields::FN: on_add_transition_pressed },
         },
     ]));
     let names = state_names(doc);
@@ -477,30 +505,30 @@ fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
         // Bound afresh: a closure made in a loop captures the binding.
         let index = at;
         let open = state.machine.open != nil && state.machine.open.unwrap() == index;
-        let from = if transition["from"] == nil { "?" } else { transition["from"].as_str() };
-        let to = if transition["to"] == nil { "?" } else { transition["to"].as_str() };
-        let mode = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
+        let from = if transition[FROM] == nil { "?" } else { transition[FROM].as_str() };
+        let to = if transition[layout_fields::TO] == nil { "?" } else { transition[layout_fields::TO].as_str() };
+        let mode = if transition[ADVANCE_MODE] == nil { animation::ADVANCE_MODE_ENABLED } else { transition[ADVANCE_MODE].as_str() };
         out.push(ui::Row {
             height: ROW_HEIGHT,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: [
                 ui::Control {
-                    kind: "button",
+                    kind: ui::WIDGET_BUTTON,
                     min_width: NAME_WIDTH + FIELD_WIDTH,
                     role: "item_list",
                     checked: open,
                     text: "{from} → {to}  {mode}",
                     tooltip: "Open the transition's fields",
                     on_click: "handle",
-                    data: { "fn": on_transition_picked, "open": open, "index": index },
+                    data: { fields::FN: on_transition_picked, project_fields::OPEN: open, fields::INDEX: index },
                 },
                 ui::Control {
-                    kind: "button",
-                    role: "chip_quiet",
+                    kind: ui::WIDGET_BUTTON,
+                    role: roles::CHIP_QUIET,
                     text: "×",
                     tooltip: "Remove the transition",
                     on_click: "handle",
-                    data: { "fn": on_transition_remove_pressed, "index": index },
+                    data: { fields::FN: on_transition_remove_pressed, fields::INDEX: index },
                 },
             ],
         });
@@ -515,13 +543,13 @@ fn on_add_transition_pressed(state: &mut editor::State, data: any, _value: any) 
 }
 
 fn on_transition_picked(state: &mut editor::State, data: any, _value: any) {
-    let open: bool = data["open"].as_bool();
-    let index: int = data["index"].as_int();
+    let open: bool = data[project_fields::OPEN].as_bool();
+    let index: int = data[fields::INDEX].as_int();
     state.machine.open = if open { nil } else { index };
 }
 
 fn on_transition_remove_pressed(state: &mut editor::State, data: any, _value: any) {
-    let index: int = data["index"].as_int();
+    let index: int = data[fields::INDEX].as_int();
     remove_transition(state, index);
 }
 
@@ -531,7 +559,7 @@ fn head_spec(text: str, verbs: [ui::Control]) -> ui::Row {
     for verb in verbs {
         controls.push(verb);
     }
-    ui::Row { height: ROW_HEIGHT, slot_role: "layout_actions", controls: controls }
+    ui::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
@@ -542,38 +570,38 @@ fn field_spec(label: str, control: ui::Control) -> ui::Row {
 
 fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> ui::Control {
     ui::Control {
-        kind: "dropdown",
-        role: "choice_form",
+        kind: ui::WIDGET_DROPDOWN,
+        role: roles::CHOICE_FORM,
         width: FIELD_WIDTH,
         text: current,
         options: choices,
         on_change: "handle",
-        data: { "fn": on_choice_picked, "at": at, "key": key },
+        data: { fields::FN: on_choice_picked, layout_fields::AT: at, fields::KEY: key },
     }
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
-    let at: int = data["at"].as_int();
-    let key: str = data["key"].as_str();
+    let at: int = data[layout_fields::AT].as_int();
+    let key: str = data[fields::KEY].as_str();
     set_field(state, at, key, picked);
 }
 
 fn text_of(state: editor::State, at: int, key: str, current: str, placeholder: str) -> ui::Control {
     ui::Control {
-        kind: "text_field",
-        role: "input_form",
+        kind: ui::WIDGET_TEXT_FIELD,
+        role: roles::INPUT_FORM,
         width: FIELD_WIDTH,
         text: current,
         placeholder: placeholder,
         on_submit: "handle_submit",
-        data: { "submit": on_text_submitted, "current": current, "at": at, "key": key },
+        data: { project_fields::SUBMIT: on_text_submitted, inspector_fields::CURRENT: current, layout_fields::AT: at, fields::KEY: key },
     }
 }
 
 fn on_text_submitted(state: &mut editor::State, data: any, value: any) {
-    let current: str = data["current"].as_str();
-    let at: int = data["at"].as_int();
-    let key: str = data["key"].as_str();
+    let current: str = data[inspector_fields::CURRENT].as_str();
+    let at: int = data[layout_fields::AT].as_int();
+    let key: str = data[fields::KEY].as_str();
     if value.as_str() != current {
         set_field(state, at, key, value);
     }
@@ -583,22 +611,22 @@ fn on_text_submitted(state: &mut editor::State, data: any, value: any) {
 // decimals as its speed has, and `priority` parses a whole number only.
 fn number(state: editor::State, at: int, key: str, current: float, whole: bool) -> ui::Control {
     ui::Control {
-        kind: "number_field",
-        role: "input_number",
+        kind: ui::WIDGET_NUMBER_FIELD,
+        role: roles::INPUT_NUMBER,
         width: FIELD_WIDTH,
         value: current,
         min: 0.0,
         max: if whole { 1000.0 } else { 100.0 },
         drag_speed: if whole { 1.0 } else { 0.01 },
         on_change: "handle",
-        data: { "fn": on_number_changed, "at": at, "key": key, "whole": whole },
+        data: { fields::FN: on_number_changed, layout_fields::AT: at, fields::KEY: key, layout_fields::WHOLE: whole },
     }
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    let at: int = data["at"].as_int();
-    let key: str = data["key"].as_str();
-    let whole: bool = data["whole"].as_bool();
+    let at: int = data[layout_fields::AT].as_int();
+    let key: str = data[fields::KEY].as_str();
+    let whole: bool = data[layout_fields::WHOLE].as_bool();
     if whole {
         set_field(state, at, key, (value.as_float() as int));
     } else {
@@ -608,36 +636,36 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
 
 fn flag(state: editor::State, at: int, key: str, on: bool) -> ui::Control {
     ui::Control {
-        kind: "switch",
-        role: "switch_form",
+        kind: ui::WIDGET_SWITCH,
+        role: roles::SWITCH_FORM,
         checked: on,
         on_change: "handle",
-        data: { "fn": on_flag_changed, "at": at, "key": key },
+        data: { fields::FN: on_flag_changed, layout_fields::AT: at, fields::KEY: key },
     }
 }
 
 fn on_flag_changed(state: &mut editor::State, data: any, value: any) {
-    let at: int = data["at"].as_int();
-    let key: str = data["key"].as_str();
+    let at: int = data[layout_fields::AT].as_int();
+    let key: str = data[fields::KEY].as_str();
     set_field(state, at, key, value);
 }
 
 fn field_specs(state: editor::State, at: int, transition: any, names: [str], targets: [str], out: [ui::Row]) {
-    let ease = if transition["ease"] == nil { animation::EASE_LINEAR } else { transition["ease"].as_str() };
-    let advance = if transition["advance_mode"] == nil { animation::ADVANCE_MODE_ENABLED } else { transition["advance_mode"].as_str() };
-    let switch = if transition["switch_mode"] == nil { animation::SWITCH_MODE_IMMEDIATE } else { transition["switch_mode"].as_str() };
-    let priority = if transition["priority"] == nil { 1 } else { transition["priority"].as_int() };
-    out.push(field_spec("from", choice(state, at, "from", transition["from"].as_str(), names)));
-    out.push(field_spec("to", choice(state, at, "to", transition["to"].as_str(), targets)));
-    out.push(field_spec("blend time", number(state, at, "blend_time", transition["blend_time"].as_float(), false)));
-    out.push(field_spec("ease", choice(state, at, "ease", ease, animation::ease_names())));
-    out.push(field_spec("advance mode", choice(state, at, "advance_mode", advance, [animation::ADVANCE_MODE_DISABLED, animation::ADVANCE_MODE_ENABLED, animation::ADVANCE_MODE_AUTO])));
-    out.push(field_spec("switch mode", choice(state, at, "switch_mode", switch, [animation::SWITCH_MODE_IMMEDIATE, animation::SWITCH_MODE_SYNC, animation::SWITCH_MODE_AT_END])));
-    out.push(field_spec("condition", text_of(state, at, "condition", transition["condition"].as_str(), "none")));
-    out.push(field_spec("check", text_of(state, at, "check", transition["check"].as_str(), "no method")));
-    out.push(field_spec("priority", number(state, at, "priority", priority as float, true)));
-    out.push(field_spec("reset", flag(state, at, "reset", transition["reset"] == nil || transition["reset"].as_bool())));
-    out.push(field_spec("break loop at end", flag(state, at, "break_loop_at_end", transition["break_loop_at_end"].as_bool())));
+    let ease = if transition[EASE] == nil { animation::EASE_LINEAR } else { transition[EASE].as_str() };
+    let advance = if transition[ADVANCE_MODE] == nil { animation::ADVANCE_MODE_ENABLED } else { transition[ADVANCE_MODE].as_str() };
+    let switch = if transition[SWITCH_MODE] == nil { animation::SWITCH_MODE_IMMEDIATE } else { transition[SWITCH_MODE].as_str() };
+    let priority = if transition[PRIORITY] == nil { 1 } else { transition[PRIORITY].as_int() };
+    out.push(field_spec(FROM, choice(state, at, FROM, transition[FROM].as_str(), names)));
+    out.push(field_spec(TO, choice(state, at, TO, transition[layout_fields::TO].as_str(), targets)));
+    out.push(field_spec("blend time", number(state, at, BLEND_TIME, transition[BLEND_TIME].as_float(), false)));
+    out.push(field_spec(EASE, choice(state, at, EASE, ease, animation::ease_names())));
+    out.push(field_spec("advance mode", choice(state, at, ADVANCE_MODE, advance, [animation::ADVANCE_MODE_DISABLED, animation::ADVANCE_MODE_ENABLED, animation::ADVANCE_MODE_AUTO])));
+    out.push(field_spec("switch mode", choice(state, at, SWITCH_MODE, switch, [animation::SWITCH_MODE_IMMEDIATE, animation::SWITCH_MODE_SYNC, animation::SWITCH_MODE_AT_END])));
+    out.push(field_spec(CONDITION, text_of(state, at, CONDITION, transition[CONDITION].as_str(), general::NONE)));
+    out.push(field_spec(CHECK, text_of(state, at, CHECK, transition[CHECK].as_str(), "no method")));
+    out.push(field_spec(PRIORITY, number(state, at, PRIORITY, priority as float, true)));
+    out.push(field_spec(verbs::RESET, flag(state, at, verbs::RESET, transition[RESET] == nil || transition[RESET].as_bool())));
+    out.push(field_spec("break loop at end", flag(state, at, BREAK_LOOP_AT_END, transition[BREAK_LOOP_AT_END].as_bool())));
 }
 
 fn check(ok: bool, what: str) {
@@ -653,7 +681,7 @@ fn check(ok: bool, what: str) {
 pub fn selftest(state: &mut editor::State) {
     let player: int? = nil;
     for index in 0..state.nodes.len() {
-        if state.nodes[index].has_component("animation") {
+        if state.nodes[index].has_component(tabs::ANIMATION) {
             player = index;
             break;
         }
@@ -669,32 +697,32 @@ pub fn selftest(state: &mut editor::State) {
         create(state);
     }
     check(source(state) != nil, "the node runs a state machine");
-    add_state(state, "sm_probe");
+    add_state(state, SM_PROBE);
     let doc = source(state).unwrap().doc;
-    check(states(doc).has("sm_probe"), "a state is added");
+    check(states(doc).has(SM_PROBE), "a state is added");
     let count = transitions(doc).len();
     add_transition(state);
     let at = count;
-    set_field(state, at, "to", "sm_probe");
-    set_field(state, at, "blend_time", 0.3);
-    set_field(state, at, "advance_mode", animation::ADVANCE_MODE_AUTO);
-    set_field(state, at, "priority", 2);
+    set_field(state, at, TO, SM_PROBE);
+    set_field(state, at, BLEND_TIME, 0.3);
+    set_field(state, at, ADVANCE_MODE, animation::ADVANCE_MODE_AUTO);
+    set_field(state, at, PRIORITY, 2);
     let transition = transitions(source(state).unwrap().doc)[at];
-    check(transition["blend_time"].as_float() == 0.3 && transition["advance_mode"].as_str() == animation::ADVANCE_MODE_AUTO, "a transition's fields are written");
-    check(transition["priority"].kind() == "int" && transition["priority"].as_int() == 2, "priority stays a whole number");
-    set_field(state, at, "condition", "go");
-    set_field(state, at, "condition", "");
+    check(transition[BLEND_TIME].as_float() == 0.3 && transition[ADVANCE_MODE].as_str() == animation::ADVANCE_MODE_AUTO, "a transition's fields are written");
+    check(transition[PRIORITY].kind() == types::KIND_INT && transition[PRIORITY].as_int() == 2, "priority stays a whole number");
+    set_field(state, at, CONDITION, "go");
+    set_field(state, at, CONDITION, "");
     let transition = transitions(source(state).unwrap().doc)[at];
-    check(!transition.has("condition"), "an emptied field is removed");
-    remove_state(state, "sm_probe");
+    check(!transition.has(CONDITION), "an emptied field is removed");
+    remove_state(state, SM_PROBE);
     let doc = source(state).unwrap().doc;
     let dangling = false;
     for transition in transitions(doc) {
-        if transition["to"].as_str() == "sm_probe" {
+        if transition[layout_fields::TO].as_str() == SM_PROBE {
             dangling = true;
         }
     }
-    check(!states(doc).has("sm_probe") && !dangling, "removing a state removes its transitions");
+    check(!states(doc).has(SM_PROBE) && !dangling, "removing a state removes its transitions");
     let guard = 0;
     while history::can_undo(state) && guard < 200 {
         shell::undo(state);
@@ -703,7 +731,7 @@ pub fn selftest(state: &mut editor::State) {
     check(model::node_text(state, state.nodes[node_index]) == before, "undoing everything restores the node");
     // Left on the dock with a transition open, so the shot this state takes
     // is of the fields as well as the rows.
-    docks::show(state, "statemachine");
+    docks::show(state, verbs::STATEMACHINE);
     // Only where the scene authored one: the undo above took back the machine
     // this test made, so a node that came with none has none now.
     let found = source(state);
@@ -711,8 +739,8 @@ pub fn selftest(state: &mut editor::State) {
         if transitions(found.unwrap().doc).len() > 0 {
             state.machine.open = 0;
             state.machine.demo = 0;
-            selftest::stepping(state, "machine");
-            signals::changed(state, "machine");
+            selftest::stepping(state, MACHINE);
+            signals::changed(state, MACHINE);
         }
     }
     log::info("selftest state machine: done");

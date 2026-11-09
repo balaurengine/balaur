@@ -11,6 +11,18 @@ use theme;
 use themewin;
 use util;
 use window;
+use words::changes;
+use words::datatypes;
+use words::fields;
+use words::general;
+use words::layout_fields;
+use words::project_fields;
+use words::roles;
+use words::schema_fields;
+use words::verbs;
+
+const EDITOR: str = "editor";
+const PROJECT: str = "project";
 
 pub class SettingsState {
     at: str,
@@ -64,7 +76,7 @@ pub fn open_at(state: &mut editor::State, category: str) {
 }
 
 pub fn open(state: &mut editor::State) {
-    window::show(state, "settings");
+    window::show(state, verbs::SETTINGS);
     load_files(state);
 }
 
@@ -97,7 +109,7 @@ pub fn preferences_path() -> str {
 fn categories() -> [str] {
     let all = settings::all();
     let seen: [str] = [];
-    for scope in ["project", "editor"] {
+    for scope in [PROJECT, EDITOR] {
         for setting in all {
             if setting.scope == scope && !util::contains(seen, setting.category) {
                 seen.push(setting.category);
@@ -112,7 +124,7 @@ fn categories() -> [str] {
 fn scopes() -> any {
     let out: any = {};
     for setting in settings::all() {
-        if setting.scope == "project" || !out.has(setting.category) {
+        if setting.scope == PROJECT || !out.has(setting.category) {
             out[setting.category] = setting.scope;
         }
     }
@@ -121,7 +133,7 @@ fn scopes() -> any {
 
 fn scope_of(category: str) -> str {
     let found = scopes()[category];
-    if found == nil { "project" } else { found.as_str() }
+    if found == nil { PROJECT } else { found.as_str() }
 }
 
 fn current(state: editor::State) -> str {
@@ -148,7 +160,7 @@ fn showing(state: editor::State) -> [settings::Setting] {
         } else {
             // The path and the help both, so "packet" finds `multiplayer/loss`
             // by its sentence when its name does not say it.
-            setting.path.to_lower().contains(query) || setting.spec["help"].as_str().to_lower().contains(query)
+            setting.path.to_lower().contains(query) || setting.spec[fields::HELP].as_str().to_lower().contains(query)
         };
         if matches {
             // Slid in after every row that ranks the same or before, so equal
@@ -165,12 +177,12 @@ fn showing(state: editor::State) -> [settings::Setting] {
 
 // Project rows before editor ones, each in the order it asks for.
 fn rank_of(setting: settings::Setting) -> float {
-    let tail = if setting.scope == "editor" { 100000.0 } else { 0.0 };
+    let tail = if setting.scope == EDITOR { 100000.0 } else { 0.0 };
     tail + order_of(setting)
 }
 
 fn order_of(setting: settings::Setting) -> float {
-    let order = setting.spec["order"];
+    let order = setting.spec[fields::ORDER];
     if order == nil { 1000.0 } else { order.as_float() }
 }
 
@@ -197,13 +209,13 @@ pub fn commit(state: &mut editor::State) {
 /// The game's half alone: what a choice made outside this screen saves.
 pub fn commit_project(state: editor::State) {
     let path = state.game_root + "/project.toml";
-    fs::write(path, settings::to_toml("project", fs::read(path).or("")));
+    fs::write(path, settings::to_toml(PROJECT, fs::read(path).or("")));
 }
 
 /// The editor's half alone: what a self-test can round-trip without rewriting
 /// the game's manifest.
 pub fn commit_preferences(state: editor::State) {
-    fs::write(preferences_path(), settings::to_toml("editor", fs::read(preferences_path()).or("")));
+    fs::write(preferences_path(), settings::to_toml(EDITOR, fs::read(preferences_path()).or("")));
 }
 
 // Under this the list of categories goes above the rows rather than beside
@@ -231,7 +243,7 @@ fn row_width(state: editor::State) -> float {
 pub fn fill(state: &mut editor::State) {
     let tokens = state.theme;
     let stacked = ui::window_size().x < STACK_BELOW;
-    let found = window::sheet_form(state, "settings", "Settings", save_button(state));
+    let found = window::sheet_form(state, verbs::SETTINGS, "Settings", save_button(state));
     if found == nil {
         return;
     }
@@ -256,8 +268,8 @@ fn label_column_width(state: editor::State) -> float {
 
 fn picker_spec(state: editor::State) -> ui::Row {
     let picker: ui::Control = ui::Control {
-        kind: "dropdown",
-        role: "choice_form",
+        kind: ui::WIDGET_DROPDOWN,
+        role: roles::CHOICE_FORM,
         grow: 1,
         text: current(state),
         options: categories(),
@@ -277,11 +289,11 @@ fn save_button(state: editor::State) -> [ui::Control] {
     }
     let save: [ui::Control] = [
         ui::Control {
-            kind: "button",
-            role: "action_form_primary",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ACTION_FORM_PRIMARY,
             text: "Save",
             on_click: "handle",
-            data: { "fn": on_save_clicked },
+            data: { fields::FN: on_save_clicked },
         },
     ];
     save
@@ -302,30 +314,30 @@ fn side_controls(state: editor::State, tokens: any) -> [ui::Control] {
         // Bound afresh: a closure made in a loop captures the binding.
         let category = name;
         let held = scopes[category];
-        let here = if held == nil { "project" } else { held.as_str() };
+        let here = if held == nil { PROJECT } else { held.as_str() };
         if here != scope {
             scope = here;
             out.push(ui::Control {
-                kind: "label",
-                role: "text_caption",
-                text: if scope == "project" { "PROJECT" } else { "THIS EDITOR" },
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CAPTION,
+                text: if scope == PROJECT { "PROJECT" } else { "THIS EDITOR" },
             });
         }
         let on = query(state) == "" && category == at;
         out.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: category,
-            role: "item_sidebar",
+            role: roles::ITEM_SIDEBAR,
             checked: on,
             on_click: "handle",
-            data: { "fn": on_category_clicked, "category": category },
+            data: { fields::FN: on_category_clicked, fields::CATEGORY: category },
         });
     }
     out
 }
 
 fn on_category_clicked(state: &mut editor::State, data: any, _value: any) {
-    let category: any = data["category"];
+    let category: any = data[fields::CATEGORY];
     set_query(state, "");
     state.settings.at = category.as_str();
 }
@@ -338,19 +350,19 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
     let row_height = style::row_height(state);
     if query(state) != "" {
         out.push(note_spec("{rows.len()} matching \"{query(state)}\""));
-    } else if scope_of(current(state)) == "project" {
+    } else if scope_of(current(state)) == PROJECT {
         out.push(ui::Row {
             height: 34,
             controls: [
                 ui::Control {
-                    kind: "label",
-                    role: "text_caption",
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CAPTION,
                     grow: 1,
                     text: "Written to project.toml, and shipped with the game.",
                 },
                 target_control(state),
             ],
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
         });
     } else {
         out.push(note_spec("Kept in this editor only, and never written to the project."));
@@ -382,21 +394,21 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
         let controls = [editor_control(state, setting, path)];
         if path == theme::SETTING {
             controls.push(ui::Control {
-                kind: "button",
-                role: "action_form_primary",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::ACTION_FORM_PRIMARY,
                 text: "Edit…",
                 tooltip: "Open the Theme dialog",
                 on_click: "handle",
-                data: { "fn": on_theme_edit_clicked },
+                data: { fields::FN: on_theme_edit_clicked },
             });
         }
         out.push(ui::Row {
             height: row_height,
             controls: controls,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             label: if searching { path } else { key_of(setting) },
         });
-        let help = setting.spec["help"].as_str();
+        let help = setting.spec[fields::HELP].as_str();
         if help != "" {
             let tail = if setting.applies_now { "" } else { "  ·  takes effect on the next run" };
             out.push(note_spec(help + tail));
@@ -408,15 +420,15 @@ fn form_specs(state: editor::State, tokens: any) -> [ui::Row] {
                 controls: [
                     editor_control(state, setting, at),
                     ui::Control {
-                        kind: "button",
-                        role: "chip_quiet",
+                        kind: ui::WIDGET_BUTTON,
+                        role: roles::CHIP_QUIET,
                         text: "×",
                         tooltip: "Reset this override",
                         on_click: "handle",
-                        data: { "fn": on_override_reset_clicked, "at": at },
+                        data: { fields::FN: on_override_reset_clicked, layout_fields::AT: at },
                     },
                 ],
-                slot_role: "layout_actions",
+                slot_role: roles::LAYOUT_ACTIONS,
                 label: "  on " + on,
             });
         }
@@ -429,7 +441,7 @@ fn on_theme_edit_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    settings::clear(data["at"].as_str());
+    settings::clear(data[layout_fields::AT].as_str());
     state.settings.dirty = true;
 }
 
@@ -439,8 +451,8 @@ fn note_spec(text: str) -> ui::Row {
         height: 0,
         controls: [
             ui::Control {
-                kind: "label",
-                role: "text_caption",
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CAPTION,
                 grow: 1,
                 wrap: true,
                 text: text,
@@ -454,8 +466,8 @@ fn head_spec(text: str) -> ui::Row {
         height: 24,
         controls: [
             ui::Control {
-                kind: "label",
-                role: "text_caption",
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CAPTION,
                 grow: 1,
                 text: text,
             },
@@ -472,18 +484,18 @@ fn target_control(state: editor::State) -> ui::Control {
         options.push(tag);
     }
     ui::Control {
-        kind: "dropdown",
-        role: "choice_form",
+        kind: ui::WIDGET_DROPDOWN,
+        role: roles::CHOICE_FORM,
         width: 170,
         text: if state.settings.target == "" { "override for…" } else { "override for " + state.settings.target },
         options: options,
         on_change: "handle",
-        data: { "fn": on_override_target_picked },
+        data: { fields::FN: on_override_target_picked },
     }
 }
 
 fn on_override_target_picked(state: &mut editor::State, data: any, picked: any) {
-    state.settings.target = if picked.as_str() == "none" { "" } else { picked.as_str() };
+    state.settings.target = if picked.as_str() == general::NONE { "" } else { picked.as_str() };
 }
 
 fn override_path(tag: str, path: str) -> str {
@@ -496,54 +508,54 @@ fn override_path(tag: str, path: str) -> str {
 /// The control one setting's row carries, by the schema's datatype.
 fn editor_control(state: editor::State, setting: settings::Setting, path: str) -> ui::Control {
     let spec = util::map_or_empty(setting.spec);
-    let datatype = if spec["type"] == nil { "string" } else { spec["type"].as_str() };
+    let datatype = if spec[fields::TYPE] == nil { datatypes::STRING } else { spec[fields::TYPE].as_str() };
     let value = settings::base(path);
-    if datatype == "bool" {
+    if datatype == datatypes::BOOL {
         return ui::Control {
-            kind: "switch",
-            role: "switch_form",
+            kind: ui::WIDGET_SWITCH,
+            role: roles::SWITCH_FORM,
             checked: value.as_bool(),
             on_change: "handle",
-            data: { "fn": on_switch_toggled, "path": path },
+            data: { fields::FN: on_switch_toggled, project_fields::PATH: path },
         };
     }
-    if datatype == "enum" {
+    if datatype == datatypes::ENUM {
         // The person's own themes are folders, so the list is read, not declared.
         let named = path == theme::SETTING;
         return ui::Control {
-            kind: "dropdown",
-            role: "choice_form",
+            kind: ui::WIDGET_DROPDOWN,
+            role: roles::CHOICE_FORM,
             grow: 1,
-            text: if value.kind() == "str" { value.as_str() } else { "" },
-            options: if named { theme::names() } else { util::list_or_empty(spec["options"]) },
+            text: if value.kind() == types::KIND_STRING { value.as_str() } else { "" },
+            options: if named { theme::names() } else { util::list_or_empty(spec[schema_fields::OPTIONS]) },
             on_change: "handle",
-            data: { "fn": on_choice_picked, "path": path },
+            data: { fields::FN: on_choice_picked, project_fields::PATH: path },
         };
     }
-    if datatype == "int" || datatype == "float" {
-        let low = spec["min"].as_float();
-        let high = if spec["max"] != nil { spec["max"].as_float() } else if datatype == "int" { 1000000.0 } else { 1.0 };
+    if datatype == datatypes::INT || datatype == datatypes::FLOAT {
+        let low = spec[schema_fields::MIN].as_float();
+        let high = if spec[schema_fields::MAX] != nil { spec[schema_fields::MAX].as_float() } else if datatype == datatypes::INT { 1000000.0 } else { 1.0 };
         // A setting declared with no default reads as nil; the control starts
         // at its floor instead.
         let now = if value == nil { low } else { value.as_float() };
-        let whole = datatype == "int";
+        let whole = datatype == datatypes::INT;
         return ui::Control {
-            kind: "number_field",
-            role: "input_number",
+            kind: ui::WIDGET_NUMBER_FIELD,
+            role: roles::INPUT_NUMBER,
             grow: 1,
             value: now,
             min: low,
             max: high,
             drag_speed: if whole { 1.0 } else { 0.01 },
             on_change: "handle",
-            data: { "fn": on_number_changed, "path": path, "whole": whole },
+            data: { fields::FN: on_number_changed, project_fields::PATH: path, layout_fields::WHOLE: whole },
         };
     }
     // Everything else reads and writes as text, a comma-separated list
     // included: a row of its own per entry would be a page per setting.
-    let shown = if datatype == "list" {
+    let shown = if datatype == datatypes::LIST {
         commas(value)
-    } else if value.kind() == "str" {
+    } else if value.kind() == types::KIND_STRING {
         value.as_str()
     } else if value == nil {
         ""
@@ -551,37 +563,37 @@ fn editor_control(state: editor::State, setting: settings::Setting, path: str) -
         "{value}"
     };
     ui::Control {
-        kind: "text_field",
-        role: "input_form",
+        kind: ui::WIDGET_TEXT_FIELD,
+        role: roles::INPUT_FORM,
         grow: 1,
         text: shown,
         secret: spec["secret"].as_bool(),
         on_submit: "handle_submit",
-        data: { "submit": on_text_submitted, "path": path, "datatype": datatype },
+        data: { project_fields::SUBMIT: on_text_submitted, project_fields::PATH: path, schema_fields::DATATYPE: datatype },
     }
 }
 
 fn on_switch_toggled(state: &mut editor::State, data: any, on: any) {
-    write(state, data["path"].as_str(), on);
+    write(state, data[project_fields::PATH].as_str(), on);
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
-    write(state, data["path"].as_str(), picked);
+    write(state, data[project_fields::PATH].as_str(), picked);
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    if data["whole"].as_bool() {
-        write(state, data["path"].as_str(), math::round(value.as_float()) as int);
+    if data[layout_fields::WHOLE].as_bool() {
+        write(state, data[project_fields::PATH].as_str(), math::round(value.as_float()) as int);
     } else {
-        write(state, data["path"].as_str(), value);
+        write(state, data[project_fields::PATH].as_str(), value);
     }
 }
 
 fn on_text_submitted(state: &mut editor::State, data: any, text: any) {
-    if data["datatype"].as_str() == "list" {
-        write(state, data["path"].as_str(), split_commas(text.as_str()));
+    if data[schema_fields::DATATYPE].as_str() == datatypes::LIST {
+        write(state, data[project_fields::PATH].as_str(), split_commas(text.as_str()));
     } else {
-        write(state, data["path"].as_str(), text);
+        write(state, data[project_fields::PATH].as_str(), text);
     }
 }
 
@@ -619,7 +631,7 @@ pub fn write(state: &mut editor::State, path: str, value: any) {
 // to save to see is a theme you cannot preview.
 pub fn apply(state: &mut editor::State) {
     let theme_name = settings::get(theme::SETTING);
-    if theme_name.kind() == "str" {
+    if theme_name.kind() == types::KIND_STRING {
         theme::use_named(state, theme_name.as_str());
     }
     let scale = settings::get("editor/appearance/ui_scale");
@@ -629,12 +641,12 @@ pub fn apply(state: &mut editor::State) {
     // Kept apart from `state.compact`, which the window width also writes: the
     // setting forces compact on, it never forces it off.
     let compact = settings::get("editor/appearance/compact");
-    if compact.kind() == "bool" {
+    if compact.kind() == types::KIND_BOOL {
         state.settings.compact = compact.as_bool();
     }
     let verify = settings::get("editor/recordings/verify");
-    if verify.kind() == "bool" {
+    if verify.kind() == types::KIND_BOOL {
         state.session.verify = verify.as_bool();
-        signals::changed(state, "recordings");
+        signals::changed(state, changes::RECORDINGS);
     }
 }

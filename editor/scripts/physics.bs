@@ -6,6 +6,22 @@ use editor;
 use model;
 use polygon;
 use selection;
+use words::components;
+use words::fields;
+use words::geometry_fields;
+use words::inspector_fields;
+use words::schema_fields;
+use words::tabs;
+use words::tools;
+
+const FIT: str = "fit";
+const HULL: str = "hull";
+const OBB: str = "obb";
+const PIECES: str = "pieces";
+const SOLID: str = "solid";
+const SURFACE: str = "surface";
+const VOLUMETRIC: str = "volumetric";
+const CONVEX_DECOMPOSITION2D: str = "convex_decomposition2d";
 
 /// One of the shapes an action writes: what it is called, what it costs,
 /// the properties it sets, and those of the components beside the main one,
@@ -36,38 +52,38 @@ pub fn drawn_mesh(node: Node, two_d: bool) -> any {
     if two_d {
         let key = polygon::target(node);
         let found = if key != nil { node.authored(key.unwrap()) } else { nil };
-        if found != nil && named(found["mesh"]) {
-            return found["mesh"];
+        if found != nil && named(found[components::MESH]) {
+            return found[components::MESH];
         }
         return nil;
     }
     // A table names its `source`; a plain string is the source itself.
-    let mesh = if node.has_component("mesh") { node.authored("mesh") } else { nil };
-    let source = if mesh.kind() == "map" { mesh["source"] } else { mesh };
+    let mesh = if node.has_component(components::MESH) { node.authored(components::MESH) } else { nil };
+    let source = if mesh.kind() == types::KIND_MAP { mesh[inspector_fields::SOURCE] } else { mesh };
     if named(source) { source } else { nil }
 }
 
 fn named(source: any) -> bool {
-    source.kind() == "map" || source.kind() == "str" && source.as_str() != ""
+    source.kind() == types::KIND_MAP || source.kind() == types::KIND_STRING && source.as_str() != ""
 }
 
 // The collider shapes a mesh can be turned into.
 pub fn collider_shapes(two_d: bool) -> [Shape] {
     if two_d {
         [
-            shape("hull", "Convex hull: the smallest convex outline around the points. One shape, fast, and it fills every dent", { "kind": "convex_hull" }),
-            shape_beside("pieces", "Convex decomposition: cut into convex pieces exactly, over a triangulation. The only way a concave shape can be a dynamic body", { "kind": "convex_decomposition" }, { "convex_decomposition2d": { "method": { "kind": "exact" } } }),
-            shape_beside("approx", "The same cut approximately, over a voxel grid: fewer pieces and faster to solve, at the cost of the outline", { "kind": "convex_decomposition" }, { "convex_decomposition2d": { "method": { "kind": "vhacd" } } }),
-            shape("mesh", "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", { "kind": "triangle_mesh" }),
+            shape(HULL, "Convex hull: the smallest convex outline around the points. One shape, fast, and it fills every dent", { fields::KIND: physics2d::FIT_CONVEX_HULL }),
+            shape_beside(PIECES, "Convex decomposition: cut into convex pieces exactly, over a triangulation. The only way a concave shape can be a dynamic body", { fields::KIND: physics2d::FIT_CONVEX_DECOMPOSITION }, { CONVEX_DECOMPOSITION2D: { fields::METHOD: { fields::KIND: "exact" } } }),
+            shape_beside("approx", "The same cut approximately, over a voxel grid: fewer pieces and faster to solve, at the cost of the outline", { fields::KIND: physics2d::FIT_CONVEX_DECOMPOSITION }, { CONVEX_DECOMPOSITION2D: { fields::METHOD: { fields::KIND: "vhacd" } } }),
+            shape(components::MESH, "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", { fields::KIND: physics2d::SHAPE_TRIANGLE_MESH }),
         ]
     } else {
         [
-            shape("hull", "Convex hull: the smallest convex shape around the points. One shape, fast, and it fills every dent", { "kind": "convex_hull" }),
-            shape("pieces", "Convex decomposition: parry's VHACD cuts the mesh into convex pieces held as one compound. The only way a concave shape can be a dynamic body", { "kind": "convex_decomposition" }),
-            shape("mesh", "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", { "kind": "triangle_mesh" }),
-            shape("voxels", "Voxelize: the mesh as filled cells, which a script may dig into while the game runs", { "kind": "voxelized_mesh" }),
-            shape("box", "The axis-aligned box around the mesh: the cheapest shape there is", { "kind": "fit", "fit": "aabb" }),
-            shape("obb", "The tightest turned box around the mesh, which beats an axis-aligned one on anything drawn at an angle", { "kind": "fit", "fit": "obb" }),
+            shape(HULL, "Convex hull: the smallest convex shape around the points. One shape, fast, and it fills every dent", { fields::KIND: physics2d::FIT_CONVEX_HULL }),
+            shape(PIECES, "Convex decomposition: parry's VHACD cuts the mesh into convex pieces held as one compound. The only way a concave shape can be a dynamic body", { fields::KIND: physics2d::FIT_CONVEX_DECOMPOSITION }),
+            shape(components::MESH, "The triangles as they are. Exact and concave, but static only: a dynamic triangle mesh has no inside", { fields::KIND: physics2d::SHAPE_TRIANGLE_MESH }),
+            shape("voxels", "Voxelize: the mesh as filled cells, which a script may dig into while the game runs", { fields::KIND: physics2d::SHAPE_VOXELIZED_MESH }),
+            shape("box", "The axis-aligned box around the mesh: the cheapest shape there is", { fields::KIND: FIT, FIT: "aabb" }),
+            shape(OBB, "The tightest turned box around the mesh, which beats an axis-aligned one on anything drawn at an angle", { fields::KIND: FIT, FIT: OBB }),
         ]
     }
 }
@@ -76,15 +92,15 @@ pub fn collider_shapes(two_d: bool) -> [Shape] {
 pub fn soft_shapes(two_d: bool) -> [Shape] {
     if two_d {
         [
-            shape("solid", "Fill the outline with triangles and simulate those, with the polygon riding them: a soft body as coarse as its cell size, which a soft_volumetric2d beside it sets", { "kind": "volumetric" }),
-            shape("outline", "Simulate the outline alone, holding the area it encloses: a balloon rather than a jelly", { "kind": "polygon" }),
-            shape("surface", "Simulate the mesh's own vertices and triangles, with no cell size to choose", { "kind": "triangle_mesh" }),
+            shape(SOLID, "Fill the outline with triangles and simulate those, with the polygon riding them: a soft body as coarse as its cell size, which a soft_volumetric2d beside it sets", { fields::KIND: VOLUMETRIC }),
+            shape(tabs::OUTLINE, "Simulate the outline alone, holding the area it encloses: a balloon rather than a jelly", { fields::KIND: tools::POLYGON }),
+            shape(SURFACE, "Simulate the mesh's own vertices and triangles, with no cell size to choose", { fields::KIND: physics2d::SHAPE_TRIANGLE_MESH }),
         ]
     } else {
         [
-            shape_beside("solid", "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which a soft_volumetric3d beside it sets. The mesh has to be closed", { "kind": "volumetric" }, { "soft_skin3d": { "skin": false } }),
-            shape_beside("skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", { "kind": "volumetric" }, { "soft_skin3d": { "skin": true } }),
-            shape("surface", "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", { "kind": "triangle_mesh" }),
+            shape_beside(SOLID, "Fill the mesh with tetrahedra and simulate those: a soft body as coarse as its cell size, which a soft_volumetric3d beside it sets. The mesh has to be closed", { fields::KIND: VOLUMETRIC }, { components::SOFT_SKIN3D: { geometry_fields::SKIN: false } }),
+            shape_beside("skinned", "The same, keeping the drawn mesh as the surface the cells carry: a detail the cell size cannot resolve survives, and contacts stay as coarse as the cells", { fields::KIND: VOLUMETRIC }, { components::SOFT_SKIN3D: { geometry_fields::SKIN: true } }),
+            shape(SURFACE, "Simulate the mesh's own vertices and triangles: a sheet or a shell rather than a filled body, and no cell size to choose", { fields::KIND: physics2d::SHAPE_TRIANGLE_MESH }),
         ]
     }
 }
@@ -93,8 +109,8 @@ pub fn soft_shapes(two_d: bool) -> [Shape] {
 /// whatever shape it was is replaced; `beside` patches the components beside
 /// it, by name, on the same nodes, in the same undo step.
 pub fn make_collider(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
-    let name = if two_d { "collider2d" } else { "collider3d" };
-    model::set_component_properties_each(state, name, with_shape_of, { "two_d": two_d, "props": properties });
+    let name = if two_d { components::COLLIDER2D } else { components::COLLIDER3D };
+    model::set_component_properties_each(state, name, with_shape_of, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: properties });
     patch_beside(state, two_d, beside);
 }
 
@@ -113,13 +129,13 @@ fn patch_beside(state: &mut editor::State, two_d: bool, beside: any) {
 }
 
 fn with_mesh_of(node: Node, data: any) -> any {
-    with_mesh(node, data["two_d"].as_bool(), data["props"])
+    with_mesh(node, data[inspector_fields::TWO_D].as_bool(), data[inspector_fields::PROPS])
 }
 
 // A collider's: the shape a kind and the node's own mesh make.
 fn with_shape_of(node: Node, data: any) -> any {
     let shape = with_mesh_of(node, data);
-    if shape == nil { nil } else { { "shape": shape } }
+    if shape == nil { nil } else { { schema_fields::SHAPE: shape } }
 }
 
 // The properties an action writes, on a node's own mesh; nil for a node in
@@ -129,7 +145,7 @@ fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
     if source == nil {
         return nil;
     }
-    let parameters: any = { "mesh": source };
+    let parameters: any = { components::MESH: source };
     for key in properties.keys() {
         parameters[key] = properties[key];
     }
@@ -141,6 +157,6 @@ fn with_mesh(node: Node, two_d: bool, properties: any) -> any {
 /// does.
 pub fn make_soft_body(state: &mut editor::State, two_d: bool, properties: any, beside: any) {
     let name = if two_d { "softbody2d" } else { "softbody3d" };
-    model::set_component_properties_each(state, name, with_mesh_of, { "two_d": two_d, "props": properties });
+    model::set_component_properties_each(state, name, with_mesh_of, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: properties });
     patch_beside(state, two_d, beside);
 }

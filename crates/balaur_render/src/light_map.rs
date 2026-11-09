@@ -32,6 +32,8 @@ use kiss3d::wgpu;
 use crate::light::{LightKind2d, LitLight2d, lights as scene_lights, occluder_edges, shadow_quad};
 use crate::{CameraConfig2d, shaders};
 
+const LIGHT_MAP: &str = "light_map";
+
 /// The most lights one frame draws. A shadow-casting light costs a render
 /// pass, so a scene that blows past this is told once rather than quietly
 /// dropping to single figures of frames per second.
@@ -181,7 +183,7 @@ fn build_target(
         depth_or_array_layers: 1,
     };
     let texture = ctxt.create_texture(&wgpu::TextureDescriptor {
-        label: Some("light_map"),
+        label: Some(LIGHT_MAP),
         size,
         mip_level_count: 1,
         sample_count: 1,
@@ -604,7 +606,7 @@ impl LightMapMaterial {
     /// then a pass per light that does, each masked by its own stencil.
     fn encode(&self, target: &Target) {
         let ctxt = Context::get();
-        let mut encoder = ctxt.create_command_encoder(Some("light_map"));
+        let mut encoder = ctxt.create_command_encoder(Some(LIGHT_MAP));
         {
             let (color, depth) = attachments(target, true);
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

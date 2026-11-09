@@ -8,6 +8,9 @@
 use balaur_core::Engine;
 use balaur_script::Module;
 
+const FINISH_LOADING: &str = "finish_loading";
+const SET_LOAD_PROGRESS: &str = "set_load_progress";
+
 #[derive(Default, Clone, Debug)]
 pub struct Loading {
     /// Zero to one, as last reported.
@@ -36,17 +39,17 @@ fn report(eng: &Engine, progress: f32, label: String) {
 /// `ui.*` bindings: the load a splash waits on.
 pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_load_progress", &[], "(progress: float, label: string?)", "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it."),
-        ("finish_loading", &[], "()", "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled."),
+        (SET_LOAD_PROGRESS, &[], "(progress: float, label: string?)", "Report how far a load is, zero to one. This is what holds `[application] splash` past its seconds, and what draws the bar under it."),
+        (FINISH_LOADING, &[], "()", "Say the load is through, which lets a held splash go once `splash_seconds` has also passed. The editor calls it once its shell has settled."),
     ]);
     m.function(
-        "set_load_progress",
+        SET_LOAD_PROGRESS,
         |eng: &Engine, (progress, label): (f32, Option<String>)| {
             report(eng, progress, label.unwrap_or_default());
             Ok(())
         },
     );
-    m.function("finish_loading", |eng: &Engine, ()| {
+    m.function(FINISH_LOADING, |eng: &Engine, ()| {
         report(eng, 1.0, String::new());
         if let Some(loading) = eng.try_resource::<Loading>() {
             loading.borrow_mut().done = true;

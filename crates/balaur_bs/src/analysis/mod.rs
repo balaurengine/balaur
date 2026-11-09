@@ -7,6 +7,7 @@ mod scope;
 mod types;
 
 use crate::ast::{Pos, Program, Ty};
+use crate::vocabulary::words;
 use crate::{Error, HostApi, Modules, Options};
 pub use edit::Symbol;
 use scan::Context;
@@ -34,9 +35,32 @@ pub struct Completion {
 }
 
 const KEYWORDS: [&str; 26] = [
-    "let", "if", "else", "while", "for", "in", "loop", "return", "break", "continue", "fn", "pub",
-    "struct", "class", "enum", "match", "impl", "async", "await", "true", "false", "self", "const",
-    "extern", "as", "internal",
+    words::general::LET,
+    words::keywords::IF,
+    words::general::ELSE,
+    words::general::WHILE,
+    words::general::FOR,
+    words::general::IN,
+    words::general::LOOP,
+    words::general::RETURN,
+    "break",
+    "continue",
+    words::keywords::FN,
+    "pub",
+    "struct",
+    words::parse::CLASS,
+    "enum",
+    words::keywords::MATCH,
+    "impl",
+    words::parse::ASYNC,
+    words::general::AWAIT,
+    words::keywords::TRUE,
+    words::keywords::FALSE,
+    words::keywords::SELF,
+    "const",
+    "extern",
+    "as",
+    "internal",
 ];
 
 /// The value types every script holds, each with its fields: `Vec2` and the

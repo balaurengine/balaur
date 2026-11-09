@@ -13,6 +13,43 @@ use rig;
 use selection;
 use signals;
 use util;
+use words::changes;
+use words::components;
+use words::datatypes;
+use words::fields;
+use words::general;
+use words::inspector_fields;
+use words::layout_fields;
+use words::project_fields;
+use words::roles;
+use words::schema_fields;
+use words::tabs;
+use words::tools;
+
+const ADDED: str = "added";
+const ATTACHED: str = "attached";
+const COMPONENT: str = "component";
+const FREED: str = "freed";
+const KEYS: str = "keys";
+const MOVED: str = "moved";
+const REMOVED: str = "removed";
+const RENAMED: str = "renamed";
+const ROTATION_EULER: str = "rotation_euler";
+const CHANGED: str = "changed";
+const KIND: str = "kind";
+const MULTIMESH2D: str = "multimesh2d";
+const MULTIMESH3D: str = "multimesh3d";
+const SCENES: str = "scenes";
+const EXPORTS: str = "exports";
+const HOOKS: str = "hooks";
+const INSTANCE: str = "instance";
+const LINES: str = "lines";
+const PARENT: str = "parent";
+const PLACE: str = "place";
+const PROCESS: str = "process";
+const VISIBLE: str = "visible";
+const WAS: str = "was";
+const Z_INDEX: str = "z_index";
 
 /// The Godot class a node holding `component` reads as.
 pub struct DisplayType {
@@ -47,12 +84,12 @@ pub fn source(state: &mut editor::State, rel: str) -> any {
     let now = engine::unix_time();
     let entry = state.sources[rel];
     if entry != nil {
-        if now - entry["at"].as_float() < TTL {
-            return entry["text"];
+        if now - entry[layout_fields::AT].as_float() < TTL {
+            return entry[fields::TEXT];
         }
     }
     let text: any = fs::read(state.game_root + "/" + rel);
-    state.sources[rel] = { "text": text, "at": now };
+    state.sources[rel] = { fields::TEXT: text, layout_fields::AT: now };
     text
 }
 
@@ -64,10 +101,10 @@ pub fn line_count(state: &mut editor::State, rel: str) -> any {
         return 0;
     }
     let entry = state.sources[rel];
-    if entry["lines"] == nil {
-        entry["lines"] = util::count_lines(text.as_str());
+    if entry[LINES] == nil {
+        entry[LINES] = util::count_lines(text.as_str());
     }
-    entry["lines"]
+    entry[LINES]
 }
 
 // The script's engine-facing hooks, read once per cached read. The host's own
@@ -79,16 +116,16 @@ pub fn hooks(state: &mut editor::State, rel: str) -> any {
         return [];
     }
     let entry = state.sources[rel];
-    if entry["hooks"] == nil {
+    if entry[HOOKS] == nil {
         let hooks: [any] = [];
         for one in script::symbols(rel, text.as_str()) {
-            if one.kind == "function" {
-                hooks.push({ "name": one.name, "line": one.line, "detail": one.detail });
+            if one.kind == general::FUNCTION {
+                hooks.push({ fields::NAME: one.name, layout_fields::LINE: one.line, "detail": one.detail });
             }
         }
-        entry["hooks"] = hooks;
+        entry[HOOKS] = hooks;
     }
-    entry["hooks"]
+    entry[HOOKS]
 }
 
 pub fn list(state: &mut editor::State, rel: str) -> any {
@@ -100,12 +137,12 @@ pub fn list(state: &mut editor::State, rel: str) -> any {
     let now = engine::unix_time();
     let entry = state.listings[rel];
     if entry != nil {
-        if now - entry["at"].as_float() < TTL {
-            return entry["files"];
+        if now - entry[layout_fields::AT].as_float() < TTL {
+            return entry[project_fields::FILES];
         }
     }
     let files = util::list_or_empty(fs::list(state.game_root + "/" + rel));
-    state.listings[rel] = { "files": files, "at": now };
+    state.listings[rel] = { project_fields::FILES: files, layout_fields::AT: now };
     files
 }
 
@@ -142,10 +179,10 @@ pub fn exports(state: &mut editor::State, rel: str) -> any {
         return [];
     }
     let entry = state.sources[rel];
-    if entry["exports"] == nil {
-        entry["exports"] = script::exports(state.game_root + "/" + rel);
+    if entry[EXPORTS] == nil {
+        entry[EXPORTS] = script::exports(state.game_root + "/" + rel);
     }
-    entry["exports"]
+    entry[EXPORTS]
 }
 
 // Set one exported property on the selected node's script. Takes effect the
@@ -172,7 +209,7 @@ pub fn set_script_property(state: &mut editor::State, property: str, value: any)
 // script, and to the file.
 fn as_default_type(state: &mut editor::State, rel: str, property: str, value: any) -> any {
     for export in exports(state, rel) {
-        if export["name"].as_str() == property && export["type"].as_str() == "int" && value.kind() == "float" {
+        if export[fields::NAME].as_str() == property && export[fields::TYPE].as_str() == datatypes::INT && value.kind() == types::KIND_FLOAT {
             return math::round(value.as_float()) as int;
         }
     }
@@ -183,9 +220,9 @@ fn as_default_type(state: &mut editor::State, rel: str, property: str, value: an
 // compare as numbers, so retyping 2 over an int default of 2 clears it.
 fn same_as_default(state: &mut editor::State, rel: str, property: str, value: any) -> bool {
     for export in exports(state, rel) {
-        if export["name"].as_str() == property {
-            let default_value = export["default"];
-            if (default_value.kind() == "int" || default_value.kind() == "float") && (value.kind() == "int" || value.kind() == "float") {
+        if export[fields::NAME].as_str() == property {
+            let default_value = export[schema_fields::DEFAULT];
+            if (default_value.kind() == types::KIND_INT || default_value.kind() == types::KIND_FLOAT) && (value.kind() == types::KIND_INT || value.kind() == types::KIND_FLOAT) {
                 return default_value.as_float() == value.as_float();
             }
             return default_value == value;
@@ -322,10 +359,10 @@ pub fn node_type(found: Node) -> str {
         return "Node";
     }
     // A controller is what a character is, whatever body it moves.
-    if found.has_component("character3d") {
+    if found.has_component(components::CHARACTER3D) {
         return "CharacterBody3D";
     }
-    if found.has_component("character2d") {
+    if found.has_component(components::CHARACTER2D) {
         return "CharacterBody2D";
     }
     let kind = body_kind(found);
@@ -360,19 +397,19 @@ pub fn node_type(found: Node) -> str {
 // carrying several is named by.
 fn display_types() -> [DisplayType] {
     [
-        DisplayType { component: "widget", class: "Control" },
-        DisplayType { component: "bone2d", class: "Bone2D" },
-        DisplayType { component: "bone3d", class: "Bone3D" },
-        DisplayType { component: "polygon", class: "Polygon2D" },
-        DisplayType { component: "multimesh3d", class: "MultiMeshInstance3D" },
-        DisplayType { component: "multimesh2d", class: "MultiMeshInstance2D" },
-        DisplayType { component: "mesh", class: "MeshInstance3D" },
-        DisplayType { component: "shape3d", class: "MeshInstance3D" },
-        DisplayType { component: "shape2d", class: "MeshInstance2D" },
-        DisplayType { component: "sprite", class: "Sprite2D" },
-        DisplayType { component: "tilemap", class: "TileMapLayer" },
+        DisplayType { component: components::WIDGET, class: "Control" },
+        DisplayType { component: components::BONE2D, class: "Bone2D" },
+        DisplayType { component: components::BONE3D, class: "Bone3D" },
+        DisplayType { component: tools::POLYGON, class: "Polygon2D" },
+        DisplayType { component: components::MULTIMESH3D, class: "MultiMeshInstance3D" },
+        DisplayType { component: components::MULTIMESH2D, class: "MultiMeshInstance2D" },
+        DisplayType { component: components::MESH, class: "MeshInstance3D" },
+        DisplayType { component: components::SHAPE3D, class: "MeshInstance3D" },
+        DisplayType { component: components::SHAPE2D, class: "MeshInstance2D" },
+        DisplayType { component: components::SPRITE, class: "Sprite2D" },
+        DisplayType { component: components::TILEMAP, class: "TileMapLayer" },
         DisplayType { component: "camera2d", class: "Camera2D" },
-        DisplayType { component: "camera3d", class: "Camera3D" },
+        DisplayType { component: components::CAMERA3D, class: "Camera3D" },
         DisplayType { component: "sound", class: "AudioStreamPlayer" },
     ]
 }
@@ -380,18 +417,18 @@ fn display_types() -> [DisplayType] {
 /// A body's kind, nil for a node without that body.
 fn kind_of(found: Node, component: str) -> any {
     if found.is_valid() && found.has_component(component) {
-        found.component_property(component, "kind")
+        found.component_property(component, KIND)
     } else {
         nil
     }
 }
 
 pub fn body_kind(found: Node) -> any {
-    kind_of(found, "body3d")
+    kind_of(found, components::BODY3D)
 }
 
 pub fn body2d_kind(found: Node) -> any {
-    kind_of(found, "body2d")
+    kind_of(found, components::BODY2D)
 }
 
 /// True when the edited scene is 2D, which switches the camera, grid and gizmo.
@@ -458,25 +495,25 @@ fn carries(found: Node, component: str) -> bool {
 pub fn node_icon(found: Node) -> NodeIcon {
     let body = body_kind(found);
     let kind = if body == nil { body2d_kind(found) } else { body };
-    if carries(found, "widget") {
+    if carries(found, components::WIDGET) {
         return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_UI), role: "node_ui" };
     }
     if kind != nil {
-        return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_PHYSICS), role: "node_physics" };
+        return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_PHYSICS), role: roles::NODE_PHYSICS };
     }
-    if carries(found, "bone2d") || carries(found, "bone3d") {
-        return NodeIcon { glyph: icons::tool("bone"), role: "node_bone" };
+    if carries(found, components::BONE2D) || carries(found, components::BONE3D) {
+        return NodeIcon { glyph: icons::tool(icons::BONE), role: roles::NODE_BONE };
     }
-    if carries(found, "polygon") || carries(found, "shape2d") || carries(found, "sprite") || carries(found, "multimesh2d") {
-        return NodeIcon { glyph: icons::tool("polygon"), role: "node_2d" };
+    if carries(found, tools::POLYGON) || carries(found, components::SHAPE2D) || carries(found, components::SPRITE) || carries(found, MULTIMESH2D) {
+        return NodeIcon { glyph: icons::tool(icons::POLYGON), role: roles::NODE_2D };
     }
-    if carries(found, "shape3d") || carries(found, "mesh") || carries(found, "multimesh3d") {
+    if carries(found, components::SHAPE3D) || carries(found, components::MESH) || carries(found, MULTIMESH3D) {
         return NodeIcon { glyph: icons::workspace(defs::WORKSPACE_SCENE), role: "node_3d" };
     }
     if script_rel(found) != nil {
-        return NodeIcon { glyph: icons::ui("scriptfile"), role: "node_default" };
+        return NodeIcon { glyph: icons::ui(icons::SCRIPTFILE), role: roles::NODE_DEFAULT };
     }
-    NodeIcon { glyph: icons::node("world"), role: "node_default" }
+    NodeIcon { glyph: icons::node("world"), role: roles::NODE_DEFAULT }
 }
 
 /// The node whose prefab built `found`, or nil for a node of the scene's own:
@@ -558,8 +595,8 @@ pub fn load(state: &mut editor::State) {
         return;
     }
     let manifest = toml::parse(must_read(root + "/project.toml"));
-    let application = manifest["application"];
-    state.game_name = application["name"].as_str();
+    let application = manifest[project_fields::APPLICATION];
+    state.game_name = application[fields::NAME].as_str();
     open_scene(state, application["main_scene"].as_str());
 }
 
@@ -615,7 +652,7 @@ pub fn is_absolute(value: str) -> bool {
 // A path the engine hands back resolved, a component's live value, as the
 // game spells it.
 pub fn relative_file(state: editor::State, value: any) -> any {
-    if value.kind() == "str" {
+    if value.kind() == types::KIND_STRING {
         let prefix = state.game_root + "/";
         let text = value.as_str();
         if text.starts_with(prefix) {
@@ -657,7 +694,7 @@ fn view_3d() -> Node {
     }
     let made = root.add_child(VIEW_3D);
     made.transform.position = vec3(8.0, 5.0, 12.0);
-    made.set_component(CAMERA_3D, { "look_at": [0.0, 1.0, 0.0] });
+    made.set_component(CAMERA_3D, { animation::MODIFIER_LOOK_AT: [0.0, 1.0, 0.0] });
     made
 }
 
@@ -694,7 +731,7 @@ fn mirror(state: &mut editor::State) -> Node {
     if state.mirror == nil || !state.mirror.unwrap().is_valid() {
         let made = scene::root().add_child("Edited");
         // What the edited scene's writes move, and nothing the shell writes.
-        events::listen(scene::get_node("Editor"), "changed", made);
+        events::listen(scene::get_node("Editor"), CHANGED, made);
         debugger::set_scope(made);
         state.mirror = made;
     }
@@ -738,14 +775,14 @@ pub fn build(state: &mut editor::State, text: str) {
     // The scene builds with the game's own `autoplay`: nothing may animate
     // under the inspector until play is pressed.
     for found in state.nodes {
-        if found.has_component("animation") {
+        if found.has_component(tabs::ANIMATION) {
             found.animation.pause();
         }
     }
     // The clip cache belongs to the scene that is gone.
     state.clip = nil;
     signals::inspector(state);
-    signals::changed(state, "debugger");
+    signals::changed(state, changes::DEBUGGER);
     signals::outline(state);
     state.lint.stale = true;
     // The scene's own changes, and not a tool's overlay built beside it.
@@ -757,9 +794,9 @@ pub fn build(state: &mut editor::State, text: str) {
 pub fn scene_text(state: &mut editor::State) -> str {
     arrange::leave_isolate(state);
     let written = toml::parse(scene::to_toml(state.scene_root.unwrap(), scene::ToTomlOptions { root: state.game_root }));
-    let assets = state.scene_doc["assets"];
+    let assets = state.scene_doc[project_fields::ASSETS];
     if assets != nil {
-        written["assets"] = assets;
+        written[project_fields::ASSETS] = assets;
     }
     toml::encode(written)
 }
@@ -837,15 +874,15 @@ pub fn follow_changes(state: &mut editor::State, entries: any) {
     let written: { str: [str] } = {};
     let whole: [str] = [];
     for entry in entries {
-        if entry["kind"].as_str() == "script" && selected.is_valid() && entry["node"].as_node() == selected && inspector::script_stands(state, selected) {
+        if entry[fields::KIND].as_str() == tabs::SCRIPT && selected.is_valid() && entry[inspector_fields::NODE].as_node() == selected && inspector::script_stands(state, selected) {
             if !util::contains(whole, inspector::SCRIPT) {
                 whole.push(inspector::SCRIPT);
             }
-        } else if entry["kind"].as_str() != "component" {
+        } else if entry[fields::KIND].as_str() != COMPONENT {
             structure = true;
-        } else if selected.is_valid() && entry["node"].as_node() == selected {
-            let name = entry["component"].as_str();
-            let properties = entry["properties"];
+        } else if selected.is_valid() && entry[inspector_fields::NODE].as_node() == selected {
+            let name = entry[COMPONENT].as_str();
+            let properties = entry[schema_fields::PROPERTIES];
             if properties == nil {
                 if !util::contains(whole, name) {
                     whole.push(name);
@@ -984,12 +1021,12 @@ pub fn transform_part(found: Node, key: str, fallback: [float]) -> [float] {
         return fallback;
     }
     let asked = found.authored(TRANSFORM);
-    if asked.kind() == "map" && asked[key] != nil {
+    if asked.kind() == types::KIND_MAP && asked[key] != nil {
         return util::list3_or(asked[key], fallback);
     }
-    if key == "position" {
+    if key == components::POSITION {
         util::xyz(found.transform.position)
-    } else if key == "rotation_euler" {
+    } else if key == ROTATION_EULER {
         util::xyz(found.transform.rotation_euler)
     } else {
         util::xyz(found.transform.scale)
@@ -1041,9 +1078,9 @@ pub fn write(state: &mut editor::State) {
     // The blocks only once a tool changed one: patching them rewrites the
     // whole list, comments and all.
     if state.assets_touched {
-        let assets = state.scene_doc["assets"];
+        let assets = state.scene_doc[project_fields::ASSETS];
         if assets != nil {
-            written["assets"] = assets;
+            written[project_fields::ASSETS] = assets;
         }
         state.assets_touched = false;
     }
@@ -1079,8 +1116,8 @@ pub fn prefab_of(found: Node) -> str {
 pub fn scene_files(state: &mut editor::State) -> [str] {
     let out: [str] = [];
     // `fs::list` answers with `{ name, is_dir }`, not bare names.
-    for entry in list(state, "scenes") {
-        let name = util::map_or_empty(entry)["name"].as_str();
+    for entry in list(state, SCENES) {
+        let name = util::map_or_empty(entry)[fields::NAME].as_str();
         if name.ends_with(".toml") {
             out.push("scenes/" + name);
         }
@@ -1100,8 +1137,8 @@ pub fn instance_scene(state: &mut editor::State, rel: str) {
     }
     history::record(state, "instance " + rel);
     let made = spawn(state, selected_node(state), prefab_name(rel), {
-        "instance": rel,
-        TRANSFORM: { "position": [0.0, 0.0, 0.0] },
+        INSTANCE: rel,
+        TRANSFORM: { inspector_fields::POSITION: [0.0, 0.0, 0.0] },
     });
     reindex(state);
     selection::only(state, index_of_node(state, made).or(0));
@@ -1182,7 +1219,7 @@ pub fn add_child(state: &mut editor::State, kind: str?) {
     let parent = selected_node(state);
     let name = if kind != nil { kind_name(kind.unwrap()) } else { "Node" };
     history::record(state, "add {name}");
-    let made = spawn(state, parent, name, { TRANSFORM: { "position": landing(state, parent) } });
+    let made = spawn(state, parent, name, { TRANSFORM: { inspector_fields::POSITION: landing(state, parent) } });
     if kind != nil {
         if util::contains(scene::presets(), kind.unwrap()) {
             scene::apply_preset(made, kind.unwrap());
@@ -1238,14 +1275,14 @@ fn landing(state: editor::State, parent: Node) -> [float] {
 /// play. The rows are the caller's to list again, once it has made them all.
 pub fn spawn(state: &mut editor::State, parent: Node, name: str, entry: any) -> Node {
     let unique = unique_name(state, name);
-    entry["id"] = fresh_id(state, unique);
-    entry["name"] = unique;
-    entry.remove("parent");
-    let document: any = { "nodes": [entry] };
+    entry[fields::ID] = fresh_id(state, unique);
+    entry[fields::NAME] = unique;
+    entry.remove(PARENT);
+    let document: any = { inspector_fields::NODES: [entry] };
     // The scene's own blocks, so a `#id` the node names resolves.
-    let assets = state.scene_doc["assets"];
+    let assets = state.scene_doc[project_fields::ASSETS];
     if assets != nil {
-        document["assets"] = assets;
+        document[project_fields::ASSETS] = assets;
     }
     scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
     let made = parent.children();
@@ -1351,9 +1388,9 @@ fn beside(state: editor::State, found: Node) -> Node {
 /// what a copy of it is built from. Its children are not in it.
 fn own_entry(state: editor::State, found: Node) -> any {
     let written = toml::parse(scene::to_toml(found, scene::ToTomlOptions { root: state.game_root }));
-    let entry = util::list_or_empty(written["nodes"])[0];
-    entry.remove("id");
-    entry.remove("parent");
+    let entry = util::list_or_empty(written[inspector_fields::NODES])[0];
+    entry.remove(fields::ID);
+    entry.remove(PARENT);
     entry
 }
 
@@ -1388,7 +1425,7 @@ pub fn duplicate_selected(state: &mut editor::State) {
 /// paste mints a fresh one, and two nodes with one id is what the engine
 /// cannot tell apart.
 pub fn copy_selected(state: editor::State) -> str {
-    toml::encode({ "nodes": [own_entry(state, selected_node(state))] })
+    toml::encode({ inspector_fields::NODES: [own_entry(state, selected_node(state))] })
 }
 
 /// Paste a scene document beside the selection. Anything that is not one is
@@ -1397,10 +1434,10 @@ pub fn paste_nodes(state: &mut editor::State, text: str) -> bool {
     // The clipboard holds whatever the last application put there, so a
     // parse failure is an answer, not an error.
     let doc = toml::parse(text);
-    if doc.kind() != "map" {
+    if doc.kind() != types::KIND_MAP {
         return false;
     }
-    let nodes = util::list_or_empty(doc["nodes"]);
+    let nodes = util::list_or_empty(doc[inspector_fields::NODES]);
     if nodes.len() == 0 {
         return false;
     }
@@ -1414,10 +1451,10 @@ pub fn paste_nodes(state: &mut editor::State, text: str) -> bool {
     let place = if is_scene_root(state, at) { parent.children().len() } else { at.sibling_index() + 1 };
     let last: Node = nil;
     for entry in nodes {
-        if entry.kind() != "map" || !entry.has("name") {
+        if entry.kind() != types::KIND_MAP || !entry.has(fields::NAME) {
             continue;
         }
-        last = spawn(state, parent, entry["name"].as_str(), util::deep(entry));
+        last = spawn(state, parent, entry[fields::NAME].as_str(), util::deep(entry));
         last.set_sibling_index(place);
         place += 1;
     }
@@ -1467,50 +1504,50 @@ pub fn stats(state: editor::State) -> Stats {
 /// its node by id, so it outlives a node an undo built again; a node already
 /// gone, freed by a change written back before it, is left alone.
 pub fn undo_change(state: &mut editor::State, change: any) {
-    let kind = change["kind"].as_str();
-    if kind == "freed" {
-        let parent = node_by_id(state, change["parent"].as_str());
-        if !parent.is_valid() || change["was"] == nil {
+    let kind = change[fields::KIND].as_str();
+    if kind == FREED {
+        let parent = node_by_id(state, change[PARENT].as_str());
+        if !parent.is_valid() || change[WAS] == nil {
             return;
         }
-        let document = toml::parse(change["was"].as_str());
+        let document = toml::parse(change[WAS].as_str());
         // The scene's own blocks, so a `#id` the node names resolves.
-        let assets = state.scene_doc["assets"];
+        let assets = state.scene_doc[project_fields::ASSETS];
         if assets != nil {
-            document["assets"] = assets;
+            document[project_fields::ASSETS] = assets;
         }
         scene::instantiate(toml::encode(document), parent, scene::InstantiateOptions { scripts: false, root: state.game_root });
         let made = parent.children();
-        made[made.len() - 1].set_sibling_index(change["place"].as_int());
+        made[made.len() - 1].set_sibling_index(change[PLACE].as_int());
         return;
     }
-    let found = node_by_id(state, change["id"].as_str());
+    let found = node_by_id(state, change[fields::ID].as_str());
     if !found.is_valid() {
         return;
     }
-    if kind == "component" || kind == "removed" {
-        found.set_component(change["component"].as_str(), util::map_or_empty(change["was"]));
-    } else if kind == "attached" {
-        found.remove_component(change["component"].as_str());
-    } else if kind == "added" {
+    if kind == COMPONENT || kind == REMOVED {
+        found.set_component(change[COMPONENT].as_str(), util::map_or_empty(change[WAS]));
+    } else if kind == ATTACHED {
+        found.remove_component(change[COMPONENT].as_str());
+    } else if kind == ADDED {
         found.free();
-    } else if kind == "renamed" {
-        found.set_name(change["was"].as_str());
-    } else if kind == "script" {
-        let was = change["was"];
+    } else if kind == RENAMED {
+        found.set_name(change[WAS].as_str());
+    } else if kind == tabs::SCRIPT {
+        let was = change[WAS];
         if was == nil {
             found.set_script(nil);
         } else {
-            found.set_script(was["source"].as_str(), util::map_or_empty(was["props"]));
+            found.set_script(was[inspector_fields::SOURCE].as_str(), util::map_or_empty(was[inspector_fields::PROPS]));
         }
-    } else if kind == "keys" {
-        restore_keys(found, change["was"]);
-    } else if kind == "moved" && change["was"] != nil {
-        let parent = node_by_id(state, change["was"]["parent"].as_str());
+    } else if kind == KEYS {
+        restore_keys(found, change[WAS]);
+    } else if kind == MOVED && change[WAS] != nil {
+        let parent = node_by_id(state, change[WAS][PARENT].as_str());
         if parent.is_valid() && found.parent() != parent {
             found.set_parent(parent);
         }
-        found.set_sibling_index(change["was"]["place"].as_int());
+        found.set_sibling_index(change[WAS][PLACE].as_int());
     }
 }
 
@@ -1595,21 +1632,21 @@ pub fn drop_edited(state: &mut editor::State) {
 // A node's own keys back to `was`, each only where it differs: a hide undone
 // writes the one flag.
 fn restore_keys(found: Node, was: any) {
-    if found.visible() != was["visible"].as_bool() {
-        found.set_visible(was["visible"].as_bool());
+    if found.visible() != was[VISIBLE].as_bool() {
+        found.set_visible(was[VISIBLE].as_bool());
     }
     let tint = util::list_or_empty(was["tint"]);
     let now = found.tint();
     if tint.len() == 4 && (now.r != tint[0].as_float() || now.g != tint[1].as_float() || now.b != tint[2].as_float() || now.a != tint[3].as_float()) {
         found.set_tint(tint[0].as_float(), tint[1].as_float(), tint[2].as_float(), tint[3].as_float());
     }
-    if found.z_index() != was["z_index"].as_int() {
-        found.set_z_index(was["z_index"].as_int(), was["z_as_relative"].as_bool());
+    if found.z_index() != was[Z_INDEX].as_int() {
+        found.set_z_index(was[Z_INDEX].as_int(), was["z_as_relative"].as_bool());
     }
-    if found.process() != was["process"].as_str() {
-        found.set_process(was["process"].as_str());
+    if found.process() != was[PROCESS].as_str() {
+        found.set_process(was[PROCESS].as_str());
     }
-    let tags = util::list_or_empty(was["tags"]);
+    let tags = util::list_or_empty(was[fields::TAGS]);
     for tag in found.tags() {
         if !util::contains(tags, tag) {
             found.remove_tag(tag);

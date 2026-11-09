@@ -43,7 +43,7 @@ pub(crate) fn register(reg: &mut balaur_plugin::Registry<'_>) {
     reg.insert_resource(Hovered::default());
     reg.insert_resource(Shown::default());
     reg.insert_resource(WidgetInputSnapshot::default());
-    reg.add_replay_resource::<WidgetInputSnapshot>("ui");
+    reg.add_replay_resource::<WidgetInputSnapshot>(w::general::UI);
     // After core's replay restore, which is the first system in the stage, and
     // before `update`, so a handler runs in the tick that owns the click.
     reg.add_system(Stage::First, apply_system);
@@ -282,11 +282,11 @@ pub(crate) fn hear_pasted_image(eng: &Engine, ctx: &egui::Context) {
         PASTED_IMAGE_EVENT,
         Value::Map(vec![
             (
-                "width".into(),
+                k::WIDTH.into(),
                 Value::Int(i64::try_from(width).unwrap_or(i64::MAX)),
             ),
             (
-                "height".into(),
+                k::HEIGHT.into(),
                 Value::Int(i64::try_from(height).unwrap_or(i64::MAX)),
             ),
         ]),

@@ -21,6 +21,7 @@ use balaur_script::{Module, NodeId, Value};
 
 use crate::dim2::PhysicsState2d;
 use crate::properties::{LengthMode, NodePath, SweepIgnore};
+use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k, map};
 use balaur_core::fixed_dt;
 use glamx::EulerRot;
@@ -226,23 +227,26 @@ pub(crate) fn install_character2d_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("move_character", &[c::CHARACTER_2D], "(node: node, x: float, y: float) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update."),
-        ("is_on_floor", &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
+        (words::functions::MOVE_CHARACTER, &[c::CHARACTER_2D], "(node: node, x: float, y: float) -> CharacterMove", "Move the character by an offset, sliding along walls, climbing steps and staying on the ground. Every solid collider of the character is swept. Call it from fixed_update."),
+        (words::functions::IS_ON_FLOOR, &[c::CHARACTER_2D], "", "Whether the last move ended with ground under the character's feet."),
     ]);
     m.function(
-        "move_character",
+        words::functions::MOVE_CHARACTER,
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             move_character(eng, entity_of(node)?, scalar::v2(x, y))
         },
     );
     // A reader, as in 3D: a zero-translation sweep would still snap to ground
     // and write the transform, so asking would move the character.
-    m.function("is_on_floor", |eng: &Engine, node: NodeId| {
-        let entity = entity_of(node)?;
-        let state = eng.resource::<PhysicsState2d>();
-        let grounded = state.borrow().grounded.get(&entity).copied();
-        Ok(grounded.unwrap_or(false))
-    });
+    m.function(
+        words::functions::IS_ON_FLOOR,
+        |eng: &Engine, node: NodeId| {
+            let entity = entity_of(node)?;
+            let state = eng.resource::<PhysicsState2d>();
+            let grounded = state.borrow().grounded.get(&entity).copied();
+            Ok(grounded.unwrap_or(false))
+        },
+    );
 }
 
 /// `character2d`: what was asked, held on the node; rapier keeps no character

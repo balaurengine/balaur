@@ -1,0 +1,35 @@
+// The theme roles a control wears.
+
+internal const ACTION_FORM: str = "action_form";
+internal const ACTION_FORM_PRIMARY: str = "action_form_primary";
+internal const ACTION_FORM_SECONDARY: str = "action_form_secondary";
+internal const CHIP: str = "chip";
+internal const CHIP_QUIET: str = "chip_quiet";
+internal const CHOICE: str = "choice";
+internal const CHOICE_FORM: str = "choice_form";
+internal const ICON_ACTION: str = "icon_action";
+internal const ICON_ACTION_PRIMARY: str = "icon_action_primary";
+internal const INPUT: str = "input";
+internal const INPUT_FORM: str = "input_form";
+internal const INPUT_NUMBER: str = "input_number";
+internal const ITEM_BAR: str = "item_bar";
+internal const ITEM_MENU: str = "item_menu";
+internal const ITEM_PICKER: str = "item_picker";
+internal const ITEM_SIDEBAR: str = "item_sidebar";
+internal const LAYOUT_ACTIONS: str = "layout_actions";
+internal const NODE_2D: str = "node_2d";
+internal const NODE_BONE: str = "node_bone";
+internal const NODE_DEFAULT: str = "node_default";
+internal const NODE_PHYSICS: str = "node_physics";
+internal const NOTE_DANGER: str = "note_danger";
+internal const NOTE_WARNING: str = "note_warning";
+internal const SHEET: str = "sheet";
+internal const SHEET_LOGO: str = "sheet_logo";
+internal const SWITCH_FORM: str = "switch_form";
+internal const TAB_WORKSPACE: str = "tab_workspace";
+internal const TEXT_CAPTION: str = "text_caption";
+internal const TEXT_CODE: str = "text_code";
+internal const TEXT_CODE_QUIET: str = "text_code_quiet";
+internal const TEXT_HEADING: str = "text_heading";
+internal const TEXT_LABEL: str = "text_label";
+internal const TEXT_TITLE: str = "text_title";

@@ -2,6 +2,12 @@
 // the scene holds the boxes, and this puts rows in the three views that hold
 // a list. A row is a `ui::Item`: `icon`, `label`, `note` and an `#rrggbb`.
 
+const CLIP: str = "clip";
+const MATERIAL: str = "material";
+const MESH: str = "mesh";
+const PREFAB: str = "prefab";
+const WIDGET: str = "widget";
+
 pub class Screen {
     /// Where a picture of the screen goes, for the manual's shot, and where
     /// the clip's frames go. Both empty is a normal run, which is what a
@@ -36,16 +42,16 @@ pub struct Ring {
 // the Phosphor face the theme names as its icon family.
 pub fn entries() -> [Entry] {
     [
-        Entry { icon: "\u{e67c}", name: "Cuboid", kind: "mesh", size: "1.4 kB", tint: "#6fa4d8" },
-        Entry { icon: "\u{e67c}", name: "Sphere", kind: "mesh", size: "2.1 kB", tint: "#6fa4d8" },
-        Entry { icon: "\u{e67c}", name: "Torus", kind: "mesh", size: "3.8 kB", tint: "#6fa4d8" },
-        Entry { icon: "\u{e6c8}", name: "Brass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
-        Entry { icon: "\u{e6c8}", name: "Glass", kind: "material", size: "0.4 kB", tint: "#d5814e" },
+        Entry { icon: "\u{e67c}", name: "Cuboid", kind: MESH, size: "1.4 kB", tint: "#6fa4d8" },
+        Entry { icon: "\u{e67c}", name: "Sphere", kind: MESH, size: "2.1 kB", tint: "#6fa4d8" },
+        Entry { icon: "\u{e67c}", name: "Torus", kind: MESH, size: "3.8 kB", tint: "#6fa4d8" },
+        Entry { icon: "\u{e6c8}", name: "Brass", kind: MATERIAL, size: "0.4 kB", tint: "#d5814e" },
+        Entry { icon: "\u{e6c8}", name: "Glass", kind: MATERIAL, size: "0.4 kB", tint: "#d5814e" },
         Entry { icon: "\u{e468}", name: "Dusk", kind: "sky", size: "812 kB", tint: "#8fb8b0" },
-        Entry { icon: "\u{e792}", name: "Walk", kind: "clip", size: "6.0 kB", tint: "#a98fd0" },
-        Entry { icon: "\u{e792}", name: "Idle", kind: "clip", size: "2.2 kB", tint: "#a98fd0" },
-        Entry { icon: "\u{e2c6}", name: "Hero", kind: "prefab", size: "9.7 kB", tint: "#e6e9ee" },
-        Entry { icon: "\u{e2c6}", name: "Crate", kind: "prefab", size: "1.1 kB", tint: "#e6e9ee" },
+        Entry { icon: "\u{e792}", name: "Walk", kind: CLIP, size: "6.0 kB", tint: "#a98fd0" },
+        Entry { icon: "\u{e792}", name: "Idle", kind: CLIP, size: "2.2 kB", tint: "#a98fd0" },
+        Entry { icon: "\u{e2c6}", name: "Hero", kind: PREFAB, size: "9.7 kB", tint: "#e6e9ee" },
+        Entry { icon: "\u{e2c6}", name: "Crate", kind: PREFAB, size: "1.1 kB", tint: "#e6e9ee" },
         Entry { icon: "\u{e464}", name: "Blocks", kind: "tileset", size: "24 kB", tint: "#c9a86a" },
         Entry { icon: "\u{e2e2}", name: "Restart", kind: "action", size: "0.1 kB", tint: "#98a3ae" },
     ]
@@ -250,7 +256,7 @@ impl Screen {
         let y = here.y + here.height / 2.0 + (end.y + end.height / 2.0 - here.y - here.height / 2.0) * e;
         let cursor = self.node.get_node("Cursor");
         if cursor.is_valid() {
-            cursor.patch_component("widget", { "x": x, "y": y });
+            cursor.patch_component(WIDGET, { "x": x, "y": y });
             cursor.set_visible(true);
         }
     }
@@ -267,7 +273,7 @@ impl Screen {
         let back = 1.0 - p;
         let d = RIPPLE_FROM + (RIPPLE_TO - RIPPLE_FROM) * (1.0 - back * back * back);
         let left = back * back;
-        node.patch_component("widget", {
+        node.patch_component(WIDGET, {
             "x": held.x - d / 2.0,
             "y": held.y - d / 2.0,
             "width": d,

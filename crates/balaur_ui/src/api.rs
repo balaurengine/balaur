@@ -11,6 +11,37 @@ use crate::theme;
 use crate::vocabulary::words as w;
 use crate::{UiConfig, UiState};
 
+const ACTIVATE_FOCUSED: &str = "activate_focused";
+const CLEAR_FOCUS: &str = "clear_focus";
+const COMPLETE_THEME: &str = "complete_theme";
+const EDIT_BOOL: &str = "edit_bool";
+const EDIT_COLOR: &str = "edit_color";
+const EDIT_NUMBER: &str = "edit_number";
+const EDIT_TEXT: &str = "edit_text";
+const FOCUS_DOWN: &str = "focus_down";
+const FOCUS_LEFT: &str = "focus_left";
+const FOCUS_NEXT: &str = "focus_next";
+const FOCUS_PREVIOUS: &str = "focus_previous";
+const FOCUS_RIGHT: &str = "focus_right";
+const FOCUS_UP: &str = "focus_up";
+const FOCUSED_WIDGET: &str = "focused_widget";
+const HEIGHT_CLASS: &str = "height_class";
+const PASTED_TEXT: &str = "pasted_text";
+const SAVE_PASTED_IMAGE: &str = "save_pasted_image";
+const SCALE: &str = "scale";
+const SET_CLIPBOARD: &str = "set_clipboard";
+const SET_FOCUS: &str = "set_focus";
+const SET_SCALE: &str = "set_scale";
+const SET_THEME: &str = "set_theme";
+const SET_WIDGET_LAYER: &str = "set_widget_layer";
+const TAB_RECT: &str = "tab_rect";
+const TAKES_POINTER_AT: &str = "takes_pointer_at";
+const WANTS_KEYBOARD: &str = "wants_keyboard";
+const WANTS_POINTER: &str = "wants_pointer";
+const WIDGET_RECT: &str = "widget_rect";
+const WIDTH_CLASS: &str = "width_class";
+const WINDOW_SIZE: &str = "window_size";
+
 /// Screen anchors for the `widget` scene component, so a script says
 /// `ui.ANCHOR_TOP_LEFT` rather than spelling the string.
 pub const ANCHORS: &[(&str, &str)] = &[
@@ -143,20 +174,20 @@ pub(crate) fn install_ui_api(m: &mut Module<Engine>) {
 fn install_theme(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "set_theme",
+            SET_THEME,
             &[],
             "(theme: str | table | nil)",
             "Put a theme in force over `[ui] theme` and `theme_dark`, for every widget and egui's own controls: a `widget_theme` file's path, or a theme document, with source colours under `colors` and sizes under `sizes`. What the document leaves out is derived from its sources. A root's own `theme` still dresses its subtree with that one, and nil goes back to the project's.",
         ),
         (
-            "complete_theme",
+            COMPLETE_THEME,
             &[],
             "(theme: table) -> map",
             "The theme document with every colour and size it leaves out derived from its sources, and `dark` stated.",
         ),
     ]);
     // No reader by design (N8): the caller holds the document it passed.
-    m.function("set_theme", |eng: &Engine, asked: Value| {
+    m.function(SET_THEME, |eng: &Engine, asked: Value| {
         let asked = match asked {
             Value::Nil => None,
             // Read now, so a path that names nothing is the caller's error.
@@ -180,7 +211,7 @@ fn install_theme(m: &mut Module<Engine>) {
             });
         Ok(())
     });
-    m.function("complete_theme", |_: &Engine, doc: Value| {
+    m.function(COMPLETE_THEME, |_: &Engine, doc: Value| {
         let doc = balaur_core::node_api::to_toml(&doc)?;
         balaur_core::node_api::from_toml(&crate::palette::complete(&doc))
     });
@@ -189,7 +220,7 @@ fn install_theme(m: &mut Module<Engine>) {
 /// `ui.*` bindings: widget layer.
 fn install_widget_layer(m: &mut Module<Engine>) {
     m.describe(&[(
-        "set_widget_layer",
+        SET_WIDGET_LAYER,
         &[],
         "", "Turn drawing of the scene's `widget` nodes on or off, and confine it to an x/y/w/h rect in design pixels.",
     )]);
@@ -198,7 +229,7 @@ fn install_widget_layer(m: &mut Module<Engine>) {
         // holds the flag and the rect; add `ui.widget_layer` when a caller
         // needs to read them back.
         m.function(
-            "set_widget_layer",
+            SET_WIDGET_LAYER,
             |eng: &Engine, (enabled, x, y, w, h): (
                     bool,
                     Option<f32>,
@@ -236,74 +267,74 @@ fn install_focus(m: &mut Module<Engine>) {
     use crate::widget::node::Move;
     m.describe(&[
         (
-            "focused_widget",
+            FOCUSED_WIDGET,
             &[],
             "() -> node?",
             "The widget node focus is on, or nil.",
         ),
         (
-            "set_focus",
+            SET_FOCUS,
             &[],
             "(node: node)",
             "Put focus on a widget node. A node focus cannot activate is refused at the next draw.",
         ),
         (
-            "focus_next",
+            FOCUS_NEXT,
             &[],
             "()",
             "Move focus to the next widget in scene order, wrapping past the last.",
         ),
         (
-            "focus_previous",
+            FOCUS_PREVIOUS,
             &[],
             "()",
             "Move focus to the previous widget in scene order, wrapping past the first.",
         ),
         (
-            "activate_focused",
+            ACTIVATE_FOCUSED,
             &[],
             "()",
             "Activate the focused widget, exactly as a click on it would.",
         ),
         (
-            "focus_up",
+            FOCUS_UP,
             &[],
             "()",
             "Move focus to the nearest widget above, as the up arrow does: the one the focused widget names in `neighbour_up`, else by where the widgets were drawn, round to the bottom past the top. What a stick or a d-pad's action calls.",
         ),
         (
-            "focus_down",
+            FOCUS_DOWN,
             &[],
             "()",
             "The same downwards, by `neighbour_down`.",
         ),
         (
-            "focus_left",
+            FOCUS_LEFT,
             &[],
             "()",
             "The same to the left, by `neighbour_left`.",
         ),
         (
-            "focus_right",
+            FOCUS_RIGHT,
             &[],
             "()",
             "The same to the right, by `neighbour_right`.",
         ),
         (
-            "clear_focus",
+            CLEAR_FOCUS,
             &[],
             "()",
             "Focus nothing, as a pad's back button leaves a menu; the widget focus leaves hears `blur`.",
         ),
     ]);
-    m.function("focused_widget", |eng: &Engine, ()| {
+    m.function(FOCUSED_WIDGET, |eng: &Engine, ()| {
         let focus = eng.resource::<crate::UiFocus>();
         let focused = focus.borrow().focused;
         Ok(focused.map_or(balaur_script::Value::Nil, |e| {
             balaur_script::Value::Node(balaur_core::node_id_of(e).0)
         }))
     });
-    m.function("set_focus", |eng: &Engine, node: balaur_script::NodeId| {
+    m.function(SET_FOCUS, |eng: &Engine, node: balaur_script::NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let focus = eng.resource::<crate::UiFocus>();
         let mut focus = focus.borrow_mut();
@@ -314,14 +345,14 @@ fn install_focus(m: &mut Module<Engine>) {
         Ok(())
     });
     for (name, asked) in [
-        ("focus_next", Move::Next),
-        ("focus_previous", Move::Previous),
-        ("activate_focused", Move::Accept),
-        ("focus_up", Move::Up),
-        ("focus_down", Move::Down),
-        ("focus_left", Move::Left),
-        ("focus_right", Move::Right),
-        ("clear_focus", Move::Leave),
+        (FOCUS_NEXT, Move::Next),
+        (FOCUS_PREVIOUS, Move::Previous),
+        (ACTIVATE_FOCUSED, Move::Accept),
+        (FOCUS_UP, Move::Up),
+        (FOCUS_DOWN, Move::Down),
+        (FOCUS_LEFT, Move::Left),
+        (FOCUS_RIGHT, Move::Right),
+        (CLEAR_FOCUS, Move::Leave),
     ] {
         m.function(name, move |eng: &Engine, ()| {
             eng.resource::<crate::UiFocus>().borrow_mut().pending = Some(asked);
@@ -334,31 +365,31 @@ fn install_focus(m: &mut Module<Engine>) {
 fn install_driving(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "click",
+            w::CLICK,
             &[],
             "(node: node, opts: ClickOptions?) -> bool",
             "Click a widget node as the pointer would, at the next tick and with no window needed: what a test harness drives the game with. False for a node a pointer could not click, hidden, disabled or not a widget; `{ hidden: true }` clicks a hidden one anyway, as a test emitting its signal would.",
         ),
         (
-            "edit_number",
+            EDIT_NUMBER,
             &[],
             "(node: node, value: float) -> bool",
             "Change a slider or a number field as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no number.",
         ),
         (
-            "edit_text",
+            EDIT_TEXT,
             &[],
             "(node: node, value: string) -> bool",
             "Change a text field, a dropdown's pick, a list's row or a tab as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no text.",
         ),
         (
-            "edit_color",
+            EDIT_COLOR,
             &[],
             "(node: node, value: Color) -> bool",
             "Change a swatch as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no colour.",
         ),
         (
-            "edit_bool",
+            EDIT_BOOL,
             &[],
             "(node: node, value: bool) -> bool",
             "Open or close a fold as the reader would, at the next tick, so it announces `change`. False for a disabled widget or a kind that takes no boolean.",
@@ -369,7 +400,7 @@ fn install_driving(m: &mut Module<Engine>) {
         "{ hidden: bool? }",
         "How `click` clicks: `hidden` clicks a hidden widget too, as a test emitting its signal would.",
     )]);
-    for name in ["edit_number", "edit_text", "edit_color", "edit_bool"] {
+    for name in [EDIT_NUMBER, EDIT_TEXT, EDIT_COLOR, EDIT_BOOL] {
         m.function(
             name,
             |eng: &Engine, (node, value): (balaur_script::NodeId, balaur_script::Value)| {
@@ -378,12 +409,12 @@ fn install_driving(m: &mut Module<Engine>) {
         );
     }
     m.function(
-        "click",
+        w::CLICK,
         |eng: &Engine, (node, opts): (balaur_script::NodeId, Option<balaur_script::Value>)| {
             let hidden = match opts {
                 Some(balaur_script::Value::Map(fields)) => fields
                     .iter()
-                    .any(|(k, v)| k == "hidden" && matches!(v, balaur_script::Value::Bool(true))),
+                    .any(|(k, v)| k == w::HIDDEN && matches!(v, balaur_script::Value::Bool(true))),
                 _ => false,
             };
             Ok(crate::click(eng, balaur_core::entity_of(node)?, hidden))
@@ -395,26 +426,26 @@ fn install_driving(m: &mut Module<Engine>) {
 fn install_classes(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "width_class",
+            WIDTH_CLASS,
             &[],
             "",
             "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
         ),
         (
-            "height_class",
+            HEIGHT_CLASS,
             &[],
             "",
             "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         ),
     ]);
-    m.function("width_class", |eng: &Engine, ()| {
+    m.function(WIDTH_CLASS, |eng: &Engine, ()| {
         let facts = balaur_core::facts::device(eng);
         Ok(balaur_core::facts::width_class(
             facts.design_size()[0],
             crate::class_lines(eng),
         ))
     });
-    m.function("height_class", |eng: &Engine, ()| {
+    m.function(HEIGHT_CLASS, |eng: &Engine, ()| {
         let facts = balaur_core::facts::device(eng);
         Ok(balaur_core::facts::height_class(
             facts.design_size()[1],
@@ -427,24 +458,24 @@ fn install_classes(m: &mut Module<Engine>) {
 fn install_scale(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "scale",
+            SCALE,
             &[],
             "",
             "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
         ),
         (
-            "set_scale",
+            SET_SCALE,
             &[],
             "",
             "Set the global UI scale, clamped to between 0.25 and 3.0. It is egui's zoom factor, so it grows every control and every font; `screen_size` already answers in the design pixels it leaves.",
         ),
     ]);
-    m.function("scale", |eng: &Engine, ()| {
+    m.function(SCALE, |eng: &Engine, ()| {
         let config = eng.resource::<UiConfig>();
         let v = config.borrow().scale;
         Ok(v)
     });
-    m.function("set_scale", |eng: &Engine, f: f32| {
+    m.function(SET_SCALE, |eng: &Engine, f: f32| {
         let config = eng.resource::<UiConfig>();
         let mut config = config.borrow_mut();
         config.scale = f.clamp(0.25, 3.0);
@@ -456,15 +487,15 @@ fn install_scale(m: &mut Module<Engine>) {
 /// `ui.*` bindings: queries.
 fn install_queries(m: &mut Module<Engine>) {
     m.describe(&[
-        ("window_size", &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
-        ("set_clipboard", &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
-        ("pasted_text", &[], "", "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives."),
-        ("save_pasted_image", &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
-        ("wants_keyboard", &[], "", "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone."),
-        ("wants_pointer", &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window."),
-        ("takes_pointer_at", &[], "(x: number, y: number) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
+        (WINDOW_SIZE, &[], "", "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."),
+        (SET_CLIPBOARD, &[], "", "Copy text to the system clipboard. The next UI pass hands it over, and asks for itself."),
+        (PASTED_TEXT, &[], "", "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives."),
+        (SAVE_PASTED_IMAGE, &[], "(path: string) -> bool", "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already."),
+        (WANTS_KEYBOARD, &[], "", "Whether a UI widget held keyboard focus when the last pass ended, so the game should leave key presses alone."),
+        (WANTS_POINTER, &[], "", "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window."),
+        (TAKES_POINTER_AT, &[], "(x: number, y: number) -> bool", "Whether the UI would take a press at this point, in design pixels, by the same layers as `wants_pointer`: what an editor asks of a point it is about to act on."),
     ]);
-    m.function("window_size", |eng: &Engine, ()| {
+    m.function(WINDOW_SIZE, |eng: &Engine, ()| {
         // The backend publishes the screen before the tick, and the tick runs
         // before the first pass: until then egui's viewport is a placeholder.
         let [w, h] = balaur_core::facts::device(eng).design_size();
@@ -489,15 +520,15 @@ fn install_queries(m: &mut Module<Engine>) {
 /// The clipboard pair and who holds the pointer and the keyboard: queries
 /// that answer about the frame.
 fn install_clipboard(m: &mut Module<Engine>) {
-    m.function("set_clipboard", |eng: &Engine, text: String| {
+    m.function(SET_CLIPBOARD, |eng: &Engine, text: String| {
         eng.resource::<UiState>().borrow_mut().clipboard = Some(text);
         crate::pacing::ask(eng);
         Ok(())
     });
-    m.function("pasted_text", |eng: &Engine, ()| {
+    m.function(PASTED_TEXT, |eng: &Engine, ()| {
         Ok(eng.resource::<UiState>().borrow().pasted.clone())
     });
-    m.function("save_pasted_image", |eng: &Engine, path: String| {
+    m.function(SAVE_PASTED_IMAGE, |eng: &Engine, path: String| {
         let Some(image) = eng.resource::<UiState>().borrow_mut().pasted_image.take() else {
             return Ok(false);
         };
@@ -505,13 +536,13 @@ fn install_clipboard(m: &mut Module<Engine>) {
         balaur_core::files::backend(eng).write(&to, &crate::clipboard::png_of(&image)?)?;
         Ok(true)
     });
-    m.function("wants_keyboard", |eng: &Engine, ()| {
+    m.function(WANTS_KEYBOARD, |eng: &Engine, ()| {
         Ok(eng.resource::<UiState>().borrow().wants_keyboard)
     });
-    m.function("wants_pointer", |eng: &Engine, ()| {
+    m.function(WANTS_POINTER, |eng: &Engine, ()| {
         Ok(crate::routing::pointer_is_ui(eng))
     });
-    m.function("takes_pointer_at", |eng: &Engine, (x, y): (f64, f64)| {
+    m.function(TAKES_POINTER_AT, |eng: &Engine, (x, y): (f64, f64)| {
         Ok(crate::routing::takes_point(
             eng,
             egui::pos2(x as f32, y as f32),
@@ -527,13 +558,13 @@ fn rect_value(rect: Option<egui::Rect>) -> Value {
 fn install_rects(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "widget_rect",
+            WIDGET_RECT,
             &[],
             "-> Rect?",
             "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         ),
         (
-            "tab_rect",
+            TAB_RECT,
             &[],
             "-> Rect?",
             "Where a `tabs` page's own button in the strip was last drawn, as `{ x, y, width, height }` in design pixels; empty before the strip has drawn. `widget_rect` on the same node answers with the page body.",
@@ -544,15 +575,12 @@ fn install_rects(m: &mut Module<Engine>) {
         "{ x: float, y: float, width: float, height: float }",
         "A drawn box: its top left corner and its size, in design pixels.",
     )]);
-    m.function(
-        "widget_rect",
-        |_eng: &Engine, node: balaur_script::NodeId| {
-            Ok(rect_value(crate::widget::arrange::drawn_at(
-                balaur_core::entity_of(node)?,
-            )))
-        },
-    );
-    m.function("tab_rect", |_eng: &Engine, node: balaur_script::NodeId| {
+    m.function(WIDGET_RECT, |_eng: &Engine, node: balaur_script::NodeId| {
+        Ok(rect_value(crate::widget::arrange::drawn_at(
+            balaur_core::entity_of(node)?,
+        )))
+    });
+    m.function(TAB_RECT, |_eng: &Engine, node: balaur_script::NodeId| {
         Ok(rect_value(crate::widget::arrange::tab_head_at(
             balaur_core::entity_of(node)?,
         )))

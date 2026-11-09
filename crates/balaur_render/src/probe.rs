@@ -9,6 +9,7 @@
 //! Bindings 1 and 2 of the material's own bind group, not a group of their
 //! own: WebGPU guarantees four groups and the material already spends them.
 
+use crate::vocabulary::words;
 use kiss3d::context::Context;
 use kiss3d::wgpu;
 
@@ -30,7 +31,7 @@ impl Probe {
         let ctxt = Context::get();
         Self {
             out: ctxt.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("shader_probe"),
+                label: Some(words::functions::SHADER_PROBE),
                 size: SIZE,
                 usage: wgpu::BufferUsages::STORAGE
                     | wgpu::BufferUsages::COPY_SRC

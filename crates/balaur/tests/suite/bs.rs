@@ -1116,19 +1116,19 @@ impl Check {
 /// back from the script's field.
 #[test]
 fn the_editor_libraries_answer_a_script_that_uses_them() {
-    use balaur_script::Value::Str;
     let dir = one_script("Check", LIBRARY_CHECK_BS);
     let editor = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../editor/scripts");
     for lib in ["util", "defs", "icons"] {
         let from = editor.join(format!("{lib}.bs"));
         std::fs::copy(&from, dir.path().join(format!("scripts/{lib}.bs"))).unwrap();
     }
+    copy(&editor.join("words"), &dir.path().join("scripts/words"));
     let found = balaur::check_project(dir.path()).unwrap();
     assert!(found.is_empty(), "{found:?}");
     let app = booted(dir.path());
     assert_eq!(
         field(&app, "Check", "said"),
-        Some(Str(
+        Some(balaur_script::Value::Str(
             "Edge radius|UV scale|Arm_r|#ff8000|1.0 0.0|1|a,b|false|5.0|/g/a.toml|3|UI|true|node_ui"
                 .into()
         ))

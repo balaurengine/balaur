@@ -4,6 +4,9 @@
 use anyhow::Result;
 use balaur::AppConfig;
 
+#[cfg(any(feature = "bs", feature = "bs-jit", feature = "bs-web"))]
+const BS: &str = "bs";
+
 /// Print what scripts can reach.
 pub(crate) fn dump_api() -> Result<()> {
     println!("{}", serde_json::to_string_pretty(&api_value()?)?);
@@ -38,8 +41,8 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
         api["modules"] = balaur::file_api::to_json(&host.reference())?;
         api["types"] = value_types();
         api["builtins"] = builtins();
-        api["bs"] = bs_api(&host.api());
-        api["bs"]["unread"] = serde_json::to_value(host.unread_records())?;
+        api[BS] = bs_api(&host.api());
+        api[BS]["unread"] = serde_json::to_value(host.unread_records())?;
     }
     // Component schemas ride along, so docs and tools read one probe, with
     // the order each writes its properties in, which is the inspector's.

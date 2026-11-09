@@ -9,7 +9,7 @@ pub const SLOT: str = "gamend_prefs";
 pub fn all() -> any {
     // Nil where the slot was never written: no listing of the folder first.
     let kept = save::read(SLOT);
-    if kept.kind() == "map" { kept } else { {} }
+    if kept.kind() == types::KIND_MAP { kept } else { {} }
 }
 
 /// One pref, or `fallback` when it was never set.

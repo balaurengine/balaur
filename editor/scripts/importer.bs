@@ -4,7 +4,34 @@
 
 use editor;
 use inspector;
+use recipes;
 use util;
+use words::asset_kinds;
+use words::datatypes;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::panel_keys;
+use words::roles;
+use words::schema_fields;
+use words::tools;
+use words::verbs;
+
+const COUNT: str = "count";
+const NUMBER: str = "number";
+const ANDROID: str = "android";
+const CLAMP: str = "clamp";
+const DEFAULT: str = "default";
+const IOS: str = "ios";
+const LINEAR: str = "linear";
+const ORIGINAL: str = "original";
+const PROJECT: str = "project";
+const RECODE: str = "recode";
+const REPEAT: str = "repeat";
+const WEB: str = "web";
+const FALLBACK: str = "fallback";
+const MODEL: str = "model";
+const REL: str = "rel";
 
 /// The image a texture asset reads, kept for the file it was read for.
 pub struct Held {
@@ -35,39 +62,39 @@ pub struct Fill {
 // are written by hand: a row apiece would double the panel.
 fn ROWS() -> any {
     {
-        "texture": [
-            { "key": "filter", "kind": "enum", "options": ["linear", "nearest"], "fallback": "linear", "help": "nearest keeps pixel art crisp when it is magnified" },
-            { "key": "repeat", "kind": "enum", "options": ["clamp", "repeat", "mirror"], "fallback": "clamp", "help": "what a coordinate past the edge reads; repeat tiles, mirror tiles without a seam" },
-            { "key": "mipmaps", "kind": "bool", "fallback": false, "help": "smaller copies for a texture drawn small, which stops it shimmering" },
-            { "key": "anisotropy", "kind": "count", "options": ["1", "2", "4", "8", "16"], "fallback": 1, "help": "samples per fetch on a surface seen edge-on; needs a linear filter" },
-            { "key": "premultiply", "kind": "bool", "fallback": false, "help": "color scaled by alpha at upload, so a soft edge blends without a dark fringe" },
-            { "key": "srgb", "kind": "bool", "fallback": true, "help": "off for a normal map or a mask, which carry data rather than color" },
-            { "key": "bleed", "kind": "bool", "fallback": true, "help": "the edge color spread under transparent texels, so a linear filter reads no fringe" },
-            { "key": "normal_map", "kind": "bool", "fallback": false, "help": "a normal map: data rather than color, so srgb is off unless set" },
-            { "key": "flip_green", "kind": "bool", "fallback": false, "help": "invert green, for a normal map baked the way DirectX reads one" },
-            { "key": "pixels_per_unit", "kind": "number", "fallback": 100.0, "step": 1.0, "help": "texture pixels to one world unit, for a sprite whose own is 0" },
-            { "key": "scale", "kind": "number", "fallback": 1.0, "step": 0.25, "only": "svg", "help": "pixels per SVG unit; the raster a sprite measures" },
-            { "key": "recode", "kind": "enum", "options": ["original", "webp", "quantized"], "fallback": "export", "help": "how an export re-encodes this file, over [export] images" },
-            { "key": "quality", "kind": "number", "fallback": 80.0, "step": 5.0, "whole": true, "help": "the palette's 0 to 100 quality when this file is quantized" },
+        panel_keys::TEXTURE: [
+            { fields::KEY: "filter", fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [LINEAR, "nearest"], FALLBACK: LINEAR, fields::HELP: "nearest keeps pixel art crisp when it is magnified" },
+            { fields::KEY: REPEAT, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [CLAMP, REPEAT, "mirror"], FALLBACK: CLAMP, fields::HELP: "what a coordinate past the edge reads; repeat tiles, mirror tiles without a seam" },
+            { fields::KEY: "mipmaps", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "smaller copies for a texture drawn small, which stops it shimmering" },
+            { fields::KEY: "anisotropy", fields::KIND: COUNT, schema_fields::OPTIONS: ["1", "2", "4", "8", "16"], FALLBACK: 1, fields::HELP: "samples per fetch on a surface seen edge-on; needs a linear filter" },
+            { fields::KEY: "premultiply", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "color scaled by alpha at upload, so a soft edge blends without a dark fringe" },
+            { fields::KEY: "srgb", fields::KIND: datatypes::BOOL, FALLBACK: true, fields::HELP: "off for a normal map or a mask, which carry data rather than color" },
+            { fields::KEY: "bleed", fields::KIND: datatypes::BOOL, FALLBACK: true, fields::HELP: "the edge color spread under transparent texels, so a linear filter reads no fringe" },
+            { fields::KEY: "normal_map", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "a normal map: data rather than color, so srgb is off unless set" },
+            { fields::KEY: "flip_green", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "invert green, for a normal map baked the way DirectX reads one" },
+            { fields::KEY: recipes::PIXELS_PER_UNIT, fields::KIND: NUMBER, FALLBACK: 100.0, layout_fields::STEP: 1.0, fields::HELP: "texture pixels to one world unit, for a sprite whose own is 0" },
+            { fields::KEY: tools::SCALE, fields::KIND: NUMBER, FALLBACK: 1.0, layout_fields::STEP: 0.25, fields::ONLY: "svg", fields::HELP: "pixels per SVG unit; the raster a sprite measures" },
+            { fields::KEY: RECODE, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [ORIGINAL, "webp", "quantized"], FALLBACK: verbs::EXPORT, fields::HELP: "how an export re-encodes this file, over [export] images" },
+            { fields::KEY: "quality", fields::KIND: NUMBER, FALLBACK: 80.0, layout_fields::STEP: 5.0, layout_fields::WHOLE: true, fields::HELP: "the palette's 0 to 100 quality when this file is quantized" },
         ],
         "audio": [
-            { "key": "volume_linear", "kind": "number", "fallback": 1.0, "step": 0.05, "help": "the file's own level, multiplied into every play of it" },
-            { "key": "loop", "kind": "bool", "fallback": false, "help": "loop wherever it is played" },
-            { "key": "loop_offset", "kind": "number", "fallback": 0.0, "step": 0.1, "help": "seconds in that each repeat starts from, past an intro" },
-            { "key": "force_mono", "kind": "bool", "fallback": false, "help": "mixed to one channel at export; a WAV only" },
-            { "key": "max_rate_hz", "kind": "count", "options": ["0", "11025", "22050", "32000", "44100", "48000"], "fallback": 0, "help": "the highest sample rate a WAV ships at, in Hz; 0 keeps its own" },
-            { "key": "recode", "kind": "enum", "options": ["original", "flac", "vorbis"], "fallback": "export", "help": "how an export re-encodes this file, over [export] audio" },
+            { fields::KEY: "volume_linear", fields::KIND: NUMBER, FALLBACK: 1.0, layout_fields::STEP: 0.05, fields::HELP: "the file's own level, multiplied into every play of it" },
+            { fields::KEY: "loop", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "loop wherever it is played" },
+            { fields::KEY: "loop_offset", fields::KIND: NUMBER, FALLBACK: 0.0, layout_fields::STEP: 0.1, fields::HELP: "seconds in that each repeat starts from, past an intro" },
+            { fields::KEY: "force_mono", fields::KIND: datatypes::BOOL, FALLBACK: false, fields::HELP: "mixed to one channel at export; a WAV only" },
+            { fields::KEY: "max_rate_hz", fields::KIND: COUNT, schema_fields::OPTIONS: ["0", "11025", "22050", "32000", "44100", "48000"], FALLBACK: 0, fields::HELP: "the highest sample rate a WAV ships at, in Hz; 0 keeps its own" },
+            { fields::KEY: RECODE, fields::KIND: datatypes::ENUM, schema_fields::OPTIONS: [ORIGINAL, "flac", "vorbis"], FALLBACK: verbs::EXPORT, fields::HELP: "how an export re-encodes this file, over [export] audio" },
         ],
         "font": [
-            { "key": "scale", "kind": "number", "fallback": 1.0, "step": 0.05, "help": "how much larger its glyphs draw and advance, in widgets and world text" },
-            { "key": "y_offset", "kind": "number", "fallback": 0.0, "step": 0.01, "help": "a nudge down as a fraction of the size, for a face that sits high" },
-            { "key": "hinting", "kind": "bool", "fallback": true, "help": "snap outlines to the pixel grid; off for a smooth face" },
-            { "key": "antialias", "kind": "bool", "fallback": true, "help": "smooth glyph edges; off draws every pixel on or off, for a pixel face" },
+            { fields::KEY: tools::SCALE, fields::KIND: NUMBER, FALLBACK: 1.0, layout_fields::STEP: 0.05, fields::HELP: "how much larger its glyphs draw and advance, in widgets and world text" },
+            { fields::KEY: "y_offset", fields::KIND: NUMBER, FALLBACK: 0.0, layout_fields::STEP: 0.01, fields::HELP: "a nudge down as a fraction of the size, for a face that sits high" },
+            { fields::KEY: "hinting", fields::KIND: datatypes::BOOL, FALLBACK: true, fields::HELP: "snap outlines to the pixel grid; off for a smooth face" },
+            { fields::KEY: "antialias", fields::KIND: datatypes::BOOL, FALLBACK: true, fields::HELP: "smooth glyph edges; off draws every pixel on or off, for a pixel face" },
         ],
-        "model": [
-            { "key": "scale", "kind": "number", "fallback": 1.0, "step": 0.01, "help": "the model's units to the scene's: 0.01 for a file modeled in centimeters" },
-            { "key": "lods", "kind": "count", "options": ["0", "1", "2", "3", "4", "5", "6"], "fallback": 0, "help": "simpler copies built at load, each half the triangles of the one before" },
-            { "key": "lod_distance", "kind": "number", "fallback": 20.0, "step": 1.0, "help": "camera distance where the first simpler copy takes over; each next at twice it" },
+        MODEL: [
+            { fields::KEY: tools::SCALE, fields::KIND: NUMBER, FALLBACK: 1.0, layout_fields::STEP: 0.01, fields::HELP: "the model's units to the scene's: 0.01 for a file modeled in centimeters" },
+            { fields::KEY: "lods", fields::KIND: COUNT, schema_fields::OPTIONS: ["0", "1", "2", "3", "4", "5", "6"], FALLBACK: 0, fields::HELP: "simpler copies built at load, each half the triangles of the one before" },
+            { fields::KEY: "lod_distance", fields::KIND: NUMBER, FALLBACK: 20.0, layout_fields::STEP: 1.0, fields::HELP: "camera distance where the first simpler copy takes over; each next at twice it" },
         ],
     }
 }
@@ -80,7 +107,7 @@ fn COUNTS() -> any {
 
 // The targets the panel shows a file shipping to; empty is this machine.
 fn TARGETS() -> [[str]] {
-    [["desktop", ""], ["web", "web"], ["android", "android"], ["ios", "ios"]]
+    [["desktop", ""], [WEB, WEB], [ANDROID, ANDROID], [IOS, IOS]]
 }
 
 /// The importer kind a file is, by extension: the engine's own answer, so a
@@ -114,7 +141,7 @@ fn table_at(path: str) -> any {
         return {};
     }
     let value = toml::parse(text.unwrap());
-    if value.kind() != "map" {
+    if value.kind() != types::KIND_MAP {
         log::warn("{path} is not a settings file");
         return {};
     }
@@ -131,8 +158,8 @@ fn texture_source(state: editor::State, rel: str) -> str {
     let found = "";
     if rel.to_lower().ends_with(".toml") {
         let table = table_at(full(state, rel));
-        if table["type"].as_str() == "texture" {
-            found = table["source"].as_str();
+        if table[fields::TYPE].as_str() == asset_kinds::TEXTURE {
+            found = table[inspector_fields::SOURCE].as_str();
         }
     }
     state.import_texture = Held { rel: rel, source: found };
@@ -153,7 +180,7 @@ fn settings_file(state: editor::State, rel: str) -> str {
 // Which kind's rows a file takes.
 fn kind_for(state: editor::State, rel: str) -> str {
     let kind = kind_of(rel);
-    if kind == "" && texture_source(state, rel) != "" { "texture" } else { kind }
+    if kind == "" && texture_source(state, rel) != "" { asset_kinds::TEXTURE } else { kind }
 }
 
 // What `project.toml` says for this kind, which the sidecar overrides.
@@ -162,7 +189,7 @@ fn project_default(state: editor::State, kind: str, key: str) -> any {
     if text == nil {
         return nil;
     }
-    toml::parse(text.unwrap())["import"][kind][key]
+    toml::parse(text.unwrap())[panel_keys::IMPORT][kind][key]
 }
 
 // Write one key, or drop it when `value` is nil. An empty sidecar is removed
@@ -193,15 +220,15 @@ pub fn write(state: editor::State, rel: str, key: str, value: any) {
 
 // One row: the label, the control, and where the value came from.
 fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
-    let key = spec["key"].as_str();
+    let key = spec[fields::KEY].as_str();
     let own = table_at(full(state, settings_file(state, rel)))[key];
     let inherited = project_default(state, kind, key);
     // A texture asset reads its image's sidecar first, and overrides it.
     let image = image_of(state, rel);
     let beside = if image == rel { nil } else { sidecar(state, image)[key] };
     let has_own = own != nil;
-    let source = if beside != nil { "image" } else if inherited != nil { "project" } else { "default" };
-    let effective = spec["fallback"];
+    let source = if beside != nil { asset_kinds::IMAGE } else if inherited != nil { PROJECT } else { DEFAULT };
+    let effective = spec[FALLBACK];
     if inherited != nil {
         effective = inherited;
     }
@@ -211,95 +238,95 @@ fn row(state: &mut editor::State, tokens: any, rel: str, kind: str, spec: any) {
     if has_own {
         effective = own;
     }
-    let shown = spec["fallback"];
-    if effective.kind() == "float" || effective.kind() == "int" {
+    let shown = spec[FALLBACK];
+    if effective.kind() == types::KIND_FLOAT || effective.kind() == types::KIND_INT {
         shown = effective.as_float();
     }
-    let whole = spec["whole"].as_bool();
-    let kind_of_row = spec["kind"].as_str();
-    let control: ui::Control = if kind_of_row == "number" {
+    let whole = spec[layout_fields::WHOLE].as_bool();
+    let kind_of_row = spec[fields::KIND].as_str();
+    let control: ui::Control = if kind_of_row == NUMBER {
         ui::Control {
-            kind: "number_field",
+            kind: ui::WIDGET_NUMBER_FIELD,
             grow: 1,
-            tooltip: spec["help"],
+            tooltip: spec[fields::HELP],
             arrows: true,
             value: shown,
-            step: spec["step"],
-            drag_speed: spec["step"],
+            step: spec[layout_fields::STEP],
+            drag_speed: spec[layout_fields::STEP],
             on_change: "handle",
-            data: { "fn": on_number_changed, "rel": rel, "key": key, "whole": whole },
+            data: { fields::FN: on_number_changed, REL: rel, fields::KEY: key, layout_fields::WHOLE: whole },
         }
-    } else if kind_of_row == "bool" {
+    } else if kind_of_row == datatypes::BOOL {
         ui::Control {
-            kind: "checkbox",
+            kind: ui::WIDGET_CHECKBOX,
             text: "",
-            tooltip: spec["help"],
+            tooltip: spec[fields::HELP],
             checked: effective.as_bool(),
             on_change: "handle",
-            data: { "fn": on_flag_toggled, "rel": rel, "key": key },
+            data: { fields::FN: on_flag_toggled, REL: rel, fields::KEY: key },
         }
-    } else if kind_of_row == "count" {
-        let count = if effective.kind() == "int" { effective } else { spec["fallback"] };
+    } else if kind_of_row == COUNT {
+        let count = if effective.kind() == types::KIND_INT { effective } else { spec[FALLBACK] };
         ui::Control {
-            kind: "dropdown",
+            kind: ui::WIDGET_DROPDOWN,
             grow: 1,
-            tooltip: spec["help"],
+            tooltip: spec[fields::HELP],
             text: "{count.as_int()}",
-            options: spec["options"],
+            options: spec[schema_fields::OPTIONS],
             on_change: "handle",
-            data: { "fn": on_count_picked, "rel": rel, "key": key, "spec": spec },
+            data: { fields::FN: on_count_picked, REL: rel, fields::KEY: key, schema_fields::SPEC: spec },
         }
     } else {
         ui::Control {
-            kind: "dropdown",
+            kind: ui::WIDGET_DROPDOWN,
             grow: 1,
-            tooltip: spec["help"],
-            text: if effective.kind() == "str" { effective.as_str() } else { spec["fallback"].as_str() },
-            options: spec["options"],
+            tooltip: spec[fields::HELP],
+            text: if effective.kind() == types::KIND_STRING { effective.as_str() } else { spec[FALLBACK].as_str() },
+            options: spec[schema_fields::OPTIONS],
             on_change: "handle",
-            data: { "fn": on_choice_picked, "rel": rel, "key": key },
+            data: { fields::FN: on_choice_picked, REL: rel, fields::KEY: key },
         }
     };
     // What the value is following, or the way back to following it.
     let note: ui::Control = if has_own {
         ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: "reset",
-            role: "chip",
+            role: roles::CHIP,
             width: 52,
             tooltip: "Drop this key and follow the project again",
             on_click: "handle",
-            data: { "fn": on_reset_clicked, "rel": rel, "key": key },
+            data: { fields::FN: on_reset_clicked, REL: rel, fields::KEY: key },
         }
     } else {
-        ui::Control { kind: "label", text: source, role: "text_caption", width: 52 }
+        ui::Control { kind: ui::WIDGET_LABEL, text: source, role: roles::TEXT_CAPTION, width: 52 }
     };
     state.form.push(ui::Row { label: key, controls: [control, note] });
 }
 
 fn on_number_changed(state: &mut editor::State, data: any, value: any) {
-    if data["whole"].as_bool() {
-        write(state, data["rel"].as_str(), data["key"].as_str(), math::round(value.as_float()) as int);
+    if data[layout_fields::WHOLE].as_bool() {
+        write(state, data[REL].as_str(), data[fields::KEY].as_str(), math::round(value.as_float()) as int);
     } else {
-        write(state, data["rel"].as_str(), data["key"].as_str(), value);
+        write(state, data[REL].as_str(), data[fields::KEY].as_str(), value);
     }
 }
 
 fn on_flag_toggled(state: &mut editor::State, data: any, on: any) {
-    write(state, data["rel"].as_str(), data["key"].as_str(), on);
+    write(state, data[REL].as_str(), data[fields::KEY].as_str(), on);
 }
 
 fn on_count_picked(state: &mut editor::State, data: any, picked: any) {
     let count = COUNTS()[picked.as_str()];
-    write(state, data["rel"].as_str(), data["key"].as_str(), if count == nil { data["spec"]["fallback"] } else { count });
+    write(state, data[REL].as_str(), data[fields::KEY].as_str(), if count == nil { data[schema_fields::SPEC][FALLBACK] } else { count });
 }
 
 fn on_choice_picked(state: &mut editor::State, data: any, picked: any) {
-    write(state, data["rel"].as_str(), data["key"].as_str(), picked);
+    write(state, data[REL].as_str(), data[fields::KEY].as_str(), picked);
 }
 
 fn on_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    write(state, data["rel"].as_str(), data["key"].as_str());
+    write(state, data[REL].as_str(), data[fields::KEY].as_str());
 }
 
 // The rows the selected file offers, empty when nothing is selected or the
@@ -316,7 +343,7 @@ fn specs_for(state: editor::State) -> [any] {
     let lower = image_of(state, rel).to_lower();
     let out: [any] = [];
     for spec in util::list_or_empty(ROWS()[kind]) {
-        let only = spec["only"].as_str();
+        let only = spec[fields::ONLY].as_str();
         if only == "" || lower.ends_with("." + only) {
             out.push(spec);
         }
@@ -410,9 +437,9 @@ pub fn fill(state: &mut editor::State) -> Fill {
     for spec in specs {
         row(state, tokens, rel, kind, spec);
     }
-    if kind == "texture" || kind == "audio" {
+    if kind == asset_kinds::TEXTURE || kind == asset_kinds::AUDIO {
         for pair in shipped(state, image) {
-            state.form.push(ui::Row { label: pair[0], controls: [ui::Control { kind: "label", text: pair[1], tooltip: pair[2], role: "text_caption", grow: 1 }] });
+            state.form.push(ui::Row { label: pair[0], controls: [ui::Control { kind: ui::WIDGET_LABEL, text: pair[1], tooltip: pair[2], role: roles::TEXT_CAPTION, grow: 1 }] });
         }
     }
     ui::fill_rows(FORM, state.form, inspector::label_width(state), inspector::stacked(state));

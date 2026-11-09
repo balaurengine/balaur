@@ -201,7 +201,8 @@ mod web {
         let Some(request) = request.dyn_ref::<js_sys::Function>() else {
             return;
         };
-        let Ok(promise) = request.call1(&wake_lock, &"screen".into()) else {
+        let Ok(promise) = request.call1(&wake_lock, &crate::vocabulary::words::SCREEN.into())
+        else {
             return;
         };
         let Ok(promise) = promise.dyn_into::<js_sys::Promise>() else {

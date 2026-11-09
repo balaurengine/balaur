@@ -9,6 +9,18 @@ use kv;
 use users;
 use lobbies;
 
+const CLOSED: str = "closed";
+const MESSAGE: str = "message";
+const OPEN: str = "open";
+const RECONNECTING: str = "reconnecting";
+const REOPENED: str = "reopened";
+const FAILED: str = "failed";
+const KEY: str = "key";
+const KIND: str = "kind";
+const PAYLOAD: str = "payload";
+const USER: str = "user";
+const USERNAME: str = "username";
+
 /// A hook's reply: what the call answered, or why it did not.
 pub struct HookReply {
     pub ok: bool,
@@ -48,7 +60,7 @@ pub fn configure(url: str?, plugin: str) -> str {
 /// The server plugin this game's hooks live in.
 pub fn plugin() -> str {
     let named = script::stored(PLUGIN_KEY);
-    if named.kind() == "str" && named.as_str() != "" {
+    if named.kind() == types::KIND_STRING && named.as_str() != "" {
         return named.as_str();
     }
     gamend::server().plugin
@@ -72,9 +84,9 @@ pub fn login_email(email: str, password: str) -> int {
 /// takes the code and the password the player chooses, and opens a session.
 /// An empty `username` lets the server pick one.
 pub fn register_email(email: str, username: str) -> int {
-    let account: any = { "email": email };
+    let account: any = { core::EMAIL: email };
     if username != "" {
-        account["username"] = username;
+        account[USERNAME] = username;
     }
     authentication::register(account)
 }
@@ -82,7 +94,7 @@ pub fn register_email(email: str, username: str) -> int {
 /// Email a `register_email` account a new code; only the newest works. The
 /// reply is `ok` whether or not the address has an account waiting.
 pub fn resend_confirmation(email: str) -> int {
-    authentication::resend_confirmation({ "email": email })
+    authentication::resend_confirmation({ core::EMAIL: email })
 }
 
 /// Open the realtime socket. The worker joins this session's own `user:<id>`
@@ -100,16 +112,16 @@ pub fn connect(node: Node) -> int {
 /// `on_<kind>`. Call it from `on_gamend_event`; answers whether a handler
 /// took the event.
 pub fn route(node: Node, e: any) -> bool {
-    let kind = e["kind"].text();
+    let kind = e[KIND].text();
     let socket = e.has("socket");
     if socket {
         note_socket(kind);
     }
     let event = e;
     let method = if socket { "on_socket_" + kind } else { "on_" + kind };
-    if kind == "message" {
-        event = events::decode(e["topic"].text(), e["event"].text(), e["payload"]);
-        method = "on_" + event["kind"].text();
+    if kind == MESSAGE {
+        event = events::decode(e["topic"].text(), e["event"].text(), e[PAYLOAD]);
+        method = "on_" + event[KIND].text();
     }
     if !node.has_method(method) {
         return false;
@@ -163,7 +175,7 @@ pub fn send(socket: int, name: str, args: any) -> bool {
     if socket <= 0 {
         return false;
     }
-    gamend::push(socket, "user", "hook", { "plugin": plugin(), "fn": name, "args": args }) > 0
+    gamend::push(socket, USER, "hook", { "plugin": plugin(), "fn": name, "args": args }) > 0
 }
 
 /// A hook reply as a `HookReply`.
@@ -172,12 +184,12 @@ pub fn unpack_hook(name: str, reply: any) -> HookReply {
         return HookReply { ok: false, data: nil, error: "gamend: {name} sent no reply" };
     }
     let response = reply["response"];
-    if response.has("error") {
-        let message = response["error"].text();
+    if response.has(core::ERROR) {
+        let message = response[core::ERROR].text();
         log::warn("gamend: hook {name}: {message}");
         return HookReply { ok: false, data: nil, error: message };
     }
-    HookReply { ok: true, data: response["data"], error: "" }
+    HookReply { ok: true, data: response[core::DATA], error: "" }
 }
 
 /// Subscribe to a key-value row and keep it. The server pushes `kv_updated`
@@ -191,7 +203,7 @@ pub fn register_kv(socket: int, key: str) -> bool {
         held.push(key);
         script::store(KEYS_KEY, held);
     }
-    gamend::push(socket, "user", "kv:subscribe", { "key": key }) > 0
+    gamend::push(socket, USER, "kv:subscribe", { KEY: key }) > 0
 }
 
 pub fn unregister_kv(socket: int, key: str) -> bool {
@@ -199,7 +211,7 @@ pub fn unregister_kv(socket: int, key: str) -> bool {
         return false;
     }
     script::store(KEYS_KEY, without(registered(), key));
-    gamend::push(socket, "user", "kv:unsubscribe", { "key": key }) > 0
+    gamend::push(socket, USER, "kv:unsubscribe", { KEY: key }) > 0
 }
 
 /// Every key this session subscribed, in the order it asked for them.
@@ -227,12 +239,12 @@ pub fn refresh_keys(socket: int, keys: [str]) -> [str] {
 /// File a decoded `kv_updated` or `kv_deleted` into the cache. Give it what
 /// `events::decode` returned and it takes the rows it knows.
 pub fn absorb(event: any) -> bool {
-    let kind = event["kind"].text();
+    let kind = event[KIND].text();
     if kind != user::KV_UPDATED && kind != user::KV_DELETED {
         return false;
     }
-    let payload = event["payload"];
-    let key = payload["key"].text();
+    let payload = event[PAYLOAD];
+    let key = payload[KEY].text();
     if kind == user::KV_DELETED {
         clear_row(key);
     } else {
@@ -260,7 +272,7 @@ pub async fn fetch_row(key: str, force: bool) -> any {
     }
     let reply = await task::wait(kv::get_kv(key));
     if !core::ok(reply) {
-        if reply["status"].as_int() == 404 {
+        if reply[core::STATUS].as_int() == 404 {
             keep_row(key, {});
             return {};
         }
@@ -338,41 +350,41 @@ pub fn clear_rows() {
 /// third.
 pub fn network_state() -> str {
     let held = script::stored(NETWORK_KEY);
-    if held.kind() == "str" { held.as_str() } else { "open" }
+    if held.kind() == types::KIND_STRING { held.as_str() } else { OPEN }
 }
 
 /// Say the connection is gone: what a game calls when a request it needed
 /// failed and it wants its offline screen. `retry_network` is the way back.
 pub fn fail_network() {
-    script::store(NETWORK_KEY, "failed");
+    script::store(NETWORK_KEY, FAILED);
 }
 
 /// Cut the socket so the worker opens it again, and report reconnecting
 /// until it does. False when the socket was already gone, which is when a
 /// caller opens a new one with `connect`.
 pub fn retry_network(socket: int) -> bool {
-    script::store(NETWORK_KEY, "reconnecting");
+    script::store(NETWORK_KEY, RECONNECTING);
     gamend::interrupt(socket)
 }
 
 fn note_socket(kind: str) {
-    if kind == "reconnecting" {
-        script::store(NETWORK_KEY, "reconnecting");
-    } else if kind == "open" || kind == "reopened" {
-        script::store(NETWORK_KEY, "open");
-    } else if kind == "closed" {
-        script::store(NETWORK_KEY, "failed");
+    if kind == RECONNECTING {
+        script::store(NETWORK_KEY, RECONNECTING);
+    } else if kind == OPEN || kind == REOPENED {
+        script::store(NETWORK_KEY, OPEN);
+    } else if kind == CLOSED {
+        script::store(NETWORK_KEY, FAILED);
     }
 }
 
 fn rows() -> any {
     let held = script::stored(ROWS_KEY);
-    if held.kind() == "map" { held } else { {} }
+    if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
 fn writes() -> any {
     let held = script::stored(WRITES_KEY);
-    if held.kind() == "map" { held } else { {} }
+    if held.kind() == types::KIND_MAP { held } else { {} }
 }
 
 /// A list of names the store holds, as names.

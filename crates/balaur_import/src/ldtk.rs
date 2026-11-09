@@ -15,6 +15,9 @@ use serde_json::Value;
 
 use crate::tiled_map::Imported;
 
+const IDENTIFIER: &str = "identifier";
+const PX: &str = "px";
+
 /// Read a `.ldtk` and lay out the files a project would keep.
 pub(crate) fn import(file: &Path, stem: &str) -> Result<Imported> {
     let text =
@@ -27,7 +30,7 @@ pub(crate) fn import(file: &Path, stem: &str) -> Result<Imported> {
         let Some(uid) = set.get("uid").and_then(Value::as_i64) else {
             continue;
         };
-        let name = tidy(text_of(set, "identifier", &format!("{stem}_{uid}")));
+        let name = tidy(text_of(set, IDENTIFIER, &format!("{stem}_{uid}")));
         let Some(path) = set.get("relPath").and_then(Value::as_str) else {
             // An internal icon set has no file of its own; nothing to copy.
             continue;
@@ -44,7 +47,7 @@ pub(crate) fn import(file: &Path, stem: &str) -> Result<Imported> {
     }
     let mut layers = 0;
     for level in array(&project, &["levels"]) {
-        let name = tidy(text_of(level, "identifier", stem));
+        let name = tidy(text_of(level, IDENTIFIER, stem));
         let (scene, count) = level_toml(level, &name, &sets)?;
         layers += count;
         files.push((format!("scenes/{name}.toml"), scene.into_bytes()));
@@ -135,7 +138,7 @@ fn level_toml(
             .iter()
             .chain(array(layer, &["autoLayerTiles"]))
         {
-            let at = tile.get("px").and_then(Value::as_array);
+            let at = tile.get(PX).and_then(Value::as_array);
             let (Some(at), Some(id)) = (at, tile.get("t").and_then(Value::as_i64)) else {
                 continue;
             };
@@ -199,7 +202,7 @@ fn entities_toml(layer: &Value, layer_name: &str, parent: &str) -> String {
     let grid = number(layer, "__gridSize", 16).max(1) as f64;
     for (index, entity) in array(layer, &["entityInstances"]).iter().enumerate() {
         let name = text_of(entity, "__identifier", "Entity");
-        let at = entity.get("px").and_then(Value::as_array);
+        let at = entity.get(PX).and_then(Value::as_array);
         let x = at
             .and_then(|at| at.first())
             .and_then(Value::as_f64)

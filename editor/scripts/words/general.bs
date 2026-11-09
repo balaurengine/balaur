@@ -1,0 +1,5 @@
+// Words no other list here owns.
+
+internal const FUNCTION: str = "function";
+internal const NONE: str = "none";
+internal const PATH: str = "path";

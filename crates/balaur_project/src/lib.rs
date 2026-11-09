@@ -9,3 +9,4 @@
 pub mod desktop;
 pub mod desktop_api;
 pub mod packing;
+mod vocabulary;

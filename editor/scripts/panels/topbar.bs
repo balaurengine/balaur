@@ -3,6 +3,7 @@
 // the bar fills again to show what it changed.
 
 use editor;
+use signals;
 
 pub class Topbar {
     node: Node,
@@ -13,7 +14,7 @@ impl Topbar {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "chrome_changed", source);
+        events::listen(self.node, signals::CHROME, source);
     }
 
     pub fn on_chrome_changed(_change: any) {

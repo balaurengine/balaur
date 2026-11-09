@@ -19,6 +19,8 @@ use glamx::{Mat4, Quat, Vec3};
 use crate::multimesh::{Instance, MAX_INSTANCES, MULTIMESH_2D, MULTIMESH_3D, MultiMesh};
 use crate::vocabulary::{keys as k, words as w};
 
+const POPULATE: &str = "populate";
+
 /// Where the instances go.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Layout {
@@ -346,13 +348,13 @@ pub(crate) fn install_populate_records(m: &mut Module<Engine>) {
 /// `populate`, on a multimesh handle.
 pub(crate) fn install_populate_api(m: &mut Module<Engine>, handle: &crate::multimesh_api::Handle) {
     m.describe(&[(
-        "populate",
+        POPULATE,
         handle.on,
         "(node: node, options: render::PopulateOptions) -> [render::MultimeshInstance]",
         "Godot's Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset's shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.",
     )]);
     m.function(
-        "populate",
+        POPULATE,
         |eng: &Engine, (node, options): (NodeId, Value)| {
             let entity = entity_of(node)?;
             let (flat, here) = {

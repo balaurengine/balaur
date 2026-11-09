@@ -431,7 +431,14 @@ impl MultiMeshAsset {
             bail!("a multimesh is a table");
         };
         for key in table.keys() {
-            if !["type", k::MESH, k::INSTANCES, k::VISIBLE_INSTANCE_COUNT].contains(&key.as_str()) {
+            if ![
+                words::material_check::TYPE,
+                k::MESH,
+                k::INSTANCES,
+                k::VISIBLE_INSTANCE_COUNT,
+            ]
+            .contains(&key.as_str())
+            {
                 bail!(
                     "a multimesh has no '{key}'; it takes {}, {} and {}",
                     k::MESH,
@@ -642,7 +649,7 @@ fn mesh_reference(eng: &Engine, asset: &MultiMeshAsset) -> Result<String> {
         MeshSource::Reference(reference) => Ok(reference.clone()),
         MeshSource::Inline(table) => {
             let declared = table
-                .get("type")
+                .get(words::material_check::TYPE)
                 .and_then(toml::Value::as_str)
                 .unwrap_or(balaur_geometry::mesh::MESH_ASSET_TYPE);
             Ok(balaur_core::assets::define_inline(eng, declared, table.clone())?.to_string())

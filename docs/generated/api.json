@@ -1619,6 +1619,14 @@
       "replay::STATE_PLAYING": "playing",
       "replay::STATE_SEEKING": "seeking",
       "replay::STATE_STOPPED": "stopped",
+      "types::KIND_BOOL": "bool",
+      "types::KIND_FLOAT": "float",
+      "types::KIND_INT": "int",
+      "types::KIND_LIST": "list",
+      "types::KIND_MAP": "map",
+      "types::KIND_NIL": "nil",
+      "types::KIND_NODE": "node",
+      "types::KIND_STRING": "str",
       "ui::ALIGN_BASELINE": "baseline",
       "ui::ALIGN_CENTER": "center",
       "ui::ALIGN_END": "end",
@@ -26801,6 +26809,49 @@
         "parse": "(str) -> any",
         "patch": "(str, any) -> str"
       }
+    },
+    {
+      "acts_on": {},
+      "components": [],
+      "constants": [
+        {
+          "name": "KIND_NIL",
+          "value": "\"nil\""
+        },
+        {
+          "name": "KIND_BOOL",
+          "value": "\"bool\""
+        },
+        {
+          "name": "KIND_INT",
+          "value": "\"int\""
+        },
+        {
+          "name": "KIND_FLOAT",
+          "value": "\"float\""
+        },
+        {
+          "name": "KIND_STRING",
+          "value": "\"str\""
+        },
+        {
+          "name": "KIND_LIST",
+          "value": "\"list\""
+        },
+        {
+          "name": "KIND_MAP",
+          "value": "\"map\""
+        },
+        {
+          "name": "KIND_NODE",
+          "value": "\"node\""
+        }
+      ],
+      "doc": "The names of a value's type: what `kind()` answers on an `any`.",
+      "docs": {},
+      "functions": [],
+      "name": "types",
+      "signatures": {}
     },
     {
       "acts_on": {},

@@ -4,6 +4,7 @@ use std::path::Path;
 
 use wasm_bindgen::prelude::*;
 
+use crate::vocabulary::keys;
 use crate::web::{err, fetch_bytes};
 
 /// Where a project fetched into memory lives. A browser has no directory to
@@ -358,8 +359,8 @@ fn manifest_name(manifest: &str) -> Option<String> {
     manifest
         .parse::<toml::Table>()
         .ok()?
-        .get("application")?
-        .get("name")?
+        .get(keys::APPLICATION)?
+        .get(keys::NAME)?
         .as_str()
         .filter(|name| !name.is_empty())
         .map(str::to_string)

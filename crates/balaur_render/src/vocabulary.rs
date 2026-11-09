@@ -5,6 +5,7 @@
 /// The words a `shape`, `shape2d`, `camera` or `light2d` component spells, and
 /// the script constants beside them. Written once so a matcher, a schema's
 /// `options` list and the read-back cannot disagree.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod words {
     use balaur_geometry::primitive::words as p;
 
@@ -163,6 +164,47 @@ pub(crate) mod words {
 
     pub(crate) const LEFT: &str = "left";
     pub(crate) const RIGHT: &str = "right";
+    #[allow(dead_code, reason = "read only behind the aseprite feature")]
+    pub(crate) const PINGPONG: &str = "pingpong";
+
+    pub(crate) mod options {
+        pub(crate) const HOLES: &str = "holes";
+        pub(crate) const PIXELS_PER_UNIT: &str = "pixels_per_unit";
+        pub(crate) const THRESHOLD: &str = "threshold";
+        pub(crate) const TOLERANCE: &str = "tolerance";
+    }
+
+    #[allow(dead_code, reason = "read only behind the compile feature")]
+    pub(crate) mod shader_types {
+        pub(crate) const BALAUR_PROBE: &str = "balaur_probe";
+        pub(crate) const F32: &str = "f32";
+        pub(crate) const VEC2: &str = "vec2";
+        pub(crate) const VEC2F: &str = "vec2f";
+        pub(crate) const VEC3: &str = "vec3";
+        pub(crate) const VEC3F: &str = "vec3f";
+        pub(crate) const VEC4: &str = "vec4";
+        pub(crate) const VEC4F: &str = "vec4f";
+    }
+
+    pub(crate) mod functions {
+        pub(crate) const SHADER_PROBE: &str = "shader_probe";
+    }
+
+    pub(crate) mod general {
+        pub(crate) const RENDER: &str = "render";
+    }
+
+    pub(crate) mod material_check {
+        pub(crate) const TYPE: &str = "type";
+    }
+
+    pub(crate) mod pipeline {
+        pub(crate) const VS_MAIN: &str = "vs_main";
+    }
+
+    pub(crate) mod shader_material {
+        pub(crate) const MATERIAL: &str = "material";
+    }
 }
 
 /// The words as script constants, so a script writes `render.SHAPE_SPHERE`
@@ -218,6 +260,7 @@ pub(crate) const CONSTANTS: &[(&str, &str)] = &[
 
 /// Every property key the render components spell, so a schema line and the
 /// reader behind it name the same key.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
     use balaur_geometry::primitive::keys as p;
 
@@ -391,6 +434,8 @@ pub(crate) mod keys {
     pub(crate) const PARALLAX_LAYERS: &str = "parallax_layers";
     pub(crate) const PARALLAX_METHOD: &str = "parallax_method";
     pub(crate) const PARALLAX_RELIEF_STEPS: &str = "parallax_relief_steps";
+    pub(crate) const SHADER: &str = "shader";
+    pub(crate) const TILEMAP: &str = "tilemap";
 }
 
 /// The words a schema property offers, as its `options` list.

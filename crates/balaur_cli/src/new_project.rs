@@ -7,6 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::words;
 use anyhow::{Context, Result};
 
 /// Every directory this install's shipped data may sit under, in the order to
@@ -120,9 +121,10 @@ const EMPTY: &[(&str, &str)] = &[
 /// `page` pixels where the template has one.
 pub(crate) fn create(path: &Path, template: Option<&str>, page: Option<(u32, u32)>) -> Result<()> {
     let filled = Filled {
-        name: path
-            .file_name()
-            .map_or_else(|| "game".to_string(), |n| n.to_string_lossy().into_owned()),
+        name: path.file_name().map_or_else(
+            || words::web_export::GAME.to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        ),
         page: page.unwrap_or(PAGE),
     };
     let name = &filled.name;
@@ -133,11 +135,12 @@ pub(crate) fn create(path: &Path, template: Option<&str>, page: Option<(u32, u32
     let template = template.unwrap_or("empty");
     match library {
         Some(library) => {
-            let from = library.join("templates").join(template);
+            let from = library.join(words::project_api::TEMPLATES).join(template);
             if !from.is_dir() {
-                let mut known: Vec<String> = std::fs::read_dir(library.join("templates"))?
-                    .filter_map(|e| Some(e.ok()?.file_name().to_string_lossy().into_owned()))
-                    .collect();
+                let mut known: Vec<String> =
+                    std::fs::read_dir(library.join(words::project_api::TEMPLATES))?
+                        .filter_map(|e| Some(e.ok()?.file_name().to_string_lossy().into_owned()))
+                        .collect();
                 known.sort();
                 anyhow::bail!(
                     "no template `{template}`; the templates are {}",

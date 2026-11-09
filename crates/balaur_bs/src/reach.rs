@@ -5,6 +5,7 @@
 use crate::Error;
 use crate::ast::{EnumDecl, Pos, Program};
 use crate::modules::{ROOT, Rename, block, expr};
+use crate::vocabulary::words;
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
@@ -31,7 +32,7 @@ fn package(key: &str) -> &str {
     let mut names = folders.split('/').peekable();
     while let Some(name) = names.next() {
         at += name.len() + 1;
-        if matches!(name, "addons" | "deps")
+        if matches!(name, words::packages::ADDONS | words::packages::DEPS)
             && let Some(package) = names.peek()
         {
             end = at + package.len();

@@ -6,13 +6,31 @@
 //! component registers, and read for its defaults thereafter.
 
 use super::as_f64;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const KEY: &str = "key";
 
 /// The datatypes a schema property may declare (rule N6). Closed: a plugin
 /// that wants another one adds it here, so the editor's inspector and the
 /// scene format learn about it at the same moment.
 pub const PROPERTY_TYPES: [&str; 16] = [
-    "float", "int", "bool", "string", "enum", "vec2", "vec3", "vec4", "color", "asset", "flags",
-    "node", "list", "map", "record", "variant",
+    "float",
+    words::datatypes::INT,
+    words::datatypes::BOOL,
+    words::datatypes::STRING,
+    words::datatypes::ENUM,
+    words::datatypes::VEC2,
+    words::datatypes::VEC3,
+    words::datatypes::VEC4,
+    words::datatypes::COLOR,
+    words::datatypes::ASSET,
+    words::datatypes::FLAGS,
+    words::datatypes::NODE,
+    words::datatypes::LIST,
+    words::datatypes::MAP,
+    words::datatypes::RECORD,
+    words::datatypes::VARIANT,
 ];
 
 /// The key a `variant` value names its variant by: `{ kind = "box", size =
@@ -27,10 +45,10 @@ pub fn active_variant<'a>(
     spec: &'a toml::Value,
     value: &toml::Value,
 ) -> Option<(String, &'a toml::Value)> {
-    let variants = spec.get("variants")?.as_table()?;
+    let variants = spec.get(keys::VARIANTS)?.as_table()?;
     let kind = value
         .get(KIND)
-        .or_else(|| spec.get("default")?.get(KIND))
+        .or_else(|| spec.get(keys::DEFAULT)?.get(KIND))
         .and_then(toml::Value::as_str)
         .or_else(|| variants.keys().next().map(String::as_str))?
         .to_owned();
@@ -43,15 +61,17 @@ pub fn active_variant<'a>(
 /// everything else, which is most properties.
 #[must_use]
 pub fn inner_specs(spec: &toml::Value) -> Vec<&toml::Value> {
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("list" | "map") => spec.get("of").into_iter().collect(),
-        Some("record") => spec
-            .get("fields")
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::LIST | words::datatypes::MAP) => {
+            spec.get(keys::OF).into_iter().collect()
+        }
+        Some(words::datatypes::RECORD) => spec
+            .get(keys::FIELDS)
             .and_then(toml::Value::as_table)
             .map(|fields| fields.values().collect())
             .unwrap_or_default(),
-        Some("variant") => spec
-            .get("variants")
+        Some(words::datatypes::VARIANT) => spec
+            .get(keys::VARIANTS)
             .and_then(toml::Value::as_table)
             .map(|variants| variants.values().collect())
             .unwrap_or_default(),
@@ -95,7 +115,7 @@ fn check_spec(spec: &toml::Value, needs_default: bool) -> Result<(), String> {
             spec.type_str()
         )
     })?;
-    let declared = match spec.get("type").map(toml::Value::as_str) {
+    let declared = match spec.get(keys::TYPE).map(toml::Value::as_str) {
         Some(Some(declared)) => declared,
         Some(None) => return Err(format!("`type` is not a string; expected {}", type_list())),
         None => return Err(format!("no `type` key; expected one of {}", type_list())),
@@ -108,7 +128,7 @@ fn check_spec(spec: &toml::Value, needs_default: bool) -> Result<(), String> {
     }
     check_siblings(declared, spec)?;
     check_composite(declared, spec)?;
-    let Some(default) = spec.get("default") else {
+    let Some(default) = spec.get(keys::DEFAULT) else {
         return if needs_default {
             Err(format!(
                 "no `default`; every property needs one, of type `{declared}`"
@@ -126,8 +146,8 @@ fn check_siblings(
     declared: &str,
     spec: &toml::map::Map<String, toml::Value>,
 ) -> Result<(), String> {
-    let options = spec.get("options");
-    let takes_options = declared == "enum" || declared == "flags";
+    let options = spec.get(keys::OPTIONS);
+    let takes_options = declared == words::datatypes::ENUM || declared == words::datatypes::FLAGS;
     match (takes_options, options) {
         (true, None) => return Err(format!("`type = \"{declared}\"` needs an `options` list")),
         (false, Some(_)) => {
@@ -140,7 +160,7 @@ fn check_siblings(
     }
     // `type` is the datatype key, so the asset's own type name needs a second
     // key rather than reusing it (N6): `{ type = "asset", asset = "clip" }`.
-    match (declared == "asset", spec.get("asset")) {
+    match (declared == words::datatypes::ASSET, spec.get("asset")) {
         (true, None) => {
             return Err(
                 "`type = \"asset\"` needs an `asset` key naming the asset type it takes".into(),
@@ -158,7 +178,10 @@ fn check_siblings(
     }
     // As `asset` names its asset type, a node property may name the component
     // the node it points at has to carry; the script is handed that handle.
-    match (declared == "node", spec.get("component")) {
+    match (
+        declared == words::datatypes::NODE,
+        spec.get(keys::COMPONENT),
+    ) {
         (true, Some(name)) if name.as_str().is_none() => {
             return Err(format!("`component` is {}, not a name", name.type_str()));
         }
@@ -169,7 +192,7 @@ fn check_siblings(
         }
         _ => {}
     }
-    if let Some(description) = spec.get("description")
+    if let Some(description) = spec.get(keys::DESCRIPTION)
         && description.as_str().is_none()
     {
         return Err(format!(
@@ -205,7 +228,10 @@ fn check_composite(
     declared: &str,
     spec: &toml::map::Map<String, toml::Value>,
 ) -> Result<(), String> {
-    match (matches!(declared, "list" | "map"), spec.get("of")) {
+    match (
+        matches!(declared, words::datatypes::LIST | words::datatypes::MAP),
+        spec.get(keys::OF),
+    ) {
         (true, None) => {
             return Err(format!(
                 "`type = \"{declared}\"` needs an `of` key saying what it holds"
@@ -219,7 +245,10 @@ fn check_composite(
         }
         _ => {}
     }
-    match (declared == "variant", spec.get("variants")) {
+    match (
+        declared == words::datatypes::VARIANT,
+        spec.get(keys::VARIANTS),
+    ) {
         (true, None) => {
             return Err(
                 "`type = \"variant\"` needs a `variants` table, one record spec a variant".into(),
@@ -233,7 +262,7 @@ fn check_composite(
         }
         _ => {}
     }
-    match (declared == "record", spec.get("fields")) {
+    match (declared == words::datatypes::RECORD, spec.get(keys::FIELDS)) {
         (true, None) => {
             return Err("`type = \"record\"` needs a `fields` table, one spec a field".into());
         }
@@ -247,7 +276,7 @@ fn check_composite(
     }
     // As an `asset` names its asset type, a record may name the script class
     // whose shape it is; the host hands that script an instance of it.
-    match (declared == "record", spec.get("class")) {
+    match (declared == words::datatypes::RECORD, spec.get("class")) {
         (true, Some(name)) if name.as_str().is_none() => {
             return Err(format!("`class` is {}, not a name", name.type_str()));
         }
@@ -258,9 +287,9 @@ fn check_composite(
         }
         _ => {}
     }
-    match (declared == "map", spec.get("key")) {
+    match (declared == words::datatypes::MAP, spec.get(KEY)) {
         (true, Some(kind)) => match kind.as_str() {
-            Some("string" | "int") => {}
+            Some(words::datatypes::STRING | words::datatypes::INT) => {}
             _ => return Err("`key` is not \"string\" or \"int\"".into()),
         },
         (false, Some(_)) => {
@@ -286,12 +315,12 @@ fn check_variants(variants: &toml::Value) -> Result<(), String> {
         return Err("`variants` is empty, so the value can be nothing".into());
     }
     for (name, record) in table {
-        if record.get("type").and_then(toml::Value::as_str) != Some("record") {
+        if record.get(keys::TYPE).and_then(toml::Value::as_str) != Some(words::datatypes::RECORD) {
             return Err(format!(
                 "variant '{name}' is not a `type = \"record\"` spec"
             ));
         }
-        let fields = record.get("fields").and_then(toml::Value::as_table);
+        let fields = record.get(keys::FIELDS).and_then(toml::Value::as_table);
         if fields.is_some_and(|fields| fields.contains_key(KIND)) {
             return Err(format!(
                 "variant '{name}' has a field named `{KIND}`, which names the variant"
@@ -328,26 +357,28 @@ fn check_default(
     default: &toml::Value,
     spec: &toml::map::Map<String, toml::Value>,
 ) -> Result<(), String> {
-    let options = spec.get("options");
+    let options = spec.get(keys::OPTIONS);
     let (ok, wanted) = match declared {
-        "float" => (as_f64(default).is_some(), "a number"),
+        words::datatypes::FLOAT => (as_f64(default).is_some(), "a number"),
         // Not `as_f64`: a count written as 1.0 round-trips through TOML as a
         // float, and a reader that wants a whole number then refuses it.
-        "int" => (default.as_integer().is_some(), "a whole number"),
-        "bool" => (default.as_bool().is_some(), "true or false"),
+        words::datatypes::INT => (default.as_integer().is_some(), "a whole number"),
+        words::datatypes::BOOL => (default.as_bool().is_some(), "true or false"),
         // An asset default is a reference, and a reference is a path string.
         // A node default is a scene-relative path, and a path is a string.
-        "string" | "asset" | "node" => (default.as_str().is_some(), "a string"),
-        "enum" => return check_enum_default(default, options),
-        "flags" => return check_flags_default(default, options),
-        "vec2" => return check_numbers(declared, default, &[2]),
-        "vec3" => return check_numbers(declared, default, &[3]),
-        "vec4" => return check_numbers(declared, default, &[4]),
-        "color" => return check_color_default(default),
-        "list" => return check_list_default(default, spec),
-        "map" => return check_map_default(default, spec),
-        "record" => return check_record_default(default, spec),
-        "variant" => return check_variant_default(default, spec),
+        words::datatypes::STRING | words::datatypes::ASSET | words::datatypes::NODE => {
+            (default.as_str().is_some(), "a string")
+        }
+        words::datatypes::ENUM => return check_enum_default(default, options),
+        words::datatypes::FLAGS => return check_flags_default(default, options),
+        words::datatypes::VEC2 => return check_numbers(declared, default, &[2]),
+        words::datatypes::VEC3 => return check_numbers(declared, default, &[3]),
+        words::datatypes::VEC4 => return check_numbers(declared, default, &[4]),
+        words::datatypes::COLOR => return check_color_default(default),
+        words::datatypes::LIST => return check_list_default(default, spec),
+        words::datatypes::MAP => return check_map_default(default, spec),
+        words::datatypes::RECORD => return check_record_default(default, spec),
+        words::datatypes::VARIANT => return check_variant_default(default, spec),
         _ => (true, ""),
     };
     if ok {
@@ -363,29 +394,33 @@ fn check_default(
 /// the type's zero where a nested spec left one out.
 #[must_use]
 pub fn zero_of(spec: &toml::Value) -> toml::Value {
-    if let Some(default) = spec.get("default") {
+    if let Some(default) = spec.get(keys::DEFAULT) {
         return default.clone();
     }
     let numbers = |n: usize| toml::Value::Array(vec![toml::Value::Float(0.0); n]);
-    match spec.get("type").and_then(toml::Value::as_str).unwrap_or("") {
-        "int" => toml::Value::Integer(0),
-        "float" => toml::Value::Float(0.0),
-        "bool" => toml::Value::Boolean(false),
-        "enum" => spec
-            .get("options")
+    match spec
+        .get(keys::TYPE)
+        .and_then(toml::Value::as_str)
+        .unwrap_or("")
+    {
+        words::datatypes::INT => toml::Value::Integer(0),
+        words::datatypes::FLOAT => toml::Value::Float(0.0),
+        words::datatypes::BOOL => toml::Value::Boolean(false),
+        words::datatypes::ENUM => spec
+            .get(keys::OPTIONS)
             .and_then(toml::Value::as_array)
             .and_then(|options| options.first())
             .cloned()
             .unwrap_or_else(|| toml::Value::String(String::new())),
-        "vec2" => numbers(2),
-        "vec3" => numbers(3),
-        "vec4" => numbers(4),
+        words::datatypes::VEC2 => numbers(2),
+        words::datatypes::VEC3 => numbers(3),
+        words::datatypes::VEC4 => numbers(4),
         // A missing channel is opaque, which is what `rgba` reads.
-        "color" => toml::Value::Array(vec![toml::Value::Float(1.0); 4]),
-        "flags" | "list" => toml::Value::Array(Vec::new()),
-        "map" => toml::Value::Table(toml::map::Map::new()),
-        "variant" => spec
-            .get("variants")
+        words::datatypes::COLOR => toml::Value::Array(vec![toml::Value::Float(1.0); 4]),
+        words::datatypes::FLAGS | words::datatypes::LIST => toml::Value::Array(Vec::new()),
+        words::datatypes::MAP => toml::Value::Table(toml::map::Map::new()),
+        words::datatypes::VARIANT => spec
+            .get(keys::VARIANTS)
             .and_then(toml::Value::as_table)
             .and_then(|variants| variants.iter().next())
             .map_or_else(
@@ -398,8 +433,8 @@ pub fn zero_of(spec: &toml::Value) -> toml::Value {
                     zero
                 },
             ),
-        "record" => toml::Value::Table(
-            spec.get("fields")
+        words::datatypes::RECORD => toml::Value::Table(
+            spec.get(keys::FIELDS)
                 .and_then(toml::Value::as_table)
                 .map(|fields| {
                     fields
@@ -416,21 +451,27 @@ pub fn zero_of(spec: &toml::Value) -> toml::Value {
 /// Write the `default` a nested spec left out, so every reader finds one at
 /// every depth. The inspector needs one to add an entry.
 pub fn complete_property(spec: &mut toml::Value) {
-    match spec.get("type").and_then(toml::Value::as_str) {
-        Some("list" | "map") => {
-            if let Some(of) = spec.get_mut("of") {
+    match spec.get(keys::TYPE).and_then(toml::Value::as_str) {
+        Some(words::datatypes::LIST | words::datatypes::MAP) => {
+            if let Some(of) = spec.get_mut(keys::OF) {
                 complete_inner(of);
             }
         }
-        Some("record") => {
-            if let Some(fields) = spec.get_mut("fields").and_then(toml::Value::as_table_mut) {
+        Some(words::datatypes::RECORD) => {
+            if let Some(fields) = spec
+                .get_mut(keys::FIELDS)
+                .and_then(toml::Value::as_table_mut)
+            {
                 for (_, field) in fields.iter_mut() {
                     complete_inner(field);
                 }
             }
         }
-        Some("variant") => {
-            if let Some(variants) = spec.get_mut("variants").and_then(toml::Value::as_table_mut) {
+        Some(words::datatypes::VARIANT) => {
+            if let Some(variants) = spec
+                .get_mut(keys::VARIANTS)
+                .and_then(toml::Value::as_table_mut)
+            {
                 for (_, record) in variants.iter_mut() {
                     complete_property(record);
                 }
@@ -442,12 +483,12 @@ pub fn complete_property(spec: &mut toml::Value) {
 
 fn complete_inner(spec: &mut toml::Value) {
     complete_property(spec);
-    if spec.get("default").is_some() {
+    if spec.get(keys::DEFAULT).is_some() {
         return;
     }
     let zero = zero_of(spec);
     if let Some(table) = spec.as_table_mut() {
-        table.insert("default".into(), zero);
+        table.insert(keys::DEFAULT.into(), zero);
     }
 }
 
@@ -460,7 +501,7 @@ pub fn validate_value(spec: &toml::Value, value: &toml::Value) -> Result<(), Str
         .as_table()
         .ok_or_else(|| format!("spec is {}, not a table", spec.type_str()))?;
     let declared = table
-        .get("type")
+        .get(keys::TYPE)
         .and_then(toml::Value::as_str)
         .ok_or_else(|| "spec has no `type`".to_string())?;
     check_default(declared, value, table)
@@ -477,7 +518,7 @@ fn check_list_default(
             default.type_str()
         )
     })?;
-    let of = spec.get("of").ok_or_else(|| "no `of`".to_string())?;
+    let of = spec.get(keys::OF).ok_or_else(|| "no `of`".to_string())?;
     for (at, item) in items.iter().enumerate() {
         validate_value(of, item).map_err(|why| format!("entry {at}: {why}"))?;
     }
@@ -496,8 +537,8 @@ fn check_map_default(
             default.type_str()
         )
     })?;
-    let of = spec.get("of").ok_or_else(|| "no `of`".to_string())?;
-    let keyed_by_int = spec.get("key").and_then(toml::Value::as_str) == Some("int");
+    let of = spec.get(keys::OF).ok_or_else(|| "no `of`".to_string())?;
+    let keyed_by_int = spec.get(KEY).and_then(toml::Value::as_str) == Some(words::datatypes::INT);
     for (key, value) in table {
         if keyed_by_int && key.parse::<i64>().is_err() {
             return Err(format!("key \"{key}\" is not a whole number"));
@@ -521,7 +562,7 @@ fn check_record_default(
         )
     })?;
     let fields = spec
-        .get("fields")
+        .get(keys::FIELDS)
         .and_then(toml::Value::as_table)
         .ok_or_else(|| "no `fields`".to_string())?;
     for (name, value) in table {
@@ -546,7 +587,7 @@ fn check_variant_default(
         )
     })?;
     let variants = spec
-        .get("variants")
+        .get(keys::VARIANTS)
         .and_then(toml::Value::as_table)
         .ok_or_else(|| "no `variants`".to_string())?;
     let kind = table
@@ -662,7 +703,7 @@ fn check_color_default(default: &toml::Value) -> Result<(), String> {
             ))
         };
     }
-    check_numbers("color", default, &[3, 4])
+    check_numbers(words::datatypes::COLOR, default, &[3, 4])
 }
 
 /// `#rrggbb` or `#rrggbbaa` as `[r, g, b, a]` in 0..=1.

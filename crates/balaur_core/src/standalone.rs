@@ -23,6 +23,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::words;
 use anyhow::{Context, Result};
 
 /// Trailer marker. Deliberately not the `.bpak` magic: this identifies an
@@ -189,9 +190,9 @@ pub const NATIVE_SCRIPTS: &str = "BalaurScripts";
 #[must_use]
 pub fn native_scripts_file(os: &str) -> String {
     match os {
-        "ios" => format!("{NATIVE_SCRIPTS}.framework/{NATIVE_SCRIPTS}"),
-        "macos" => format!("lib{NATIVE_SCRIPTS}.dylib"),
-        "windows" => format!("{NATIVE_SCRIPTS}.dll"),
+        words::platforms::IOS => format!("{NATIVE_SCRIPTS}.framework/{NATIVE_SCRIPTS}"),
+        words::platforms::MACOS => format!("lib{NATIVE_SCRIPTS}.dylib"),
+        words::platforms::WINDOWS => format!("{NATIVE_SCRIPTS}.dll"),
         _ => format!("lib{NATIVE_SCRIPTS}.so"),
     }
 }
@@ -204,7 +205,7 @@ pub fn native_scripts_file(os: &str) -> String {
 pub fn native_scripts_beside(exe: &Path, os: &str) -> PathBuf {
     let file = native_scripts_file(os);
     match (os, app_contents(exe)) {
-        ("ios", _) => exe.with_file_name("Frameworks").join(file),
+        (words::platforms::IOS, _) => exe.with_file_name("Frameworks").join(file),
         (_, Some(contents)) => contents.join("Frameworks").join(file),
         _ => exe.with_file_name(file),
     }

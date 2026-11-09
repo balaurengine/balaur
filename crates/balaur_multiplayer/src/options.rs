@@ -7,6 +7,12 @@ use balaur_core::handler::opt;
 use balaur_script::Value;
 
 use crate::vocabulary::TransportKind;
+use crate::vocabulary::words;
+
+const ADDRESS: &str = "address";
+const DEPTH: &str = "depth";
+const SCENE: &str = "scene";
+const TIMEOUT_SECONDS: &str = "timeout_seconds";
 
 /// The settings category every key below lives under.
 pub(crate) const CATEGORY: &str = "multiplayer";
@@ -57,28 +63,31 @@ impl Options {
     /// # Errors
     /// When a key holds the wrong kind of value, or names no transport.
     pub fn read(eng: &Engine, opts: Option<&Value>) -> Result<Self> {
-        let transport_name =
-            text(opts, "transport")?.unwrap_or_else(|| setting_text(eng, "transport"));
+        let transport_name = text(opts, words::options::TRANSPORT)?
+            .unwrap_or_else(|| setting_text(eng, words::options::TRANSPORT));
         let transport = TransportKind::parse(&transport_name)
             .ok_or_else(|| anyhow!("`{transport_name}` is not a transport"))?;
-        let scene = text(opts, "scene")?.unwrap_or_else(|| setting_text(eng, "scene"));
+        let scene = text(opts, SCENE)?.unwrap_or_else(|| setting_text(eng, SCENE));
         Ok(Self {
             transport,
-            address: text(opts, "address")?.unwrap_or_else(|| setting_text(eng, "address")),
-            players: count(opts, "players")?
-                .unwrap_or_else(|| setting_int(eng, "players").try_into().unwrap_or(2)),
+            address: text(opts, ADDRESS)?.unwrap_or_else(|| setting_text(eng, ADDRESS)),
+            players: count(opts, words::options::PLAYERS)?.unwrap_or_else(|| {
+                setting_int(eng, words::options::PLAYERS)
+                    .try_into()
+                    .unwrap_or(2)
+            }),
             scene: if scene.is_empty() {
                 main_scene(eng)
             } else {
                 scene
             },
-            depth: count(opts, "depth")?
-                .unwrap_or_else(|| setting_int(eng, "depth").try_into().unwrap_or(16))
+            depth: count(opts, DEPTH)?
+                .unwrap_or_else(|| setting_int(eng, DEPTH).try_into().unwrap_or(16))
                 .try_into()
                 .unwrap_or(16),
-            timeout: number(opts, "timeout_seconds")?
-                .unwrap_or_else(|| setting_number(eng, "timeout_seconds")),
-            name: text(opts, "name")?.unwrap_or_else(|| String::from("Player")),
+            timeout: number(opts, TIMEOUT_SECONDS)?
+                .unwrap_or_else(|| setting_number(eng, TIMEOUT_SECONDS)),
+            name: text(opts, words::lobby::NAME)?.unwrap_or_else(|| String::from("Player")),
             token: text(opts, "token")?.unwrap_or_default(),
             cert_hash: text(opts, "cert_hash")?.filter(|hash| !hash.is_empty()),
         })

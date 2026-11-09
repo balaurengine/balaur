@@ -8,6 +8,7 @@
 //! through a companion where it can (`overlay::companion_3d`), and a skinned
 //! mesh, a skinned polygon and text drawn through a material do not yet.
 
+use crate::vocabulary::words;
 use balaur_core::components::ComponentDef;
 use balaur_core::components::derived::{Component, Enum};
 #[cfg(feature = "window")]
@@ -107,7 +108,7 @@ pub(crate) fn register_debug_draw_component(reg: &mut Registry<'_>) {
     reg.register_component(
         DebugDraw::NAME,
         ComponentDef {
-            tags: &["render"],
+            tags: &[words::general::RENDER],
             expects: DRAWABLES,
             ..ComponentDef::of::<DebugDraw>()
         },

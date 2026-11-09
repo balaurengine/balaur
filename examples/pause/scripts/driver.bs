@@ -2,6 +2,11 @@
 // and it runs again at a quarter speed. This script's node is `always`, so
 // its `update` runs through the pause it asks for. Nothing else does.
 
+const KIND: str = "kind";
+const RECTANGLE: str = "rectangle";
+const SHAPE: str = "shape";
+const SIZE: str = "size";
+
 pub class Driver {
     pub shot: str = "",
     pub frames: str = "",
@@ -53,12 +58,12 @@ fn drop_box(parent: Node, n: int) {
     let row = (n / 6) as float;
     box.set_component("transform", {
         "position": [-3.0 + col * 1.2, 0.8 + row * 1.4, 0.0],
-        "rotation_euler": [0.0, 0.0, 0.25 * (n as float)],
+        animation::PROPERTY_ROTATION_EULER: [0.0, 0.0, 0.25 * (n as float)],
     });
     // Light gravity, so the fall is long enough to pause in the middle of.
-    box.set_component("body2d", { "kind": "dynamic", "gravity_scale": 0.35 });
-    box.set_component("collider2d", { "shape": { "kind": "rectangle", "size": [0.68, 0.68] }, "physics_material": { "restitution": 0.3 } });
-    box.set_component("shape2d", { "shape": { "kind": "rectangle", "size": [0.68, 0.68], "corner_radius": 0.08 }, "color": tint(n) });
+    box.set_component("body2d", { KIND: "dynamic", "gravity_scale": 0.35 });
+    box.set_component("collider2d", { SHAPE: { KIND: RECTANGLE, SIZE: [0.68, 0.68] }, "physics_material": { "restitution": 0.3 } });
+    box.set_component("shape2d", { SHAPE: { KIND: RECTANGLE, SIZE: [0.68, 0.68], "corner_radius": 0.08 }, "color": tint(n) });
 }
 
 fn tint(n: int) -> str {

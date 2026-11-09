@@ -6,6 +6,7 @@ use super::engine::{
     unit_layout,
 };
 use super::host::{direct_arities, direct_call, direct_result, dispatch};
+use crate::vocabulary::words as vocab;
 use crate::{Compiled, Slot, words};
 use js_sys::{Array, BigInt, Function, Object, Proxy, Reflect, Uint8Array, WebAssembly};
 use rustc_hash::FxHashMap;
@@ -15,6 +16,8 @@ use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::closure::Closure;
+
+const INITIAL: &str = "initial";
 
 struct Live {
     /// The module's, or a script built as units' own unit's.
@@ -82,7 +85,7 @@ fn set(on: &Object, name: &str, value: &JsValue) -> Result<(), String> {
 
 fn mutable_global(value: i32) -> Result<WebAssembly::Global, String> {
     let descriptor = Object::new();
-    set(&descriptor, "value", &"i32".into())?;
+    set(&descriptor, vocab::convert::VALUE, &"i32".into())?;
     set(&descriptor, "mutable", &true.into())?;
     WebAssembly::Global::new(&descriptor, &value.into()).map_err(|error| js_err(&error))
 }
@@ -291,7 +294,7 @@ impl Live {
     }
     fn set_global(&self, unit: usize, name: &str, value: i32) {
         if let Some(g) = self.global_object(unit, name) {
-            let _ = Reflect::set(&g, &"value".into(), &JsValue::from(value));
+            let _ = Reflect::set(&g, &vocab::convert::VALUE.into(), &JsValue::from(value));
         }
     }
     // An export of unit `unit`, once what is linked is made.
@@ -318,7 +321,7 @@ fn value_of(global: &JsValue) -> Option<i32> {
     if !global.is_object() {
         return None;
     }
-    Reflect::get(global, &"value".into())
+    Reflect::get(global, &vocab::convert::VALUE.into())
         .ok()?
         .as_f64()
         .map(|value| value as i32)
@@ -535,7 +538,7 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     let memory_descriptor = Object::new();
     set(
         &memory_descriptor,
-        "initial",
+        INITIAL,
         &JsValue::from(layout.heap.div_ceil(65536)),
     )?;
     if let Some(bytes) = setup.memory_bytes {
@@ -545,7 +548,7 @@ fn instantiate_linked(setup: &Setup<'_>) -> Result<Box<dyn Wasm>, String> {
     let memory = WebAssembly::Memory::new(&memory_descriptor).map_err(|error| js_err(&error))?;
     let table_descriptor = Object::new();
     set(&table_descriptor, "element", &"anyfunc".into())?;
-    set(&table_descriptor, "initial", &JsValue::from(1))?;
+    set(&table_descriptor, INITIAL, &JsValue::from(1))?;
     let table = WebAssembly::Table::new(&table_descriptor).map_err(|error| js_err(&error))?;
     let globals = shared_starts(&layout)
         .into_iter()

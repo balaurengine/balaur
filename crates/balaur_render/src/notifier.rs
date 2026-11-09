@@ -12,6 +12,8 @@ use balaur_core::{Engine, GlobalAppearance, GlobalTransform};
 use balaur_plugin::Registry;
 use balaur_script::{Module, NodeId, Value};
 
+const IS_ON_SCREEN: &str = "is_on_screen";
+
 pub(crate) const COMPONENT: &str = <ScreenNotifier2d as Component>::NAME;
 /// What a notifier announces as its box comes on screen, and as it leaves.
 pub(crate) const SCREEN_ENTER_EVENT: &str = "screen_enter";
@@ -145,12 +147,12 @@ pub(crate) fn notify_screen_system(eng: &Engine, _dt: f32) {
 /// `node.screen_notifier2d.is_on_screen()`.
 pub(crate) fn install_notifier_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "is_on_screen",
+        IS_ON_SCREEN,
         &[COMPONENT],
         "",
         "Whether any of the notifier's box was on screen at the end of the last frame.",
     )]);
-    m.function("is_on_screen", |eng: &Engine, node: NodeId| {
+    m.function(IS_ON_SCREEN, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let world = eng.world();
         let seen = world

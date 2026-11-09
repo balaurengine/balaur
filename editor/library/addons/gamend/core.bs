@@ -2,10 +2,18 @@
 // calls and reply helpers. `use core;` inside the addon,
 // `use addons::gamend::core;` from a game's script.
 
+const OK: str = "ok";
+internal const BODY: str = "body";
+internal const DATA: str = "data";
+internal const EMAIL: str = "email";
+internal const ERROR: str = "error";
+internal const MESSAGE: str = "message";
+internal const STATUS: str = "status";
+
 /// Whether a map carries a key with a value. A key set to nil is absent:
 /// the server would refuse it, and refusing here names the field instead.
 pub fn given(table: any, key: str) -> bool {
-    table.kind() == "map" && table.has(key) && table[key] != nil
+    table.kind() == types::KIND_MAP && table.has(key) && table[key] != nil
 }
 
 /// A call this SDK would not send. It logs which field was missing and
@@ -20,7 +28,7 @@ pub fn missing(call: str, field: str) -> int {
 /// them, skipping the ones the caller left out. Empty when none are given,
 /// so the path stays exactly as the document wrote it.
 pub fn query(options: any, allowed: [str]) -> str {
-    if options.kind() != "map" {
+    if options.kind() != types::KIND_MAP {
         return "";
     }
     let out = "";
@@ -50,26 +58,26 @@ pub fn escape(text: str) -> str {
 
 /// Whether a `rest` completion carried a 2xx status.
 pub fn ok(reply: any) -> bool {
-    let status = reply["status"];
-    status.kind() == "int" && status.as_int() >= 200 && status.as_int() < 300
+    let status = reply[STATUS];
+    status.kind() == types::KIND_INT && status.as_int() >= 200 && status.as_int() < 300
 }
 
 /// The decoded body of a reply, or nil.
 pub fn body(reply: any) -> any {
-    reply["body"]
+    reply[BODY]
 }
 
 /// What the server said went wrong, for a reply that is not 2xx.
 pub fn error_of(reply: any) -> str {
     let payload = body(reply);
-    if payload.has("error") {
-        return payload["error"].text();
+    if payload.has(ERROR) {
+        return payload[ERROR].text();
     }
-    if reply.has("error") {
-        return reply["error"].text();
+    if reply.has(ERROR) {
+        return reply[ERROR].text();
     }
-    if reply.has("status") {
-        return "gamend: HTTP " + reply["status"].text();
+    if reply.has(STATUS) {
+        return "gamend: HTTP " + reply[STATUS].text();
     }
     "gamend: no reply"
 }
@@ -79,20 +87,20 @@ pub fn error_of(reply: any) -> str {
 /// where the server wrapped it, and the body itself where it did not.
 pub fn unpack(reply: any) -> any {
     if reply == nil {
-        return { "ok": false, "data": nil, "error": "gamend: the call sent no reply" };
+        return { OK: false, DATA: nil, ERROR: "gamend: the call sent no reply" };
     }
-    let status = reply["status"];
-    let payload = reply["body"];
+    let status = reply[STATUS];
+    let payload = reply[BODY];
     if !ok(reply) {
-        let message = if payload.has("error") {
-            payload["error"].text()
-        } else if reply.has("error") {
-            reply["error"].text()
+        let message = if payload.has(ERROR) {
+            payload[ERROR].text()
+        } else if reply.has(ERROR) {
+            reply[ERROR].text()
         } else {
             "gamend: the call answered " + status.text()
         };
-        return { "ok": false, "data": nil, "error": message, "status": status };
+        return { OK: false, DATA: nil, ERROR: message, STATUS: status };
     }
-    let data = if payload.has("data") { payload["data"] } else { payload };
-    { "ok": true, "data": data, "error": "", "status": status }
+    let data = if payload.has(DATA) { payload[DATA] } else { payload };
+    { OK: true, DATA: data, ERROR: "", STATUS: status }
 }

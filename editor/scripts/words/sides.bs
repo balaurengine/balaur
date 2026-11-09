@@ -1,0 +1,6 @@
+// The sides a dock sits on.
+
+internal const BOTTOM: str = "bottom";
+internal const LEFT: str = "left";
+internal const RAIL: str = "rail";
+internal const RIGHT: str = "right";

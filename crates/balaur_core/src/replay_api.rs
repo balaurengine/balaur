@@ -15,6 +15,11 @@ use balaur_script::{Module, Value};
 use crate::engine::Engine;
 use crate::engine_api::{EngineOp, number, text};
 use crate::replay::{self, PlayState, Recording, ReplayPlayer, Session};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const FRAMES: &str = "frames";
+const STOP: &str = "stop";
 
 pub const REPLAY_OPS: &[EngineOp] = &[
     EngineOp {
@@ -143,11 +148,11 @@ pub fn install_replay_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("record", &[], "(path: string, options: RecordOptions?) -> string?", "Start recording into a file; call it before the code it records runs. Answers the path, or nil when the file cannot be written, which is logged."),
-        ("stop", &[], "(reason: string?) -> string?", "Close the recording, naming why it ended, and return the file it wrote."),
+        (words::datatypes::RECORD, &[], "(path: string, options: RecordOptions?) -> string?", "Start recording into a file; call it before the code it records runs. Answers the path, or nil when the file cannot be written, which is logged."),
+        (STOP, &[], "(reason: string?) -> string?", "Close the recording, naming why it ended, and return the file it wrote."),
         ("recording", &[], "() -> string?", "The file being recorded into, or nil."),
-        ("load", &[], "(path: string) -> Header?", "Read a recording and put it in front of the engine, paused before its first tick. Nil when it cannot be read, which is logged."),
-        ("unload", &[], "()", "Drop the loaded recording and let the game run live again."),
+        (words::functions::LOAD, &[], "(path: string) -> Header?", "Read a recording and put it in front of the engine, paused before its first tick. Nil when it cannot be read, which is logged."),
+        (words::functions::UNLOAD, &[], "()", "Drop the loaded recording and let the game run live again."),
         ("play", &[], "()", "Run the loaded recording, one recorded tick per frame."),
         ("pause", &[], "()", "Stop between ticks, holding the simulation still while the frame loop keeps drawing."),
         ("seek", &[], "(tick: int)", "Run recorded ticks until playback reaches the given tick; forward only."),
@@ -155,7 +160,7 @@ pub fn install_replay_api(m: &mut Module<Engine>) {
         ("position", &[], "() -> int", "The tick playback has reached."),
         ("length", &[], "() -> Length?", "The loaded recording's frame count and the ticks it spans, or nil."),
         ("header", &[], "() -> Header?", "The loaded recording's project, start time, script fingerprint and how it ended."),
-        ("info", &[], "(path: string) -> Header?", "The same summary for a recording on disk, without loading it. Nil when it cannot be read."),
+        (words::functions::INFO, &[], "(path: string) -> Header?", "The same summary for a recording on disk, without loading it. Nil when it cannot be read."),
         ("events", &[], "(from: int, to: int) -> [Event]", "The events recorded between two ticks, each with its tick, kind, label and data."),
         ("marks", &[], "(source: string, key: string?) -> [Mark]", "The ticks at which one replay source held a non-empty list under a key, and what it held."),
         ("divergence_tick", &[], "() -> Divergence?", "The first tick whose replay did not reproduce the recorded digest, or nil."),
@@ -204,7 +209,7 @@ fn path_of(eng: &Engine, args: &[Value], i: usize) -> Result<std::path::PathBuf>
 /// and a request made before that reads a different id than the replay will.
 fn record(eng: &Engine, args: &[Value]) -> Result<Value> {
     let path = path_of(eng, args, 0)?;
-    let project = match str_option(args, "project") {
+    let project = match str_option(args, words::dependencies::PROJECT) {
         name if name.is_empty() => eng
             .try_resource::<crate::project::ProjectManifest>()
             .map(|m| m.borrow().name.clone())
@@ -213,9 +218,13 @@ fn record(eng: &Engine, args: &[Value]) -> Result<Value> {
     };
     let per_tick = matches!(option(args, "digest"), Some(Value::Bool(true)));
     // A disk that refuses is a run with no recording, not a failed run.
-    if let Err(why) =
-        replay::start_recording(eng, &path, &project, &str_option(args, "scripts"), per_tick)
-    {
+    if let Err(why) = replay::start_recording(
+        eng,
+        &path,
+        &project,
+        &str_option(args, words::replay_api::SCRIPTS),
+        per_tick,
+    ) {
         tracing::warn!("not recording to {}: {why:#}", path.display());
         return Ok(Value::Nil);
     }
@@ -224,9 +233,9 @@ fn record(eng: &Engine, args: &[Value]) -> Result<Value> {
 
 /// `replay.stop("stop")`: close the recording, returning the file it wrote.
 fn stop(eng: &Engine, args: &[Value]) -> Result<Value> {
-    let reason = args.first().map_or("stop", |v| match v {
+    let reason = args.first().map_or(STOP, |v| match v {
         Value::Str(s) => s.as_str(),
-        _ => "stop",
+        _ => STOP,
     });
     Ok(replay::stop_recording(eng, reason)
         .map_or(Value::Nil, |p| Value::Str(p.to_string_lossy().into_owned())))
@@ -314,9 +323,9 @@ fn length(eng: &Engine, _: &[Value]) -> Result<Value> {
         return Ok(Value::Nil);
     };
     Ok(Value::Map(vec![
-        ("frames".into(), count(session.frames.len() as u64)),
-        ("first".into(), count(session.first_tick())),
-        ("last".into(), count(session.last_tick())),
+        (FRAMES.into(), count(session.frames.len() as u64)),
+        (keys::FIRST.into(), count(session.first_tick())),
+        (keys::LAST.into(), count(session.last_tick())),
     ]))
 }
 
@@ -349,11 +358,11 @@ fn events(eng: &Engine, args: &[Value]) -> Result<Value> {
             .into_iter()
             .map(|(tick, event)| {
                 Ok(Value::Map(vec![
-                    ("tick".into(), count(tick)),
-                    ("kind".into(), Value::Str(event.kind.clone())),
+                    (keys::TICK.into(), count(tick)),
+                    (keys::KIND.into(), Value::Str(event.kind.clone())),
                     ("label".into(), Value::Str(event.label.clone())),
                     (
-                        "data".into(),
+                        keys::DATA.into(),
                         event
                             .data
                             .as_ref()
@@ -388,7 +397,7 @@ fn marks(eng: &Engine, args: &[Value]) -> Result<Value> {
             .into_iter()
             .map(|(tick, values)| {
                 Ok(Value::Map(vec![
-                    ("tick".into(), count(tick)),
+                    (keys::TICK.into(), count(tick)),
                     (
                         "values".into(),
                         Value::List(
@@ -414,7 +423,7 @@ fn diverged(eng: &Engine, _: &[Value]) -> Result<Value> {
         .diverged
         .map_or(Value::Nil, |d| {
             Value::Map(vec![
-                ("tick".into(), count(d.tick)),
+                (keys::TICK.into(), count(d.tick)),
                 (
                     "recorded".into(),
                     Value::text(format!("{:016x}", d.recorded)),
@@ -440,10 +449,13 @@ fn header_value(session: &Session) -> Value {
     let mut out = vec![
         ("project".into(), Value::Str(h.project.clone())),
         ("started".into(), Value::Str(h.started.clone())),
-        ("scripts".into(), Value::Str(h.scripts.clone())),
-        ("frames".into(), count(session.frames.len() as u64)),
-        ("first".into(), count(session.first_tick())),
-        ("last".into(), count(session.last_tick())),
+        (
+            words::replay_api::SCRIPTS.into(),
+            Value::Str(h.scripts.clone()),
+        ),
+        (FRAMES.into(), count(session.frames.len() as u64)),
+        (keys::FIRST.into(), count(session.first_tick())),
+        (keys::LAST.into(), count(session.last_tick())),
     ];
     out.push((
         "reason".into(),

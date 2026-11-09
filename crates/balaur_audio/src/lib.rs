@@ -38,6 +38,7 @@ mod sweep;
 pub mod vocabulary;
 
 use crate::vocabulary::keys as k;
+use crate::vocabulary::words;
 use backend::From;
 use bus::Buses;
 pub use component::Sound;
@@ -1069,7 +1070,7 @@ fn announce_finished(eng: &Engine, ended: &[u64]) {
 
 impl balaur_plugin::Plugin for AudioPlugin {
     fn name(&self) -> &'static str {
-        "audio"
+        words::general::AUDIO
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -1106,7 +1107,7 @@ impl balaur_plugin::Plugin for AudioPlugin {
         component::register_sound_component(reg);
         spatial::register_listener_component(reg);
 
-        let mut m = reg.script_module("audio")?;
+        let mut m = reg.script_module(words::general::AUDIO)?;
         script_api::install_audio_api(&mut m);
         Ok(())
     }

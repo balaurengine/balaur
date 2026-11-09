@@ -3,7 +3,33 @@ use super::func::{FnGen, R, RefPlace, err, show};
 use super::rt::{load, mem, store};
 use crate::Error;
 use crate::ast::{Block, Expr, ExprKind, Pos, Stmt, StmtKind, Ty};
+use crate::vocabulary::words as vocab;
+use crate::vocabulary::words::{builtins, math, methods};
 use wasm_encoder::{BlockType, Instruction as I, ValType};
+
+const NIL_TESTS: [&str; 4] = [
+    methods::IS_NIL,
+    methods::IS_NONE,
+    methods::IS_SOME,
+    methods::UNWRAP_OR,
+];
+const READS: [&str; 5] = [
+    methods::AS_INT,
+    methods::AS_FLOAT,
+    methods::AS_BOOL,
+    methods::AS_STR,
+    methods::AS_NODE,
+];
+const ACCESSORS: [&str; 4] = [methods::GET, methods::AT, methods::SET, methods::PUT];
+
+/// The name the host registers a math function under: `log` is its `ln`.
+fn host_math_name(function: &str) -> &str {
+    if function == math::LOG {
+        vocab::math::LN
+    } else {
+        function
+    }
+}
 
 impl FnGen<'_> {
     /// A function's name as a value: its slot in the module's table.
@@ -82,17 +108,17 @@ impl FnGen<'_> {
             .get(name)
             .is_some_and(|sig| !matches!(sig.kind, Kind::Extern | Kind::Host));
         let native = match name.strip_prefix("math::").filter(|_| !scripted) {
-            Some("sqrt") => Some((I::F64Sqrt, 1)),
-            Some("abs") => Some((I::F64Abs, 1)),
-            Some("floor") => Some((I::F64Floor, 1)),
-            Some("ceil") => Some((I::F64Ceil, 1)),
-            Some("min") => Some((I::F64Min, 2)),
-            Some("max") => Some((I::F64Max, 2)),
+            Some(math::SQRT) => Some((I::F64Sqrt, 1)),
+            Some(math::ABS) => Some((I::F64Abs, 1)),
+            Some(math::FLOOR) => Some((I::F64Floor, 1)),
+            Some(math::CEIL) => Some((I::F64Ceil, 1)),
+            Some(math::MIN) => Some((I::F64Min, 2)),
+            Some(math::MAX) => Some((I::F64Max, 2)),
             Some(function) => self
                 .g
                 .imp
                 .math
-                .get(if function == "log" { "ln" } else { function })
+                .get(host_math_name(function))
                 .map(|(idx, n)| (I::Call(*idx), *n)),
             None => None,
         };
@@ -101,16 +127,16 @@ impl FnGen<'_> {
             self.e(i);
             return Ok(Ty::Float);
         }
-        if name == "map" {
+        if name == methods::MAP {
             return err(
                 pos,
                 "there is no `map()`: an `any` map is a literal where an `any` goes, `let m: any = {};`",
             );
         }
         if let Some(fields) = match name {
-            "vec2" => Some(2),
-            "vec3" => Some(3),
-            "color" => Some(4),
+            builtins::VEC2 => Some(2),
+            builtins::VEC3 => Some(3),
+            builtins::COLOR => Some(4),
             _ => None,
         } {
             self.args(&vec![Ty::Float; fields], args, pos, name)?;
@@ -220,58 +246,57 @@ impl FnGen<'_> {
     /// A spelling a value has no more, refused by name with the one it keeps.
     /// A prelude function may call what its own code needs by any name.
     pub(crate) fn dropped_form(&mut self, base: &Expr, name: &str, pos: Pos) -> R<()> {
-        let nil_test = matches!(name, "is_nil" | "is_none" | "is_some" | "unwrap_or");
-        let read = matches!(
-            name,
-            "as_int" | "as_float" | "as_bool" | "as_str" | "as_node"
-        );
-        if self.prelude || !(nil_test || read || matches!(name, "get" | "at" | "set" | "put")) {
+        let nil_test = NIL_TESTS.contains(&name);
+        let read = READS.contains(&name);
+        if self.prelude || !(nil_test || read || ACCESSORS.contains(&name)) {
             return Ok(());
         }
         let msg = match (&self.type_of(base)?, name) {
-            (Ty::Any | Ty::Optional(_), "is_nil" | "is_none") => {
+            (Ty::Any | Ty::Optional(_), methods::IS_NIL | methods::IS_NONE) => {
                 format!("write `x == nil`, not `x.{name}()`")
             }
-            (Ty::Any | Ty::Optional(_), "is_some") => {
+            (Ty::Any | Ty::Optional(_), methods::IS_SOME) => {
                 "write `x != nil`, not `x.is_some()`".to_string()
             }
-            (Ty::Any | Ty::Optional(_), "unwrap_or") => {
+            (Ty::Any | Ty::Optional(_), methods::UNWRAP_OR) => {
                 "write `x.or(v)`, not `x.unwrap_or(v)`".to_string()
             }
-            (Ty::Any, "get") => {
+            (Ty::Any, methods::GET) => {
                 "an `any` reads a key as `a[\"k\"]`, not `a.get(\"k\")`".to_string()
             }
-            (Ty::Any, "at") => {
+            (Ty::Any, methods::AT) => {
                 "an `any` list reads an element as `a[i]`, not `a.at(i)`".to_string()
             }
-            (Ty::Any, "set") => {
+            (Ty::Any, methods::SET) => {
                 "an `any` writes a key as `a[\"k\"] = v`, not `a.set(\"k\", v)`".to_string()
             }
-            (Ty::Any, "put") => {
+            (Ty::Any, methods::PUT) => {
                 "an `any` list writes an element as `a[i] = v`, not `a.put(i, v)`".to_string()
             }
-            (Ty::Array(_), "at") => {
+            (Ty::Array(_), methods::AT) => {
                 "a list reads an element as `xs[i]`, not `xs.at(i)`".to_string()
             }
-            (Ty::Struct(s), "at" | "get") if matches!(s.as_str(), "Vec2" | "Vec3" | "Color") => {
+            (Ty::Struct(s), methods::AT | methods::GET)
+                if matches!(s.as_str(), "Vec2" | "Vec3" | "Color") =>
+            {
                 format!(
                     "a {s} reads a field by its name, as `v.{}`",
                     if s == "Color" { "r" } else { "x" }
                 )
             }
-            (Ty::Struct(s), "get") if crate::maps::is_map(s) => {
+            (Ty::Struct(s), vocab::methods::GET) if crate::maps::is_map(s) => {
                 "a map reads a key as `m[k]`, not `m.get(k)`".to_string()
             }
-            (Ty::Struct(s), "set") if crate::maps::is_map(s) => {
+            (Ty::Struct(s), vocab::methods::SET) if crate::maps::is_map(s) => {
                 "a map writes a key as `m[k] = v`, not `m.set(k, v)`".to_string()
             }
-            (Ty::Int, "as_float") => {
+            (Ty::Int, methods::AS_FLOAT) => {
                 "an int becomes a float as `x as float`, not `x.as_float()`".to_string()
             }
-            (Ty::Float, "as_int") => {
+            (Ty::Float, methods::AS_INT) => {
                 "a float becomes an int as `x as int`, not `x.as_int()`".to_string()
             }
-            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, "as_str") => {
+            (Ty::Int | Ty::Float | Ty::Bool | Ty::Node, methods::AS_STR) => {
                 "a value becomes text as `\"{x}\"`, not `x.as_str()`".to_string()
             }
             (from @ (Ty::Int | Ty::Float | Ty::Bool | Ty::Str | Ty::Node), _) if read => {
@@ -314,8 +339,8 @@ impl FnGen<'_> {
         };
         match &bty {
             Ty::Array(_) => self.array_method(base, name, args, pos),
-            Ty::Str if name == "len" => {
-                self.args(&[], args, pos, "len")?;
+            Ty::Str if name == methods::LEN => {
+                self.args(&[], args, pos, vocab::methods::LEN)?;
                 self.expr(base)?;
                 let t = self.temp(&Ty::Str);
                 self.set_raw(&t);
@@ -531,19 +556,19 @@ impl FnGen<'_> {
     }
 
     pub(crate) fn any_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
-        if name == "with" {
+        if name == methods::WITH {
             return err(
                 pos,
                 "an `any` has no `with`: write the map as a literal, `{ \"k\": v }`, or write the key, `a[\"k\"] = v`",
             );
         }
-        if name == "equals" && !self.prelude {
+        if name == methods::EQUALS && !self.prelude {
             return err(pos, "an `any` compares as `a == b`, not `a.equals(b)`");
         }
         if !self.g.sigs.contains_key(&format!("any::{name}")) {
             return self.held_method(base, name, args, pos);
         }
-        self.prelude_method("any", base, name, args, pos)
+        self.prelude_method(vocab::keywords::ANY, base, name, args, pos)
     }
 
     /// `value.method(..)` on a `str` or an `any`: the prelude's
@@ -600,8 +625,8 @@ impl FnGen<'_> {
     // node's is named, with the read it wants first.
     fn held_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         match (name, args.len()) {
-            ("unwrap", 0) => return self.expr(base),
-            ("or", 1) => {
+            (vocab::methods::UNWRAP, 0) => return self.expr(base),
+            (vocab::methods::OR, 1) => {
                 self.expr(base)?;
                 let cell = self.temp(&Ty::Any);
                 self.set_raw(&cell);
@@ -634,7 +659,7 @@ impl FnGen<'_> {
                 format!("an `any` has no `{name}`: read it with `.as_node()` first"),
             );
         }
-        let names: Vec<String> = crate::prelude::methods("any")
+        let names: Vec<String> = crate::prelude::methods(vocab::keywords::ANY)
             .into_iter()
             .map(|method| method.0)
             .collect();
@@ -647,7 +672,7 @@ impl FnGen<'_> {
     // `text.contains(needle)` is the prelude's `str::contains(text, needle)`.
     fn str_method(&mut self, base: &Expr, name: &str, args: &[Expr], pos: Pos) -> R<Ty> {
         if !self.g.sigs.contains_key(&format!("str::{name}")) {
-            let names: Vec<String> = crate::prelude::methods("str")
+            let names: Vec<String> = crate::prelude::methods(vocab::keywords::STR)
                 .into_iter()
                 .map(|method| method.0)
                 .collect();
@@ -656,7 +681,7 @@ impl FnGen<'_> {
                 format!("strings have `len`, `{}`, not `{name}`", names.join("`, `")),
             );
         }
-        self.prelude_method("str", base, name, args, pos)
+        self.prelude_method(vocab::keywords::STR, base, name, args, pos)
     }
 
     // `extend` and `sort`, written with what a list has already.
@@ -668,7 +693,7 @@ impl FnGen<'_> {
                 let push = Expr {
                     kind: ExprKind::Method(
                         Box::new(base.clone()),
-                        "push".into(),
+                        vocab::methods::PUSH.into(),
                         vec![Expr {
                             kind: ExprKind::Var(var.clone()),
                             pos,
@@ -722,12 +747,12 @@ impl FnGen<'_> {
         let (a, et, release) = self.array_ref(base, pos)?;
         let esz = self.g.elem_size(&et) as i32;
         let out = match name {
-            "len" => {
-                self.args(&[], args, pos, "len")?;
+            methods::LEN => {
+                self.args(&[], args, pos, vocab::methods::LEN)?;
                 self.emit([I::LocalGet(a), I::I32Load(mem(4, 2)), I::I64ExtendI32U]);
                 Ty::Int
             }
-            "push" => {
+            methods::PUSH => {
                 if args.len() != 1 {
                     return err(pos, "`push` takes one value");
                 }
@@ -757,8 +782,8 @@ impl FnGen<'_> {
                 ]);
                 Ty::Void
             }
-            "pop" => {
-                self.args(&[], args, pos, "pop")?;
+            methods::POP => {
+                self.args(&[], args, pos, vocab::methods::POP)?;
                 self.emit([
                     I::LocalGet(a),
                     I::I32Load(mem(4, 2)),
@@ -781,8 +806,8 @@ impl FnGen<'_> {
                 }
                 et.clone()
             }
-            "insert" => self.array_insert(a, &et, esz, args, pos)?,
-            "remove" => self.array_remove(a, &et, esz, args, pos)?,
+            methods::INSERT => self.array_insert(a, &et, esz, args, pos)?,
+            methods::REMOVE => self.array_remove(a, &et, esz, args, pos)?,
             _ => {
                 return err(
                     pos,

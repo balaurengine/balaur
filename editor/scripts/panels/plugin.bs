@@ -2,6 +2,9 @@
 // plugin fills it on these words and after its own controls, and never draws.
 
 use editor;
+use signals;
+
+const ASSETS_RELOADED: str = "assets_reloaded";
 
 pub class Plugin {
     node: Node,
@@ -15,11 +18,11 @@ fn id_of(node: Node) -> str {
 impl Plugin {
     pub fn init() {
         let editor = scene::get_node("Editor");
-        for word in ["plugins_changed", "outline_changed", "inspector_changed", "debugger_changed"] {
+        for word in [signals::PLUGINS_CHANGED, "outline_changed", "inspector_changed", signals::DEBUGGER_CHANGED] {
             events::listen(self.node, word, editor);
         }
         events::listen(self.node, "saved");
-        events::listen(self.node, "assets_reloaded");
+        events::listen(self.node, ASSETS_RELOADED);
     }
 
     pub fn on_plugins_changed(_change: any) {

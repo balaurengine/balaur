@@ -14,6 +14,8 @@ use crate::widget::paint::{self, Brush};
 use crate::widget::properties::Item;
 use crate::widget::theme::{Style, WidgetTheme};
 
+const DRAG: &str = "drag";
+
 /// What a row view paints its parts with, past the ink and the face every
 /// widget has: the theme's `[colors]` where it names them, and the built-in
 /// look where it does not. A colour with no alpha draws nothing, which is how
@@ -195,7 +197,7 @@ fn rows(
     let trails = branches(items, &open_rows, &depth_of);
     let mut seen = Seen::default();
     // The row a drag has hold of; `seen` has where the pass found it would land.
-    let held_row: Dragging = ui.data(|d| d.get_temp(id.with("drag")).unwrap_or_default());
+    let held_row: Dragging = ui.data(|d| d.get_temp(id.with(DRAG)).unwrap_or_default());
     let area = crate::widget::scroll::dressed(ui, list_area(id, want), widget, entity);
     let shown = area.show_rows(ui, row_h, open_rows.len(), |ui, range| {
         for slot in range {
@@ -703,7 +705,7 @@ struct Drag<'a> {
 /// `on_move` says what was dropped where, and the rows come back in the order
 /// the script decided.
 fn settle_drag(ui: &egui::Ui, at: &mut Painting<'_>, drag: &Drag<'_>) {
-    let key = drag.id.with("drag");
+    let key = drag.id.with(DRAG);
     if let Some(row) = drag.took.clone() {
         ui.data_mut(|d| d.insert_temp(key, Dragging { row }));
         return;

@@ -3,6 +3,7 @@
 
 use editor;
 use shell;
+use words::project_fields;
 
 /// The type scale, in design pixels. Four steps and no others: a call site
 /// that wants a size names one of these, and everything else takes the size
@@ -22,7 +23,7 @@ pub const EXTRA_LARGE: float = 17.0;
 /// A role's stated size as the theme file gives it: the touch table's where
 /// a finger drives the screen and the role has one, else the role's own.
 pub fn role_size_in_pixels(state: editor::State, role: str, key: str, fallback: float) -> float {
-    let table = state.theme["roles"][role];
+    let table = state.theme[project_fields::ROLES][role];
     if table == nil {
         return fallback;
     }
@@ -37,8 +38,8 @@ pub fn role_size_in_pixels(state: editor::State, role: str, key: str, fallback: 
 /// A number a theme states, or the size it names: `"control_height"` is
 /// whatever the worn theme makes of it.
 pub fn size_in_pixels(state: editor::State, value: any) -> float {
-    if value.kind() == "str" {
-        state.theme["sizes"][value.as_str()].as_float()
+    if value.kind() == types::KIND_STRING {
+        state.theme[project_fields::SIZES][value.as_str()].as_float()
     } else {
         value.as_float()
     }

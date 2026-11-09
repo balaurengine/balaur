@@ -189,7 +189,7 @@ pub fn snapshot(state: editor::State) -> [RootPose] {
             index: row,
             position: util::xyz(found.transform.position),
             scale: util::xyz(found.transform.scale),
-            rotation: model::transform_part(found, "rotation_euler", [0.0, 0.0, 0.0]),
+            rotation: model::transform_part(found, animation::PROPERTY_ROTATION_EULER, [0.0, 0.0, 0.0]),
             world: util::xyz(found.transform.global_position()),
         });
     }

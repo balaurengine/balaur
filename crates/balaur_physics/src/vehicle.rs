@@ -27,6 +27,13 @@ use crate::vocabulary::{component as c, keys as k};
 use balaur_core::fixed_dt;
 use balaur_core::layers::Layer;
 
+const SET_BRAKE: &str = "set_brake";
+const SET_ENGINE_FORCE: &str = "set_engine_force";
+const SET_STEERING: &str = "set_steering";
+const SET_WHEEL_ROTATION: &str = "set_wheel_rotation";
+const VEHICLE_SPEED: &str = "vehicle_speed";
+const WHEEL_STATE: &str = "wheel_state";
+
 /// Makes the node's `body3d` a raycast vehicle chassis, driven by the `wheel3d` children under it. `forward_axis` and `up_axis` orient it.
 #[derive(Clone, Component)]
 #[component(
@@ -307,35 +314,35 @@ pub(crate) fn install_vehicle_api(m: &mut Module<Engine>) {
         "What the last step did with a wheel. `suspension_force` is what the suspension pushed with, after `suspension_max_force`; the two impulses are the friction rapier applied along and across the wheel; the contact, the ray's start, the wheel's centre and its suspension and axle directions are world space, after steering; `ground` is the node the ray hit, or nil.",
     )]);
     m.describe(&[
-        ("set_engine_force", &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
-        ("set_brake", &[c::WHEEL_3D], "", "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0."),
-        ("set_steering", &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
-        ("wheel_state", &[c::WHEEL_3D], "(node: node) -> WheelState", "What the last step did with this wheel."),
-        ("set_wheel_rotation", &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`."),
-        ("vehicle_speed", &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
+        (SET_ENGINE_FORCE, &[c::WHEEL_3D], "", "How hard this wheel drives, in newtons; negative reverses."),
+        (SET_BRAKE, &[c::WHEEL_3D], "", "How hard this wheel brakes, as an impulse; ignored while its engine force is not 0."),
+        (SET_STEERING, &[c::WHEEL_3D], "", "Turn this wheel, in radians."),
+        (WHEEL_STATE, &[c::WHEEL_3D], "(node: node) -> WheelState", "What the last step did with this wheel."),
+        (SET_WHEEL_ROTATION, &[c::WHEEL_3D], "(node: node, angle: float)", "Set how far the wheel has turned about its axle, in radians: the angle `wheel_state` reads as `rotation`."),
+        (VEHICLE_SPEED, &[c::VEHICLE_3D], "", "How fast the chassis is going along its forward axis, in units per second."),
     ]);
     m.function(
-        "set_engine_force",
+        SET_ENGINE_FORCE,
         |eng: &Engine, (node, force): (NodeId, f32)| {
             with_wheel(eng, node, |input| input.engine_force = force)
         },
     );
-    m.function("set_brake", |eng: &Engine, (node, brake): (NodeId, f32)| {
+    m.function(SET_BRAKE, |eng: &Engine, (node, brake): (NodeId, f32)| {
         with_wheel(eng, node, |input| {
             input.brake = brake.max(0.0);
         })
     });
     m.function(
-        "set_steering",
+        SET_STEERING,
         |eng: &Engine, (node, angle): (NodeId, f32)| {
             with_wheel(eng, node, |input| input.steering = angle)
         },
     );
-    m.function("wheel_state", |eng: &Engine, node: NodeId| {
+    m.function(WHEEL_STATE, |eng: &Engine, node: NodeId| {
         Ok(wheel_state(eng, entity_of(node)?))
     });
     m.function(
-        "set_wheel_rotation",
+        SET_WHEEL_ROTATION,
         |eng: &Engine, (node, angle): (NodeId, f32)| {
             let entity = entity_of(node)?;
             let state = eng.resource::<PhysicsState3d>();
@@ -348,7 +355,7 @@ pub(crate) fn install_vehicle_api(m: &mut Module<Engine>) {
             Ok(())
         },
     );
-    m.function("vehicle_speed", |eng: &Engine, node: NodeId| {
+    m.function(VEHICLE_SPEED, |eng: &Engine, node: NodeId| {
         let entity = entity_of(node)?;
         // The chassis's own `forward_axis`, not z: a car built along x would
         // otherwise read the speed it is sliding sideways at.

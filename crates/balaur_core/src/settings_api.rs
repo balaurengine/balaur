@@ -10,9 +10,20 @@ use balaur_script::{Module, Value};
 use crate::engine::Engine;
 use crate::node_api::{from_toml, to_toml};
 use crate::settings::{self, Scope, SettingDef};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const ALL: &str = "all";
+const BASE: &str = "base";
+const DEFINE: &str = "define";
+const GET: &str = "get";
+const KNOWN_TAGS: &str = "known_tags";
+const MERGE_TOML: &str = "merge_toml";
+const REVISION: &str = "revision";
+const SET: &str = "set";
 
 fn scope_of(name: &str) -> Scope {
-    if name == "editor" {
+    if name == words::EDITOR {
         Scope::Editor
     } else {
         Scope::Project
@@ -21,8 +32,8 @@ fn scope_of(name: &str) -> Scope {
 
 const fn scope_name(scope: Scope) -> &'static str {
     match scope {
-        Scope::Project => "project",
-        Scope::Editor => "editor",
+        Scope::Project => words::dependencies::PROJECT,
+        Scope::Editor => words::EDITOR,
     }
 }
 
@@ -36,20 +47,20 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
         "A defined setting: where it lives, how a settings screen files and labels it, which file it is written to and its spec.",
     )]);
     m.describe(&[
-        ("all", &[], "() -> [Setting]", "Every defined setting as `{ path, scope, spec }`, in definition order."),
-        ("get", &[], "(path: string) -> any", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
-        ("base", &[], "(path: string) -> any", "What the file says, ignoring every override: what a settings screen edits."),
-        ("tags", &[], "() -> [string]", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
-        ("known_tags", &[], "() -> [string]", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
-        ("overrides", &[], "(path: string) -> [string]", "The tags this project holds an override for at `path`, in tag order."),
-        ("clear", &[], "(path: string) -> ()", "Forget one value, so the next write drops the key: how an override is removed."),
-        ("revision", &[], "() -> int", "A count that moves whenever a setting is defined, set, cleared or loaded: a screen listing settings rebuilds its rows when it moves, not every frame."),
-        ("set", &[], "(path: string, value: any) -> ()", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
-        ("define", &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
-        ("merge_toml", &[], "(text: string) -> ()", "Read values out of a TOML text, folding them onto what is already loaded."),
-        ("to_toml", &[], "(scope: string, existing: string) -> string", "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."),
+        (ALL, &[], "() -> [Setting]", "Every defined setting as `{ path, scope, spec }`, in definition order."),
+        (GET, &[], "(path: string) -> any", "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil."),
+        (BASE, &[], "(path: string) -> any", "What the file says, ignoring every override: what a settings screen edits."),
+        (words::settings_api::TAGS, &[], "() -> [string]", "The names this run answers to, broad to narrow: the kind of machine, the operating system, the architecture, the build."),
+        (KNOWN_TAGS, &[], "() -> [string]", "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`."),
+        (keys::OVERRIDES, &[], "(path: string) -> [string]", "The tags this project holds an override for at `path`, in tag order."),
+        (words::functions::CLEAR, &[], "(path: string) -> ()", "Forget one value, so the next write drops the key: how an override is removed."),
+        (REVISION, &[], "() -> int", "A count that moves whenever a setting is defined, set, cleared or loaded: a screen listing settings rebuilds its rows when it moves, not every frame."),
+        (SET, &[], "(path: string, value: any) -> ()", "Change one setting, in memory. Whether it takes effect now or on the next run is the setting's own business; `all` reports it as `applies`."),
+        (DEFINE, &[], "(path: string, spec: table)", "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game."),
+        (MERGE_TOML, &[], "(text: string) -> ()", "Read values out of a TOML text, folding them onto what is already loaded."),
+        (words::functions::TO_TOML, &[], "(scope: string, existing: string) -> string", "The text one scope would write, starting from `existing` so anything no setting describes survives. Scope is \"project\" or \"editor\"."),
     ]);
-    m.function("all", |eng: &Engine, (): ()| {
+    m.function(ALL, |eng: &Engine, (): ()| {
         let registry = settings::all(eng);
         let registry = registry.borrow();
         let out: Vec<Value> = registry
@@ -57,7 +68,7 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
             .iter()
             .map(|def| {
                 Value::Map(vec![
-                    ("path".into(), Value::Str(def.path.clone())),
+                    (keys::PATH.into(), Value::Str(def.path.clone())),
                     ("category".into(), Value::Str(def.category().to_string())),
                     ("label".into(), Value::Str(def.label().to_string())),
                     ("scope".into(), Value::Str(scope_name(def.scope).into())),
@@ -68,22 +79,22 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
             .collect();
         Ok(Value::List(out))
     });
-    m.function("get", |eng: &Engine, path: String| {
+    m.function(GET, |eng: &Engine, path: String| {
         Ok(settings::get(eng, &path)
             .and_then(|v| from_toml(&v).ok())
             .unwrap_or(Value::Nil))
     });
     install_override_api(m);
-    m.function("set", |eng: &Engine, (path, value): (String, Value)| {
+    m.function(SET, |eng: &Engine, (path, value): (String, Value)| {
         settings::set(eng, &path, to_toml(&value)?);
         let change = Value::Map(vec![
-            ("path".into(), Value::text(path)),
-            ("value".into(), value),
+            (keys::PATH.into(), Value::text(path)),
+            (keys::VALUE.into(), value),
         ]);
         crate::facts::notice(eng, crate::hooks::ON_SETTING_CHANGED, change);
         Ok(Value::Nil)
     });
-    m.function("define", |eng: &Engine, (path, spec): (String, Value)| {
+    m.function(DEFINE, |eng: &Engine, (path, spec): (String, Value)| {
         // A path's own first segment decides the scope, so a game cannot
         // define something under `editor/` and have it ship by accident.
         let scope = scope_of(path.split('/').next().unwrap_or(""));
@@ -97,12 +108,12 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
         );
         Ok(Value::Nil)
     });
-    m.function("merge_toml", |eng: &Engine, text: String| {
+    m.function(MERGE_TOML, |eng: &Engine, text: String| {
         settings::load(eng, &text)?;
         Ok(Value::Nil)
     });
     m.function(
-        "to_toml",
+        words::functions::TO_TOML,
         |eng: &Engine, (scope, existing): (String, String)| {
             Ok(Value::Str(settings::to_toml(
                 eng,
@@ -116,19 +127,19 @@ pub fn install_settings_api(m: &mut Module<Engine>) {
 /// The calls the settings screen needs for a key with more than one answer:
 /// the file's own value, the tags in play, and the overrides a key carries.
 fn install_override_api(m: &mut Module<Engine>) {
-    m.function("base", |eng: &Engine, path: String| {
+    m.function(BASE, |eng: &Engine, path: String| {
         Ok(settings::base(eng, &path)
             .and_then(|v| from_toml(&v).ok())
             .unwrap_or(Value::Nil))
     });
-    m.function("tags", |eng: &Engine, (): ()| {
+    m.function(words::settings_api::TAGS, |eng: &Engine, (): ()| {
         let tags = eng.resource::<crate::tags::Tags>();
         let tags = tags.borrow();
         Ok(Value::List(
             tags.0.iter().cloned().map(Value::text).collect(),
         ))
     });
-    m.function("known_tags", |eng: &Engine, (): ()| {
+    m.function(KNOWN_TAGS, |eng: &Engine, (): ()| {
         Ok(Value::List(
             settings::known_tags(eng)
                 .into_iter()
@@ -136,7 +147,7 @@ fn install_override_api(m: &mut Module<Engine>) {
                 .collect(),
         ))
     });
-    m.function("overrides", |eng: &Engine, path: String| {
+    m.function(keys::OVERRIDES, |eng: &Engine, path: String| {
         Ok(Value::List(
             settings::overrides(eng, &path)
                 .into_iter()
@@ -144,11 +155,11 @@ fn install_override_api(m: &mut Module<Engine>) {
                 .collect(),
         ))
     });
-    m.function("clear", |eng: &Engine, path: String| {
+    m.function(words::functions::CLEAR, |eng: &Engine, path: String| {
         settings::clear(eng, &path);
         Ok(Value::Nil)
     });
-    m.function("revision", |eng: &Engine, (): ()| {
+    m.function(REVISION, |eng: &Engine, (): ()| {
         Ok(Value::Int(
             i64::try_from(settings::revision(eng)).unwrap_or(i64::MAX),
         ))

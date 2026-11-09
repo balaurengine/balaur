@@ -10,24 +10,53 @@ use lint;
 use session;
 use util;
 use viewport;
+use words::dock_fields;
+use words::layout_fields;
+use words::roles;
+use words::tabs;
+use words::tools;
+use words::verbs;
 
-const OUTLINE: str = "outline_changed";
-const INSPECTOR: str = "inspector_changed";
-const DOCKS: str = "docks_changed";
-const PLAY: str = "play_frame";
-const CHROME: str = "chrome_changed";
-const STATUS: str = "status_changed";
-const RAIL: str = "rail_changed";
-const STAGE: str = "stage_changed";
+internal const OUTLINE: str = "outline_changed";
+internal const INSPECTOR: str = "inspector_changed";
+internal const DOCKS: str = "docks_changed";
+internal const PLAY: str = "play_frame";
+internal const CHROME: str = "chrome_changed";
+internal const STATUS: str = "status_changed";
+internal const RAIL: str = "rail_changed";
+internal const STAGE: str = "stage_changed";
+const ASSETS: str = "assets";
+const ASSETS_RELOADED: str = "assets_reloaded";
+const FILES_CHANGED: str = "files_changed";
+const BONEMAP: str = "bonemap";
+const CODE: str = "code";
+const COMPLETE: str = "complete";
+const DEBUGGER: str = "debugger";
+const DOCS: str = "docs";
+const INPUTVIEW: str = "inputview";
+const MACHINE: str = "machine";
+const MANAGER: str = "manager";
+const PLUGINS: str = "plugins";
+const PROBLEMS: str = "problems";
+const REFACTOR: str = "refactor";
+const RESIZED: str = "resized";
+const TEXTEDIT: str = "textedit";
+internal const ASSETS_CHANGED: str = "assets_changed";
+internal const CODE_CHANGED: str = "code_changed";
+internal const DEBUGGER_CHANGED: str = "debugger_changed";
+internal const PLUGINS_CHANGED: str = "plugins_changed";
+internal const PROBLEMS_CHANGED: str = "problems_changed";
+internal const RECORDINGS: str = "recordings_changed";
+internal const TIMELINE: str = "timeline_changed";
 
 /// What a panel showing one thing of the Editor's listens for, as
 /// `<what>_changed`: the Problems list, the Docs page, the files, the library,
 /// the tile brush, the state machine, the recordings and the debugger.
 fn panels() -> [str] {
     [
-        "problems", "docs", "assets", "library", "tiles", "machine", "recordings", "debugger",
-        "sheet", "picker", "manager", "textedit", "plugins", "inputview",
-        "code", "complete", "refactor", "timeline", "weights", "bonemap",
+        PROBLEMS, DOCS, ASSETS, verbs::LIBRARY, tools::TILES, MACHINE, tabs::RECORDINGS, DEBUGGER,
+        roles::SHEET, "picker", MANAGER, TEXTEDIT, PLUGINS, INPUTVIEW,
+        CODE, COMPLETE, REFACTOR, verbs::TIMELINE, tabs::WEIGHTS, BONEMAP,
     ]
 }
 
@@ -48,7 +77,7 @@ pub fn hear_boxes(state: editor::State, editor: Node) {
     for id in layout::watched() {
         let found = layout::box_node(state, id);
         if !util::is_nil(found) {
-            events::listen(editor, "resized", found);
+            events::listen(editor, RESIZED, found);
         }
     }
 }
@@ -59,7 +88,7 @@ pub fn hear_boxes(state: editor::State, editor: Node) {
 /// viewport's tools look at it.
 pub fn hear_engine(editor: Node) {
     for word in [
-        "assets_reloaded", "files_changed", "debugger_stopped", "pasted", "pasted_image",
+        ASSETS_RELOADED, FILES_CHANGED, "debugger_stopped", "pasted", "pasted_image",
         "pointer_moved", "pointer_pressed", "pointer_released", "pointer_scrolled", "pointer_gestured",
         "files_dropped",
     ] {
@@ -138,7 +167,7 @@ pub fn docks(state: &mut editor::State) {
     // The text, not the map: a key holding `state.docks` itself is the map it is
     // compared against, and never differs from it.
     let key: any = [
-        "{state.docks}", state.layout["left"]["width"], state.layout["right"]["width"], state.layout["bottom"]["width"],
+        "{state.docks}", state.layout[dock_fields::LEFT][layout_fields::WIDTH], state.layout[dock_fields::RIGHT][layout_fields::WIDTH], state.layout[dock_fields::BOTTOM][layout_fields::WIDTH],
         state.workspace, state.compact, counts.errors + counts.warnings, state.registry.panels.len(),
         session::loaded(state),
     ];

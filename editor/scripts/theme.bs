@@ -5,6 +5,17 @@ use editor;
 use settings;
 use signals;
 use util;
+use words::components;
+use words::fields;
+use words::layout_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::theme_modes;
+use words::theme_tokens;
+
+const DARK: str = "dark";
+const LIGHT: str = "light";
+const COLORS: str = "colors";
 
 pub struct Resolve {
     name: str,
@@ -32,7 +43,7 @@ pub fn BUNDLED() -> [str] {
 pub const DEFAULT: str = "balaur";
 
 pub fn HALVES() -> [str] {
-    ["dark", "light"]
+    [DARK, LIGHT]
 }
 
 /// The roles, kinds and sizes every bundled half wears under its colours.
@@ -85,8 +96,8 @@ pub fn path_of(name: str, half: str) -> str {
 pub fn names() -> [str] {
     let out: [any] = copy_names(BUNDLED());
     for entry in util::list_or_empty(fs::list(user_directory())) {
-        if entry["is_dir"].as_bool() && !is_bundled(entry["name"].as_str()) {
-            out.push(entry["name"]);
+        if entry[project_fields::IS_DIR].as_bool() && !is_bundled(entry[fields::NAME].as_str()) {
+            out.push(entry[fields::NAME]);
         }
     }
     out
@@ -114,7 +125,7 @@ fn read_at(path: str) -> any {
     let text = text.unwrap();
     let doc = toml::parse(text);
     let ok = true;
-    if ok && doc.kind() == "map" { doc } else { nil }
+    if ok && doc.kind() == types::KIND_MAP { doc } else { nil }
 }
 
 /// A bundled half as the editor wears it before anyone's edits: the shared
@@ -134,7 +145,7 @@ pub fn merge(base: any, over: any) -> any {
     }
     for key in over.keys() {
         let value = over[key];
-        let nested = value.kind() == "map" && out.has(key) && out[key].kind() == "map";
+        let nested = value.kind() == types::KIND_MAP && out.has(key) && out[key].kind() == types::KIND_MAP;
         if nested {
             let below = out[key];
             out[key] = merge(below, value);
@@ -152,8 +163,8 @@ pub fn diff(base: any, doc: any) -> any {
     for key in doc.keys() {
         let value = doc[key];
         let had = base.has(key);
-        if value.kind() == "map" {
-            let below: any = if had && base[key].kind() == "map" { base[key] } else { {} };
+        if value.kind() == types::KIND_MAP {
+            let below: any = if had && base[key].kind() == types::KIND_MAP { base[key] } else { {} };
             let inner = diff(below, value);
             if inner.len() > 0 {
                 out[key] = inner;
@@ -173,19 +184,19 @@ pub fn same(first: any, second: any) -> bool {
 
 /// The bundled pair a document is filled in from: what it names, or balaur.
 pub fn base_of(doc: any) -> str {
-    let named = util::map_or_empty(doc)["base"];
-    if named.kind() == "str" && is_bundled(named.as_str()) { named.as_str() } else { DEFAULT }
+    let named = util::map_or_empty(doc)[fields::BASE];
+    if named.kind() == types::KIND_STRING && is_bundled(named.as_str()) { named.as_str() } else { DEFAULT }
 }
 
 /// What a person's half states, or, for a half the folder lacks, only the
 /// base the other half names: the missing half is the base's.
 pub fn own_half(name: str, half: str) -> any {
     let own = read(name, half);
-    if own.kind() == "map" {
+    if own.kind() == types::KIND_MAP {
         return own;
     }
-    let other = read(name, if half == "dark" { "light" } else { "dark" });
-    { "base": base_of(other) }
+    let other = read(name, if half == theme_modes::DARK { theme_modes::LIGHT } else { theme_modes::DARK });
+    { fields::BASE: base_of(other) }
 }
 
 /// One half of a pair, filled in from its base. A pair that no longer
@@ -207,18 +218,18 @@ pub fn resolve(name: str, half: str) -> Resolve {
 /// and its half beside.
 pub fn flat(name: str, half: str, doc: any) -> any {
     let done = ui::complete_theme(doc);
-    let fonts = doc["fonts"];
+    let fonts = doc[project_fields::FONTS];
     let flattened: any = {
-        "dark": done["dark"],
-        "roles": doc["roles"],
-        "colors": done["colors"],
-        "sizes": done["sizes"],
-        "fonts": if fonts == nil { {} } else { fonts },
-        "name": name,
-        "half": half,
-        "doc": doc,
+        panel_keys::DARK: done[panel_keys::DARK],
+        project_fields::ROLES: doc[project_fields::ROLES],
+        COLORS: done[COLORS],
+        project_fields::SIZES: done[project_fields::SIZES],
+        project_fields::FONTS: if fonts == nil { {} } else { fonts },
+        fields::NAME: name,
+        layout_fields::HALF: half,
+        fields::DOC: doc,
     };
-    let colors = done["colors"];
+    let colors = done[COLORS];
     for key in colors.keys() {
         let value = colors[key];
         flattened[key] = value;
@@ -232,7 +243,7 @@ pub fn load(name: str, half: str) -> any {
 }
 
 pub fn dark() -> any {
-    load(DEFAULT, "dark")
+    load(DEFAULT, theme_modes::DARK)
 }
 
 /// The half to wear: a start-up state's, else the mode's, else the system's.
@@ -241,20 +252,20 @@ pub fn half_for(state: editor::State, system_dark: bool) -> any {
         return state.theme_half;
     }
     let mode = settings::get(MODE_SETTING);
-    if mode.as_str() == "dark" || mode.as_str() == "light" {
+    if mode.as_str() == theme_modes::DARK || mode.as_str() == theme_modes::LIGHT {
         return mode;
     }
-    if system_dark { "dark" } else { "light" }
+    if system_dark { theme_modes::DARK } else { theme_modes::LIGHT }
 }
 
 // What a `code` node draws its gutter in, and the token it takes it from where
 // the theme names none: the colours the code pane always drew them in.
 fn CODE_COLORS() -> [[str]] {
     [
-        ["breakpoint_color", "primary_text"],
-        ["problem_color", "danger_text"],
-        ["warning_color", "warning_text"],
-        ["current_fill", "primary_bg"],
+        ["breakpoint_color", theme_tokens::PRIMARY_TEXT],
+        ["problem_color", theme_tokens::DANGER_TEXT],
+        ["warning_color", theme_tokens::WARNING_TEXT],
+        ["current_fill", theme_tokens::PRIMARY_BG],
     ]
 }
 
@@ -263,13 +274,13 @@ fn CODE_COLORS() -> [[str]] {
 // says and nothing it does not.
 fn worn(tokens: any) -> any {
     let doc: any = {};
-    let own = tokens["doc"];
+    let own = tokens[fields::DOC];
     for key in own.keys() {
         let value = own[key];
         doc[key] = value;
     }
     let colors: any = {};
-    let own_colors = tokens["doc"]["colors"];
+    let own_colors = tokens[fields::DOC][COLORS];
     let own_color_table = util::map_or_empty(if own_colors == nil { {} } else { own_colors });
     for key in own_color_table.keys() {
         let value = own_color_table[key];
@@ -277,13 +288,13 @@ fn worn(tokens: any) -> any {
     }
     for pair in CODE_COLORS() {
         if !colors.has(pair[0]) {
-            let token = tokens["colors"][pair[1]];
+            let token = tokens[COLORS][pair[1]];
             if token != nil {
                 colors[pair[0]] = token;
             }
         }
     }
-    doc["colors"] = colors;
+    doc[COLORS] = colors;
     doc
 }
 
@@ -298,8 +309,8 @@ pub fn apply(state: editor::State) {
         let root = scene::get_node(path);
         if root.is_valid() {
             // A table, so no `str` the property's type could write.
-            let inline: any = { "theme": doc };
-            root.patch_component("widget", inline);
+            let inline: any = { project_fields::THEME: doc };
+            root.patch_component(components::WIDGET, inline);
         }
     }
     let background = util::hex_to_rgb(tokens["bg_app"].as_str());
@@ -317,7 +328,7 @@ pub fn use_named(state: &mut editor::State, name: str) {
 }
 
 fn wear_half(state: &mut editor::State, name: str, half: str) {
-    if state.theme["name"].as_str() == name && state.theme["half"].as_str() == half {
+    if state.theme[fields::NAME].as_str() == name && state.theme[layout_fields::HALF].as_str() == half {
         return;
     }
     state.theme = load(name, half);
@@ -328,12 +339,12 @@ fn wear_half(state: &mut editor::State, name: str, half: str) {
 
 /// The system turned dark or light: the worn pair follows under `system`.
 pub fn follow(state: &mut editor::State, system_dark: bool) {
-    wear_half(state, state.theme["name"].as_str(), half_for(state, system_dark).as_str());
+    wear_half(state, state.theme[fields::NAME].as_str(), half_for(state, system_dark).as_str());
 }
 
 /// Read the worn half from disk again, dropping an edit nobody saved.
 pub fn reload(state: &mut editor::State) {
-    state.theme = load(state.theme["name"].as_str(), state.theme["half"].as_str());
+    state.theme = load(state.theme[fields::NAME].as_str(), state.theme[layout_fields::HALF].as_str());
     state.theme_revision += 1;
     signals::outline(state);
     apply(state);
@@ -341,7 +352,7 @@ pub fn reload(state: &mut editor::State) {
 
 /// Wear a document that is not on disk yet: the theme window's live edit.
 pub fn wear(state: &mut editor::State, name: str, doc: any) {
-    state.theme = flat(name, state.theme["half"].as_str(), doc);
+    state.theme = flat(name, state.theme[layout_fields::HALF].as_str(), doc);
     state.theme_revision += 1;
     signals::outline(state);
     apply(state);
@@ -349,16 +360,16 @@ pub fn wear(state: &mut editor::State, name: str, doc: any) {
 
 // `on`, not `dark`: that name would shadow `dark()`. Pins the half for the run and leaves the person's setting alone.
 pub fn set_dark(state: &mut editor::State, on: bool) {
-    state.theme_half = if on { "dark" } else { "light" };
-    wear_half(state, state.theme["name"].as_str(), state.theme_half);
+    state.theme_half = if on { theme_modes::DARK } else { theme_modes::LIGHT };
+    wear_half(state, state.theme[fields::NAME].as_str(), state.theme_half);
 }
 
 /// The person flipping to the other half: remembered as the mode, so the
 /// settings screen shows it and the next start opens in it.
 pub fn toggle(state: &mut editor::State) {
-    let half = if state.theme["half"].as_str() == "dark" { "light" } else { "dark" };
+    let half = if state.theme[layout_fields::HALF].as_str() == theme_modes::DARK { theme_modes::LIGHT } else { theme_modes::DARK };
     settings::set(MODE_SETTING, half);
     settings::commit_preferences(state);
     state.theme_half = "";
-    wear_half(state, state.theme["name"].as_str(), half);
+    wear_half(state, state.theme[fields::NAME].as_str(), half);
 }

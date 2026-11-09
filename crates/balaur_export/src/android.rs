@@ -13,6 +13,16 @@ use anyhow::{Context, Result, bail};
 
 use crate::config::{ExportConfig, secret_or};
 use crate::sign::{run, tool};
+use crate::vocabulary::words;
+
+const AAPT2: &str = "aapt2";
+const ANDROIDDEBUGKEY: &str = "androiddebugkey";
+const APKSIGNER: &str = "apksigner";
+const JARSIGNER: &str = "jarsigner";
+const KEYTOOL: &str = "keytool";
+const LINK: &str = "link";
+const STAGING: &str = "staging";
+const ZIPALIGN: &str = "zipalign";
 
 /// An ABI the template carries, in the spelling a project and an APK write.
 ///
@@ -35,10 +45,10 @@ impl Abi {
     /// writes and the name `package_runtime.sh` stages.
     pub(crate) const fn dir(self) -> &'static str {
         match self {
-            Self::Arm64V8a => "arm64-v8a",
+            Self::Arm64V8a => words::targets::ARM64_V8A,
             Self::ArmeabiV7a => "armeabi-v7a",
             Self::X86 => "x86",
-            Self::X86_64 => "x86_64",
+            Self::X86_64 => words::targets::X86_64,
         }
     }
 }
@@ -118,7 +128,7 @@ impl AndroidConfig {
         Ok(Self {
             orientation: crate::config::orientation_of(manifest),
             title: crate::config::application_name(manifest),
-            ..crate::config::table_of(manifest, "android", project)?
+            ..crate::config::table_of(manifest, words::targets::ANDROID, project)?
         })
     }
 
@@ -132,7 +142,7 @@ impl AndroidConfig {
         if self.abis.is_empty() {
             return Ok(());
         }
-        let lib = layout.join("lib");
+        let lib = layout.join(words::android::LIB);
         for abi in &self.abis {
             let dir = lib.join(abi.dir());
             if !dir.is_dir() {
@@ -428,15 +438,15 @@ pub(crate) fn assemble(
 ) -> Result<PathBuf> {
     let sdk = Sdk::find()?;
     let apk = output.with_extension("apk");
-    let work = apk.with_extension("staging");
+    let work = apk.with_extension(STAGING);
     let _ = std::fs::remove_dir_all(&work);
     std::fs::create_dir_all(&work)?;
 
     let linked = work.join("linked.apk");
     let resources = compile_resources(&sdk, layout, &work)?;
     run(
-        Command::new(sdk.program("aapt2")?)
-            .arg("link")
+        Command::new(sdk.program(AAPT2)?)
+            .arg(LINK)
             .arg("-o")
             .arg(&linked)
             .arg("--manifest")
@@ -450,18 +460,18 @@ pub(crate) fn assemble(
     add_payload(&linked, layout)?;
     let aligned = work.join("aligned.apk");
     run(
-        Command::new(sdk.program("zipalign")?)
+        Command::new(sdk.program(ZIPALIGN)?)
             .args(["-f", "4"])
             .arg(&linked)
             .arg(&aligned),
-        "zipalign",
+        ZIPALIGN,
     )?;
 
     let _ = std::fs::remove_file(&apk);
     let keystore = keystore_for(project, config)?;
     run(
-        Command::new(sdk.program("apksigner")?)
-            .arg("sign")
+        Command::new(sdk.program(APKSIGNER)?)
+            .arg(words::sign::SIGN)
             .arg("--ks")
             .arg(&keystore.path)
             .args(["--ks-pass", &format!("pass:{}", keystore.store_password)])
@@ -473,7 +483,7 @@ pub(crate) fn assemble(
         "apksigner sign",
     )?;
     run(
-        Command::new(sdk.program("apksigner")?)
+        Command::new(sdk.program(APKSIGNER)?)
             .arg("verify")
             .arg(&apk),
         "apksigner verify",
@@ -526,7 +536,7 @@ pub(crate) fn bundle(
     let sdk = Sdk::find()?;
     let jar = bundletool(project, config)?;
     let aab = output.with_extension("aab");
-    let work = aab.with_extension("staging");
+    let work = aab.with_extension(STAGING);
     let _ = std::fs::remove_dir_all(&work);
     std::fs::create_dir_all(&work)?;
 
@@ -535,8 +545,8 @@ pub(crate) fn bundle(
     let linked = work.join("proto.apk");
     let resources = compile_resources(&sdk, layout, &work)?;
     run(
-        Command::new(sdk.program("aapt2")?)
-            .arg("link")
+        Command::new(sdk.program(AAPT2)?)
+            .arg(LINK)
             .arg("--proto-format")
             .arg("-o")
             .arg(&linked)
@@ -563,7 +573,7 @@ pub(crate) fn bundle(
 
     let keystore = keystore_for(project, config)?;
     run(
-        Command::new(tool("jarsigner", JDK)?)
+        Command::new(tool(JARSIGNER, JDK)?)
             .arg("-keystore")
             .arg(&keystore.path)
             .args(["-storepass", &keystore.store_password])
@@ -572,7 +582,7 @@ pub(crate) fn bundle(
             .args(["-sigalg", "SHA256withRSA", "-digestalg", "SHA-256"])
             .arg(&aab)
             .arg(&keystore.alias),
-        "jarsigner",
+        JARSIGNER,
     )?;
     std::fs::remove_dir_all(&work)?;
     tracing::info!("bundled {} ({})", aab.display(), keystore.what);
@@ -588,7 +598,7 @@ fn compile_resources(sdk: &Sdk, layout: &Path, work: &Path) -> Result<Vec<PathBu
     }
     let compiled = work.join("res.zip");
     run(
-        Command::new(sdk.program("aapt2")?)
+        Command::new(sdk.program(AAPT2)?)
             .arg("compile")
             .arg("--dir")
             .arg(&res)
@@ -658,7 +668,7 @@ fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
     for (name, path) in payload_files(layout) {
         let stored = Path::new(&name)
             .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("so"));
+            .is_some_and(|e| e.eq_ignore_ascii_case(words::artifacts::SO));
         let options: zip::write::SimpleFileOptions = zip::write::SimpleFileOptions::default()
             .compression_method(if stored {
                 zip::CompressionMethod::Stored
@@ -679,7 +689,7 @@ fn add_payload(apk: &Path, layout: &Path) -> Result<()> {
 /// Everything under `lib/` and `assets/`, in a stable order.
 fn payload_files(layout: &Path) -> Vec<(String, PathBuf)> {
     let mut found = Vec::new();
-    for top in ["lib", "assets"] {
+    for top in [words::android::LIB, words::bundle::ASSETS] {
         let mut dirs = vec![layout.join(top)];
         while let Some(dir) = dirs.pop() {
             let Ok(entries) = std::fs::read_dir(&dir) else {
@@ -717,9 +727,9 @@ fn keystore_for(project: &Path, config: &AndroidConfig) -> Result<Keystore> {
     if config.debug_key {
         return Ok(Keystore {
             path: debug_keystore()?,
-            alias: "androiddebugkey".into(),
-            store_password: "android".into(),
-            key_password: "android".into(),
+            alias: ANDROIDDEBUGKEY.into(),
+            store_password: words::targets::ANDROID.into(),
+            key_password: words::targets::ANDROID.into(),
             what: "debug key — installs on a device, ships nowhere",
         });
     }
@@ -762,16 +772,16 @@ fn debug_keystore() -> Result<PathBuf> {
         std::fs::create_dir_all(dir)?;
     }
     run(
-        Command::new(tool("keytool", "it ships with the JDK")?)
+        Command::new(tool(KEYTOOL, "it ships with the JDK")?)
             .args(["-genkeypair", "-keystore"])
             .arg(&path)
             .args([
                 "-storepass",
-                "android",
+                words::targets::ANDROID,
                 "-keypass",
-                "android",
+                words::targets::ANDROID,
                 "-alias",
-                "androiddebugkey",
+                ANDROIDDEBUGKEY,
                 "-dname",
                 "CN=Android Debug,O=Android,C=US",
                 "-keyalg",
@@ -779,7 +789,7 @@ fn debug_keystore() -> Result<PathBuf> {
                 "-validity",
                 "10000",
             ]),
-        "keytool",
+        KEYTOOL,
     )?;
     Ok(path)
 }

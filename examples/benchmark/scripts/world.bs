@@ -2,6 +2,25 @@
 // groups of `ROW`: a joint names its other end by path, and a flat container
 // of ten thousand siblings would make every one of those a linear scan.
 
+const CONVEX_HULL: str = "convex_hull";
+const ANCHOR: str = "anchor";
+const BODY2D: str = "body2d";
+const BODY3D: str = "body3d";
+const BOX: str = "box";
+const CIRCLE: str = "circle";
+const COLLIDER2D: str = "collider2d";
+const CONNECTED_ANCHOR: str = "connected_anchor";
+const CONNECTED_BODY: str = "connected_body";
+const HEIGHT: str = "height";
+const KIND: str = "kind";
+const RADIUS: str = "radius";
+const RECTANGLE: str = "rectangle";
+const SHAPE: str = "shape";
+const SHAPE2D: str = "shape2d";
+const SHAPE3D: str = "shape3d";
+const SIZE: str = "size";
+const SPHERE: str = "sphere";
+
 pub const ROW: int = 100;
 
 /// What one pass of a case built, and what it counted while it ran. A class,
@@ -62,9 +81,9 @@ pub fn body(w: World, at: Vec3, shape: any) -> Node {
     let i = w.bodies.len();
     let node = row_for(w, i).add_child("b{i % ROW}");
     node.transform.position = at;
-    let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
-    node.set_component(kind, { "kind": "dynamic", "can_sleep": false });
-    node.set_component(collider_key(w), { "shape": shape });
+    let kind = if w.dimensions == 2 { BODY2D } else { BODY3D };
+    node.set_component(kind, { KIND: "dynamic", "can_sleep": false });
+    node.set_component(collider_key(w), { SHAPE: shape });
     draw(w, node, shape);
     w.bodies.push(node);
     node
@@ -83,9 +102,9 @@ pub fn wall(w: World, at: Vec3, shape: any) -> Node {
     let node = w.container.add_child("s{w.statics}");
     w.statics += 1;
     node.transform.position = at;
-    let kind = if w.dimensions == 2 { "body2d" } else { "body3d" };
-    node.set_component(kind, { "kind": "static" });
-    node.set_component(collider_key(w), { "shape": shape });
+    let kind = if w.dimensions == 2 { BODY2D } else { BODY3D };
+    node.set_component(kind, { KIND: "static" });
+    node.set_component(collider_key(w), { SHAPE: shape });
     node
 }
 
@@ -125,17 +144,17 @@ pub fn pin(w: World, a: Node, b: Node, at_a: Vec3, at_b: Vec3) -> Node {
     let path = relative(b);
     if w.dimensions == 2 {
         node.set_component("joint2d", {
-            "kind": "hinge",
-            "connected_body": path,
-            "anchor": [anchor.x, anchor.y],
-            "connected_anchor": [other.x, other.y],
+            KIND: "hinge",
+            CONNECTED_BODY: path,
+            ANCHOR: [anchor.x, anchor.y],
+            CONNECTED_ANCHOR: [other.x, other.y],
         });
     } else {
         node.set_component("joint3d", {
-            "kind": "ball_socket",
-            "connected_body": path,
-            "anchor": [anchor.x, anchor.y, anchor.z],
-            "connected_anchor": [other.x, other.y, other.z],
+            KIND: physics3d::JOINT_BALL_SOCKET,
+            CONNECTED_BODY: path,
+            ANCHOR: [anchor.x, anchor.y, anchor.z],
+            CONNECTED_ANCHOR: [other.x, other.y, other.z],
         });
     }
     node
@@ -160,7 +179,7 @@ pub fn tear_down(w: World) {
 }
 
 fn collider_key(w: World) -> str {
-    if w.dimensions == 2 { "collider2d" } else { "collider3d" }
+    if w.dimensions == 2 { COLLIDER2D } else { "collider3d" }
 }
 
 /// The same shape again as something the renderer can draw, when a case is
@@ -170,23 +189,23 @@ fn draw(w: World, node: Node, shape: any) {
     if !w.draw {
         return;
     }
-    let kind = if shape.has("kind") {
-        shape["kind"].as_str()
+    let kind = if shape.has(KIND) {
+        shape[KIND].as_str()
     } else if w.dimensions == 2 {
-        "rectangle"
+        RECTANGLE
     } else {
-        "box"
+        BOX
     };
-    let drawn: any = if kind != "convex_hull" {
+    let drawn: any = if kind != CONVEX_HULL {
         copy(shape)
     } else if w.dimensions == 2 {
-        { "kind": "circle", "radius": 13.0 }
+        { KIND: CIRCLE, RADIUS: 13.0 }
     } else {
-        { "kind": "sphere", "radius": 0.45 }
+        { KIND: SPHERE, RADIUS: 0.45 }
     };
     // A few colours in turn, so a stack reads as bodies rather than as a slab.
     let colour = palette()[(w.bodies.len() + w.statics) % 5];
-    node.set_component(if w.dimensions == 2 { "shape2d" } else { "shape3d" }, { "shape": drawn, "color": colour });
+    node.set_component(if w.dimensions == 2 { SHAPE2D } else { SHAPE3D }, { SHAPE: drawn, "color": colour });
 }
 
 fn palette() -> [Color] {
@@ -202,7 +221,7 @@ fn palette() -> [Color] {
 /// A shape table without the collider-only keys the renderer would reject.
 fn copy(shape: any) -> any {
     let out: any = {};
-    for key in ["kind", "radius", "height", "size"] {
+    for key in [KIND, RADIUS, HEIGHT, SIZE] {
         if shape.has(key) {
             out[key] = shape[key];
         }

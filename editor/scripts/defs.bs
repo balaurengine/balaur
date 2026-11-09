@@ -1,4 +1,30 @@
 use icons;
+use words::dock_fields;
+use words::panel_keys;
+use words::tabs;
+use words::tools;
+
+const ASSETS: str = "assets";
+const BONE: str = "bone";
+const DEBUGGER: str = "debugger";
+const DOCS: str = "docs";
+const IMPORT: str = "import";
+const INSPECTOR: str = "inspector";
+const KEY: str = "key";
+const LIBRARY: str = "library";
+const MOVE: str = "move";
+const OUTLINE: str = "outline";
+const OUTPUT: str = "output";
+const POLYGON: str = "polygon";
+const PROBLEMS: str = "problems";
+const PROFILER: str = "profiler";
+const SCALE: str = "scale";
+const SCENE: str = "scene";
+const SELECT: str = "select";
+const STATEMACHINE: str = "statemachine";
+const TILES: str = "tiles";
+const TIMELINE: str = "timeline";
+const ZOOM: str = "zoom";
 
 pub struct Workspace {
     internal id: str,
@@ -63,24 +89,24 @@ pub fn workspaces() -> [Workspace] {
 /// forward. A workspace says what to have open, not what may be opened: the
 /// logo menu adds and the tab marks close whatever the work needs after that.
 pub fn workspace_docks(id: str) -> any {
-    if id == "script" {
-        docks(["scene", "outline"], ["output", "problems", "docs", "debugger"], ["inspector"])
-    } else if id == "animation" {
-        docks(["scene", "outline"], ["timeline", "statemachine", "output", "library"], ["inspector"])
-    } else if id == "physics" {
-        docks(["scene"], ["output", "problems", "profiler"], ["inspector"])
-    } else if id == "ui" {
-        docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"])
+    if id == tabs::SCRIPT {
+        docks([SCENE, OUTLINE], [OUTPUT, PROBLEMS, DOCS, DEBUGGER], [panel_keys::INSPECTOR])
+    } else if id == tabs::ANIMATION {
+        docks([SCENE, OUTLINE], [TIMELINE, STATEMACHINE, OUTPUT, LIBRARY], [panel_keys::INSPECTOR])
+    } else if id == tabs::PHYSICS {
+        docks([panel_keys::SCENE], [OUTPUT, PROBLEMS, PROFILER], [panel_keys::INSPECTOR])
+    } else if id == tabs::UI {
+        docks([SCENE, OUTLINE], [OUTPUT, PROBLEMS, ASSETS], [INSPECTOR, IMPORT])
     } else {
-        docks(["scene", "outline"], ["output", "problems", "assets"], ["inspector", "import"])
+        docks([SCENE, OUTLINE], [OUTPUT, PROBLEMS, ASSETS], [INSPECTOR, IMPORT])
     }
 }
 
 fn docks(left: [str], bottom: [str], right: [str]) -> any {
     {
-        "left": { "tabs": left, "active": left[0], "shut": false },
-        "bottom": { "tabs": bottom, "active": bottom[0], "shut": false },
-        "right": { "tabs": right, "active": right[0], "shut": false },
+        dock_fields::LEFT: { dock_fields::TABS: left, dock_fields::ACTIVE: left[0], dock_fields::SHUT: false },
+        dock_fields::BOTTOM: { dock_fields::TABS: bottom, dock_fields::ACTIVE: bottom[0], dock_fields::SHUT: false },
+        dock_fields::RIGHT: { dock_fields::TABS: right, dock_fields::ACTIVE: right[0], dock_fields::SHUT: false },
     }
 }
 
@@ -96,39 +122,39 @@ pub fn workspace_name(id: str) -> str {
 // Only tools something reads: a button that sets `state.tool` and is then ignored
 // advertises an editor that does not exist. Re-add each on its `gizmo` handler.
 pub fn tools(workspace: str) -> [str] {
-    if workspace == "scene" {
-        ["select", "move", "rotate", "scale", "pen", "tiles", "zoom"]
-    } else if workspace == "animation" {
-        ["select", "move", "bone", "polygon", "key", "zoom"]
-    } else if workspace == "physics" {
-        ["select", "move", "polygon", "zoom"]
-    } else if workspace == "ui" {
-        ["select", "move", "zoom"]
+    if workspace == tabs::SCENE {
+        [SELECT, MOVE, "rotate", SCALE, "pen", TILES, ZOOM]
+    } else if workspace == tabs::ANIMATION {
+        [SELECT, MOVE, BONE, POLYGON, KEY, ZOOM]
+    } else if workspace == tabs::PHYSICS {
+        [SELECT, MOVE, POLYGON, ZOOM]
+    } else if workspace == tabs::UI {
+        [SELECT, MOVE, ZOOM]
     } else {
         []
     }
 }
 
 pub fn tool_name(tool: str) -> str {
-    if tool == "select" {
+    if tool == tools::SELECT {
         "Select"
-    } else if tool == "move" {
+    } else if tool == tools::MOVE {
         "Translate"
-    } else if tool == "rotate" {
+    } else if tool == tools::ROTATE {
         "Rotate"
-    } else if tool == "scale" {
+    } else if tool == tools::SCALE {
         "Scale"
-    } else if tool == "zoom" {
+    } else if tool == tools::ZOOM {
         "Zoom"
-    } else if tool == "key" {
+    } else if tool == tools::KEY {
         "Keyframe"
-    } else if tool == "bone" {
+    } else if tool == tools::BONE {
         "Rig bone"
-    } else if tool == "polygon" {
+    } else if tool == tools::POLYGON {
         "Polygon"
-    } else if tool == "pen" {
+    } else if tool == tools::PEN {
         "Pen"
-    } else if tool == "tiles" {
+    } else if tool == tools::TILES {
         "Tiles"
     } else {
         tool
@@ -141,18 +167,18 @@ pub fn tool_icon(tool: str) -> str {
 
 /// The viewport's overlay chips in a workspace.
 pub fn chips(workspace: str) -> [Chip] {
-    if workspace == "scene" {
+    if workspace == tabs::SCENE {
         [
             chip(CHIP_PROJECTION, "3D · Perspective", true),
             chip(CHIP_SNAP, "Snap 8 px", false),
             chip(CHIP_GUIDES, "Guides", false),
             chip(CHIP_LIGHTS, "Lights", true),
         ]
-    } else if workspace == "animation" {
+    } else if workspace == tabs::ANIMATION {
         [chip(CHIP_PATH, "Motion path", true), chip(CHIP_SNAP, "Snap 8 px", false)]
-    } else if workspace == "physics" {
+    } else if workspace == tabs::PHYSICS {
         [chip(CHIP_COLLIDERS, "Show colliders", true), chip(CHIP_SLEEP, "Sleep bodies")]
-    } else if workspace == "ui" {
+    } else if workspace == tabs::UI {
         [chip(CHIP_SAFE, "Safe area", true), chip(CHIP_RESOLUTION, "1920 × 1080", false)]
     } else {
         []

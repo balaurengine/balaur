@@ -10,6 +10,21 @@ use selftest;
 use shell;
 use signals;
 use util;
+use words::changes;
+use words::fields;
+use words::log_fields;
+use words::statuses;
+use words::tabs;
+
+const LOG: str = "log";
+const CRASHED: str = "crashed";
+const ERROR: str = "error";
+const INPUT: str = "input";
+const KEYS: str = "keys";
+const FIRST: str = "first";
+const LAST: str = "last";
+const VALUES: str = "values";
+const SCRIPTS: str = "scripts";
 
 pub class SessionState {
     internal recording: str,
@@ -110,7 +125,7 @@ pub fn start(state: &mut editor::State) {
     }
     state.session.recording = path;
     state.session.listed_at = -1.0;
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
 }
 
 // End everything the session machinery has open: the recording being written
@@ -141,7 +156,7 @@ pub fn finish(state: &mut editor::State, reason: str?) {
     }
     state.session.recording = "";
     state.session.listed_at = -1.0;
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
     replay::stop(reason);
     prune(state);
 }
@@ -150,7 +165,7 @@ pub fn finish(state: &mut editor::State, reason: str?) {
 fn prune(state: editor::State) {
     let names: [str] = [];
     for entry in util::list_or_empty(fs::list(directory(state))) {
-        let name = util::map_or_empty(entry)["name"].as_str();
+        let name = util::map_or_empty(entry)[fields::NAME].as_str();
         if name.ends_with(".blr") && !name.starts_with("kept-") {
             names.push(name);
         }
@@ -178,7 +193,7 @@ pub fn listing(state: &mut editor::State) -> [Row] {
     state.session.listed_at = now;
     let names: [str] = [];
     for entry in util::list_or_empty(fs::list(directory(state))) {
-        let name = util::map_or_empty(entry)["name"].as_str();
+        let name = util::map_or_empty(entry)[fields::NAME].as_str();
         if name.ends_with(".blr") {
             names.push(name);
         }
@@ -204,9 +219,9 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
         return Row { name: name, started: "", ticks: 0, seconds: 0.0, reason: "unreadable", stale: false };
     }
     let head = util::map_or_empty(head);
-    let first = head["first"].as_int();
-    let last = head["last"].as_int();
-    let recorded = head["scripts"].as_str();
+    let first = head[FIRST].as_int();
+    let last = head[LAST].as_int();
+    let recorded = head[SCRIPTS].as_str();
     let recorded_reason = head["reason"];
     Row {
         name: name,
@@ -216,9 +231,9 @@ fn row(state: editor::State, name: str, mine: str) -> Row {
         seconds: (last - first + 1) as float / 60.0,
         reason: (if recorded_reason != nil {
             let reason = recorded_reason;
-            if reason.kind() == "str" { reason.as_str() } else { "crashed" }
+            if reason.kind() == types::KIND_STRING { reason.as_str() } else { CRASHED }
         } else {
-            "crashed"
+            CRASHED
         }),
         stale: recorded != "" && recorded != mine,
     }
@@ -258,8 +273,8 @@ pub fn open(state: &mut editor::State, name: str) {
     state.session.loaded = path;
     state.session.header = replay::header();
     let span = util::map_or_empty(replay::length());
-    state.session.first = span["first"].as_int();
-    state.session.last = span["last"].as_int();
+    state.session.first = span[FIRST].as_int();
+    state.session.last = span[LAST].as_int();
     state.session.at = state.session.first;
     state.session.lanes = build_lanes();
     // Loading puts the clock back to where the session started, so every
@@ -268,10 +283,10 @@ pub fn open(state: &mut editor::State, name: str) {
     state.sources = {};
     state.listings = {};
     state.session.listed_at = -1.0;
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
     state.lint.at = -1.0;
     lint::touched(state);
-    signals::changed(state, "problems");
+    signals::changed(state, changes::PROBLEMS);
     warn_if_stale(state, name);
     // Everything play does, because a replay that starts from a different
     // world replays the same input into a different game. The scene is built
@@ -282,8 +297,8 @@ pub fn open(state: &mut editor::State, name: str) {
     model::hold_game_cameras(state, true);
     state.playing = true;
     signals::inspector(state);
-    signals::changed(state, "debugger");
-    docks::show(state, "recordings");
+    signals::changed(state, changes::DEBUGGER);
+    docks::show(state, tabs::RECORDINGS);
     // Released on the replay's first frame, as play released the recording's.
     state.release_at = state.frame + 1;
     replay::play();
@@ -292,7 +307,7 @@ pub fn open(state: &mut editor::State, name: str) {
 // A replay whose scripts have been edited since still plays; it just cannot
 // promise to reproduce what was seen.
 fn warn_if_stale(state: editor::State, name: str) {
-    let recorded = util::map_or_empty(state.session.header)["scripts"].as_str();
+    let recorded = util::map_or_empty(state.session.header)[SCRIPTS].as_str();
     if recorded != "" && recorded != fingerprint(state) {
         log::warn("{name}: the scripts have changed since this was recorded");
     }
@@ -302,13 +317,13 @@ fn warn_if_stale(state: editor::State, name: str) {
 // not change while it is loaded.
 fn build_lanes() -> [Lane] {
     let lanes: [Lane] = [];
-    lanes.push(Lane { id: "keys", name: "Keys", marks: named_marks("input", "just_pressed") });
-    lanes.push(Lane { id: "mouse", name: "Mouse", marks: index_marks("input", "mouse_just_pressed") });
+    lanes.push(Lane { id: KEYS, name: "Keys", marks: named_marks(INPUT, "just_pressed") });
+    lanes.push(Lane { id: "mouse", name: "Mouse", marks: index_marks(INPUT, "mouse_just_pressed") });
     lanes.push(Lane { id: "net", name: "Net", marks: event_marks(["net.request"]) });
-    lanes.push(Lane { id: "scene", name: "Scene", marks: event_marks(["node.add_child", "scene.free"]) });
+    lanes.push(Lane { id: tabs::SCENE, name: "Scene", marks: event_marks(["node.add_child", "scene.free"]) });
     // Warnings and worse as dots; the rest of the log is in the detail list
     // for whichever tick the playhead is on.
-    lanes.push(Lane { id: "log", name: "Log", marks: log_marks(["warn", "error"]) });
+    lanes.push(Lane { id: LOG, name: "Log", marks: log_marks(["warn", ERROR]) });
     lanes.push(Lane { id: "errors", name: "Errors", marks: error_marks() });
     lanes
 }
@@ -318,7 +333,7 @@ fn build_lanes() -> [Lane] {
 fn named_marks(source: str, key: str) -> [Mark] {
     let out: [Mark] = [];
     for mark in util::list_or_empty(replay::marks(source, key)) {
-        out.push(Mark { tick: mark["tick"], label: util::join(util::list_or_empty(mark["values"]), " ") });
+        out.push(Mark { tick: mark[log_fields::TICK], label: util::join(util::list_or_empty(mark[VALUES]), " ") });
     }
     out
 }
@@ -329,7 +344,7 @@ fn index_marks(source: str, key: str) -> [Mark] {
     let out: [Mark] = [];
     for mark in util::list_or_empty(replay::marks(source, key)) {
         let names: [str] = [];
-        let values = util::list_or_empty(mark["values"]);
+        let values = util::list_or_empty(mark[VALUES]);
         for button in 0..values.len() {
             let down = values[button];
             if down.as_bool() == true {
@@ -337,7 +352,7 @@ fn index_marks(source: str, key: str) -> [Mark] {
             }
         }
         if names.len() > 0 {
-            out.push(Mark { tick: mark["tick"], label: util::join(names, " ") });
+            out.push(Mark { tick: mark[log_fields::TICK], label: util::join(names, " ") });
         }
     }
     out
@@ -348,13 +363,13 @@ fn index_marks(source: str, key: str) -> [Mark] {
 fn log_marks(levels: [str]) -> [Mark] {
     let out: [Mark] = [];
     for event in util::list_or_empty(replay::events(0, 1000000000)) {
-        if event["kind"].as_str() != "log" {
+        if event[fields::KIND].as_str() != LOG {
             continue;
         }
         let level = level_of(event);
         for want in levels {
             if want == level {
-                out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
+                out.push(Mark { tick: event[log_fields::TICK], label: event[fields::LABEL].as_str() });
             }
         }
     }
@@ -362,7 +377,7 @@ fn log_marks(levels: [str]) -> [Mark] {
 }
 
 fn level_of(event: any) -> str {
-    let level = util::map_or_empty(event["data"])["level"];
+    let level = util::map_or_empty(event[fields::DATA])[log_fields::LEVEL];
     if level == nil { "info" } else { level.as_str() }
 }
 
@@ -371,8 +386,8 @@ fn level_of(event: any) -> str {
 fn error_marks() -> [Mark] {
     let out: [Mark] = [];
     for event in util::list_or_empty(replay::events(0, 1000000000)) {
-        if event["kind"].as_str() == "debug.pause" || (event["kind"].as_str() == "log" && level_of(event) == "error") {
-            out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
+        if event[fields::KIND].as_str() == "debug.pause" || (event[fields::KIND].as_str() == LOG && level_of(event) == statuses::ERROR) {
+            out.push(Mark { tick: event[log_fields::TICK], label: event[fields::LABEL].as_str() });
         }
     }
     out
@@ -382,8 +397,8 @@ fn event_marks(kinds: [str]) -> [Mark] {
     let out: [Mark] = [];
     for event in util::list_or_empty(replay::events(0, 1000000000)) {
         for kind in kinds {
-            if kind == event["kind"].as_str() {
-                out.push(Mark { tick: event["tick"], label: event["label"].as_str() });
+            if kind == event[fields::KIND].as_str() {
+                out.push(Mark { tick: event[log_fields::TICK], label: event[fields::LABEL].as_str() });
             }
         }
     }
@@ -400,14 +415,14 @@ pub fn close(state: &mut editor::State) {
 pub fn keep(state: &mut editor::State, name: str) {
     fs::rename(directory(state) + "/" + name, directory(state) + "/kept-" + name);
     state.session.listed_at = -1.0;
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
     log::info("keeping " + name);
 }
 
 pub fn remove(state: &mut editor::State, name: str) {
     fs::remove(directory(state) + "/" + name);
     state.session.listed_at = -1.0;
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
     log::info("deleted " + name);
 }
 

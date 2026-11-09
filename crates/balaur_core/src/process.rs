@@ -13,6 +13,7 @@ use hecs::{Entity, World};
 
 use crate::engine::Engine;
 use crate::scene::Parent;
+use crate::vocabulary::words;
 
 /// The scene key and the node op both spell it this way.
 pub const KEY: &str = "process";
@@ -36,10 +37,10 @@ impl ProcessMode {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Inherit => "inherit",
-            Self::Pausable => "pausable",
-            Self::Always => "always",
-            Self::Disabled => "disabled",
+            Self::Inherit => words::process_modes::INHERIT,
+            Self::Pausable => words::process_modes::PAUSABLE,
+            Self::Always => words::process_modes::ALWAYS,
+            Self::Disabled => words::process_modes::DISABLED,
         }
     }
 
@@ -48,10 +49,10 @@ impl ProcessMode {
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {
         match name {
-            "inherit" => Some(Self::Inherit),
-            "pausable" => Some(Self::Pausable),
-            "always" => Some(Self::Always),
-            "disabled" => Some(Self::Disabled),
+            words::process_modes::INHERIT => Some(Self::Inherit),
+            words::process_modes::PAUSABLE => Some(Self::Pausable),
+            words::process_modes::ALWAYS => Some(Self::Always),
+            words::process_modes::DISABLED => Some(Self::Disabled),
             _ => None,
         }
     }

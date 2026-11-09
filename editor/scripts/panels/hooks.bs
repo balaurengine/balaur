@@ -3,6 +3,7 @@
 // moved.
 
 use editor;
+use signals;
 
 pub class Hooks {
     node: Node,
@@ -13,7 +14,7 @@ impl Hooks {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        for word in ["code_changed", "chrome_changed", "outline_changed"] {
+        for word in [signals::CODE_CHANGED, "chrome_changed", "outline_changed"] {
             events::listen(self.node, word, source);
         }
     }

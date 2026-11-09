@@ -35,6 +35,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::engine::Engine;
 use crate::files::{self, FileBackend};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const ADD_PATH: &str = "add_path";
+const INSTALL: &str = "install";
+const MAKE_LOCAL: &str = "make_local";
+const MOVE_INTO: &str = "move_into";
+const DEPENDENCIES: &str = "dependencies";
+const LICENSE: &str = "license";
 
 /// The folder dependencies are installed in, at the game's root.
 pub const DIR: &str = "deps";
@@ -115,7 +124,7 @@ pub fn valid_project(project: &str) -> bool {
 /// branch and a tag, or a key nothing reads.
 pub fn declared(manifest: &str) -> Result<Vec<Dependency>> {
     let document: toml::Table = toml::from_str(manifest).context("parsing project.toml")?;
-    let Some(table) = document.get("dependencies") else {
+    let Some(table) = document.get(DEPENDENCIES) else {
         return Ok(Vec::new());
     };
     let table = table
@@ -149,20 +158,31 @@ fn entry_of(alias: &str, entry: &toml::Value) -> Result<Dependency> {
             })
             .transpose()
     };
-    if let Some(key) = entry
-        .keys()
-        .find(|key| !matches!(key.as_str(), "project" | "branch" | "tag" | "path"))
-    {
+    if let Some(key) = entry.keys().find(|key| {
+        !matches!(
+            key.as_str(),
+            words::dependencies::PROJECT
+                | words::dependencies::BRANCH
+                | words::dependencies::TAG
+                | words::dependencies::PATH
+        )
+    }) {
         bail!("`{key}` is not a dependency key: `project`, `branch`, `tag` or `path`");
     }
-    let source = match (word("project")?, word("path")?) {
+    let source = match (
+        word(words::dependencies::PROJECT)?,
+        word(words::dependencies::PATH)?,
+    ) {
         (Some(_), Some(_)) => bail!("a dependency is a Forge `project` or a `path`, not both"),
         (None, None) => bail!("a dependency names a Forge `project` or a `path`"),
         (Some(project), None) => {
             if !valid_project(&project) {
                 bail!("`project` is `owner/name`, as the project's address on Forge spells it");
             }
-            let (branch, tag) = (word("branch")?, word("tag")?);
+            let (branch, tag) = (
+                word(words::dependencies::BRANCH)?,
+                word(words::dependencies::TAG)?,
+            );
             if branch.is_some() && tag.is_some() {
                 bail!("a branch follows and a tag pins: name one");
             }
@@ -173,7 +193,9 @@ fn entry_of(alias: &str, entry: &toml::Value) -> Result<Dependency> {
             }
         }
         (None, Some(path)) => {
-            if word("branch")?.is_some() || word("tag")?.is_some() {
+            if word(words::dependencies::BRANCH)?.is_some()
+                || word(words::dependencies::TAG)?.is_some()
+            {
                 bail!("a `path` dependency is the folder as it is: no branch or tag");
             }
             Source::Path(PathBuf::from(path))
@@ -387,8 +409,8 @@ pub fn install(eng: &Engine, game: &Path) {
                 .unwrap_or_default(),
             include: strings_at(&table, "export", "include"),
             license: table
-                .get("application")
-                .and_then(|app| app.get("license"))
+                .get(keys::APPLICATION)
+                .and_then(|app| app.get(LICENSE))
                 .and_then(toml::Value::as_str)
                 .map(str::to_string),
         };
@@ -798,10 +820,12 @@ pub const GITIGNORE_LINE: &str = "/deps/";
 /// `text` with [`GITIGNORE_LINE`] in it, or `None` when it is there already.
 #[must_use]
 pub fn gitignored(text: &str) -> Option<String> {
-    let has = text
-        .lines()
-        .map(str::trim)
-        .any(|line| matches!(line, "/deps/" | "deps/" | "/deps" | "deps"));
+    let has = text.lines().map(str::trim).any(|line| {
+        matches!(
+            line,
+            "/deps/" | "deps/" | "/deps" | words::dependencies::DEPS
+        )
+    });
     if has {
         return None;
     }
@@ -929,19 +953,19 @@ pub(crate) mod api {
             "One installed dependency. `folder` is how the game names it, `kind` is `\"forge\"` or `\"path\"`, and a field that does not apply is empty.",
         )]);
         m.describe(&[
-            ("list", &[], "() -> [Dependency]", "Every installed dependency: its alias, where it sits, where it came from and its licence."),
-            ("of", &[], "(path: string) -> string?", "The alias of the dependency a path lies in, or nil for one of the game's own."),
-            ("make_local", &[], "(from: string, to: string) -> [string]", "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files."),
-            ("move_into", &[], "(paths: [string], alias: string) -> [string]", "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/…`; answers the files rewritten."),
-            ("add_path", &[], "(game: string, alias: string, path: string)", "Declare `alias = { path = \"<path>\" }` in a game's `[dependencies]`, comments kept, and install it. An empty game is the open project."),
-            ("install", &[], "(game: string)", "Read a game's `[dependencies]` again and install each: what a dependency fetched while the editor runs needs to become a root. An empty game is the open project."),
+            (crate::vocabulary::words::datatypes::LIST, &[], "() -> [Dependency]", "Every installed dependency: its alias, where it sits, where it came from and its licence."),
+            (crate::vocabulary::keys::OF, &[], "(path: string) -> string?", "The alias of the dependency a path lies in, or nil for one of the game's own."),
+            (super::MAKE_LOCAL, &[], "(from: string, to: string) -> [string]", "Copy a dependency's file into the game and point the game's references at the copy; answers the game's files rewritten. The copy never updates. A document's own paths come out as the game names the dependency's files."),
+            (super::MOVE_INTO, &[], "(paths: [string], alias: string) -> [string]", "Move game files into a `path` dependency, each at the same place under its root, and point the game's references at `deps/<alias>/…`; answers the files rewritten."),
+            (super::ADD_PATH, &[], "(game: string, alias: string, path: string)", "Declare `alias = { path = \"<path>\" }` in a game's `[dependencies]`, comments kept, and install it. An empty game is the open project."),
+            (super::INSTALL, &[], "(game: string)", "Read a game's `[dependencies]` again and install each: what a dependency fetched while the editor runs needs to become a root. An empty game is the open project."),
         ]);
-        m.function_raw("list", Box::new(list));
-        m.function_raw("of", Box::new(of));
-        m.function_raw("make_local", Box::new(make_local));
-        m.function_raw("move_into", Box::new(move_into));
-        m.function_raw("add_path", Box::new(add_path));
-        m.function_raw("install", Box::new(reinstall));
+        m.function_raw(crate::vocabulary::words::datatypes::LIST, Box::new(list));
+        m.function_raw(crate::vocabulary::keys::OF, Box::new(of));
+        m.function_raw(super::MAKE_LOCAL, Box::new(make_local));
+        m.function_raw(super::MOVE_INTO, Box::new(move_into));
+        m.function_raw(super::ADD_PATH, Box::new(add_path));
+        m.function_raw(super::INSTALL, Box::new(reinstall));
     }
 
     fn word(value: Option<&String>) -> Value {
@@ -967,7 +991,7 @@ pub(crate) mod api {
                             None,
                         ),
                         Source::Path(path) => (
-                            "path",
+                            crate::vocabulary::words::dependencies::PATH,
                             None,
                             None,
                             None,
@@ -984,13 +1008,13 @@ pub(crate) mod api {
                             "game".into(),
                             Value::text(dep.game.to_string_lossy().into_owned()),
                         ),
-                        ("kind".into(), Value::text(kind)),
+                        (crate::vocabulary::keys::KIND.into(), Value::text(kind)),
                         ("project".into(), word(project.as_ref())),
                         ("branch".into(), word(branch.as_ref())),
                         ("tag".into(), word(tag.as_ref())),
-                        ("path".into(), word(path.as_ref())),
+                        (crate::vocabulary::keys::PATH.into(), word(path.as_ref())),
                         ("rev".into(), word(dep.rev.as_ref())),
-                        ("license".into(), word(dep.license.as_ref())),
+                        (super::LICENSE.into(), word(dep.license.as_ref())),
                     ])
                 })
                 .collect(),
@@ -1063,7 +1087,7 @@ pub(crate) mod api {
         let text = String::from_utf8(backend.read(&manifest)?)?;
         let mut document: toml_edit::DocumentMut = text.parse()?;
         let table = document
-            .entry("dependencies")
+            .entry(super::DEPENDENCIES)
             .or_insert_with(toml_edit::table)
             .as_table_mut()
             .ok_or_else(|| anyhow!("[dependencies] is not a table"))?;
@@ -1071,7 +1095,7 @@ pub(crate) mod api {
             bail!("the game already has a dependency named `{alias}`");
         }
         let mut entry = toml_edit::InlineTable::new();
-        entry.insert("path", path.into());
+        entry.insert(crate::vocabulary::keys::PATH, path.into());
         table.insert(alias, toml_edit::value(entry));
         backend.write(&manifest, document.to_string().as_bytes())?;
         install(eng, &game);

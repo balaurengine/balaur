@@ -2,6 +2,7 @@ use super::func::{FnGen, LVal, MemPlace, R, err, op_text, show};
 use super::rt::{load, mem};
 use crate::Error;
 use crate::ast::{BinOp, Block, Expr, ExprKind, Pos, Stmt, StmtKind, Ty};
+use crate::vocabulary::words;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 impl FnGen<'_> {
@@ -158,7 +159,11 @@ impl FnGen<'_> {
             let value = match op {
                 Some(op) => {
                     let held = Expr {
-                        kind: ExprKind::Method(Box::new(target.clone()), "unwrap".into(), vec![]),
+                        kind: ExprKind::Method(
+                            Box::new(target.clone()),
+                            words::methods::UNWRAP.into(),
+                            vec![],
+                        ),
                         pos,
                     };
                     Expr {
@@ -168,7 +173,7 @@ impl FnGen<'_> {
                 }
                 None => value.clone(),
             };
-            self.method(base, "set", &[(**key).clone(), value], pos)?;
+            self.method(base, words::methods::SET, &[(**key).clone(), value], pos)?;
             return Ok(());
         }
         // `a[k] = v` on an `any`: set in place.
@@ -180,7 +185,7 @@ impl FnGen<'_> {
                 },
                 None => value.clone(),
             };
-            self.prelude_method("any", &base, method, &[key, v], pos)?;
+            self.prelude_method(words::keywords::ANY, &base, method, &[key, v], pos)?;
             self.e(I::Drop);
             return Ok(());
         }
@@ -401,7 +406,7 @@ impl FnGen<'_> {
                             kind: ExprKind::Int(0),
                             pos,
                         },
-                        to: method("len", vec![]),
+                        to: method(words::methods::LEN, vec![]),
                         body: Block {
                             stmts,
                             tail: body.tail.clone(),

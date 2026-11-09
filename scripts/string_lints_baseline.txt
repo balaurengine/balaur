@@ -1,0 +1,34 @@
+# Word literals that predate the lint. Never add to this file by hand;
+# regenerate with: python3 scripts/string_lints.py --update-baseline
+# Every line here is debt. Deleting one is progress.
+crates/balaur_bs/src/prelude/any.bs	word-repeated	2
+crates/balaur_core/src/engine_api.rs	word-repeated	2
+crates/balaur_core/src/interpolate.rs	constant-respelled	1
+crates/balaur_core/src/project.rs	constant-respelled	2
+crates/balaur_core/src/timings.rs	constant-respelled	1
+crates/balaur_export/src/native.rs	constant-respelled	1
+crates/balaur_physics/src/tuning.rs	constant-respelled	2
+crates/balaur_render/src/multimesh.rs	constant-respelled	1
+crates/balaur_render/src/multimesh_api.rs	constant-respelled	2
+crates/balaur_render/src/pipeline.rs	constant-respelled	2
+crates/balaur_render/src/post.rs	constant-respelled	1
+crates/balaur_render/src/post_material.rs	constant-respelled	1
+editor/library/addons/gamend/editor/gamend.bs	constant-respelled	3
+editor/scripts/fonts.bs	word-repeated	2
+editor/scripts/layout.bs	constant-respelled	7
+editor/scripts/left.bs	word-repeated	2
+editor/scripts/manager.bs	constant-respelled	2
+editor/scripts/newnode.bs	word-repeated	2
+editor/scripts/palette.bs	word-repeated	2
+editor/scripts/panels/dialogs.bs	constant-respelled	2
+editor/scripts/panels/hooks.bs	constant-respelled	2
+editor/scripts/panels/keys.bs	constant-respelled	3
+editor/scripts/panels/plugin.bs	constant-respelled	2
+editor/scripts/panels/timeline.bs	constant-respelled	2
+editor/scripts/panels/weights.bs	constant-respelled	2
+editor/scripts/polygon.bs	constant-respelled	3
+editor/scripts/pool.bs	word-repeated	1
+editor/scripts/recipes.bs	constant-respelled	7
+editor/scripts/shell.bs	constant-respelled	1
+editor/scripts/themewin.bs	constant-respelled	5
+examples/benchmark/scripts/cases_kinds.bs	word-repeated	3

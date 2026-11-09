@@ -1,6 +1,8 @@
 // Percentiles and the run fingerprint, computed the way the Godot suite this
 // mirrors computes them, so a row here and a row there mean the same thing.
 
+const P50_MS: str = "p50_ms";
+
 /// Nearest-rank percentile over a sorted list, as `framework/stats.gd` does.
 pub fn percentile(sorted: [float], q: float) -> float {
     if sorted.len() == 0 {
@@ -50,7 +52,7 @@ pub fn summarize(samples: [float]) -> any {
         "mean_ms": m,
         "stddev_ms": stddev(sorted, m),
         "min_ms": if n == 0 { 0.0 } else { sorted[0] },
-        "p50_ms": percentile(sorted, 0.5),
+        P50_MS: percentile(sorted, 0.5),
         "p95_ms": percentile(sorted, 0.95),
         "p99_ms": percentile(sorted, 0.99),
         "max_ms": if n == 0 { 0.0 } else { sorted[n - 1] },

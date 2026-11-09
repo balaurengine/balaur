@@ -26,10 +26,19 @@ use crate::glb_material::{
 /// The stock surface an imported material draws with, and where it is
 /// written. Named here because this is the module `balaur import` calls.
 pub use crate::glb_material::{MATERIAL_SHADER, MATERIAL_SHADER_PATH};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_core::App;
 use balaur_core::collections::DetHashMap;
 use balaur_geometry::mesh::{INFLUENCES_PER_VERTEX, MeshData, MeshSkin};
 use balaur_geometry::skeleton::euler_from_quat;
+
+const CLIPS: &str = "clips";
+const NAME: &str = "name";
+const PARENT: &str = "parent";
+const POSITION: &str = "position";
+const SCALE: &str = "scale";
+const SOURCE: &str = "source";
 
 /// Reads a file the model names by relative URI — a `.bin` beside a
 /// `.gltf`, an image — or says why it cannot.
@@ -783,9 +792,9 @@ pub fn import(bytes: &[u8], model_file: &str, side: SideReader<'_>) -> Result<Gl
     let root_id = slug(&root_name);
     let mut nodes: Vec<toml::Value> = Vec::new();
     let mut root = toml::map::Map::new();
-    root.insert("id".into(), toml::Value::String(root_id.clone()));
-    root.insert("name".into(), toml::Value::String(root_name.clone()));
-    root.insert("parent".into(), toml::Value::String(String::new()));
+    root.insert(keys::ID.into(), toml::Value::String(root_id.clone()));
+    root.insert(NAME.into(), toml::Value::String(root_name.clone()));
+    root.insert(PARENT.into(), toml::Value::String(String::new()));
     if let Some(first) = clips.as_ref().and_then(first_clip_name) {
         let mut animation = toml::map::Map::new();
         animation.insert(
@@ -917,15 +926,15 @@ fn scene_nodes(model: &Model, joints: &DetHashMap<usize, ()>, root_id: &str) -> 
             });
         let euler = euler_from_quat(Quat::from_xyzw(r[0], r[1], r[2], r[3]));
         let mut entry = toml::map::Map::new();
-        entry.insert("id".into(), toml::Value::String(id));
-        entry.insert("name".into(), toml::Value::String(name));
-        entry.insert("parent".into(), toml::Value::String(parent_id));
+        entry.insert(keys::ID.into(), toml::Value::String(id));
+        entry.insert(NAME.into(), toml::Value::String(name));
+        entry.insert(PARENT.into(), toml::Value::String(parent_id));
         // In the component, not beside it: a bare `position` on a node is a
         // scene key nothing handles, and every bone sits at the origin.
         let mut placed = toml::map::Map::new();
-        placed.insert("position".into(), floats(t));
+        placed.insert(POSITION.into(), floats(t));
         placed.insert("rotation_euler".into(), floats(euler.to_array()));
-        placed.insert("scale".into(), floats(s));
+        placed.insert(SCALE.into(), floats(s));
         entry.insert(
             balaur_core::transform::COMPONENT.into(),
             toml::Value::Table(placed),
@@ -1014,21 +1023,21 @@ fn mesh_node(
         (format!("{root_id}_mesh"), format!("{root_name}Mesh"))
     };
     let mut mesh_node = toml::map::Map::new();
-    mesh_node.insert("id".into(), toml::Value::String(id));
-    mesh_node.insert("name".into(), toml::Value::String(name));
-    mesh_node.insert("parent".into(), toml::Value::String(root_id.to_string()));
+    mesh_node.insert(keys::ID.into(), toml::Value::String(id));
+    mesh_node.insert(NAME.into(), toml::Value::String(name));
+    mesh_node.insert(PARENT.into(), toml::Value::String(root_id.to_string()));
     // An asset reference names a definition, so the file goes inside one:
     // a table is a definition, and this one just points at the model.
     let mut definition = toml::map::Map::new();
     definition.insert(
-        "source".into(),
+        SOURCE.into(),
         toml::Value::String(format!("models/{model_file}")),
     );
     if split && let Some(surface) = surface {
         definition.insert("part".into(), toml::Value::String(surface.part.clone()));
     }
     let mut mesh = toml::map::Map::new();
-    mesh.insert("source".into(), toml::Value::Table(definition));
+    mesh.insert(SOURCE.into(), toml::Value::Table(definition));
     if let Some(surface) = surface {
         mesh.insert(
             "material".into(),
@@ -1054,7 +1063,7 @@ fn mesh_node(
 
 fn first_clip_name(clips: &toml::Value) -> Option<String> {
     clips
-        .get("clips")
+        .get(CLIPS)
         .and_then(toml::Value::as_table)
         .and_then(|t| t.keys().next().cloned())
 }
@@ -1084,10 +1093,10 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
                 channel.sampler().interpolation() == gltf::animation::Interpolation::CubicSpline;
             let (property, values): (&str, Vec<Vec<f32>>) = match outputs {
                 gltf::animation::util::ReadOutputs::Translations(it) => {
-                    ("position", it.map(|v| v.to_vec()).collect())
+                    (POSITION, it.map(|v| v.to_vec()).collect())
                 }
                 gltf::animation::util::ReadOutputs::Scales(it) => {
-                    ("scale", it.map(|v| v.to_vec()).collect())
+                    (SCALE, it.map(|v| v.to_vec()).collect())
                 }
                 // Kept as the quaternion the file holds, so a re-export gives
                 // the same numbers back.
@@ -1124,7 +1133,7 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
             track.insert("property".into(), toml::Value::String(property.into()));
             let interpolation = match channel.sampler().interpolation() {
                 gltf::animation::Interpolation::Step => "step",
-                _ => "linear",
+                _ => words::glb::LINEAR,
             };
             track.insert(
                 "interpolation".into(),
@@ -1141,7 +1150,10 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
             "length".into(),
             toml::Value::Float(f64::from(length.max(0.001))),
         );
-        clip.insert("loop_mode".into(), toml::Value::String("linear".into()));
+        clip.insert(
+            "loop_mode".into(),
+            toml::Value::String(words::glb::LINEAR.into()),
+        );
         clip.insert("tracks".into(), toml::Value::Array(tracks));
         clips.insert(name, toml::Value::Table(clip));
     }
@@ -1150,9 +1162,9 @@ fn clips_of(model: &Model) -> Option<toml::Value> {
     }
     let mut document = toml::map::Map::new();
     document.insert(
-        "type".into(),
+        keys::TYPE.into(),
         toml::Value::String("animation_library".into()),
     );
-    document.insert("clips".into(), toml::Value::Table(clips));
+    document.insert(CLIPS.into(), toml::Value::Table(clips));
     Some(toml::Value::Table(document))
 }

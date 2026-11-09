@@ -11,6 +11,10 @@ use balaur_script::Value;
 use serde_json::Value as Json;
 
 use crate::GamendEvent;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const OPEN: &str = "open";
 
 /// How many entries are kept, oldest dropped first.
 const KEPT: usize = 200;
@@ -106,7 +110,7 @@ impl Activity {
             args: args.map(kept),
             reply: None,
         });
-        if kind == "connect" {
+        if kind == words::CONNECT {
             // A closed socket stays to say why until the next one starts.
             self.sockets.retain(|_, socket| !socket.ended);
             self.sockets.insert(request, Socket::default());
@@ -123,7 +127,7 @@ impl Activity {
                 ..
             } => {
                 self.user = Some((user_id.clone(), username.clone()));
-                self.finish(*request, String::from("ok"), None);
+                self.finish(*request, String::from(words::OK), None);
             }
             GamendEvent::RestDone {
                 request,
@@ -140,7 +144,7 @@ impl Activity {
             } => self.replied(*request, status, kept(response)),
             GamendEvent::SocketOpen { socket } => {
                 self.sockets.entry(*socket).or_default().open = true;
-                self.finish(*socket, String::from("open"), None);
+                self.finish(*socket, String::from(OPEN), None);
             }
             GamendEvent::SocketMessage {
                 socket,
@@ -149,7 +153,7 @@ impl Activity {
                 payload,
             } => {
                 // The server closed the channel: the socket no longer has it.
-                if event == "phx_close" {
+                if event == words::PHX_CLOSE {
                     let state = self.sockets.entry(*socket).or_default();
                     state.topics.retain(|joined| joined != topic);
                 }
@@ -229,12 +233,12 @@ impl Activity {
             .find(|entry| entry.request == request)
             .map(|entry| (entry.kind, entry.socket, entry.what.clone()));
         if let Some((kind, Some(socket), topic)) = call
-            && status == "ok"
+            && status == words::OK
         {
             let topics = &mut self.sockets.entry(socket).or_default().topics;
             match kind {
-                "join" if !topics.contains(&topic) => topics.push(topic),
-                "leave" => topics.retain(|t| *t != topic),
+                words::general::JOIN if !topics.contains(&topic) => topics.push(topic),
+                words::LEAVE => topics.retain(|t| *t != topic),
                 _ => {}
             }
         }
@@ -307,10 +311,10 @@ impl Activity {
             .map(|entry| {
                 Value::Map(vec![
                     (String::from("seq"), crate::int(entry.seq)),
-                    (String::from("request"), crate::int(entry.request)),
-                    (String::from("kind"), Value::Str(entry.kind.into())),
+                    (String::from(keys::REQUEST), crate::int(entry.request)),
+                    (String::from(keys::KIND), Value::Str(entry.kind.into())),
                     (String::from("what"), Value::Str(entry.what.clone())),
-                    (String::from("status"), Value::Str(entry.status.clone())),
+                    (String::from(keys::STATUS), Value::Str(entry.status.clone())),
                     (
                         String::from("ms"),
                         entry.ms.map_or(Value::Nil, |ms| Value::Num(f64::from(ms))),
@@ -320,7 +324,7 @@ impl Activity {
                         entry.args.clone().unwrap_or(Value::Nil),
                     ),
                     (
-                        String::from("reply"),
+                        String::from(words::functions::REPLY),
                         entry.reply.clone().unwrap_or(Value::Nil),
                     ),
                 ])
@@ -342,23 +346,26 @@ impl Activity {
             .iter()
             .map(|(id, socket)| {
                 Value::Map(vec![
-                    (String::from("socket"), crate::int(*id)),
-                    (String::from("open"), Value::Bool(socket.open)),
+                    (String::from(keys::SOCKET), crate::int(*id)),
+                    (String::from(OPEN), Value::Bool(socket.open)),
                     (
                         String::from("topics"),
                         Value::List(socket.topics.iter().cloned().map(Value::text).collect()),
                     ),
                     (
-                        String::from("reason"),
+                        String::from(keys::REASON),
                         socket.reason.clone().map_or(Value::Nil, Value::text),
                     ),
                 ])
             })
             .collect();
         Value::Map(vec![
-            (String::from("url"), Value::Str(self.url.clone())),
-            (String::from("user_id"), user_id),
-            (String::from("username"), username),
+            (
+                String::from(words::target::URL),
+                Value::Str(self.url.clone()),
+            ),
+            (String::from(words::inspect::USER_ID), user_id),
+            (String::from(words::auth::USERNAME), username),
             (String::from("sockets"), Value::List(sockets)),
         ])
     }

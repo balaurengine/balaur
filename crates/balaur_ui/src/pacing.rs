@@ -19,6 +19,9 @@ use balaur_core::time::Instant;
 use balaur_script::{Module, Value};
 
 use crate::UiState;
+use crate::vocabulary::words;
+
+const REQUEST_REPAINT: &str = "request_repaint";
 
 /// Seconds a caret blinks after the last input before it holds still, as
 /// GTK's `gtk-cursor-blink-timeout` does. Every blink is a pass, so a lazy UI
@@ -236,18 +239,18 @@ fn later(seconds: f64) -> Instant {
 /// `ui.*` bindings: pacing.
 pub(crate) fn install(m: &mut Module<Engine>) {
     m.describe(&[
-        ("request_repaint", &[], "(opts: RepaintOptions?)", "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead."),
+        (REQUEST_REPAINT, &[], "(opts: RepaintOptions?)", "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead."),
     ]);
     m.records(&[(
         "RepaintOptions",
         "{ after: float? }",
         "When `request_repaint` asks: `after` seconds ahead, else this frame.",
     )]);
-    m.function("request_repaint", |eng: &Engine, opts: Option<Value>| {
+    m.function(REQUEST_REPAINT, |eng: &Engine, opts: Option<Value>| {
         let after = match &opts {
             Some(Value::Map(entries)) => entries
                 .iter()
-                .find(|(key, _)| key == "after")
+                .find(|(key, _)| key == words::AFTER)
                 .map(|(_, v)| v),
             _ => None,
         };

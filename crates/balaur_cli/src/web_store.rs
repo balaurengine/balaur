@@ -25,6 +25,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::rc::{Rc, Weak};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::Result;
 use balaur::files::{FileBackend, MemoryFs, lexical};
 use wasm_bindgen::JsCast;
@@ -714,13 +716,13 @@ pub(crate) async fn list() -> Result<js_sys::Array, JsValue> {
     let mut rows = Vec::with_capacity(keys.length() as usize);
     for index in 0..keys.length() {
         let entry = js_sys::Object::new();
-        js_sys::Reflect::set(&entry, &"id".into(), &keys.get(index))?;
+        js_sys::Reflect::set(&entry, &keys::ID.into(), &keys.get(index))?;
         let source = values.get(index);
-        for field in ["name", "modified"] {
+        for field in [keys::NAME, words::web_store::MODIFIED] {
             let value = js_sys::Reflect::get(&source, &field.into()).unwrap_or(JsValue::UNDEFINED);
             js_sys::Reflect::set(&entry, &field.into(), &value)?;
         }
-        rows.push((number(&entry, "modified"), entry));
+        rows.push((number(&entry, words::web_store::MODIFIED), entry));
     }
     rows.sort_by(|a, b| b.0.total_cmp(&a.0));
     let out = js_sys::Array::new();
@@ -766,9 +768,13 @@ fn touch(meta: &IdbObjectStore, id: &str, name: Option<&str>) -> Result<(), JsVa
             js_sys::Object::new()
         };
         if let Some(name) = name {
-            let _ = js_sys::Reflect::set(&record, &"name".into(), &name.into());
+            let _ = js_sys::Reflect::set(&record, &keys::NAME.into(), &name.into());
         }
-        let _ = js_sys::Reflect::set(&record, &"modified".into(), &js_sys::Date::now().into());
+        let _ = js_sys::Reflect::set(
+            &record,
+            &words::web_store::MODIFIED.into(),
+            &js_sys::Date::now().into(),
+        );
         let _ = store.put_with_key(&record, &key);
     });
     request.set_onsuccess(Some(done.unchecked_ref()));

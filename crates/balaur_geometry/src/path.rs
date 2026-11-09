@@ -13,6 +13,8 @@ use glamx::{Vec2, Vec3};
 
 pub use shape::{extrude, lathe, sweep};
 
+const PATHS: &str = "paths";
+
 /// The `path2d` asset type: a flat outline, profile or rail.
 pub const PATH2D_ASSET_TYPE: &str = "path2d";
 /// The `path3d` asset type: the same thing in space.
@@ -173,10 +175,10 @@ points = [[0, 0], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]   # two points alone
 /// Register both path types, so a scene, a mesh and a stroke all name a
 /// curve the same way.
 pub fn register_path_assets(app: &mut App) {
-    app.register_asset_type(PATH2D_ASSET_TYPE, "paths", PATH_ASSET_DOC, |value| {
+    app.register_asset_type(PATH2D_ASSET_TYPE, PATHS, PATH_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_2d(value)?) as std::rc::Rc<dyn std::any::Any>)
     });
-    app.register_asset_type(PATH3D_ASSET_TYPE, "paths", PATH_ASSET_DOC, |value| {
+    app.register_asset_type(PATH3D_ASSET_TYPE, PATHS, PATH_ASSET_DOC, |value| {
         Ok(std::rc::Rc::new(parse_3d(value)?) as std::rc::Rc<dyn std::any::Any>)
     });
 }

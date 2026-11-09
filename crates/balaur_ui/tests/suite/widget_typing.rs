@@ -136,6 +136,19 @@ fn a_composition_lands_as_one_insert() {
 }
 
 #[test]
+fn a_letter_typed_in_the_pass_of_a_later_chord_is_kept() {
+    let (_dir, mut app, ctx, field) = focused_field("");
+    let mut events = vec![
+        egui::Event::Text("a".into()),
+        egui::Event::ModifiersChanged(egui::Modifiers::COMMAND),
+    ];
+    events.extend(chord(egui::Key::C, egui::Modifiers::COMMAND));
+    pass(&app, &ctx, events);
+    consume_input(&mut app);
+    assert_eq!(text_of(&app, field), "a");
+}
+
+#[test]
 fn the_keys_move_the_caret_and_take_the_clipboard() {
     let (_dir, mut app, ctx, field) = focused_field("hello world");
     // Focus put on the field selected its text; Home drops the selection.

@@ -9,7 +9,7 @@ use editor;
 /// back to the Editor's `search_typed` with the `id` it carries.
 pub fn control(state: editor::State, id: str, placeholder: str, width: float) -> ui::Control {
     ui::Control {
-        kind: "text_field",
+        kind: ui::WIDGET_TEXT_FIELD,
         role: "input_dock",
         width: width,
         text: query(state, id),

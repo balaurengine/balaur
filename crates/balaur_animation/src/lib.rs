@@ -79,6 +79,9 @@ pub use crate::system::{
 };
 pub use crate::tween::{Tween, TweenId};
 
+const ANIMATION: &str = "animation";
+const ANIMATIONS: &str = "animations";
+
 #[derive(Default)]
 pub struct AnimationPlugin;
 
@@ -107,7 +110,7 @@ keys = [{ time = 2.0, call = "on_halfway" }]
 
 impl balaur_plugin::Plugin for AnimationPlugin {
     fn name(&self) -> &'static str {
-        "animation"
+        ANIMATION
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -118,34 +121,31 @@ impl balaur_plugin::Plugin for AnimationPlugin {
         reg.add_system(Stage::Update, modifier::modify_system);
         modifier::register_modifier2d_component(reg);
         modifier::register_modifier3d_component(reg);
-        reg.register_asset_type(
-            LIBRARY_ASSET_TYPE,
-            "animations",
-            LIBRARY_ASSET_DOC,
-            |value| Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>),
-        );
+        reg.register_asset_type(LIBRARY_ASSET_TYPE, ANIMATIONS, LIBRARY_ASSET_DOC, |value| {
+            Ok(Rc::new(clip::parse(value)?) as Rc<dyn Any>)
+        });
         reg.register_asset_type(
             retarget::BONE_MAP_ASSET_TYPE,
-            "animations",
+            ANIMATIONS,
             retarget::MAP_ASSET_DOC,
             |value| Ok(Rc::new(retarget::parse_map(value)?) as Rc<dyn Any>),
         );
         reg.register_asset_type(
             retarget::PROFILE_ASSET_TYPE,
-            "animations",
+            ANIMATIONS,
             retarget::PROFILE_ASSET_DOC,
             |value| Ok(Rc::new(retarget::parse_profile(value)?) as Rc<dyn Any>),
         );
         reg.register_checked_asset(
             machine::MACHINE_ASSET_TYPE,
-            "animations",
+            ANIMATIONS,
             machine::MACHINE_ASSET_DOC,
             machine::check,
             |value| Ok(Rc::new(machine::parse(value)?) as Rc<dyn Any>),
         );
         register_animation_component(reg);
         register_machine_component(reg);
-        let mut m = reg.script_module("animation")?;
+        let mut m = reg.script_module(ANIMATION)?;
         install_animation_api(&mut m);
         Ok(())
     }

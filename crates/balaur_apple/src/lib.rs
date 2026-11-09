@@ -20,6 +20,7 @@
 //! `unsupported`, so a script does not change shape between a phone and a CI
 //! runner.
 
+use crate::vocabulary::words;
 use anyhow::Result;
 use anyhow::anyhow;
 use balaur_core::engine_api::from_json;
@@ -28,6 +29,32 @@ use balaur_core::replay::ExternalIo;
 use balaur_core::{Engine, Stage};
 use balaur_platform::{Call, PlatformBackend, PlatformEvent};
 use balaur_script::{Module, Value};
+
+const ACCESS_POINT: &str = "access_point";
+const APPLE: &str = "apple";
+const AUTHENTICATED: &str = "authenticated";
+const AVAILABLE_WORD: &str = "available";
+const CANCEL_NOTIFICATION: &str = "cancel_notification";
+const DATA: &str = "data";
+const ERROR_WORD: &str = "error";
+const FINISH_PURCHASE: &str = "finish_purchase";
+const ID: &str = "id";
+const KIND: &str = "kind";
+const LISTEN_FOR_CLOUD_CHANGES: &str = "listen_for_cloud_changes";
+const LISTEN_FOR_INVITES: &str = "listen_for_invites";
+const LISTEN_FOR_URLS: &str = "listen_for_urls";
+const NAME: &str = "name";
+const NOTIFY: &str = "notify";
+const PLAYER: &str = "player";
+const PURCHASE: &str = "purchase";
+const REGISTER_FOR_PUSH: &str = "register_for_push";
+const REQUEST_NOTIFICATIONS: &str = "request_notifications";
+const RESTORE_PURCHASES: &str = "restore_purchases";
+const SHOW_DASHBOARD: &str = "show_dashboard";
+const SIGN_IN: &str = "sign_in";
+const STATE: &str = "state";
+const TITLE: &str = "title";
+const TOKEN: &str = "token";
 
 #[cfg(test)]
 mod arrival_tests;
@@ -46,6 +73,7 @@ mod signin;
 mod storekit;
 #[cfg(target_vendor = "apple")]
 mod ui;
+mod vocabulary;
 
 #[cfg(target_vendor = "apple")]
 mod backend {
@@ -170,11 +198,11 @@ impl StoreCall {
     #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
-            Self::Products { .. } => "products",
-            Self::Purchase { .. } => "purchase",
-            Self::Entitlements => "entitlements",
-            Self::Restore => "restore_purchases",
-            Self::Finish { .. } => "finish_purchase",
+            Self::Products { .. } => kind::PRODUCTS,
+            Self::Purchase { .. } => PURCHASE,
+            Self::Entitlements => kind::ENTITLEMENTS,
+            Self::Restore => RESTORE_PURCHASES,
+            Self::Finish { .. } => FINISH_PURCHASE,
         }
     }
 }
@@ -183,13 +211,13 @@ impl AppleCall {
     #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
-            Self::Identity => "identity",
-            Self::SignIn => "sign_in",
-            Self::CredentialState { .. } => "credential_state",
-            Self::Dashboard { .. } => "show_dashboard",
+            Self::Identity => kind::IDENTITY,
+            Self::SignIn => SIGN_IN,
+            Self::CredentialState { .. } => kind::CREDENTIAL_STATE,
+            Self::Dashboard { .. } => SHOW_DASHBOARD,
             Self::Store(call) => call.name(),
-            Self::RequestNotifications => "request_notifications",
-            Self::Notify { .. } => "notify",
+            Self::RequestNotifications => REQUEST_NOTIFICATIONS,
+            Self::Notify { .. } => NOTIFY,
         }
     }
 }
@@ -331,7 +359,7 @@ struct AppleBackend;
 
 impl PlatformBackend for AppleBackend {
     fn name(&self) -> &'static str {
-        "apple"
+        APPLE
     }
 
     fn start(
@@ -483,9 +511,9 @@ fn event_value(event: AppleEvent) -> Value {
             timestamp,
             ..
         } => {
-            pairs.push(("kind".into(), Value::Str(kind::IDENTITY.into())));
-            pairs.push(("player".into(), Value::Str(player)));
-            pairs.push(("url".into(), Value::Str(url)));
+            pairs.push((KIND.into(), Value::Str(kind::IDENTITY.into())));
+            pairs.push((PLAYER.into(), Value::Str(player)));
+            pairs.push((kind::URL.into(), Value::Str(url)));
             pairs.push(("signature".into(), Value::Str(signature)));
             pairs.push(("salt".into(), Value::Str(salt)));
             pairs.push((
@@ -501,32 +529,32 @@ fn event_value(event: AppleEvent) -> Value {
             email,
             ..
         } => {
-            pairs.push(("kind".into(), Value::Str(kind::SIGNED_IN.into())));
+            pairs.push((KIND.into(), Value::Str(kind::SIGNED_IN.into())));
             pairs.push(("user".into(), Value::Str(user)));
-            pairs.push(("name".into(), Value::Str(name)));
-            pairs.push(("token".into(), Value::Str(token)));
+            pairs.push((NAME.into(), Value::Str(name)));
+            pairs.push((TOKEN.into(), Value::Str(token)));
             pairs.push(("code".into(), Value::Str(code)));
             pairs.push(("email".into(), Value::Str(email)));
         }
         AppleEvent::CredentialState { state, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::CREDENTIAL_STATE.into())));
-            pairs.push(("state".into(), Value::Str(state)));
+            pairs.push((KIND.into(), Value::Str(kind::CREDENTIAL_STATE.into())));
+            pairs.push((STATE.into(), Value::Str(state)));
         }
         AppleEvent::DashboardClosed { .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::DASHBOARD_CLOSED.into())));
+            pairs.push((KIND.into(), Value::Str(kind::DASHBOARD_CLOSED.into())));
         }
         AppleEvent::Notifications { allowed, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::NOTIFICATIONS.into())));
+            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATIONS.into())));
             pairs.push(("allowed".into(), Value::Bool(allowed)));
         }
         AppleEvent::Scheduled { id, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::SCHEDULED.into())));
-            pairs.push(("id".into(), Value::Str(id)));
+            pairs.push((KIND.into(), Value::Str(kind::SCHEDULED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
         }
         AppleEvent::NotificationOpened { id, data } => {
-            pairs.push(("kind".into(), Value::Str(kind::NOTIFICATION_OPENED.into())));
-            pairs.push(("id".into(), Value::Str(id)));
-            pairs.push(("data".into(), from_json(&data).unwrap_or(Value::Nil)));
+            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATION_OPENED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
+            pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
         }
         arrival @ (AppleEvent::NotificationReceived { .. }
         | AppleEvent::PushReceived { .. }
@@ -534,16 +562,16 @@ fn event_value(event: AppleEvent) -> Value {
         | AppleEvent::MatchRequested { .. }
         | AppleEvent::CloudChanged { .. }) => arrived(arrival, &mut pairs),
         AppleEvent::PushToken { token } => {
-            pairs.push(("kind".into(), Value::Str(kind::PUSH_TOKEN.into())));
-            pairs.push(("token".into(), Value::Str(token)));
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_TOKEN.into())));
+            pairs.push((TOKEN.into(), Value::Str(token)));
         }
         AppleEvent::PushFailed { message } => {
-            pairs.push(("kind".into(), Value::Str(kind::PUSH_FAILED.into())));
-            pairs.push(("error".into(), Value::Str(message)));
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_FAILED.into())));
+            pairs.push((ERROR_WORD.into(), Value::Str(message)));
         }
         AppleEvent::Url { url } => {
-            pairs.push(("kind".into(), Value::Str(kind::URL.into())));
-            pairs.push(("url".into(), Value::Str(url)));
+            pairs.push((KIND.into(), Value::Str(kind::URL.into())));
+            pairs.push((kind::URL.into(), Value::Str(url)));
         }
         // StoreKit's own shape, unflattened: the `kind` is already in there.
         AppleEvent::Store { payload, .. } => {
@@ -552,11 +580,11 @@ fn event_value(event: AppleEvent) -> Value {
             }
         }
         AppleEvent::Failed { message, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::ERROR.into())));
-            pairs.push(("error".into(), Value::Str(message)));
+            pairs.push((KIND.into(), Value::Str(kind::ERROR.into())));
+            pairs.push((ERROR_WORD.into(), Value::Str(message)));
         }
         AppleEvent::Unsupported { call, .. } => {
-            pairs.push(("kind".into(), Value::Str(kind::UNSUPPORTED.into())));
+            pairs.push((KIND.into(), Value::Str(kind::UNSUPPORTED.into())));
             pairs.push(("call".into(), Value::Str(call)));
         }
     }
@@ -585,7 +613,7 @@ pub struct ApplePlugin;
 
 impl balaur_plugin::Plugin for ApplePlugin {
     fn name(&self) -> &'static str {
-        "apple"
+        APPLE
     }
 
     fn requires(&self) -> Vec<String> {
@@ -596,9 +624,9 @@ impl balaur_plugin::Plugin for ApplePlugin {
         reg.insert_resource(AppleState::default());
         reg.insert_resource(AppleSnapshot::default());
         reg.add_system(Stage::First, pump_apple_system);
-        reg.add_replay_source("apple", capture, restore);
+        reg.add_replay_source(APPLE, capture, restore);
         balaur_platform::set_backend(reg.engine(), Box::new(AppleBackend))?;
-        let mut m = reg.script_module("apple")?;
+        let mut m = reg.script_module(APPLE)?;
         install_apple_api(&mut m);
         Ok(())
     }
@@ -621,47 +649,47 @@ fn install_apple_api(m: &mut Module<Engine>) {
     balaur_core::handler::install_event_kinds(m, kind::ALL);
     m.describe(&[
         (
-            "available",
+            AVAILABLE_WORD,
             &[],
             "() -> bool",
             "Whether this build has Apple's frameworks behind it.",
         ),
         (
-            "authenticated",
+            AUTHENTICATED,
             &[],
             "() -> bool",
             "Whether Game Center has a signed-in player right now.",
         ),
         (
-            "identity",
+            kind::IDENTITY,
             &[],
             "() -> int",
             "Fetch the items a server needs to verify this Game Center player, and return the id the answer carries.",
         ),
         (
-            "sign_in",
+            SIGN_IN,
             &[],
             "() -> int",
             "Sign in with Apple, and return the id the identity token comes back on. Game Center's own sign-in is `platform.sign_in`.",
         ),
         (
-            "credential_state",
+            kind::CREDENTIAL_STATE,
             &[],
             "(user: string) -> int",
             "Ask whether a saved Sign in with Apple account is still authorized, revoked, transferred or unknown, and return the id the answer carries.",
         ),
     ]);
-    m.function("available", |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
-    m.function("authenticated", |_: &Engine, ()| {
+    m.function(AVAILABLE_WORD, |_: &Engine, ()| Ok(Value::Bool(AVAILABLE)));
+    m.function(AUTHENTICATED, |_: &Engine, ()| {
         Ok(Value::Bool(backend::authenticated()))
     });
-    m.function("identity", |eng: &Engine, ()| {
+    m.function(kind::IDENTITY, |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::Identity))
     });
-    m.function("sign_in", |eng: &Engine, ()| {
+    m.function(SIGN_IN, |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::SignIn))
     });
-    m.function("credential_state", |eng: &Engine, user: Value| {
+    m.function(kind::CREDENTIAL_STATE, |eng: &Engine, user: Value| {
         let Value::Str(user) = user else {
             return Err(anyhow!("the user id should be a string, got {user:?}"));
         };
@@ -688,20 +716,20 @@ fn install_screens_api(m: &mut Module<Engine>) {
     ]);
     m.describe(&[
         (
-            "show_dashboard",
+            SHOW_DASHBOARD,
             &[],
             "(opts: ShowDashboardOptions?) -> int",
             "Open Game Center's dashboard over the game, and return the id its `dashboard_closed` answer carries.",
         ),
         (
-            "access_point",
+            ACCESS_POINT,
             &[],
             "(active: bool, opts: AccessPointOptions?) -> bool",
             "Show or hide Game Center's floating access point, and answer whether it is showing.",
         ),
     ]);
-    m.function("show_dashboard", |eng: &Engine, opts: Option<Value>| {
-        let state = match opt(opts.as_ref(), "state") {
+    m.function(SHOW_DASHBOARD, |eng: &Engine, opts: Option<Value>| {
+        let state = match opt(opts.as_ref(), STATE) {
             Some(Value::Str(name)) => screen(name)?,
             Some(other) => return Err(anyhow!("`state` should be a string, got {other:?}")),
             None => DEFAULT_SCREEN,
@@ -709,7 +737,7 @@ fn install_screens_api(m: &mut Module<Engine>) {
         Ok(start_call(eng, AppleCall::Dashboard { state }))
     });
     m.function(
-        "access_point",
+        ACCESS_POINT,
         |_: &Engine, (first, second): (Value, Option<Value>)| {
             let Value::Bool(active) = first else {
                 return Err(anyhow!("argument 0 should be true or false, got {first:?}"));
@@ -734,31 +762,28 @@ fn arrived(event: AppleEvent, pairs: &mut Vec<(String, Value)>) {
             body,
             data,
         } => {
-            pairs.push((
-                "kind".into(),
-                Value::Str(kind::NOTIFICATION_RECEIVED.into()),
-            ));
-            pairs.push(("id".into(), Value::Str(id)));
-            pairs.push(("title".into(), Value::Str(title)));
+            pairs.push((KIND.into(), Value::Str(kind::NOTIFICATION_RECEIVED.into())));
+            pairs.push((ID.into(), Value::Str(id)));
+            pairs.push((TITLE.into(), Value::Str(title)));
             pairs.push(("body".into(), Value::Str(body)));
-            pairs.push(("data".into(), from_json(&data).unwrap_or(Value::Nil)));
+            pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
         }
         AppleEvent::PushReceived { data } => {
-            pairs.push(("kind".into(), Value::Str(kind::PUSH_RECEIVED.into())));
-            pairs.push(("data".into(), from_json(&data).unwrap_or(Value::Nil)));
+            pairs.push((KIND.into(), Value::Str(kind::PUSH_RECEIVED.into())));
+            pairs.push((DATA.into(), from_json(&data).unwrap_or(Value::Nil)));
         }
         AppleEvent::InviteAccepted { player, name } => {
-            pairs.push(("kind".into(), Value::Str(kind::INVITE_ACCEPTED.into())));
-            pairs.push(("player".into(), Value::Str(player)));
-            pairs.push(("name".into(), Value::Str(name)));
+            pairs.push((KIND.into(), Value::Str(kind::INVITE_ACCEPTED.into())));
+            pairs.push((PLAYER.into(), Value::Str(player)));
+            pairs.push((NAME.into(), Value::Str(name)));
         }
         AppleEvent::MatchRequested { players } => {
-            pairs.push(("kind".into(), Value::Str(kind::MATCH_REQUESTED.into())));
+            pairs.push((KIND.into(), Value::Str(kind::MATCH_REQUESTED.into())));
             let players = players.into_iter().map(Value::Str).collect();
             pairs.push(("players".into(), Value::List(players)));
         }
         AppleEvent::CloudChanged { reason, keys } => {
-            pairs.push(("kind".into(), Value::Str(kind::CLOUD_CHANGED.into())));
+            pairs.push((KIND.into(), Value::Str(kind::CLOUD_CHANGED.into())));
             pairs.push(("reason".into(), Value::Str(reason)));
             let keys = keys.into_iter().map(Value::Str).collect();
             pairs.push(("keys".into(), Value::List(keys)));
@@ -777,35 +802,35 @@ fn install_arrivals_api(m: &mut Module<Engine>) {
     )]);
     m.describe(&[
         (
-            "request_notifications",
+            REQUEST_NOTIFICATIONS,
             &[],
             "() -> int",
             "Ask the player to allow notifications, and return the id whose `notifications` answer says what they said.",
         ),
         (
-            "notify",
+            NOTIFY,
             &[],
             "(body: string, opts: NotifyOptions?) -> int",
             "Schedule a local notification, and return the id its `scheduled` answer carries.",
         ),
         (
-            "cancel_notification",
+            CANCEL_NOTIFICATION,
             &[],
             "(id: string)",
             "Drop a scheduled notification, and take a delivered one out of the shade.",
         ),
         (
-            "register_for_push",
+            REGISTER_FOR_PUSH,
             &[],
             "() -> bool",
             "Ask the OS for a push token. It arrives as the `apple_event` event, not at the caller, because the OS hands it over whenever it likes.",
         ),
     ]);
-    m.function("request_notifications", |eng: &Engine, ()| {
+    m.function(REQUEST_NOTIFICATIONS, |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::RequestNotifications))
     });
     m.function(
-        "notify",
+        NOTIFY,
         |eng: &Engine, (body, opts): (Value, Option<Value>)| {
             let Value::Str(body) = body else {
                 return Err(anyhow!(
@@ -813,7 +838,7 @@ fn install_arrivals_api(m: &mut Module<Engine>) {
                 ));
             };
             let opts_ref = opts.as_ref();
-            let title = match opt(opts_ref, "title") {
+            let title = match opt(opts_ref, TITLE) {
                 Some(Value::Str(title)) => title.clone(),
                 Some(other) => return Err(anyhow!("`title` should be a string, got {other:?}")),
                 None => String::new(),
@@ -827,7 +852,7 @@ fn install_arrivals_api(m: &mut Module<Engine>) {
             };
             // A generated id is the token this call was given, so two runs of
             // the same session name the same notification.
-            let id = match opt(opts_ref, "id") {
+            let id = match opt(opts_ref, ID) {
                 Some(Value::Str(id)) => id.clone(),
                 Some(other) => return Err(anyhow!("`id` should be a string, got {other:?}")),
                 None => String::new(),
@@ -849,14 +874,14 @@ fn install_arrivals_api(m: &mut Module<Engine>) {
 /// The three that ask the device to start telling us something, rather than
 /// answering a question the script asked.
 fn install_device_arrivals_api(m: &mut Module<Engine>) {
-    m.function("cancel_notification", |_: &Engine, (id,): (Value,)| {
+    m.function(CANCEL_NOTIFICATION, |_: &Engine, (id,): (Value,)| {
         let Value::Str(id) = id else {
             return Err(anyhow!("a notification id should be a string, got {id:?}"));
         };
         backend::cancel_notification(&id);
         Ok(())
     });
-    m.function("register_for_push", |_: &Engine, ()| {
+    m.function(REGISTER_FOR_PUSH, |_: &Engine, ()| {
         Ok(Value::Bool(backend::request_push_token()))
     });
     install_listen_for_api(m);
@@ -866,31 +891,31 @@ fn install_device_arrivals_api(m: &mut Module<Engine>) {
 fn install_listen_for_api(m: &mut Module<Engine>) {
     m.describe(&[
         (
-            "listen_for_urls",
+            LISTEN_FOR_URLS,
             &[],
             "() -> bool",
             "Hear about URLs the game is asked to open while it runs. A URL the game was launched with arrives before the engine boots and is not one of them.",
         ),
         (
-            "listen_for_invites",
+            LISTEN_FOR_INVITES,
             &[],
             "() -> bool",
             "Hear about Game Center invites the player accepts, as `invite_accepted` with the sender's `player` id and `name`, and matches they ask for, as `match_requested` with the `players`.",
         ),
         (
-            "listen_for_cloud_changes",
+            LISTEN_FOR_CLOUD_CHANGES,
             &[],
             "() -> bool",
             "Hear about another device changing the iCloud key-value store, as `cloud_changed` with the `reason` and the `keys` it touched.",
         ),
     ]);
-    m.function("listen_for_urls", |_: &Engine, ()| {
+    m.function(LISTEN_FOR_URLS, |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_urls()))
     });
-    m.function("listen_for_invites", |_: &Engine, ()| {
+    m.function(LISTEN_FOR_INVITES, |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_invites()))
     });
-    m.function("listen_for_cloud_changes", |_: &Engine, ()| {
+    m.function(LISTEN_FOR_CLOUD_CHANGES, |_: &Engine, ()| {
         Ok(Value::Bool(backend::watch_cloud()))
     });
 }
@@ -911,37 +936,37 @@ fn install_store_api(m: &mut Module<Engine>) {
     ]);
     m.describe(&[
         (
-            "products",
+            kind::PRODUCTS,
             &[],
             "(ids: [string]) -> int",
             "Ask the App Store about a list of product ids, and return the id whose `products` answer holds what it knows, each a `Product`.",
         ),
         (
-            "purchase",
+            PURCHASE,
             &[],
             "(product: string) -> int",
             "Buy a product, and return the id its answer carries: `purchased`, `cancelled` or `pending`, and a purchase carries the signed `jws` a server checks.",
         ),
         (
-            "entitlements",
+            kind::ENTITLEMENTS,
             &[],
             "() -> int",
             "What this player currently owns: returns the id whose `entitlements` answer holds them as `items`, each a `Transaction`.",
         ),
         (
-            "restore_purchases",
+            RESTORE_PURCHASES,
             &[],
             "() -> int",
             "Ask the App Store to hand this device's purchases back, the button a review expects a game to have, and return the id its `restored` answer carries.",
         ),
         (
-            "finish_purchase",
+            FINISH_PURCHASE,
             &[],
             "(transaction: string) -> int",
             "Tell StoreKit a transaction is dealt with, and return the id its `finished` answer carries. One that is never finished comes back on every launch.",
         ),
     ]);
-    m.function("products", |eng: &Engine, ids: Value| {
+    m.function(kind::PRODUCTS, |eng: &Engine, ids: Value| {
         let Value::List(ids) = ids else {
             return Err(anyhow!("the product ids should be a list, got {ids:?}"));
         };
@@ -957,7 +982,7 @@ fn install_store_api(m: &mut Module<Engine>) {
             AppleCall::Store(StoreCall::Products { ids }),
         ))
     });
-    m.function("purchase", |eng: &Engine, product: Value| {
+    m.function(PURCHASE, |eng: &Engine, product: Value| {
         let Value::Str(product) = product else {
             return Err(anyhow!(
                 "the product id should be a string, got {product:?}"
@@ -968,7 +993,7 @@ fn install_store_api(m: &mut Module<Engine>) {
             AppleCall::Store(StoreCall::Purchase { product }),
         ))
     });
-    m.function("entitlements", |eng: &Engine, ()| {
+    m.function(kind::ENTITLEMENTS, |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::Store(StoreCall::Entitlements)))
     });
     install_store_ledger_api(m);
@@ -977,10 +1002,10 @@ fn install_store_api(m: &mut Module<Engine>) {
 /// What a game asks about purchases already made, rather than about making
 /// one: restoring on a new device, and closing a transaction out.
 fn install_store_ledger_api(m: &mut Module<Engine>) {
-    m.function("restore_purchases", |eng: &Engine, ()| {
+    m.function(RESTORE_PURCHASES, |eng: &Engine, ()| {
         Ok(start_call(eng, AppleCall::Store(StoreCall::Restore)))
     });
-    m.function("finish_purchase", |eng: &Engine, transaction: Value| {
+    m.function(FINISH_PURCHASE, |eng: &Engine, transaction: Value| {
         let Value::Str(transaction) = transaction else {
             return Err(anyhow!(
                 "the transaction id should be a string, got {transaction:?}"
@@ -1002,13 +1027,13 @@ const DEFAULT_CORNER: isize = 1;
 /// Which screen the dashboard opens on, in GameKit's own numbering.
 fn screen(name: &str) -> Result<isize> {
     match name {
-        "default" => Ok(-1),
-        "leaderboards" => Ok(0),
-        "achievements" => Ok(1),
-        "challenges" => Ok(2),
-        "profile" => Ok(3),
-        "dashboard" => Ok(4),
-        "friends" => Ok(5),
+        words::DEFAULT => Ok(-1),
+        words::LEADERBOARDS => Ok(0),
+        words::ACHIEVEMENTS => Ok(1),
+        words::CHALLENGES => Ok(2),
+        words::PROFILE => Ok(3),
+        words::DASHBOARD => Ok(4),
+        words::FRIENDS => Ok(5),
         other => Err(anyhow!("no Game Center screen called {other:?}")),
     }
 }
@@ -1016,10 +1041,10 @@ fn screen(name: &str) -> Result<isize> {
 /// Which corner the access point sits in, in GameKit's own numbering.
 fn corner_of(name: &str) -> Result<isize> {
     match name {
-        "top_leading" => Ok(0),
-        "top_trailing" => Ok(1),
-        "bottom_leading" => Ok(2),
-        "bottom_trailing" => Ok(3),
+        words::TOP_LEADING => Ok(0),
+        words::TOP_TRAILING => Ok(1),
+        words::BOTTOM_LEADING => Ok(2),
+        words::BOTTOM_TRAILING => Ok(3),
         other => Err(anyhow!("no access point corner called {other:?}")),
     }
 }

@@ -1,0 +1,5 @@
+// The parts of a gizmo a pointer can take.
+
+internal const FACE: str = "face";
+internal const HANDLE: str = "handle";
+internal const RING: str = "ring";

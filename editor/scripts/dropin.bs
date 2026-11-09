@@ -9,6 +9,26 @@ use recipes;
 use selection;
 use signals;
 use util;
+use words::asset_kinds;
+use words::changes;
+use words::components;
+use words::datatypes;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::log_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::schema_fields;
+use words::statuses;
+use words::tabs;
+
+const CANCELLED: str = "cancelled";
+const WROTE: str = "wrote";
+const ENVIRONMENT: str = "environment";
+const FONTS: str = "fonts";
+const SCENES: str = "scenes";
+const SKY: str = "sky";
 
 pub struct Homes {
     image: str,
@@ -28,7 +48,7 @@ fn HOMES() -> Homes {
     Homes {
         image: "art",
         shader: "shaders",
-        font: "fonts",
+        font: FONTS,
         sky: "skies",
     }
 }
@@ -38,25 +58,25 @@ pub fn kind_of(path: str) -> str {
     let lower = path.to_lower();
     for extension in ["png", "jpg", "jpeg", "webp", "svg", "bmp", "tga"] {
         if lower.ends_with("." + extension) {
-            return "image";
+            return asset_kinds::IMAGE;
         }
     }
     // Asked, not listed: a second copy of what the importer reads drifts from
     // it.
     if import::handles(path) {
-        return "import";
+        return tabs::IMPORT;
     }
     if lower.ends_with(".wesl") {
-        return "shader";
+        return datatypes::SHADER;
     }
     if lower.ends_with(".hdr") || lower.ends_with(".exr") {
-        return "sky";
+        return asset_kinds::SKY;
     }
     if lower.ends_with(".toml") {
-        return "scene";
+        return tabs::SCENE;
     }
-    if assets::kind_of(path) == "font" {
-        return "font";
+    if assets::kind_of(path) == components::FONT {
+        return components::FONT;
     }
     ""
 }
@@ -135,7 +155,7 @@ fn drop_point(state: &mut editor::State) -> [float] {
 /// Add one node carrying `parts` under the scene's root, at the drop point.
 /// History is the caller's, and so is selecting what was placed.
 fn place(state: &mut editor::State, name: str, parts: any) -> Node {
-    let entry: any = { "transform": { "position": drop_point(state) } };
+    let entry: any = { components::TRANSFORM: { inspector_fields::POSITION: drop_point(state) } };
     for key in parts.keys() {
         entry[key] = parts[key];
     }
@@ -155,11 +175,11 @@ fn drop_image(state: &mut editor::State, path: str) -> Node {
 fn place_image(state: &mut editor::State, rel: str, name: str) -> Node {
     history::record(state, "drop " + rel);
     if model::is_2d(state) {
-        place(state, name, { "sprite": { "texture": rel } })
+        place(state, name, { components::SPRITE: { panel_keys::TEXTURE: rel } })
     } else {
         place(state, name, {
-            "shape3d": { "shape": { "kind": render::SHAPE_BOX, "size": [1.0, 0.002, 1.0] } },
-            "mesh": { "texture": rel },
+            components::SHAPE3D: { schema_fields::SHAPE: { fields::KIND: render::SHAPE_BOX, layout_fields::SIZE: [1.0, 0.002, 1.0] } },
+            components::MESH: { panel_keys::TEXTURE: rel },
         })
     }
 }
@@ -175,7 +195,7 @@ fn drop_shader(state: &mut editor::State, path: str) -> Node {
     let material = "materials/{name}.toml";
     fs::create_directory(state.game_root + "/materials");
     fs::write(state.game_root + "/" + material, toml::encode({
-        "type": "material",
+        fields::TYPE: asset_kinds::MATERIAL,
         "shader": rel,
     }));
     model::forget(state);
@@ -201,13 +221,13 @@ pub fn name_sky(state: &mut editor::State, rel: str, label: str) -> Node {
     // The last `environment` in tree order wins, so an existing one is
     // retargeted rather than joined by a second.
     for found in state.nodes {
-        if found.has_component("environment") {
+        if found.has_component(ENVIRONMENT) {
             found.environment.sky = rel;
             log::info("sky is now " + rel);
             return found;
         }
     }
-    place(state, "Environment", { "environment": { "sky": rel } })
+    place(state, "Environment", { ENVIRONMENT: { SKY: rel } })
 }
 
 /// A font is copied and nothing is placed: a font is named by a `text`
@@ -229,7 +249,7 @@ fn drop_scene(state: &mut editor::State, path: str) -> Node {
         model::instance_scene(state, path.slice(prefix.len(), path.len()));
         return nil;
     }
-    let rel = copy_in(state, path, "scenes");
+    let rel = copy_in(state, path, SCENES);
     if rel != nil {
         model::instance_scene(state, rel.unwrap());
     }
@@ -257,8 +277,8 @@ pub fn job_totals(state: editor::State) -> JobTotals {
     let files = 0;
     for source in state.jobs.keys() {
         let job = state.jobs[source];
-        done += job["done"].as_int();
-        files += job["files"].as_int();
+        done += job[log_fields::DONE].as_int();
+        files += job[project_fields::FILES].as_int();
     }
     JobTotals { done: done, files: files }
 }
@@ -268,7 +288,7 @@ pub fn job_totals(state: editor::State) -> JobTotals {
 pub fn in_flight(state: editor::State) -> int {
     let count = 0;
     for source in state.jobs.keys() {
-        if state.jobs[source]["over"].as_str() == "" {
+        if state.jobs[source][layout_fields::OVER].as_str() == "" {
             count += 1;
         }
     }
@@ -293,7 +313,7 @@ pub fn kept_until(state: editor::State) -> float {
     }
     let last = 0.0;
     for source in state.jobs.keys() {
-        last = util::max(last, state.jobs[source]["at"].as_float());
+        last = util::max(last, state.jobs[source][layout_fields::AT].as_float());
     }
     last + KEPT_FOR
 }
@@ -301,7 +321,7 @@ pub fn kept_until(state: editor::State) -> float {
 /// How many files the import of `source` has written, for the line that says
 /// so when it ends.
 fn written_by(state: editor::State, source: str) -> int {
-    state.jobs[source]["done"].as_int()
+    state.jobs[source][log_fields::DONE].as_int()
 }
 
 /// Mark one import as ended, leaving it in the list for a while: a batch of
@@ -314,76 +334,76 @@ fn ended(state: &mut editor::State, source: str, over: str) {
     if job == nil {
         job = new_job(source, 0);
     }
-    job["over"] = over;
-    job["at"] = engine::unix_time();
+    job[layout_fields::OVER] = over;
+    job[layout_fields::AT] = engine::unix_time();
     state.jobs[source] = job;
 }
 
 // One import's line in the list, as it starts.
 fn new_job(source: str, files: int) -> any {
-    { "name": file_name(source), "done": 0, "files": files, "over": "", "at": 0.0 }
+    { fields::NAME: file_name(source), log_fields::DONE: 0, project_fields::FILES: files, layout_fields::OVER: "", layout_fields::AT: 0.0 }
 }
 
 /// Every import reports here, one call per step: what is coming, each file as
 /// it lands, then the end.
 pub fn report(state: &mut editor::State, event: any) {
     let import_event = util::map_or_empty(event);
-    let kind = import_event["kind"].as_str();
-    let source = import_event["source"].as_str();
-    if kind == "started" {
+    let kind = import_event[fields::KIND].as_str();
+    let source = import_event[inspector_fields::SOURCE].as_str();
+    if kind == statuses::STARTED {
         // Keyed by the source, because several can run at once and each
         // reports its own steps.
-        state.jobs[source] = new_job(source, import_event["files"].as_int());
-    } else if kind == "wrote" {
+        state.jobs[source] = new_job(source, import_event[project_fields::FILES].as_int());
+    } else if kind == WROTE {
         let job = state.jobs[source];
         if job != nil {
-            job["done"] = import_event["done"].as_int();
-            job["files"] = import_event["files"].as_int();
+            job[log_fields::DONE] = import_event[log_fields::DONE].as_int();
+            job[project_fields::FILES] = import_event[project_fields::FILES].as_int();
         }
-    } else if kind == "done" {
+    } else if kind == statuses::DONE {
         let written = written_by(state, source);
         ended(state, source, "imported");
         model::forget(state);
         log::info("imported {file_name(source)} ({written} files)");
-        let note = import_event["note"].as_str();
+        let note = import_event[log_fields::NOTE].as_str();
         if note != "" {
             log::info(note);
         }
-        if import_event["scene"].kind() == "str" {
-            model::instance_scene(state, import_event["scene"].as_str());
+        if import_event[panel_keys::SCENE].kind() == types::KIND_STRING {
+            model::instance_scene(state, import_event[panel_keys::SCENE].as_str());
         }
-    } else if kind == "cancelled" {
-        let written = import_event["done"].as_int();
+    } else if kind == CANCELLED {
+        let written = import_event[log_fields::DONE].as_int();
         ended(state, source, "stopped");
         // This run's count, not one an earlier import of the same file left.
-        state.jobs[source]["done"] = written;
+        state.jobs[source][log_fields::DONE] = written;
         model::forget(state);
         log::info("stopped importing {file_name(source)} after {written} files");
-    } else if kind == "failed" {
-        ended(state, source, "failed");
+    } else if kind == statuses::FAILED {
+        ended(state, source, statuses::FAILED);
         log::error("importing {file_name(source)} failed: {import_event["message"].as_str()}");
         // A line in a dock nobody has open is not a report, so open it.
         docks::show(state, "output");
     }
     // The Assets tab's import button stops one running, and the files land.
-    signals::changed(state, "assets");
+    signals::changed(state, changes::ASSETS);
 }
 
 /// Place a file already in the project where the pointer is, as a drag out
 /// of the Assets dock does: an image, a model, a scene or a sky.
 pub fn place_file(state: &mut editor::State, rel: str) -> bool {
     let kind = kind_of(rel);
-    if kind == "scene" {
+    if kind == tabs::SCENE {
         model::instance_scene(state, rel);
         return true;
     }
-    let placed: any = if kind == "image" {
+    let placed: any = if kind == asset_kinds::IMAGE {
         place_image(state, rel, stem_of(rel))
-    } else if kind == "sky" {
+    } else if kind == asset_kinds::SKY {
         name_sky(state, rel, "drop sky")
     } else if recipes::is_model(rel) && !model::is_2d(state) {
         history::record(state, "drop " + rel);
-        place(state, stem_of(rel), { "mesh": { "source": { "source": rel } } })
+        place(state, stem_of(rel), { components::MESH: { inspector_fields::SOURCE: { inspector_fields::SOURCE: rel } } })
     } else {
         log::warn("{file_name(rel)} is not a thing to place in the scene");
         nothing()
@@ -426,18 +446,18 @@ pub fn take(state: &mut editor::State, path: str) {
         log::warn("nothing to do with " + file_name(path));
         return;
     }
-    let placed = if kind == "image" {
+    let placed = if kind == asset_kinds::IMAGE {
         drop_image(state, path)
-    } else if kind == "shader" {
+    } else if kind == datatypes::SHADER {
         drop_shader(state, path)
-    } else if kind == "sky" {
+    } else if kind == asset_kinds::SKY {
         drop_sky(state, path)
-    } else if kind == "font" {
+    } else if kind == components::FONT {
         drop_font(state, path)
-    } else if kind == "scene" {
+    } else if kind == tabs::SCENE {
         drop_scene(state, path)
     } else {
-        if kind == "import" {
+        if kind == tabs::IMPORT {
             drop_import(state, path);
         }
         nothing()

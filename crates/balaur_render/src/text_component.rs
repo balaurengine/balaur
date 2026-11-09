@@ -308,7 +308,7 @@ pub(crate) fn register_text3d_component(reg: &mut Registry<'_>) {
     reg.register_component(
         Text3d::NAME,
         ComponentDef {
-            tags: &[words::PERSPECTIVE, "render"],
+            tags: &[words::PERSPECTIVE, words::general::RENDER],
             remove: Box::new(|eng, entity| {
                 let _ = eng.remove_one::<Text3d>(entity);
                 let _ = eng.remove_one::<TextRenderable>(entity);

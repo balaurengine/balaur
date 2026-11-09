@@ -4,6 +4,7 @@
 //! `balaur::check_project_using`; what is printed and what the exit code says
 //! about it are decided here.
 
+use crate::vocabulary::words;
 use anyhow::Result;
 
 pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
@@ -17,7 +18,7 @@ pub(crate) fn project(path: &std::path::Path, strict: bool) -> Result<()> {
     let mut errors = 0;
     let mut warnings = 0;
     for one in &found {
-        if one.severity == "error" {
+        if one.severity == words::log_levels::ERROR {
             errors += 1;
         } else {
             warnings += 1;

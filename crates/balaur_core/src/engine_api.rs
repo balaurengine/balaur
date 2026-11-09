@@ -36,6 +36,7 @@ pub use crate::file_api::{from_json, to_json};
 mod changes;
 use changes::{added_since, change_tick, changed_since, removed_since};
 mod registry;
+use crate::vocabulary::{keys, words};
 use registry::{
     apply_preset, component_expects, component_requires, component_schema, component_tags,
     component_types, preset_info, presets, warnings,
@@ -54,67 +55,67 @@ pub struct EngineOp {
 pub const KERNEL_OPS: [&[EngineOp]; 4] = [
     &[
         EngineOp {
-            module: "engine",
-            name: "time",
+            module: words::modules::ENGINE,
+            name: keys::TIME,
             call: time,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "delta",
             call: delta,
         },
         EngineOp {
-            module: "engine",
-            name: "tick",
+            module: words::modules::ENGINE,
+            name: keys::TICK,
             call: tick,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "change_tick",
             call: change_tick,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "set_paused",
             call: set_paused,
         },
         EngineOp {
-            module: "engine",
-            name: "paused",
+            module: words::modules::ENGINE,
+            name: words::functions::PAUSED,
             call: paused,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "set_time_scale",
             call: set_time_scale,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "time_scale",
             call: time_scale,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "tick_hz",
             call: tick_hz,
         },
         EngineOp {
-            module: "engine",
-            name: "quit",
+            module: words::modules::ENGINE,
+            name: words::functions::QUIT,
             call: quit,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "args",
             call: args,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "set_content_root",
             call: engine_set_content_root,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "environment",
             call: environment,
         },
@@ -136,527 +137,527 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
     ],
     &[
         EngineOp {
-            module: "engine",
-            name: "target",
+            module: words::modules::ENGINE,
+            name: words::TARGET,
             call: platform,
         },
         EngineOp {
-            module: "engine",
-            name: "device_id",
+            module: words::modules::ENGINE,
+            name: words::functions::DEVICE_ID,
             call: device_id,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "unix_time",
             call: unix_time,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "focused",
             call: focused,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "dark_mode",
             call: dark_mode,
         },
         EngineOp {
-            module: "scene",
-            name: "root",
+            module: words::modules::SCENE,
+            name: words::functions::ROOT,
             call: root,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "get_node",
             call: get_node,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "node_by_id",
             call: node_by_id,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "with_component",
             call: with_component,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "added_since",
             call: added_since,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "changed_since",
             call: changed_since,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "removed_since",
             call: removed_since,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "instantiate",
             call: instantiate,
         },
         EngineOp {
-            module: "scene",
-            name: "to_toml",
+            module: words::modules::SCENE,
+            name: words::functions::TO_TOML,
             call: to_toml,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "attach_scripts",
             call: attach_scripts,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "keep_changes",
             call: keep_changes,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "take_changes",
             call: take_changes,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "source",
             call: source,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "component_types",
             call: component_types,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "component_tags",
             call: component_tags,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "component_expects",
             call: component_expects,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "component_requires",
             call: component_requires,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "presets",
             call: presets,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "preset_info",
             call: preset_info,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "apply_preset",
             call: apply_preset,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "warnings",
             call: warnings,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "component_schema",
             call: component_schema,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "component_properties",
             call: component_properties,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "switch",
             call: crate::scene_api::scene_switch,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "parked",
             call: crate::scene_api::scene_parked,
         },
         EngineOp {
-            module: "scene",
-            name: "unload",
+            module: words::modules::SCENE,
+            name: words::functions::UNLOAD,
             call: crate::scene_api::scene_unload,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "bindable_events",
             call: crate::scene_api::bindable_events,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "binding_actions",
             call: crate::scene_api::binding_actions,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "variable",
             call: crate::scene_api::scene_variable,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "set_variable",
             call: crate::scene_api::scene_set_variable,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "variables",
             call: crate::scene_api::scene_variables,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "timings",
             call: timings,
         },
     ],
     &[
         EngineOp {
-            module: "save",
-            name: "write",
+            module: words::modules::SAVE,
+            name: words::functions::WRITE,
             call: save_write,
         },
         EngineOp {
-            module: "save",
-            name: "read",
+            module: words::modules::SAVE,
+            name: words::functions::READ,
             call: save_read,
         },
         EngineOp {
-            module: "save",
+            module: words::modules::SAVE,
             name: "slots",
             call: save_slots,
         },
         EngineOp {
-            module: "save",
-            name: "remove",
+            module: words::modules::SAVE,
+            name: words::functions::REMOVE,
             call: save_remove,
         },
         EngineOp {
-            module: "save",
-            name: "version",
+            module: words::modules::SAVE,
+            name: words::functions::VERSION,
             call: save_version,
         },
         EngineOp {
-            module: "save",
-            name: "directory",
+            module: words::modules::SAVE,
+            name: words::functions::DIRECTORY,
             call: save_folder,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "user_data_directory_of",
             call: user_data_dir_of_project,
         },
         EngineOp {
-            module: "regex",
+            module: words::modules::REGEX,
             name: "matches",
             call: regex_matches,
         },
         EngineOp {
-            module: "regex",
+            module: words::modules::REGEX,
             name: "search",
             call: regex_search,
         },
         EngineOp {
-            module: "regex",
+            module: words::modules::REGEX,
             name: "search_all",
             call: regex_search_all,
         },
         EngineOp {
-            module: "regex",
+            module: words::modules::REGEX,
             name: "replace",
             call: regex_replace,
         },
         EngineOp {
-            module: "regex",
+            module: words::modules::REGEX,
             name: "split",
             call: regex_split,
         },
         EngineOp {
-            module: "regex",
+            module: words::modules::REGEX,
             name: "escape",
             call: regex_escape,
         },
         EngineOp {
-            module: "strings",
+            module: words::modules::STRINGS,
             name: "tr",
             call: strings_tr,
         },
         EngineOp {
-            module: "strings",
-            name: "locale",
+            module: words::modules::STRINGS,
+            name: words::functions::LOCALE,
             call: strings_locale,
         },
         EngineOp {
-            module: "strings",
+            module: words::modules::STRINGS,
             name: "set_locale",
             call: strings_set_locale,
         },
         EngineOp {
-            module: "strings",
+            module: words::modules::STRINGS,
             name: "locales",
             call: strings_locales,
         },
         EngineOp {
-            module: "strings",
+            module: words::modules::STRINGS,
             name: "system_locale",
             call: strings_system_locale,
         },
         EngineOp {
-            module: "scene",
+            module: words::modules::SCENE,
             name: "tagged",
             call: scene_tagged,
         },
     ],
     &[
         EngineOp {
-            module: "assets",
-            name: "load",
+            module: words::modules::ASSETS,
+            name: words::functions::LOAD,
             call: assets_load,
         },
         EngineOp {
-            module: "assets",
-            name: "duplicate",
+            module: words::modules::ASSETS,
+            name: words::window_modes::DUPLICATE,
             call: assets_duplicate,
         },
         EngineOp {
-            module: "assets",
-            name: "exists",
+            module: words::modules::ASSETS,
+            name: words::functions::EXISTS,
             call: assets_exists,
         },
         EngineOp {
-            module: "assets",
+            module: words::modules::ASSETS,
             name: "reload",
             call: assets_reload,
         },
         EngineOp {
-            module: "assets",
+            module: words::modules::ASSETS,
             name: "invalidate",
             call: assets_invalidate,
         },
         EngineOp {
-            module: "assets",
-            name: "save",
+            module: words::modules::ASSETS,
+            name: words::modules::SAVE,
             call: assets_save,
         },
         EngineOp {
-            module: "assets",
-            name: "directory",
+            module: words::modules::ASSETS,
+            name: words::functions::DIRECTORY,
             call: assets_directory,
         },
         EngineOp {
-            module: "assets",
+            module: words::modules::ASSETS,
             name: "schema",
             call: assets_schema,
         },
         EngineOp {
-            module: "assets",
+            module: words::modules::ASSETS,
             name: "kind_of",
             call: assets_kind_of,
         },
         EngineOp {
-            module: "assets",
-            name: "rename",
+            module: words::modules::ASSETS,
+            name: words::functions::RENAME,
             call: assets_rename,
         },
         EngineOp {
-            module: "assets",
-            name: "id",
+            module: words::modules::ASSETS,
+            name: words::locales::ID,
             call: assets_id,
         },
         EngineOp {
-            module: "assets",
+            module: words::modules::ASSETS,
             name: "assign_id",
             call: assets_assign_id,
         },
         EngineOp {
-            module: "assets",
-            name: "path",
+            module: words::modules::ASSETS,
+            name: words::dependencies::PATH,
             call: assets_path,
         },
         EngineOp {
-            module: "log",
-            name: "info",
+            module: words::modules::LOG,
+            name: words::functions::INFO,
             call: log_info,
         },
         EngineOp {
-            module: "log",
+            module: words::modules::LOG,
             name: "warn",
             call: log_warn,
         },
         EngineOp {
-            module: "log",
+            module: words::modules::LOG,
             name: "error",
             call: log_error,
         },
         EngineOp {
-            module: "log",
+            module: words::modules::LOG,
             name: "print",
             call: log_print,
         },
         EngineOp {
-            module: "log",
+            module: words::modules::LOG,
             name: "recent",
             call: log_recent,
         },
         EngineOp {
-            module: "log",
-            name: "clear",
+            module: words::modules::LOG,
+            name: words::functions::CLEAR,
             call: log_clear,
         },
         EngineOp {
-            module: "log",
+            module: words::modules::LOG,
             name: "since",
             call: log_since,
         },
         EngineOp {
-            module: "log",
+            module: words::modules::LOG,
             name: "file",
             call: log_file,
         },
         EngineOp {
-            module: "random",
+            module: words::modules::RANDOM,
             name: "seed",
             call: rng_seed,
         },
         EngineOp {
-            module: "random",
-            name: "float",
+            module: words::modules::RANDOM,
+            name: words::datatypes::FLOAT,
             call: rng_random,
         },
         EngineOp {
-            module: "random",
+            module: words::modules::RANDOM,
             name: "range",
             call: rng_range,
         },
         EngineOp {
-            module: "random",
-            name: "int",
+            module: words::modules::RANDOM,
+            name: words::datatypes::INT,
             call: rng_int,
         },
         EngineOp {
-            module: "random",
+            module: words::modules::RANDOM,
             name: "uuid",
             call: rng_uuid,
         },
         EngineOp {
-            module: "hash",
+            module: words::modules::HASH,
             name: "sha256",
             call: hash_sha256,
         },
         EngineOp {
-            module: "hash",
+            module: words::modules::HASH,
             name: "sha256_text",
             call: hash_sha256_text,
         },
         EngineOp {
-            module: "encoding",
+            module: words::modules::ENCODING,
             name: "base64",
             call: encoding_base64,
         },
         EngineOp {
-            module: "encoding",
+            module: words::modules::ENCODING,
             name: "base64_text",
             call: encoding_base64_text,
         },
         EngineOp {
-            module: "encoding",
+            module: words::modules::ENCODING,
             name: "from_base64",
             call: encoding_from_base64,
         },
         EngineOp {
-            module: "fs",
-            name: "read",
+            module: words::modules::FS,
+            name: words::functions::READ,
             call: fs_read,
         },
         EngineOp {
-            module: "fs",
-            name: "write",
+            module: words::modules::FS,
+            name: words::functions::WRITE,
             call: fs_write,
         },
         EngineOp {
-            module: "fs",
-            name: "exists",
+            module: words::modules::FS,
+            name: words::functions::EXISTS,
             call: fs_exists,
         },
         EngineOp {
-            module: "fs",
-            name: "list",
+            module: words::modules::FS,
+            name: words::datatypes::LIST,
             call: fs_list,
         },
         EngineOp {
-            module: "fs",
-            name: "remove",
+            module: words::modules::FS,
+            name: words::functions::REMOVE,
             call: fs_remove,
         },
         EngineOp {
-            module: "fs",
+            module: words::modules::FS,
             name: "create_directory",
             call: fs_mkdir,
         },
         EngineOp {
-            module: "fs",
-            name: "rename",
+            module: words::modules::FS,
+            name: words::functions::RENAME,
             call: fs_rename,
         },
         EngineOp {
-            module: "fs",
+            module: words::modules::FS,
             name: "copy",
             call: fs_copy,
         },
         EngineOp {
-            module: "fs",
+            module: words::modules::FS,
             name: "modified_time",
             call: fs_mtime,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "plugins",
             call: loaded_plugins,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "has_plugin",
             call: has_plugin,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "plugin_version",
             call: plugin_version,
         },
         EngineOp {
-            module: "toml",
-            name: "parse",
+            module: words::modules::TOML,
+            name: words::functions::PARSE,
             call: toml_parse,
         },
         EngineOp {
-            module: "toml",
-            name: "encode",
+            module: words::modules::TOML,
+            name: words::functions::ENCODE,
             call: toml_encode,
         },
         EngineOp {
-            module: "toml",
+            module: words::modules::TOML,
             name: "patch",
             call: toml_patch,
         },
         EngineOp {
-            module: "json",
-            name: "parse",
+            module: words::modules::JSON,
+            name: words::functions::PARSE,
             call: json_parse,
         },
         EngineOp {
-            module: "json",
-            name: "encode",
+            module: words::modules::JSON,
+            name: words::functions::ENCODE,
             call: json_encode,
         },
     ],
@@ -684,7 +685,7 @@ pub fn kernel_api() -> Vec<ApiPart> {
 
 /// The kernel's modules filled by an installer of their own, after its calls.
 pub const KERNEL_MODULES: [ApiPart; 6] = [
-    ApiPart::Module("node", crate::node_api::install_node_api),
+    ApiPart::Module(words::datatypes::NODE, crate::node_api::install_node_api),
     ApiPart::Module(
         "dependency",
         crate::dependencies::api::install_dependencies_api,
@@ -742,20 +743,20 @@ pub fn install_engine_api(eng: &Engine, api: &[ApiPart]) -> Result<()> {
 /// `install_*` the way every other subsystem's documentation does.
 fn document(module: &str, m: &mut balaur_script::Module<Engine>) {
     match module {
-        "engine" => crate::engine_docs::document_engine(m),
-        "scene" => crate::engine_docs::document_scene(m),
-        "skeleton" => crate::engine_docs::document_skeleton(m),
-        "assets" => crate::engine_docs::document_assets(m),
-        "log" => crate::engine_docs::document_log(m),
-        "save" => crate::engine_docs::document_save(m),
-        "strings" => crate::engine_docs::document_strings(m),
-        "regex" => crate::engine_docs::document_regex(m),
-        "random" => crate::engine_docs::document_random(m),
-        "fs" => crate::engine_docs::document_fs(m),
-        "toml" => crate::engine_docs::document_toml(m),
-        "json" => crate::engine_docs::document_json(m),
-        "hash" => crate::engine_docs::document_hash(m),
-        "encoding" => crate::engine_docs::document_encoding(m),
+        words::modules::ENGINE => crate::engine_docs::document_engine(m),
+        words::modules::SCENE => crate::engine_docs::document_scene(m),
+        words::modules::SKELETON => crate::engine_docs::document_skeleton(m),
+        words::modules::ASSETS => crate::engine_docs::document_assets(m),
+        words::modules::LOG => crate::engine_docs::document_log(m),
+        words::modules::SAVE => crate::engine_docs::document_save(m),
+        words::modules::STRINGS => crate::engine_docs::document_strings(m),
+        words::modules::REGEX => crate::engine_docs::document_regex(m),
+        words::modules::RANDOM => crate::engine_docs::document_random(m),
+        words::modules::FS => crate::engine_docs::document_fs(m),
+        words::modules::TOML => crate::engine_docs::document_toml(m),
+        words::modules::JSON => crate::engine_docs::document_json(m),
+        words::modules::HASH => crate::engine_docs::document_hash(m),
+        words::modules::ENCODING => crate::engine_docs::document_encoding(m),
         _ => {}
     }
 }
@@ -896,7 +897,8 @@ pub fn set_platform_data_dir(dir: std::path::PathBuf) {
 /// The user data directory a project named `name` has, made or not:
 /// `<data>/balaur/<name>` for a game and `<data>/balaur-editor` for the editor.
 pub fn user_data_dir_named(eng: &Engine, name: &str) -> std::path::PathBuf {
-    let name = if name.is_empty() { "project" } else { name };
+    let fallback = words::dependencies::PROJECT;
+    let name = if name.is_empty() { fallback } else { name };
     // A manifest name is free text; keep only what every filesystem accepts.
     let name: String = name
         .chars()
@@ -970,9 +972,10 @@ fn with_component(eng: &Engine, args: &[Value]) -> Result<Value> {
 fn instantiate(eng: &Engine, args: &[Value]) -> Result<Value> {
     let base = optional_node(args, 1)?.unwrap_or_else(|| eng.root());
     crate::parked::refuse_if_parked(eng, base, "scene.instantiate")?;
-    let attach = !matches!(option(args, 2, "scripts"), Some(Value::Bool(false)));
+    let scripts = option(args, 2, words::replay_api::SCRIPTS);
+    let attach = !matches!(scripts, Some(Value::Bool(false)));
     let before = scene::child_count(&eng.world(), base);
-    match option(args, 2, "root") {
+    match option(args, 2, words::functions::ROOT) {
         Some(Value::Str(root)) => crate::project::instantiate_scene_from_root(
             eng,
             text(args, 0)?,
@@ -998,7 +1001,7 @@ fn option<'a>(args: &'a [Value], i: usize, key: &str) -> Option<&'a Value> {
 fn to_toml(eng: &Engine, args: &[Value]) -> Result<Value> {
     let root =
         optional_node(args, 0)?.ok_or_else(|| anyhow!("to_toml needs the scene's root node"))?;
-    let owner = match option(args, 1, "root") {
+    let owner = match option(args, 1, words::functions::ROOT) {
         Some(Value::Str(owner)) => Some(std::path::PathBuf::from(owner.as_str())),
         _ => None,
     };

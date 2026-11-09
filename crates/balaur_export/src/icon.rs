@@ -6,6 +6,8 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::{Context, Result, bail};
 use image::imageops::FilterType;
 use image::{ImageEncoder, RgbaImage};
@@ -49,7 +51,7 @@ impl Icons {
         let Some(plain) = named(ICON) else {
             return Ok(None);
         };
-        let title = named("name");
+        let title = named(keys::NAME);
         let read = |key: &str, path: &str| {
             picture(project, path).with_context(|| format!("[application] {key} = \"{path}\""))
         };
@@ -282,7 +284,7 @@ impl Icons {
         let written = self.write_catalog(&work, catalog);
         let answer = written.and_then(|assets| {
             let partial = work.join("partial.plist");
-            let mut command = Command::new("xcrun");
+            let mut command = Command::new(words::native::XCRUN);
             command
                 .arg("actool")
                 .arg(&assets)

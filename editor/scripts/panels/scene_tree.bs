@@ -2,6 +2,8 @@
 // fills the tree from the rows the Editor, which owns the document, hands it.
 
 use editor;
+use signals;
+use words::tabs;
 
 pub class SceneTree {
     node: Node,
@@ -19,13 +21,13 @@ fn facet_tag(label: any) -> str {
     } else if label.as_str() == "2D" {
         "2d"
     } else if label.as_str() == "Physics" {
-        "physics"
+        tabs::PHYSICS
     } else if label.as_str() == "Rendering" {
         "render"
     } else if label.as_str() == "UI" {
-        "ui"
+        tabs::UI
     } else if label.as_str() == "Script" {
-        "script"
+        tabs::SCRIPT
     } else {
         ""
     }
@@ -38,7 +40,7 @@ impl SceneTree {
         self.drawn = "";
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "outline_changed", source);
+        events::listen(self.node, signals::OUTLINE, source);
     }
 
     /// The Editor's word that the document, the selection, a lock or a warning

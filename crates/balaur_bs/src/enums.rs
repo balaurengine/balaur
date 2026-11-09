@@ -7,6 +7,7 @@ use crate::ast::{
     Arm, BinOp, Block, EnumDecl, Expr, ExprKind, Field, Part, Pattern, Pos, Program, Stmt,
     StmtKind, Ty, Variant,
 };
+use crate::vocabulary::words;
 
 const TAG: &str = "#tag";
 
@@ -540,7 +541,7 @@ fn arm_block(
             let value = match &ty {
                 Some(t) if holds_nil(t) => read,
                 _ => at(
-                    ExprKind::Method(Box::new(read), "unwrap".into(), vec![]),
+                    ExprKind::Method(Box::new(read), words::methods::UNWRAP.into(), vec![]),
                     body.pos,
                 ),
             };

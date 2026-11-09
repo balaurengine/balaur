@@ -19,6 +19,7 @@
 //! `tests/` is on every project's list: `balaur test` owns that folder.
 
 use crate::engine::Engine;
+use crate::vocabulary::keys;
 
 pub const SETTING: &str = "application/ignore";
 
@@ -51,8 +52,8 @@ pub fn from_manifest(manifest: &str) -> Vec<String> {
     with_always(
         document
             .as_ref()
-            .and_then(|document| document.get("application"))
-            .and_then(|table| table.get("ignore"))
+            .and_then(|document| document.get(keys::APPLICATION))
+            .and_then(|table| table.get(keys::IGNORE))
             .and_then(toml::Value::as_array),
     )
 }

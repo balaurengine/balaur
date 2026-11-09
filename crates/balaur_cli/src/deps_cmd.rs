@@ -18,6 +18,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::{Context as _, Result, anyhow, bail};
 use balaur::dependencies::{self, Dependency, Locked, Source};
 
@@ -95,17 +97,20 @@ pub(crate) fn add(
             &std::path::absolute(folder)?,
             &std::path::absolute(project)?,
         );
-        entry.insert("path", relative.to_string_lossy().replace('\\', "/").into());
+        entry.insert(
+            keys::PATH,
+            relative.to_string_lossy().replace('\\', "/").into(),
+        );
     } else {
         if !dependencies::valid_project(source) {
             bail!("`{source}` is neither a project folder nor `owner/name` on Forge");
         }
-        entry.insert("project", source.into());
+        entry.insert(keys::PROJECT, source.into());
         if let Some(branch) = branch {
             entry.insert("branch", branch.into());
         }
         if let Some(tag) = tag {
-            entry.insert("tag", tag.into());
+            entry.insert(keys::TAG, tag.into());
         }
     }
     let manifest = project.join("project.toml");
@@ -426,7 +431,8 @@ fn report_missing(
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
             if name.starts_with('.')
-                || (dir == project && matches!(name.as_str(), "deps" | "target"))
+                || (dir == project
+                    && matches!(name.as_str(), words::deps::DEPS | words::deps::TARGET))
             {
                 continue;
             }
@@ -436,7 +442,7 @@ fn report_missing(
             }
             let wanted = path
                 .extension()
-                .is_some_and(|ext| ext == "toml" || ext == "bs");
+                .is_some_and(|ext| ext == words::deps::TOML || ext == words::deps::BS);
             let Some(text) = wanted
                 .then(|| std::fs::read_to_string(&path).ok())
                 .flatten()
@@ -501,7 +507,10 @@ fn short(rev: &str) -> &str {
 
 /// Where fetched blobs are kept, one file per git blob id.
 fn cache_dir() -> Option<PathBuf> {
-    dirs::data_dir().map(|dir| dir.join(balaur::engine_api::EDITOR_NAME).join("deps"))
+    dirs::data_dir().map(|dir| {
+        dir.join(balaur::engine_api::EDITOR_NAME)
+            .join(words::deps::DEPS)
+    })
 }
 
 struct Forge {
@@ -574,14 +583,14 @@ impl Forge {
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
-        let message = said["message"].as_str().unwrap_or_default();
-        match said["error"].as_str().unwrap_or_default() {
-            "project_not_found" => bail!(
+        let message = said[keys::MESSAGE].as_str().unwrap_or_default();
+        match said[keys::ERROR].as_str().unwrap_or_default() {
+            words::deps::PROJECT_NOT_FOUND => bail!(
                 "{url}: no such project, or one this machine may not read (set BALAUR_FORGE_TOKEN \
                  for a private one)"
             ),
-            "unknown_ref" => bail!("{url}: no branch, tag or commit by that name"),
-            "bad_tree" => bail!("{url}: the project's tree is refused at `{message}`"),
+            words::deps::UNKNOWN_REF => bail!("{url}: no branch, tag or commit by that name"),
+            words::deps::BAD_TREE => bail!("{url}: the project's tree is refused at `{message}`"),
             "" => bail!("{url}: HTTP {status}"),
             code => bail!("{url}: HTTP {status}, {code}: {message}"),
         }

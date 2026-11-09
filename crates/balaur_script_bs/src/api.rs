@@ -3,6 +3,8 @@
 // out, and every component property in the registry.
 
 use crate::doc_types::{self, Cx, optional, schema_ty, split_top, tuple};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_bs::{HostApi, HostSignature, Literal, Ty};
 use balaur_core::Engine;
 use balaur_script::Value;
@@ -111,10 +113,19 @@ fn rust_ty(t: &str) -> Option<Ty> {
         return Some(Ty::Array(Box::new(rust_ty(inner)?)));
     }
     Some(match t {
-        "f32" | "f64" => Ty::Float,
-        "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "usize" | "isize" => Ty::Int,
-        "bool" => Ty::Bool,
-        "String" | "&str" | "str" | "SmolStr" => Ty::Str,
+        words::rust_types::F32 | words::rust_types::F64 => Ty::Float,
+        words::rust_types::I8
+        | words::rust_types::I16
+        | words::rust_types::I32
+        | words::rust_types::I64
+        | words::rust_types::U8
+        | words::rust_types::U16
+        | words::rust_types::U32
+        | words::rust_types::U64
+        | words::rust_types::USIZE
+        | words::rust_types::ISIZE => Ty::Int,
+        words::doc_types::BOOL => Ty::Bool,
+        "String" | "&str" | words::doc_types::STR | "SmolStr" => Ty::Str,
         "NodeId" => Ty::Node,
         "Value" => Ty::Any,
         "()" => Ty::Void,
@@ -282,6 +293,12 @@ pub(crate) fn build(eng: &Engine, registry: &Registry) -> HostApi {
         .constants
         .iter()
         .filter_map(|(k, v)| Some((k.clone(), literal(v)?)))
+        .chain(crate::tool_verbs::KINDS.iter().map(|(name, word)| {
+            (
+                format!("{}{name}", crate::tool_verbs::TYPES_MODULE),
+                Literal::Str((*word).to_string()),
+            )
+        }))
         .collect();
     HostApi {
         functions,
@@ -357,10 +374,14 @@ fn node_op<'k>(registry: &Registry, key: &'k str) -> Option<&'k str> {
 
 /// What a module only the host fills is for.
 fn own_module_doc(module: &str) -> Option<&'static str> {
-    [crate::waits::MODULE_DOC, crate::tool_verbs::MODULE_DOC]
-        .into_iter()
-        .find(|(m, _)| *m == module)
-        .map(|(_, doc)| doc)
+    [
+        crate::waits::MODULE_DOC,
+        crate::tool_verbs::MODULE_DOC,
+        crate::tool_verbs::TYPES_MODULE_DOC,
+    ]
+    .into_iter()
+    .find(|(m, _)| *m == module)
+    .map(|(_, doc)| doc)
 }
 
 /// The script reference `script::api()` answers and `balaur api` prints: one
@@ -414,6 +435,9 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
             row.components.extend(acts_on);
         }
     }
+    modules
+        .entry(crate::tool_verbs::TYPES_MODULE_DOC.0.to_string())
+        .or_default();
     let rows = modules
         .into_iter()
         .map(|(module, row)| {
@@ -430,7 +454,7 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
                         Literal::Str(t) => format!("{t:?}"),
                     };
                     Some(Value::Map(vec![
-                        ("name".into(), Value::text(name)),
+                        (keys::NAME.into(), Value::text(name)),
                         ("value".into(), Value::text(value)),
                     ]))
                 })
@@ -443,14 +467,14 @@ pub(crate) fn reference(api: &HostApi, registry: &Registry) -> Value {
                 .unwrap_or("");
             let components = row.components.into_iter().map(Value::text).collect();
             Value::Map(vec![
-                ("name".into(), Value::text(module.as_str())),
-                ("doc".into(), Value::text(doc)),
-                ("functions".into(), Value::List(row.functions)),
+                (keys::NAME.into(), Value::text(module.as_str())),
+                (keys::DOC.into(), Value::text(doc)),
+                (keys::FUNCTIONS.into(), Value::List(row.functions)),
                 ("signatures".into(), Value::Map(row.signatures)),
                 ("docs".into(), Value::Map(row.docs)),
-                ("acts_on".into(), Value::Map(row.acts_on)),
+                (keys::ACTS_ON.into(), Value::Map(row.acts_on)),
                 ("components".into(), Value::List(components)),
-                ("constants".into(), Value::List(constants)),
+                (keys::CONSTANTS.into(), Value::List(constants)),
             ])
         })
         .collect();

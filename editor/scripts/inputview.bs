@@ -6,6 +6,7 @@ use editor;
 use manager;
 use style;
 use util;
+use words::theme_tokens;
 
 /// What marks an action's name among the keys held: the panel's `ACTION`.
 pub const ACTION: str = "action:";
@@ -206,15 +207,15 @@ pub fn fill_chips(state: editor::State, names: [any]) {
     for name in names {
         let action = name.as_str().starts_with(ACTION);
         out.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: if action { name.as_str().slice(ACTION.len(), name.len()) } else { name },
             height: 30,
             font_size: style::MEDIUM,
             font_weight: 700,
             interactive: false,
-            fill: (if action { tokens["bg_control"] } else { tokens["primary_fill"] }).as_str(),
-            stroke: (if action { tokens["primary_text"].as_str() } else { "" }),
-            text_color: (if action { tokens["primary_text"] } else { tokens["text_on_primary"] }).as_str(),
+            fill: (if action { tokens[theme_tokens::BG_CONTROL] } else { tokens["primary_fill"] }).as_str(),
+            stroke: (if action { tokens[theme_tokens::PRIMARY_TEXT].as_str() } else { "" }),
+            text_color: (if action { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens["text_on_primary"] }).as_str(),
         });
     }
     ui::fill_strip("Editor/InputView/Chips", out);

@@ -8,6 +8,7 @@
 
 use crate::Error;
 use crate::ast::{Expr, FnDecl, Program, Ty};
+use crate::vocabulary::words;
 use std::rc::Rc;
 
 /// The structs every program declares.
@@ -16,13 +17,13 @@ pub(crate) const CORE: &str = include_str!("prelude/core.bs");
 /// Each built-in type's methods: its name and its module's sources.
 const MODULES: [(&str, &[&str]); 2] = [
     (
-        "str",
+        words::keywords::STR,
         &[
             include_str!("prelude/str.bs"),
             include_str!(concat!(env!("OUT_DIR"), "/case.bs")),
         ],
     ),
-    ("any", &[include_str!("prelude/any.bs")]),
+    (words::keywords::ANY, &[include_str!("prelude/any.bs")]),
 ];
 
 /// The prelude's functions and constants, named as a program calls them.

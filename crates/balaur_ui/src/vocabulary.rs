@@ -3,6 +3,7 @@
 //! constants cannot disagree about a word.
 
 /// The closed word sets: what a `kind`, `anchor`, `align_items` or `font_style` may be.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod words {
     pub(crate) const LABEL: &str = "label";
     pub(crate) const BUTTON: &str = "button";
@@ -399,9 +400,17 @@ pub(crate) mod words {
             ZOOM_OUT,
         ];
     }
+    pub(crate) const GET_NODE: &str = "get_node";
+    pub(crate) const HIDDEN: &str = "hidden";
+    pub(crate) const SCENE: &str = "scene";
+
+    pub(crate) mod general {
+        pub(crate) const UI: &str = "ui";
+    }
 }
 
 /// Every property key of the `widget` component and every option a `ui.*` call reads.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
     /// Which page a `tabs` widget shows.
     pub(crate) const CURRENT_PAGE: &str = "current_page";

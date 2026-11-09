@@ -22,6 +22,8 @@ use anyhow::{Context as _, Result, anyhow, bail};
 use crate::assets::INDEX_PATH;
 use crate::engine::Engine;
 use crate::files::{self, FileBackend};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// `assets/index.toml` as a map: every top-level key is an id, every value
 /// the project-relative path it names.
@@ -59,7 +61,7 @@ pub fn encode(index: &BTreeMap<String, String>) -> String {
 fn is_toml(path: &str) -> bool {
     Path::new(path)
         .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("toml"))
+        .is_some_and(|ext| ext.eq_ignore_ascii_case(words::modules::TOML))
         && !crate::import::is_sidecar(path)
 }
 
@@ -186,8 +188,8 @@ fn declared_id(relative: &str, bytes: &[u8]) -> Option<String> {
         return None;
     }
     let document: toml::Value = toml::from_str(std::str::from_utf8(bytes).ok()?).ok()?;
-    document.get("type")?;
-    document.get("id")?.as_str().map(str::to_string)
+    document.get(keys::TYPE)?;
+    document.get(keys::ID)?.as_str().map(str::to_string)
 }
 
 /// Write `id = "<id>"` at the top of an asset document, keeping the rest of
@@ -200,10 +202,10 @@ fn stamp_id(backend: &dyn FileBackend, absolute: &Path, bytes: &[u8], id: &str) 
     let Ok(mut document) = text.parse::<toml_edit::DocumentMut>() else {
         return Ok(());
     };
-    if !document.contains_key("type") || document.contains_key("id") {
+    if !document.contains_key(keys::TYPE) || document.contains_key(keys::ID) {
         return Ok(());
     }
-    document.insert("id", toml_edit::value(id));
+    document.insert(keys::ID, toml_edit::value(id));
     backend.write(absolute, document.to_string().as_bytes())
 }
 
@@ -500,7 +502,7 @@ fn toml_files(backend: &dyn FileBackend, root: &Path) -> Vec<String> {
         };
         for (name, is_dir) in backend.list(&full) {
             if name.starts_with('.')
-                || (dir.is_empty() && (name == "target" || name == crate::dependencies::DIR))
+                || (dir.is_empty() && (name == words::TARGET || name == crate::dependencies::DIR))
             {
                 continue;
             }

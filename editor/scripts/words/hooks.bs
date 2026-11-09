@@ -1,0 +1,4 @@
+// The hooks every script may define.
+
+internal const INIT: str = "init";
+internal const UPDATE: str = "update";

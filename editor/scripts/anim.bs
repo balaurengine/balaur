@@ -9,6 +9,19 @@ use history;
 use model;
 use signals;
 use util;
+use words::changes;
+use words::components;
+use words::fields;
+use words::inspector_fields;
+use words::log_fields;
+use words::panel_keys;
+use words::schema_fields;
+use words::tabs;
+
+const AUTOPLAY: str = "autoplay";
+const ROOT_NODE: str = "root_node";
+const SPEED_SCALE: str = "speed_scale";
+const TRACKS: str = "tracks";
 
 /// The animation timeline's own state, hung on `state.anim`.
 pub class AnimState {
@@ -115,8 +128,8 @@ pub fn clip_name(state: editor::State, found: Node) -> str {
     if animation_component == nil {
         return "";
     }
-    let name = animation_component["autoplay"];
-    if name.kind() == "str" { name.as_str() } else { "" }
+    let name = animation_component[AUTOPLAY];
+    if name.kind() == types::KIND_STRING { name.as_str() } else { "" }
 }
 
 /// Where the library lives, for display: a path, or nil when it is inline.
@@ -125,8 +138,8 @@ pub fn library_path(state: editor::State, found: Node) -> str? {
     if animation_component == nil {
         return nil;
     }
-    let library = animation_component["library"];
-    if library.kind() == "str" && library.as_str() != "" { library.as_str() } else { nil }
+    let library = animation_component[panel_keys::LIBRARY];
+    if library.kind() == types::KIND_STRING && library.as_str() != "" { library.as_str() } else { nil }
 }
 
 // The named entry inside a library document, by the engine's own rule: a
@@ -136,12 +149,12 @@ fn entry_of(doc: any, name: str) -> any {
         return doc;
     }
     let entry = doc[name];
-    if entry.kind() == "map" {
+    if entry.kind() == types::KIND_MAP {
         return entry;
     }
     for key in doc.keys() {
         let group = doc[key];
-        if group.kind() == "map" && group[name].kind() == "map" {
+        if group.kind() == types::KIND_MAP && group[name].kind() == types::KIND_MAP {
             return group[name];
         }
     }
@@ -149,11 +162,11 @@ fn entry_of(doc: any, name: str) -> any {
 }
 
 fn same(first: any, second: any) -> bool {
-    first.kind() == second.kind() && (first.kind() == "map" || first.kind() == "str") && first == second
+    first.kind() == second.kind() && (first.kind() == types::KIND_MAP || first.kind() == types::KIND_STRING) && first == second
 }
 
 fn library_of(animation_component: any) -> any {
-    let library = animation_component["library"];
+    let library = animation_component[panel_keys::LIBRARY];
     if library == nil { "" } else { library }
 }
 
@@ -172,7 +185,7 @@ pub fn document(state: &mut editor::State) -> any {
         return nil;
     }
     let library = library_of(animation_component);
-    if library.kind() == "map" {
+    if library.kind() == types::KIND_MAP {
         // The held table and not a copy from an earlier frame: what an edit
         // changes is what `arm` hands back.
         if state.clip != nil && state.clip.unwrap().index == owner.index && state.clip.unwrap().path == nil {
@@ -190,10 +203,10 @@ pub fn document(state: &mut editor::State) -> any {
             return cached.doc;
         }
     }
-    if library.kind() == "str" && library.as_str() != "" {
+    if library.kind() == types::KIND_STRING && library.as_str() != "" {
         let path = library.as_str();
         let loaded = assets::load(util::engine_path(state.game_root, path));
-        if loaded.kind() != "map" {
+        if loaded.kind() != types::KIND_MAP {
             log::warn("clip {path}: {loaded}");
             // Cached as a failure so the warning is printed once rather than
             // once a frame.
@@ -217,11 +230,11 @@ pub fn clip_names(state: &mut editor::State) -> [str] {
     }
     for key in doc.keys() {
         let group = doc[key];
-        if group.kind() != "map" {
+        if group.kind() != types::KIND_MAP {
             continue;
         }
         for name in group.keys() {
-            if group[name].kind() == "map" {
+            if group[name].kind() == types::KIND_MAP {
                 out.push(name);
             }
         }
@@ -236,38 +249,38 @@ pub fn definition(state: &mut editor::State) -> any {
 }
 
 pub fn tracks(clip_definition: any) -> any {
-    let tracks = clip_definition["tracks"];
-    if tracks.kind() == "list" { tracks } else { [] }
+    let tracks = clip_definition[TRACKS];
+    if tracks.kind() == types::KIND_LIST { tracks } else { [] }
 }
 
 /// A lane's name: the property, prefixed by the node it drives when that is
 /// not the player itself.
 pub fn track_label(track: any) -> str {
-    let property = if track["property"] == nil { "call" } else { track["property"].as_str() };
-    let target = track["target"].as_str();
+    let property = if track[inspector_fields::PROPERTY] == nil { "call" } else { track[inspector_fields::PROPERTY].as_str() };
+    let target = track[inspector_fields::TARGET].as_str();
     if target == "" { property } else { "{target} · {property}" }
 }
 
 pub fn length(clip_definition: any) -> float {
-    let held = clip_definition["length"];
+    let held = clip_definition[fields::LENGTH];
     util::max(if held == nil { 2.0 } else { held.as_float() }, 0.001)
 }
 
 pub fn key_count(clip_definition: any) -> int {
     let count = 0;
     for track in tracks(clip_definition) {
-        count += util::list_or_empty(track["keys"]).len();
+        count += util::list_or_empty(track[fields::KEYS]).len();
     }
     count
 }
 
 fn component_parameters(animation_component: any, library: any) -> any {
-    let speed = animation_component["speed_scale"];
+    let speed = animation_component[SPEED_SCALE];
     {
-        "library": library,
-        "autoplay": animation_component["autoplay"].as_str(),
-        "speed_scale": if speed == nil { 1.0 } else { speed.as_float() },
-        "root_node": animation_component["root_node"].as_str(),
+        panel_keys::LIBRARY: library,
+        AUTOPLAY: animation_component[AUTOPLAY].as_str(),
+        SPEED_SCALE: if speed == nil { 1.0 } else { speed.as_float() },
+        ROOT_NODE: animation_component[ROOT_NODE].as_str(),
     }
 }
 
@@ -289,10 +302,10 @@ pub fn arm(state: &mut editor::State) {
         return;
     }
     let library = library_of(animation_component);
-    if library.kind() == "str" && library.as_str() != "" {
+    if library.kind() == types::KIND_STRING && library.as_str() != "" {
         library = util::engine_path(state.game_root, library.as_str());
     }
-    owner.found.set_component("animation", component_parameters(animation_component, library));
+    owner.found.set_component(tabs::ANIMATION, component_parameters(animation_component, library));
     let clip_definition = definition(state);
     if clip_definition == nil {
         return;
@@ -318,7 +331,7 @@ pub fn touch(state: &mut editor::State) {
         clip.dirty = true;
     }
     arm(state);
-    signals::changed(state, "timeline");
+    signals::changed(state, changes::TIMELINE);
 }
 
 /// Create an inline clip on the player, named after it. With no player above
@@ -333,14 +346,14 @@ pub fn ensure_clip(state: &mut editor::State) -> any {
     }
     history::record(state, "create clip");
     let name = found.name().to_lower();
-    let clips: any = { name: { "length": 2.0, "loop_mode": animation::LOOP_LINEAR } };
-    let library: any = { "type": CLIP_TYPE, GROUP: clips };
-    found.set_component(COMPONENT, { "library": library, "autoplay": name, "speed_scale": 1.0, "root_node": "" });
+    let clips: any = { name: { fields::LENGTH: 2.0, schema_fields::LOOP_MODE: animation::LOOP_LINEAR } };
+    let library: any = { fields::TYPE: CLIP_TYPE, GROUP: clips };
+    found.set_component(COMPONENT, { panel_keys::LIBRARY: library, AUTOPLAY: name, SPEED_SCALE: 1.0, ROOT_NODE: "" });
     // The node carries the component now, which the frame's held read did not.
     model::drop_edited(state);
     state.clip = nil;
     signals::inspector(state);
-    signals::changed(state, "timeline");
+    signals::changed(state, changes::TIMELINE);
     arm(state);
     log::info("created clip '{name}' on {found.name()}");
     definition(state)
@@ -348,29 +361,29 @@ pub fn ensure_clip(state: &mut editor::State) -> any {
 
 fn track_for(clip_definition: any, property: str, target: str) -> any {
     for track in tracks(clip_definition) {
-        if track["target"].as_str() == target && track["property"].as_str() == property {
+        if track[inspector_fields::TARGET].as_str() == target && track[inspector_fields::PROPERTY].as_str() == property {
             return track;
         }
     }
-    let track: any = { "property": property, "interpolation": animation::INTERPOLATION_LINEAR, "keys": [] };
+    let track: any = { inspector_fields::PROPERTY: property, "interpolation": animation::INTERPOLATION_LINEAR, fields::KEYS: [] };
     if target != "" {
-        track["target"] = target;
+        track[inspector_fields::TARGET] = target;
     }
-    if clip_definition["tracks"].kind() != "list" {
-        clip_definition["tracks"] = [];
+    if clip_definition[TRACKS].kind() != types::KIND_LIST {
+        clip_definition[TRACKS] = [];
     }
-    clip_definition["tracks"].push(track);
+    clip_definition[TRACKS].push(track);
     track
 }
 
 fn put_key(track: any, time: float, value: any) {
-    let key: any = { "time": time, "value": value };
-    let keys = util::list_or_empty(track["keys"]);
+    let key: any = { log_fields::TIME: time, fields::VALUE: value };
+    let keys = util::list_or_empty(track[fields::KEYS]);
     let out: [any] = [];
     let placed = false;
     for index in 0..keys.len() {
         let old = keys[index];
-        let key_time = old["time"].as_float();
+        let key_time = old[log_fields::TIME].as_float();
         if !placed && util::abs(key_time - time) < SAME_TIME {
             out.push(key);
             placed = true;
@@ -385,7 +398,7 @@ fn put_key(track: any, time: float, value: any) {
     if !placed {
         out.push(key);
     }
-    track["keys"] = out;
+    track[fields::KEYS] = out;
 }
 
 /// Insert (or replace) a key at `time` from the selection's current transform,
@@ -405,11 +418,11 @@ pub fn add_key(state: &mut editor::State, time: float) {
     history::record(state, "insert keyframe");
     let target = target_path(state, player_node_index);
     put_key(track_for(clip_definition, animation::PROPERTY_ROTATION_EULER, target), time, util::xyz(found.transform.rotation_euler));
-    if !found.has_component("bone2d") && !found.has_component("bone3d") {
+    if !found.has_component(components::BONE2D) && !found.has_component(components::BONE3D) {
         put_key(track_for(clip_definition, animation::PROPERTY_POSITION, target), time, util::xyz(found.transform.position));
     }
     if time > length(clip_definition) {
-        clip_definition["length"] = time;
+        clip_definition[fields::LENGTH] = time;
     }
     touch(state);
     log::info("key at {seconds(time)}s ({key_count(clip_definition)} keys)");
@@ -452,12 +465,12 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
     let kept: [any] = [];
     for track in tracks(clip_definition) {
         let keys: [any] = [];
-        for key in util::list_or_empty(track["keys"]) {
-            if track["target"].as_str() != target || util::abs(key["time"].as_float() - time) >= 0.05 {
+        for key in util::list_or_empty(track[fields::KEYS]) {
+            if track[inspector_fields::TARGET].as_str() != target || util::abs(key[log_fields::TIME].as_float() - time) >= 0.05 {
                 keys.push(key);
             }
         }
-        track["keys"] = keys;
+        track[fields::KEYS] = keys;
         // A track with no keys is not a track: the engine rejects one, so
         // the editor never writes one.
         if keys.len() > 0 {
@@ -465,9 +478,9 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
         }
     }
     if kept.len() > 0 {
-        clip_definition["tracks"] = kept;
+        clip_definition[TRACKS] = kept;
     } else {
-        clip_definition.remove("tracks");
+        clip_definition.remove(TRACKS);
     }
     touch(state);
 }
@@ -475,7 +488,7 @@ pub fn delete_key_at(state: &mut editor::State, time: float) {
 /// Move the playhead. The engine poses the node; the editor samples nothing.
 pub fn seek(state: &mut editor::State, time: float) {
     state.anim.time = time;
-    signals::changed(state, "timeline");
+    signals::changed(state, changes::TIMELINE);
     let owner = player(state);
     if owner.found.is_valid() && component(state, owner.found) != nil {
         owner.found.animation.seek(time);
@@ -491,15 +504,15 @@ pub fn promote(state: &mut editor::State) {
         return;
     }
     history::record(state, "save clip as file");
-    if library_of(animation_component).kind() != "map" {
+    if library_of(animation_component).kind() != types::KIND_MAP {
         log::warn("this clip is already a file");
         return;
     }
     let rel = "animations/" + owner.found.name().to_lower() + ".toml";
-    doc["type"] = CLIP_TYPE;
+    doc[fields::TYPE] = CLIP_TYPE;
     fs::write(util::engine_path(state.game_root, rel), toml::encode(doc));
     assets::reload(util::engine_path(state.game_root, rel));
-    animation_component["library"] = rel;
+    animation_component[panel_keys::LIBRARY] = rel;
     state.clip = nil;
     signals::inspector(state);
     arm(state);
@@ -517,7 +530,7 @@ pub fn make_inline(state: &mut editor::State) {
     }
     history::record(state, "embed clip");
     let copy = assets::duplicate(util::engine_path(state.game_root, rel.unwrap()));
-    if copy.kind() != "map" {
+    if copy.kind() != types::KIND_MAP {
         log::warn("cannot embed {rel.unwrap()}: {copy}");
         return;
     }
@@ -527,10 +540,10 @@ pub fn make_inline(state: &mut editor::State) {
     let parts = rel.unwrap().split_once("#");
     if parts.len() == 2 {
         copy = { GROUP: { parts[1]: copy } };
-        animation_component["autoplay"] = parts[1];
+        animation_component[AUTOPLAY] = parts[1];
     }
-    copy["type"] = CLIP_TYPE;
-    animation_component["library"] = copy;
+    copy[fields::TYPE] = CLIP_TYPE;
+    animation_component[panel_keys::LIBRARY] = copy;
     state.clip = nil;
     signals::inspector(state);
     arm(state);
@@ -583,7 +596,7 @@ pub fn update(state: &mut editor::State) {
         save(state);
         state.clip = nil;
         signals::inspector(state);
-        signals::changed(state, "timeline");
+        signals::changed(state, changes::TIMELINE);
         arm(state);
     }
 }

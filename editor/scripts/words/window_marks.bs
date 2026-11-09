@@ -1,0 +1,4 @@
+// The marks on a window's title bar.
+
+internal const COLLAPSE: str = "collapse";
+internal const RESTORE: str = "restore";

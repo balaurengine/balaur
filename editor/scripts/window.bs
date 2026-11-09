@@ -16,6 +16,15 @@ use shell;
 use signals;
 use themewin;
 use util;
+use words::fields;
+use words::form_fields;
+use words::layout_fields;
+use words::roles;
+use words::verbs;
+
+const MANAGER_NEW: str = "manager-new";
+const OPEN: str = "open";
+const WIDGET_WINDOW: str = "widget_window";
 
 pub struct Size {
     width: float,
@@ -96,24 +105,24 @@ pub fn showing(state: editor::State, id: str) -> bool {
 
 /// What the screen up shows moved: the word its sheet fills on.
 pub fn changed(state: &mut editor::State) {
-    signals::changed(state, "sheet");
+    signals::changed(state, roles::SHEET);
 }
 
 const SHEET: str = "Editor/Sheet";
 
 /// Fill whichever screen is up: what the sheet's script asks for.
 pub fn fill(state: &mut editor::State) {
-    if state.window.open == "settings" {
+    if state.window.open == verbs::SETTINGS {
         settings::fill(state);
-    } else if state.window.open == "theme" {
+    } else if state.window.open == verbs::THEME {
         themewin::fill(state);
-    } else if state.window.open == "export" {
+    } else if state.window.open == verbs::EXPORT {
         exporter::fill(state);
-    } else if state.window.open == "about" {
+    } else if state.window.open == verbs::ABOUT {
         about::fill(state);
-    } else if state.window.open == "populate" {
+    } else if state.window.open == verbs::POPULATE {
         populate::fill(state);
-    } else if state.window.open == "manager-new" {
+    } else if state.window.open == MANAGER_NEW {
         manager::new_fill(state);
     } else if state.window.open == disk::SHEET {
         disk::fill(state);
@@ -123,7 +132,7 @@ pub fn fill(state: &mut editor::State) {
 /// The sheet shut itself, on Escape or a click on the dim: the screen that
 /// was up is not any more.
 pub fn closed(state: &mut editor::State) {
-    if state.window.open != "" && util::property(SHEET, "widget_window", "open").as_bool() == false {
+    if state.window.open != "" && util::property(SHEET, WIDGET_WINDOW, OPEN).as_bool() == false {
         state.window.open = "";
     }
 }
@@ -131,18 +140,18 @@ pub fn closed(state: &mut editor::State) {
 /// The bar across a sheet: its name, the verbs it carries, and the close.
 fn bar_controls(state: editor::State, title: str, actions: [ui::Control]) -> [ui::Control] {
     let out: [ui::Control] = [
-        ui::Control { kind: "label", role: "text_title_dialog", text: title },
-        ui::Control { kind: "row", grow: 1 },
+        ui::Control { kind: ui::WIDGET_LABEL, role: "text_title_dialog", text: title },
+        ui::Control { kind: ui::WIDGET_ROW, grow: 1 },
     ];
     for one in actions {
         out.push(one);
     }
     out.push(ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         role: "icon_action_dialog",
         text: "Close",
         on_click: "handle",
-        data: { "fn": on_close_clicked },
+        data: { fields::FN: on_close_clicked },
     });
     out
 }
@@ -211,31 +220,31 @@ pub fn picker(state: &mut editor::State, options: any) -> str {
     let screen = ui::window_size();
     // One width, taken from the screen: a phone is narrower than what a
     // laptop gets, and every column inside is measured off what is left.
-    let width = util::min(options["width"].as_float(), util::max(screen.x - 32.0, 240.0));
+    let width = util::min(options[layout_fields::WIDTH].as_float(), util::max(screen.x - 32.0, 240.0));
     let filled = scene::get_node(PICKER);
     if filled.is_valid() {
         filled.widget_window.open = true;
         filled.widget.width = width;
     }
     let field: ui::Control = ui::Control {
-        kind: "text_field",
+        kind: ui::WIDGET_TEXT_FIELD,
         role: "input_picker",
-        text: options["query"].as_str(),
+        text: options[form_fields::QUERY].as_str(),
         grow: 1,
-        placeholder: options["placeholder"],
-        on_change: options["on_change"],
-        on_submit: options["on_submit"],
-        data: options["data"],
+        placeholder: options[form_fields::PLACEHOLDER],
+        on_change: options[form_fields::ON_CHANGE],
+        on_submit: options[form_fields::ON_SUBMIT],
+        data: options[fields::DATA],
     };
     ui::fill_strip(PICKER + "/PickerHead", [
-        ui::Control { kind: "label", role: "text_mark_picker", text: options["mark"].as_str() },
+        ui::Control { kind: ui::WIDGET_LABEL, role: "text_mark_picker", text: options[fields::MARK].as_str() },
         field,
-        ui::Control { kind: "label", role: "chip", text: "esc" },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::CHIP, text: "esc" },
     ]);
     let filled = scene::get_node(PICKER + "/PickerScroll");
     if filled.is_valid() {
         filled.set_visible(true);
-        filled.widget.height = util::min(util::max(screen.y * 0.5, 160.0), options["rows_h"].as_float());
+        filled.widget.height = util::min(util::max(screen.y * 0.5, 160.0), options[form_fields::ROWS_H].as_float());
     }
     // The field takes the caret the frame the picker opens, and keeps it: a
     // search box you have to click into is one you may as well not have.
@@ -269,7 +278,7 @@ pub fn picker_fill(state: &mut editor::State) {
 
 /// The picker shut itself, on Escape or a click on the dim.
 pub fn picker_closed(state: &mut editor::State) {
-    if util::property(PICKER, "widget_window", "open").as_bool() != false {
+    if util::property(PICKER, WIDGET_WINDOW, OPEN).as_bool() != false {
         return;
     }
     if state.palette {
