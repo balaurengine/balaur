@@ -10,6 +10,10 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+/// Numbers this process's writes of kept units, so no two share a temporary.
+static UNIT_WRITES: AtomicU32 = AtomicU32::new(0);
 
 /// What a unit is built with, past what it says: the build each file's unit is
 /// kept under, so turning a debugger or a profiler off costs nothing.
@@ -171,7 +175,7 @@ impl BsHost {
                 return None;
             }
         }
-        Compiled::from_bytes(&bytes[text.len() + 1..])
+        Compiled::from_bytes(bytes.get(text.len() + 1..)?)
     }
 
     fn keep_unit(&self, key: &str, source: &str, build: Build, unit: &Compiled) {
@@ -188,7 +192,10 @@ impl BsHost {
         let mut bytes = text.into_bytes();
         bytes.push(0);
         bytes.extend(unit.to_bytes());
-        let partial = path.with_extension("partial");
+        // Processes sharing a data folder build the same unit at once: one
+        // renaming a temporary another is truncating would keep an empty file.
+        let write = UNIT_WRITES.fetch_add(1, Ordering::Relaxed);
+        let partial = path.with_extension(format!("{}-{write}.partial", std::process::id()));
         let kept = path
             .parent()
             .map_or(Ok(()), std::fs::create_dir_all)

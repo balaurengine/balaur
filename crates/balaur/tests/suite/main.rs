@@ -8,6 +8,7 @@ mod app_events;
 mod bs;
 mod bs_host;
 mod bs_types;
+mod bs_units;
 mod chapter;
 mod components;
 mod dap;
