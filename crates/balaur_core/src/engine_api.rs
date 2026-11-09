@@ -120,17 +120,17 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: environment,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "reload_scripts",
             call: crate::file_api::reload_scripts,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "watch",
             call: crate::file_api::engine_watch,
         },
         EngineOp {
-            module: "engine",
+            module: words::modules::ENGINE,
             name: "user_data_directory",
             call: user_data_dir,
         },

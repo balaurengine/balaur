@@ -12,9 +12,10 @@ use shell;
 use signals;
 use util;
 use window;
+use words::project_fields;
+use words::roles;
 
 internal const SHEET: str = "disk_changed";
-const RELOAD: str = "reload";
 const SCRIPT: str = ".bs";
 const SHADER: str = ".wesl";
 const LABEL_WIDTH: float = 0.0;
@@ -97,7 +98,7 @@ pub fn heard(state: &mut editor::State, paths: any) {
     }
     // The host reloads what changed by itself, and a recording cannot span that.
     if script {
-        session::end(state, RELOAD);
+        session::end(state, shell::RELOAD);
     }
     take_files(state, taken);
     signals::bars(state);
@@ -203,32 +204,32 @@ fn rows(state: editor::State) -> [ui::Row] {
         out.push(file_row(state, held[at]));
     }
     if held.len() > LISTED {
-        out.push(row([ui::Control { kind: "label", role: "text_caption", text: "+{held.len() - LISTED}" }]));
+        out.push(row([ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "+{held.len() - LISTED}" }]));
     }
     out
 }
 
 fn file_row(state: editor::State, path: str) -> ui::Row {
     let name = relative(state, path) + (if fs::exists(path) { "" } else { " (deleted)" });
-    let about: any = { "path": path };
+    let about: any = { project_fields::PATH: path };
     row([
-        ui::Control { kind: "label", role: "text_caption", grow: 1, text: name },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: name },
         chip("Reload", reload_one, about),
         chip("Keep", keep_one, about),
     ])
 }
 
 fn row(controls: [ui::Control]) -> ui::Row {
-    ui::Row { height: 28, slot_role: "layout_actions", controls: controls }
+    ui::Row { height: 28, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn chip(text: str, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
-    pool::on(ui::Control { kind: "button", role: "chip", text: text }, handler, data)
+    pool::on(ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: text }, handler, data)
 }
 
 /// Reload: what was typed since the file last agreed is dropped.
 pub fn reload_one(state: &mut editor::State, data: any, _value: any) {
-    take_files(state, [data["path"].as_str()]);
+    take_files(state, [data[project_fields::PATH].as_str()]);
     answered(state);
 }
 
@@ -239,7 +240,7 @@ pub fn reload_all(state: &mut editor::State, _data: any, _value: any) {
 
 /// Keep: the file is written over.
 pub fn keep_one(state: &mut editor::State, data: any, _value: any) {
-    keep(state, [data["path"].as_str()]);
+    keep(state, [data[project_fields::PATH].as_str()]);
 }
 
 pub fn keep_all(state: &mut editor::State, _data: any, _value: any) {

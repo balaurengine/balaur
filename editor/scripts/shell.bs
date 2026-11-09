@@ -817,7 +817,7 @@ pub fn save_buffers(state: &mut editor::State, paths: [str]) {
         // A recording cannot survive its own code changing: the frames after
         // a reload came from a different game. The session ends here, and
         // what it caught until now is kept.
-        session::end(state, "reload");
+        session::end(state, RELOAD);
         // The reload is also the compile: it builds the units whether or not
         // the scripts are live, and leaves the old ones running on a failure,
         // so a save that does not compile can say so.

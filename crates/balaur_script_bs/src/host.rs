@@ -182,7 +182,8 @@ struct Inner {
     /// Each `path` dependency's folder as the watcher reports paths under
     /// it, with the `deps/<alias>` its scripts are keyed under.
     watch_mounts: Vec<(PathBuf, String)>,
-    /// Each folder `watch` added.
+    /// Each folder `watch` added, as the watcher reports paths under it,
+    /// with the key its files are called by.
     watch_asides: RefCell<Vec<burst::Aside>>,
     /// What the watcher has heard and nothing has acted on yet.
     burst: RefCell<burst::Burst>,

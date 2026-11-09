@@ -55,6 +55,7 @@ use util;
 use viewport;
 use weights;
 use window;
+use words::project_fields;
 
 pub struct WritableFloat {
     component: str,
@@ -418,7 +419,7 @@ pub fn disk_changed(state: &mut editor::State) {
 }
 
 fn disk_about(path: str) -> any {
-    { "path": path }
+    { project_fields::PATH: path }
 }
 
 /// `--state disk_changed`: the sheet up, for a picture of it.
