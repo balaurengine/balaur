@@ -2,6 +2,7 @@
 // when one is made, kept or dropped, and answers the verify switch.
 
 use editor;
+use signals;
 
 pub class Recordings {
     node: Node,
@@ -12,8 +13,8 @@ impl Recordings {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
-        events::listen(self.node, "recordings_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
+        events::listen(self.node, signals::RECORDINGS, source);
     }
 
     pub fn on_recordings_changed(_change: any) {

@@ -10,6 +10,7 @@ mod debug;
 mod language;
 mod tools;
 mod value;
+mod vocabulary;
 
 pub use bindings::{BoundFn, Call, Declared, Entry, FnDoc, Module, RecordDoc, TypedFn};
 pub use debug::{Frame, Pause, PauseReason, StepMode};

@@ -14,6 +14,7 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use crate::vocabulary::words;
 use anyhow::{Context, Result, bail};
 
 /// Images this reads and writes. A format the engine samples but this cannot
@@ -156,7 +157,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, fonts: &mut Vec<PathBuf>) {
             walk(&path, out, fonts);
         } else if IMAGES.contains(&extension.as_str()) {
             out.push(path);
-        } else if extension == "fnt" {
+        } else if extension == words::FNT {
             fonts.push(path);
         }
     }

@@ -1,0 +1,10 @@
+// What a job, a recording or a version check reports.
+
+internal const DONE: str = "done";
+internal const ERROR: str = "error";
+internal const FAILED: str = "failed";
+internal const LISTED: str = "listed";
+internal const NEWER: str = "newer";
+internal const SAME: str = "same";
+internal const STARTED: str = "started";
+internal const STOP: str = "stop";

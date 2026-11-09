@@ -1,0 +1,16 @@
+// The tabs and pages a dock or a window opens.
+
+internal const ANIMATION: str = "animation";
+internal const EVENTS: str = "events";
+internal const FORGE: str = "forge";
+internal const IMPORT: str = "import";
+internal const INSPECTOR: str = "inspector";
+internal const OUTLINE: str = "outline";
+internal const PHYSICS: str = "physics";
+internal const PROBLEMS: str = "problems";
+internal const PROFILER: str = "profiler";
+internal const RECORDINGS: str = "recordings";
+internal const SCENE: str = "scene";
+internal const SCRIPT: str = "script";
+internal const UI: str = "ui";
+internal const WEIGHTS: str = "weights";

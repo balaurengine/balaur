@@ -16,6 +16,7 @@ pub(crate) use read::{Opts, boolean, f, map, text};
 /// The closed sets of words a scene file, a script table and the inspector all
 /// spell. Written once here so a matcher, a schema's `options` list and the
 /// read-back cannot disagree about what a word is.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod words {
     pub(crate) use super::soft::words::*;
 
@@ -152,10 +153,103 @@ pub(crate) mod words {
     pub(crate) const OUT_OF_ITERATIONS: &str = "out_of_iterations";
     pub(crate) const FAILED: &str = "failed";
     pub(crate) const PENETRATING: &str = "penetrating";
+
+    pub(crate) mod functions {
+        pub(crate) const ACTIVE_BODIES: &str = "active_bodies";
+        pub(crate) const ADD_CONSTANT_FORCE: &str = "add_constant_force";
+        pub(crate) const ADD_CONSTANT_FORCE_AT_POINT: &str = "add_constant_force_at_point";
+        pub(crate) const ADD_CONSTANT_TORQUE: &str = "add_constant_torque";
+        pub(crate) const ANGULAR_VELOCITY: &str = "angular_velocity";
+        pub(crate) const APPLY_FORCE: &str = "apply_force";
+        pub(crate) const APPLY_FORCE_AT_POINT: &str = "apply_force_at_point";
+        pub(crate) const APPLY_IMPULSE: &str = "apply_impulse";
+        pub(crate) const APPLY_IMPULSE_AT_POINT: &str = "apply_impulse_at_point";
+        pub(crate) const APPLY_TORQUE: &str = "apply_torque";
+        pub(crate) const APPLY_TORQUE_IMPULSE: &str = "apply_torque_impulse";
+        pub(crate) const BODIES: &str = "bodies";
+        pub(crate) const BROAD_PHASE_AABB: &str = "broad_phase_aabb";
+        pub(crate) const CLOSEST_POINT: &str = "closest_point";
+        pub(crate) const CLOSEST_POINTS: &str = "closest_points";
+        pub(crate) const COLLIDER_MASS: &str = "collider_mass";
+        pub(crate) const COLLIDER_MASS_PROPERTIES: &str = "collider_mass_properties";
+        pub(crate) const COLLIDER_MESH: &str = "collider_mesh";
+        pub(crate) const COLLIDER_VOLUME: &str = "collider_volume";
+        pub(crate) const COLLISION_AABB: &str = "collision_aabb";
+        pub(crate) const COMBINE_VOXELS: &str = "combine_voxels";
+        pub(crate) const CONSTANT_FORCE: &str = "constant_force";
+        pub(crate) const CONSTANT_TORQUE: &str = "constant_torque";
+        pub(crate) const CROP_VOXELS: &str = "crop_voxels";
+        pub(crate) const DISTANCE: &str = "distance";
+        pub(crate) const EFFECTIVE_ANGULAR_INERTIA: &str = "effective_angular_inertia";
+        pub(crate) const EFFECTIVE_DOMINANCE: &str = "effective_dominance";
+        pub(crate) const EFFECTIVE_MASS: &str = "effective_mass";
+        pub(crate) const GRAVITY: &str = "gravity";
+        pub(crate) const HANDLES: &str = "handles";
+        pub(crate) const HEIGHTFIELD_HOLE: &str = "heightfield_hole";
+        pub(crate) const INTERSECTS: &str = "intersects";
+        pub(crate) const IS_CCD_ACTIVE: &str = "is_ccd_active";
+        pub(crate) const IS_MOVING: &str = "is_moving";
+        pub(crate) const IS_ON_FLOOR: &str = "is_on_floor";
+        pub(crate) const IS_SLEEPING: &str = "is_sleeping";
+        pub(crate) const JOINT_FORCE: &str = "joint_force";
+        pub(crate) const JOINT_STATE: &str = "joint_state";
+        pub(crate) const KINETIC_ENERGY: &str = "kinetic_energy";
+        pub(crate) const LINEAR_VELOCITY: &str = "linear_velocity";
+        pub(crate) const LOCAL_CENTER_OF_MASS: &str = "local_center_of_mass";
+        pub(crate) const MAX_CONTACT_IMPULSE: &str = "max_contact_impulse";
+        pub(crate) const MOVE_CHARACTER: &str = "move_character";
+        pub(crate) const NEXT_POSITION: &str = "next_position";
+        pub(crate) const OVERLAP_AABB: &str = "overlap_aabb";
+        pub(crate) const OVERLAP_POINT: &str = "overlap_point";
+        pub(crate) const OVERLAP_SHAPE: &str = "overlap_shape";
+        pub(crate) const OVERLAPS: &str = "overlaps";
+        pub(crate) const POSE_IN_BODY: &str = "pose_in_body";
+        pub(crate) const POTENTIAL_ENERGY: &str = "potential_energy";
+        pub(crate) const PREDICT_POSITION: &str = "predict_position";
+        pub(crate) const PREDICT_POSITION_WITH_FORCES: &str = "predict_position_with_forces";
+        pub(crate) const RAGDOLL: &str = "ragdoll";
+        pub(crate) const RAYCAST: &str = "raycast";
+        pub(crate) const RAYCAST_ALL: &str = "raycast_all";
+        pub(crate) const REMOVE_JOINT: &str = "remove_joint";
+        pub(crate) const RESET_FOLLOW: &str = "reset_follow";
+        pub(crate) const SET_ANGULAR_VELOCITY: &str = "set_angular_velocity";
+        pub(crate) const SET_CONSTANT_FORCE: &str = "set_constant_force";
+        pub(crate) const SET_CONSTANT_TORQUE: &str = "set_constant_torque";
+        pub(crate) const SET_GRAVITY: &str = "set_gravity";
+        pub(crate) const SET_HEIGHTFIELD_HOLE: &str = "set_heightfield_hole";
+        pub(crate) const SET_JOINT_LIMITS: &str = "set_joint_limits";
+        pub(crate) const SET_LINEAR_VELOCITY: &str = "set_linear_velocity";
+        pub(crate) const SET_MOTOR_POSITION: &str = "set_motor_position";
+        pub(crate) const SET_MOTOR_VELOCITY: &str = "set_motor_velocity";
+        pub(crate) const SET_VOXEL: &str = "set_voxel";
+        pub(crate) const SET_VOXEL_SIZE: &str = "set_voxel_size";
+        pub(crate) const SHAPECAST: &str = "shapecast";
+        pub(crate) const SLEEP: &str = "sleep";
+        pub(crate) const SOFTBODY_CENTER: &str = "softbody_center";
+        pub(crate) const SOLVE_IK: &str = "solve_ik";
+        pub(crate) const SWEPT_AABB: &str = "swept_aabb";
+        pub(crate) const TELEPORT: &str = "teleport";
+        pub(crate) const TIME_OF_IMPACT: &str = "time_of_impact";
+        pub(crate) const TIME_SINCE_CAN_SLEEP: &str = "time_since_can_sleep";
+        pub(crate) const TOTAL_INERTIA: &str = "total_inertia";
+        pub(crate) const TOTAL_MASS: &str = "total_mass";
+        pub(crate) const VELOCITY_AT_POINT: &str = "velocity_at_point";
+        pub(crate) const VOXEL: &str = "voxel";
+        pub(crate) const VOXEL_AT: &str = "voxel_at";
+        pub(crate) const VOXEL_SIZE: &str = "voxel_size";
+        pub(crate) const WAKE_ALL: &str = "wake_all";
+        pub(crate) const WAKE_UP: &str = "wake_up";
+        pub(crate) const WORLD_CENTER_OF_MASS: &str = "world_center_of_mass";
+    }
+
+    pub(crate) mod general {
+        pub(crate) const PHYSICS: &str = "physics";
+    }
 }
 
 /// Every property, options-table and result key the physics components and
 /// calls spell, so a schema line and the reader behind it name the same key.
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
 pub(crate) mod keys {
     pub(crate) use super::soft::keys::*;
 

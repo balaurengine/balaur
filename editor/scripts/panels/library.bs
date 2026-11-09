@@ -2,6 +2,13 @@
 // the templates from what the Editor hands it, and answers a pick of either.
 
 use editor;
+use signals;
+
+const FORGE: str = "forge";
+const MATERIAL: str = "material";
+const MODEL: str = "model";
+const SCENE: str = "scene";
+const SKY: str = "sky";
 
 pub class Library {
     node: Node,
@@ -9,16 +16,16 @@ pub class Library {
 }
 
 fn KINDS() -> [str] {
-    ["material", "sky", "model", "scene", "rig", "addon", "template", "deps", "forge"]
+    [MATERIAL, SKY, MODEL, SCENE, "rig", "addon", "template", "deps", FORGE]
 }
 
 impl Library {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
         events::listen(self.node, "library_changed", source);
-        events::listen(self.node, "outline_changed", source);
+        events::listen(self.node, signals::OUTLINE, source);
     }
 
     pub fn on_library_changed(_change: any) {

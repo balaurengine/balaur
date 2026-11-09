@@ -8,6 +8,15 @@ use balaur_script::{Module, Value};
 
 use crate::GamendState;
 use crate::client::Session;
+use crate::vocabulary::words;
+
+const ACTIVITY: &str = "activity";
+const CLEAR_ACTIVITY: &str = "clear_activity";
+const CONNECTION: &str = "connection";
+const RESTORE: &str = "restore";
+const RUN_ID: &str = "run_id";
+const SERVER: &str = "server";
+const SESSION: &str = "session";
 
 pub(crate) fn install(m: &mut Module<Engine>) {
     m.records(&[
@@ -38,22 +47,22 @@ pub(crate) fn install(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("activity", &[], "() -> [Entry]", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
-        ("connection", &[], "() -> Connection", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
-        ("session", &[], "() -> Session?", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
-        ("restore", &[], "(session: Session?) -> bool", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
-        ("reply", &[], "(request: int) -> any", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
-        ("clear_activity", &[], "()", "Forget the calls and messages `activity` holds."),
-        ("server", &[], "() -> Server", "The server this run talks to until a script names another: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
-        ("run_id", &[], "() -> string", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
+        (ACTIVITY, &[], "() -> [Entry]", "The last calls and socket messages, newest first, as `{ seq, request, kind, what, status, ms, args, reply }`, `seq` counting every row ever kept; `ms` is nil while a call waits, and only the newest fifty keep `args` and `reply`. An observer: never simulate from it."),
+        (CONNECTION, &[], "() -> Connection", "The configured `url`, who is signed in (`user_id`, `username`), and each socket as `{ socket, open, topics, reason }`."),
+        (SESSION, &[], "() -> Session?", "The signed-in session as `{ user_id, username, display_name, access_token, refresh_token, expires_in, expires_at }`, `expires_at` read from the token itself; nil when nobody is signed in."),
+        (RESTORE, &[], "(session: Session?) -> bool", "Sign in from a session a previous run kept, as `session` answers it, without asking the server; nil signs out here. False when there is no server to sign in to, or the map carries no `access_token`."),
+        (words::functions::REPLY, &[], "(request: int) -> any", "What a call answered, as its event map, once it has; nil while it waits. The newest sixty-four are kept, so a drawing loop can issue a call and read it back on a later frame."),
+        (CLEAR_ACTIVITY, &[], "()", "Forget the calls and messages `activity` holds."),
+        (SERVER, &[], "() -> Server", "The server this run talks to until a script names another: `{ name, url, production, local, plugin }` from `[gamend]`, `name` being `production` or `local`."),
+        (RUN_ID, &[], "() -> string", "This run's id: every call sends it as `x-gamend-session` and the socket as `client_session`, so the server files a run's lines together. The log shipper names its run with it."),
     ]);
-    m.function("activity", |eng: &Engine, (): ()| {
+    m.function(ACTIVITY, |eng: &Engine, (): ()| {
         Ok(eng.resource::<GamendState>().borrow().activity.entries())
     });
-    m.function("connection", |eng: &Engine, (): ()| {
+    m.function(CONNECTION, |eng: &Engine, (): ()| {
         Ok(eng.resource::<GamendState>().borrow().activity.connection())
     });
-    m.function("session", |eng: &Engine, (): ()| {
+    m.function(SESSION, |eng: &Engine, (): ()| {
         let state = eng.resource::<GamendState>();
         let session = state
             .borrow()
@@ -62,23 +71,21 @@ pub(crate) fn install(m: &mut Module<Engine>) {
             .and_then(crate::backend::SharedClient::session);
         Ok(session.as_ref().map_or(Value::Nil, session_value))
     });
-    m.function("restore", |eng: &Engine, session: Option<Value>| {
+    m.function(RESTORE, |eng: &Engine, session: Option<Value>| {
         Ok(Value::Bool(restore(eng, session.as_ref())))
     });
-    m.function("reply", |eng: &Engine, request: i64| {
+    m.function(words::functions::REPLY, |eng: &Engine, request: i64| {
         let reply = u64::try_from(request)
             .ok()
             .and_then(|id| eng.resource::<GamendState>().borrow().activity.reply(id));
         Ok(reply.unwrap_or(Value::Nil))
     });
-    m.function("clear_activity", |eng: &Engine, (): ()| {
+    m.function(CLEAR_ACTIVITY, |eng: &Engine, (): ()| {
         eng.resource::<GamendState>().borrow_mut().activity.clear();
         Ok(Value::Nil)
     });
-    m.function("server", |eng: &Engine, (): ()| {
-        Ok(crate::target::value(eng))
-    });
-    m.function("run_id", |_: &Engine, (): ()| {
+    m.function(SERVER, |eng: &Engine, (): ()| Ok(crate::target::value(eng)));
+    m.function(RUN_ID, |_: &Engine, (): ()| {
         Ok(Value::Str(crate::client::run_id().to_string()))
     });
 }
@@ -119,13 +126,13 @@ fn text_of(value: &Value, key: &str) -> Option<String> {
 }
 
 fn session_of(value: &Value) -> Result<Session> {
-    let access_token = text_of(value, "access_token")
+    let access_token = text_of(value, words::inspect::ACCESS_TOKEN)
         .filter(|token| !token.is_empty())
         .ok_or_else(|| anyhow::anyhow!("a session needs an access_token"))?;
     let expires_in = match value {
         Value::Map(pairs) => pairs
             .iter()
-            .find(|(k, _)| k == "expires_in")
+            .find(|(k, _)| k == words::EXPIRES_IN)
             .and_then(|(_, v)| match v {
                 Value::Int(n) => u64::try_from(*n).ok(),
                 _ => None,
@@ -135,10 +142,10 @@ fn session_of(value: &Value) -> Result<Session> {
     };
     Ok(Session {
         access_token,
-        refresh_token: text_of(value, "refresh_token").unwrap_or_default(),
-        user_id: text_of(value, "user_id").unwrap_or_default(),
-        username: text_of(value, "username").unwrap_or_default(),
-        display_name: text_of(value, "display_name").unwrap_or_default(),
+        refresh_token: text_of(value, words::inspect::REFRESH_TOKEN).unwrap_or_default(),
+        user_id: text_of(value, words::inspect::USER_ID).unwrap_or_default(),
+        username: text_of(value, words::auth::USERNAME).unwrap_or_default(),
+        display_name: text_of(value, words::inspect::DISPLAY_NAME).unwrap_or_default(),
         expires_in,
     })
 }
@@ -146,25 +153,28 @@ fn session_of(value: &Value) -> Result<Session> {
 fn session_value(session: &Session) -> Value {
     let expires_at = session.expires_at().map_or(Value::Nil, Value::Int);
     Value::Map(vec![
-        (String::from("user_id"), Value::Str(session.user_id.clone())),
         (
-            String::from("username"),
+            String::from(words::inspect::USER_ID),
+            Value::Str(session.user_id.clone()),
+        ),
+        (
+            String::from(words::auth::USERNAME),
             Value::Str(session.username.clone()),
         ),
         (
-            String::from("display_name"),
+            String::from(words::inspect::DISPLAY_NAME),
             Value::Str(session.display_name.clone()),
         ),
         (
-            String::from("access_token"),
+            String::from(words::inspect::ACCESS_TOKEN),
             Value::Str(session.access_token.clone()),
         ),
         (
-            String::from("refresh_token"),
+            String::from(words::inspect::REFRESH_TOKEN),
             Value::Str(session.refresh_token.clone()),
         ),
         (
-            String::from("expires_in"),
+            String::from(words::EXPIRES_IN),
             Value::Int(i64::try_from(session.expires_in).unwrap_or(i64::MAX)),
         ),
         (String::from("expires_at"), expires_at),

@@ -151,25 +151,25 @@ fn install_web_api(m: &mut Module<Engine>) {
         "The page a browser build runs in; off the web every query answers nil. A parent-frame message is the `browser_event` event: `events::listen(node, \"browser_event\")`, heard as `on_browser_event(payload)`.",
     );
     m.describe(&[
-        ("post_message", &[], "(payload: any) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
-        ("visible", &[], "() -> bool", "Whether the tab is in front of the player; true off the web."),
-        ("user_agent", &[], "() -> string?", "The browser's user agent string, or nil off the web."),
-        ("location", &[], "() -> string?", "The page's URL, or nil off the web."),
-        ("hardware_concurrency", &[], "() -> int?", "How many threads the browser reports, or nil off the web."),
+        (POST_MESSAGE, &[], "(payload: any) -> bool", "Post a value to the page that embeds this one. False off the web, and false while a recording plays."),
+        (VISIBLE, &[], "() -> bool", "Whether the tab is in front of the player; true off the web."),
+        (USER_AGENT, &[], "() -> string?", "The browser's user agent string, or nil off the web."),
+        (LOCATION, &[], "() -> string?", "The page's URL, or nil off the web."),
+        (HARDWARE_CONCURRENCY, &[], "() -> int?", "How many threads the browser reports, or nil off the web."),
     ]);
-    m.function("post_message", |eng: &Engine, payload: Value| {
+    m.function(POST_MESSAGE, |eng: &Engine, payload: Value| {
         post_message(eng, &payload)
     });
-    m.function("visible", |eng: &Engine, ()| {
+    m.function(VISIBLE, |eng: &Engine, ()| {
         Ok(eng.resource::<BrowserState>().borrow().visible)
     });
-    m.function("user_agent", |eng: &Engine, ()| {
+    m.function(USER_AGENT, |eng: &Engine, ()| {
         Ok(fact(eng, |f| f.user_agent.clone().map(Value::text)))
     });
-    m.function("location", |eng: &Engine, ()| {
+    m.function(LOCATION, |eng: &Engine, ()| {
         Ok(fact(eng, |f| f.location.clone().map(Value::text)))
     });
-    m.function("hardware_concurrency", |eng: &Engine, ()| {
+    m.function(HARDWARE_CONCURRENCY, |eng: &Engine, ()| {
         Ok(fact(eng, |f| {
             f.hardware_concurrency.map(|n| Value::Int(i64::from(n)))
         }))
@@ -185,7 +185,7 @@ pub struct BrowserPlugin;
 
 impl balaur_plugin::Plugin for BrowserPlugin {
     fn name(&self) -> &'static str {
-        "browser"
+        BROWSER
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
@@ -201,8 +201,8 @@ impl balaur_plugin::Plugin for BrowserPlugin {
             .start(reg.engine(), |report| backend::listen(report.clone()));
         reg.insert_resource(state);
         reg.add_system(Stage::First, pump_web_system);
-        reg.add_replay_source("browser", capture_browser, restore_browser);
-        let mut m = reg.script_module("browser")?;
+        reg.add_replay_source(BROWSER, capture_browser, restore_browser);
+        let mut m = reg.script_module(BROWSER)?;
         install_web_api(&mut m);
         Ok(())
     }
@@ -210,6 +210,13 @@ impl balaur_plugin::Plugin for BrowserPlugin {
 
 #[cfg(target_family = "wasm")]
 use browser as backend;
+
+const BROWSER: &str = "browser";
+const HARDWARE_CONCURRENCY: &str = "hardware_concurrency";
+const LOCATION: &str = "location";
+const POST_MESSAGE: &str = "post_message";
+const USER_AGENT: &str = "user_agent";
+const VISIBLE: &str = "visible";
 
 /// Off the web: no page, so nothing to report and nowhere to post.
 #[cfg(not(target_family = "wasm"))]

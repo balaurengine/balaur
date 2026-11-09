@@ -3,6 +3,9 @@
 // clicked, and writes the text again only when the buffer changed under it.
 
 use editor;
+use signals;
+use words::components;
+use words::dock_fields;
 
 pub class Code {
     node: Node,
@@ -18,13 +21,13 @@ impl Code {
         self.path = "";
         self.rev = -1;
         for word in [
-            "code_changed",
-            "outline_changed",
-            "inspector_changed",
-            "chrome_changed",
-            "stage_changed",
-            "problems_changed",
-            "debugger_changed",
+            signals::CODE_CHANGED,
+            signals::OUTLINE,
+            signals::INSPECTOR,
+            signals::CHROME,
+            signals::STAGE,
+            signals::PROBLEMS_CHANGED,
+            signals::DEBUGGER_CHANGED,
         ] {
             events::listen(self.node, word, source);
         }
@@ -73,7 +76,7 @@ impl Code {
     fn refresh() {
         let view = self.editor.unwrap().code_view();
         self.node.set_visible(view.shown);
-        self.node.patch_component("widget", { "inset": view.inset });
+        self.node.patch_component(components::WIDGET, { dock_fields::INSET: view.inset });
         if !view.shown {
             return;
         }

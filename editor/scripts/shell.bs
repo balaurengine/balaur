@@ -33,6 +33,35 @@ use themewin;
 use tiles;
 use util;
 use window;
+use words::changes;
+use words::dock_fields;
+use words::fields;
+use words::hooks;
+use words::inspector_fields;
+use words::layout_fields;
+use words::log_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::sides;
+use words::statuses;
+use words::tabs;
+use words::tools;
+use words::verbs;
+
+const CHROME: str = "chrome";
+const SET: str = "set";
+const WRITTEN: str = "written";
+const ASSETS: str = "assets";
+const DEBUGGER: str = "debugger";
+const OUTPUT: str = "output";
+internal const RELOAD: str = "reload";
+const ROLES: str = "roles";
+const SCRIPTS: str = "scripts";
+const ENGINE: str = "engine";
+const EXPORT: str = "export";
+const INPUT: str = "input";
+const MANAGER: str = "manager";
+const SPLIT: str = "split";
 
 pub class DebugState {
     internal frame: int,
@@ -105,23 +134,23 @@ fn stepped(state: &mut editor::State, label: str, moved_or: str?) {
 }
 
 pub fn undo(state: &mut editor::State) {
-    stop_for(state, "undo");
-    stepped(state, "undo", history::undo(state));
+    stop_for(state, verbs::UNDO);
+    stepped(state, verbs::UNDO, history::undo(state));
 }
 
 pub fn redo(state: &mut editor::State) {
-    stop_for(state, "redo");
-    stepped(state, "redo", history::redo(state));
+    stop_for(state, verbs::REDO);
+    stepped(state, verbs::REDO, history::redo(state));
 }
 
 pub fn set_workspace(state: &mut editor::State, id: str) {
     state.workspace = id;
-    state.tool = "select";
+    state.tool = tools::SELECT;
     signals::inspector(state);
-    if id == "script" {
-        open_doc(state, "script");
+    if id == tabs::SCRIPT {
+        open_doc(state, tabs::SCRIPT);
     } else {
-        state.doctab = "scene";
+        state.doctab = tabs::SCENE;
         signals::inspector(state);
     }
     // A workspace is a set of open panels and nothing more: what it opens can
@@ -131,11 +160,11 @@ pub fn set_workspace(state: &mut editor::State, id: str) {
 
 /// Show a document tab, opening it when it was closed.
 pub fn open_doc(state: &mut editor::State, id: str) {
-    if id == "script" {
+    if id == tabs::SCRIPT {
         state.script_open = true;
         signals::bars(state);
     }
-    if id == "events" {
+    if id == tabs::EVENTS {
         state.events_open = true;
         signals::bars(state);
     }
@@ -145,16 +174,16 @@ pub fn open_doc(state: &mut editor::State, id: str) {
 
 /// Close a document tab; the scene is what is left.
 pub fn close_doc(state: &mut editor::State, id: str) {
-    if id == "script" {
+    if id == tabs::SCRIPT {
         state.script_open = false;
         signals::bars(state);
     }
-    if id == "events" {
+    if id == tabs::EVENTS {
         state.events_open = false;
         signals::bars(state);
     }
     if state.doctab == id {
-        state.doctab = "scene";
+        state.doctab = tabs::SCENE;
         signals::inspector(state);
     }
 }
@@ -164,8 +193,8 @@ pub fn close_doc(state: &mut editor::State, id: str) {
 pub fn toggle_split(state: &mut editor::State) {
     state.split = !state.split;
     signals::bars(state);
-    if state.split && state.doctab == "events" {
-        state.doctab = "scene";
+    if state.split && state.doctab == tabs::EVENTS {
+        state.doctab = tabs::SCENE;
         signals::inspector(state);
     }
     // Under focus this is the reader asking for the scene back beside the
@@ -201,17 +230,17 @@ pub fn toggle_focus(state: &mut editor::State) {
         log::warn("nothing to focus: the selection has no script");
         return;
     }
-    let was: any = { "split": state.split };
+    let was: any = { SPLIT: state.split };
     for side in docks::sides() {
-        was[side] = state.docks[side]["shut"];
-        state.docks[side]["shut"] = true;
+        was[side] = state.docks[side][dock_fields::SHUT];
+        state.docks[side][dock_fields::SHUT] = true;
         signals::docks(state);
     }
     state.focus_was = was;
     state.focus = true;
     state.split = false;
     signals::bars(state);
-    open_doc(state, "script");
+    open_doc(state, tabs::SCRIPT);
 }
 
 /// Put back the layout focus folded away. A record that is gone means a panel
@@ -221,14 +250,14 @@ pub fn leave_focus(state: &mut editor::State) {
     state.focus = false;
     signals::bars(state);
     state.focus_was = nil;
-    if was.kind() != "map" {
+    if was.kind() != types::KIND_MAP {
         return;
     }
     for side in docks::sides() {
-        state.docks[side]["shut"] = was[side].as_bool();
+        state.docks[side][dock_fields::SHUT] = was[side].as_bool();
         signals::docks(state);
     }
-    state.split = was["split"].as_bool();
+    state.split = was[SPLIT].as_bool();
     signals::bars(state);
 }
 
@@ -250,7 +279,7 @@ pub fn keep_focus(state: &mut editor::State) {
         drop_focus(state);
         return;
     }
-    if state.doctab != "script" {
+    if state.doctab != tabs::SCRIPT {
         leave_focus(state);
     }
 }
@@ -322,8 +351,8 @@ pub fn toggle_play(state: &mut editor::State) {
         model::hold_game_cameras(state, true);
         state.playing = true;
         signals::inspector(state);
-        signals::changed(state, "debugger");
-        docks::show(state, "output");
+        signals::changed(state, changes::DEBUGGER);
+        docks::show(state, OUTPUT);
         // Physics and every animation player start next frame: the one a
         // session opens in is not recorded, so nothing may step in it.
         state.release_at = state.frame + 1;
@@ -370,7 +399,7 @@ pub fn stop_play(state: &mut editor::State) {
     state.debug.paused = nil;
     // A stop in the frame play started must not release the rebuilt scene.
     state.release_at = -1;
-    session::end(state, "stop");
+    session::end(state, statuses::STOP);
     if state.played != "" {
         model::build(state, state.played);
         state.last_played = state.played;
@@ -443,20 +472,20 @@ pub fn script_rel(state: editor::State, path: str) -> str {
 pub fn resume(state: &mut editor::State, mode: str) {
     debugger::resume(mode);
     state.debug.paused = nil;
-    signals::changed(state, "debugger");
+    signals::changed(state, changes::DEBUGGER);
 }
 
 /// Where a script is stopped, as the engine says it moved: a fresh stop shows
 /// its script and frame, and the self-test's walk steps on from each one.
 pub fn stopped(state: &mut editor::State, stop: any) {
-    if stop.kind() == "map" && state.debug.paused.kind() != "map" {
+    if stop.kind() == types::KIND_MAP && state.debug.paused.kind() != types::KIND_MAP {
         on_pause(state, stop);
     }
     state.debug.paused = stop;
-    signals::changed(state, "debugger");
+    signals::changed(state, changes::DEBUGGER);
     if state.debug.demo != nil {
         let pauses = state.debug.demo.unwrap();
-        if stop.kind() == "map" {
+        if stop.kind() == types::KIND_MAP {
             state.debug.demo = pauses + 1;
             resume(state, if (pauses + 1) % 2 == 1 { debugger::STEP_OVER } else { debugger::CONTINUE });
         }
@@ -465,9 +494,9 @@ pub fn stopped(state: &mut editor::State, stop: any) {
 
 // A fresh pause: show the script and the frame it stopped in.
 pub fn on_pause(state: &mut editor::State, pause: any) {
-    state.debug.paused_rel = script_rel(state, pause["path"].as_str());
+    state.debug.paused_rel = script_rel(state, pause[project_fields::PATH].as_str());
     state.debug.frame = 0;
-    let stopped = pause["node"].as_node();
+    let stopped = pause[inspector_fields::NODE].as_node();
     for row in 0..state.nodes.len() {
         let found = state.nodes[row];
         if found == stopped || model::script_rel(found).as_str() == state.debug.paused_rel {
@@ -476,7 +505,7 @@ pub fn on_pause(state: &mut editor::State, pause: any) {
         }
     }
     set_workspace(state, defs::WORKSPACE_SCRIPT);
-    docks::show(state, "debugger");
+    docks::show(state, DEBUGGER);
     log::info("paused at {state.debug.paused_rel}:{pause["line"]} ({pause["reason"]})");
 }
 
@@ -501,9 +530,9 @@ pub fn attach_script(state: &mut editor::State) {
 /// Every `.bs` under scripts/, for the inspector's picker.
 pub fn script_files(state: &mut editor::State) -> [str] {
     let files: [str] = [];
-    for file in model::list(state, "scripts") {
-        if !file["is_dir"].as_bool() && file["name"].as_str().ends_with(".bs") {
-            files.push("scripts/" + file["name"].as_str());
+    for file in model::list(state, SCRIPTS) {
+        if !file[project_fields::IS_DIR].as_bool() && file[fields::NAME].as_str().ends_with(".bs") {
+            files.push("scripts/" + file[fields::NAME].as_str());
         }
     }
     files.sort();
@@ -522,7 +551,7 @@ pub fn detach_script(state: &mut editor::State) {
     }
     history::record(state, "detach script");
     node.set_script(nil);
-    close_doc(state, "script");
+    close_doc(state, tabs::SCRIPT);
     log::info("detached " + rel.as_str() + " (undo re-attaches it; the file stays)");
 }
 
@@ -688,7 +717,7 @@ pub fn open_script_at(state: &mut editor::State, rel: str, line: int) {
         if model::script_rel(state.nodes[row]).as_str() == rel {
             selection::only(state, row);
             set_workspace(state, defs::WORKSPACE_SCRIPT);
-            state.doctab = "script";
+            state.doctab = tabs::SCRIPT;
             signals::inspector(state);
             state.preview_line = line;
             return;
@@ -700,7 +729,7 @@ pub fn open_script_at(state: &mut editor::State, rel: str, line: int) {
 /// Lay the visible script buffer out with the language's own formatter. A
 /// shader is not a script, so it is left alone.
 pub fn format_active(state: &mut editor::State) {
-    if state.shader_rel != "" && state.doctab == "script" {
+    if state.shader_rel != "" && state.doctab == tabs::SCRIPT {
         return;
     }
     let node = model::selected_node(state);
@@ -727,12 +756,12 @@ pub fn format_active(state: &mut editor::State) {
 }
 
 pub fn save_active(state: &mut editor::State) {
-    if state.shader_rel != "" && state.doctab == "script" {
+    if state.shader_rel != "" && state.doctab == tabs::SCRIPT {
         save_buffer(state, state.game_root + "/" + state.shader_rel);
         return;
     }
     let node = model::selected_node(state);
-    let in_script = (state.workspace == defs::WORKSPACE_SCRIPT || state.doctab == "script") && model::script_rel(node) != nil;
+    let in_script = (state.workspace == defs::WORKSPACE_SCRIPT || state.doctab == tabs::SCRIPT) && model::script_rel(node) != nil;
     if in_script {
         save_buffer(state, state.game_root + "/" + model::script_rel(node).as_str());
         return;
@@ -797,10 +826,10 @@ pub fn write_picture(state: &mut editor::State) {
 
 /// A picture the second run finished, or why it could not.
 pub fn picture_done(event: any) {
-    if event["kind"] == "written" {
-        log::info("wrote " + event["path"].as_str());
+    if event[fields::KIND] == WRITTEN {
+        log::info("wrote " + event[project_fields::PATH].as_str());
     } else {
-        log::warn("no picture: " + event["message"].as_str());
+        log::warn("no picture: " + event[log_fields::MESSAGE].as_str());
     }
 }
 
@@ -814,7 +843,7 @@ pub fn reload_scripts(state: &mut editor::State) {
             paths[rel.as_str()] = true;
         }
     }
-    session::end(state, "reload");
+    session::end(state, RELOAD);
     model::forget(state);
     let done = 0;
     for rel in util::keys_sorted(paths) {
@@ -858,15 +887,15 @@ fn states() -> any {
         "light": state_light,
         "dark": state_dark,
         "play": state_play,
-        "input": state_input,
+        INPUT: state_input,
         "pose": state_animdemo,
         "test:layout": selftest::layout,
-        "manager": manager::open,
+        MANAGER: manager::open,
         "examples": manager::open_examples,
         "about": about::open,
         "populate": populate::open,
-        "theme": themewin::open,
-        "engine": manager::open_versions,
+        project_fields::THEME: themewin::open,
+        ENGINE: manager::open_versions,
         "newproject": manager::open_new,
         "versions": manager::open_versions,
         "test:manager": selftest::manager_screen,
@@ -931,7 +960,7 @@ fn states() -> any {
         "test:pen": selftest::pendemo,
         "test:plugin_docks": selftest::plugin_docks,
         "settings": settings::open,
-        "export": exporter::open,
+        EXPORT: exporter::open,
     }
 }
 
@@ -990,7 +1019,7 @@ fn state_wear(state: &mut editor::State, name: str) {
 
 fn state_theme(state: &mut editor::State, argument: str) {
     let parts = argument.split(":");
-    let path = if parts.len() > 1 { ["roles", parts[1]] } else { [] };
+    let path = if parts.len() > 1 { [ROLES, parts[1]] } else { [] };
     themewin::open_at(state, parts[0], path);
 }
 
@@ -1071,7 +1100,7 @@ fn state_frames(state: &mut editor::State, spec: str) {
 
 fn state_input(state: &mut editor::State) {
     state.show_input = true;
-    signals::changed(state, "inputview");
+    signals::changed(state, changes::INPUTVIEW);
 }
 
 fn state_show(state: &mut editor::State, name: str) {
@@ -1083,8 +1112,8 @@ fn state_show(state: &mut editor::State, name: str) {
 pub fn set_tool(state: &mut editor::State, tool: str) {
     state.tool = tool;
     signals::inspector(state);
-    if tool == "tiles" {
-        docks::show(state, "tiles");
+    if tool == tools::TILES {
+        docks::show(state, tools::TILES);
     }
 }
 
@@ -1095,7 +1124,7 @@ fn state_tool(state: &mut editor::State, tool: str) {
 // `tab:<id>` picks a document tab; `tab:split` opens the code beside the
 // viewport. Both are shell state a screenshot cannot otherwise reach.
 fn state_tab(state: &mut editor::State, tab: str) {
-    if tab == "split" {
+    if tab == verbs::SPLIT {
         state.split = true;
         signals::bars(state);
     } else {
@@ -1134,18 +1163,18 @@ fn state_scale(state: &mut editor::State, argument: str) {
 }
 
 fn state_shut(state: &mut editor::State, side: str) {
-    if side == "rail" {
+    if side == sides::RAIL {
         state.rail_shut = true;
         signals::bars(state);
         return;
     }
     // Everything the shell draws over the scene: the chip strip and the
     // reading at its foot. What a picture of the scene itself wants.
-    if side == "chrome" {
+    if side == CHROME {
         state.chrome_off = true;
         return;
     }
-    state.docks[side]["shut"] = true;
+    state.docks[side][dock_fields::SHUT] = true;
     signals::docks(state);
 }
 
@@ -1164,23 +1193,23 @@ fn state_dock(state: &mut editor::State, dock: str) {
 // Self-test state: open the Assets dock on a file, which is what the Import
 // section draws for (e.g. asset:art/limb.png).
 fn state_asset(state: &mut editor::State, rel: str) {
-    docks::show(state, "assets");
+    docks::show(state, ASSETS);
     let leaf = util::leaf(rel);
     state.assets.directory = if leaf.len() < rel.len() { rel.slice(0, rel.len() - leaf.len() - 1) } else { "" };
     state.assets.selected = rel;
-    signals::changed(state, "assets");
+    signals::changed(state, changes::ASSETS);
 }
 
 // `import:<path>`: the Assets dock, and that file imported into it.
 fn state_import(state: &mut editor::State, path: str) {
-    docks::show(state, "assets");
+    docks::show(state, ASSETS);
     dropin::take(state, path);
 }
 
 // `imports:<path>;<path>`: several imports, one a frame once the shell has
 // formed, so a picture has the list of all of them.
 fn state_imports(state: &mut editor::State, list: str) {
-    docks::show(state, "assets");
+    docks::show(state, ASSETS);
     state.import_queue = list.split(";");
     state.import_drip = true;
 }
@@ -1192,10 +1221,10 @@ fn state_mode(state: &mut editor::State, mode: str) {
 // `tiles:<mode>`: the Tiles dock on one of its tools, and `tiles:set` on the
 // rows that edit the tile itself.
 fn state_tiles(state: &mut editor::State, mode: str) {
-    docks::show(state, "tiles");
-    if mode == "set" {
+    docks::show(state, tools::TILES);
+    if mode == SET {
         state.tiles.editing = true;
-        signals::changed(state, "tiles");
+        signals::changed(state, changes::TILES);
         return;
     }
     tiles::set_mode(state, mode);
@@ -1275,7 +1304,7 @@ fn state_animdemo(state: &mut editor::State) {
 // the centre pane has something to show.
 fn state_workspace(state: &mut editor::State, name: str) {
     set_workspace(state, name);
-    if name == "script" {
+    if name == tabs::SCRIPT {
         select_scripted(state);
     }
 }
@@ -1288,8 +1317,8 @@ pub fn break_demo(state: &mut editor::State) {
         if script != nil {
             selection::only(state, row);
             for hook in model::hooks(state, script.as_str()) {
-                if hook["name"].as_str() == "update" {
-                    toggle_breakpoint(state, script.as_str(), hook["line"].as_int() + 1);
+                if hook[fields::NAME].as_str() == hooks::UPDATE {
+                    toggle_breakpoint(state, script.as_str(), hook[layout_fields::LINE].as_int() + 1);
                 }
             }
             break;

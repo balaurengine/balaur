@@ -121,12 +121,13 @@ as it goes in, so check the data when it comes from outside the game.
 ## Looking at the kind
 
 `kind()` answers `"nil"`, `"bool"`, `"int"`, `"float"`, `"str"`, `"list"`, `"map"` or `"node"`.
+Compare it against `types::KIND_NIL`, `types::KIND_MAP` and their siblings.
 
 ```bs
 pub fn describe(v: any) -> str {
     if v == nil {
         "nothing"
-    } else if v.kind() == "list" {
+    } else if v.kind() == types::KIND_LIST {
         "{v.len()} items"
     } else {
         "{v.kind()}: {v.text()}"

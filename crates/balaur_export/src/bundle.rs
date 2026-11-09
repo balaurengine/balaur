@@ -12,6 +12,7 @@ use crate::android::AndroidConfig;
 use crate::apple::{AppleConfig, Platform};
 use crate::icon::Icons;
 use crate::roots_for_message;
+use crate::vocabulary::words;
 
 /// A platform whose game is a directory the OS launches, not a file it runs.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,9 +30,9 @@ impl Bundle {
     /// A variant (`ios-2d`) is its platform's bundle over a template of its own.
     pub(crate) fn for_target(target: &str) -> Option<Self> {
         match crate::split_variant(target).0 {
-            "ios" => Some(Self::Ios),
-            "android" => Some(Self::Android),
-            "web" => Some(Self::Web),
+            words::targets::IOS => Some(Self::Ios),
+            words::targets::ANDROID => Some(Self::Android),
+            words::targets::WEB => Some(Self::Web),
             _ => None,
         }
     }
@@ -40,7 +41,7 @@ impl Bundle {
     /// iOS variant's `.app` sits in a directory named for it.
     fn runtime_dir(self, target: &str) -> String {
         match self {
-            Self::Ios if target == "ios" => "Balaur.app".to_string(),
+            Self::Ios if target == words::targets::IOS => "Balaur.app".to_string(),
             Self::Ios => format!("balaur-runtime-{target}/Balaur.app"),
             Self::Android | Self::Web => format!("balaur-runtime-{target}"),
         }
@@ -48,9 +49,9 @@ impl Bundle {
 
     pub(crate) const fn platform(self) -> &'static str {
         match self {
-            Self::Ios => "ios",
-            Self::Android => "android",
-            Self::Web => "web",
+            Self::Ios => words::targets::IOS,
+            Self::Android => words::targets::ANDROID,
+            Self::Web => words::targets::WEB,
         }
     }
 }
@@ -67,7 +68,7 @@ const WEB_SHELL: &str = include_str!("web/index.html");
 /// If a file there cannot be read.
 pub(crate) fn web_files(project: &Path) -> Result<Vec<(PathBuf, Vec<u8>)>> {
     let fs = balaur::files::default_backend();
-    let root = project.join("web");
+    let root = project.join(words::targets::WEB);
     let mut found = Vec::new();
     let mut dirs = vec![root.clone()];
     while let Some(dir) = dirs.pop() {
@@ -99,7 +100,7 @@ pub fn web_shell(project: &Path) -> Result<String> {
     // Through the file backend, so a project edited in a browser ships its
     // own shell page the same way one on a disk does.
     let fs = balaur::files::default_backend();
-    let own = project.join("web").join("index.html");
+    let own = project.join(words::targets::WEB).join("index.html");
     if fs.exists(&own) && !fs.is_dir(&own) {
         let bytes = fs.read(&own)?;
         return String::from_utf8(bytes).with_context(|| format!("{} is not text", own.display()));
@@ -153,7 +154,7 @@ pub(crate) fn export_bundle(
     });
     let inside = match kind {
         Bundle::Ios | Bundle::Web => PathBuf::from(balaur::standalone::BUNDLED_PACK),
-        Bundle::Android => Path::new("assets").join(balaur::standalone::BUNDLED_PACK),
+        Bundle::Android => Path::new(words::bundle::ASSETS).join(balaur::standalone::BUNDLED_PACK),
     };
     if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir)?;
@@ -178,7 +179,7 @@ pub(crate) fn export_bundle(
     let pack_path = match kind {
         Bundle::Ios | Bundle::Web => output.join(balaur::standalone::BUNDLED_PACK),
         Bundle::Android => {
-            let assets = output.join("assets");
+            let assets = output.join(words::bundle::ASSETS);
             std::fs::create_dir_all(&assets)?;
             assets.join(balaur::standalone::BUNDLED_PACK)
         }
@@ -290,7 +291,7 @@ pub(crate) fn export_macos_app(
     icons: Option<&Icons>,
     native: Option<&crate::native::Request>,
 ) -> Result<PathBuf> {
-    crate::require_icon(icons, "macos")?;
+    crate::require_icon(icons, words::native::MACOS)?;
     apple.check(Platform::Macos)?;
     let app = output.unwrap_or_else(|| PathBuf::from(format!("{name}.app")));
     if let Some(dir) = app.parent().filter(|d| !d.as_os_str().is_empty()) {
@@ -314,7 +315,8 @@ pub(crate) fn export_macos_app(
     crate::extensions::ship_for(project, &bytes, &executable)?;
     let scripts_native = match native {
         Some(request) => {
-            crate::native::build_desktop(&executable, "macos-universal", request)?.is_some()
+            crate::native::build_desktop(&executable, words::targets::MACOS_UNIVERSAL, request)?
+                .is_some()
         }
         None => false,
     };

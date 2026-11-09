@@ -1,7 +1,13 @@
 // The HUD's one script: the axes, the zoom and the folded bottom dock's
 // handle along the scene's foot, shown and read as the Editor says.
 
+use center;
 use editor;
+use signals;
+use themewin;
+use words::components;
+use words::dock_fields;
+use words::verbs;
 
 pub class Hud {
     node: Node,
@@ -12,7 +18,7 @@ impl Hud {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "stage_changed", source);
+        events::listen(self.node, signals::STAGE, source);
     }
 
     pub fn on_stage_changed(_change: any) {
@@ -20,34 +26,34 @@ impl Hud {
     }
 
     pub fn zoom_out() {
-        self.editor.unwrap().stage_verb("zoom_out");
+        self.editor.unwrap().stage_verb(verbs::ZOOM_OUT);
     }
 
     pub fn zoom_in() {
-        self.editor.unwrap().stage_verb("zoom_in");
+        self.editor.unwrap().stage_verb(verbs::ZOOM_IN);
     }
 
     pub fn open_bottom() {
-        self.editor.unwrap().stage_verb("open_bottom");
+        self.editor.unwrap().stage_verb(center::OPEN_BOTTOM);
     }
 
     fn refresh() {
         let view = self.editor.unwrap().hud_view();
         self.node.set_visible(view.shown);
         self.node.widget.height = view.height;
-        self.node.patch_component("widget", { "inset": view.inset });
+        self.node.patch_component(components::WIDGET, { dock_fields::INSET: view.inset });
         if !view.shown {
             return;
         }
         let axes = self.node.get_node("Axes/Row");
-        axes.get_node("X").patch_component("widget", { "text_color": view.x_ink });
-        axes.get_node("Y").patch_component("widget", { "text_color": view.y_ink });
+        axes.get_node("X").patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.x_ink });
+        axes.get_node("Y").patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.y_ink });
         let zoom = self.node.get_node("Zoom/Row");
         for name in ["Out", "In"] {
             let patched = zoom.get_node(name);
             patched.widget.width = view.step;
             patched.widget.height = view.step;
-            patched.patch_component("widget", { "text_color": view.quiet_ink });
+            patched.patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.quiet_ink });
         }
         zoom.get_node("In").widget_button.icon = view.add_icon;
         zoom.get_node("Reading").widget.text = view.zoom;
@@ -57,6 +63,6 @@ impl Hud {
         patched.widget_button.icon = view.bottom_icon;
         patched.widget.width = view.step + 6.0;
         patched.widget.height = view.step + 6.0;
-        patched.patch_component("widget", { "text_color": view.quiet_ink });
+        patched.patch_component(components::WIDGET, { themewin::TEXT_COLOR: view.quiet_ink });
     }
 }

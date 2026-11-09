@@ -7,6 +7,8 @@
 )]
 use super::*;
 
+const ON_FREE: &str = "on_free";
+
 impl ScriptCompiler for BsHost {
     fn extensions(&self) -> &[&str] {
         &[EXTENSION]
@@ -109,8 +111,8 @@ impl ScriptHost<Engine> for BsHost {
         let Some((file, inst)) = self.instance(node).or_else(|| self.parked_instance(node)) else {
             return;
         };
-        if file.method("on_free").is_some() {
-            let r = self.run(&file, &inst, "on_free", &[], None);
+        if file.method(ON_FREE).is_some() {
+            let r = self.run(&file, &inst, ON_FREE, &[], None);
             report(r);
         }
         self.cancel(node.0);

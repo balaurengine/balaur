@@ -6,6 +6,8 @@
     reason = "a part of the module above, split for length"
 )]
 use super::*;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// Build the prefab `node` names into `entity`, which is its root.
 pub(super) fn instance(
@@ -174,7 +176,7 @@ pub(super) fn apply_overrides(
             continue;
         };
         apply_node_keys(eng, target, table);
-        if let Some(script) = table.get("script")
+        if let Some(script) = table.get(keys::SCRIPT)
             && let Err(err) = override_script(build, target, script)
         {
             tracing::error!("override '{path}.script' on node '{}': {err:#}", node.name);
@@ -196,7 +198,7 @@ pub(super) fn apply_overrides(
             }
         }
         for key in table.keys() {
-            if key != "script"
+            if key != words::SCRIPT
                 && !NODE_KEYS.contains(&key.as_str())
                 && !handlers.iter().any(|(k, _)| k == key)
             {

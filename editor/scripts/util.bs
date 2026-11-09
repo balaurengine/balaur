@@ -2,6 +2,11 @@
 // separator rows split on, document vectors as `[x, y, z]`, colours, and the
 // 2D frame a node's own space is drawn in.
 
+use words::components;
+
+const FOV: str = "fov";
+const ID: str = "id";
+
 /// A vector's direction and length.
 pub struct Norm {
     internal direction: [float],
@@ -76,12 +81,12 @@ pub fn is_nil(value: any) -> bool {
 
 /// `value` when it is a map, else an empty one.
 pub fn map_or_empty(value: any) -> any {
-    if value.kind() == "map" { value } else { {} }
+    if value.kind() == types::KIND_MAP { value } else { {} }
 }
 
 /// `value` when it is a list, else an empty one.
 pub fn list_or_empty(value: any) -> any {
-    if value.kind() == "list" { value } else { [] }
+    if value.kind() == types::KIND_LIST { value } else { [] }
 }
 
 /// Fill a widget node from a table.
@@ -94,7 +99,7 @@ pub fn fill(id: str, parameters: any) {
     if !found.is_valid() {
         return;
     }
-    found.patch_component("widget", parameters);
+    found.patch_component(components::WIDGET, parameters);
 }
 
 /// Whether a widget node draws, for a node that may not be there.
@@ -191,7 +196,7 @@ pub fn abs(value: float) -> float {
 
 /// Three floats from a document vector, or `fallback`.
 pub fn list3_or(value: any, fallback: [float]) -> [float] {
-    if value.kind() == "list" && value.len() >= 3 {
+    if value.kind() == types::KIND_LIST && value.len() >= 3 {
         [value[0].as_float(), value[1].as_float(), value[2].as_float()]
     } else {
         fallback
@@ -200,7 +205,7 @@ pub fn list3_or(value: any, fallback: [float]) -> [float] {
 
 /// Two floats from a document vector, or `fallback`.
 pub fn list2_or(value: any, fallback: [float]) -> [float] {
-    if value.kind() == "list" && value.len() >= 2 {
+    if value.kind() == types::KIND_LIST && value.len() >= 2 {
         [value[0].as_float(), value[1].as_float()]
     } else {
         fallback
@@ -280,7 +285,7 @@ fn capitalised(text: str) -> str {
 
 /// Words a schema key spells lowercase that a label spells in capitals.
 fn acronyms() -> [str] {
-    ["fov", "hdr", "id", "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"]
+    [FOV, "hdr", ID, "ik", "lod", "rgb", "rgba", "srgb", "ui", "uv"]
 }
 
 /// A schema key as a row label: `edge_radius` reads "Edge radius". The key
@@ -353,14 +358,14 @@ pub fn repeat(text: str, count: int) -> str {
 
 /// A shallow copy of a map or a list; anything else is a value already.
 pub fn copy(value: any) -> any {
-    if value.kind() == "map" {
+    if value.kind() == types::KIND_MAP {
         let out: any = {};
         for key in value.keys() {
             out[key] = value[key];
         }
         return out;
     }
-    if value.kind() == "list" {
+    if value.kind() == types::KIND_LIST {
         let out: [any] = [];
         for item in value {
             out.push(item);
@@ -372,14 +377,14 @@ pub fn copy(value: any) -> any {
 
 /// A copy all the way down.
 pub fn deep(value: any) -> any {
-    if value.kind() == "map" {
+    if value.kind() == types::KIND_MAP {
         let out: any = {};
         for key in value.keys() {
             out[key] = deep(value[key]);
         }
         return out;
     }
-    if value.kind() == "list" {
+    if value.kind() == types::KIND_LIST {
         let out: [any] = [];
         for item in value {
             out.push(deep(item));

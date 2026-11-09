@@ -22,6 +22,8 @@ use crate::widget::node::{Surface, UiFocus, Widget, WidgetLayerConfig};
 use crate::widget::paint::Brush;
 use crate::widget::theme::{Pointer, Style, WidgetState, WidgetTheme, face, rich, theme_of};
 
+const BALAUR_WIDGET: &str = "balaur-widget";
+
 /// `area` less the part the on-screen keyboard covers. The keyboard is
 /// measured in the window's pixels, which are this pass's units.
 fn above_keyboard(facts: &balaur_core::facts::DeviceFacts, area: egui::Rect) -> egui::Rect {
@@ -284,9 +286,9 @@ fn draw_root(
     } else {
         (align.anchor_size(pos, assigned).min, Align2::LEFT_TOP)
     };
-    let layer = egui::LayerId::new(order, egui::Id::unique(("balaur-widget", entity)));
+    let layer = egui::LayerId::new(order, egui::Id::unique((BALAUR_WIDGET, entity)));
     painting.root_layers.push(layer);
-    let mut root_area = egui::Area::new(egui::Id::unique(("balaur-widget", entity)))
+    let mut root_area = egui::Area::new(egui::Id::unique((BALAUR_WIDGET, entity)))
         .order(order)
         .pivot(align)
         .fixed_pos(pos)
@@ -324,7 +326,7 @@ fn draw_root(
     // rerun that then draws it ran every root's pass again.
     let interactable = widget.kind != w::TOAST;
     let first_pass = ctx
-        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
+        .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
         .is_none()
         && (modal
             || !seed_area(
@@ -358,7 +360,7 @@ fn draw_root(
     // A root is placed by nobody, so it records its own rect, from egui's
     // memory: the response's rect can lag it by a frame.
     let drawn = ctx
-        .memory(|m| m.area_rect(egui::Id::unique(("balaur-widget", entity))))
+        .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
         .unwrap_or(shown.rect);
     record_rect(entity, drawn);
     // A toast is read, not used: nothing in it takes the pointer.

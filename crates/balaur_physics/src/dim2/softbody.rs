@@ -33,6 +33,9 @@ use crate::shared::softbody::{self as cap, Family};
 use crate::vocabulary::{component as c, keys as k, words as w};
 use balaur_core::layers::Layer;
 
+const SOFTBODY_AREA: &str = "softbody_area";
+const SOFTBODY_REST_AREA: &str = "softbody_rest_area";
+
 mod draw;
 
 /// A deformable 2D body: particles linked by elastic constraints, laid out by `kind` and made of what the material rows say. A `polygon` on the same node is drawn from the solver's positions when the two agree on the vertex count, which the `polygon`, `triangle_mesh` and `volumetric` kinds give and a generator does not.
@@ -1125,32 +1128,35 @@ crate::softbody::runtime::runtime_api!(
 
 pub(crate) fn install_softbody_api_2d(m: &mut Module<Engine>) {
     m.describe(&[
-        ("softbody_area", &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
-        ("softbody_rest_area", &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
-        ("softbody_center", &[c::SOFTBODY_2D], "(node: node) -> Vec2", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
+        (SOFTBODY_AREA, &[c::SOFTBODY_2D], "", "How much area the body and every piece torn off it enclose right now, against `softbody_rest_area` for how far it is squeezed."),
+        (SOFTBODY_REST_AREA, &[c::SOFTBODY_2D], "", "How much they enclose at rest."),
+        (w::functions::SOFTBODY_CENTER, &[c::SOFTBODY_2D], "(node: node) -> Vec2", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
     ]);
-    m.function("softbody_area", |eng: &Engine, node: NodeId| {
+    m.function(SOFTBODY_AREA, |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
             Ok(bodies.iter().map(|b| b.volume()).sum::<f32>())
         })
     });
-    m.function("softbody_rest_area", |eng: &Engine, node: NodeId| {
+    m.function(SOFTBODY_REST_AREA, |eng: &Engine, node: NodeId| {
         with_family_2d(eng, node, |bodies| {
             Ok(bodies.iter().map(|b| b.rest_volume()).sum::<f32>())
         })
     });
-    m.function("softbody_center", |eng: &Engine, node: NodeId| {
-        with_family_2d(eng, node, |bodies| {
-            let mass: scalar::Real = bodies.iter().map(|b| b.mass()).sum();
-            let weighted: Vector2 = bodies.iter().map(|b| b.center_of_mass() * b.mass()).sum();
-            let center = if mass > 0.0 {
-                weighted / mass
-            } else {
-                Vector2::ZERO
-            };
-            Ok(balaur_script::Value::Vec2(scalar::a2(center)))
-        })
-    });
+    m.function(
+        w::functions::SOFTBODY_CENTER,
+        |eng: &Engine, node: NodeId| {
+            with_family_2d(eng, node, |bodies| {
+                let mass: scalar::Real = bodies.iter().map(|b| b.mass()).sum();
+                let weighted: Vector2 = bodies.iter().map(|b| b.center_of_mass() * b.mass()).sum();
+                let center = if mass > 0.0 {
+                    weighted / mass
+                } else {
+                    Vector2::ZERO
+                };
+                Ok(balaur_script::Value::Vec2(scalar::a2(center)))
+            })
+        },
+    );
 
     install_runtime_2d(m);
 }

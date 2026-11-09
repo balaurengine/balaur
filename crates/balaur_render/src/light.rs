@@ -17,6 +17,8 @@ use glamx::{Vec2, Vec3};
 use crate::vocabulary::{keys as k, words};
 use crate::{Flat, Renderable2d, Shape2d};
 
+const OUTLINE: &str = "outline";
+
 /// Which way a `light2d` throws light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum LightKind2d {
@@ -236,12 +238,12 @@ fn tile_edges(eng: &Engine, world: &World, entity: Entity) -> Vec<[Vec2; 2]> {
 /// outline the light map will actually use rather than the one authored.
 pub(crate) fn install_occluder_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "outline",
+        OUTLINE,
         &["occluder2d"],
         "",
         "The outline this node blocks 2D light with, in world space: x then y for each point in turn, with the first repeated at the end when the outline is closed. Empty on a node with no `occluder2d`.",
     )]);
-    m.function("outline", |eng: &Engine, node: NodeId| {
+    m.function(OUTLINE, |eng: &Engine, node: NodeId| {
         let entity = balaur_core::entity_of(node)?;
         let world = eng.world();
         Ok(outline(&world, entity)

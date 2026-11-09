@@ -7,6 +7,15 @@ use model;
 use rig;
 use signals;
 use util;
+use words::fields;
+use words::geometry_fields;
+use words::project_fields;
+use words::roles;
+use words::verbs;
+
+const CLEAR: str = "clear";
+const GUESS: str = "guess";
+const BONEMAP: str = "bonemap";
 
 pub class BonemapState {
     internal bones: any,
@@ -145,12 +154,12 @@ pub fn autofill(state: &mut editor::State) {
         }
     }
     log::info("{found} of {HUMANOID().len()} canonical bones matched by name");
-    signals::changed(state, "bonemap");
+    signals::changed(state, BONEMAP);
 }
 
 pub fn clear(state: &mut editor::State) {
     state.bonemap.bones = {};
-    signals::changed(state, "bonemap");
+    signals::changed(state, BONEMAP);
 }
 
 // Where the map is written, under the project's `animations/`, named after
@@ -175,11 +184,11 @@ pub fn save(state: &mut editor::State) {
         return;
     }
     let path = if state.bonemap.path == "" { default_path(state) } else { state.bonemap.path };
-    let doc: any = { "type": "bone_map", "bones": mapped };
+    let doc: any = { fields::TYPE: "bone_map", geometry_fields::BONES: mapped };
     fs::write(state.game_root + "/" + path, toml::encode(doc));
     state.bonemap.path = path;
     log::info("{mapped.len()} bones written to {path}");
-    signals::changed(state, "bonemap");
+    signals::changed(state, BONEMAP);
 }
 
 // The tab's own scene, under the bottom dock.
@@ -215,11 +224,11 @@ pub fn fill(state: editor::State) {
 
 /// A verb by the name of its button.
 pub fn verb(state: &mut editor::State, name: str) {
-    if name == "guess" {
+    if name == GUESS {
         autofill(state);
-    } else if name == "clear" {
+    } else if name == CLEAR {
         clear(state);
-    } else if name == "save" {
+    } else if name == verbs::SAVE {
         save(state);
     }
 }
@@ -232,33 +241,33 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
     let open = state.bonemap.picking == name;
     let controls: [ui::Control] = [
         ui::Control {
-            kind: "label",
-            role: if picked == "" { "text_code_quiet" } else { "text_code" },
+            kind: ui::WIDGET_LABEL,
+            role: if picked == "" { roles::TEXT_CODE_QUIET } else { roles::TEXT_CODE },
             font_size: 12,
             width: NAME_WIDTH,
             text: name,
         },
         ui::Control {
-            kind: "button",
-            role: "chip",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::CHIP,
             width: PICK_WIDTH,
             height: 22,
             text: if picked == "" { "—" } else { picked },
-            text_align: "start",
+            text_align: ui::ALIGN_START,
             checked: open,
             tooltip: "Pick the bone this canonical name means on this rig",
             on_click: "handle",
-            data: { "fn": toggle_picker, "open": open, "name": name },
+            data: { fields::FN: toggle_picker, project_fields::OPEN: open, fields::NAME: name },
         },
     ];
     if picked != "" {
         controls.push(ui::Control {
-            kind: "button",
-            role: "chip_quiet",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::CHIP_QUIET,
             text: "×",
             tooltip: "Leave this row empty",
             on_click: "handle",
-            data: { "fn": leave_row_empty, "name": name },
+            data: { fields::FN: leave_row_empty, fields::NAME: name },
         });
     }
     let out: [ui::Row] = [ui::Row { height: 24, controls: controls }];
@@ -271,17 +280,17 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
         out.push(ui::Row {
             height: 20,
             controls: [
-                ui::Control { kind: "label", width: NAME_WIDTH, text: "" },
+                ui::Control { kind: ui::WIDGET_LABEL, width: NAME_WIDTH, text: "" },
                 ui::Control {
-                    kind: "button",
-                    role: "chip",
+                    kind: ui::WIDGET_BUTTON,
+                    role: roles::CHIP,
                     width: PICK_WIDTH,
                     height: 20,
                     text: path,
-                    text_align: "start",
+                    text_align: ui::ALIGN_START,
                     checked: path == picked,
                     on_click: "handle",
-                    data: { "fn": pick_bone_path, "name": name, "path": path },
+                    data: { fields::FN: pick_bone_path, fields::NAME: name, project_fields::PATH: path },
                 },
             ],
         });
@@ -290,22 +299,22 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
 }
 
 fn toggle_picker(state: &mut editor::State, data: any, _value: any) {
-    let open: bool = data["open"].as_bool();
-    let name: str = data["name"].as_str();
+    let open: bool = data[project_fields::OPEN].as_bool();
+    let name: str = data[fields::NAME].as_str();
     state.bonemap.picking = if open { nil } else { name };
-    signals::changed(state, "bonemap");
+    signals::changed(state, BONEMAP);
 }
 
 fn leave_row_empty(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data["name"].as_str();
+    let name: str = data[fields::NAME].as_str();
     state.bonemap.bones[name] = "";
-    signals::changed(state, "bonemap");
+    signals::changed(state, BONEMAP);
 }
 
 fn pick_bone_path(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data["name"].as_str();
-    let path: str = data["path"].as_str();
+    let name: str = data[fields::NAME].as_str();
+    let path: str = data[project_fields::PATH].as_str();
     state.bonemap.bones[name] = path;
     state.bonemap.picking = nil;
-    signals::changed(state, "bonemap");
+    signals::changed(state, BONEMAP);
 }

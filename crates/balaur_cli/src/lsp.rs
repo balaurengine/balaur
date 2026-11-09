@@ -17,10 +17,17 @@ use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::{Context, Result};
 use balaur_core::Engine;
 use balaur_script::{LanguageTools, ScriptHost};
 use serde_json::{Value as Json, json};
+
+const PARAMS: &str = "params";
+const POSITION: &str = "position";
+const TEXT: &str = "text";
+const URI: &str = "uri";
 
 /// Serve LSP on stdin/stdout until the client says to exit.
 ///
@@ -103,9 +110,9 @@ impl Server {
     /// Handle one message; `true` means the client asked to exit.
     fn handle(&mut self, message: &Json, writer: &mut impl Write) -> Result<bool> {
         let method = message.get("method").and_then(Json::as_str).unwrap_or("");
-        let id = message.get("id").cloned();
+        let id = message.get(keys::ID).cloned();
         match method {
-            "initialize" => {
+            words::lsp::INITIALIZE => {
                 let reply = json!({
                     "jsonrpc": "2.0",
                     "id": id,
@@ -132,29 +139,27 @@ impl Server {
                 });
                 write_message(writer, &reply)?;
             }
-            "shutdown" => {
+            words::lsp::SHUTDOWN => {
                 write_message(
                     writer,
                     &json!({ "jsonrpc": "2.0", "id": id, "result": null }),
                 )?;
             }
-            "exit" => return Ok(true),
+            words::lsp::EXIT => return Ok(true),
             "textDocument/didOpen" => {
-                let document = &message["params"]["textDocument"];
-                if let (Some(uri), Some(text)) =
-                    (document["uri"].as_str(), document["text"].as_str())
-                {
+                let document = &message[PARAMS]["textDocument"];
+                if let (Some(uri), Some(text)) = (document[URI].as_str(), document[TEXT].as_str()) {
                     self.set_open(uri, text);
                     self.publish(writer)?;
                 }
             }
             "textDocument/didChange" => {
-                let uri = message["params"]["textDocument"]["uri"].as_str();
+                let uri = message[PARAMS]["textDocument"][URI].as_str();
                 // Full sync, so the last change carries the whole document.
-                let text = message["params"]["contentChanges"]
+                let text = message[PARAMS]["contentChanges"]
                     .as_array()
                     .and_then(|changes| changes.last())
-                    .and_then(|change| change["text"].as_str());
+                    .and_then(|change| change[TEXT].as_str());
                 if let (Some(uri), Some(text)) = (uri, text) {
                     self.set_open(uri, text);
                     self.publish(writer)?;
@@ -162,7 +167,7 @@ impl Server {
             }
             "textDocument/didSave" => self.publish(writer)?,
             "textDocument/didClose" => {
-                if let Some(uri) = message["params"]["textDocument"]["uri"].as_str() {
+                if let Some(uri) = message[PARAMS]["textDocument"][URI].as_str() {
                     self.open.retain(|(open, _)| open != uri);
                     self.publish(writer)?;
                 }
@@ -170,7 +175,7 @@ impl Server {
             // Every other request answers with one value, or `null`: a
             // client that waits for an answer hangs without one.
             _ if id.is_some() => {
-                let result = self.answer(method, &message["params"]);
+                let result = self.answer(method, &message[PARAMS]);
                 write_message(
                     writer,
                     &json!({ "jsonrpc": "2.0", "id": id, "result": result }),
@@ -296,9 +301,9 @@ impl Server {
 
     /// The file, its text, and the 1-based position a request names.
     fn locate(&self, params: &Json) -> Option<(String, String, usize, usize)> {
-        let uri = params["textDocument"]["uri"].as_str()?;
-        let line = params["position"]["line"].as_u64().unwrap_or(0) as usize + 1;
-        let column = params["position"]["character"].as_u64().unwrap_or(0) as usize + 1;
+        let uri = params["textDocument"][URI].as_str()?;
+        let line = params[POSITION]["line"].as_u64().unwrap_or(0) as usize + 1;
+        let column = params[POSITION]["character"].as_u64().unwrap_or(0) as usize + 1;
         let rel = self.rel_of(uri)?;
         let source = self.source_of(&rel)?;
         Some((rel, source, line, column))
@@ -334,7 +339,7 @@ impl Server {
                 None => vec![diagnostic(&balaur_script::Diagnostic {
                     line: 1,
                     column: 1,
-                    severity: "error",
+                    severity: words::log_levels::ERROR,
                     message: format!("{rel} is not a script this engine runs"),
                 })],
             };
@@ -380,8 +385,8 @@ impl Server {
 /// The LSP `SymbolKind` for what a script declares.
 fn symbol_kind(kind: &str) -> u8 {
     match kind {
-        "function" | "method" => 12,
-        "struct" => 23,
+        words::lsp::FUNCTION | words::lsp::METHOD => 12,
+        words::lsp::STRUCT => 23,
         _ => 7,
     }
 }
@@ -438,14 +443,14 @@ fn whole_file(text: &str) -> Json {
 /// The LSP `CompletionItemKind` for a neutral item's kind.
 fn item_kind(kind: &str) -> u8 {
     match kind {
-        "module" => 9,
-        "function" => 3,
-        "method" => 2,
-        "field" => 5,
-        "property" => 10,
-        "variable" => 6,
-        "struct" => 22,
-        "constant" => 21,
+        words::lsp::MODULE => 9,
+        words::lsp::FUNCTION => 3,
+        words::lsp::METHOD => 2,
+        words::lsp::FIELD => 5,
+        words::lsp::PROPERTY => 10,
+        words::lsp::VARIABLE => 6,
+        words::lsp::STRUCT => 22,
+        words::lsp::CONSTANT => 21,
         _ => 14,
     }
 }
@@ -456,7 +461,7 @@ fn diagnostic(one: &balaur_script::Diagnostic) -> Json {
     let start = position(one.line, one.column);
     json!({
         "range": { "start": start, "end": start },
-        "severity": if one.severity == "error" { 1 } else { 2 },
+        "severity": if one.severity == words::log_levels::ERROR { 1 } else { 2 },
         "source": "balaur",
         "message": one.message,
     })

@@ -3,6 +3,9 @@
 // A mark's own dot seeks to its tick.
 
 use editor;
+use signals;
+
+const RESIZED: str = "resized";
 
 pub class Lanes {
     node: Node,
@@ -13,11 +16,11 @@ impl Lanes {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
-        for word in ["recordings_changed", "play_frame"] {
+        events::listen(self.node, signals::DOCKS, source);
+        for word in [signals::RECORDINGS, signals::PLAY] {
             events::listen(self.node, word, source);
         }
-        events::listen(self.node, "resized", self.node);
+        events::listen(self.node, RESIZED, self.node);
     }
 
     pub fn on_recordings_changed(_change: any) {

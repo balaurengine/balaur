@@ -6,6 +6,7 @@
 //! a layout that would change one is refused rather than written.
 
 use crate::parse::{PUNCT, lex_number, lex_string};
+use crate::vocabulary::words;
 use crate::{Error, Pos};
 
 const INDENT: &str = "    ";
@@ -13,7 +14,16 @@ const INDENT: &str = "    ";
 /// Words after which `(` and `[` start a value rather than call or index
 /// the one before.
 const CONTROL: [&str; 10] = [
-    "if", "else", "while", "for", "in", "return", "loop", "let", "await", "match",
+    "if",
+    words::general::ELSE,
+    words::general::WHILE,
+    words::general::FOR,
+    words::general::IN,
+    words::general::RETURN,
+    words::general::LOOP,
+    words::general::LET,
+    words::general::AWAIT,
+    words::keywords::MATCH,
 ];
 
 /// Operators that join two values: spaced on both sides, and a line that
@@ -203,7 +213,7 @@ fn spaced(a: &Tok<'_>, b: &Tok<'_>, before: Option<&Tok<'_>>) -> bool {
     }
     if b.is("(") || b.is("[") {
         // `fn(int) -> int` is a type: its parameters sit against it.
-        let fn_type = a.kind == Kind::Word && a.text == "fn";
+        let fn_type = a.kind == Kind::Word && a.text == words::keywords::FN;
         return !(a.ends_value() || fn_type);
     }
     true

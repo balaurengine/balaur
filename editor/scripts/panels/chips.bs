@@ -3,6 +3,7 @@
 // pointer comes for them, the way a canvas tool's context bar does.
 
 use editor;
+use signals;
 
 pub class Chips {
     node: Node,
@@ -15,7 +16,7 @@ impl Chips {
         let source = scene::get_node("Editor");
         self.editor = source.script;
         self.near = false;
-        events::listen(self.node, "stage_changed", source);
+        events::listen(self.node, signals::STAGE, source);
     }
 
     pub fn on_stage_changed(_change: any) {

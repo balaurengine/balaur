@@ -699,20 +699,20 @@ pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("remove_joint", &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
-        ("set_motor_velocity", &[c::JOINT_2D], "(node: node, axis: string, velocity: float, damping: float)", "Drive one of the joint's free axes towards a speed: how a wheel is powered. Rewrites that axis's `axes` record."),
-        ("set_motor_position", &[c::JOINT_2D], "(node: node, axis: string, target: float, stiffness: float, damping: float)", "Drive one of the joint's free axes towards an angle or a distance, with a spring's stiffness and damping. Rewrites that axis's `axes` record."),
-        ("set_joint_limits", &[c::JOINT_2D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel; equal values lift the limit. Rewrites that axis's `axes` record."),
-        ("joint_state", &[c::JOINT_2D], "(node: node) -> JointState", "What the joint is doing."),
-        ("joint_force", &[c::JOINT_2D], "(node: node) -> JointForce", "The force and the torque the joint held through the last step. An articulation has none to read, and says so."),
-        ("solve_ik", &[c::JOINT_2D], "(node: node, x: float, y: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
+        (w::functions::REMOVE_JOINT, &[c::JOINT_2D], "", "Undo the node's joint, leaving both bodies free."),
+        (w::functions::SET_MOTOR_VELOCITY, &[c::JOINT_2D], "(node: node, axis: string, velocity: float, damping: float)", "Drive one of the joint's free axes towards a speed: how a wheel is powered. Rewrites that axis's `axes` record."),
+        (w::functions::SET_MOTOR_POSITION, &[c::JOINT_2D], "(node: node, axis: string, target: float, stiffness: float, damping: float)", "Drive one of the joint's free axes towards an angle or a distance, with a spring's stiffness and damping. Rewrites that axis's `axes` record."),
+        (w::functions::SET_JOINT_LIMITS, &[c::JOINT_2D], "(node: node, axis: string, min: float, max: float)", "Set how far one of the joint's free axes may travel; equal values lift the limit. Rewrites that axis's `axes` record."),
+        (w::functions::JOINT_STATE, &[c::JOINT_2D], "(node: node) -> JointState", "What the joint is doing."),
+        (w::functions::JOINT_FORCE, &[c::JOINT_2D], "(node: node) -> JointForce", "The force and the torque the joint held through the last step. An articulation has none to read, and says so."),
+        (w::functions::SOLVE_IK, &[c::JOINT_2D], "(node: node, x: float, y: float, opts: IkOptions?)", "Move a reduced-coordinates chain so its last link reaches a world position, leaving every joint inside its limits. Options: `rotation` (radians to turn the link to), `constrain` (the world axes to match: `x`, `y`, `rotation`; the translation by default, every axis when `rotation` is given), `damping` (1.0), `iterations` (10), `tolerance` (0.001)."),
     ]);
-    m.function("remove_joint", |eng: &Engine, node: NodeId| {
+    m.function(w::functions::REMOVE_JOINT, |eng: &Engine, node: NodeId| {
         remove_joint(eng, entity_of(node)?);
         Ok(())
     });
     m.function(
-        "set_motor_velocity",
+        w::functions::SET_MOTOR_VELOCITY,
         |eng: &Engine, (node, axis, velocity, damping): (NodeId, String, f32, f32)| {
             set_axis(eng, node, &axis, |record| {
                 crate::shared::joint::velocity_motor(record, velocity, damping);
@@ -720,7 +720,7 @@ pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "set_motor_position",
+        w::functions::SET_MOTOR_POSITION,
         |eng: &Engine,
          (node, axis, target, stiffness, damping): (NodeId, String, f32, f32, f32)| {
             set_axis(eng, node, &axis, |record| {
@@ -729,17 +729,17 @@ pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "set_joint_limits",
+        w::functions::SET_JOINT_LIMITS,
         |eng: &Engine, (node, axis, min, max): (NodeId, String, f32, f32)| {
             set_axis(eng, node, &axis, |record| {
                 crate::shared::joint::limits(record, min, max);
             })
         },
     );
-    m.function("joint_force", |eng: &Engine, node: NodeId| {
+    m.function(w::functions::JOINT_FORCE, |eng: &Engine, node: NodeId| {
         joint_force(eng, node)
     });
-    m.function("joint_state", |eng: &Engine, node: NodeId| {
+    m.function(w::functions::JOINT_STATE, |eng: &Engine, node: NodeId| {
         joint_state(eng, node)
     });
     m.records(&[(
@@ -748,7 +748,7 @@ pub(crate) fn install_joint2d_api(m: &mut Module<Engine>) {
         "How `solve_ik` reaches: the `rotation` to turn the last link to, the world axes it matches, and the solver's damping, iterations and tolerance.",
     )]);
     m.function(
-        "solve_ik",
+        w::functions::SOLVE_IK,
         |eng: &Engine, (node, x, y, opts): (NodeId, f32, f32, Option<Value>)| {
             solve_ik(
                 eng,

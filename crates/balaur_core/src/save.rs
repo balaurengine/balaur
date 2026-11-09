@@ -17,6 +17,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{Context, Result, bail};
 
 use crate::engine::Engine;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 
 /// How many slots were written or removed this run: a reader compares two
 /// values to learn whether a save moved, which is what `saved` says.
@@ -122,10 +124,10 @@ pub fn write(eng: &Engine, slot: &str, data: &balaur_script::Value) -> Result<()
     let body = crate::node_api::to_toml(data).context("a save is a table of plain values")?;
     let mut doc = toml::map::Map::new();
     doc.insert(
-        "version".into(),
+        words::functions::VERSION.into(),
         toml::Value::Integer(config.version.into()),
     );
-    doc.insert("data".into(), body);
+    doc.insert(keys::DATA.into(), body);
     let text = toml::to_string(&toml::Value::Table(doc))?;
     let fs = crate::files::backend(eng);
     let temporary = path.with_extension("toml.part");
@@ -155,12 +157,12 @@ pub fn read(eng: &Engine, slot: &str) -> Result<balaur_script::Value> {
     let doc: toml::Value =
         toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
     let version = doc
-        .get("version")
+        .get(words::functions::VERSION)
         .and_then(toml::Value::as_integer)
         .and_then(|v| u32::try_from(v).ok())
         .unwrap_or(1);
     let data = doc
-        .get("data")
+        .get(keys::DATA)
         .cloned()
         .unwrap_or_else(|| toml::Value::Table(toml::map::Map::new()));
     let config = SaveConfig::load(eng);

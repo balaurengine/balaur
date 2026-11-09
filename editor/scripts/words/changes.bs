@@ -1,0 +1,11 @@
+// What `signals::changed` says has moved.
+
+internal const ASSETS: str = "assets";
+internal const COMPLETE: str = "complete";
+internal const DEBUGGER: str = "debugger";
+internal const INPUTVIEW: str = "inputview";
+internal const PLUGINS: str = "plugins";
+internal const PROBLEMS: str = "problems";
+internal const RECORDINGS: str = "recordings";
+internal const TILES: str = "tiles";
+internal const TIMELINE: str = "timeline";

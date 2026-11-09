@@ -1,0 +1,12 @@
+// The tools a viewport works in.
+
+internal const BONE: str = "bone";
+internal const KEY: str = "key";
+internal const MOVE: str = "move";
+internal const PEN: str = "pen";
+internal const POLYGON: str = "polygon";
+internal const ROTATE: str = "rotate";
+internal const SCALE: str = "scale";
+internal const SELECT: str = "select";
+internal const TILES: str = "tiles";
+internal const ZOOM: str = "zoom";

@@ -34,9 +34,10 @@ collision never happens and no existing code is renamed. Rejected: `Singleton`
 cache is `AssetState`, the parser table `AssetTypeRegistry`.
 
 **D2 — A module is the noun for what it owns, and singular unless it is a keyed
-store.** The four plurals are `assets`, `settings` (pages by table, values by
-name), `strings` (one translation per key per locale) and `events`
-(subscribers by name). Do not add a fifth without adding a line here.
+store.** The five plurals are `assets`, `settings` (pages by table, values by
+name), `strings` (one translation per key per locale), `events` (subscribers
+by name) and `types` (one word per kind of value, compared against `kind()`).
+Do not add a sixth without adding a line here.
 
 **D3 — Six suffixes, chosen by ownership and lifetime, never by subject.** Is
 the value a message or durable data? If durable, does the subsystem that reads
@@ -102,7 +103,7 @@ module name (`register_shape2d_component`).
 | N14 | Enum option strings are Balaur's vocabulary, not the backend crate's. If the editor, docs or a test carries a translation for an option, that option has the wrong name | scene-file | — |
 | N15 | `*_system` is reserved for anything passed to `App::add_system`. A backend loop step takes a verb bound to the N2 category it touches: `apply_*` (Config in), `publish_*` (Snapshot out), `flush_*` (drain a Buffer), `pump_*` (fill a Snapshot from the OS), `sync_*` (mirror ECS into the backend) | rust-internal | ERROR |
 | N16 | A component key names what the scene author manipulates, and its registration says in a doc comment what state it writes — the mapping from key to storage is neither one-to-one nor total | rust-internal | REPORT |
-| N17 | A crate's words and keys live in one `vocabulary.rs`: the strings a schema, its reader, a matcher and a read-back all spell, as `words` and `keys` modules with the script constants beside them. A call site names a constant, never the string | rust-internal | ERROR |
+| N17 | A crate's words and keys live in one `vocabulary.rs`: the strings a schema, its reader, a matcher and a read-back all spell, as `words` and `keys` modules with the script constants beside them. A script's words are `const` items, or the engine's constant. Shared words group by topic (`words::datatypes::FLOAT`, `types::KIND_MAP`), never one long list; a word one file alone spells is a `const` in that file. A call site names a constant, never the string | rust-internal, script | ERROR, `string_lints` |
 | N18 | A colour token is `<group>_<role>`: `bg_*`, `text_*`, `border_*`, or a family (`primary`, `secondary`, `success`, `warning`, `danger`) taking `_fill`, `_fill_hover`, `_text` and `_bg`, with `text_on_<family>` for ink on its fill. A token never names a hue | theme | `house_lints` theme-token |
 | N19 | A theme key is the widget property it styles, spelled the same: `text_color`, `font_size`, `corner_radius`. A number may be a size's name instead | theme | `house_lints` theme-key |
 | N20 | A role is `<component>[_<context>][_<emphasis>]`, emphasis one of `primary`, `secondary`, `success`, `warning`, `danger` or `quiet`. A state is a sub-table, never a suffix, and no role takes a widget kind's word | theme | test |
@@ -123,7 +124,7 @@ Recorded so each stops being cited as precedent for the next.
 | `node.get_component` / `get_node` | N7 exemption. Dropping the prefix gives `node.component(name)` beside `node.component_names()`, and `node.node(path)` |
 | `render.camera_pose` | Reads the published `ViewportSnapshot3d`, what a `camera3d` node asked as the backend applied it — fixed by a doc line under N8 |
 | `render.camera_2d`, `mouse_world_2d`, `draw_line_2d` | Correct under N5; none quotes a key or module name |
-| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is not met yet: core keeps its words in the domain module that owns them (`primitive`, `csg`, `skeleton`), and the importer spells the scene keys it writes. The lint binds a crate the moment it has a `vocabulary.rs` |
+| `balaur_core`, `balaur_import`, `balaur_cli` words | N17 is met in part: each keeps a `vocabulary.rs` for the words it compares, core keeps the rest in the domain module that owns them (`primitive`, `csg`, `skeleton`), and the importer spells the scene keys it writes. `vocabulary-literal` binds a crate the moment it has a `vocabulary.rs`, and `string_lints.py` holds these to their baseline |
 | `render` as one large module | Revisited at 58 functions: the eight that drive the OS window and read the display moved to `window`, leaving 50. A `render2d` split would break 58 call sites for a boundary `ui` manages without. Revisit past ~70 functions |
 | `rotation_euler` | The Rust field is a quaternion, so bare `rotation` becomes ambiguous the day a quaternion accessor lands. Degrees are additive (`set_rotation_degrees`) |
 | `widget.x` / `widget.y` | Anchor-relative offsets against five anchor corners, not a position vector |

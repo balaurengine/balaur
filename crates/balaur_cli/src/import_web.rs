@@ -23,6 +23,7 @@ use wasm_bindgen_futures::{JsFuture, spawn_local};
 use web_sys::{Event, File, FileList, HtmlInputElement};
 
 use crate::import_api::{Cancel, ImportEvent, ImportJob, Running, Source};
+use crate::vocabulary::words;
 
 /// What the chooser offers, as an `accept` list from the one list of what an
 /// importer reads.
@@ -50,7 +51,7 @@ pub(crate) fn choose(
     else {
         return false;
     };
-    input.set_type("file");
+    input.set_type(words::functions::FILE);
     input.set_multiple(true);
     input.set_accept(&accept());
 

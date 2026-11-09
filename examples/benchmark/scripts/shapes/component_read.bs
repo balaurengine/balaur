@@ -1,5 +1,7 @@
 // One property read and one written, the seam a control or a tweak crosses.
 
+const RADIUS: str = "radius";
+
 pub class ComponentRead {
     node: Node,
     seen: float,
@@ -7,8 +9,8 @@ pub class ComponentRead {
 
 impl ComponentRead {
     fn update(dt: float) {
-        let held = self.node.shape2d.shape["radius"];
-        self.seen = if held.kind() == "float" { held.as_float() } else { 0.0 };
-        self.node.shape2d.shape = { "radius": self.seen };
+        let held = self.node.shape2d.shape[RADIUS];
+        self.seen = if held.kind() == types::KIND_FLOAT { held.as_float() } else { 0.0 };
+        self.node.shape2d.shape = { RADIUS: self.seen };
     }
 }

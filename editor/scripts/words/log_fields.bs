@@ -1,0 +1,12 @@
+// The fields of a log line, a finding or a job.
+
+internal const CHANNEL: str = "channel";
+internal const DONE: str = "done";
+internal const ERROR: str = "error";
+internal const JOB: str = "job";
+internal const LEVEL: str = "level";
+internal const MESSAGE: str = "message";
+internal const NOTE: str = "note";
+internal const SEVERITY: str = "severity";
+internal const TICK: str = "tick";
+internal const TIME: str = "time";

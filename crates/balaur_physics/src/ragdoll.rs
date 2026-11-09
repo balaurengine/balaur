@@ -37,6 +37,8 @@ use glamx::{Quat, Vec3};
 
 use crate::vocabulary::{Opts, component as c, keys as k, words as w};
 
+const SET_RAGDOLL_INFLUENCE: &str = "set_ragdoll_influence";
+
 /// The `ragdoll` component's weight, which a build's options and
 /// `set_ragdoll_influence` name too.
 pub(crate) const INFLUENCE: &str = "influence";
@@ -410,7 +412,7 @@ fn spawn_body(
             form.insert(k::SIZE.into(), toml::Value::Array(size));
         }
     }
-    shape.insert("shape".into(), toml::Value::Table(form));
+    shape.insert(k::SHAPE.into(), toml::Value::Table(form));
     shape.insert(
         k::DENSITY.into(),
         toml::Value::Float(f64::from(recipe.density)),
@@ -766,13 +768,13 @@ pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
         "How a ragdoll is built: each bone's shape and surface, each body's damping, the joints' limits, and how it is driven.",
     )]);
     m.describe(&[(
-        "ragdoll",
+        w::functions::RAGDOLL,
         &[],
         "(node: node, opts: RagdollOptions?) -> [node]",
         doc,
     )]);
     m.function(
-        "ragdoll",
+        w::functions::RAGDOLL,
         move |eng: &Engine, (node, opts): (NodeId, Option<Value>)| {
             let rig = entity_of(node)?;
             let made = if dim3 {
@@ -794,7 +796,7 @@ pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
 /// a reader has to check twice.
 pub(crate) fn install_blend_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "set_ragdoll_influence",
+        SET_RAGDOLL_INFLUENCE,
         &[RAGDOLL],
         "(node: node, weight: float)",
         "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip \
@@ -802,7 +804,7 @@ pub(crate) fn install_blend_api(m: &mut Module<Engine>) {
          back up.",
     )]);
     m.function(
-        "set_ragdoll_influence",
+        SET_RAGDOLL_INFLUENCE,
         |eng: &Engine, (node, weight): (NodeId, f32)| {
             let entity = entity_of(node)?;
             let mut params = toml::map::Map::new();

@@ -17,6 +17,7 @@ use anyhow::{Result, anyhow};
 use crate::Engine;
 use crate::components;
 use crate::hecs::Entity;
+use crate::vocabulary::keys;
 
 /// One component of a preset, with the parameters that make the preset mean
 /// something (a `rigid_body2d`'s body is dynamic; a `static_body2d`'s is not).
@@ -145,12 +146,12 @@ pub fn from_toml(name: &str, body: &toml::Value) -> Result<PresetDef> {
         .as_table()
         .ok_or_else(|| anyhow!("preset '{name}' should be a table"))?;
     let description = table
-        .get("description")
+        .get(keys::DESCRIPTION)
         .and_then(|v| v.as_str())
         .unwrap_or(name)
         .to_string();
     let tags = table
-        .get("tags")
+        .get(keys::TAGS)
         .and_then(|v| v.as_array())
         .map(|a| {
             a.iter()
@@ -168,12 +169,12 @@ pub fn from_toml(name: &str, body: &toml::Value) -> Result<PresetDef> {
             .as_table()
             .ok_or_else(|| anyhow!("preset '{name}': each component is a table"))?;
         let component = entry
-            .get("component")
+            .get(keys::COMPONENT)
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("preset '{name}': a component entry needs `component`"))?;
         // Everything but the discriminant is the component's own properties.
         let mut params = entry.clone();
-        params.remove("component");
+        params.remove(keys::COMPONENT);
         parts.push(PresetPart {
             component: component.to_string(),
             params: (!params.is_empty()).then_some(toml::Value::Table(params)),

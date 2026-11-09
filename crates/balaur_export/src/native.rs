@@ -4,10 +4,17 @@
 
 use crate::apple::AppleConfig;
 use crate::config::NativeScripts;
+use crate::vocabulary::words;
 use anyhow::{Context, Result, bail};
 use balaur::standalone::{native_scripts_beside, native_scripts_file};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+const AARCH64: &str = "aarch64";
+const ARM64: &str = "arm64";
+const BIN: &str = "bin";
+const CLANG: &str = "clang";
+const LLD_LINK: &str = "lld-link";
 
 /// Every build's flags: the C needs no library, and contracting a multiply
 /// and an add into one rounding would part its floats from every engine's.
@@ -34,7 +41,7 @@ fn known_dirs() -> Vec<PathBuf> {
     .map(PathBuf::from)
     .collect();
     if let Some(programs) = std::env::var_os("ProgramFiles") {
-        dirs.push(PathBuf::from(programs).join("LLVM").join("bin"));
+        dirs.push(PathBuf::from(programs).join("LLVM").join(BIN));
     }
     dirs
 }
@@ -64,7 +71,7 @@ pub(crate) fn request(
     let wanted = opts
         .target
         .as_deref()
-        .is_some_and(|t| crate::split_variant(t).0 != "web");
+        .is_some_and(|t| crate::split_variant(t).0 != words::targets::WEB);
     if mode == NativeScripts::Off || !wanted {
         return Ok(None);
     }
@@ -102,10 +109,10 @@ impl Llvm {
             dirs.iter().map(|d| d.join(&file)).find(|p| p.is_file())
         };
         Self {
-            clang: tool("clang"),
+            clang: tool(CLANG),
             ld64: tool("ld64.lld"),
             elf: tool("ld.lld"),
-            coff: tool("lld-link"),
+            coff: tool(LLD_LINK),
         }
     }
 
@@ -141,7 +148,7 @@ fn search_dirs() -> Vec<PathBuf> {
                 .filter_map(|e| {
                     let name = e.file_name().to_string_lossy().into_owned();
                     let version = name.strip_prefix("llvm-")?.parse().ok()?;
-                    Some((version, e.path().join("bin")))
+                    Some((version, e.path().join(BIN)))
                 })
                 .collect()
         })
@@ -211,7 +218,7 @@ fn compile(clang: &Path, work: &Work, triple: &str) -> Result<PathBuf> {
     let obj = work.file(&format!("{triple}.o"));
     let mut cmd = Command::new(clang);
     cmd.arg(format!("--target={triple}")).args(FLAGS);
-    if !triple.contains("windows") {
+    if !triple.contains(words::native::WINDOWS) {
         cmd.arg("-fPIC");
     }
     run(
@@ -224,7 +231,7 @@ fn compile(clang: &Path, work: &Work, triple: &str) -> Result<PathBuf> {
 fn link_elf(ld: &Path, obj: &Path, out: &Path, android: bool) -> Result<()> {
     let mut cmd = Command::new(ld);
     cmd.args(["-shared", "--no-undefined", "-soname"])
-        .arg(native_scripts_file("linux"));
+        .arg(native_scripts_file(words::native::LINUX));
     // An Android device with 16 KB pages loads nothing aligned to less.
     if android {
         cmd.args(["-z", "max-page-size=16384"]);
@@ -234,8 +241,12 @@ fn link_elf(ld: &Path, obj: &Path, out: &Path, android: bool) -> Result<()> {
 
 fn link_coff(link: &Path, obj: &Path, out: &Path, arch: &str) -> Result<()> {
     // lld-link writes an import library beside its output; only the DLL ships.
-    let staged = obj.with_extension("dll");
-    let machine = if arch == "x86_64" { "x64" } else { "arm64" };
+    let staged = obj.with_extension(words::extensions::DLL);
+    let machine = if arch == words::targets::X86_64 {
+        "x64"
+    } else {
+        ARM64
+    };
     run(
         Command::new(link)
             .args(["/dll", "/noentry", "/nodefaultlib"])
@@ -266,8 +277,8 @@ fn apple_slice(
 ) -> Result<Option<String>> {
     if has_xcode(slice.sdk) {
         run(
-            Command::new("xcrun")
-                .args(["--sdk", slice.sdk, "clang", "-target", &slice.triple])
+            Command::new(words::native::XCRUN)
+                .args(["--sdk", slice.sdk, CLANG, "-target", &slice.triple])
                 .args(FLAGS)
                 .args(["-fPIC", "-dynamiclib", "-install_name", install, "-o"])
                 .arg(out)
@@ -305,7 +316,7 @@ fn apple_slice(
 
 fn has_xcode(sdk: &str) -> bool {
     cfg!(target_os = "macos")
-        && Command::new("xcrun")
+        && Command::new(words::native::XCRUN)
             .args(["--sdk", sdk, "--show-sdk-path"])
             .output()
             .is_ok_and(|o| o.status.success())
@@ -360,46 +371,46 @@ pub(crate) fn build_desktop(
     let llvm = Llvm::find();
     let work = Work::new(&request.scripts)?;
     let (os, built) = match base {
-        "linux-x64" | "linux-arm64" => {
-            let arch = if base == "linux-x64" {
-                "x86_64"
+        words::targets::LINUX_X64 | words::targets::LINUX_ARM64 => {
+            let arch = if base == words::targets::LINUX_X64 {
+                words::targets::X86_64
             } else {
-                "aarch64"
+                AARCH64
             };
             let (clang, ld) = match llvm.with(llvm.elf.as_deref(), "ld.lld") {
                 Ok(tools) => tools,
                 Err(why) => return missing(request, &why),
             };
             let obj = compile(clang, &work, &format!("{arch}-linux-gnu"))?;
-            let out = native_scripts_beside(exe, "linux");
+            let out = native_scripts_beside(exe, words::native::LINUX);
             link_elf(ld, &obj, &out, false)?;
-            ("linux", out)
+            (words::native::LINUX, out)
         }
-        "windows-x64" | "windows-arm64" => {
-            let arch = if base == "windows-x64" {
-                "x86_64"
+        words::targets::WINDOWS_X64 | words::targets::WINDOWS_ARM64 => {
+            let arch = if base == words::targets::WINDOWS_X64 {
+                words::targets::X86_64
             } else {
-                "aarch64"
+                AARCH64
             };
-            let (clang, link) = match llvm.with(llvm.coff.as_deref(), "lld-link") {
+            let (clang, link) = match llvm.with(llvm.coff.as_deref(), LLD_LINK) {
                 Ok(tools) => tools,
                 Err(why) => return missing(request, &why),
             };
             let obj = compile(clang, &work, &format!("{arch}-pc-windows-msvc"))?;
-            let out = native_scripts_beside(exe, "windows");
+            let out = native_scripts_beside(exe, words::native::WINDOWS);
             link_coff(link, &obj, &out, arch)?;
-            ("windows", out)
+            (words::native::WINDOWS, out)
         }
-        "macos-universal" => {
-            let out = native_scripts_beside(exe, "macos");
-            let install = format!("@rpath/{}", native_scripts_file("macos"));
+        words::targets::MACOS_UNIVERSAL => {
+            let out = native_scripts_beside(exe, words::native::MACOS);
+            let install = format!("@rpath/{}", native_scripts_file(words::native::MACOS));
             let mut slices = Vec::new();
-            for arch in ["arm64", "x86_64"] {
+            for arch in [ARM64, "x86_64"] {
                 let slice = AppleSlice {
                     arch,
                     triple: format!("{arch}-apple-macos{}", request.min_macos),
                     sdk: "macosx",
-                    platform: "macos",
+                    platform: words::native::MACOS,
                     min: &request.min_macos,
                 };
                 let file = work.file(&format!("{arch}.dylib"));
@@ -413,7 +424,7 @@ pub(crate) fn build_desktop(
             }
             std::fs::write(&out, universal(&slices)?)
                 .with_context(|| format!("writing {}", out.display()))?;
-            ("macos", out)
+            (words::native::MACOS, out)
         }
         _ => return Ok(None),
     };
@@ -428,7 +439,7 @@ pub(crate) fn build_desktop(
 /// The scripts in each 64-bit ABI an Android layout carries, as
 /// `lib/<abi>/libBalaurScripts.so`; the 32-bit ones keep their engine.
 pub(crate) fn build_android(layout: &Path, request: &Request) -> Result<()> {
-    let lib = layout.join("lib");
+    let lib = layout.join(words::android::LIB);
     let mut abis: Vec<String> = std::fs::read_dir(&lib)
         .map(|entries| {
             entries
@@ -443,8 +454,8 @@ pub(crate) fn build_android(layout: &Path, request: &Request) -> Result<()> {
     let work = Work::new(&request.scripts)?;
     for abi in abis {
         let arch = match abi.as_str() {
-            "arm64-v8a" => "aarch64",
-            "x86_64" => "x86_64",
+            words::targets::ARM64_V8A => AARCH64,
+            words::targets::X86_64 => words::targets::X86_64,
             other => {
                 tracing::info!("{other} has no native scripts; its scripts run on its engine");
                 continue;
@@ -455,7 +466,9 @@ pub(crate) fn build_android(layout: &Path, request: &Request) -> Result<()> {
             Err(why) => return missing(request, &why).map(|_| ()),
         };
         let obj = compile(clang, &work, &format!("{arch}-linux-android{ANDROID_API}"))?;
-        let out = lib.join(&abi).join(native_scripts_file("android"));
+        let out = lib
+            .join(&abi)
+            .join(native_scripts_file(words::targets::ANDROID));
         link_elf(ld, &obj, &out, true)?;
         tracing::info!(
             "{} script(s) as native code for {abi} -> {}",
@@ -485,8 +498,8 @@ fn slice_of(bin: &[u8]) -> Option<Slice> {
         return None;
     }
     let arch = match word(4)? {
-        CPU_ARM64 => "arm64",
-        CPU_X86_64 => "x86_64",
+        CPU_ARM64 => ARM64,
+        CPU_X86_64 => words::targets::X86_64,
         _ => return None,
     };
     let mut at = 32;
@@ -525,9 +538,9 @@ pub(crate) fn build_framework(
             "-simulator",
         )
     } else {
-        ("iphoneos", "ios", "iPhoneOS", "")
+        ("iphoneos", words::targets::IOS, "iPhoneOS", "")
     };
-    let file = native_scripts_beside(&app.join(executable), "ios");
+    let file = native_scripts_beside(&app.join(executable), words::targets::IOS);
     let dir = file.parent().context("a framework with no directory")?;
     let work = Work::new(&request.scripts)?;
     let staged = work.file("framework");
@@ -538,7 +551,7 @@ pub(crate) fn build_framework(
         platform,
         min: &apple.min_ios,
     };
-    let install = format!("@rpath/{}", native_scripts_file("ios"));
+    let install = format!("@rpath/{}", native_scripts_file(words::targets::IOS));
     if let Some(why) = apple_slice(&Llvm::find(), &work, &ios, &install, &staged)? {
         return missing(request, &why).map(|_| ());
     }

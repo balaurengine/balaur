@@ -2,6 +2,7 @@
 // when the tilemap, the selection or the brush moved, and answers a tile pick.
 
 use editor;
+use signals;
 
 pub class Tiles {
     node: Node,
@@ -17,9 +18,9 @@ impl Tiles {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
         events::listen(self.node, "tiles_changed", source);
-        events::listen(self.node, "outline_changed", source);
+        events::listen(self.node, signals::OUTLINE, source);
     }
 
     pub fn on_tiles_changed(_change: any) {

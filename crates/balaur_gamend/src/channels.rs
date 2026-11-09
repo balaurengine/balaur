@@ -6,6 +6,7 @@
 //! closed it on purpose, a kicked player's lobby for one: the topic is
 //! forgotten, so a reconnect does not ask for it again either.
 
+use crate::vocabulary::words;
 use serde_json::Value as Json;
 
 /// One topic waiting to be joined again, `at` in the backend's seconds.
@@ -40,7 +41,7 @@ impl Rejoins {
         now: f64,
     ) {
         match event {
-            "phx_error" => {
+            words::PHX_ERROR => {
                 let payload = if topic == user_topic {
                     Json::Object(serde_json::Map::new())
                 } else {
@@ -57,7 +58,7 @@ impl Rejoins {
                     attempt: 1,
                 });
             }
-            "phx_close" => {
+            words::PHX_CLOSE => {
                 topics.retain(|(joined, _)| joined != topic);
                 self.due.retain(|due| due.topic != topic);
             }

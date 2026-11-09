@@ -7,6 +7,8 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use wasmparser::{BlockType, FunctionBody, MemArg, Operator, ValType};
 
+const BS_ST32: &str = "bs_st32";
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Func,
@@ -504,7 +506,7 @@ impl Gen<'_, '_> {
                 self.load(memarg, I64, "(uint64_t)(int64_t)(int32_t)bs_ld32(@)")?;
             }
             O::F64Load { memarg } => self.load(memarg, F64, "bs_ldf64(@)")?,
-            O::I32Store { memarg } => self.store(memarg, "bs_st32", "")?,
+            O::I32Store { memarg } => self.store(memarg, BS_ST32, "")?,
             O::I32Store8 { memarg } | O::I64Store8 { memarg } => {
                 self.store(memarg, "bs_st8", "(uint8_t)")?;
             }
@@ -512,7 +514,7 @@ impl Gen<'_, '_> {
                 self.store(memarg, "bs_st16", "(uint16_t)")?;
             }
             O::I64Store { memarg } => self.store(memarg, "bs_st64", "")?,
-            O::I64Store32 { memarg } => self.store(memarg, "bs_st32", "(uint32_t)")?,
+            O::I64Store32 { memarg } => self.store(memarg, BS_ST32, "(uint32_t)")?,
             O::F64Store { memarg } => self.store(memarg, "bs_stf64", "")?,
             O::MemorySize { .. } => {
                 let r = self.push(I32);

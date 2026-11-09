@@ -3,6 +3,7 @@
 // row's own control ran.
 
 use editor;
+use signals;
 
 pub class Events {
     node: Node,
@@ -13,7 +14,7 @@ impl Events {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        for word in ["outline_changed", "inspector_changed"] {
+        for word in [signals::OUTLINE, signals::INSPECTOR] {
             events::listen(self.node, word, source);
         }
     }

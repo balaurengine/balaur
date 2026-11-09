@@ -11,6 +11,47 @@ use nodes;
 use stats;
 use world;
 
+const AFTER: str = "after";
+const COOL: str = "cool";
+const DONE: str = "done";
+const IDLE: str = "idle";
+const LINK: str = "link";
+const LOAD: str = "load";
+const NODES: str = "nodes";
+const PHYSICS: str = "physics";
+const PLACE: str = "place";
+const PREP: str = "prep";
+const SETTLE: str = "settle";
+const SETUP: str = "setup";
+const TIME: str = "time";
+const WARM: str = "warm";
+const WORK: str = "work";
+const BUILD_MS: str = "build_ms";
+const CASE: str = "case";
+const DIMENSIONS: str = "dimensions";
+const ENGINE_LABEL: str = "engine_label";
+const EXTRA_METRICS: str = "extra_metrics";
+const FRAME_MS: str = "frame_ms";
+const INSTRUCTIONS: str = "instructions";
+const KIND: str = "kind";
+const LOOP_MS: str = "loop_ms";
+const MIRROR_MS: str = "mirror_ms";
+const P50_MS: str = "p50_ms";
+const PHYSICS_MS: str = "physics_ms";
+const PLATFORM: str = "platform";
+const RENDER_CPU_MS: str = "render_cpu_ms";
+const RENDER_GPU_MS: str = "render_gpu_ms";
+const SCRIPT: str = "script";
+const SCRIPT_MS: str = "script_ms";
+const STEP_MS: str = "step_ms";
+const STEPS_KEY: str = "steps";
+const SYNC_MS: str = "sync_ms";
+const UI_MS: str = "ui_ms";
+const UPDATE: str = "update";
+const UPDATE_MS: str = "update_ms";
+const WALL_MS: str = "wall_ms";
+const WARMUP_KEY: str = "warmup";
+
 const STEPS: int = 300;
 const WARMUP: int = 60;
 const PLACE_PER_FRAME: int = 1500;
@@ -59,7 +100,7 @@ impl Bench {
         self.cases = catalogue();
         self.queue = [];
         self.results = [];
-        self.state = "idle";
+        self.state = IDLE;
         self.samples = {};
         self.status = "pick a case";
         self.draw = true;
@@ -141,7 +182,7 @@ impl Bench {
     }
 
     fn fixed_update(dt: float) {
-        if self.state == "warm" || self.state == "time" {
+        if self.state == WARM || self.state == TIME {
             self.tick += 1;
             let c = self.entry.unwrap().case;
             let step = c.step;
@@ -152,7 +193,7 @@ impl Bench {
     /// One entry per frame, read from the profiler's table for the frame
     /// before.
     fn sample() {
-        if self.state != "time" && self.state != "settle" {
+        if self.state != TIME && self.state != SETTLE {
             return;
         }
         let found = engine::timings();
@@ -163,17 +204,17 @@ impl Bench {
         let stages: any = t.stages;
         let spans = t.spans;
         let c = self.entry.unwrap().case;
-        if self.state == "settle" {
+        if self.state == SETTLE {
             // A node case is one loop, timed whole, in whichever stages its
             // work lands in.
             let total = 0.0;
             for name in c.stages {
                 total += ms(stages[name]);
             }
-            self.push("loop_ms", total);
+            self.push(LOOP_MS, total);
             return;
         }
-        if c.kind == "load" {
+        if c.kind == LOAD {
             self.sample_load(t.frame, t.wall, stages, spans);
             return;
         }
@@ -182,10 +223,10 @@ impl Bench {
         }
         let per = 1000.0 / (t.fixed_steps as float);
         let span = if c.dimensions == 2 { "physics2d/step" } else { "physics3d/step" };
-        self.push("step_ms", secs(stages["fixed_update"]) * per);
-        self.push("physics_ms", span_seconds(spans, span) * per);
-        self.push("script_ms", span_seconds(spans, "scripts/fixed_update") * per);
-        self.push("frame_ms", t.frame * 1000.0);
+        self.push(STEP_MS, secs(stages["fixed_update"]) * per);
+        self.push(PHYSICS_MS, span_seconds(spans, span) * per);
+        self.push(SCRIPT_MS, span_seconds(spans, "scripts/fixed_update") * per);
+        self.push(FRAME_MS, t.frame * 1000.0);
     }
 
     /// One frame of a load case: the whole frame, and the four places its
@@ -193,15 +234,15 @@ impl Bench {
     /// mirror is where a kind case does, and the two render spans are what
     /// the GPU was asked for.
     fn sample_load(frame: float, wall: float, stages: any, spans: [engine::Span]) {
-        self.push("frame_ms", frame * 1000.0);
-        self.push("update_ms", ms(stages["update"]));
-        self.push("sync_ms", ms(stages["scene_sync"]));
-        self.push("script_ms", span_seconds(spans, "scripts/update") * 1000.0);
-        self.push("mirror_ms", span_seconds(spans, "scene mirror") * 1000.0);
-        self.push("ui_ms", span_seconds(spans, "ui") * 1000.0);
-        self.push("render_cpu_ms", span_seconds(spans, "render cpu") * 1000.0);
-        self.push("render_gpu_ms", span_seconds(spans, "render gpu") * 1000.0);
-        self.push("wall_ms", wall * 1000.0);
+        self.push(FRAME_MS, frame * 1000.0);
+        self.push(UPDATE_MS, ms(stages[UPDATE]));
+        self.push(SYNC_MS, ms(stages["scene_sync"]));
+        self.push(SCRIPT_MS, span_seconds(spans, "scripts/update") * 1000.0);
+        self.push(MIRROR_MS, span_seconds(spans, "scene mirror") * 1000.0);
+        self.push(UI_MS, span_seconds(spans, "ui") * 1000.0);
+        self.push(RENDER_CPU_MS, span_seconds(spans, "render cpu") * 1000.0);
+        self.push(RENDER_GPU_MS, span_seconds(spans, "render gpu") * 1000.0);
+        self.push(WALL_MS, wall * 1000.0);
         // Statements run rather than milliseconds: the same frame runs the
         // same statements on every machine, so this is the half a baseline
         // can hold. Kept under the name the report has always used.
@@ -210,7 +251,7 @@ impl Bench {
             total += row.instructions;
         }
         engine::set_script_profiling(true);
-        self.push("instructions", total as float);
+        self.push(INSTRUCTIONS, total as float);
     }
 
     fn push(key: str, value: float) {
@@ -228,20 +269,20 @@ impl Bench {
     /// The state machine: build, settle, measure, report, tear down.
     fn advance() {
         let state = self.state;
-        if state == "idle" || state == "done" {
+        if state == IDLE || state == DONE {
             return;
         }
-        if state == "cool" {
+        if state == COOL {
             physics::clear();
-            self.state = "idle";
+            self.state = IDLE;
             self.status = "ready";
             self.start_next();
             return;
         }
         let e = self.entry.unwrap();
         let c = e.case;
-        if state == "setup" {
-            if self.count > 0 && c.kind == "load" {
+        if state == SETUP {
+            if self.count > 0 && c.kind == LOAD {
                 c.count = self.count;
             }
             random::seed(e.seed);
@@ -250,44 +291,44 @@ impl Bench {
             let w = world::new(self.node, c.dimensions, self.draw);
             self.world = w;
             self.started = engine::time();
-            if c.kind == "nodes" {
-                self.state = "prep";
+            if c.kind == NODES {
+                self.state = PREP;
                 self.build_ms = 0.0;
             } else {
-                if c.kind == "load" {
+                if c.kind == LOAD {
                     engine::set_script_profiling(true);
                 }
                 let setup = c.setup;
                 setup(w, c);
-                self.state = "place";
+                self.state = PLACE;
             }
             return;
         }
         let w = self.world.unwrap();
-        if state == "place" {
-            let next = if c.links > 0 { "link" } else { "after" };
+        if state == PLACE {
+            let next = if c.links > 0 { LINK } else { AFTER };
             self.chunk(c.place, c.count, next);
             return;
         }
-        if state == "link" {
-            self.chunk(c.link, c.links, "after");
+        if state == LINK {
+            self.chunk(c.link, c.links, AFTER);
             return;
         }
-        if state == "after" {
+        if state == AFTER {
             let after = c.after;
             after(w, c);
             self.build_ms = (engine::time() - self.started) * 1000.0;
             self.tick = 0;
-            self.state = "warm";
+            self.state = WARM;
             self.status = "{e.key}: settling";
             return;
         }
-        if state == "warm" {
+        if state == WARM {
             let needed = if c.settle > self.warmup { c.settle } else { self.warmup };
             if self.tick >= needed {
                 self.tick = 0;
                 self.samples = {};
-                self.state = "time";
+                self.state = TIME;
                 self.status = "{e.key}: measuring";
                 if self.shot != "" {
                     render::screenshot(self.shot);
@@ -295,36 +336,36 @@ impl Bench {
             }
             return;
         }
-        if state == "time" {
-            if self.taken(if c.kind == "load" { "frame_ms" } else { "step_ms" }) >= self.steps {
+        if state == TIME {
+            if self.taken(if c.kind == LOAD { FRAME_MS } else { STEP_MS }) >= self.steps {
                 self.finish();
             }
             return;
         }
         // A node case runs on three frames so only the middle one holds the
         // work: the tree is rebuilt, the loop runs, the profiler is read.
-        if state == "prep" {
+        if state == PREP {
             release(w);
             let started = engine::time();
             let prepare = c.prepare;
             prepare(w, c);
             self.build_ms = (engine::time() - started) * 1000.0;
-            self.state = "work";
+            self.state = WORK;
             return;
         }
-        if state == "work" {
+        if state == WORK {
             let run = c.run;
             run(w, c);
             self.repeat += 1;
             self.status = "{e.key}: pass {self.repeat} of {c.repeats}";
-            self.state = "settle";
+            self.state = SETTLE;
             return;
         }
-        if state == "settle" {
-            if self.taken("loop_ms") >= c.repeats {
+        if state == SETTLE {
+            if self.taken(LOOP_MS) >= c.repeats {
                 self.finish();
             } else {
-                self.state = "prep";
+                self.state = PREP;
             }
         }
     }
@@ -352,9 +393,9 @@ impl Bench {
     fn finish() {
         let c = self.entry.unwrap().case;
         let w = self.world.unwrap();
-        let result = if c.kind == "nodes" {
+        let result = if c.kind == NODES {
             self.node_result(c)
-        } else if c.kind == "load" {
+        } else if c.kind == LOAD {
             self.load_result(c, w)
         } else {
             self.physics_result(c, w)
@@ -366,31 +407,31 @@ impl Bench {
             fs::write(self.out, text);
         }
         world::tear_down(w);
-        self.state = "cool";
+        self.state = COOL;
         self.show_results();
     }
 
     fn physics_result(c: load::Case, w: world::World) -> any {
         let extra = c.extra;
         {
-            "case": c.name,
-            "dimensions": if c.dimensions == 2 { "2d" } else { "3d" },
-            "engine_label": "Balaur",
-            "steps": self.steps,
-            "warmup": self.warmup,
+            CASE: c.name,
+            DIMENSIONS: if c.dimensions == 2 { "2d" } else { "3d" },
+            ENGINE_LABEL: "Balaur",
+            STEPS_KEY: self.steps,
+            WARMUP_KEY: self.warmup,
             "physics_ticks_per_second": 60,
             "body_count": w.bodies.len(),
             "static_count": w.statics,
             "joint_count": w.joints,
             "work_units": w.queries,
-            "extra_metrics": extra(w, c),
+            EXTRA_METRICS: extra(w, c),
             "fingerprint": stats::fingerprint(w.bodies, c.dimensions),
-            "build_ms": self.build_ms,
-            "step_ms": self.summary("step_ms"),
-            "physics_ms": self.summary("physics_ms"),
-            "script_ms": self.summary("script_ms"),
-            "frame_ms": self.summary("frame_ms"),
-            "platform": engine::target(),
+            BUILD_MS: self.build_ms,
+            STEP_MS: self.summary(STEP_MS),
+            PHYSICS_MS: self.summary(PHYSICS_MS),
+            SCRIPT_MS: self.summary(SCRIPT_MS),
+            FRAME_MS: self.summary(FRAME_MS),
+            PLATFORM: engine::target(),
         }
     }
 
@@ -399,40 +440,40 @@ impl Bench {
     fn load_result(c: load::Case, w: world::World) -> any {
         let extra = c.extra;
         {
-            "case": c.name,
-            "dimensions": "load",
-            "engine_label": "Balaur",
-            "steps": self.steps,
-            "warmup": self.warmup,
+            CASE: c.name,
+            DIMENSIONS: LOAD,
+            ENGINE_LABEL: "Balaur",
+            STEPS_KEY: self.steps,
+            WARMUP_KEY: self.warmup,
             "count": c.count,
-            "script": c.script,
-            "build_ms": self.build_ms,
-            "frame_ms": self.summary("frame_ms"),
-            "wall_ms": self.summary("wall_ms"),
-            "update_ms": self.summary("update_ms"),
-            "sync_ms": self.summary("sync_ms"),
-            "script_ms": self.summary("script_ms"),
-            "mirror_ms": self.summary("mirror_ms"),
-            "ui_ms": self.summary("ui_ms"),
-            "render_cpu_ms": self.summary("render_cpu_ms"),
-            "render_gpu_ms": self.summary("render_gpu_ms"),
-            "instructions": self.summary("instructions"),
-            "extra_metrics": extra(w, c),
-            "platform": engine::target(),
+            SCRIPT: c.script,
+            BUILD_MS: self.build_ms,
+            FRAME_MS: self.summary(FRAME_MS),
+            WALL_MS: self.summary(WALL_MS),
+            UPDATE_MS: self.summary(UPDATE_MS),
+            SYNC_MS: self.summary(SYNC_MS),
+            SCRIPT_MS: self.summary(SCRIPT_MS),
+            MIRROR_MS: self.summary(MIRROR_MS),
+            UI_MS: self.summary(UI_MS),
+            RENDER_CPU_MS: self.summary(RENDER_CPU_MS),
+            RENDER_GPU_MS: self.summary(RENDER_GPU_MS),
+            INSTRUCTIONS: self.summary(INSTRUCTIONS),
+            EXTRA_METRICS: extra(w, c),
+            PLATFORM: engine::target(),
         }
     }
 
     fn node_result(c: load::Case) -> any {
         {
-            "case": c.name,
-            "dimensions": "nodes",
-            "engine_label": "Balaur",
+            CASE: c.name,
+            DIMENSIONS: NODES,
+            ENGINE_LABEL: "Balaur",
             "iterations": c.iterations,
             "repeats": c.repeats,
             "stages": c.stages,
-            "build_ms": self.build_ms,
-            "loop_ms": self.summary("loop_ms"),
-            "platform": engine::target(),
+            BUILD_MS: self.build_ms,
+            LOOP_MS: self.summary(LOOP_MS),
+            PLATFORM: engine::target(),
         }
     }
 
@@ -455,13 +496,13 @@ impl Bench {
                 engine::quit();
             }
             self.entry = nil;
-            self.state = "idle";
+            self.state = IDLE;
             self.show_status();
             return;
         }
         let e = self.queue.remove(0);
         self.entry = e;
-        self.state = "setup";
+        self.state = SETUP;
         self.status = "{e.key}: building";
         self.show_status();
     }
@@ -511,7 +552,7 @@ impl Bench {
             return;
         }
         self.queue.push(found.unwrap());
-        if self.state == "idle" {
+        if self.state == IDLE {
             self.start_next();
         }
     }
@@ -530,9 +571,9 @@ fn catalogue() -> [Entry] {
     let out: [Entry] = [];
     add(out, "3d", cases3d::all());
     add(out, "2d", cases2d::all());
-    add(out, "nodes", nodes::all());
-    add(out, "kind", cases_kinds::all());
-    add(out, "script", cases_scripts::all());
+    add(out, NODES, nodes::all());
+    add(out, KIND, cases_kinds::all());
+    add(out, SCRIPT, cases_scripts::all());
     out
 }
 
@@ -596,7 +637,7 @@ fn frame_view(dimensions: int, view: [float]) {
 /// Godot's gravity, so `length_unit` is 100 as godot-rapier's 2D default is;
 /// without it every tolerance in the solver is a hundred times too loose.
 fn tune(c: load::Case) {
-    if c.kind != "physics" {
+    if c.kind != PHYSICS {
         return;
     }
     physics::set_sleeping_allowed(false);
@@ -612,18 +653,18 @@ fn tune(c: load::Case) {
 /// One finished case as a line: the median tick, what rapier took inside it,
 /// and its share of a 60 Hz frame.
 fn line_of(row: any) -> str {
-    let case = row["case"].as_str();
-    let dimensions = row["dimensions"].as_str();
-    if dimensions == "nodes" {
-        let p50 = row["loop_ms"]["p50_ms"].as_float();
+    let case = row[CASE].as_str();
+    let dimensions = row[DIMENSIONS].as_str();
+    if dimensions == NODES {
+        let p50 = row[LOOP_MS][P50_MS].as_float();
         return "{case}  {fixed(p50, 1)} ms  over {row["iterations"].as_int()} iterations";
     }
-    if dimensions == "load" {
-        let p50 = row["frame_ms"]["p50_ms"].as_float();
+    if dimensions == LOAD {
+        let p50 = row[FRAME_MS][P50_MS].as_float();
         return "load/{case}  frame {fixed(p50, 2)} ms  of {row["count"].as_int()}";
     }
-    let step = row["step_ms"]["p50_ms"].as_float();
-    let rapier = row["physics_ms"]["p50_ms"].as_float();
+    let step = row["step_ms"][P50_MS].as_float();
+    let rapier = row[PHYSICS_MS][P50_MS].as_float();
     let share = fixed(100.0 * step / FRAME_BUDGET_MS, 0);
     "{dimensions}/{case}  step {fixed(step, 2)} ms  rapier {fixed(rapier, 2)} ms  {share}% of a frame  fp {row["fingerprint"].as_str()}"
 }

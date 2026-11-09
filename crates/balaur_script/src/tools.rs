@@ -3,6 +3,16 @@
 //! Lines and columns count from 1.
 
 use crate::Value;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const COLUMN: &str = "column";
+const DETAIL: &str = "detail";
+const DOC: &str = "doc";
+const FILE: &str = "file";
+const KIND: &str = "kind";
+const SOURCE: &str = "source";
+const TITLE: &str = "title";
 
 /// A problem in a buffer.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -123,18 +133,18 @@ fn num(n: usize) -> Value {
 
 fn place(l: Location) -> Value {
     Value::Map(vec![
-        ("file".into(), text(l.file)),
-        ("line".into(), num(l.line)),
-        ("column".into(), num(l.column)),
+        (FILE.into(), text(l.file)),
+        (keys::LINE.into(), num(l.line)),
+        (COLUMN.into(), num(l.column)),
         ("url".into(), text("")),
     ])
 }
 
 fn finding(key: &str, d: Diagnostic) -> Value {
     Value::Map(vec![
-        ("file".into(), text(key)),
-        ("line".into(), num(d.line)),
-        ("column".into(), num(d.column)),
+        (FILE.into(), text(key)),
+        (keys::LINE.into(), num(d.line)),
+        (COLUMN.into(), num(d.column)),
         ("severity".into(), text(d.severity)),
         ("message".into(), text(d.message)),
     ])
@@ -143,9 +153,9 @@ fn finding(key: &str, d: Diagnostic) -> Value {
 fn item(c: Item) -> Value {
     Value::Map(vec![
         ("label".into(), text(c.label.clone())),
-        ("kind".into(), text(c.kind)),
-        ("detail".into(), text(c.detail)),
-        ("doc".into(), text("")),
+        (KIND.into(), text(c.kind)),
+        (DETAIL.into(), text(c.detail)),
+        (DOC.into(), text("")),
         ("insert".into(), text(c.label)),
     ])
 }
@@ -153,10 +163,10 @@ fn item(c: Item) -> Value {
 fn symbol(s: Symbol) -> Value {
     Value::Map(vec![
         ("name".into(), text(s.name)),
-        ("kind".into(), text(s.kind)),
-        ("detail".into(), text(s.detail)),
-        ("line".into(), num(s.line)),
-        ("column".into(), num(s.column)),
+        (KIND.into(), text(s.kind)),
+        (DETAIL.into(), text(s.detail)),
+        (keys::LINE.into(), num(s.line)),
+        (COLUMN.into(), num(s.column)),
     ])
 }
 
@@ -182,7 +192,7 @@ pub fn tool_answer(
     let (line, column) = (count(1), count(2));
     Some(match verb {
         // `[{ file, line, column, severity, message }]`.
-        "check" => Value::List(
+        words::CHECK => Value::List(
             tools
                 .check(key, source)
                 .into_iter()
@@ -190,7 +200,7 @@ pub fn tool_answer(
                 .collect(),
         ),
         // `[{ label, kind, detail, doc, insert }]`.
-        "complete" => Value::List(
+        words::COMPLETE => Value::List(
             tools
                 .complete(key, source, line, column)
                 .into_iter()
@@ -198,36 +208,36 @@ pub fn tool_answer(
                 .collect(),
         ),
         // `{ title, detail, doc }`, or nil.
-        "hover" => tools
+        words::HOVER => tools
             .hover(key, source, line, column)
             .map_or(Value::Nil, |h| {
                 Value::Map(vec![
-                    ("title".into(), text(h)),
-                    ("detail".into(), text("")),
-                    ("doc".into(), text("")),
+                    (TITLE.into(), text(h)),
+                    (DETAIL.into(), text("")),
+                    (DOC.into(), text("")),
                 ])
             }),
         // `{ file, line, column, url }`, or nil.
-        "definition" => tools
+        words::DEFINITION => tools
             .definition(key, source, line, column)
             .map_or(Value::Nil, place),
         // `[{ name, kind, detail, line, column }]`.
-        "symbols" => Value::List(tools.symbols(key, source).into_iter().map(symbol).collect()),
+        words::SYMBOLS => Value::List(tools.symbols(key, source).into_iter().map(symbol).collect()),
         // `{ title, detail, doc, active }`, or nil.
-        "signature" => {
+        words::SIGNATURE => {
             tools
                 .signature(key, source, line, column)
                 .map_or(Value::Nil, |(sig, active)| {
                     Value::Map(vec![
-                        ("title".into(), text(sig)),
-                        ("detail".into(), text("")),
-                        ("doc".into(), text("")),
+                        (TITLE.into(), text(sig)),
+                        (DETAIL.into(), text("")),
+                        (DOC.into(), text("")),
                         ("active".into(), num(active)),
                     ])
                 })
         }
         // `[{ file, line, column, url }]`.
-        "references" => Value::List(
+        words::REFERENCES => Value::List(
             tools
                 .references(key, source, word(1))
                 .into_iter()
@@ -235,7 +245,7 @@ pub fn tool_answer(
                 .collect(),
         ),
         // `[{ file, line, column, url }]`.
-        "find" => Value::List(
+        words::FIND => Value::List(
             tools
                 .find(key, source, word(1))
                 .into_iter()
@@ -243,33 +253,28 @@ pub fn tool_answer(
                 .collect(),
         ),
         // `[{ file, source }]`: the one file, rewritten, or nothing.
-        "replace" => Value::List(
+        words::REPLACE => Value::List(
             tools
                 .replace(key, source, word(1), word(2))
-                .map(|done| {
-                    Value::Map(vec![
-                        ("file".into(), text(key)),
-                        ("source".into(), text(done)),
-                    ])
-                })
+                .map(|done| Value::Map(vec![(FILE.into(), text(key)), (SOURCE.into(), text(done))]))
                 .into_iter()
                 .collect(),
         ),
         // `[{ file, source }]`: the one file, renamed, or nothing.
-        "rename" => Value::List(
+        words::RENAME => Value::List(
             tools
                 .rename(key, source, word(1), word(2))
                 .map(|renamed| {
                     Value::Map(vec![
-                        ("file".into(), text(key)),
-                        ("source".into(), text(renamed)),
+                        (FILE.into(), text(key)),
+                        (SOURCE.into(), text(renamed)),
                     ])
                 })
                 .into_iter()
                 .collect(),
         ),
         // The source laid out, or as it was.
-        "format" => text(
+        words::FORMAT => text(
             tools
                 .format(key, source)
                 .unwrap_or_else(|| source.to_string()),

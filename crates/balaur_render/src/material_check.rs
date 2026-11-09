@@ -5,6 +5,14 @@ use anyhow::Result;
 use balaur_script::Module;
 
 use crate::material::{FieldType, Material3d, Param, TEXTURE_SLOTS, compile, parse, shader_text};
+use crate::vocabulary::words;
+
+const CHECK_MATERIAL: &str = "check_material";
+const COLOR: &str = "color";
+const FLOAT: &str = "float";
+const MATERIAL_PARAMS: &str = "material_params";
+const NAME: &str = "name";
+const VALUE: &str = "value";
 
 /// `render::check_material(path)` — what is wrong with a material asset, as
 /// `[{ file, line, column, severity, message }]`, empty when it links.
@@ -15,22 +23,19 @@ use crate::material::{FieldType, Material3d, Param, TEXTURE_SLOTS, compile, pars
 /// why a broken shader needs asking about rather than waiting for.
 pub(crate) fn install_material_check(m: &mut Module<balaur_core::Engine>) {
     m.describe(&[(
-        "check_material",
+        CHECK_MATERIAL,
         &[],
         "-> [script::Diagnostic]",
         "Every diagnostic about the material at that path, as `[{ file, line, column, severity, message }]`; empty when it links.",
     )]);
-    m.function(
-        "check_material",
-        |eng: &balaur_core::Engine, path: String| {
-            Ok(balaur_script::Value::List(
-                match check_material(eng, &path) {
-                    Ok(()) => Vec::new(),
-                    Err(why) => vec![finding(&path, &format!("{why:#}"))],
-                },
-            ))
-        },
-    );
+    m.function(CHECK_MATERIAL, |eng: &balaur_core::Engine, path: String| {
+        Ok(balaur_script::Value::List(
+            match check_material(eng, &path) {
+                Ok(()) => Vec::new(),
+                Err(why) => vec![finding(&path, &format!("{why:#}"))],
+            },
+        ))
+    });
 }
 
 /// `render::material_params(path)` — the values a material's shader takes, as
@@ -45,7 +50,7 @@ pub(crate) fn install_material_check(m: &mut Module<balaur_core::Engine>) {
 /// `check_material`'s answer, not this one's.
 pub(crate) fn install_material_params(m: &mut Module<balaur_core::Engine>) {
     m.describe(&[(
-        "material_params",
+        MATERIAL_PARAMS,
         &[],
         "-> [Param]", "The material's editable rows, one `{ name, type, value }` per field its linked shader declares; empty when it will not link.",
     )]);
@@ -55,7 +60,7 @@ pub(crate) fn install_material_params(m: &mut Module<balaur_core::Engine>) {
         "One editable row of a material: a field's name, the editor type it is drawn as, and its current value.",
     )]);
     m.function(
-        "material_params",
+        MATERIAL_PARAMS,
         |eng: &balaur_core::Engine, path: String| {
             Ok(balaur_script::Value::List(
                 material_params(eng, &path).unwrap_or_default(),
@@ -69,10 +74,10 @@ pub(crate) fn install_material_params(m: &mut Module<balaur_core::Engine>) {
 /// and the `[params]` table takes `#rrggbb` and `[r, g, b, a]` alike.
 fn row_type(ty: FieldType) -> &'static str {
     match ty {
-        FieldType::F32 => "float",
-        FieldType::Vec2 => "vec2",
-        FieldType::Vec3 => "vec3",
-        FieldType::Vec4 => "color",
+        FieldType::F32 => FLOAT,
+        FieldType::Vec2 => words::shader_types::VEC2,
+        FieldType::Vec3 => words::shader_types::VEC3,
+        FieldType::Vec4 => COLOR,
     }
 }
 
@@ -124,12 +129,12 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
                 .find(|(name, _)| name == &field.name)
                 .map(|(_, param)| param.clone());
             Value::Map(vec![
-                ("name".to_string(), Value::Str(field.name.clone())),
+                (NAME.to_string(), Value::Str(field.name.clone())),
                 (
-                    "type".to_string(),
+                    words::material_check::TYPE.to_string(),
                     Value::Str(row_type(field.ty).to_string()),
                 ),
-                ("value".to_string(), row_value(field.ty, set)),
+                (VALUE.to_string(), row_value(field.ty, set)),
             ])
         })
         .collect();
@@ -142,9 +147,12 @@ fn material_params(eng: &balaur_core::Engine, path: &str) -> Result<Vec<balaur_s
 fn row(name: &str, ty: &str, value: balaur_script::Value) -> balaur_script::Value {
     use balaur_script::Value;
     Value::Map(vec![
-        ("name".to_string(), Value::Str(name.to_string())),
-        ("type".to_string(), Value::Str(ty.to_string())),
-        ("value".to_string(), value),
+        (NAME.to_string(), Value::Str(name.to_string())),
+        (
+            words::material_check::TYPE.to_string(),
+            Value::Str(ty.to_string()),
+        ),
+        (VALUE.to_string(), value),
     ])
 }
 
@@ -169,12 +177,12 @@ fn slot_rows(material: &Material3d) -> Vec<balaur_script::Value> {
 fn builtin_rows(b: &crate::material::Builtin) -> Vec<balaur_script::Value> {
     use crate::vocabulary::keys as k;
     use balaur_script::Value;
-    let num = |name: &str, v: f32| row(name, "float", Value::Num(f64::from(v)));
+    let num = |name: &str, v: f32| row(name, FLOAT, Value::Num(f64::from(v)));
     vec![
         num(k::METALLIC, b.metallic),
         num(k::ROUGHNESS, b.roughness),
-        row(k::EMISSION_COLOR, "color", Value::Color(b.emission_color)),
-        row(k::SPECULAR_TINT, "color", Value::Color(b.specular_tint)),
+        row(k::EMISSION_COLOR, COLOR, Value::Color(b.emission_color)),
+        row(k::SPECULAR_TINT, COLOR, Value::Color(b.specular_tint)),
         num(k::REFLECTANCE, b.reflectance),
         num(k::CLEARCOAT, b.clearcoat),
         num(k::CLEARCOAT_ROUGHNESS, b.clearcoat_roughness),

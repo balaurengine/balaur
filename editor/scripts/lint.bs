@@ -7,6 +7,18 @@ use model;
 use shell;
 use signals;
 use util;
+use words::asset_kinds;
+use words::changes;
+use words::datatypes;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::log_fields;
+use words::project_fields;
+use words::schema_fields;
+use words::statuses;
+
+const WARNING: str = "warning";
 
 pub class LintState {
     internal found: [any],
@@ -103,24 +115,24 @@ fn scene_findings(state: &mut editor::State) -> [Finding] {
         let name = found_node.name();
         let rel = model::script_rel(found_node);
         if rel != nil && !fs::exists(state.game_root + "/" + rel.as_str()) {
-            found.push(at(scene, 0, "error", "{name}: script {rel} does not exist"));
+            found.push(at(scene, 0, statuses::ERROR, "{name}: script {rel} does not exist"));
         }
         let prefab = found_node.instance();
         if prefab != nil && !fs::exists(state.game_root + "/" + prefab.unwrap()) {
-            found.push(at(scene, 0, "error", "{name}: prefab {prefab.unwrap()} does not exist"));
+            found.push(at(scene, 0, statuses::ERROR, "{name}: prefab {prefab.unwrap()} does not exist"));
         }
         for warning in util::list_or_empty(scene::warnings(found_node)) {
-            found.push(at(scene, 0, "warning", "{name}: {describe(warning)}"));
+            found.push(at(scene, 0, WARNING, "{name}: {describe(warning)}"));
         }
         for component in found_node.component_names() {
             let schema = model::schema(state, component);
             let data = util::map_or_empty(found_node.get_component(component));
             for property in util::keys_sorted(schema) {
                 let spec = schema[property];
-                if spec["type"].as_str() == "variant" {
+                if spec[fields::TYPE].as_str() == datatypes::VARIANT {
                     // A variant's assets are its kind's: a collider's mesh.
                     let held = util::map_or_empty(data[property]);
-                    let fields = util::map_or_empty(util::map_or_empty(spec["variants"][held["kind"].as_str()])["fields"]);
+                    let fields = util::map_or_empty(util::map_or_empty(spec["variants"][held[fields::KIND].as_str()])[schema_fields::FIELDS]);
                     for field in util::keys_sorted(fields) {
                         check_asset(state, scene, "{name}: {component}.{property}.{field}", fields[field], held[field], found);
                     }
@@ -136,22 +148,22 @@ fn scene_findings(state: &mut editor::State) -> [Finding] {
 // One asset row: a file it names that is not there, and a material that does
 // not link.
 fn check_asset(state: editor::State, scene: str, label: str, spec: any, held: any, found: [Finding]) {
-    if spec["type"].as_str() != "asset" {
+    if spec[fields::TYPE].as_str() != datatypes::ASSET {
         return;
     }
     let value = held.as_str();
-    if held.kind() != "str" || value == "" {
+    if held.kind() != types::KIND_STRING || value == "" {
         return;
     }
     if asset_missing(state, value) {
-        found.push(at(scene, 0, "warning", "{label} → {value} does not exist"));
+        found.push(at(scene, 0, WARNING, "{label} → {value} does not exist"));
         return;
     }
     // A material parses headless and links only when something draws it, so
     // a broken shader has to be asked about.
-    if spec["asset"].as_str() == "material" && !value.starts_with("#") {
+    if spec[schema_fields::ASSET].as_str() == asset_kinds::MATERIAL && !value.starts_with("#") {
         for finding in util::list_or_empty(render::check_material(value)) {
-            found.push(at(finding["file"].as_str(), finding["line"].as_int(), finding["severity"].as_str(), "{label}: {finding["message"]}"));
+            found.push(at(finding[project_fields::FILE].as_str(), finding[layout_fields::LINE].as_int(), finding[log_fields::SEVERITY].as_str(), "{label}: {finding["message"]}"));
         }
     }
 }
@@ -160,9 +172,9 @@ fn check_asset(state: editor::State, scene: str, label: str, spec: any, held: an
 /// one, and what is off.
 pub fn describe(warning: any) -> str {
     if util::is_nil(warning["property"]) {
-        "{warning["component"]}: {warning["message"]}"
+        "{warning["component"]}: {warning[log_fields::MESSAGE]}"
     } else {
-        "{warning["component"]}.{warning["property"]}: {warning["message"]}"
+        "{warning[inspector_fields::COMPONENT]}.{warning[inspector_fields::PROPERTY]}: {warning[log_fields::MESSAGE]}"
     }
 }
 
@@ -205,7 +217,7 @@ pub fn run(state: &mut editor::State) {
         }
         for finding in util::list_or_empty(script::check(state.game_root + "/" + rel.as_str(), source_text.as_str())) {
             // The host answers in the key it was given, which is absolute.
-            found.push(at(shell::script_rel(state, finding["file"].as_str()), finding["line"].as_int(), finding["severity"].as_str(), finding["message"].as_str()));
+            found.push(at(shell::script_rel(state, finding[project_fields::FILE].as_str()), finding[layout_fields::LINE].as_int(), finding[log_fields::SEVERITY].as_str(), finding[log_fields::MESSAGE].as_str()));
         }
     }
     for finding in scene_findings(state) {
@@ -213,7 +225,7 @@ pub fn run(state: &mut editor::State) {
     }
     state.lint.found = found;
     signals::docks(state);
-    signals::changed(state, "problems");
+    signals::changed(state, changes::PROBLEMS);
     state.lint.at = engine::unix_time();
 }
 
@@ -252,8 +264,8 @@ pub fn idle(state: &mut editor::State) {
 pub fn lines(state: editor::State, rel: str, severity: str) -> [any] {
     let out: [any] = [];
     for finding in state.lint.found {
-        if finding["file"].as_str() == rel && finding["severity"].as_str() == severity && finding["line"].as_int() > 0 {
-            out.push(finding["line"]);
+        if finding[project_fields::FILE].as_str() == rel && finding[log_fields::SEVERITY].as_str() == severity && finding[layout_fields::LINE].as_int() > 0 {
+            out.push(finding[layout_fields::LINE]);
         }
     }
     out
@@ -264,7 +276,7 @@ pub fn counts(state: editor::State) -> Counts {
     let errors = 0;
     let warnings = 0;
     for finding in state.lint.found {
-        if finding["severity"].as_str() == "error" {
+        if finding[log_fields::SEVERITY].as_str() == statuses::ERROR {
             errors += 1;
         } else {
             warnings += 1;

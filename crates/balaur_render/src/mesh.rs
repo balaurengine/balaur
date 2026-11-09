@@ -11,6 +11,8 @@ use balaur_core::hecs::Entity;
 use balaur_geometry::mesh::{MESH_ASSET_TYPE, MeshData, SolvedMesh};
 use balaur_plugin::Registry;
 
+const LAYERS: &str = "layers";
+
 /// The `mesh` component: authored geometry on a node.
 ///
 /// Writes `Shape3d::Mesh` plus the asset reference, the same split `sprite` and
@@ -83,7 +85,7 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
         MESH_ASSET_TYPE,
         balaur_core::components::ComponentDef {
             doc: "3D geometry from the `mesh` asset in `source`, drawn at the node. With a skin, the rig `skeleton` names deforms it.",
-            tags: &[words::PERSPECTIVE, "render"],
+            tags: &[words::PERSPECTIVE, words::general::RENDER],
             ..balaur_core::components::ComponentDef::by_hand(
                 balaur_core::components::ComponentDef::parse_schema(
                 MESH_ASSET_TYPE,
@@ -95,8 +97,8 @@ pub(crate) fn register_mesh_component(reg: &mut Registry<'_>) {
                         (k::TEXTURE, &format!(r#"{{ type = "asset", asset = "{}", default = "", description = "Image file, project-relative, or a `texture` asset; empty draws the colour alone" }}"#, balaur_core::assets::TEXTURE_ASSET_TYPE)),
                         (k::SKELETON, r#"{ type = "node", default = "", description = "The rig a skinned mesh deforms with; empty means this node" }"#),
                         (k::CAST_SHADOW, r#"{ type = "bool", default = true, description = "Whether this casts a shadow from the lights that cast", group = "shadows" }"#),
-                        (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", "layers")),
-                        (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", "layers")),
+                        (k::RENDER_LAYERS, &balaur_core::layers::row_of_all("The layers this is drawn on: a `camera3d` draws it when their `render_layers` share one", LAYERS)),
+                        (k::LIGHT_LAYERS, &balaur_core::layers::row_of_all("The light layers this is lit on: a `light3d` lights it when their `light_layers` share one", LAYERS)),
                     ],
                     &crate::overlay::schema_3d(),
                 )),

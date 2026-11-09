@@ -3,6 +3,7 @@
 
 use super::func::{FnGen, LVal, R, err, show};
 use crate::ast::{BinOp, Block, Expr, Pos, Ty};
+use crate::vocabulary::words;
 use wasm_encoder::{BlockType, Instruction as I, ValType};
 
 pub(crate) const METHODS: [&str; 2] = ["unwrap", "or"];
@@ -152,7 +153,7 @@ impl FnGen<'_> {
         let ty = Ty::Optional(Box::new(inner.clone()));
         match name {
             // A nil one traps, at its line in a debug build.
-            "unwrap" => {
+            words::methods::UNWRAP => {
                 self.args(&[], args, pos, name)?;
                 self.expr(base)?;
                 let (t, flag) = self.hold(&ty);
@@ -166,7 +167,7 @@ impl FnGen<'_> {
                 self.take(&t, inner);
                 Ok(inner.clone())
             }
-            "or" => {
+            words::methods::OR => {
                 let [default] = args else {
                     return err(pos, "`or` takes the value to use when it is nil");
                 };

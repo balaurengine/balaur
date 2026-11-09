@@ -13,6 +13,8 @@
 ///
 /// Both are registered whether or not they are set, so a misspelled gate is
 /// an error rather than a condition that is quietly false everywhere.
+use crate::vocabulary::words;
+mod vocabulary;
 pub fn emit() {
     println!("cargo::rustc-check-cfg=cfg(desktop)");
     println!("cargo::rustc-check-cfg=cfg(mobile)");
@@ -20,9 +22,9 @@ pub fn emit() {
     let os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     // A list, not a word: wasm32-wasip1 reports `wasm,unix`.
     let families = std::env::var("CARGO_CFG_TARGET_FAMILY").unwrap_or_default();
-    let wasm = families.split(',').any(|family| family == "wasm");
+    let wasm = families.split(',').any(|family| family == words::WASM);
 
-    let mobile = os == "ios" || os == "android";
+    let mobile = os == words::IOS || os == words::ANDROID;
     if mobile {
         println!("cargo:rustc-cfg=mobile");
     }

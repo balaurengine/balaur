@@ -73,6 +73,27 @@ Generated files skip themselves by their banner.
 - **restates-code** — a comment whose words add nothing to the line below.
 - Banners and dividers; the structure is the divider.
 
+## Strings
+
+`scripts/string_lints.py` covers shipped `.rs` and `.bs`, by crate or script
+package. Tests, the editor's `selftest.bs` and `showcase.bs`, generated files,
+`const` items, a callback's method name (`on_click: "handle"`, `.call("step")`)
+a reader's text (`text: "reset"`) and what must stay a literal (a class field's
+default, `cfg`, `quote!`, `toml!`, `json!`, a file's own `macro_rules!`) are left out. A word is lower-case, snake or kebab, two
+characters or more. `--project <path>` lints a game's own scripts, without its
+`addons/`, which answer where they are written.
+
+| Rule | Fails on |
+| --- | --- |
+| `constant-respelled` | a literal equal to a constant of its own name in the file, to an engine constant holding an underscore, to a `kind:` widget constant, or to a package constant holding an underscore |
+| `word-compared` | a word on one side of `==` or `!=`, or a match arm |
+| `word-repeated` | a word spelled twice in one file or three times in one package |
+
+Findings older than the lint are counted per file in
+`scripts/string_lints_baseline.txt`, and only a new one fails. `--summary` prints
+findings per package with its most-spelled words, and `--debt` the outstanding
+counts.
+
 ## Names
 
 `docs/NAMING.md` holds sixteen rules, each tagged with a scope and the cost of

@@ -17,6 +17,33 @@ use showcase;
 use signals;
 use style;
 use util;
+use words::changes;
+use words::components;
+use words::dock_fields;
+use words::fields;
+use words::general;
+use words::hooks;
+use words::layout_fields;
+use words::panel_keys;
+use words::roles;
+use words::sides;
+use words::statuses;
+use words::tabs;
+use words::theme_tokens;
+use words::tools;
+use words::verbs;
+use words::window_marks;
+
+internal const OPEN_BOTTOM: str = "open_bottom";
+internal const OPEN_LEFT: str = "open_left";
+internal const OPEN_RIGHT: str = "open_right";
+const HEIGHT: str = "height";
+const WARNING: str = "warning";
+const LIVE: str = "live";
+const ON: str = "on";
+const RESTORE: str = "restore";
+const WORKSPACE: str = "workspace";
+const CODE: str = "code";
 
 pub struct StageFloor {
     internal width: float,
@@ -135,17 +162,17 @@ pub fn hud_step(state: editor::State) -> float {
 pub fn modes(state: &mut editor::State) {
     shell::keep_focus(state);
     // A tab the centre is showing is open, whoever pointed it there.
-    if state.doctab == "script" {
+    if state.doctab == tabs::SCRIPT {
         state.script_open = true;
         signals::bars(state);
     }
-    if state.doctab == "events" {
+    if state.doctab == tabs::EVENTS {
         state.events_open = true;
         signals::bars(state);
     }
-    let code = state.doctab == "script";
-    let document = state.doctab == "events" || code;
-    let split = state.split && (state.doctab != "events");
+    let code = state.doctab == tabs::SCRIPT;
+    let document = state.doctab == tabs::EVENTS || code;
+    let split = state.split && (state.doctab != tabs::EVENTS);
     let live = split || !document;
     state.viewport_live = live;
     // Into a local first: `state.doc_open = document || split` writes the result
@@ -177,7 +204,7 @@ pub fn modes(state: &mut editor::State) {
 pub fn rail_metrics(state: editor::State) -> RailMetrics {
     // The theme's tool tile, so a folded dock's handle is the same control on
     // the same sheet; the pad a pixel wider than the gap, clear of the corner.
-    let diameter = style::role_size_in_pixels(state, "icon_action", "height", 26.0);
+    let diameter = style::role_size_in_pixels(state, roles::ICON_ACTION, HEIGHT, 26.0);
     if state.compact {
         return RailMetrics { diameter: diameter, gap: 3.0, padding: 6.0 };
     }
@@ -188,13 +215,13 @@ pub fn rail_metrics(state: editor::State) -> RailMetrics {
 /// them away. Folded, only the one that brings them back.
 pub fn rail_marks(state: editor::State) -> [str] {
     if state.rail_shut {
-        return ["restore"];
+        return [RESTORE];
     }
     let marks: [str] = [];
     for tool in defs::tools(state.workspace) {
         marks.push(tool);
     }
-    marks.push("collapse");
+    marks.push(window_marks::COLLAPSE);
     marks
 }
 
@@ -219,41 +246,41 @@ const RAIL: str = "Editor/Shell/Body/Centre/UpperRow/RailSlot/Rail";
 
 /// What the rail is built from, which `signals::bars` compares.
 pub fn rail_key(state: editor::State) -> [any] {
-    let grid = rail_grid(state, state.layout["rail_room"].as_float());
+    let grid = rail_grid(state, state.layout[dock_fields::RAIL_ROOM].as_float());
     [state.workspace, state.tool, state.rail_shut, state.rail_visible, state.compact, state.touchscreen, grid.rows, grid.columns, state.theme_revision]
 }
 
 /// Fill the rail: the marks in as many columns as its height leaves room
 /// for, each a node a click on which runs its tool. What its script asks for.
 pub fn fill_rail(state: editor::State) {
-    let grid = rail_grid(state, state.layout["rail_room"].as_float());
+    let grid = rail_grid(state, state.layout[dock_fields::RAIL_ROOM].as_float());
     let columns: [ui::Control] = [];
     let column: [ui::Control] = [];
     for mark in rail_marks(state) {
         column.push(rail_mark(state, mark, grid.diameter));
         if column.len() as float >= grid.rows {
-            columns.push(ui::Control { kind: "column", gap: vec2(grid.gap, grid.gap), controls: column });
+            columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
             column = [];
         }
     }
     if column.len() > 0 {
-        columns.push(ui::Control { kind: "column", gap: vec2(grid.gap, grid.gap), controls: column });
+        columns.push(ui::Control { kind: ui::WIDGET_COLUMN, gap: vec2(grid.gap, grid.gap), controls: column });
     }
     let filled = scene::get_node(RAIL);
     if filled.is_valid() {
         filled.widget_layout.gap = vec2(grid.gap, grid.gap);
-        filled.patch_component("widget", { "padding": grid.padding });
+        filled.patch_component(components::WIDGET, { layout_fields::PADDING: grid.padding });
     }
     ui::fill_strip(RAIL, columns);
 }
 
 // One mark: a tool, or the one that folds the rail away or brings it back.
 fn rail_mark(state: editor::State, mark: str, diameter: float) -> ui::Control {
-    let round: ui::Control = ui::Control { kind: "button", role: "icon_action", text: "", width: diameter, height: diameter, padding: ui::all_sides(0), corner_radius: diameter / 2.0 };
-    if mark == "restore" {
-        round.icon = icons::ui("restore");
+    let round: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::ICON_ACTION, text: "", width: diameter, height: diameter, padding: ui::all_sides(0), corner_radius: diameter / 2.0 };
+    if mark == window_marks::RESTORE {
+        round.icon = icons::ui(icons::RESTORE);
         round.tooltip = "Show the tools";
-    } else if mark == "collapse" {
+    } else if mark == window_marks::COLLAPSE {
         round.icon = icons::ui("collapse");
         round.tooltip = "Hide the tools";
     } else {
@@ -261,13 +288,13 @@ fn rail_mark(state: editor::State, mark: str, diameter: float) -> ui::Control {
         round.tooltip = defs::tool_name(mark);
         round.checked = state.tool == mark;
     }
-    pool::on(round, rail_marked, { "mark": mark })
+    pool::on(round, rail_marked, { fields::MARK: mark })
 }
 
 fn rail_marked(state: &mut editor::State, data: any, _value: any) {
-    let mark = data["mark"].as_str();
-    if mark == "restore" || mark == "collapse" {
-        state.rail_shut = mark == "collapse";
+    let mark = data[fields::MARK].as_str();
+    if mark == window_marks::RESTORE || mark == window_marks::COLLAPSE {
+        state.rail_shut = mark == window_marks::COLLAPSE;
         signals::bars(state);
     } else {
         shell::set_tool(state, mark);
@@ -303,8 +330,8 @@ pub fn stage_key(state: editor::State) -> [any] {
         handles.left.shown,
         handles.right.shown,
         handles.bottom.shown,
-        state.layout["stage"]["width"],
-        state.layout["stage"]["height"],
+        state.layout[panel_keys::STAGE][layout_fields::WIDTH],
+        state.layout[panel_keys::STAGE][layout_fields::HEIGHT],
         hud_inset(state),
         docks::fold_inset(state),
     ]
@@ -322,7 +349,7 @@ pub fn stage_view(state: editor::State) -> StageView {
     StageView {
         safe: ui_frames && defs::chip_on(state.chip_state, defs::WORKSPACE_UI, defs::CHIP_SAFE),
         resolution: ui_frames && defs::chip_on(state.chip_state, defs::WORKSPACE_UI, defs::CHIP_RESOLUTION),
-        res_inset: frame_16_9(state.layout["stage"]),
+        res_inset: frame_16_9(state.layout[panel_keys::STAGE]),
         left: SheetHandle {
             shown: state.viewport_live && handles.left.shown && !over_rail,
             icon: handles.left.icon,
@@ -342,14 +369,14 @@ pub fn stage_view(state: editor::State) -> StageView {
 // The 16:9 frame inside the stage, as the inset an `absolute` child keeps.
 fn frame_16_9(viewport_rect: any) -> [float] {
     let target = 16.0 / 9.0;
-    let width = viewport_rect["width"];
-    let height: any = viewport_rect["width"].as_float() / target;
-    if height.as_float() > viewport_rect["height"].as_float() {
-        height = viewport_rect["height"];
-        width = viewport_rect["height"].as_float() * target;
+    let width = viewport_rect[layout_fields::WIDTH];
+    let height: any = viewport_rect[layout_fields::WIDTH].as_float() / target;
+    if height.as_float() > viewport_rect[layout_fields::HEIGHT].as_float() {
+        height = viewport_rect[layout_fields::HEIGHT];
+        width = viewport_rect[layout_fields::HEIGHT].as_float() * target;
     }
-    let margin_x = util::max(0.0, (viewport_rect["width"].as_float() - width.as_float()) / 2.0);
-    let margin_y = util::max(0.0, (viewport_rect["height"].as_float() - height.as_float()) / 2.0);
+    let margin_x = util::max(0.0, (viewport_rect[layout_fields::WIDTH].as_float() - width.as_float()) / 2.0);
+    let margin_y = util::max(0.0, (viewport_rect[layout_fields::HEIGHT].as_float() - height.as_float()) / 2.0);
     [margin_x, margin_y, margin_x, margin_y]
 }
 
@@ -366,8 +393,8 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     }
     // The Polygon tool's modes sit with the chips: Godot's UV editor tabs, in
     // the viewport rather than a window.
-    if state.tool == "polygon" {
-        out.push(ui::Control { kind: "row", width: 2 });
+    if state.tool == tools::POLYGON {
+        out.push(ui::Control { kind: ui::WIDGET_ROW, width: 2 });
         for spec in polygon::mode_specs(state) {
             out.push(spec);
         }
@@ -376,12 +403,12 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
         }
     }
     if state.workspace == defs::WORKSPACE_SCENE {
-        out.push(ui::Control { kind: "row", width: 2 });
+        out.push(ui::Control { kind: ui::WIDGET_ROW, width: 2 });
         out.push(view_chip(state));
         // The camera slots are the first thing a small window drops: four
         // numbered pills for what ⌥1-4 already does.
         if !state.compact {
-            out.push(ui::Control { kind: "row", width: 0 });
+            out.push(ui::Control { kind: ui::WIDGET_ROW, width: 0 });
             for spec in bookmark_chips(state) {
                 out.push(spec);
             }
@@ -396,7 +423,7 @@ pub fn fill_chips(state: &mut editor::State, near: bool) -> bool {
     let filled = scene::get_node(CHIPS_BOX);
     if filled.is_valid() {
         filled.widget.height = hud_height(state);
-        filled.patch_component("widget", { "inset": [docks::fold_inset(state), 0.0, 0.0, -1.0] });
+        filled.patch_component(components::WIDGET, { dock_fields::INSET: [docks::fold_inset(state), 0.0, 0.0, -1.0] });
     }
     true
 }
@@ -414,19 +441,19 @@ fn chip(state: &mut editor::State, key: str, label: str, default_on: bool?, near
     }
     let on = if live != nil { live.unwrap() } else { chips[key].as_bool() };
     let button: ui::Control = ui::Control {
-        kind: "button",
+        kind: ui::WIDGET_BUTTON,
         text: label,
-        role: if near { "chip" } else { "chip_quiet" },
+        role: if near { roles::CHIP } else { roles::CHIP_QUIET },
         checked: on,
     };
-    pool::on(button, chip_pressed, { "live": live != nil, "workspace": state.workspace, "key": key, "on": on })
+    pool::on(button, chip_pressed, { LIVE: live != nil, WORKSPACE: state.workspace, fields::KEY: key, ON: on })
 }
 
 fn chip_pressed(state: &mut editor::State, data: any, _value: any) {
-    let workspace = data["workspace"].as_str();
-    let key = data["key"].as_str();
-    let now = !data["on"].as_bool();
-    if !data["live"].as_bool() {
+    let workspace = data[WORKSPACE].as_str();
+    let key = data[fields::KEY].as_str();
+    let now = !data[ON].as_bool();
+    if !data[LIVE].as_bool() {
         state.chip_state[workspace][key] = now;
     }
     shell::on_chip(state, workspace, key, now);
@@ -457,17 +484,17 @@ fn view_chip(state: editor::State) -> ui::Control {
         // Bound afresh: a closure made in a loop captures the binding.
         let name = mode[0];
         rows.push(ui::Control {
-            kind: "button",
-            role: "item_menu",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ITEM_MENU,
             text: mode[1],
-            text_color: if name == current { tokens["primary_text"] } else { tokens["text_default"] },
+            text_color: if name == current { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] },
             on_click: "handle",
-            data: { "fn": on_view_mode_picked, "name": name },
+            data: { fields::FN: on_view_mode_picked, fields::NAME: name },
         });
     }
     ui::Control {
-        kind: "menu",
-        role: "chip",
+        kind: ui::WIDGET_MENU,
+        role: roles::CHIP,
         checked: current != "",
         text: icons::ui("viewmode") + "  " + label,
         controls: rows,
@@ -475,7 +502,7 @@ fn view_chip(state: editor::State) -> ui::Control {
 }
 
 fn on_view_mode_picked(state: &mut editor::State, data: any, _value: any) {
-    let name: str = data["name"].as_str();
+    let name: str = data[fields::NAME].as_str();
     render::set_debug_view(name);
     signals::bars(state);
 }
@@ -489,24 +516,24 @@ fn bookmark_chips(state: editor::State) -> [ui::Control] {
         let key = "{slot}";
         let held = state.bookmarks[key] != nil;
         out.push(ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             text: key,
             height: 20,
             font_size: style::SMALL,
             min_width: 20,
             corner_radius: 4,
-            fill: if held { tokens["primary_bg"] } else { tokens["bg_control"] },
-            text_color: if held { tokens["primary_text"] } else { tokens["text_subtle"] },
+            fill: if held { tokens[theme_tokens::PRIMARY_BG] } else { tokens[theme_tokens::BG_CONTROL] },
+            text_color: if held { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] },
             tooltip: if held { "Go to view " + key + " (⇧ stores)" } else { "⇧ click to store this view" },
             on_click: "handle",
-            data: { "fn": on_bookmark_pressed, "key": key },
+            data: { fields::FN: on_bookmark_pressed, fields::KEY: key },
         });
     }
     out
 }
 
 fn on_bookmark_pressed(state: &mut editor::State, data: any, _value: any) {
-    let key: str = data["key"].as_str();
+    let key: str = data[fields::KEY].as_str();
     bookmark(state, key);
 }
 
@@ -534,8 +561,8 @@ fn bookmark(state: &mut editor::State, key: str) {
 // split, which the foot does not run under.
 fn hud_inset(state: editor::State) -> any {
     let row: any = state.layout["upper"];
-    let viewport_rect: any = state.layout["stage"];
-    util::max(0.0, (row["x"].as_float() + row["width"].as_float() - viewport_rect["x"].as_float() - viewport_rect["width"].as_float()))
+    let viewport_rect: any = state.layout[panel_keys::STAGE];
+    util::max(0.0, (row["x"].as_float() + row[layout_fields::WIDTH].as_float() - viewport_rect["x"].as_float() - viewport_rect[layout_fields::WIDTH].as_float()))
 }
 
 /// What the HUD shows along the scene's foot.
@@ -549,9 +576,9 @@ pub fn hud_view(state: editor::State) -> HudView {
         step: hud_step(state),
         x_ink: tokens["axis_x"].as_str(),
         y_ink: tokens["axis_y"].as_str(),
-        quiet_ink: tokens["text_muted"].as_str(),
+        quiet_ink: tokens[theme_tokens::TEXT_MUTED].as_str(),
         zoom: "{state.zoom as int} %",
-        add_icon: icons::ui("add"),
+        add_icon: icons::ui(icons::ADD),
         bottom: handles.bottom.shown,
         bottom_icon: handles.bottom.icon,
     }
@@ -559,16 +586,16 @@ pub fn hud_view(state: editor::State) -> HudView {
 
 /// The HUD's and the handles' verbs, by name.
 pub fn stage_verb(state: &mut editor::State, verb: str) {
-    if verb == "zoom_out" {
+    if verb == verbs::ZOOM_OUT {
         shell::set_zoom(state, state.zoom - 25.0);
-    } else if verb == "zoom_in" {
+    } else if verb == verbs::ZOOM_IN {
         shell::set_zoom(state, state.zoom + 25.0);
-    } else if verb == "open_left" {
-        docks::open_from_handle(state, "left");
-    } else if verb == "open_right" {
-        docks::open_from_handle(state, "right");
-    } else if verb == "open_bottom" {
-        docks::open_from_handle(state, "bottom");
+    } else if verb == OPEN_LEFT {
+        docks::open_from_handle(state, sides::LEFT);
+    } else if verb == OPEN_RIGHT {
+        docks::open_from_handle(state, sides::RIGHT);
+    } else if verb == OPEN_BOTTOM {
+        docks::open_from_handle(state, sides::BOTTOM);
     }
     signals::bars(state);
 }
@@ -592,14 +619,14 @@ fn open_file(state: editor::State) -> OpenFile {
 /// rename, a completion accepted. The sheet writes the text again on it.
 pub fn code_written(state: &mut editor::State) {
     state.code_revision += 1;
-    signals::changed(state, "code");
+    signals::changed(state, CODE);
 }
 
 /// What the code sheet shows: where it sits against the stage, the file, its
 /// text when the buffer moved under it, and the gutter's marks. Not a split's
 /// events tab: that is its own panel.
 pub fn code_view(state: &mut editor::State) -> CodeView {
-    let shown = state.doc_open && state.doctab != "events";
+    let shown = state.doc_open && state.doctab != tabs::EVENTS;
     if !shown {
         return CodeView {
             shown: false,
@@ -613,13 +640,13 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
         };
     }
     let tokens = state.theme;
-    let box: any = state.layout["stage_box"];
-    let doc_rect: any = state.layout["doc"];
+    let box: any = state.layout[panel_keys::STAGE_BOX];
+    let doc_rect: any = state.layout[fields::DOC];
     let inset = [
         util::max(0.0, (doc_rect["x"].as_float() - box["x"].as_float())),
         util::max(0.0, (doc_rect["y"].as_float() - box["y"].as_float())),
-        util::max(0.0, (box["x"].as_float() + box["width"].as_float() - doc_rect["x"].as_float() - doc_rect["width"].as_float())),
-        util::max(0.0, (box["y"].as_float() + box["height"].as_float() - doc_rect["y"].as_float() - doc_rect["height"].as_float())),
+        util::max(0.0, (box["x"].as_float() + box[layout_fields::WIDTH].as_float() - doc_rect["x"].as_float() - doc_rect[layout_fields::WIDTH].as_float())),
+        util::max(0.0, (box["y"].as_float() + box[layout_fields::HEIGHT].as_float() - doc_rect["y"].as_float() - doc_rect[layout_fields::HEIGHT].as_float())),
     ];
     let file = open_file(state);
     if file.relative_path == "" {
@@ -652,7 +679,7 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
     let source = on_disk;
     let buffered = state.script_buffers[path];
     let text = if buffered == nil { source } else { buffered };
-    let stopped_here = !file.shading && state.debug.paused.kind() == "map" && state.debug.paused_rel == relative_path;
+    let stopped_here = !file.shading && state.debug.paused.kind() == types::KIND_MAP && state.debug.paused_rel == relative_path;
     // An offset asked for is taken once.
     let scroll_to = state.code_scroll;
     state.code_scroll = -1.0;
@@ -671,9 +698,9 @@ pub fn code_view(state: &mut editor::State) -> CodeView {
             } else {
                 shell::breakpoint_lines(state, relative_path)
             },
-            problems: lint::lines(state, relative_path, "error"),
-            warnings: lint::lines(state, relative_path, "warning"),
-            current_line: if stopped_here { state.debug.paused["line"].as_int() } else { 0 },
+            problems: lint::lines(state, relative_path, statuses::ERROR),
+            warnings: lint::lines(state, relative_path, WARNING),
+            current_line: if stopped_here { state.debug.paused[layout_fields::LINE].as_int() } else { 0 },
         },
     }
 }
@@ -691,7 +718,7 @@ pub fn code_typed(state: &mut editor::State, text: str) {
     lint::touched(state);
     signals::bars(state);
     if !file.shading && read_hooks(state, file.relative_path, text) {
-        signals::changed(state, "code");
+        signals::changed(state, CODE);
     }
 }
 
@@ -704,7 +731,7 @@ fn read_hooks(state: &mut editor::State, relative_path: str, text: str) -> bool 
     state.hooks_source = text;
     let parsed: [Parsed] = [];
     for one in script::symbols(relative_path, text) {
-        if one.kind == "function" {
+        if one.kind == general::FUNCTION {
             parsed.push(Parsed { name: one.name, line: one.line, detail: one.detail });
         }
     }
@@ -718,7 +745,7 @@ pub fn code_caret(state: &mut editor::State, caret: complete::Caret) {
     let file = open_file(state);
     if file.relative_path == "" || file.shading {
         complete::reset(state);
-        signals::changed(state, "complete");
+        signals::changed(state, changes::COMPLETE);
         return;
     }
     if showcase::driving(state) {
@@ -728,7 +755,7 @@ pub fn code_caret(state: &mut editor::State, caret: complete::Caret) {
     let buffered = state.script_buffers[path];
     let text = if buffered == nil { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
     complete::update(state, file.relative_path, text, caret);
-    signals::changed(state, "complete");
+    signals::changed(state, changes::COMPLETE);
 }
 
 /// A gutter line clicked: a breakpoint in a script, and in a shader the line
@@ -743,7 +770,7 @@ pub fn code_gutter(state: &mut editor::State, line: int) {
     } else {
         shell::toggle_breakpoint(state, file.relative_path, line);
     }
-    signals::changed(state, "code");
+    signals::changed(state, CODE);
 }
 
 // The hooks list beside the code: a pill a function the file declares, read
@@ -764,20 +791,20 @@ pub fn fill_hooks(state: &mut editor::State) {
         let text = if buffered == nil { model::source(state, file.relative_path).as_str() } else { buffered.as_str() };
         read_hooks(state, file.relative_path, text);
         for hook in state.hooks_live {
-            let lifecycle = hook.name == "init" || hook.name == "update";
+            let lifecycle = hook.name == hooks::INIT || hook.name == hooks::UPDATE;
             pills.push(ui::Control {
-                kind: "panel",
-                fill: tokens["bg_control"],
+                kind: ui::WIDGET_PANEL,
+                fill: tokens[theme_tokens::BG_CONTROL],
                 corner_radius: 15,
                 padding: ui::sides(11, 6, 11, 6),
                 controls: [
                     ui::Control {
-                        kind: "row",
+                        kind: ui::WIDGET_ROW,
                         gap: vec2(4, 4),
-                        align_items: "center",
+                        align_items: ui::ALIGN_CENTER,
                         controls: [
-                            ui::Control { kind: "row", width: 6, height: 6, corner_radius: 3, fill: if lifecycle { tokens["primary_text"] } else { tokens["secondary_text"] } },
-                            ui::Control { kind: "label", role: "text_code", text: hook.name },
+                            ui::Control { kind: ui::WIDGET_ROW, width: 6, height: 6, corner_radius: 3, fill: if lifecycle { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] } },
+                            ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: hook.name },
                         ],
                     },
                 ],

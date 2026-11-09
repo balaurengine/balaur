@@ -5,3 +5,4 @@ pub mod glb;
 mod glb_material;
 pub mod pixels;
 pub mod texture_asset;
+mod vocabulary;

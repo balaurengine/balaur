@@ -15,6 +15,7 @@ use crate::font::{Font, FontSettings};
 use crate::shape::Tweaks;
 use crate::system_fonts;
 pub use crate::system_fonts::{InstalledFace, installed_faces};
+use crate::vocabulary::words;
 
 /// A face file's bytes, shared by every holder: the shaper's database and
 /// egui take the same allocation, so neither copies a file and egui compares
@@ -168,8 +169,11 @@ pub fn read_system_fonts_ahead(reg: &mut balaur_plugin::Registry<'_>) {
 /// The directory a project's faces are read from, as `ProjectFiles` takes it.
 fn fonts_directory(eng: &Engine, project: FontProject) -> String {
     match (project, balaur_core::project::content_root(eng)) {
-        (FontProject::Content, Some(root)) => root.join("fonts").to_string_lossy().into_owned(),
-        _ => "fonts".to_string(),
+        (FontProject::Content, Some(root)) => root
+            .join(words::fonts::FONTS)
+            .to_string_lossy()
+            .into_owned(),
+        _ => words::fonts::FONTS.to_string(),
     }
 }
 
@@ -555,7 +559,7 @@ impl ProjectFonts {
         let font = match self.resolve(eng, reference) {
             Ok(font) => Rc::new(font),
             Err(err) => {
-                if balaur_core::logbuf::first_time("font", reference) {
+                if balaur_core::logbuf::first_time(words::markup::FONT, reference) {
                     tracing::warn!("font '{reference}': {err:#}");
                 }
                 Rc::new(self.table.default_font().clone())

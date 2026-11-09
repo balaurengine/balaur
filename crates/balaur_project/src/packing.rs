@@ -5,8 +5,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use crate::vocabulary::words;
 use anyhow::{Context, Result, bail};
 use balaur_core::Pack;
+
+const BYTES: &str = "bytes";
+const ENTRIES: &str = "entries";
+const EXPORT: &str = "export";
+const EXTENSION: &str = "extension";
+const INCLUDE: &str = "include";
 
 /// File extensions that ship inside a pack, beside every outline face
 /// ([`balaur_core::import::FACE_EXTENSIONS`]). A game's textures, sounds, fonts and
@@ -131,7 +138,7 @@ pub fn build_with(
                 };
                 pack.scenes.insert(rel, source);
             }
-            Some("wesl") => {
+            Some(words::WESL) => {
                 pack.scenes.insert(rel, text(&*fs, &path)?);
             }
             Some(ext)
@@ -179,8 +186,8 @@ pub fn build_with(
 fn finish_dependencies(pack: &mut Pack, shipped: &[Shipped], literals: &BTreeSet<String>) {
     let mut keep = balaur_core::dependencies::strings_at(
         &toml::from_str(&pack.manifest).unwrap_or_default(),
-        "export",
-        "include",
+        EXPORT,
+        INCLUDE,
     );
     for dep in shipped {
         keep.extend(
@@ -445,7 +452,7 @@ fn references_with(pack: &Pack, mut out: BTreeSet<String>) -> BTreeSet<String> {
         out.extend(resolved);
     }
     for (key, bytes) in &pack.assets {
-        if extension_of(key) == "fnt"
+        if extension_of(key) == words::FNT
             && let Ok(text) = std::str::from_utf8(bytes)
         {
             out.extend(fnt_pages(key, text));
@@ -515,7 +522,7 @@ impl std::fmt::Display for PackReport {
             .chain(self.largest.iter().map(|e| e.key.len()))
             .max()
             .unwrap_or(0)
-            .max("extension".len());
+            .max(EXTENSION.len());
         // The two right-hand columns, and their width joined for the one-column
         // list of entries below them.
         let (count, size) = (8, 10);
@@ -525,7 +532,7 @@ impl std::fmt::Display for PackReport {
         writeln!(
             f,
             "{:<width$} {:>count$} {:>size$}",
-            "section", "entries", "bytes"
+            "section", ENTRIES, BYTES
         )?;
         for section in &self.sections {
             let bytes = human_bytes(section.bytes);
@@ -537,11 +544,7 @@ impl std::fmt::Display for PackReport {
         }
         if !self.extensions.is_empty() {
             writeln!(f)?;
-            writeln!(
-                f,
-                "{:<width$} {:>count$} {:>size$}",
-                "extension", "entries", "bytes"
-            )?;
+            writeln!(f, "{EXTENSION:<width$} {ENTRIES:>count$} {BYTES:>size$}")?;
             for entry in &self.extensions {
                 let name = if entry.extension.is_empty() {
                     "(none)"
@@ -554,7 +557,7 @@ impl std::fmt::Display for PackReport {
         }
         if !self.largest.is_empty() {
             writeln!(f)?;
-            writeln!(f, "{:<width$} {:>wide$}", "largest", "bytes")?;
+            writeln!(f, "{:<width$} {:>wide$}", "largest", BYTES)?;
             for entry in &self.largest {
                 let bytes = human_bytes(entry.bytes);
                 writeln!(f, "{:<width$} {bytes:>wide$}", entry.key)?;
@@ -877,7 +880,7 @@ fn shipped_dependencies(
         out.push(Shipped {
             files: balaur_core::dependencies::files_of(fs, &root, &ignore),
             index: balaur_core::dependencies::index_of(fs, &root),
-            include: balaur_core::dependencies::strings_at(&table, "export", "include"),
+            include: balaur_core::dependencies::strings_at(&table, EXPORT, INCLUDE),
             import: table
                 .get("import")
                 .and_then(toml::Value::as_table)

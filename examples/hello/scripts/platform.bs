@@ -1,6 +1,10 @@
 // A moving platform this script does not move: the engine samples the clip in
 // animations/platform.toml, and its method track calls `on_reached_end` here.
 
+const DURATION: str = "duration";
+const PROPERTY: str = "property";
+const TO: str = "to";
+
 pub class Platform {
     node: Node,
     turns: int,
@@ -26,8 +30,8 @@ impl Platform {
         // has right now and animates from it, through the same sampler and the
         // same fixed step a clip asset goes through.
         let steps: [any] = [
-            { "property": "shape3d/color", "to": [1.0, 0.8, 0.25, 1.0], "duration": 0.25 },
-            { "property": "shape3d/color", "to": [0.55, 0.35, 0.8, 1.0], "duration": 0.75, "ease": animation::EASE_OUT_QUAD },
+            { PROPERTY: "shape3d/color", TO: [1.0, 0.8, 0.25, 1.0], DURATION: 0.25 },
+            { PROPERTY: "shape3d/color", TO: [0.55, 0.35, 0.8, 1.0], DURATION: 0.75, "ease": animation::EASE_OUT_QUAD },
         ];
         animation::tween(self.node, animation::Tween { steps: steps });
         log::info("platform turned {self.turns} time(s)");

@@ -21,6 +21,13 @@ use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
 
 use balaur_core::engine::Engine;
 
+const AREA: &str = "area";
+const CONTAINS: &str = "contains";
+const CONVEX_HULL: &str = "convex_hull";
+const IS_CLOCKWISE: &str = "is_clockwise";
+const SEGMENTS_INTERSECT: &str = "segments_intersect";
+const TRIANGULATE: &str = "triangulate";
+
 /// A pixel index as the coordinate the boundary walk counts in, which reaches
 /// one past the mask on every side.
 fn sample(index: usize) -> isize {
@@ -631,14 +638,14 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
         "Polygons on the plane as lists of `Vec2` points in outline order: triangulation, booleans, hulls and containment. Every answer is identical on every platform.",
     );
     m.describe(&[
-        ("triangulate", &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
-        ("contains", &[], "(polygon: [Vec2], point: Vec2) -> bool", "Whether a point lies inside the polygon; a point on an edge counts as inside."),
-        ("segments_intersect", &[], "(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Vec2?", "Where two segments cross, or nil when they do not; touching at an endpoint counts."),
-        ("area", &[], "(polygon: [Vec2]) -> float", "The polygon's area, always positive whatever its winding."),
-        ("is_clockwise", &[], "(polygon: [Vec2]) -> bool", "Whether the points run clockwise, with y up."),
-        ("convex_hull", &[], "(points: [Vec2]) -> [Vec2]", "The smallest convex polygon around the points, counter-clockwise."),
+        (TRIANGULATE, &[], "(polygon: [Vec2]) -> [[int]]", "The polygon cut into triangles, as `[i, j, k]` triples indexing its points, counter-clockwise; either winding is accepted."),
+        (CONTAINS, &[], "(polygon: [Vec2], point: Vec2) -> bool", "Whether a point lies inside the polygon; a point on an edge counts as inside."),
+        (SEGMENTS_INTERSECT, &[], "(a1: Vec2, a2: Vec2, b1: Vec2, b2: Vec2) -> Vec2?", "Where two segments cross, or nil when they do not; touching at an endpoint counts."),
+        (AREA, &[], "(polygon: [Vec2]) -> float", "The polygon's area, always positive whatever its winding."),
+        (IS_CLOCKWISE, &[], "(polygon: [Vec2]) -> bool", "Whether the points run clockwise, with y up."),
+        (CONVEX_HULL, &[], "(points: [Vec2]) -> [Vec2]", "The smallest convex polygon around the points, counter-clockwise."),
     ]);
-    m.function("triangulate", |_: &Engine, polygon: Value| {
+    m.function(TRIANGULATE, |_: &Engine, polygon: Value| {
         let points = polygon_of(&polygon)?;
         let ring: Vec<u32> = (0..points.len() as u32).collect();
         let triangles = crate::triangulate::triangulate(&points, &ring)?;
@@ -655,14 +662,11 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
                 .collect(),
         ))
     });
+    m.function(CONTAINS, |_: &Engine, (polygon, point): (Value, Value)| {
+        Ok(contains(&polygon_of(&polygon)?, point_of(&point)?))
+    });
     m.function(
-        "contains",
-        |_: &Engine, (polygon, point): (Value, Value)| {
-            Ok(contains(&polygon_of(&polygon)?, point_of(&point)?))
-        },
-    );
-    m.function(
-        "segments_intersect",
+        SEGMENTS_INTERSECT,
         |_: &Engine, (a1, a2, b1, b2): (Value, Value, Value, Value)| {
             let hit = segments_intersect(
                 point_of(&a1)?,
@@ -673,13 +677,13 @@ pub fn install_geometry2d_api(m: &mut Module<Engine>) {
             Ok(hit.map_or(Value::Nil, |p| Value::Vec2([p.x, p.y])))
         },
     );
-    m.function("area", |_: &Engine, polygon: Value| {
+    m.function(AREA, |_: &Engine, polygon: Value| {
         Ok(f64::from(doubled_area(&polygon_of(&polygon)?).abs() / 2.0))
     });
-    m.function("is_clockwise", |_: &Engine, polygon: Value| {
+    m.function(IS_CLOCKWISE, |_: &Engine, polygon: Value| {
         Ok(doubled_area(&polygon_of(&polygon)?) < 0.0)
     });
-    m.function("convex_hull", |_: &Engine, points: Value| {
+    m.function(CONVEX_HULL, |_: &Engine, points: Value| {
         Ok(polygon_value(&convex_hull(&polygon_of(&points)?)))
     });
     install_boolean_api(m);

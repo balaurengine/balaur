@@ -11,6 +11,7 @@
 //! catches a key here that the struct does not carry; `settings::unknown`
 //! catches a key the struct carries and this does not.
 
+use crate::vocabulary::words;
 use balaur::ComponentDef;
 use balaur::Engine;
 use balaur::settings::{Scope, define_group};
@@ -38,13 +39,13 @@ pub fn declare(eng: &Engine) {
     let parse = |name: &str, text: &str| ComponentDef::parse_schema(name, text);
     define_group(
         eng,
-        "export",
+        words::config::EXPORT,
         Scope::Project,
         &parse("settings.export", EXPORT_SCHEMA),
     );
     define_group(
         eng,
-        "android",
+        words::targets::ANDROID,
         Scope::Project,
         &parse(
             "settings.android",
@@ -87,7 +88,7 @@ ios_provisioning_profile = { type = "string", default = "", order = 13, help = "
     );
     define_group(
         eng,
-        "windows",
+        words::native::WINDOWS,
         Scope::Project,
         &parse(
             "settings.windows",

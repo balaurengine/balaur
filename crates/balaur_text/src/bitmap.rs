@@ -9,6 +9,7 @@
 
 use std::collections::HashMap;
 
+use crate::vocabulary::words;
 use egui::{Rect, Vec2, pos2, vec2};
 
 /// One character's box on the page, in page pixels.
@@ -69,24 +70,24 @@ pub fn parse(source: &str) -> anyhow::Result<BitmapFont> {
             continue;
         };
         match kind {
-            "info" => {
-                if let Some(size) = number(line, "size") {
+            words::INFO => {
+                if let Some(size) = number(line, words::markup::SIZE) {
                     font.size = size.abs().max(1.0);
                 }
             }
-            "common" => {
+            words::COMMON => {
                 font.line_height = number(line, "lineHeight").unwrap_or(font.size);
             }
             // Only the first page: a font spread over several is a font whose
             // glyphs cannot share one atlas region, and none of ours are.
-            "page" => {
+            words::PAGE => {
                 if font.page.is_empty()
                     && let Some(file) = field(line, "file")
                 {
                     font.page = file.to_string();
                 }
             }
-            "char" => {
+            words::CHAR => {
                 let Some(id) = number(line, "id") else {
                     continue;
                 };
@@ -108,7 +109,7 @@ pub fn parse(source: &str) -> anyhow::Result<BitmapFont> {
                     },
                 );
             }
-            "kerning" => {
+            words::KERNING => {
                 let first = number(line, "first")
                     .and_then(|v| u32::try_from(v as i64).ok())
                     .and_then(char::from_u32);

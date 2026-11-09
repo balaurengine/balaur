@@ -3,6 +3,8 @@
 
 use logs;
 
+const YES: str = "yes";
+
 /// Where the sink reports to the Gamend dock, and where the dock asks it to
 /// flush now, in the script store.
 const REPORT_KEY: str = "gamend:logs";
@@ -22,7 +24,7 @@ impl LogSink {
 
     fn update(dt: float) {
         logs::pump(self.sink, self.node, dt);
-        if script::stored(FLUSH_KEY).text() == "yes" {
+        if script::stored(FLUSH_KEY).text() == YES {
             script::store(FLUSH_KEY, "");
             logs::flush(self.sink, self.node);
         }

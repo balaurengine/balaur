@@ -1,0 +1,17 @@
+// The colour tokens of a theme the editor reads.
+
+internal const BG_CONTROL: str = "bg_control";
+internal const BORDER_DEFAULT: str = "border_default";
+internal const DANGER_TEXT: str = "danger_text";
+internal const NODE_2D: str = "node_2d";
+internal const NODE_BONE: str = "node_bone";
+internal const NODE_DEFAULT: str = "node_default";
+internal const NODE_PHYSICS: str = "node_physics";
+internal const PRIMARY_BG: str = "primary_bg";
+internal const PRIMARY_TEXT: str = "primary_text";
+internal const SECONDARY_TEXT: str = "secondary_text";
+internal const SUCCESS_TEXT: str = "success_text";
+internal const TEXT_DEFAULT: str = "text_default";
+internal const TEXT_MUTED: str = "text_muted";
+internal const TEXT_SUBTLE: str = "text_subtle";
+internal const WARNING_TEXT: str = "warning_text";

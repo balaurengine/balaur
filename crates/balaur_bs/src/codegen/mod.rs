@@ -44,6 +44,7 @@ pub(crate) const DATA_START: u32 = DATA_BASE;
     all(target_arch = "wasm32", feature = "web")
 ))]
 pub(crate) const SHADOW_STACK: u32 = rt::DEBUG_STACK;
+use crate::vocabulary::words as vocab;
 use func::{FnGen, LVal, Mode, R, err};
 use rt::{DATA_BASE, G_MEMORY_BASE, HELPER_COUNT, Helpers};
 use sections::{code_sections, export_section, memory_and_globals, table_sections};
@@ -139,16 +140,16 @@ pub(crate) struct Builtins {
 }
 
 pub(crate) const MATH: [(&str, usize); 10] = [
-    ("sin", 1),
-    ("cos", 1),
-    ("tan", 1),
-    ("asin", 1),
-    ("acos", 1),
-    ("atan", 1),
-    ("atan2", 2),
-    ("pow", 2),
-    ("exp", 1),
-    ("ln", 1),
+    (vocab::math::SIN, 1),
+    (vocab::math::COS, 1),
+    (vocab::math::TAN, 1),
+    (vocab::math::ASIN, 1),
+    (vocab::math::ACOS, 1),
+    (vocab::math::ATAN, 1),
+    (vocab::math::ATAN2, 2),
+    (vocab::math::POW, 2),
+    (vocab::math::EXP, 1),
+    (vocab::math::LN, 1),
 ];
 
 #[derive(Default)]

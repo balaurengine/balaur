@@ -21,6 +21,10 @@ use crate::components::same;
 use crate::engine::Engine;
 use crate::process::ProcessMode;
 use crate::scene::{Appearance, Children, Name, NodeScript, Tags};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const INSTANCE: &str = "instance";
 
 /// The prefab a node instances, as its scene named it (absolute when the
 /// scene came from another project's root), and the overrides it carried
@@ -44,7 +48,13 @@ pub struct IdSpellings(pub DetHashMap<String, String>);
 const ITSELF: &str = ".";
 
 /// The keys a node table holds that are not what the node is asked for.
-const STRUCTURE: [&str; 5] = ["id", "name", "parent", "instance", "overrides"];
+const STRUCTURE: [&str; 5] = [
+    keys::ID,
+    words::scene_toml::NAME,
+    keys::PARENT,
+    INSTANCE,
+    keys::OVERRIDES,
+];
 
 /// What each node under `root` asks, `root` the document's root, as a scene
 /// file's table. `owner` is the project the paths are written for: every path
@@ -57,7 +67,7 @@ pub fn to_toml(eng: &Engine, root: Entity, owner: Option<&Path>) -> Result<toml:
     let mut nodes = Vec::new();
     write_node(eng, root, None, &written, &mut nodes)?;
     let mut document = toml::Table::new();
-    document.insert("nodes".into(), toml::Value::Array(nodes));
+    document.insert(keys::NODES.into(), toml::Value::Array(nodes));
     let mut document = toml::Value::Table(document);
     if let Some(owner) = owner {
         crate::document_paths::relative_in(eng, owner, &mut document);
@@ -129,10 +139,13 @@ fn write_node(
     let id = stable_id(eng, entity);
     let own_id = written.get(&entity).cloned().unwrap_or_else(|| id.clone());
     let mut table = toml::Table::new();
-    table.insert("id".into(), toml::Value::String(own_id.clone()));
-    table.insert("name".into(), toml::Value::String(name_of(eng, entity)));
+    table.insert(keys::ID.into(), toml::Value::String(own_id.clone()));
+    table.insert(
+        words::scene_toml::NAME.into(),
+        toml::Value::String(name_of(eng, entity)),
+    );
     if let Some(parent) = parent {
-        table.insert("parent".into(), toml::Value::String(parent.to_string()));
+        table.insert(keys::PARENT.into(), toml::Value::String(parent.to_string()));
     }
     let instanced = eng
         .world()
@@ -146,7 +159,7 @@ fn write_node(
         Some((source, unmatched)) => {
             let asks = prefab_asks(eng, source, &mut Vec::new())
                 .with_context(|| format!("instance '{source}' on node '{id}'"))?;
-            table.insert("instance".into(), toml::Value::String(source.clone()));
+            table.insert(INSTANCE.into(), toml::Value::String(source.clone()));
             write_asked(eng, entity, asks.get(ITSELF), &mut table);
             let mut overrides = unmatched.clone();
             for child in children_of(eng, entity) {
@@ -162,7 +175,7 @@ fn write_node(
                 }
             }
             if !overrides.is_empty() {
-                table.insert("overrides".into(), toml::Value::Table(overrides));
+                table.insert(keys::OVERRIDES.into(), toml::Value::Table(overrides));
             }
         }
         None => write_asked(eng, entity, None, &mut table),
@@ -189,9 +202,9 @@ fn write_asked(eng: &Engine, entity: Entity, base: Option<&toml::Table>, out: &m
     let base = base.unwrap_or(&empty);
     NodeKeys::of_node(eng, entity).write_over(&NodeKeys::of_table(base), out);
     if let Some(script) = script_of(eng, entity)
-        && base.get("script").is_none_or(|was| !same(&script, was))
+        && base.get(keys::SCRIPT).is_none_or(|was| !same(&script, was))
     {
-        out.insert("script".into(), script);
+        out.insert(keys::SCRIPT.into(), script);
     }
     for (name, asked) in crate::components::written_of(eng, entity) {
         if base.get(&name).is_none_or(|was| !same(&asked, was)) {
@@ -228,12 +241,12 @@ fn changes_over(eng: &Engine, entity: Entity, base: &toml::Table) -> toml::Table
     let mut entry = toml::Table::new();
     NodeKeys::of_node(eng, entity).write_over(&NodeKeys::of_table(base), &mut entry);
     if let Some(toml::Value::Table(script)) = script_of(eng, entity) {
-        let changed = match base.get("script").and_then(toml::Value::as_table) {
+        let changed = match base.get(keys::SCRIPT).and_then(toml::Value::as_table) {
             Some(was) => script_changes(&script, was),
             None => Some(script),
         };
         if let Some(changed) = changed {
-            entry.insert("script".into(), toml::Value::Table(changed));
+            entry.insert(keys::SCRIPT.into(), toml::Value::Table(changed));
         }
     }
     for (name, asked) in crate::components::written_of(eng, entity) {
@@ -326,16 +339,16 @@ fn defaults_of(eng: &Engine, component: &str) -> toml::Table {
 /// A script override against the one the prefab names: the whole script when
 /// it names another file, else the properties it sets differently.
 fn script_changes(script: &toml::Table, was: &toml::Table) -> Option<toml::Table> {
-    if script.get("source") != was.get("source") {
+    if script.get(keys::SOURCE) != was.get(keys::SOURCE) {
         return Some(script.clone());
     }
     let empty = toml::Table::new();
     let props = script
-        .get("props")
+        .get(keys::PROPS)
         .and_then(toml::Value::as_table)
         .unwrap_or(&empty);
     let before = was
-        .get("props")
+        .get(keys::PROPS)
         .and_then(toml::Value::as_table)
         .unwrap_or(&empty);
     let differing: toml::Table = props
@@ -345,7 +358,7 @@ fn script_changes(script: &toml::Table, was: &toml::Table) -> Option<toml::Table
         .collect();
     (!differing.is_empty()).then(|| {
         let mut out = toml::Table::new();
-        out.insert("props".into(), toml::Value::Table(differing));
+        out.insert(keys::PROPS.into(), toml::Value::Table(differing));
         out
     })
 }
@@ -355,14 +368,17 @@ fn script_of(eng: &Engine, entity: Entity) -> Option<toml::Value> {
     let world = eng.world();
     let script = world.get::<&NodeScript>(entity).ok()?;
     let mut table = toml::Table::new();
-    table.insert("source".into(), toml::Value::String(script.path.clone()));
+    table.insert(
+        keys::SOURCE.into(),
+        toml::Value::String(script.path.clone()),
+    );
     let props: toml::Table = script
         .props
         .iter()
         .filter_map(|(key, value)| Some((key.clone(), crate::node_api::to_toml(value).ok()?)))
         .collect();
     if !props.is_empty() {
-        table.insert("props".into(), toml::Value::Table(props));
+        table.insert(keys::PROPS.into(), toml::Value::Table(props));
     }
     Some(toml::Value::Table(table))
 }
@@ -394,7 +410,7 @@ fn prefab_asks(
         );
     }
     let nodes: Vec<toml::Table> = document
-        .get("nodes")
+        .get(keys::NODES)
         .and_then(toml::Value::as_array)
         .map(|nodes| {
             nodes
@@ -411,14 +427,14 @@ fn prefab_asks(
     };
     let root_name = nodes
         .iter()
-        .find(|node| text_of(node, "parent").is_empty())
-        .map(|node| text_of(node, "name"))
+        .find(|node| text_of(node, keys::PARENT).is_empty())
+        .map(|node| text_of(node, words::scene_toml::NAME))
         .unwrap_or_default();
     let mut path_of_id: DetHashMap<String, String> = DetHashMap::default();
     let mut asks: BTreeMap<String, toml::Table> = BTreeMap::new();
     open.push(source.to_string());
     for node in &nodes {
-        let parent = text_of(node, "parent");
+        let parent = text_of(node, keys::PARENT);
         let path = if parent.is_empty() {
             ITSELF.to_string()
         } else {
@@ -433,15 +449,15 @@ fn prefab_asks(
                     named.to_string()
                 }
             });
-            joined(&above, &text_of(node, "name"))
+            joined(&above, &text_of(node, words::scene_toml::NAME))
         };
-        path_of_id.insert(text_of(node, "id"), path.clone());
+        path_of_id.insert(text_of(node, words::locales::ID), path.clone());
         let own: toml::Table = node
             .iter()
             .filter(|(key, _)| !STRUCTURE.contains(&key.as_str()))
             .map(|(key, value)| (key.clone(), value.clone()))
             .collect();
-        let instance = text_of(node, "instance");
+        let instance = text_of(node, INSTANCE);
         if instance.is_empty() {
             asks.insert(path.clone(), own);
         } else {
@@ -452,7 +468,7 @@ fn prefab_asks(
                 asks.insert(joined(&path, &inner), asked);
             }
         }
-        if let Some(overrides) = node.get("overrides").and_then(toml::Value::as_table) {
+        if let Some(overrides) = node.get(keys::OVERRIDES).and_then(toml::Value::as_table) {
             for (inner, over) in overrides {
                 let Some(over) = over.as_table() else {
                     continue;
@@ -484,7 +500,7 @@ fn patch(asked: &mut toml::Table, over: &toml::Table) {
                 for (inner, changed) in changes {
                     match (held.get_mut(inner), changed) {
                         (Some(toml::Value::Table(props)), toml::Value::Table(set))
-                            if key == "script" && inner == "props" =>
+                            if key == words::SCRIPT && inner == words::PROPS =>
                         {
                             props.extend(set.clone());
                         }
@@ -548,16 +564,19 @@ impl NodeKeys {
 
     fn of_table(table: &toml::Table) -> Self {
         let mut keys = Self::default();
-        if let Some(on) = table.get("visible").and_then(toml::Value::as_bool) {
+        if let Some(on) = table.get(keys::VISIBLE).and_then(toml::Value::as_bool) {
             keys.visible = on;
         }
-        if let Some(colour) = table.get("tint").and_then(crate::components::rgba) {
+        if let Some(colour) = table.get(keys::TINT).and_then(crate::components::rgba) {
             keys.tint = colour;
         }
-        if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
+        if let Some(z) = table.get(keys::Z_INDEX).and_then(toml::Value::as_integer) {
             keys.z_index = z;
         }
-        if let Some(on) = table.get("z_as_relative").and_then(toml::Value::as_bool) {
+        if let Some(on) = table
+            .get(keys::Z_AS_RELATIVE)
+            .and_then(toml::Value::as_bool)
+        {
             keys.z_as_relative = on;
         }
         if let Some(mode) = table
@@ -567,7 +586,7 @@ impl NodeKeys {
         {
             keys.process = mode;
         }
-        if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
+        if let Some(list) = table.get(keys::TAGS).and_then(toml::Value::as_array) {
             let mut tags = Tags::default();
             for tag in list.iter().filter_map(toml::Value::as_str) {
                 tags.add(tag);
@@ -580,7 +599,7 @@ impl NodeKeys {
     /// Every key that differs from `base`, written into `out`.
     fn write_over(&self, base: &Self, out: &mut toml::Table) {
         if self.visible != base.visible {
-            out.insert("visible".into(), toml::Value::Boolean(self.visible));
+            out.insert(keys::VISIBLE.into(), toml::Value::Boolean(self.visible));
         }
         let tinted = self
             .tint
@@ -589,16 +608,16 @@ impl NodeKeys {
             .any(|(a, b)| (a - b).abs() > 1e-5);
         if tinted {
             out.insert(
-                "tint".into(),
+                keys::TINT.into(),
                 toml::Value::Array(self.tint.iter().map(|&c| short_float(c)).collect()),
             );
         }
         if self.z_index != base.z_index {
-            out.insert("z_index".into(), toml::Value::Integer(self.z_index));
+            out.insert(keys::Z_INDEX.into(), toml::Value::Integer(self.z_index));
         }
         if self.z_as_relative != base.z_as_relative {
             out.insert(
-                "z_as_relative".into(),
+                keys::Z_AS_RELATIVE.into(),
                 toml::Value::Boolean(self.z_as_relative),
             );
         }
@@ -610,7 +629,7 @@ impl NodeKeys {
         }
         if self.tags != base.tags {
             out.insert(
-                "tags".into(),
+                keys::TAGS.into(),
                 toml::Value::Array(
                     self.tags
                         .iter()
@@ -629,16 +648,16 @@ pub(crate) fn node_keys_value(eng: &Engine, entity: Entity) -> balaur_script::Va
     let keys = NodeKeys::of_node(eng, entity);
     let float = |f: f32| Value::Num(f64::from(f).to_string().parse().unwrap_or(f64::from(f)));
     Value::Map(vec![
-        ("visible".into(), Value::Bool(keys.visible)),
+        (keys::VISIBLE.into(), Value::Bool(keys.visible)),
         (
-            "tint".into(),
+            keys::TINT.into(),
             Value::List(keys.tint.iter().map(|&c| float(c)).collect()),
         ),
-        ("z_index".into(), Value::Int(keys.z_index)),
-        ("z_as_relative".into(), Value::Bool(keys.z_as_relative)),
+        (keys::Z_INDEX.into(), Value::Int(keys.z_index)),
+        (keys::Z_AS_RELATIVE.into(), Value::Bool(keys.z_as_relative)),
         (crate::process::KEY.into(), Value::text(keys.process.name())),
         (
-            "tags".into(),
+            keys::TAGS.into(),
             Value::List(keys.tags.iter().map(Value::text).collect()),
         ),
     ])

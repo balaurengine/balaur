@@ -22,6 +22,7 @@ use balaur_script::{Module, NodeId};
 use crate::dim2::{PhysicsState2d, node_pose_2d, shapes};
 use crate::properties::{Axis2d, ContactPair, Fill, LayerTest};
 use crate::vocabulary::component as c;
+use crate::vocabulary::words;
 use balaur_core::layers::Layer;
 
 /// The node's 2D collision shape, chosen by `kind`. It belongs to the node's `body2d` or the nearest body above it; without one it is static geometry.
@@ -662,37 +663,40 @@ fn with_voxels(
 /// Editing a 2D voxel grid, the twin of `crate::collider::install_voxel_api`.
 pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_voxel", &[c::COLLIDER_2D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
-        ("voxel", &[c::COLLIDER_2D], "", "Whether one cell of a voxel collider is filled."),
-        ("voxel_at", &[c::COLLIDER_2D], "", "The cell a world position falls in, as two whole numbers."),
-        ("set_voxel_size", &[c::COLLIDER_2D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
-        ("voxel_size", &[c::COLLIDER_2D], "(node: node) -> Vec2", "How big one cell of a voxel collider is, along each axis."),
-        ("crop_voxels", &[c::COLLIDER_2D], "", "Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was."),
-        ("combine_voxels", &[c::COLLIDER_2D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
+        (words::functions::SET_VOXEL, &[c::COLLIDER_2D], "", "Fill or empty one cell of a voxel collider: digging a hole, or building a wall, while the game runs."),
+        (words::functions::VOXEL, &[c::COLLIDER_2D], "", "Whether one cell of a voxel collider is filled."),
+        (words::functions::VOXEL_AT, &[c::COLLIDER_2D], "", "The cell a world position falls in, as two whole numbers."),
+        (words::functions::SET_VOXEL_SIZE, &[c::COLLIDER_2D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
+        (words::functions::VOXEL_SIZE, &[c::COLLIDER_2D], "(node: node) -> Vec2", "How big one cell of a voxel collider is, along each axis."),
+        (words::functions::CROP_VOXELS, &[c::COLLIDER_2D], "", "Empty every cell outside the cells from `(min_x, min_y)` to `(max_x, max_y)`, both included. A range holding no filled cell leaves the grid as it was."),
+        (words::functions::COMBINE_VOXELS, &[c::COLLIDER_2D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
     ]);
     m.function(
-        "set_voxel",
+        words::functions::SET_VOXEL,
         |eng: &Engine, (node, x, y, filled): (NodeId, i32, i32, bool)| {
             with_voxels(eng, node, |voxels| {
                 voxels.set_voxel(scalar::cell2(x, y), filled);
             })
         },
     );
-    m.function("voxel", |eng: &Engine, (node, x, y): (NodeId, i32, i32)| {
-        let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let handle = first_collider(&state, entity)?;
-        let voxels = state.world.colliders[handle]
-            .shape()
-            .as_voxels()
-            .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
-        Ok(voxels
-            .voxel_state(scalar::cell2(x, y))
-            .is_some_and(|state| !state.is_empty()))
-    });
     m.function(
-        "voxel_at",
+        words::functions::VOXEL,
+        |eng: &Engine, (node, x, y): (NodeId, i32, i32)| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let handle = first_collider(&state, entity)?;
+            let voxels = state.world.colliders[handle]
+                .shape()
+                .as_voxels()
+                .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+            Ok(voxels
+                .voxel_state(scalar::cell2(x, y))
+                .is_some_and(|state| !state.is_empty()))
+        },
+    );
+    m.function(
+        words::functions::VOXEL_AT,
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             let entity = balaur_core::entity_of(node)?;
             let state = eng.resource::<PhysicsState2d>();
@@ -718,25 +722,28 @@ pub(crate) fn install_voxel_2d_api(m: &mut Module<Engine>) {
 /// Split from [`install_voxel_2d_api`] under `MAX_FN_LINES`.
 fn install_voxel_2d_edit_api(m: &mut Module<Engine>) {
     m.function(
-        "set_voxel_size",
+        words::functions::SET_VOXEL_SIZE,
         |eng: &Engine, (node, x, y): (NodeId, f32, f32)| {
             let size = scalar::v2(x.max(0.001), y.max(0.001));
             with_voxels(eng, node, |voxels| voxels.set_voxel_size(size))
         },
     );
-    m.function("voxel_size", |eng: &Engine, node: NodeId| {
-        let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState2d>();
-        let state = state.borrow();
-        let handle = first_collider(&state, entity)?;
-        let voxels = state.world.colliders[handle]
-            .shape()
-            .as_voxels()
-            .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
-        Ok(balaur_script::Value::Vec2(scalar::a2(voxels.voxel_size())))
-    });
     m.function(
-        "crop_voxels",
+        words::functions::VOXEL_SIZE,
+        |eng: &Engine, node: NodeId| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState2d>();
+            let state = state.borrow();
+            let handle = first_collider(&state, entity)?;
+            let voxels = state.world.colliders[handle]
+                .shape()
+                .as_voxels()
+                .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+            Ok(balaur_script::Value::Vec2(scalar::a2(voxels.voxel_size())))
+        },
+    );
+    m.function(
+        words::functions::CROP_VOXELS,
         |eng: &Engine, (node, min_x, min_y, max_x, max_y): (NodeId, i32, i32, i32, i32)| {
             with_voxels(eng, node, |voxels| {
                 voxels.crop(scalar::cell2(min_x, min_y), scalar::cell2(max_x, max_y));
@@ -744,7 +751,7 @@ fn install_voxel_2d_edit_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "combine_voxels",
+        words::functions::COMBINE_VOXELS,
         |eng: &Engine, (node, other): (NodeId, NodeId)| combine_voxels(eng, node, other),
     );
 }

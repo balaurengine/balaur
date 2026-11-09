@@ -1,0 +1,4 @@
+// The two halves of a theme.
+
+internal const DARK: str = "dark";
+internal const LIGHT: str = "light";

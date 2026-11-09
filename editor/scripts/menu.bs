@@ -12,6 +12,11 @@ use pool;
 use settings;
 use shell;
 use themewin;
+use words::fields;
+use words::roles;
+use words::verbs;
+
+const VERB: str = "verb";
 
 // A row, and the two columns the panel list runs in: seventeen panels down
 // one column is taller than the window the editor is asked to fit.
@@ -23,55 +28,55 @@ const CELL_WIDTH: float = 108.0;
 /// pass; the menu node draws them in its popup when it is opened.
 pub fn rows(state: &mut editor::State) -> [ui::Control] {
     let out: [ui::Control] = [
-        action(icons::ui("search"), "Command palette", "⌘K", "palette"),
-        action(icons::ui("settings"), "Settings", "⌘,", "settings"),
-        action(icons::ui("dark"), "Theme", "", "theme"),
-        action(icons::ui("export"), "Export", "⌘E", "export"),
-        action(icons::ui("about"), "About Balaur", "", "about"),
+        action(icons::ui(icons::SEARCH), "Command palette", "⌘K", verbs::PALETTE),
+        action(icons::ui("settings"), "Settings", "⌘,", verbs::SETTINGS),
+        action(icons::ui(icons::DARK), "Theme", "", verbs::THEME),
+        action(icons::ui(icons::EXPORT), "Export", "⌘E", verbs::EXPORT),
+        action(icons::ui("about"), "About Balaur", "", verbs::ABOUT),
         rule(),
-        ui::Control { kind: "label", role: "text_heading_menu", text: "PANELS", width: ROW_WIDTH },
+        ui::Control { kind: ui::WIDGET_LABEL, role: "text_heading_menu", text: "PANELS", width: ROW_WIDTH },
     ];
     for pair in panel_pairs(state) {
         out.push(pair);
     }
     out.push(rule());
-    out.push(action(icons::ui("reset"), "Reset to {defs::workspace_name(state.workspace)}", "", "reset"));
+    out.push(action(icons::ui(icons::RESET), "Reset to {defs::workspace_name(state.workspace)}", "", verbs::RESET));
     out
 }
 
 // One of the menu's verbs, by the name its row carries.
 fn act(state: &mut editor::State, data: any, _value: any) {
-    let verb = data["verb"].as_str();
-    if verb == "palette" {
+    let verb = data[VERB].as_str();
+    if verb == verbs::PALETTE {
         shell::open_palette(state, "");
-    } else if verb == "settings" {
+    } else if verb == verbs::SETTINGS {
         settings::open(state);
-    } else if verb == "theme" {
+    } else if verb == verbs::THEME {
         themewin::open(state);
-    } else if verb == "export" {
+    } else if verb == verbs::EXPORT {
         exporter::open(state);
-    } else if verb == "about" {
+    } else if verb == verbs::ABOUT {
         about::open(state);
-    } else if verb == "reset" {
+    } else if verb == verbs::RESET {
         docks::apply_workspace(state, state.workspace);
     }
 }
 
 fn action(icon: str, label: str, key: str, verb: str) -> ui::Control {
     let row: ui::Control = ui::Control {
-        kind: "button",
-        role: "item_menu",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ITEM_MENU,
         text: label,
         width: ROW_WIDTH,
         icon: icon,
         trailing: key,
     };
-    pool::on(row, act, { "verb": verb })
+    pool::on(row, act, { VERB: verb })
 }
 
 // A rule the width of the menu: a bare one takes the width it is offered.
 fn rule() -> ui::Control {
-    ui::Control { kind: "separator", width: ROW_WIDTH }
+    ui::Control { kind: ui::WIDGET_SEPARATOR, width: ROW_WIDTH }
 }
 
 // Every panel, ticked where it is open, two to a line. Clicking one closes it
@@ -85,7 +90,7 @@ fn panel_pairs(state: &mut editor::State) -> [ui::Control] {
         if index + 1 < ids.len() {
             pair.push(cell(state, ids[index + 1]));
         }
-        out.push(ui::Control { kind: "row", controls: pair });
+        out.push(ui::Control { kind: ui::WIDGET_ROW, controls: pair });
         index += 2;
     }
     out
@@ -94,16 +99,16 @@ fn panel_pairs(state: &mut editor::State) -> [ui::Control] {
 fn cell(state: &mut editor::State, id: str) -> ui::Control {
     let open = docks::side_of(state, id) != nil;
     let row: ui::Control = ui::Control {
-        kind: "button",
-        role: if open { "item_menu" } else { "item_menu_quiet" },
-        icon: if open { icons::ui("check") } else { " " },
+        kind: ui::WIDGET_BUTTON,
+        role: if open { roles::ITEM_MENU } else { "item_menu_quiet" },
+        icon: if open { icons::ui(icons::CHECK) } else { " " },
         text: docks::name(state, id),
         width: CELL_WIDTH,
         keep_open: true,
     };
-    pool::on(row, toggled, { "id": id })
+    pool::on(row, toggled, { fields::ID: id })
 }
 
 fn toggled(state: &mut editor::State, data: any, _value: any) {
-    docks::toggle(state, data["id"].as_str());
+    docks::toggle(state, data[fields::ID].as_str());
 }

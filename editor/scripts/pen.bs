@@ -8,6 +8,16 @@ use selection;
 use signals;
 use util;
 use viewport;
+use words::components;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::theme_tokens;
+use words::tools;
+
+const PATH2D: str = "path2d";
+const CLOSED: str = "closed";
+const POINTS: str = "points";
 
 pub class PenState {
     internal hover: int,
@@ -46,10 +56,10 @@ const LINE_WIDTH: float = 1.6;
 /// it strokes none.
 pub fn reference(state: editor::State) -> str {
     let found = model::selected_node(state);
-    if !found.is_valid() || !found.has_component("line2d") {
+    if !found.is_valid() || !found.has_component(components::LINE2D) {
         return "";
     }
-    found.authored("line2d")["mesh"].as_str()
+    found.authored(components::LINE2D)[components::MESH].as_str()
 }
 
 /// Whether the Pen has something to edit.
@@ -71,7 +81,7 @@ fn asset_path(state: editor::State, found: str) -> str {
 
 fn is_path(state: editor::State, found: str) -> bool {
     let definition = assets::load(asset_path(state, found));
-    definition.kind() == "map" && definition["type"].as_str() == "path2d"
+    definition.kind() == types::KIND_MAP && definition[fields::TYPE].as_str() == PATH2D
 }
 
 /// The path the selection strokes, cached on `state` for the frames between
@@ -87,14 +97,14 @@ pub fn current(state: &mut editor::State) -> Loaded? {
         return state.pen.path;
     }
     let definition = assets::load(asset_path(state, found));
-    if definition.kind() != "map" {
+    if definition.kind() != types::KIND_MAP {
         return nil;
     }
     let points: [[float]] = [];
-    for point in util::list_or_empty(definition["points"]) {
+    for point in util::list_or_empty(definition[POINTS]) {
         points.push(util::list2_or(point, [0.0, 0.0]));
     }
-    let loaded = Loaded { points: points, closed: definition["closed"].as_bool() };
+    let loaded = Loaded { points: points, closed: definition[CLOSED].as_bool() };
     state.pen.reference = found;
     state.pen.path = loaded;
     loaded
@@ -108,14 +118,14 @@ fn save(state: &mut editor::State) {
         return;
     }
     let path = state.pen.path.unwrap();
-    let definition: any = { "type": "path2d", "points": path.points, "closed": path.closed };
+    let definition: any = { fields::TYPE: PATH2D, POINTS: path.points, CLOSED: path.closed };
     assets::save(asset_path(state, found), definition);
     model::forget(state);
     // The stroke is drawn from the asset, so the node has to be told the file
     // under it moved; re-applying the component is what re-reads it.
     let stroked = model::selected_node(state);
-    if stroked.is_valid() && stroked.has_component("line2d") {
-        stroked.set_component("line2d", stroked.authored("line2d"));
+    if stroked.is_valid() && stroked.has_component(components::LINE2D) {
+        stroked.set_component(components::LINE2D, stroked.authored(components::LINE2D));
     }
 }
 
@@ -276,16 +286,16 @@ pub fn toggle_closed(state: &mut editor::State) {
 pub fn new_path(state: &mut editor::State) {
     let name = model::unique_name(state, "Path");
     let relative_path = "paths/{name.to_lower()}.toml";
-    assets::save(state.game_root + "/" + relative_path, { "type": "path2d", "points": [], "closed": false });
+    assets::save(state.game_root + "/" + relative_path, { fields::TYPE: PATH2D, POINTS: [], CLOSED: false });
     model::forget(state);
     history::record(state, "add path");
     let made = model::spawn(state, state.scene_root.unwrap(), name, {
-        "transform": { "position": [0.0, 0.0, 0.0] },
-        "line2d": { "mesh": relative_path, "width": 0.06 },
+        components::TRANSFORM: { inspector_fields::POSITION: [0.0, 0.0, 0.0] },
+        components::LINE2D: { components::MESH: relative_path, layout_fields::WIDTH: 0.06 },
     });
     model::reindex(state);
     selection::only(state, model::index_of_node(state, made).or(0));
-    state.tool = "pen";
+    state.tool = tools::PEN;
     signals::inspector(state);
     log::info("added " + relative_path);
 }
@@ -372,7 +382,7 @@ pub fn cancel(state: &mut editor::State) {
 /// Anchors as squares, handles as dots on their tethers, and the sampled
 /// curve as a line. Drawn over the stroke the renderer already draws.
 pub fn draw(state: &mut editor::State) {
-    if state.tool != "pen" {
+    if state.tool != tools::PEN {
         return;
     }
     let path_or = current(state);
@@ -386,8 +396,8 @@ pub fn draw(state: &mut editor::State) {
     }
     let node_frame = frame_or.unwrap();
     let tokens = state.theme;
-    let accent = util::rgb(tokens["primary_text"].as_str());
-    let dim = util::rgb(tokens["text_muted"].as_str());
+    let accent = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
+    let dim = util::rgb(tokens[theme_tokens::TEXT_MUTED].as_str());
     let mark = MARK_PIXELS * viewport::world_per_pixel(state);
     for index in 0..path.points.len() {
         let point = path.points[index];

@@ -4,6 +4,10 @@
 use core;
 use authentication;
 
+const COMPLETED: str = "completed";
+const PENDING: str = "pending";
+const CODE: str = "code";
+
 /// The save slot the session is kept in.
 pub const SLOT: str = "gamend";
 
@@ -29,13 +33,13 @@ pub async fn providers() -> any {
 /// in already: `link` adds a provider to their account instead.
 pub async fn sign_in(provider: str) -> any {
     let status = await provider_page(provider, sign_in_start, sign_in_status);
-    if status.kind() != "map" {
+    if status.kind() != types::KIND_MAP {
         return nil;
     }
     // The tokens ride under `session`, once; signing in from them is what
     // `restore` does for a kept session, so a fresh one goes the same way.
     let session = status["session"];
-    if session.kind() != "map" {
+    if session.kind() != types::KIND_MAP {
         log::warn("gamend: {provider} sign-in completed without a session");
         return nil;
     }
@@ -57,7 +61,7 @@ fn sign_in_status(session: str) -> int {
 /// `user_updated` carries the new `linked_providers`.
 pub async fn link(provider: str) -> bool {
     let status = await provider_page(provider, link_start, link_status);
-    status.kind() == "map"
+    status.kind() == types::KIND_MAP
 }
 
 fn link_start(provider: str) -> int {
@@ -77,7 +81,7 @@ async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> 
         return nil;
     }
     let opened = data_of(core::body(started));
-    if opened.kind() != "map" {
+    if opened.kind() != types::KIND_MAP {
         return nil;
     }
     let session = opened["session_id"].text();
@@ -91,15 +95,15 @@ async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> 
             continue;
         }
         let now = data_of(core::body(reply));
-        if now.kind() != "map" {
+        if now.kind() != types::KIND_MAP {
             continue;
         }
-        let state = now["status"].text();
-        if state == "completed" {
+        let state = now[core::STATUS].text();
+        if state == COMPLETED {
             return now;
         }
-        if state != "pending" {
-            log::warn("gamend: {provider} {now["error"].text()}: {now["message"].text()}");
+        if state != PENDING {
+            log::warn("gamend: {provider} {now["error"].text()}: {now[core::MESSAGE].text()}");
             return nil;
         }
     }
@@ -114,14 +118,14 @@ async fn provider_page(provider: str, start: fn(str) -> int, status: fn(str) -> 
 /// codes; the code is void, so ask for a new one with
 /// `client::resend_confirmation`), or `validation_failed` (the password).
 pub async fn confirm_registration(email: str, code: str, password: str) -> any {
-    let params: any = { "email": email, "code": code, "password": password };
+    let params: any = { core::EMAIL: email, CODE: code, "password": password };
     let reply = await task::wait(authentication::confirm_registration(params));
     if !core::ok(reply) {
         log::warn(core::error_of(reply));
         return nil;
     }
     let session = data_of(core::body(reply));
-    if session.kind() != "map" {
+    if session.kind() != types::KIND_MAP {
         return nil;
     }
     gamend::restore(session);
@@ -131,7 +135,7 @@ pub async fn confirm_registration(email: str, code: str, password: str) -> any {
 
 /// What `{"data": ...}` carries, or nil for any other body.
 fn data_of(body: any) -> any {
-    if body.has("data") { body["data"] } else { nil }
+    if body.has(core::DATA) { body[core::DATA] } else { nil }
 }
 
 /// Keep a session for the next run. Not `save`: a function of that name
@@ -143,7 +147,7 @@ pub fn keep(session: any) {
 /// The session the last run kept, or nil.
 pub fn saved() -> any {
     let kept = save::read(SLOT);
-    if kept.kind() == "map" { kept } else { nil }
+    if kept.kind() == types::KIND_MAP { kept } else { nil }
 }
 
 /// Sign out here: the saved session is dropped. The server's own logout is

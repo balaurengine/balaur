@@ -9,34 +9,38 @@ use crate::PhysicsState3d;
 use crate::collider::{first_collider, with_voxels};
 use crate::scalar;
 use crate::vocabulary::component as c;
+use crate::vocabulary::words;
 
 pub(crate) fn install_voxel_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_voxel_size", &[c::COLLIDER_3D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
-        ("voxel_size", &[c::COLLIDER_3D], "(node: node) -> Vec3", "How big one cell of a voxel collider is, along each axis."),
-        ("crop_voxels", &[c::COLLIDER_3D], "", "Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was."),
-        ("combine_voxels", &[c::COLLIDER_3D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
+        (words::functions::SET_VOXEL_SIZE, &[c::COLLIDER_3D], "", "Resize every cell of a voxel collider, keeping which cells are filled."),
+        (words::functions::VOXEL_SIZE, &[c::COLLIDER_3D], "(node: node) -> Vec3", "How big one cell of a voxel collider is, along each axis."),
+        (words::functions::CROP_VOXELS, &[c::COLLIDER_3D], "", "Empty every cell outside the cells from `(min_x, min_y, min_z)` to `(max_x, max_y, max_z)`, both included. A range holding no filled cell leaves the grid as it was."),
+        (words::functions::COMBINE_VOXELS, &[c::COLLIDER_3D], "", "Tell two voxel colliders on one lattice about each other's cells, so a body sliding from one onto the other does not catch on the seam. Both must share a cell size and a rotation."),
     ]);
     m.function(
-        "set_voxel_size",
+        words::functions::SET_VOXEL_SIZE,
         |eng: &Engine, (node, x, y, z): (NodeId, f32, f32, f32)| {
             let size = scalar::v3(x.max(0.001), y.max(0.001), z.max(0.001));
             with_voxels(eng, node, |voxels| voxels.set_voxel_size(size))
         },
     );
-    m.function("voxel_size", |eng: &Engine, node: NodeId| {
-        let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let handle = first_collider(&state, entity)?;
-        let voxels = state.world.colliders[handle]
-            .shape()
-            .as_voxels()
-            .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
-        Ok(balaur_script::Value::Vec3(scalar::a3(voxels.voxel_size())))
-    });
     m.function(
-        "crop_voxels",
+        words::functions::VOXEL_SIZE,
+        |eng: &Engine, node: NodeId| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState3d>();
+            let state = state.borrow();
+            let handle = first_collider(&state, entity)?;
+            let voxels = state.world.colliders[handle]
+                .shape()
+                .as_voxels()
+                .ok_or_else(|| anyhow!("this node's collider is not a voxel grid"))?;
+            Ok(balaur_script::Value::Vec3(scalar::a3(voxels.voxel_size())))
+        },
+    );
+    m.function(
+        words::functions::CROP_VOXELS,
         |eng: &Engine,
          (node, min_x, min_y, min_z, max_x, max_y, max_z): (
             NodeId,
@@ -56,7 +60,7 @@ pub(crate) fn install_voxel_edit_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "combine_voxels",
+        words::functions::COMBINE_VOXELS,
         |eng: &Engine, (node, other): (NodeId, NodeId)| combine_voxels(eng, node, other),
     );
 }

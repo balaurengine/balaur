@@ -8,14 +8,26 @@
 
 use super::func::vector_fn;
 use crate::ast::{Block, Expr, ExprKind, FnDecl, Param, Pos, Stmt, StmtKind, Ty};
+use crate::vocabulary::words;
+
+const ALL: &str = "all";
+const BOXED: &str = "boxed";
+const CELL: &str = "cell";
+const INNER: &str = "inner";
+const ITEM: &str = "item";
+const KEY: &str = "key";
+const KEYS: &str = "keys";
+const MADE: &str = "made";
+const OUT: &str = "out";
+const VALUES: &str = "values";
 
 /// `fn any::#box(value: T) -> any`, or with `into` false
 /// `fn any::#unbox(cell: any) -> T`.
 pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
     let (param, ret) = if into {
-        ("value", Ty::Any)
+        (words::convert::VALUE, Ty::Any)
     } else {
-        ("cell", ty.clone())
+        (CELL, ty.clone())
     };
     let from = if into { ty.clone() } else { Ty::Any };
     let body = match (ty, into) {
@@ -23,26 +35,31 @@ pub(crate) fn function(ty: &Ty, into: bool, fields: &[(String, Ty)]) -> FnDecl {
         (Ty::Struct(name), true) if vector_fn(name).is_some() => vector_into(fields),
         (Ty::Struct(_), true) => struct_into(fields),
         (Ty::Struct(struct_name), false) => struct_from(struct_name, fields),
-        (Ty::Array(_), true) => each_into("value", Ty::Array(Box::new(Ty::Any)), "out", true),
-        (Ty::Array(_), false) => each_into("cell", ty.clone(), "out", false),
+        (Ty::Array(_), true) => each_into(
+            words::convert::VALUE,
+            Ty::Array(Box::new(Ty::Any)),
+            OUT,
+            true,
+        ),
+        (Ty::Array(_), false) => each_into(CELL, ty.clone(), OUT, false),
         (Ty::Optional(_), true) => tail(expr(ExprKind::If(
-            Box::new(nil_test(crate::ast::BinOp::Ne, var("value"))),
+            Box::new(nil_test(crate::ast::BinOp::Ne, var(words::convert::VALUE))),
             block(
                 vec![bind(
-                    "inner",
+                    INNER,
                     Ty::Any,
-                    method(var("value"), "unwrap", vec![]),
+                    method(var(words::convert::VALUE), words::methods::UNWRAP, vec![]),
                 )],
-                var("inner"),
+                var(INNER),
             ),
             Some(tail(expr(ExprKind::Nil))),
         ))),
         (Ty::Optional(inner), false) => tail(expr(ExprKind::If(
-            Box::new(nil_test(crate::ast::BinOp::Eq, var("cell"))),
+            Box::new(nil_test(crate::ast::BinOp::Eq, var(CELL))),
             tail(expr(ExprKind::Nil)),
             Some(block(
-                vec![bind("inner", (**inner).clone(), var("cell"))],
-                var("inner"),
+                vec![bind(INNER, (**inner).clone(), var(CELL))],
+                var(INNER),
             )),
         ))),
         _ => unreachable!("only structs, lists and `T?` convert through a function"),
@@ -72,7 +89,7 @@ fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
         struct_name.to_string(),
         fields
             .iter()
-            .map(|(name, _)| (name.clone(), index(var("cell"), text(name))))
+            .map(|(name, _)| (name.clone(), index(var(CELL), text(name))))
             .collect(),
     ));
     if !matches!(struct_name, "Vec2" | "Vec3" | "Color") {
@@ -83,12 +100,12 @@ fn struct_from(struct_name: &str, fields: &[(String, Ty)]) -> Block {
         fields
             .iter()
             .zip(0i64..)
-            .map(|((name, _), at)| (name.clone(), index(var("cell"), expr(ExprKind::Int(at)))))
+            .map(|((name, _), at)| (name.clone(), index(var(CELL), expr(ExprKind::Int(at)))))
             .collect(),
     ));
     let listed = expr(ExprKind::Bin(
         crate::ast::BinOp::Eq,
-        Box::new(method(var("cell"), "kind", vec![])),
+        Box::new(method(var(CELL), "kind", vec![])),
         Box::new(text("list")),
     ));
     tail(expr(ExprKind::If(
@@ -104,7 +121,7 @@ fn vector_into(fields: &[(String, Ty)]) -> Block {
     tail(list(
         fields
             .iter()
-            .map(|(name, _)| field(var("value"), name))
+            .map(|(name, _)| field(var(words::convert::VALUE), name))
             .collect(),
     ))
 }
@@ -116,18 +133,18 @@ fn struct_into(fields: &[(String, Ty)]) -> Block {
         let names = fields.iter().map(|(name, _)| text(name)).collect();
         let values = fields
             .iter()
-            .map(|(name, _)| field(var("value"), name))
+            .map(|(name, _)| field(var(words::convert::VALUE), name))
             .collect();
         return tail(call("__map", vec![list(names), list(values)]));
     }
     let mut stmts = vec![
         bind(
-            "keys",
+            KEYS,
             Ty::Array(Box::new(Ty::Str)),
             expr(ExprKind::ArrayLit(vec![])),
         ),
         bind(
-            "values",
+            VALUES,
             Ty::Array(Box::new(Ty::Any)),
             expr(ExprKind::ArrayLit(vec![])),
         ),
@@ -135,21 +152,24 @@ fn struct_into(fields: &[(String, Ty)]) -> Block {
     for (name, ty) in fields {
         let put = vec![
             stmt(StmtKind::Expr(method(
-                var("keys"),
-                "push",
+                var(KEYS),
+                words::methods::PUSH,
                 vec![text(name)],
             ))),
             stmt(StmtKind::Expr(method(
-                var("values"),
-                "push",
-                vec![field(var("value"), name)],
+                var(VALUES),
+                words::methods::PUSH,
+                vec![field(var(words::convert::VALUE), name)],
             ))),
         ];
         if !matches!(ty, Ty::Optional(_)) {
             stmts.extend(put);
             continue;
         }
-        let held = nil_test(crate::ast::BinOp::Ne, field(var("value"), name));
+        let held = nil_test(
+            crate::ast::BinOp::Ne,
+            field(var(words::convert::VALUE), name),
+        );
         stmts.push(stmt(StmtKind::Expr(expr(ExprKind::If(
             Box::new(held),
             Block {
@@ -159,37 +179,37 @@ fn struct_into(fields: &[(String, Ty)]) -> Block {
             None,
         )))));
     }
-    block(stmts, call("__map", vec![var("keys"), var("values")]))
+    block(stmts, call("__map", vec![var(KEYS), var(VALUES)]))
 }
 
 // A `{ str: V }` as an `any` map, its values each boxed, or back: each value
 // read as a `V`, the map made with the class's `of`.
 fn map_body(class: &str, into: bool, fields: &[(String, Ty)]) -> Block {
     if into {
-        let values = method(var("value"), "values", vec![]);
-        let boxed = each_into_items(values, Ty::Array(Box::new(Ty::Any)), "boxed");
-        let keys = method(var("value"), "keys", vec![]);
-        return block(boxed, call("__map", vec![keys, var("boxed")]));
+        let values = method(var(words::convert::VALUE), VALUES, vec![]);
+        let boxed = each_into_items(values, Ty::Array(Box::new(Ty::Any)), BOXED);
+        let keys = method(var(words::convert::VALUE), KEYS, vec![]);
+        return block(boxed, call("__map", vec![keys, var(BOXED)]));
     }
     let values_ty = fields
         .iter()
-        .find(|(name, _)| name == "values_in_order")
+        .find(|(name, _)| name == words::methods::VALUES_IN_ORDER)
         .map_or(Ty::Array(Box::new(Ty::Any)), |(_, ty)| ty.clone());
     let mut stmts = vec![
         bind(
-            "keys",
+            KEYS,
             Ty::Array(Box::new(Ty::Str)),
-            method(var("cell"), "keys", vec![]),
+            method(var(CELL), KEYS, vec![]),
         ),
-        bind("values", values_ty, expr(ExprKind::ArrayLit(vec![]))),
+        bind(VALUES, values_ty, expr(ExprKind::ArrayLit(vec![]))),
         stmt(StmtKind::ForEach {
-            var: "key".into(),
-            items: var("keys"),
+            var: KEY.into(),
+            items: var(KEYS),
             body: Block {
                 stmts: vec![stmt(StmtKind::Expr(method(
-                    var("values"),
-                    "push",
-                    vec![index(var("cell"), var("key"))],
+                    var(VALUES),
+                    words::methods::PUSH,
+                    vec![index(var(CELL), var(KEY))],
                 )))],
                 tail: None,
             },
@@ -197,10 +217,10 @@ fn map_body(class: &str, into: bool, fields: &[(String, Ty)]) -> Block {
     ];
     let made = call(
         &crate::maps::function(class, "of"),
-        vec![var("keys"), var("values")],
+        vec![var(KEYS), var(VALUES)],
     );
-    stmts.push(bind("made", Ty::Struct(class.to_string()), made));
-    block(stmts, var("made"))
+    stmts.push(bind(MADE, Ty::Struct(class.to_string()), made));
+    block(stmts, var(MADE))
 }
 
 // `let out: [..] = []; for item in items { out.push(item); }` for `items` an
@@ -209,13 +229,13 @@ fn each_into_items(items: Expr, out_ty: Ty, out: &str) -> Vec<Stmt> {
     vec![
         bind(out, out_ty, expr(ExprKind::ArrayLit(vec![]))),
         stmt(StmtKind::ForEach {
-            var: "item".into(),
+            var: ITEM.into(),
             items,
             body: Block {
                 stmts: vec![stmt(StmtKind::Expr(method(
                     var(out),
-                    "push",
-                    vec![var("item")],
+                    words::methods::PUSH,
+                    vec![var(ITEM)],
                 )))],
                 tail: None,
             },
@@ -230,8 +250,8 @@ fn each_into(items: &str, out_ty: Ty, out: &str, boxed: bool) -> Block {
     if !boxed {
         return block(stmts, var(out));
     }
-    stmts.push(bind("all", Ty::Any, var(out)));
-    block(stmts, var("all"))
+    stmts.push(bind(ALL, Ty::Any, var(out)));
+    block(stmts, var(ALL))
 }
 
 fn expr(kind: ExprKind) -> Expr {

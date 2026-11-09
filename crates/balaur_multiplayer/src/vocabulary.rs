@@ -167,3 +167,22 @@ pub(crate) fn install_constants(m: &mut Module<balaur_core::Engine>) {
     }
     word("TAG", balaur_core::digest::TAG_LOCAL);
 }
+
+#[allow(dead_code, reason = "a word's only reader may sit behind a feature")]
+pub(crate) mod words {
+
+    pub(crate) mod api {
+        pub(crate) const LEFT: &str = "left";
+    }
+
+    pub(crate) mod lobby {
+        pub(crate) const NAME: &str = "name";
+        pub(crate) const REASON: &str = "reason";
+        pub(crate) const SLOT: &str = "slot";
+    }
+
+    pub(crate) mod options {
+        pub(crate) const PLAYERS: &str = "players";
+        pub(crate) const TRANSPORT: &str = "transport";
+    }
+}

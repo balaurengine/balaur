@@ -13,6 +13,7 @@ use hecs::Entity;
 use crate::components::{ComponentRegistry, StableId};
 use crate::engine::Engine;
 use crate::scene::{Appearance, Name, Parent, Tags, Transform};
+use crate::vocabulary::words;
 
 const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -348,7 +349,7 @@ pub fn node_label(world: &hecs::World, entity: Entity) -> String {
         parts.push(
             world
                 .get::<&Name>(e)
-                .map_or_else(|_| String::from("node"), |n| n.0.clone()),
+                .map_or_else(|_| String::from(words::datatypes::NODE), |n| n.0.clone()),
         );
         at = world.get::<&Parent>(e).ok().map(|p| p.0);
     }

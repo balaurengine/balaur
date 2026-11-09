@@ -6,6 +6,10 @@ use balaur_bs::runtime::CallArgs;
 use balaur_bs::{HostSignature, Ty};
 use balaur_core::Engine;
 
+const FRAMES: &str = "frames";
+const SECONDS: &str = "seconds";
+const WAIT: &str = "wait";
+
 const MODULE: &str = "task";
 
 pub(crate) fn signatures() -> Vec<HostSignature> {
@@ -16,19 +20,19 @@ pub(crate) fn signatures() -> Vec<HostSignature> {
         is_async: true,
     };
     vec![
-        wait("seconds", Ty::Float, Ty::Void),
-        wait("frames", Ty::Int, Ty::Void),
+        wait(SECONDS, Ty::Float, Ty::Void),
+        wait(FRAMES, Ty::Int, Ty::Void),
         // A token a binding handed out, resolving to what the engine woke it with.
-        wait("wait", Ty::Int, Ty::Any),
+        wait(WAIT, Ty::Int, Ty::Any),
     ]
 }
 
 /// What each wait does, keyed `task::name`.
 pub(crate) fn docs() -> impl Iterator<Item = (String, &'static str)> {
     [
-        ("seconds", "Park an async method for a span of simulation time, in fixed steps; the wall clock never enters it."),
-        ("frames", "Park an async method for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
-        ("wait", "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with."),
+        (SECONDS, "Park an async method for a span of simulation time, in fixed steps; the wall clock never enters it."),
+        (FRAMES, "Park an async method for a number of fixed steps; counted on the tick, so a replay waits exactly as long."),
+        (WAIT, "Park an async method until the engine wakes the token a binding gave it, and answer what it woke with."),
     ]
     .into_iter()
     .map(|(name, doc)| (format!("{MODULE}::{name}"), doc))
@@ -50,11 +54,11 @@ pub(crate) fn is_wait(key: &str) -> bool {
 pub(crate) fn token(eng: &Engine, key: &str, args: &dyn CallArgs) -> Option<u64> {
     let name = key.strip_prefix(MODULE)?.strip_prefix("::")?;
     Some(match (name, args.float(0), args.int(0)) {
-        ("seconds", Some(seconds), _) => balaur_core::timers::after_seconds(eng, seconds as f32),
-        ("frames", _, Some(frames)) => {
+        (SECONDS, Some(seconds), _) => balaur_core::timers::after_seconds(eng, seconds as f32),
+        (FRAMES, _, Some(frames)) => {
             balaur_core::timers::after_frames(eng, u32::try_from(frames).unwrap_or(0))
         }
-        ("wait", _, Some(token)) => token.cast_unsigned(),
+        (WAIT, _, Some(token)) => token.cast_unsigned(),
         _ => return None,
     })
 }

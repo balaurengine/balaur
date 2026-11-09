@@ -15,6 +15,22 @@ use crate::multimesh::{
 };
 use crate::vocabulary::keys as k;
 
+const BUFFER: &str = "buffer";
+const INSTANCE_COLOR: &str = "instance_color";
+const INSTANCE_COUNT: &str = "instance_count";
+const INSTANCE_CUSTOM_DATA: &str = "instance_custom_data";
+const INSTANCE_REGION: &str = "instance_region";
+const INSTANCE_TRANSFORM: &str = "instance_transform";
+const INSTANCES: &str = "instances";
+const SET_BUFFER: &str = "set_buffer";
+const SET_INSTANCE_COLOR: &str = "set_instance_color";
+const SET_INSTANCE_COUNT: &str = "set_instance_count";
+const SET_INSTANCE_CUSTOM_DATA: &str = "set_instance_custom_data";
+const SET_INSTANCE_REGION: &str = "set_instance_region";
+const SET_INSTANCE_TRANSFORM: &str = "set_instance_transform";
+const SET_INSTANCES: &str = "set_instances";
+const SET_VISIBLE_INSTANCE_COUNT: &str = "set_visible_instance_count";
+
 /// The node's multimesh, for a handle method to read or write.
 fn with_multimesh<R>(
     eng: &Engine,
@@ -190,17 +206,17 @@ pub(crate) fn install_multimesh_records(m: &mut Module<Engine>) {
 pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
     let on = handle.on;
     m.describe(&[
-        ("set_instance_transform", on, handle.set_transform, "Place one instance. A shear is kept, as the instance's `basis`."),
-        ("set_instance_region", &[MULTIMESH_2D], "(node: node, index: int, origin: Vec2, size: Vec2)", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
-        ("instance_region", &[MULTIMESH_2D], "(node: node, index: int) -> render::InstanceRegion?", "One instance's texture rectangle in pixels, or nil when it draws the whole texture."),
-        ("instance_transform", on, handle.transform, "One instance's transform."),
-        ("set_instance_color", on, "(node: node, index: int, color: Color)", "The colour one instance draws in."),
-        ("instance_color", on, "(node: node, index: int) -> Color", "The colour one instance draws in."),
-        ("set_instance_custom_data", on, "(node: node, index: int, data: Color)", "Four floats a material's shader reads for one instance, as a colour."),
-        ("instance_custom_data", on, "(node: node, index: int) -> Color", "One instance's four floats of custom data, as a colour."),
+        (SET_INSTANCE_TRANSFORM, on, handle.set_transform, "Place one instance. A shear is kept, as the instance's `basis`."),
+        (SET_INSTANCE_REGION, &[MULTIMESH_2D], "(node: node, index: int, origin: Vec2, size: Vec2)", "The rectangle of the texture one instance draws, as an origin and a size in texture pixels; a zero size draws all of it. Not drawn yet: `multimesh2d` draws through Balaur's own pipeline, which binds no rectangle per instance."),
+        (INSTANCE_REGION, &[MULTIMESH_2D], "(node: node, index: int) -> render::InstanceRegion?", "One instance's texture rectangle in pixels, or nil when it draws the whole texture."),
+        (INSTANCE_TRANSFORM, on, handle.transform, "One instance's transform."),
+        (SET_INSTANCE_COLOR, on, "(node: node, index: int, color: Color)", "The colour one instance draws in."),
+        (INSTANCE_COLOR, on, "(node: node, index: int) -> Color", "The colour one instance draws in."),
+        (SET_INSTANCE_CUSTOM_DATA, on, "(node: node, index: int, data: Color)", "Four floats a material's shader reads for one instance, as a colour."),
+        (INSTANCE_CUSTOM_DATA, on, "(node: node, index: int) -> Color", "One instance's four floats of custom data, as a colour."),
     ]);
     m.function(
-        "set_instance_transform",
+        SET_INSTANCE_TRANSFORM,
         |eng: &Engine, (node, index, transform): (NodeId, i64, Value)| {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
@@ -209,7 +225,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "set_instance_region",
+        SET_INSTANCE_REGION,
         |eng: &Engine, (node, index, origin, size): (NodeId, i64, Value, Value)| {
             let (origin, size) = (two(&origin, k::REGION_ORIGIN)?, two(&size, k::REGION_SIZE)?);
             with_multimesh(eng, node, |multimesh| {
@@ -221,7 +237,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "instance_region",
+        INSTANCE_REGION,
         |eng: &Engine, (node, index): (NodeId, i64)| {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
@@ -237,7 +253,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "instance_transform",
+        INSTANCE_TRANSFORM,
         |eng: &Engine, (node, index): (NodeId, i64)| {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
@@ -246,7 +262,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "set_instance_color",
+        SET_INSTANCE_COLOR,
         |eng: &Engine, (node, index, color): (NodeId, i64, Value)| {
             let color = four(&color, "an instance's colour")?;
             with_multimesh(eng, node, |multimesh| {
@@ -257,7 +273,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "instance_color",
+        INSTANCE_COLOR,
         |eng: &Engine, (node, index): (NodeId, i64)| {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
@@ -266,7 +282,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "set_instance_custom_data",
+        SET_INSTANCE_CUSTOM_DATA,
         |eng: &Engine, (node, index, data): (NodeId, i64, Value)| {
             let data = four(&data, "an instance's custom data")?;
             with_multimesh(eng, node, |multimesh| {
@@ -277,7 +293,7 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
         },
     );
     m.function(
-        "instance_custom_data",
+        INSTANCE_CUSTOM_DATA,
         |eng: &Engine, (node, index): (NodeId, i64)| {
             with_multimesh(eng, node, |multimesh| {
                 let at = slot(multimesh, index)?;
@@ -291,16 +307,16 @@ pub(crate) fn install_multimesh_api(m: &mut Module<Engine>, handle: &Handle) {
 pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle) {
     let on = handle.on;
     m.describe(&[
-        ("set_instance_count", on, "(node: node, count: int)", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
-        ("instance_count", on, "(node: node) -> int", "How many instances the node holds."),
-        ("set_visible_instance_count", on, "(node: node, count: int)", "How many instances draw, from the first; -1 draws them all."),
+        (SET_INSTANCE_COUNT, on, "(node: node, count: int)", "How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node."),
+        (INSTANCE_COUNT, on, "(node: node) -> int", "How many instances the node holds."),
+        (SET_VISIBLE_INSTANCE_COUNT, on, "(node: node, count: int)", "How many instances draw, from the first; -1 draws them all."),
         ("visible_instance_count", on, "(node: node) -> int", "How many instances draw; -1 is all of them."),
-        ("instances", on, "(node: node) -> [render::MultimeshInstance]", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
-        ("set_instances", on, "(node: node, instances: [render::MultimeshInstance])", "Replace every instance with a list in the `multimesh` asset's shape."),
-        ("buffer", on, "(node: node) -> [float]", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
-        ("set_buffer", on, "(node: node, buffer: [float])", "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance."),
+        (INSTANCES, on, "(node: node) -> [render::MultimeshInstance]", "Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file."),
+        (SET_INSTANCES, on, "(node: node, instances: [render::MultimeshInstance])", "Replace every instance with a list in the `multimesh` asset's shape."),
+        (BUFFER, on, "(node: node) -> [float]", "Every instance as one flat list of floats in Godot's `MultiMesh.buffer` layout: 12 of transform in 3D or 8 in 2D, then 4 of colour and 4 of custom data."),
+        (SET_BUFFER, on, "(node: node, buffer: [float])", "Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance."),
     ]);
-    m.function("buffer", |eng: &Engine, node: NodeId| {
+    m.function(BUFFER, |eng: &Engine, node: NodeId| {
         with_multimesh(eng, node, |multimesh| {
             Ok(Value::List(
                 buffer_of(&multimesh.instances, multimesh.flat)
@@ -310,31 +326,28 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
             ))
         })
     });
-    m.function(
-        "set_buffer",
-        |eng: &Engine, (node, list): (NodeId, Value)| {
-            let Value::List(items) = list else {
-                bail!("a buffer is a list of numbers, not a {}", list.type_name());
-            };
-            let floats = items
-                .iter()
-                .map(|item| match item {
-                    Value::Num(n) => Ok(*n as f32),
-                    Value::Int(n) => Ok(*n as f32),
-                    other => Err(anyhow!(
-                        "a buffer holds numbers, not a {}",
-                        other.type_name()
-                    )),
-                })
-                .collect::<Result<Vec<f32>>>()?;
-            with_multimesh(eng, node, |multimesh| {
-                multimesh.instances = instances_from_buffer(&floats, multimesh.flat, true, true)?;
-                Ok(())
+    m.function(SET_BUFFER, |eng: &Engine, (node, list): (NodeId, Value)| {
+        let Value::List(items) = list else {
+            bail!("a buffer is a list of numbers, not a {}", list.type_name());
+        };
+        let floats = items
+            .iter()
+            .map(|item| match item {
+                Value::Num(n) => Ok(*n as f32),
+                Value::Int(n) => Ok(*n as f32),
+                other => Err(anyhow!(
+                    "a buffer holds numbers, not a {}",
+                    other.type_name()
+                )),
             })
-        },
-    );
+            .collect::<Result<Vec<f32>>>()?;
+        with_multimesh(eng, node, |multimesh| {
+            multimesh.instances = instances_from_buffer(&floats, multimesh.flat, true, true)?;
+            Ok(())
+        })
+    });
     m.function(
-        "set_instance_count",
+        SET_INSTANCE_COUNT,
         |eng: &Engine, (node, count): (NodeId, i64)| {
             let count = count_of(count)?;
             with_multimesh(eng, node, |multimesh| {
@@ -343,13 +356,13 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
             })
         },
     );
-    m.function("instance_count", |eng: &Engine, node: NodeId| {
+    m.function(INSTANCE_COUNT, |eng: &Engine, node: NodeId| {
         with_multimesh(eng, node, |multimesh| {
             Ok(i64::try_from(multimesh.instances.len()).unwrap_or(i64::MAX))
         })
     });
     m.function(
-        "set_visible_instance_count",
+        SET_VISIBLE_INSTANCE_COUNT,
         |eng: &Engine, (node, count): (NodeId, i64)| {
             with_multimesh(eng, node, |multimesh| {
                 multimesh.visible_instance_count = count.max(-1);
@@ -360,7 +373,7 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
     m.function("visible_instance_count", |eng: &Engine, node: NodeId| {
         with_multimesh(eng, node, |multimesh| Ok(multimesh.visible_instance_count))
     });
-    m.function("instances", |eng: &Engine, node: NodeId| {
+    m.function(INSTANCES, |eng: &Engine, node: NodeId| {
         with_multimesh(eng, node, |multimesh| {
             Ok(Value::List(
                 multimesh.instances.iter().map(instance_value).collect(),
@@ -368,7 +381,7 @@ pub(crate) fn install_multimesh_list_api(m: &mut Module<Engine>, handle: &Handle
         })
     });
     m.function(
-        "set_instances",
+        SET_INSTANCES,
         |eng: &Engine, (node, list): (NodeId, Value)| {
             let Value::List(rows) = list else {
                 bail!("instances are a list, not a {}", list.type_name());

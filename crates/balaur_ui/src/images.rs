@@ -5,6 +5,7 @@ use balaur_core::Engine;
 use egui::{pos2, vec2};
 
 use crate::UiState;
+use crate::vocabulary::keys;
 
 /// A project image as an egui texture, cached by path.
 ///
@@ -48,7 +49,7 @@ pub(crate) type Decoding = (
 /// [`balaur_core::preload`]'s hand-off for a `widget`: its picture queued for
 /// [`settle`] to decode off the frame, so the screen that draws it finds it up.
 pub(crate) fn preload_picture(eng: &Engine, widget: &toml::Value) {
-    if let Some(path) = widget.get("image").and_then(toml::Value::as_str)
+    if let Some(path) = widget.get(keys::IMAGE).and_then(toml::Value::as_str)
         && let Some(state) = eng.try_resource::<UiState>()
     {
         state.borrow_mut().to_decode.push_back(path.to_string());
@@ -58,7 +59,7 @@ pub(crate) fn preload_picture(eng: &Engine, widget: &toml::Value) {
 /// [`balaur_core::preload`]'s other half for a widget: its picture let go.
 /// A draw still naming it reads it again.
 pub(crate) fn unload_picture(eng: &Engine, widget: &toml::Value) {
-    let Some(path) = widget.get("image").and_then(toml::Value::as_str) else {
+    let Some(path) = widget.get(keys::IMAGE).and_then(toml::Value::as_str) else {
         return;
     };
     if let Some(state) = eng.try_resource::<UiState>() {

@@ -7,6 +7,13 @@
 const ACTION: str = "action:";
 
 use editor;
+use signals;
+use words::components;
+use words::dock_fields;
+use words::sides;
+
+const MIDDLE: str = "middle";
+const BUTTON: str = "button";
 
 pub class Inputview {
     node: Node,
@@ -64,7 +71,7 @@ impl Inputview {
         for word in ["pointer_moved", "pointer_pressed", "pointer_released"] {
             events::listen(self.node, word);
         }
-        for word in ["inputview_changed", "stage_changed"] {
+        for word in ["inputview_changed", signals::STAGE] {
             events::listen(self.node, word, source);
         }
     }
@@ -104,14 +111,14 @@ impl Inputview {
         self.at = At { x: design_x, y: design_y };
         let patched = self.node.get_node("Pointer");
         patched.set_visible(true);
-        patched.patch_component("widget", { "inset": [design_x, design_y, -1.0, -1.0] });
-        self.node.get_node("Press").patch_component("widget", {
-            "inset": [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0],
+        patched.patch_component(components::WIDGET, { dock_fields::INSET: [design_x, design_y, -1.0, -1.0] });
+        self.node.get_node("Press").patch_component(components::WIDGET, {
+            dock_fields::INSET: [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0],
         });
     }
 
     pub fn on_pointer_pressed(event: any) {
-        self.hold(button_label(event["button"]).as_str());
+        self.hold(button_label(event[BUTTON]).as_str());
         if !self.shown {
             return;
         }
@@ -119,16 +126,16 @@ impl Inputview {
         let design_x = design_point.x;
         let design_y = design_point.y;
         self.ripple(design_x, design_y);
-        if event["button"].as_str() == "left" {
+        if event[BUTTON].as_str() == sides::LEFT {
             let patched = self.node.get_node("Press");
             patched.set_visible(true);
-            patched.patch_component("widget", { "inset": [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0] });
+            patched.patch_component(components::WIDGET, { dock_fields::INSET: [design_x - PRESS / 2.0, design_y - PRESS / 2.0, -1.0, -1.0] });
         }
     }
 
     pub fn on_pointer_released(event: any) {
-        self.let_go(button_label(event["button"]).as_str());
-        if event["button"].as_str() == "left" {
+        self.let_go(button_label(event[BUTTON]).as_str());
+        if event[BUTTON].as_str() == sides::LEFT {
             self.node.get_node("Press").set_visible(false);
         }
     }
@@ -171,7 +178,7 @@ impl Inputview {
         self.shown = view.shown;
         self.factor = view.factor;
         self.node.set_visible(view.shown);
-        self.node.get_node("Chips").patch_component("widget", { "inset": [view.chips_x, view.chips_y, -1.0, -1.0] });
+        self.node.get_node("Chips").patch_component(components::WIDGET, { dock_fields::INSET: [view.chips_x, view.chips_y, -1.0, -1.0] });
     }
 
     // Window pixels as the overlay's design pixels.
@@ -210,11 +217,11 @@ impl Inputview {
 }
 
 fn button_label(button: any) -> any {
-    if button.as_str() == "left" {
+    if button.as_str() == sides::LEFT {
         "LMB"
-    } else if button.as_str() == "right" {
+    } else if button.as_str() == sides::RIGHT {
         "RMB"
-    } else if button.as_str() == "middle" {
+    } else if button.as_str() == MIDDLE {
         "MMB"
     } else {
         button
@@ -233,7 +240,7 @@ impl Inputview {
             node.widget.width = RIPPLE_FROM;
             node.widget.height = RIPPLE_FROM;
             node.widget.corner_radius = RIPPLE_FROM / 2.0;
-            node.patch_component("widget", { "inset": [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0] });
+            node.patch_component(components::WIDGET, { dock_fields::INSET: [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0] });
             // Centred on the click as it grows, so the box's corner moves too.
             let from = [click_x.as_float() - RIPPLE_FROM / 2.0, click_y.as_float() - RIPPLE_FROM / 2.0, -1.0, -1.0];
             let to = [click_x.as_float() - RIPPLE_TO / 2.0, click_y.as_float() - RIPPLE_TO / 2.0, -1.0, -1.0];

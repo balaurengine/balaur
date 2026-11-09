@@ -6,6 +6,7 @@
 //! that suits a game with no opinion, so a project without the table behaves
 //! the way most games want.
 
+use crate::vocabulary::words;
 use balaur_core::Engine;
 
 /// Below this an emulated or recognised gesture is noise rather than intent.
@@ -177,7 +178,7 @@ impl InputTable {
 /// `[input]` as this run resolves it, so `[override.desktop.input]` can turn
 /// the mouse into a finger on the machine a phone game is tested on.
 fn read(eng: &Engine) -> InputTable {
-    let table = balaur_core::settings::table(eng, "input");
+    let table = balaur_core::settings::table(eng, words::general::INPUT);
     toml::Value::Table(table).try_into().unwrap_or_else(|err| {
         tracing::warn!("project.toml [input]: {err}; touch settings are the defaults");
         InputTable::default()
@@ -190,7 +191,7 @@ fn read(eng: &Engine) -> InputTable {
 pub(crate) fn declare_settings(eng: &Engine) {
     balaur_core::settings::define_group(
         eng,
-        "input",
+        words::general::INPUT,
         balaur_core::settings::Scope::Project,
         &balaur_core::ComponentDef::parse_schema(
             "settings.input",

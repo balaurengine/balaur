@@ -54,6 +54,8 @@ use balaur_script::{Module, Value};
 
 use crate::{Plugin, Registry};
 
+const EXTENSION: &str = "extension";
+
 /// Bumped whenever anything in this file changes shape.
 ///
 /// Checked before the host calls anything else in the library, so a stale
@@ -315,11 +317,11 @@ unsafe extern "C" fn log(level: u32, message: BalaurStr) {
             return;
         };
         match level {
-            0 => tracing::trace!(target: "extension", "{message}"),
-            1 => tracing::debug!(target: "extension", "{message}"),
-            3 => tracing::warn!(target: "extension", "{message}"),
-            4 => tracing::error!(target: "extension", "{message}"),
-            _ => tracing::info!(target: "extension", "{message}"),
+            0 => tracing::trace!(target: EXTENSION, "{message}"),
+            1 => tracing::debug!(target: EXTENSION, "{message}"),
+            3 => tracing::warn!(target: EXTENSION, "{message}"),
+            4 => tracing::error!(target: EXTENSION, "{message}"),
+            _ => tracing::info!(target: EXTENSION, "{message}"),
         }
     }));
 }

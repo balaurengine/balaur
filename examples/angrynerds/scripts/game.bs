@@ -2,6 +2,12 @@
 // restarts. The level itself is pure scene data (2D components); this
 // script only drives it, so everything stays editable in the balaur editor.
 
+const BODY2D: str = "body2d";
+const COLLIDER2D: str = "collider2d";
+const KIND: str = "kind";
+const SHAPE2D: str = "shape2d";
+const WIDGET: str = "widget";
+
 pub class Game {
     node: Node,
     root: Node,
@@ -66,16 +72,16 @@ impl Game {
     fn capture(node: Node, owner: str?) {
         for child in node.children() {
             let top = owner.or(child.name());
-            if child.has_component("shape2d") {
+            if child.has_component(SHAPE2D) {
                 self.level.push(Level {
                     node: child,
                     name: child.name(),
                     owner: top,
                     pos: child.transform.position,
                     rot: child.transform.rotation_euler,
-                    shape2d: child.get_component("shape2d"),
-                    collider2d: child.get_component("collider2d"),
-                    body2d: child.get_component("body2d"),
+                    shape2d: child.get_component(SHAPE2D),
+                    collider2d: child.get_component(COLLIDER2D),
+                    body2d: child.get_component(BODY2D),
                 });
             }
             self.capture(child, top);
@@ -87,10 +93,10 @@ impl Game {
         if !node.is_valid() {
             return;
         }
-        let w = node.get_component("widget");
-        if w.kind() == "map" {
+        let w = node.get_component(WIDGET);
+        if w.kind() == types::KIND_MAP {
             w["text"] = text;
-            node.set_component("widget", w);
+            node.set_component(WIDGET, w);
         }
     }
 }
@@ -98,13 +104,13 @@ impl Game {
 // Remove a node's 2D components: it disappears from both the renderer and
 // the physics world without being freed, so a restart can bring it back.
 fn pop(entry: Level) {
-    if entry.collider2d.kind() == "map" {
-        entry.node.remove_component("collider2d");
+    if entry.collider2d.kind() == types::KIND_MAP {
+        entry.node.remove_component(COLLIDER2D);
     }
-    if entry.body2d.kind() == "map" {
-        entry.node.remove_component("body2d");
+    if entry.body2d.kind() == types::KIND_MAP {
+        entry.node.remove_component(BODY2D);
     }
-    entry.node.remove_component("shape2d");
+    entry.node.remove_component(SHAPE2D);
 }
 
 impl Game {
@@ -113,12 +119,12 @@ impl Game {
             let node = entry.node;
             node.transform.position = entry.pos;
             node.transform.rotation_euler = entry.rot;
-            node.set_component("shape2d", entry.shape2d);
-            if entry.body2d.kind() == "map" {
-                node.set_component("body2d", entry.body2d);
+            node.set_component(SHAPE2D, entry.shape2d);
+            if entry.body2d.kind() == types::KIND_MAP {
+                node.set_component(BODY2D, entry.body2d);
             }
-            if entry.collider2d.kind() == "map" {
-                node.set_component("collider2d", entry.collider2d);
+            if entry.collider2d.kind() == types::KIND_MAP {
+                node.set_component(COLLIDER2D, entry.collider2d);
             }
             if entry.name.starts_with("Pig") {
                 self.pigs[entry.name] = true;
@@ -149,7 +155,7 @@ impl Game {
     fn rearm_bird() {
         self.bird.transform.position = vec3(ANCHOR_X, ANCHOR_Y, 0.0);
         self.bird.transform.rotation_euler = vec3(0.0, 0.0, 0.0);
-        self.bird.set_component("body2d", { "kind": physics2d::BODY_KINEMATIC });
+        self.bird.set_component(BODY2D, { KIND: physics2d::BODY_KINEMATIC });
         self.launched = false;
         self.rest_timer = 0.0;
     }
@@ -192,7 +198,7 @@ impl Game {
                     let ix = (ANCHOR_X - p.x) * POWER;
                     let iy = (ANCHOR_Y - p.y) * POWER;
                     if math::sqrt(ix * ix + iy * iy) > 1.0 {
-                        self.bird.set_component("body2d", { "kind": physics2d::BODY_DYNAMIC });
+                        self.bird.set_component(BODY2D, { KIND: physics2d::BODY_DYNAMIC });
                         self.bird.body2d.apply_impulse(ix, iy);
                         self.launched = true;
                         self.birds_left -= 1;

@@ -9,6 +9,7 @@ use balaur_script::{Module, NodeId};
 use crate::PhysicsState3d;
 use crate::collider::{first_collider, with_first_collider};
 use crate::scalar::{self, Real};
+use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k};
 
 /// A box as a script reads one: its two opposite corners, flattened.
@@ -28,52 +29,61 @@ fn corners(aabb: &crate::rapier3d::prelude::Aabb) -> (Real, Real, Real, Real, Re
 /// Split from `crate::collider::install_collider_reader_api` under `MAX_FN_LINES`.
 pub(crate) fn install_collider_placement_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("collision_aabb", &[c::COLLIDER_3D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
-        ("broad_phase_aabb", &[c::COLLIDER_3D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
-        ("pose_in_body", &[c::COLLIDER_3D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
+        (words::functions::COLLISION_AABB, &[c::COLLIDER_3D], "", "The box the narrow phase tests the collider in: its shape's box grown by its collision_margin and the world's prediction distance."),
+        (words::functions::BROAD_PHASE_AABB, &[c::COLLIDER_3D], "", "The box the broad phase files the collider under, which also reaches ahead by its body's speculative_distance."),
+        (words::functions::POSE_IN_BODY, &[c::COLLIDER_3D], "(node: node) -> Pose?", "Where the collider sits in its body's frame; nothing for a collider with no body."),
     ]);
-    m.function("collision_aabb", |eng: &Engine, node: NodeId| {
-        let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let collider = &state.world.colliders[first_collider(&state, entity)?];
-        let prediction = state.world.integration_parameters.prediction_distance();
-        Ok(corners(&collider.compute_collision_aabb(prediction)))
-    });
-    m.function("broad_phase_aabb", |eng: &Engine, node: NodeId| {
-        let entity = balaur_core::entity_of(node)?;
-        let state = eng.resource::<PhysicsState3d>();
-        let state = state.borrow();
-        let collider = &state.world.colliders[first_collider(&state, entity)?];
-        let params = &state.world.integration_parameters;
-        Ok(corners(
-            &collider.compute_broad_phase_aabb(params, &state.world.bodies),
-        ))
-    });
-    m.function("pose_in_body", |eng: &Engine, node: NodeId| {
-        with_first_collider(eng, node, |collider| {
-            use balaur_script::Value;
-            Ok(collider.position_wrt_parent().map_or(Value::Nil, |pose| {
-                crate::vocabulary::map([
-                    (k::POSITION, Value::Vec3(scalar::a3(pose.translation))),
-                    (
-                        k::ROTATION,
-                        Value::Vec3(crate::body::euler_of(pose.rotation)),
-                    ),
-                ])
-            }))
-        })
-    });
+    m.function(
+        words::functions::COLLISION_AABB,
+        |eng: &Engine, node: NodeId| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState3d>();
+            let state = state.borrow();
+            let collider = &state.world.colliders[first_collider(&state, entity)?];
+            let prediction = state.world.integration_parameters.prediction_distance();
+            Ok(corners(&collider.compute_collision_aabb(prediction)))
+        },
+    );
+    m.function(
+        words::functions::BROAD_PHASE_AABB,
+        |eng: &Engine, node: NodeId| {
+            let entity = balaur_core::entity_of(node)?;
+            let state = eng.resource::<PhysicsState3d>();
+            let state = state.borrow();
+            let collider = &state.world.colliders[first_collider(&state, entity)?];
+            let params = &state.world.integration_parameters;
+            Ok(corners(
+                &collider.compute_broad_phase_aabb(params, &state.world.bodies),
+            ))
+        },
+    );
+    m.function(
+        words::functions::POSE_IN_BODY,
+        |eng: &Engine, node: NodeId| {
+            with_first_collider(eng, node, |collider| {
+                use balaur_script::Value;
+                Ok(collider.position_wrt_parent().map_or(Value::Nil, |pose| {
+                    crate::vocabulary::map([
+                        (k::POSITION, Value::Vec3(scalar::a3(pose.translation))),
+                        (
+                            k::ROTATION,
+                            Value::Vec3(crate::body::euler_of(pose.rotation)),
+                        ),
+                    ])
+                }))
+            })
+        },
+    );
 }
 
 /// Cutting holes in a heightfield while the game runs, and reading them back.
 pub(crate) fn install_heightfield_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("set_heightfield_hole", &[c::COLLIDER_3D], "", "Remove or restore the ground of one heightfield cell, named by the row and column of its first corner."),
-        ("heightfield_hole", &[c::COLLIDER_3D], "", "Whether a heightfield cell has no ground."),
+        (words::functions::SET_HEIGHTFIELD_HOLE, &[c::COLLIDER_3D], "", "Remove or restore the ground of one heightfield cell, named by the row and column of its first corner."),
+        (words::functions::HEIGHTFIELD_HOLE, &[c::COLLIDER_3D], "", "Whether a heightfield cell has no ground."),
     ]);
     m.function(
-        "set_heightfield_hole",
+        words::functions::SET_HEIGHTFIELD_HOLE,
         |eng: &Engine, (node, row, column, hole): (NodeId, i64, i64, bool)| {
             use crate::rapier3d::parry::shape::HeightFieldCellStatus as Cell;
             let entity = balaur_core::entity_of(node)?;
@@ -99,7 +109,7 @@ pub(crate) fn install_heightfield_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "heightfield_hole",
+        words::functions::HEIGHTFIELD_HOLE,
         |eng: &Engine, (node, row, column): (NodeId, i64, i64)| {
             use crate::rapier3d::parry::shape::HeightFieldCellStatus as Cell;
             with_first_collider(eng, node, |collider| {

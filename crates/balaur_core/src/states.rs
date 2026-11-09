@@ -11,7 +11,12 @@ use balaur_script::Value;
 use crate::App;
 use crate::components::ComponentDef;
 use crate::hecs::Entity;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use crate::{Engine, hooks};
+
+const CURRENT: &str = "current";
+const STATES: &str = "states";
 
 /// The `states` component: the named looks a node has, and which one it is in.
 pub struct States {
@@ -92,11 +97,11 @@ pub fn go(eng: &Engine, entity: Entity, name: &str) -> Result<()> {
 fn schema() -> String {
     ComponentDef::schema(&[
         (
-            "current",
+            words::CURRENT,
             r#"{ type = "string", default = "", description = "The state this node is in; empty is the pose the scene gave it" }"#,
         ),
         (
-            "duration",
+            words::DURATION,
             r#"{ type = "float", default = 0.0, min = 0.0, description = "Seconds a transition takes; zero snaps" }"#,
         ),
     ])
@@ -106,17 +111,17 @@ fn schema() -> String {
 /// state, so the file reads as the thing it is.
 pub fn register_states_component(app: &mut App) {
     app.register_component(
-        "states",
+        STATES,
         ComponentDef {
             doc: "Named looks for the node. Every key beside `current` and `duration` is a state holding per-component property tables; `node.states.set_state(\"hover\")` patches one over the node.",
             tags: &["interaction"],
             ..ComponentDef::by_hand(
-                ComponentDef::parse_schema("states", &schema()),
+                ComponentDef::parse_schema(STATES, &schema()),
                 Box::new(|eng, entity, params| {
                 let mut named = Vec::new();
                 if let Some(table) = params.as_table() {
                     for (key, body) in table {
-                        if key == "current" || key == "duration" {
+                        if key == words::CURRENT || key == words::DURATION {
                             continue;
                         }
                         let toml::Value::Table(body) = body else {
@@ -126,11 +131,11 @@ pub fn register_states_component(app: &mut App) {
                     }
                 }
                 let current = params
-                    .get("current")
+                    .get(CURRENT)
                     .and_then(toml::Value::as_str)
                     .unwrap_or_default()
                     .to_string();
-                let duration = crate::components::prop_f32(params, "duration");
+                let duration = crate::components::prop_f32(params, keys::DURATION);
                 let next = States {
                     named,
                     // Applied below rather than assumed: the component is set
@@ -162,11 +167,11 @@ pub fn register_states_component(app: &mut App) {
                 let states = world.get::<&States>(entity).ok()?;
                 let mut map = toml::map::Map::new();
                 map.insert(
-                    "current".into(),
+                    CURRENT.into(),
                     toml::Value::String(states.current.clone()),
                 );
                 map.insert(
-                    "duration".into(),
+                    keys::DURATION.into(),
                     toml::Value::Float(f64::from(states.duration)),
                 );
                 for (name, body) in &states.named {
@@ -179,5 +184,5 @@ pub fn register_states_component(app: &mut App) {
     );
     // Every key beside the two declared ones names a state; `apply` refuses
     // one that is not a table of components, with the better message.
-    app.accept_keys("states", |_, _| true);
+    app.accept_keys(STATES, |_, _| true);
 }

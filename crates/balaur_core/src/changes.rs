@@ -24,6 +24,20 @@ use crate::components::ticks::Ticks;
 use crate::engine::Engine;
 use crate::hecs::Entity;
 use crate::node_api::{CHILD_ADDED_EVENT, CHILD_REMOVED_EVENT, RENAMED_EVENT, REPARENTED_EVENT};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const ADDED: &str = "added";
+const ATTACHED: &str = "attached";
+const FREED: &str = "freed";
+const KEYS: &str = "keys";
+const MOVED: &str = "moved";
+const NODE: &str = "node";
+const PLACE: &str = "place";
+const PROPERTIES: &str = "properties";
+const REMOVED: &str = "removed";
+const RENAMED: &str = "renamed";
+const WAS: &str = "was";
 
 /// The properties a write named; `None` for the whole component.
 type Keys = Option<Vec<SmolStr>>;
@@ -104,9 +118,15 @@ fn keep(eng: &Engine, node: Entity, kind: &str, entry: impl FnOnce() -> Vec<(Str
         return;
     }
     let mut kept = vec![
-        ("node".to_string(), Value::Node(crate::node_id_of(node).0)),
-        ("kind".to_string(), Value::text(kind)),
-        ("id".to_string(), Value::Str(stable_id(eng, node))),
+        (
+            words::datatypes::NODE.to_string(),
+            Value::Node(crate::node_id_of(node).0),
+        ),
+        (words::KIND.to_string(), Value::text(kind)),
+        (
+            words::locales::ID.to_string(),
+            Value::Str(stable_id(eng, node)),
+        ),
     ];
     kept.extend(entry());
     if let Some(changes) = eng.try_resource::<Changes>() {
@@ -180,11 +200,11 @@ pub(crate) fn component(
     let keys: Keys = asked
         .and_then(toml::Value::as_table)
         .map(|table| table.keys().map(SmolStr::new).collect());
-    keep(eng, node, "component", || {
+    keep(eng, node, keys::COMPONENT, || {
         vec![
-            ("component".into(), component_name(eng, index)),
-            ("properties".into(), properties(keys.as_deref())),
-            ("was".into(), was_value(was)),
+            (keys::COMPONENT.into(), component_name(eng, index)),
+            (PROPERTIES.into(), properties(keys.as_deref())),
+            (WAS.into(), was_value(was)),
         ]
     });
     push(eng, || Change::Component { node, index, keys });
@@ -235,14 +255,14 @@ impl Feeds {
             (changes.keeping.is_some(), changes.listening)
         };
         if keeping {
-            keep(eng, node, "component", || {
+            keep(eng, node, keys::COMPONENT, || {
                 vec![
-                    ("component".into(), component_name(eng, index)),
+                    (keys::COMPONENT.into(), component_name(eng, index)),
                     (
-                        "properties".into(),
+                        PROPERTIES.into(),
                         Value::List(vec![Value::text(key.as_str())]),
                     ),
-                    ("was".into(), was_value(was)),
+                    (WAS.into(), was_value(was)),
                 ]
             });
         }
@@ -259,8 +279,8 @@ impl Feeds {
 /// Component `index` went onto `node`, which had none.
 pub(crate) fn attached(eng: &Engine, node: Entity, index: usize) {
     crate::components::ticks::added(eng, node, index);
-    keep(eng, node, "attached", || {
-        vec![("component".into(), component_name(eng, index))]
+    keep(eng, node, ATTACHED, || {
+        vec![(keys::COMPONENT.into(), component_name(eng, index))]
     });
     push(eng, || Change::Attached { node, index });
 }
@@ -268,10 +288,10 @@ pub(crate) fn attached(eng: &Engine, node: Entity, index: usize) {
 /// Component `index` came off `node`, holding `was`.
 pub(crate) fn removed(eng: &Engine, node: Entity, index: usize, was: Option<toml::Value>) {
     crate::components::ticks::removed(eng, node, index);
-    keep(eng, node, "removed", || {
+    keep(eng, node, REMOVED, || {
         vec![
-            ("component".into(), component_name(eng, index)),
-            ("was".into(), was_value(was)),
+            (keys::COMPONENT.into(), component_name(eng, index)),
+            (WAS.into(), was_value(was)),
         ]
     });
     push(eng, || Change::Removed { node, index });
@@ -279,8 +299,8 @@ pub(crate) fn removed(eng: &Engine, node: Entity, index: usize, was: Option<toml
 
 /// `child` was added under `parent`, which hears `child_added` now.
 pub(crate) fn added(eng: &Engine, parent: Entity, child: Entity) {
-    keep(eng, child, "added", || {
-        vec![("parent".into(), Value::Str(stable_id(eng, parent)))]
+    keep(eng, child, ADDED, || {
+        vec![(keys::PARENT.into(), Value::Str(stable_id(eng, parent)))]
     });
     push(eng, || Change::Added {
         node: child,
@@ -294,7 +314,7 @@ pub(crate) fn added(eng: &Engine, parent: Entity, child: Entity) {
 /// `child_removed` now, while the child can still be read. A kept change
 /// carries the subtree as scene text, to be built again.
 pub(crate) fn freed(eng: &Engine, parent: Entity, child: Entity) {
-    keep(eng, child, "freed", || {
+    keep(eng, child, FREED, || {
         let leaving = eng
             .try_resource::<Changes>()
             .map(|changes| changes.borrow().leaving.clone())
@@ -309,9 +329,9 @@ pub(crate) fn freed(eng: &Engine, parent: Entity, child: Entity) {
                 Value::Str,
             );
         vec![
-            ("parent".into(), Value::Str(stable_id(eng, parent))),
-            ("place".into(), Value::Int(place_of(eng, child, &leaving))),
-            ("was".into(), text),
+            (keys::PARENT.into(), Value::Str(stable_id(eng, parent))),
+            (PLACE.into(), Value::Int(place_of(eng, child, &leaving))),
+            (WAS.into(), text),
         ]
     });
     if let Some(changes) = eng.try_resource::<Changes>() {
@@ -330,8 +350,8 @@ pub(crate) fn freed(eng: &Engine, parent: Entity, child: Entity) {
 
 /// `node` was renamed from `was`, and hears `renamed` now.
 pub(crate) fn renamed(eng: &Engine, node: Entity, was: String) {
-    keep(eng, node, "renamed", || {
-        vec![("was".into(), Value::Str(was.clone()))]
+    keep(eng, node, RENAMED, || {
+        vec![(WAS.into(), Value::Str(was.clone()))]
     });
     push(eng, || Change::Renamed {
         node,
@@ -342,18 +362,18 @@ pub(crate) fn renamed(eng: &Engine, node: Entity, was: String) {
 
 /// The script `node` names is about to change from `was`, nil for none.
 pub(crate) fn scripted(eng: &Engine, node: Entity) {
-    keep(eng, node, "script", || {
+    keep(eng, node, words::SCRIPT, || {
         let world = eng.world();
         let was = world
             .get::<&crate::scene::NodeScript>(node)
             .ok()
             .map_or(Value::Nil, |script| {
                 Value::Map(vec![
-                    ("source".into(), Value::Str(script.path.clone())),
-                    ("props".into(), Value::Map(script.props.clone())),
+                    (keys::SOURCE.into(), Value::Str(script.path.clone())),
+                    (keys::PROPS.into(), Value::Map(script.props.clone())),
                 ])
             });
-        vec![("was".into(), was)]
+        vec![(WAS.into(), was)]
     });
     push(eng, || Change::Script { node });
 }
@@ -362,8 +382,8 @@ pub(crate) fn scripted(eng: &Engine, node: Entity) {
 /// `z_index`, `z_as_relative`, `process` or `tags`. A kept
 /// change carries them all as they were.
 pub(crate) fn node_keys(eng: &Engine, node: Entity) {
-    keep(eng, node, "keys", || {
-        vec![("was".into(), crate::scene_toml::node_keys_value(eng, node))]
+    keep(eng, node, KEYS, || {
+        vec![(WAS.into(), crate::scene_toml::node_keys_value(eng, node))]
     });
     push(eng, || Change::Keys { node });
 }
@@ -388,16 +408,19 @@ impl Stood {
 }
 
 fn kept_move(eng: &Engine, node: Entity, parent: Entity, stood: Option<&Stood>) {
-    keep(eng, node, "moved", || {
+    keep(eng, node, MOVED, || {
         let was = stood.map_or(Value::Nil, |stood| {
             Value::Map(vec![
-                ("parent".into(), Value::Str(stable_id(eng, stood.parent))),
-                ("place".into(), Value::Int(place_value(stood.place))),
+                (
+                    keys::PARENT.into(),
+                    Value::Str(stable_id(eng, stood.parent)),
+                ),
+                (PLACE.into(), Value::Int(place_value(stood.place))),
             ])
         });
         vec![
-            ("parent".into(), Value::Str(stable_id(eng, parent))),
-            ("was".into(), was),
+            (keys::PARENT.into(), Value::Str(stable_id(eng, parent))),
+            (WAS.into(), was),
         ]
     });
 }
@@ -538,70 +561,70 @@ fn payload(names: &[String], entries: &[&Change]) -> Value {
                         _ => *held = None,
                     }
                     let properties = properties(held.as_deref());
-                    out[*at].retain(|(name, _)| name != "properties");
-                    out[*at].push(("properties".into(), properties));
+                    out[*at].retain(|(name, _)| name != words::PROPERTIES);
+                    out[*at].push((PROPERTIES.into(), properties));
                     continue;
                 }
                 seen.insert((*entity, *index), (out.len(), keys.clone()));
                 vec![
-                    ("node".into(), node(*entity)),
-                    ("kind".into(), Value::text("component")),
-                    ("component".into(), component(*index)),
-                    ("properties".into(), properties(keys.as_deref())),
+                    (NODE.into(), node(*entity)),
+                    (keys::KIND.into(), Value::text(keys::COMPONENT)),
+                    (keys::COMPONENT.into(), component(*index)),
+                    (PROPERTIES.into(), properties(keys.as_deref())),
                 ]
             }
             Change::Removed {
                 node: entity,
                 index,
             } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("removed")),
-                ("component".into(), component(*index)),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(REMOVED)),
+                (keys::COMPONENT.into(), component(*index)),
             ],
             Change::Attached {
                 node: entity,
                 index,
             } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("attached")),
-                ("component".into(), component(*index)),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(ATTACHED)),
+                (keys::COMPONENT.into(), component(*index)),
             ],
             Change::Added {
                 node: entity,
                 parent,
             } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("added")),
-                ("parent".into(), node(*parent)),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(ADDED)),
+                (keys::PARENT.into(), node(*parent)),
             ],
             Change::Freed {
                 node: entity,
                 parent,
             } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("freed")),
-                ("parent".into(), node(*parent)),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(FREED)),
+                (keys::PARENT.into(), node(*parent)),
             ],
             Change::Renamed { node: entity, was } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("renamed")),
-                ("was".into(), Value::Str(was.clone())),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(RENAMED)),
+                (WAS.into(), Value::Str(was.clone())),
             ],
             Change::Moved {
                 node: entity,
                 parent,
             } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("moved")),
-                ("parent".into(), node(*parent)),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(MOVED)),
+                (keys::PARENT.into(), node(*parent)),
             ],
             Change::Script { node: entity } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("script")),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(words::SCRIPT)),
             ],
             Change::Keys { node: entity } => vec![
-                ("node".into(), node(*entity)),
-                ("kind".into(), Value::text("keys")),
+                (NODE.into(), node(*entity)),
+                (keys::KIND.into(), Value::text(KEYS)),
             ],
         };
         out.push(entry);

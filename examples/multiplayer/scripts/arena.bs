@@ -2,6 +2,8 @@
 // its slot pressed, read back with `rollback::input`. Only a machine's own
 // input comes from its own keys, or from a fixed pattern under `-- auto`.
 
+const AUTO: str = "auto";
+
 pub class Arena {
     node: Node,
     auto: bool,
@@ -24,7 +26,7 @@ impl Arena {
     pub fn init() {
         self.auto = false;
         for arg in engine::args() {
-            if arg == "auto" {
+            if arg == AUTO {
                 self.auto = true;
             }
         }
@@ -48,7 +50,7 @@ impl Arena {
         for player in multiplayer::players() {
             let slot = player.slot;
             let pressed = rollback::input(slot);
-            if pressed.kind() == "map" {
+            if pressed.kind() == types::KIND_MAP {
                 let ship = self.node.get_node("Ship{slot}");
                 let at = ship.transform.position;
                 let x = at.x + pressed["x"].as_float() * SPEED * dt;

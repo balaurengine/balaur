@@ -8,6 +8,14 @@ use balaur_script::{Module, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const ADD: &str = "add";
+const COPY: &str = "copy";
+const FETCH: &str = "fetch";
+const SEARCH: &str = "search";
+const URL: &str = "url";
 
 /// One report of a Forge job, crossing from the thread into a tick.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,7 +50,7 @@ pub(crate) struct Row {
 impl Row {
     fn value(&self) -> Value {
         Value::Map(vec![
-            ("project".into(), Value::Str(self.project.clone())),
+            (keys::PROJECT.into(), Value::Str(self.project.clone())),
             ("description".into(), Value::Str(self.description.clone())),
             (
                 "tags".into(),
@@ -68,16 +76,19 @@ impl Reported for ForgeEvent {
             Self::Fetched { alias } => {
                 ("fetched", vec![("alias".into(), Value::Str(alias.clone()))])
             }
-            Self::Copied { path } => ("copied", vec![("path".into(), Value::Str(path.clone()))]),
+            Self::Copied { path } => (
+                "copied",
+                vec![(keys::PATH.into(), Value::Str(path.clone()))],
+            ),
             Self::Failed { job, message } => (
-                "failed",
+                words::export_shared::FAILED,
                 vec![
                     ("job".into(), Value::Str(job.clone())),
-                    ("message".into(), Value::Str(message.clone())),
+                    (keys::MESSAGE.into(), Value::Str(message.clone())),
                 ],
             ),
         };
-        pairs.insert(0, ("kind".into(), Value::Str(kind.into())));
+        pairs.insert(0, (keys::KIND.into(), Value::Str(kind.into())));
         Value::Map(pairs)
     }
 }
@@ -105,68 +116,65 @@ fn install_forge_api(m: &mut Module<Engine>) {
     );
     m.describe(&[
         (
-            "url",
+            URL,
             &[],
             "-> string",
             "The Forge this machine asks, without a trailing slash.",
         ),
         (
-            "search",
+            SEARCH,
             &[],
             "(query: string, tag: string) -> bool",
             "List public projects on a thread, either filter empty for none. `forge_event` hears `{ kind: \"listed\", rows }`, each `{ project, description, tags, license }` with `project` as `owner/name`, or `{ kind: \"failed\", job: \"search\", message }`. False while a recording plays.",
         ),
         (
-            "add",
+            ADD,
             &[],
             "(game: string, project: string) -> bool",
             "Add `owner/name` to the game's `[dependencies]` and fetch it into `deps/<alias>/`, on a thread. `forge_event` hears `{ kind: \"fetched\", alias }` or `failed` with `job: \"add\"`.",
         ),
         (
-            "fetch",
+            FETCH,
             &[],
             "(game: string, update: bool) -> bool",
             "Fill the game's `deps/` from `project.lock`, or with `update` move each dependency to its newest commit, on a thread. `forge_event` hears `{ kind: \"fetched\", alias: \"\" }` or `failed` with `job: \"fetch\"`.",
         ),
         (
-            "copy",
+            COPY,
             &[],
             "(project: string, parent: string) -> bool",
             "Copy `owner/name` at its default branch into a new folder under `parent`, with its dependencies fetched, on a thread: the project manager's Open a copy. `forge_event` hears `{ kind: \"copied\", path }` or `failed` with `job: \"copy\"`.",
         ),
     ]);
-    m.function("url", |_: &Engine, ()| Ok(Value::Str(url())));
-    m.function("search", |eng: &Engine, (query, tag): (String, String)| {
-        Ok(run(eng, "search", move || {
+    m.function(URL, |_: &Engine, ()| Ok(Value::Str(url())));
+    m.function(SEARCH, |eng: &Engine, (query, tag): (String, String)| {
+        Ok(run(eng, SEARCH, move || {
             Ok(ForgeEvent::Listed {
                 rows: search(&query, &tag)?,
             })
         }))
     });
-    m.function("add", |eng: &Engine, (game, project): (String, String)| {
-        Ok(run(eng, "add", move || {
+    m.function(ADD, |eng: &Engine, (game, project): (String, String)| {
+        Ok(run(eng, ADD, move || {
             let alias = add(&game, &project)?;
             Ok(ForgeEvent::Fetched { alias })
         }))
     });
-    m.function("fetch", |eng: &Engine, (game, update): (String, bool)| {
-        Ok(run(eng, "fetch", move || {
+    m.function(FETCH, |eng: &Engine, (game, update): (String, bool)| {
+        Ok(run(eng, FETCH, move || {
             fetch(&game, update)?;
             Ok(ForgeEvent::Fetched {
                 alias: String::new(),
             })
         }))
     });
-    m.function(
-        "copy",
-        |eng: &Engine, (project, parent): (String, String)| {
-            Ok(run(eng, "copy", move || {
-                Ok(ForgeEvent::Copied {
-                    path: copy(&project, &parent)?,
-                })
-            }))
-        },
-    );
+    m.function(COPY, |eng: &Engine, (project, parent): (String, String)| {
+        Ok(run(eng, COPY, move || {
+            Ok(ForgeEvent::Copied {
+                path: copy(&project, &parent)?,
+            })
+        }))
+    });
 }
 
 /// `work` on a thread, its answer or its error reported; false while a

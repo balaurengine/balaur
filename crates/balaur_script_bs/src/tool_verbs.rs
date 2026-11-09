@@ -4,6 +4,8 @@
 use crate::api::Structs;
 use crate::convert::{from_neutral, to_neutral};
 use crate::doc_types::Cx;
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use balaur_bs::runtime::{CallArgs, Value as L};
 use balaur_bs::{HostSignature, Ty};
 use balaur_core::Engine;
@@ -12,10 +14,32 @@ use std::collections::BTreeSet;
 
 pub(crate) const MODULE: &str = "script::";
 
+/// The module holding what a value's type is called.
+pub(crate) const TYPES_MODULE: &str = "types::";
+
+/// What `any.kind()` answers, as `types::KIND_*`. The prelude's `any.bs` spells
+/// the same eight, and a test holds the two together.
+pub(crate) const KINDS: &[(&str, &str)] = &[
+    ("KIND_NIL", "nil"),
+    ("KIND_BOOL", "bool"),
+    ("KIND_INT", "int"),
+    ("KIND_FLOAT", "float"),
+    ("KIND_STRING", "str"),
+    ("KIND_LIST", "list"),
+    ("KIND_MAP", "map"),
+    ("KIND_NODE", "node"),
+];
+
 /// What the module is for, as the reference opens it.
 pub(crate) const MODULE_DOC: (&str, &str) = (
     "script",
     "What a tool asks about a script file, and state no node owns.",
+);
+
+/// What `types` is for, as the reference opens it.
+pub(crate) const TYPES_MODULE_DOC: (&str, &str) = (
+    "types",
+    "The names of a value's type: what `kind()` answers on an `any`.",
 );
 
 /// What the answers are made of, as `balaur_script::tool_answer` builds them.
@@ -96,7 +120,7 @@ pub(crate) fn call(
     ret: &Ty,
     structs: &Structs,
 ) -> Result<L, String> {
-    if verb == "api" {
+    if verb == words::API {
         let answer = crate::BsHost::of(eng).map_or(Value::List(vec![]), |host| host.reference());
         return Ok(from_neutral(&by_function(&answer), ret, structs));
     }
@@ -104,7 +128,7 @@ pub(crate) fn call(
         return Err(format!("`script::{verb}` wants a path first"));
     };
     let key = crate::host::key_of(path);
-    if verb == "exports" {
+    if verb == words::EXPORTS {
         return Ok(from_neutral(&exports(eng, &key), ret, structs));
     }
     let after: Vec<Value> = (1..args.len())
@@ -124,31 +148,33 @@ fn by_function(reference: &Value) -> Value {
         return Value::List(vec![]);
     };
     let rows = modules.iter().map(|module| {
-        let functions = list_at(module, "functions").iter().filter_map(|function| {
-            let Value::Str(name) = function else {
-                return None;
-            };
-            let of = |key: &str| at(at(module, key), name).cloned().unwrap_or(Value::Nil);
-            Some(Value::Map(vec![
-                ("name".into(), function.clone()),
-                ("signature".into(), of("signatures")),
-                ("doc".into(), of("docs")),
-                ("acts_on".into(), of("acts_on")),
-            ]))
-        });
+        let functions = list_at(module, keys::FUNCTIONS)
+            .iter()
+            .filter_map(|function| {
+                let Value::Str(name) = function else {
+                    return None;
+                };
+                let of = |key: &str| at(at(module, key), name).cloned().unwrap_or(Value::Nil);
+                Some(Value::Map(vec![
+                    (keys::NAME.into(), function.clone()),
+                    ("signature".into(), of("signatures")),
+                    (keys::DOC.into(), of("docs")),
+                    (keys::ACTS_ON.into(), of(keys::ACTS_ON)),
+                ]))
+            });
         Value::Map(vec![
             (
-                "name".into(),
-                at(module, "name").cloned().unwrap_or(Value::Nil),
+                keys::NAME.into(),
+                at(module, keys::NAME).cloned().unwrap_or(Value::Nil),
             ),
             (
-                "doc".into(),
-                at(module, "doc").cloned().unwrap_or(Value::Nil),
+                keys::DOC.into(),
+                at(module, keys::DOC).cloned().unwrap_or(Value::Nil),
             ),
-            ("functions".into(), Value::List(functions.collect())),
+            (keys::FUNCTIONS.into(), Value::List(functions.collect())),
             (
-                "constants".into(),
-                Value::List(list_at(module, "constants").to_vec()),
+                keys::CONSTANTS.into(),
+                Value::List(list_at(module, keys::CONSTANTS).to_vec()),
             ),
         ])
     });
@@ -186,7 +212,7 @@ fn exports(eng: &Engine, key: &str) -> Value {
     let rows = declared
         .into_iter()
         .map(|(name, spec)| {
-            let mut row = vec![("name".to_string(), Value::text(name))];
+            let mut row = vec![(keys::NAME.to_string(), Value::text(name))];
             if let Value::Map(fields) = spec {
                 row.extend(fields);
             }

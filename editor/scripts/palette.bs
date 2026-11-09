@@ -30,6 +30,50 @@ use theme;
 use themewin;
 use util;
 use window;
+use words::changes;
+use words::components;
+use words::fields;
+use words::form_fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::project_fields;
+use words::roles;
+use words::tabs;
+use words::theme_modes;
+use words::tools;
+use words::verbs;
+
+const ADD_BINDING: str = "add_binding";
+const ADD_BONE: str = "add_bone";
+const APPLY_REST: str = "apply_rest";
+const BINDINGS_TO_SCRIPT: str = "bindings_to_script";
+const CHANGE_TYPE: str = "change_type";
+const CLEAR_DEFORM: str = "clear_deform";
+const CLEAR_POLYGONS: str = "clear_polygons";
+const CLIP: str = "clip";
+const CLOSE_PATH: str = "close_path";
+const DELETE: str = "delete";
+const DETACH_SCRIPT: str = "detach_script";
+const DUPLICATE: str = "duplicate";
+const EMBED_CLIP: str = "embed_clip";
+const INPUT_OVERLAY: str = "input_overlay";
+const KEY_DEFORM: str = "key_deform";
+const NEW_PATH: str = "new_path";
+const OPEN_PREFAB: str = "open_prefab";
+const OPEN_PROJECT: str = "open_project";
+const OPEN_SCRIPT: str = "open_script";
+const OVERWRITE_REST: str = "overwrite_rest";
+const PICTURE: str = "picture";
+const PROMOTE_CLIP: str = "promote_clip";
+const RELOAD_SCRIPTS: str = "reload_scripts";
+const SCALE_DOWN: str = "scale_down";
+const SCALE_UP: str = "scale_up";
+const SOFT_BODY: str = "soft_body";
+const SPRITE_TO_POLYGON: str = "sprite_to_polygon";
+const SYNC_BONES: str = "sync_bones";
+const TRACE_POLYGON: str = "trace_polygon";
+const ARG: str = "arg";
+const BESIDE: str = "beside";
 
 /// A preset or a component type, and the tags it is found by.
 pub struct Entry {
@@ -99,64 +143,64 @@ fn commands(state: &mut editor::State) -> [Command] {
         list.push(entry);
     }
     for item in [
-        command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", "undo"),
-        command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", "redo"),
-        command("Add child node…", icons::ui("add"), "⇧A", "add_child"),
-        command("Change type of selection…", icons::ui("reset"), "", "change_type"),
-        command("Make selection a soft body", icons::ui("reset"), "", "soft_body"),
-        command("Attach script to selection", "‹›", "⌥S", "attach_script"),
-        command("Run scene", "▶", "F5", "play"),
+        command(if undo != nil { "Undo " + undo.unwrap() } else { "Undo" }, "⟲", "⌘Z", verbs::UNDO),
+        command(if redo != nil { "Redo " + redo.unwrap() } else { "Redo" }, "⟳", "⇧⌘Z", verbs::REDO),
+        command("Add child node…", icons::ui(icons::ADD), "⇧A", verbs::ADD_CHILD),
+        command("Change type of selection…", icons::ui(icons::RESET), "", CHANGE_TYPE),
+        command("Make selection a soft body", icons::ui(icons::RESET), "", SOFT_BODY),
+        command("Attach script to selection", "‹›", "⌥S", verbs::ATTACH_SCRIPT),
+        command("Run scene", "▶", "F5", verbs::PLAY),
         // One save behind one label: ⌘S writes whichever of the scene, the
         // open script and the open shader the centre is showing.
-        command("Save", "◇", "⌘S", "save"),
-        command("Reload scripts", "⟳", "⇧R", "reload_scripts"),
-        command("Export game…", "⇧", "⌘E", "export"),
-        command("Write a picture of the scene", "▣", "", "picture"),
-        command("Settings…", "⚙", "⌘,", "settings"),
-        command("Toggle dark chrome", icons::ui("dark"), "⌥L", "dark"),
-        command("Edit theme…", icons::ui("dark"), "", "theme"),
-        command(if state.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", "input_overlay"),
+        command("Save", "◇", "⌘S", verbs::SAVE),
+        command("Reload scripts", "⟳", "⇧R", RELOAD_SCRIPTS),
+        command("Export game…", "⇧", "⌘E", verbs::EXPORT),
+        command("Write a picture of the scene", "▣", "", PICTURE),
+        command("Settings…", "⚙", "⌘,", verbs::SETTINGS),
+        command("Toggle dark chrome", icons::ui(icons::DARK), "⌥L", theme_modes::DARK),
+        command("Edit theme…", icons::ui(icons::DARK), "", verbs::THEME),
+        command(if state.show_input { "Hide input overlay" } else { "Show input overlay" }, "⌨", "", INPUT_OVERLAY),
         // No chord: ⌥3 is the Animation workspace's, and one chord names one verb.
-        command("Open animation timeline", "◷", "", "timeline"),
-        command("Open state machine", "◷", "", "statemachine"),
-        command("Open the Cost panel", icons::panel("cost"), "", "cost"),
-        command("Open the library", icons::ui("library"), "", "library"),
-        command("Show bindings", icons::ui("events"), "", "bindings"),
-        command("Add a binding", icons::ui("events"), "", "add_binding"),
-        command("Convert bindings to a script", "‹›", "", "bindings_to_script"),
-        command("Split code and scene", icons::ui("split"), "⌘\\", "split"),
-        command(if state.focus { "Put the docks back" } else { "Focus the code" }, icons::ui(if state.focus { "unfocus" } else { "focus" }), "⇧⌘\\", "focus"),
-        command("Select all nodes", icons::ui("select-all"), "⌘A", "select_all"),
-        command("Group selection", icons::ui("group"), "⌘G", "group"),
-        command("Ungroup", icons::ui("ungroup"), "⇧⌘G", "ungroup"),
-        command("Align left (−x)", icons::ui("align-left"), "", "align:0:min"),
-        command("Align centre (x)", icons::ui("align-center-h"), "", "align:0:mid"),
-        command("Align right (+x)", icons::ui("align-right"), "", "align:0:max"),
+        command("Open animation timeline", "◷", "", verbs::TIMELINE),
+        command("Open state machine", "◷", "", verbs::STATEMACHINE),
+        command("Open the Cost panel", icons::panel(icons::COST), "", verbs::COST),
+        command("Open the library", icons::ui(icons::LIBRARY), "", verbs::LIBRARY),
+        command("Show bindings", icons::ui(icons::EVENTS), "", verbs::BINDINGS),
+        command("Add a binding", icons::ui(icons::EVENTS), "", ADD_BINDING),
+        command("Convert bindings to a script", "‹›", "", BINDINGS_TO_SCRIPT),
+        command("Split code and scene", icons::ui(icons::SPLIT), "⌘\\", verbs::SPLIT),
+        command(if state.focus { "Put the docks back" } else { "Focus the code" }, icons::ui(if state.focus { "unfocus" } else { verbs::FOCUS }), "⇧⌘\\", verbs::FOCUS),
+        command("Select all nodes", icons::ui("select-all"), "⌘A", verbs::SELECT_ALL),
+        command("Group selection", icons::ui("group"), "⌘G", verbs::GROUP),
+        command("Ungroup", icons::ui("ungroup"), "⇧⌘G", verbs::UNGROUP),
+        command("Align left (−x)", icons::ui(icons::ALIGN_LEFT), "", "align:0:min"),
+        command("Align centre (x)", icons::ui(icons::ALIGN_CENTER_H), "", "align:0:mid"),
+        command("Align right (+x)", icons::ui(icons::ALIGN_RIGHT), "", "align:0:max"),
         command("Align bottom (−y)", icons::ui("align-bottom"), "", "align:1:min"),
         command("Align middle (y)", icons::ui("align-center-v"), "", "align:1:mid"),
         command("Align top (+y)", icons::ui("align-top"), "", "align:1:max"),
-        command("Align back (−z)", icons::ui("align-left"), "", "align:2:min"),
-        command("Align depth (z)", icons::ui("align-center-h"), "", "align:2:mid"),
-        command("Align front (+z)", icons::ui("align-right"), "", "align:2:max"),
-        command("Distribute along x", icons::ui("distribute-h"), "", "distribute:0"),
+        command("Align back (−z)", icons::ui(icons::ALIGN_LEFT), "", "align:2:min"),
+        command("Align depth (z)", icons::ui(icons::ALIGN_CENTER_H), "", "align:2:mid"),
+        command("Align front (+z)", icons::ui(icons::ALIGN_RIGHT), "", "align:2:max"),
+        command("Distribute along x", icons::ui(icons::DISTRIBUTE_H), "", "distribute:0"),
         command("Distribute along y", icons::ui("distribute-v"), "", "distribute:1"),
-        command("Distribute along z", icons::ui("distribute-h"), "", "distribute:2"),
-        command("Hide or show selection", icons::ui("hidden"), "H", "hide"),
-        command("Show every node", icons::ui("visible"), "⇧H", "show_all"),
-        command("Lock or unlock selection", icons::ui("lock"), "⌘L", "lock"),
-        command("Unlock every node", icons::ui("unlock"), "⇧⌘L", "unlock_all"),
-        command("Isolate the selection", icons::ui("isolate"), "/", "isolate"),
-        command("New path to draw with the Pen", icons::ui("pen"), "", "new_path"),
-        command("Close or open the selected path", icons::ui("path"), "", "close_path"),
-        command("Duplicate selected node", icons::ui("instance"), "", "duplicate"),
-        command("Copy selected node", icons::ui("instance"), "⌘C", "copy"),
-        command("Delete selected node", icons::ui("close"), "", "delete"),
-        command("Create animation clip", "◷", "", "clip"),
-        command("Insert keyframe at playhead", "◆", "K", "key"),
-        command("Save clip to file", "◷", "", "promote_clip"),
-        command("Embed clip", "◷", "", "embed_clip"),
-        command("UI scale +", icons::ui("add"), "⌘=", "scale_up"),
-        command("UI scale −", "−", "⌘-", "scale_down"),
+        command("Distribute along z", icons::ui(icons::DISTRIBUTE_H), "", "distribute:2"),
+        command("Hide or show selection", icons::ui("hidden"), "H", verbs::HIDE),
+        command("Show every node", icons::ui(icons::VISIBLE), "⇧H", verbs::SHOW_ALL),
+        command("Lock or unlock selection", icons::ui("lock"), "⌘L", verbs::LOCK),
+        command("Unlock every node", icons::ui("unlock"), "⇧⌘L", verbs::UNLOCK_ALL),
+        command("Isolate the selection", icons::ui("isolate"), "/", verbs::ISOLATE),
+        command("New path to draw with the Pen", icons::ui("pen"), "", NEW_PATH),
+        command("Close or open the selected path", icons::ui(icons::PATH), "", CLOSE_PATH),
+        command("Duplicate selected node", icons::ui(icons::INSTANCE), "", DUPLICATE),
+        command("Copy selected node", icons::ui(icons::INSTANCE), "⌘C", verbs::COPY),
+        command("Delete selected node", icons::ui(icons::CLOSE), "", DELETE),
+        command("Create animation clip", "◷", "", CLIP),
+        command("Insert keyframe at playhead", "◆", "K", tools::KEY),
+        command("Save clip to file", "◷", "", PROMOTE_CLIP),
+        command("Embed clip", "◷", "", EMBED_CLIP),
+        command("UI scale +", icons::ui(icons::ADD), "⌘=", SCALE_UP),
+        command("UI scale −", "−", "⌘-", SCALE_DOWN),
     ] {
         list.push(item);
     }
@@ -164,20 +208,20 @@ fn commands(state: &mut editor::State) -> [Command] {
     // from here is what opens on a bare launch. A tab has no folder picker and
     // nowhere to write a template, but it reopens what the browser keeps.
     if !manager::in_tab() {
-        list.push(command("Open project…", icons::panel("assets"), "", "open_project"));
-        list.push(command("New project…", icons::ui("add"), "", "projects"));
+        list.push(command("Open project…", icons::panel(icons::ASSETS), "", OPEN_PROJECT));
+        list.push(command("New project…", icons::ui(icons::ADD), "", verbs::PROJECTS));
     }
-    list.push(command("Recent projects…", icons::panel("library"), "", "projects"));
+    list.push(command("Recent projects…", icons::panel(icons::LIBRARY), "", verbs::PROJECTS));
     // One command per scene file, the way the channel views are one per
     // channel: a prefab is placed by name rather than through a picker.
     for rel in model::scene_files(state) {
         if rel != state.scene_rel {
-            list.push(command_with("Instantiate " + rel, icons::ui("instance"), run_instance, rel));
+            list.push(command_with("Instantiate " + rel, icons::ui(icons::INSTANCE), run_instance, rel));
         }
     }
-    list.push(command("Open the prefab behind the selection", icons::ui("instance"), "", "open_prefab"));
+    list.push(command("Open the prefab behind the selection", icons::ui(icons::INSTANCE), "", OPEN_PREFAB));
     if model::has_selection(state) && populate::component(model::selected_node(state)) != nil {
-        list.push(command("Populate…", icons::workspace("scene"), "", "populate"));
+        list.push(command("Populate…", icons::workspace(icons::SCENE), "", verbs::POPULATE));
     }
     let known = catalogue(state);
     // Channel views: draw normals, UVs or depth instead of the picture.
@@ -186,8 +230,8 @@ fn commands(state: &mut editor::State) -> [Command] {
         list.push(command_with("View: " + channel, "◐", run_view, channel));
     }
     for entry in state.registry.commands {
-        let plugin_command = command_with(entry["title"].as_str(), entry["icon"].as_str(), run_plugin, entry);
-        plugin_command.key = entry["shortcut"].as_str();
+        let plugin_command = command_with(entry[fields::TITLE].as_str(), entry[fields::ICON].as_str(), run_plugin, entry);
+        plugin_command.key = entry[form_fields::SHORTCUT].as_str();
         list.push(plugin_command);
     }
     for entry in state.registry.dialogs {
@@ -196,7 +240,7 @@ fn commands(state: &mut editor::State) -> [Command] {
     // Presets first: they are the shortcut most edits actually want, and
     // each is just the components it names.
     for preset in known.presets {
-        let entry = command_with("Add {preset.name} node", icons::ui("add"), run_preset, preset.name);
+        let entry = command_with("Add {preset.name} node", icons::ui(icons::ADD), run_preset, preset.name);
         entry.tags = preset.tags;
         list.push(entry);
     }
@@ -208,9 +252,9 @@ fn commands(state: &mut editor::State) -> [Command] {
         for known_component in known.components {
             let name = known_component.name;
             if util::contains(present, name) {
-                list.push(command_with("Remove {name} component", icons::ui("close"), run_remove_component, name));
+                list.push(command_with("Remove {name} component", icons::ui(icons::CLOSE), run_remove_component, name));
             } else {
-                let entry = command_with("Add {name} component", icons::ui("add"), run_add_component, name);
+                let entry = command_with("Add {name} component", icons::ui(icons::ADD), run_add_component, name);
                 // Facets, so typing "physics" or "2d" narrows the list.
                 entry.tags = known_component.tags;
                 list.push(entry);
@@ -231,38 +275,38 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
     }
     // Attaching one is a verb of its own, offered whatever is selected.
     if model::script_rel(found) != nil {
-        list.push(command("Open the selection's script", "‹›", "", "open_script"));
-        list.push(command("Detach the selection's script", icons::ui("close"), "", "detach_script"));
+        list.push(command("Open the selection's script", "‹›", "", OPEN_SCRIPT));
+        list.push(command("Detach the selection's script", icons::ui(icons::CLOSE), "", DETACH_SCRIPT));
     }
     if rig::bone_count(state, state.selected) > 0 {
-        list.push(command("Add a bone under the selection", icons::tool("bone"), "", "add_bone"));
-        list.push(command("Reset the rig to its rest pose", icons::tool("bone"), "", "apply_rest"));
-        list.push(command("Make the rig's pose its rest pose", icons::tool("bone"), "", "overwrite_rest"));
-        list.push(command("Mirror the rig over x", icons::tool("bone"), "", "mirror_rig:x"));
-        list.push(command("Mirror the rig over y", icons::tool("bone"), "", "mirror_rig:y"));
-        list.push(command("Create a physical skeleton", icons::workspace(defs::WORKSPACE_PHYSICS), "", "ragdoll"));
+        list.push(command("Add a bone under the selection", icons::tool(icons::BONE), "", ADD_BONE));
+        list.push(command("Reset the rig to its rest pose", icons::tool(icons::BONE), "", APPLY_REST));
+        list.push(command("Make the rig's pose its rest pose", icons::tool(icons::BONE), "", OVERWRITE_REST));
+        list.push(command("Mirror the rig over x", icons::tool(icons::BONE), "", "mirror_rig:x"));
+        list.push(command("Mirror the rig over y", icons::tool(icons::BONE), "", "mirror_rig:y"));
+        list.push(command("Create a physical skeleton", icons::workspace(defs::WORKSPACE_PHYSICS), "", verbs::RAGDOLL));
     }
     if polygon::target(found) != nil {
-        list.push(command("Trace the polygon from its texture's alpha", icons::tool("polygon"), "", "trace_polygon"));
-        list.push(command("Sync the rig's bones to the polygon", icons::tool("polygon"), "", "sync_bones"));
-        list.push(command("Mirror the picked vertices over x", icons::tool("polygon"), "", "mirror_vertices:x"));
-        list.push(command("Mirror the picked vertices over y", icons::tool("polygon"), "", "mirror_vertices:y"));
-        list.push(command("Back to the outline's own triangles", icons::tool("polygon"), "", "clear_polygons"));
-        list.push(command("Key the polygon's deform", "◆", "", "key_deform"));
-        list.push(command("Reset the polygon's deform", icons::ui("reset"), "", "clear_deform"));
+        list.push(command("Trace the polygon from its texture's alpha", icons::tool(icons::POLYGON), "", TRACE_POLYGON));
+        list.push(command("Sync the rig's bones to the polygon", icons::tool(icons::POLYGON), "", SYNC_BONES));
+        list.push(command("Mirror the picked vertices over x", icons::tool(icons::POLYGON), "", "mirror_vertices:x"));
+        list.push(command("Mirror the picked vertices over y", icons::tool(icons::POLYGON), "", "mirror_vertices:y"));
+        list.push(command("Back to the outline's own triangles", icons::tool(icons::POLYGON), "", CLEAR_POLYGONS));
+        list.push(command("Key the polygon's deform", "◆", "", KEY_DEFORM));
+        list.push(command("Reset the polygon's deform", icons::ui(icons::RESET), "", CLEAR_DEFORM));
     }
     let two_d = model::is_2d(state);
-    if two_d && found.has_component("sprite") {
-        list.push(command("Trace the sprite into a polygon", icons::tool("polygon"), "", "sprite_to_polygon"));
+    if two_d && found.has_component(components::SPRITE) {
+        list.push(command("Trace the sprite into a polygon", icons::tool(icons::POLYGON), "", SPRITE_TO_POLYGON));
     }
     if physics::drawn_mesh(found, two_d) != nil {
         for shape in physics::collider_shapes(two_d) {
-            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
+            let entry = command_with("Collide as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_collide, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: shape.properties, BESIDE: shape.beside });
             entry.tags = shape.tip;
             list.push(entry);
         }
         for shape in physics::soft_shapes(two_d) {
-            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, { "two_d": two_d, "props": shape.properties, "beside": shape.beside });
+            let entry = command_with("Deform as {shape.id}", icons::workspace(defs::WORKSPACE_PHYSICS), run_deform, { inspector_fields::TWO_D: two_d, inspector_fields::PROPS: shape.properties, BESIDE: shape.beside });
             entry.tags = shape.tip;
             list.push(entry);
         }
@@ -271,11 +315,11 @@ pub fn node_verbs(state: &mut editor::State) -> [Command] {
 }
 
 fn run_collide(state: &mut editor::State, data: any) {
-    physics::make_collider(state, data["two_d"].as_bool(), data["props"], data["beside"]);
+    physics::make_collider(state, data[inspector_fields::TWO_D].as_bool(), data[inspector_fields::PROPS], data[BESIDE]);
 }
 
 fn run_deform(state: &mut editor::State, data: any) {
-    physics::make_soft_body(state, data["two_d"].as_bool(), data["props"], data["beside"]);
+    physics::make_soft_body(state, data[inspector_fields::TWO_D].as_bool(), data[inspector_fields::PROPS], data[BESIDE]);
 }
 
 // The built-in verbs, by the name each command carries.
@@ -286,127 +330,127 @@ fn run_verb(state: &mut editor::State, data: any) {
         arrange::align(state, parts[1].parse_int(), parts[2]);
     } else if verb.starts_with("distribute:") {
         arrange::distribute(state, verb.slice(11, verb.len()).parse_int());
-    } else if verb == "undo" {
+    } else if verb == verbs::UNDO {
         shell::undo(state);
-    } else if verb == "redo" {
+    } else if verb == verbs::REDO {
         shell::redo(state);
-    } else if verb == "add_child" {
+    } else if verb == verbs::ADD_CHILD {
         newnode::open(state);
-    } else if verb == "change_type" {
+    } else if verb == CHANGE_TYPE {
         newnode::open_change(state);
-    } else if verb == "soft_body" {
+    } else if verb == SOFT_BODY {
         if model::has_selection(state) {
             recipes::soft_body(state, state.selected);
         }
-    } else if verb == "attach_script" {
+    } else if verb == verbs::ATTACH_SCRIPT {
         shell::attach_script(state);
-    } else if verb == "open_script" {
+    } else if verb == OPEN_SCRIPT {
         shell::set_workspace(state, defs::WORKSPACE_SCRIPT);
-    } else if verb == "detach_script" {
+    } else if verb == DETACH_SCRIPT {
         shell::detach_script(state);
-    } else if verb == "add_bone" {
+    } else if verb == ADD_BONE {
         let at = model::selected_node(state).transform.global_position();
         rig::add_bone(state, state.selected, at.x, at.y + 1.0);
-    } else if verb == "apply_rest" {
+    } else if verb == APPLY_REST {
         rig::apply_rest(state);
-    } else if verb == "overwrite_rest" {
+    } else if verb == OVERWRITE_REST {
         rig::overwrite_rest(state);
     } else if verb.starts_with("mirror_rig:") {
         rig::mirror(state, verb.slice(11, verb.len()));
-    } else if verb == "ragdoll" {
+    } else if verb == verbs::RAGDOLL {
         rig::physical_bones(state);
-    } else if verb == "trace_polygon" {
+    } else if verb == TRACE_POLYGON {
         polygon::trace(state);
-    } else if verb == "sync_bones" {
+    } else if verb == SYNC_BONES {
         polygon::sync_bones(state);
     } else if verb.starts_with("mirror_vertices:") {
         polygon::mirror(state, verb.slice(16, verb.len()));
-    } else if verb == "clear_polygons" {
+    } else if verb == CLEAR_POLYGONS {
         polygon::clear_polygons(state);
-    } else if verb == "key_deform" {
+    } else if verb == KEY_DEFORM {
         polygon::key_deform(state);
-    } else if verb == "clear_deform" {
+    } else if verb == CLEAR_DEFORM {
         polygon::clear_deform(state);
-    } else if verb == "sprite_to_polygon" {
+    } else if verb == SPRITE_TO_POLYGON {
         recipes::sprite_to_polygon(state, state.selected);
-    } else if verb == "play" {
+    } else if verb == verbs::PLAY {
         shell::toggle_play(state);
-    } else if verb == "save" {
+    } else if verb == verbs::SAVE {
         shell::save_active(state);
-    } else if verb == "reload_scripts" {
+    } else if verb == RELOAD_SCRIPTS {
         shell::reload_scripts(state);
-    } else if verb == "picture" {
+    } else if verb == PICTURE {
         shell::write_picture(state);
-    } else if verb == "export" {
+    } else if verb == verbs::EXPORT {
         exporter::open(state);
-    } else if verb == "settings" {
+    } else if verb == verbs::SETTINGS {
         settings::open(state);
-    } else if verb == "dark" {
+    } else if verb == theme_modes::DARK {
         theme::toggle(state);
-    } else if verb == "theme" {
+    } else if verb == verbs::THEME {
         themewin::open(state);
-    } else if verb == "input_overlay" {
+    } else if verb == INPUT_OVERLAY {
         state.show_input = !state.show_input;
-        signals::changed(state, "inputview");
-    } else if verb == "timeline" || verb == "statemachine" || verb == "cost" || verb == "library" {
+        signals::changed(state, changes::INPUTVIEW);
+    } else if verb == verbs::TIMELINE || verb == verbs::STATEMACHINE || verb == verbs::COST || verb == verbs::LIBRARY {
         docks::show(state, verb);
-    } else if verb == "bindings" {
-        shell::open_doc(state, "events");
-    } else if verb == "add_binding" {
+    } else if verb == verbs::BINDINGS {
+        shell::open_doc(state, tabs::EVENTS);
+    } else if verb == ADD_BINDING {
         events::add_row(state);
-    } else if verb == "bindings_to_script" {
+    } else if verb == BINDINGS_TO_SCRIPT {
         events::convert_to_script(state);
-    } else if verb == "split" {
+    } else if verb == verbs::SPLIT {
         shell::toggle_split(state);
-    } else if verb == "focus" {
+    } else if verb == verbs::FOCUS {
         shell::toggle_focus(state);
-    } else if verb == "select_all" {
+    } else if verb == verbs::SELECT_ALL {
         selection::select_all(state);
-    } else if verb == "group" {
+    } else if verb == verbs::GROUP {
         arrange::group(state);
-    } else if verb == "ungroup" {
+    } else if verb == verbs::UNGROUP {
         arrange::ungroup(state);
-    } else if verb == "hide" {
+    } else if verb == verbs::HIDE {
         arrange::toggle_hidden(state);
-    } else if verb == "show_all" {
+    } else if verb == verbs::SHOW_ALL {
         arrange::show_all(state);
-    } else if verb == "lock" {
+    } else if verb == verbs::LOCK {
         arrange::toggle_locked(state);
-    } else if verb == "unlock_all" {
+    } else if verb == verbs::UNLOCK_ALL {
         arrange::unlock_all(state);
-    } else if verb == "isolate" {
+    } else if verb == verbs::ISOLATE {
         arrange::toggle_isolate(state);
-    } else if verb == "new_path" {
+    } else if verb == NEW_PATH {
         pen::new_path(state);
-    } else if verb == "close_path" {
+    } else if verb == CLOSE_PATH {
         pen::toggle_closed(state);
-    } else if verb == "duplicate" {
+    } else if verb == DUPLICATE {
         model::duplicate_selected(state);
-    } else if verb == "copy" {
+    } else if verb == verbs::COPY {
         if model::has_selection(state) {
             ui::set_clipboard(model::copy_selected(state));
         }
-    } else if verb == "delete" {
+    } else if verb == DELETE {
         model::delete_selected(state);
-    } else if verb == "clip" {
+    } else if verb == CLIP {
         anim::ensure_clip(state);
-    } else if verb == "key" {
+    } else if verb == tools::KEY {
         anim::add_key(state, state.anim.time);
-    } else if verb == "promote_clip" {
+    } else if verb == PROMOTE_CLIP {
         anim::promote(state);
-    } else if verb == "embed_clip" {
+    } else if verb == EMBED_CLIP {
         anim::make_inline(state);
-    } else if verb == "scale_up" {
+    } else if verb == SCALE_UP {
         shell::set_ui_scale(state, state.ui_scale + 0.125);
-    } else if verb == "scale_down" {
+    } else if verb == SCALE_DOWN {
         shell::set_ui_scale(state, state.ui_scale - 0.125);
-    } else if verb == "open_project" {
+    } else if verb == OPEN_PROJECT {
         manager::pick(state);
-    } else if verb == "projects" {
+    } else if verb == verbs::PROJECTS {
         manager::open_over(state);
-    } else if verb == "open_prefab" {
+    } else if verb == OPEN_PREFAB {
         model::open_prefab(state);
-    } else if verb == "populate" {
+    } else if verb == verbs::POPULATE {
         populate::open(state);
     }
 }
@@ -450,14 +494,14 @@ pub fn fill(state: &mut editor::State) {
     let matched = matches(state);
     let row_height = util::max(style::row_height(state), 30.0);
     let field: any = {
-        "width": 560.0,
-        "mark": icons::ui("search"),
-        "placeholder": "Nodes, commands, workspaces…",
-        "query": state.palette_query,
-        "rows_h": (matched.len() as float) * (row_height + 2.0) + 4.0,
-        "on_change": "handle",
-        "on_submit": "handle_submit",
-        "data": { "fn": typed, "submit": submitted },
+        layout_fields::WIDTH: 560.0,
+        fields::MARK: icons::ui(icons::SEARCH),
+        form_fields::PLACEHOLDER: "Nodes, commands, workspaces…",
+        form_fields::QUERY: state.palette_query,
+        form_fields::ROWS_H: (matched.len() as float) * (row_height + 2.0) + 4.0,
+        form_fields::ON_CHANGE: "handle",
+        form_fields::ON_SUBMIT: "handle_submit",
+        fields::DATA: { fields::FN: typed, project_fields::SUBMIT: submitted },
     };
     let host = window::picker(state, field);
     ui::fill_rows(host, row_specs(state, matched, row_height));
@@ -489,7 +533,7 @@ fn matches(state: &mut editor::State) -> [Command] {
 fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [ui::Row] {
     let out: [ui::Row] = [];
     if matched.len() == 0 {
-        let none: ui::Control = ui::Control { kind: "label", role: "text_caption", grow: 1, wrap: true, text: "no matches" };
+        let none: ui::Control = ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, wrap: true, text: "no matches" };
         out.push(ui::Row { controls: [none] });
         state.palette_submit = false;
         return out;
@@ -506,20 +550,20 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
     for at in 0..matched.len() {
         let command_entry = matched[at];
         let button: ui::Control = ui::Control {
-            kind: "button",
+            kind: ui::WIDGET_BUTTON,
             grow: 1,
             text: command_entry.label,
             icon: command_entry.icon,
-            role: "item_picker",
+            role: roles::ITEM_PICKER,
             checked: at == 0,
             tooltip: command_entry.key,
         };
         out.push(ui::Row {
             height: row_height,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: [
-                pool::on(button, picked, { "run": command_entry.run, "arg": command_entry.data }),
-                ui::Control { kind: "label", role: "text_caption", text: command_entry.key },
+                pool::on(button, picked, { project_fields::RUN: command_entry.run, ARG: command_entry.data }),
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: command_entry.key },
             ],
         });
     }
@@ -527,7 +571,7 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
-    let run: fn(&mut editor::State, any) = data["run"];
-    run(state, data["arg"]);
+    let run: fn(&mut editor::State, any) = data[project_fields::RUN];
+    run(state, data[ARG]);
     shell::close_palette(state);
 }

@@ -7,6 +7,16 @@ use editor;
 use lint;
 use signals;
 use util;
+use words::changes;
+use words::general;
+use words::theme_tokens;
+
+const CONSTANT: str = "constant";
+const FIELD: str = "field";
+const KEYWORD: str = "keyword";
+const METHOD: str = "method";
+const MODULE: str = "module";
+const PROPERTY: str = "property";
 
 pub class CompleteState {
     internal open: bool,
@@ -152,14 +162,14 @@ pub fn key(state: &mut editor::State, name: str) {
     } else {
         reset(state);
     }
-    signals::changed(state, "complete");
+    signals::changed(state, changes::COMPLETE);
 }
 
 /// A row clicked: accept that one.
 pub fn pick(state: &mut editor::State, row: str) {
     state.complete.pick = row.parse_int();
     accept(state);
-    signals::changed(state, "complete");
+    signals::changed(state, changes::COMPLETE);
 }
 
 // Replace the prefix under the caret with the chosen item.
@@ -192,19 +202,19 @@ fn accept(state: &mut editor::State) {
 
 // A row's leading glyph, by what the completion is.
 fn glyph(kind: str) -> str {
-    if kind == "module" {
+    if kind == MODULE {
         "◆"
-    } else if kind == "function" {
+    } else if kind == general::FUNCTION {
         "ƒ"
-    } else if kind == "method" {
+    } else if kind == METHOD {
         "→"
-    } else if kind == "constant" {
+    } else if kind == CONSTANT {
         "●"
-    } else if kind == "field" {
+    } else if kind == FIELD {
         "▪"
-    } else if kind == "property" {
+    } else if kind == PROPERTY {
         "▫"
-    } else if kind == "keyword" {
+    } else if kind == KEYWORD {
         "k"
     } else {
         "·"
@@ -215,7 +225,7 @@ fn glyph(kind: str) -> str {
 /// sheet, not two: a second overlay beside this one runs off the pane.
 // A row each completion, its mark, its label and its detail.
 fn rows(state: editor::State) -> [ui::Item] {
-    let tint = state.theme["text_muted"].as_str();
+    let tint = state.theme[theme_tokens::TEXT_MUTED].as_str();
     let out: [ui::Item] = [];
     let shown = state.complete.items;
     for index in 0..shown.len() {

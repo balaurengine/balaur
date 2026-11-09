@@ -1,6 +1,7 @@
 // Types as the engine's docs spell them, read for the compiler: a signature
 // `"(node: node) -> Rect"`, and a record's fields `"{ x: float, y: float }"`.
 
+use crate::vocabulary::words;
 use balaur_bs::Ty;
 use std::collections::BTreeSet;
 
@@ -64,15 +65,19 @@ pub(crate) fn optional(t: Ty) -> Ty {
 // A schema property's `type`, in the component vocabulary.
 pub(crate) fn schema_ty(t: &str) -> Option<Ty> {
     Some(match t {
-        "float" | "number" => Ty::Float,
-        "int" => Ty::Int,
-        "bool" => Ty::Bool,
-        "string" | "enum" | "asset" => Ty::Str,
-        "vec2" => Ty::Struct("Vec2".into()),
-        "vec3" => Ty::Struct("Vec3".into()),
-        "color" => Ty::Struct("Color".into()),
-        "node" => Ty::Node,
-        "list" | "map" | "variant" | "table" | "any" => Ty::Any,
+        words::doc_types::FLOAT | words::doc_types::NUMBER => Ty::Float,
+        words::doc_types::INT => Ty::Int,
+        words::doc_types::BOOL => Ty::Bool,
+        words::doc_types::STRING | words::doc_types::ENUM | words::doc_types::ASSET => Ty::Str,
+        words::doc_types::VEC2 => Ty::Struct("Vec2".into()),
+        words::doc_types::VEC3 => Ty::Struct("Vec3".into()),
+        words::doc_types::COLOR => Ty::Struct("Color".into()),
+        words::doc_types::NODE => Ty::Node,
+        words::doc_types::LIST
+        | words::doc_types::MAP
+        | words::doc_types::VARIANT
+        | words::doc_types::TABLE
+        | words::doc_types::ANY => Ty::Any,
         _ => return None,
     })
 }
@@ -88,8 +93,8 @@ fn doc_ty(t: &str, cx: &Cx<'_>) -> Option<Ty> {
         return None;
     }
     match t {
-        "bytes" => return Some(Ty::Array(Box::new(Ty::Int))),
-        "str" => return Some(Ty::Str),
+        words::doc_types::BYTES => return Some(Ty::Array(Box::new(Ty::Int))),
+        words::doc_types::STR => return Some(Ty::Str),
         "Vec2" | "Vec3" | "Color" | "Transform2d" | "Transform3d" => {
             return Some(Ty::Struct(t.into()));
         }
@@ -115,7 +120,7 @@ fn doc_ty(t: &str, cx: &Cx<'_>) -> Option<Ty> {
 fn doc_param(p: &str, cx: &Cx<'_>) -> Option<Ty> {
     match p.split_once(':') {
         Some((_, t)) => doc_ty(t, cx),
-        None if p.trim() == "node" => Some(Ty::Node),
+        None if p.trim() == words::doc_types::NODE => Some(Ty::Node),
         None => Some(Ty::Any),
     }
 }

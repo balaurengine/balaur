@@ -1,6 +1,10 @@
 //! What a debugger sees of a paused script, without naming a language.
 
 use crate::value::{NodeId, Value};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const PATH: &str = "path";
 
 /// How a paused script leaves its pause.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -93,9 +97,9 @@ impl Pause {
             .map(|f| {
                 Value::Map(vec![
                     ("function".into(), Value::Str(f.function.clone())),
-                    ("path".into(), Value::Str(f.path.clone())),
+                    (PATH.into(), Value::Str(f.path.clone())),
                     (
-                        "line".into(),
+                        keys::LINE.into(),
                         Value::Int(i64::try_from(f.line).unwrap_or(i64::MAX)),
                     ),
                     ("locals".into(), Value::Map(f.locals.clone())),
@@ -103,10 +107,10 @@ impl Pause {
             })
             .collect();
         Value::Map(vec![
-            ("node".into(), Value::Node(self.node.0)),
-            ("path".into(), Value::Str(self.path.clone())),
+            (words::value::NODE.into(), Value::Node(self.node.0)),
+            (PATH.into(), Value::Str(self.path.clone())),
             (
-                "line".into(),
+                keys::LINE.into(),
                 Value::Int(i64::try_from(self.line).unwrap_or(i64::MAX)),
             ),
             ("reason".into(), Value::Str(self.reason.name().into())),

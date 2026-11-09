@@ -19,6 +19,13 @@ use balaur_core::replay::ExternalIo;
 use balaur_core::{DetHashMap, Engine, Stage};
 use balaur_script::{Module, Value};
 
+const BODY: &str = "body";
+const CANCEL: &str = "cancel";
+const HTTP: &str = "http";
+const KIND: &str = "kind";
+const REQUEST: &str = "request";
+const TOTAL: &str = "total";
+
 #[cfg(not(target_family = "wasm"))]
 mod request;
 
@@ -267,8 +274,8 @@ fn pump_http_system(eng: &Engine, _: f32) {
         snapshot.responses.clear();
         for request in std::mem::take(&mut state.cancelled_now) {
             let value = Value::Map(vec![
-                ("kind".into(), Value::Str(kind::CANCELLED.into())),
-                ("request".into(), id_value(request)),
+                (KIND.into(), Value::Str(kind::CANCELLED.into())),
+                (REQUEST.into(), id_value(request)),
             ]);
             snapshot.responses.push(value.clone());
             finished.push((request, value));
@@ -323,8 +330,8 @@ fn event_value(event: HttpEvent) -> Value {
             saved,
         } => {
             let mut pairs = vec![
-                ("kind".into(), Value::Str(kind::RESPONSE.into())),
-                ("request".into(), id_value(request)),
+                (KIND.into(), Value::Str(kind::RESPONSE.into())),
+                (REQUEST.into(), id_value(request)),
                 ("status".into(), Value::Int(i64::from(status))),
                 (
                     "headers".into(),
@@ -335,7 +342,7 @@ fn event_value(event: HttpEvent) -> Value {
                             .collect(),
                     ),
                 ),
-                ("body".into(), Value::Str(body)),
+                (BODY.into(), Value::Str(body)),
             ];
             if let Some(path) = saved {
                 pairs.push(("path".into(), Value::Str(path)));
@@ -347,14 +354,14 @@ fn event_value(event: HttpEvent) -> Value {
             received,
             total,
         } => vec![
-            ("kind".into(), Value::Str(kind::PROGRESS.into())),
-            ("request".into(), id_value(request)),
+            (KIND.into(), Value::Str(kind::PROGRESS.into())),
+            (REQUEST.into(), id_value(request)),
             (
                 "received".into(),
                 Value::Int(i64::try_from(received).unwrap_or(i64::MAX)),
             ),
             (
-                "total".into(),
+                TOTAL.into(),
                 total.map_or(Value::Nil, |n| {
                     Value::Int(i64::try_from(n).unwrap_or(i64::MAX))
                 }),
@@ -365,20 +372,20 @@ fn event_value(event: HttpEvent) -> Value {
             sent,
             total,
         } => vec![
-            ("kind".into(), Value::Str(kind::UPLOAD.into())),
-            ("request".into(), id_value(request)),
+            (KIND.into(), Value::Str(kind::UPLOAD.into())),
+            (REQUEST.into(), id_value(request)),
             (
                 "sent".into(),
                 Value::Int(i64::try_from(sent).unwrap_or(i64::MAX)),
             ),
             (
-                "total".into(),
+                TOTAL.into(),
                 Value::Int(i64::try_from(total).unwrap_or(i64::MAX)),
             ),
         ],
         HttpEvent::Error { request, message } => vec![
-            ("kind".into(), Value::Str(kind::ERROR.into())),
-            ("request".into(), id_value(request)),
+            (KIND.into(), Value::Str(kind::ERROR.into())),
+            (REQUEST.into(), id_value(request)),
             ("error".into(), Value::Str(message)),
         ],
     };
@@ -390,17 +397,17 @@ pub struct HttpPlugin;
 
 impl balaur_plugin::Plugin for HttpPlugin {
     fn name(&self) -> &'static str {
-        "http"
+        HTTP
     }
 
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(HttpState::default());
         reg.insert_resource(HttpSnapshot::default());
         reg.add_system(Stage::First, pump_http_system);
-        reg.add_replay_source("http", capture, restore);
+        reg.add_replay_source(HTTP, capture, restore);
         balaur_core::settings::define_group(
             reg.engine(),
-            "http",
+            HTTP,
             balaur_core::settings::Scope::Project,
             &balaur_core::ComponentDef::parse_schema(
                 "settings.http",
@@ -418,7 +425,7 @@ max_parallel = {{ type = "int", default = {parallel}, min = {fewest}, max = {mos
                 ),
             ),
         );
-        let mut m = reg.script_module("http")?;
+        let mut m = reg.script_module(HTTP)?;
         install_http_api(&mut m);
         Ok(())
     }
@@ -441,7 +448,7 @@ fn call_of(url: &str, opts: Option<&Value>) -> Result<HttpCall> {
         Some(other) => return Err(anyhow!("method should be a string, got {other:?}")),
         None => "GET".into(),
     };
-    let body = match opt(opts, "body") {
+    let body = match opt(opts, BODY) {
         Some(Value::Str(b)) => Some(b.clone()),
         Some(other) => return Err(anyhow!("body should be a string, got {other:?}")),
         None => None,
@@ -520,10 +527,10 @@ fn install_http_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.describe(&[
-        ("request", &[], "(url: string, opts: RequestOptions?) -> int", "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."),
-        ("cancel", &[], "(request: int) -> bool", "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished."),
+        (REQUEST, &[], "(url: string, opts: RequestOptions?) -> int", "Start an HTTP request and return the id `task::wait` answers its reply on. With `save_to` the body is written under the user directory and the reply says where in `path`."),
+        (CANCEL, &[], "(request: int) -> bool", "Stop waiting on a request: its reply is dropped, a download stops writing, and any await hears `kind` `cancelled` next frame. False when it had already finished."),
     ]);
-    m.function("cancel", |eng: &Engine, request: i64| {
+    m.function(CANCEL, |eng: &Engine, request: i64| {
         let state = eng.resource::<HttpState>();
         let cancelled = u64::try_from(request).is_ok_and(|id| state.borrow_mut().cancel(id));
         Ok(Value::Bool(cancelled))
@@ -531,7 +538,7 @@ fn install_http_api(m: &mut Module<Engine>) {
     // An HTTP error status is a response, not an error. The returned id is a
     // token to suspend on.
     m.function(
-        "request",
+        REQUEST,
         |eng: &Engine, (url, opts): (String, Option<Value>)| {
             let mut call = call_of(&url, opts.as_ref())?;
             call.save_to = save_path_of(eng, opts.as_ref())?;

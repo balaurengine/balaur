@@ -29,6 +29,8 @@ pub use crate::project_files::{AssetSource, ProjectFiles, path_of};
 mod instances;
 mod scene_walks;
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use instances::{apply_overrides, apply_own_keys, instance};
 pub use scene_walks::FileStamps;
 pub(crate) use scene_walks::{file_stamps, instantiate_main_scene, preload_scene, unload_scene};
@@ -82,16 +84,16 @@ impl Orientation {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Any => "any",
-            Self::Portrait => "portrait",
-            Self::Landscape => "landscape",
+            Self::Portrait => words::window_modes::PORTRAIT,
+            Self::Landscape => words::window_modes::LANDSCAPE,
         }
     }
 
     #[must_use]
     pub fn parse(name: &str) -> Self {
         match name {
-            "portrait" => Self::Portrait,
-            "landscape" => Self::Landscape,
+            words::window_modes::PORTRAIT => Self::Portrait,
+            words::window_modes::LANDSCAPE => Self::Landscape,
             _ => Self::Any,
         }
     }
@@ -114,10 +116,10 @@ impl WindowMode {
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {
         match name {
-            "windowed" => Some(Self::Windowed),
-            "maximized" => Some(Self::Maximized),
-            "fullscreen" => Some(Self::Fullscreen),
-            "exclusive" => Some(Self::Exclusive),
+            words::window_modes::WINDOWED => Some(Self::Windowed),
+            words::window_modes::MAXIMIZED => Some(Self::Maximized),
+            words::window_modes::FULLSCREEN => Some(Self::Fullscreen),
+            words::window_modes::EXCLUSIVE => Some(Self::Exclusive),
             _ => None,
         }
     }
@@ -966,12 +968,12 @@ fn apply_process(eng: &Engine, entity: Entity, named: Option<&str>, node: &str) 
 
 /// The keys every node has, which an override may set like any other.
 const NODE_KEYS: [&str; 6] = [
-    "visible",
+    keys::VISIBLE,
     "tint",
     "z_index",
     "z_as_relative",
     crate::process::KEY,
-    "tags",
+    words::settings_api::TAGS,
 ];
 
 fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
@@ -979,16 +981,19 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
     let Ok(mut appearance) = world.get::<&mut Appearance>(entity) else {
         return;
     };
-    if let Some(on) = table.get("visible").and_then(toml::Value::as_bool) {
+    if let Some(on) = table.get(keys::VISIBLE).and_then(toml::Value::as_bool) {
         appearance.visible = on;
     }
-    if let Some(colour) = table.get("tint").and_then(crate::components::rgba) {
+    if let Some(colour) = table.get(keys::TINT).and_then(crate::components::rgba) {
         appearance.tint = glamx::Vec4::from(colour);
     }
-    if let Some(z) = table.get("z_index").and_then(toml::Value::as_integer) {
+    if let Some(z) = table.get(keys::Z_INDEX).and_then(toml::Value::as_integer) {
         appearance.z_index = z as i32;
     }
-    if let Some(on) = table.get("z_as_relative").and_then(toml::Value::as_bool) {
+    if let Some(on) = table
+        .get(keys::Z_AS_RELATIVE)
+        .and_then(toml::Value::as_bool)
+    {
         appearance.z_as_relative = on;
     }
     drop(appearance);
@@ -1001,7 +1006,7 @@ fn apply_node_keys(eng: &Engine, entity: Entity, table: &toml::Table) {
         crate::process::set(&mut eng.world_mut(), entity, mode);
     }
     let world = eng.world();
-    if let Some(list) = table.get("tags").and_then(toml::Value::as_array) {
+    if let Some(list) = table.get(keys::TAGS).and_then(toml::Value::as_array) {
         let mut tags = Tags::default();
         for tag in list.iter().filter_map(toml::Value::as_str) {
             tags.add(tag);
@@ -1081,7 +1086,7 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
         let reason = if node.id.is_empty() {
             Some("missing")
         } else if !seen.insert(node.id.as_str()) {
-            Some("duplicate")
+            Some(words::window_modes::DUPLICATE)
         } else {
             None
         };
@@ -1096,7 +1101,7 @@ fn repair_ids(nodes: &[SceneNode]) -> Vec<String> {
             candidate = format!("{base}_{n}");
             n += 1;
         }
-        if reason == "duplicate" {
+        if reason == words::window_modes::DUPLICATE {
             tracing::warn!(
                 node = %node.name,
                 id = %candidate,

@@ -15,6 +15,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::jobs::{Reported, Reporting, pump};
 use crate::update::{Release, Step};
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
+
+const CHANNEL: &str = "channel";
+const CHANNELS: &str = "channels";
+const CHECK: &str = "check";
+const INSTALL: &str = "install";
 
 /// A download reports again once this many more bytes have arrived: often
 /// enough for a bar, and not an event per network read.
@@ -62,12 +69,12 @@ impl Row {
     fn of(release: Release) -> Self {
         let own = crate::version::build_id().unwrap_or_default();
         let order = if own == release.id {
-            "same"
+            words::SAME
         } else {
             match crate::version::order(&release.id, own) {
                 Some(Ordering::Greater) => "newer",
                 Some(Ordering::Less) => "older",
-                Some(Ordering::Equal) => "same",
+                Some(Ordering::Equal) => words::SAME,
                 None => "",
             }
         };
@@ -81,11 +88,11 @@ impl Row {
     fn value(&self) -> Value {
         let r = &self.release;
         Value::Map(vec![
-            ("tag".into(), Value::Str(r.tag.clone())),
-            ("id".into(), Value::Str(r.id.clone())),
-            ("channel".into(), Value::Str(r.channel.clone())),
-            ("when".into(), Value::Str(ago(&r.published))),
-            ("current".into(), Value::Bool(self.order == "same")),
+            (keys::TAG.into(), Value::Str(r.tag.clone())),
+            (keys::ID.into(), Value::Str(r.id.clone())),
+            (CHANNEL.into(), Value::Str(r.channel.clone())),
+            (keys::WHEN.into(), Value::Str(ago(&r.published))),
+            ("current".into(), Value::Bool(self.order == words::SAME)),
             ("order".into(), Value::Str(self.order.clone())),
             ("download".into(), Value::Str(self.download.clone())),
         ])
@@ -113,28 +120,31 @@ impl Reported for ReleaseEvent {
             Self::Downloading { tag, done, total } => (
                 "downloading",
                 vec![
-                    ("tag".into(), Value::Str(tag.clone())),
-                    ("done".into(), bytes(*done)),
+                    (keys::TAG.into(), Value::Str(tag.clone())),
+                    (keys::DONE.into(), bytes(*done)),
                     ("total".into(), bytes(*total)),
                 ],
             ),
-            Self::Unpacking { tag } => ("unpacking", vec![("tag".into(), Value::Str(tag.clone()))]),
+            Self::Unpacking { tag } => (
+                "unpacking",
+                vec![(keys::TAG.into(), Value::Str(tag.clone()))],
+            ),
             Self::Installed { tag, note } => (
-                "installed",
+                keys::INSTALLED,
                 vec![
-                    ("tag".into(), Value::Str(tag.clone())),
-                    ("note".into(), Value::Str(note.clone())),
+                    (keys::TAG.into(), Value::Str(tag.clone())),
+                    (keys::NOTE.into(), Value::Str(note.clone())),
                 ],
             ),
             Self::Failed { job, message } => (
-                "failed",
+                words::export_shared::FAILED,
                 vec![
                     ("job".into(), Value::Str(job.clone())),
-                    ("message".into(), Value::Str(message.clone())),
+                    (keys::MESSAGE.into(), Value::Str(message.clone())),
                 ],
             ),
         };
-        pairs.insert(0, ("kind".into(), Value::Str(kind.into())));
+        pairs.insert(0, (keys::KIND.into(), Value::Str(kind.into())));
         Value::Map(pairs)
     }
 }
@@ -175,58 +185,61 @@ fn install_release_api(m: &mut Module<Engine>) {
     ]);
     m.describe(&[
         (
-            "installed",
+            keys::INSTALLED,
             &[],
             "-> Build",
             "This build: `{ version, id, channel, tag, source, held }`, where `id` is the build id a release was tagged with, `tag` is the release its assets live under, `source` is true for a build from a checkout, and `held` says why this install cannot replace itself, empty when it can.",
         ),
         (
-            "channels",
+            CHANNELS,
             &[],
             "-> [string]",
             "Every release line a build may follow, in the order a version moves through them.",
         ),
         (
-            "check",
+            CHECK,
             &[],
             "",
             "Read the release feed on a thread. `release_event` hears `{ kind: \"listed\", rows }`, newest first, each `{ tag, id, channel, when, current, order, download }`: `order` is `newer`, `older` or `same` than this build, empty where they do not order, and `download` is the zipped app a macOS bundle fetches instead. `{ kind: \"failed\", job: \"check\", message }` when the feed could not be read. False while a recording plays.",
         ),
         (
-            "install",
+            INSTALL,
             &[],
             "(channel: string, tag: string, options: InstallOptions?) -> bool",
             "Replace this install with what that channel or tag holds, on a thread; `allow_downgrade = true` lets an older build replace a newer one. `release_event` hears `downloading` with `done` and `total` bytes, `unpacking`, then `installed` with a `note`, or `failed` with `job: \"install\"`. Refuses where `installed().held` says why. False while a recording plays.",
         ),
     ]);
-    m.function("installed", |_: &Engine, ()| {
+    m.function(keys::INSTALLED, |_: &Engine, ()| {
         let id = crate::version::build_id();
         Ok(Value::Map(vec![
             (
-                "version".into(),
+                keys::VERSION.into(),
                 Value::Str(env!("CARGO_PKG_VERSION").to_string()),
             ),
-            ("id".into(), Value::Str(id.unwrap_or_default().to_string())),
             (
-                "channel".into(),
+                keys::ID.into(),
+                Value::Str(id.unwrap_or_default().to_string()),
+            ),
+            (
+                CHANNEL.into(),
                 Value::Str(crate::version::channel().unwrap_or_default().to_string()),
             ),
             (
-                "tag".into(),
+                keys::TAG.into(),
                 Value::Str(
                     crate::version::release_tag()
                         .unwrap_or_default()
                         .to_string(),
                 ),
             ),
-            ("source".into(), Value::Bool(id.is_none())),
+            (keys::SOURCE.into(), Value::Bool(id.is_none())),
             (
                 "held".into(),
                 Value::Str(crate::update::held().unwrap_or_default()),
             ),
         ]))
     });
-    m.function("channels", |_: &Engine, ()| {
+    m.function(CHANNELS, |_: &Engine, ()| {
         Ok(Value::List(
             crate::version::CHANNELS
                 .iter()
@@ -234,9 +247,9 @@ fn install_release_api(m: &mut Module<Engine>) {
                 .collect(),
         ))
     });
-    m.function("check", |eng: &Engine, ()| Ok(check(eng)));
+    m.function(CHECK, |eng: &Engine, ()| Ok(check(eng)));
     m.function(
-        "install",
+        INSTALL,
         |eng: &Engine, (channel, tag, opts): (String, String, Option<Value>)| {
             let allow_downgrade = matches!(
                 balaur::handler::opt(opts.as_ref(), "allow_downgrade"),
@@ -259,7 +272,7 @@ fn check(eng: &Engine) -> bool {
                     rows: found.into_iter().map(Row::of).collect(),
                 },
                 Err(e) => ReleaseEvent::Failed {
-                    job: "check".into(),
+                    job: CHECK.into(),
                     message: format!("{e:#}"),
                 },
             };
@@ -307,7 +320,7 @@ fn install(eng: &Engine, tag: String, channel: String, allow_downgrade: bool) ->
                     note,
                 },
                 Err(e) => ReleaseEvent::Failed {
-                    job: "install".into(),
+                    job: INSTALL.into(),
                     message: format!("{e:#}"),
                 },
             };

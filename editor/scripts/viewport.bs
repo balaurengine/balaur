@@ -9,6 +9,9 @@ use history;
 use model;
 use shell;
 use util;
+use words::tools;
+
+const MACOS: str = "macos";
 
 /// A rail tool's drag this frame: the pointer's travel in design px and the
 /// selected node it moves.
@@ -50,13 +53,13 @@ pub fn rail_drag(state: &mut editor::State) -> RailDrag? {
         return nil;
     }
     let found = model::selected_node(state);
-    if found.is_valid() && (state.tool == "move" || state.tool == "rotate" || state.tool == "scale") {
+    if found.is_valid() && (state.tool == tools::MOVE || state.tool == tools::ROTATE || state.tool == tools::SCALE) {
         history::record(state, "{state.tool} node", "tool:{state.tool}:{state.selected}");
     }
     if found.is_valid() {
         RailDrag { delta_x: travel.x, delta_y: travel.y, node: found }
     } else {
-        if state.tool == "zoom" {
+        if state.tool == tools::ZOOM {
             shell::set_zoom(state, state.zoom - travel.y * 0.5);
         }
         nil
@@ -167,7 +170,7 @@ const ORBIT_PER_PIXEL: float = 0.005;
 /// differs by two orders of magnitude; these are the backend camera's own
 /// numbers, so the editor dollies at the speed the engine does.
 pub fn dolly_step() -> float {
-    if engine::target().os == "macos" { 1.0001 } else { 1.01 }
+    if engine::target().os == MACOS { 1.0001 } else { 1.01 }
 }
 
 fn mouse_camera_3d(state: editor::State, wheel: any, orbiting: bool, panning: bool, delta_x: float, delta_y: float) {

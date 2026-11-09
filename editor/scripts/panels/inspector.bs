@@ -3,6 +3,9 @@
 // rows. A hidden Inspector does nothing, and is filled when it is shown.
 
 use editor;
+use signals;
+
+const RESIZED: str = "resized";
 
 pub class Inspector {
     node: Node,
@@ -15,10 +18,10 @@ impl Inspector {
         self.query = "";
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "outline_changed", source);
-        events::listen(self.node, "inspector_changed", source);
-        events::listen(self.node, "plugins_changed", source);
-        events::listen(self.node, "resized", self.node.get_node("Scroll"));
+        events::listen(self.node, signals::OUTLINE, source);
+        events::listen(self.node, signals::INSPECTOR, source);
+        events::listen(self.node, signals::PLUGINS_CHANGED, source);
+        events::listen(self.node, RESIZED, self.node.get_node("Scroll"));
     }
 
     /// The document or the selection moved.

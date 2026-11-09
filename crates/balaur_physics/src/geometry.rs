@@ -17,7 +17,14 @@ use anyhow::{Result, anyhow};
 use balaur_core::Engine;
 use balaur_script::{Module, Value};
 
+use crate::vocabulary::words;
 use crate::vocabulary::{Opts, keys as k, map};
+
+const INTERSECT: &str = "intersect";
+const LOAD_MESH: &str = "load_mesh";
+const PIECES: &str = "pieces";
+const SPLIT: &str = "split";
+const VOXELIZE: &str = "voxelize";
 
 /// The most cells a side of a voxelisation may have.
 ///
@@ -108,20 +115,20 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
         "Mesh operations: hulls, convex decomposition, voxelisation, cutting and boolean intersection, on a `Mesh` that `load_mesh` reads from an asset or a script builds.",
     );
     m.describe(&[
-        ("load_mesh", &[], "(reference: string) -> Mesh", "A `mesh` asset's points and triangles."),
-        ("convex_hull", &[], "(mesh: Mesh) -> Mesh", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
-        ("convex_decomposition", &[], "(mesh: Mesh, opts: DecompositionOptions?) -> [Mesh]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
-        ("voxelize", &[], "(mesh: Mesh, opts: VoxelizeOptions?) -> Voxels", "The mesh as a voxel grid (`size` and `cells`, ready to be a `voxels` asset) so a model can become destructible terrain."),
+        (LOAD_MESH, &[], "(reference: string) -> Mesh", "A `mesh` asset's points and triangles."),
+        (words::CONVEX_HULL, &[], "(mesh: Mesh) -> Mesh", "The tightest convex shape containing every point: what a dynamic collider wants when the model is concave."),
+        (words::CONVEX_DECOMPOSITION, &[], "(mesh: Mesh, opts: DecompositionOptions?) -> [Mesh]", "The mesh cut into convex pieces, each one a mesh: the only way to collide a concave shape dynamically."),
+        (VOXELIZE, &[], "(mesh: Mesh, opts: VoxelizeOptions?) -> Voxels", "The mesh as a voxel grid (`size` and `cells`, ready to be a `voxels` asset) so a model can become destructible terrain."),
     ]);
     m.records(RECORDS);
-    m.function("load_mesh", |eng: &Engine, reference: String| {
+    m.function(LOAD_MESH, |eng: &Engine, reference: String| {
         let definition =
             balaur_core::assets::load_typed::<balaur_geometry::mesh::MeshData>(eng, &reference)?;
         let mesh = balaur_geometry::mesh::load_from(eng, &definition)?;
         let points: Vec<Vector> = mesh.positions.iter().map(|p| scalar::v3a(*p)).collect();
         Ok(mesh_value(&points, &mesh.indices))
     });
-    m.function("convex_hull", |_: &Engine, mesh: Value| {
+    m.function(words::CONVEX_HULL, |_: &Engine, mesh: Value| {
         let (points, _) = mesh_of(&mesh)?;
         let (hull_points, hull_indices) =
             crate::rapier3d::parry::transformation::try_convex_hull(&points)
@@ -129,7 +136,7 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
         Ok(mesh_value(&hull_points, &hull_indices))
     });
     m.function(
-        "convex_decomposition",
+        words::CONVEX_DECOMPOSITION,
         |_: &Engine, (mesh, opts): (Value, Option<Value>)| {
             let (points, indices) = mesh_of(&mesh)?;
             let opts = Opts(opts.as_ref());
@@ -153,7 +160,7 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "voxelize",
+        VOXELIZE,
         |_: &Engine, (mesh, opts): (Value, Option<Value>)| {
             let (points, indices) = mesh_of(&mesh)?;
             let opts = Opts(opts.as_ref());
@@ -211,11 +218,11 @@ pub(crate) fn install_geometry_api(m: &mut Module<Engine>) {
 /// Split from [`install_geometry_api`] under `MAX_FN_LINES`.
 pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("split", &[], "(mesh: Mesh, plane: Plane) -> [Mesh?]", "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it."),
-        ("intersect", &[], "(a: Mesh, b: Mesh) -> Mesh?", "The mesh both meshes have in common, or nothing when they do not overlap."),
-        ("pieces", &[], "(mesh: Mesh) -> [Mesh]", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
+        (SPLIT, &[], "(mesh: Mesh, plane: Plane) -> [Mesh?]", "Cut the mesh with a plane, returning the two halves, nil for a half with nothing in it."),
+        (INTERSECT, &[], "(a: Mesh, b: Mesh) -> Mesh?", "The mesh both meshes have in common, or nothing when they do not overlap."),
+        (PIECES, &[], "(mesh: Mesh) -> [Mesh]", "The mesh's separate parts, one mesh each: what a model that was already broken is made of."),
     ]);
-    m.function("split", |_: &Engine, (mesh, opts): (Value, Value)| {
+    m.function(SPLIT, |_: &Engine, (mesh, opts): (Value, Value)| {
         let (points, indices) = mesh_of(&mesh)?;
         let opts = Opts(Some(&opts));
         let normal = scalar::v3a(opts.vec3(k::NORMAL, [0.0, 1.0, 0.0]));
@@ -249,7 +256,7 @@ pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
             }
         })
     });
-    m.function("intersect", |_: &Engine, (a, b): (Value, Value)| {
+    m.function(INTERSECT, |_: &Engine, (a, b): (Value, Value)| {
         let (points_a, indices_a) = mesh_of(&a)?;
         let (points_b, indices_b) = mesh_of(&b)?;
         let first = TriMesh::new(points_a, indices_a)
@@ -269,7 +276,7 @@ pub(crate) fn install_mesh_edit_api(m: &mut Module<Engine>) {
             mesh_value(mesh.vertices(), mesh.indices())
         }))
     });
-    m.function("pieces", |_: &Engine, mesh: Value| {
+    m.function(PIECES, |_: &Engine, mesh: Value| {
         let (points, indices) = mesh_of(&mesh)?;
         let trimesh = TriMesh::with_flags(
             points,

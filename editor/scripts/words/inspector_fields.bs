@@ -1,0 +1,15 @@
+// What the inspector reads about a node and its properties.
+
+internal const COMPONENT: str = "component";
+internal const CURRENT: str = "current";
+internal const HELD: str = "held";
+internal const NODE: str = "node";
+internal const NODES: str = "nodes";
+internal const POSITION: str = "position";
+internal const PROPERTY: str = "property";
+internal const PROPS: str = "props";
+internal const REFERENCE: str = "reference";
+internal const SCALE: str = "scale";
+internal const SOURCE: str = "source";
+internal const TARGET: str = "target";
+internal const TWO_D: str = "two_d";

@@ -30,7 +30,9 @@ mod sign;
 pub mod size;
 mod textures;
 mod variants;
+mod vocabulary;
 
+use crate::vocabulary::words;
 use apple::AppleConfig;
 pub use bundle::web_shell;
 use bundle::{Bundle, export_bundle, export_macos_app, find_bundle_runtime};
@@ -101,7 +103,7 @@ pub type WebFile = (String, Vec<u8>);
 /// # Errors
 /// If `project.toml` does not parse, or an icon it names does not read.
 pub fn web_page(project: &Path, shell: &str, title: &str) -> Result<(String, Vec<WebFile>)> {
-    let manifest = config::manifest_for(project, Some("web"))?;
+    let manifest = config::manifest_for(project, Some(words::targets::WEB))?;
     let icons = icon::Icons::load(project, &manifest)?;
     let page = icon::web_page(
         shell,
@@ -131,13 +133,13 @@ pub type ExtraModules = dyn Fn() -> Vec<Box<dyn balaur_plugin::Plugin>>;
 /// dedicated server per desktop.
 pub const TARGETS: [&str; 13] = [
     "linux-x64",
-    "linux-arm64",
-    "macos-universal",
-    "windows-x64",
-    "windows-arm64",
-    "ios",
-    "android",
-    "web",
+    words::targets::LINUX_ARM64,
+    words::targets::MACOS_UNIVERSAL,
+    words::targets::WINDOWS_X64,
+    words::targets::WINDOWS_ARM64,
+    words::targets::IOS,
+    words::targets::ANDROID,
+    words::targets::WEB,
     "linux-x64-server",
     "linux-arm64-server",
     "macos-universal-server",
@@ -424,20 +426,21 @@ pub fn export(opts: &Options<'_>) -> Result<()> {
         })?),
         (None, None) => None,
     };
-    let windows = target.is_some_and(|t| t.contains("windows"))
+    let windows = target.is_some_and(|t| t.contains(words::native::WINDOWS))
         || runtime
             .as_ref()
-            .is_some_and(|t| t.extension().is_some_and(|e| e == "exe"));
+            .is_some_and(|t| t.extension().is_some_and(|e| e == words::EXE));
     // A macOS game that will be signed has to be a .app: appending to a flat
     // binary is exactly what a signature cannot cover. Authenticode is the
     // exception, and records where it put itself.
     if opts.app || opts.pkg || (opts.sign.is_some() && !windows) {
         let runtime = runtime.context("--bundle app needs --target or --runtime")?;
-        if let Some(t) = target.filter(|t| !t.starts_with("macos")) {
+        if let Some(t) = target.filter(|t| !t.starts_with(words::native::MACOS)) {
             anyhow::bail!("--bundle app builds a macOS bundle, but the target is {t}");
         }
         let identity = identity(opts.sign.as_deref(), &apple.macos_identity);
-        let output = declared_output(opts, &config, "macos-universal", &format!("{name}.app"));
+        let bundle = format!("{name}.app");
+        let output = declared_output(opts, &config, words::targets::MACOS_UNIVERSAL, &bundle);
         let app = export_macos_app(
             &runtime,
             &pack.encode(),
@@ -504,8 +507,8 @@ fn export_desktop(
         );
         return Ok(());
     };
-    let windows = target.is_some_and(|t| t.contains("windows"))
-        || runtime.extension().is_some_and(|e| e == "exe");
+    let windows = target.is_some_and(|t| t.contains(words::native::WINDOWS))
+        || runtime.extension().is_some_and(|e| e == words::EXE);
     let bytes = std::fs::read(&runtime)
         .with_context(|| format!("reading runtime {}", runtime.display()))?;
     // Windows will not run a file without the extension, whatever its contents.
@@ -529,8 +532,8 @@ fn export_desktop(
     let game = balaur::standalone::build(&base, &pack.encode());
     balaur::standalone::write_executable(&output, &game, &runtime)?;
     let linux = target.map_or_else(
-        || runtime.to_string_lossy().contains("linux"),
-        |t| t.starts_with("linux"),
+        || runtime.to_string_lossy().contains(words::native::LINUX),
+        |t| t.starts_with(words::native::LINUX),
     );
     if let Some(icons) = icons.filter(|_| linux) {
         icons.write_linux(&output, name)?;

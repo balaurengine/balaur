@@ -21,6 +21,7 @@ use serde_json::{Value as Json, json};
 use crate::backend::{SharedClient, spawn_renew};
 use crate::channels::{Rejoin, Rejoins};
 use crate::client::{Protocol, SocketEvent};
+use crate::vocabulary::words;
 use crate::{GamendEvent, SocketCommand};
 
 /// Seconds before its expiry that a token counts as stale: the server reads
@@ -329,7 +330,7 @@ impl LiveSocket {
                     self.topics.retain(|(joined, _)| *joined != topic);
                     let _ = self.events.send(GamendEvent::Replied {
                         request,
-                        status: "ok".into(),
+                        status: words::OK.into(),
                         response: Json::Null,
                     });
                 }
@@ -445,7 +446,7 @@ impl LiveSocket {
                 ..
             } => {
                 if !link.joined && link.join_ref.as_deref() == Some(reference.as_str()) {
-                    if status != "ok" {
+                    if status != words::OK {
                         return Next::Drop(format!(
                             "joining the user channel was refused: {status}"
                         ));
@@ -464,7 +465,7 @@ impl LiveSocket {
                 }
                 if let Some(at) = link.rejoining.iter().position(|(r, _)| *r == reference) {
                     let (_, topic) = link.rejoining.remove(at);
-                    if status != "ok" {
+                    if status != words::OK {
                         self.topics.retain(|(joined, _)| *joined != topic);
                         self.lost.push(topic);
                     }
@@ -476,12 +477,12 @@ impl LiveSocket {
                 if let Some(at) = self.rejoining.iter().position(|(r, _)| *r == reference) {
                     let (_, rejoin) = self.rejoining.remove(at);
                     self.rejoins
-                        .answered(rejoin, status == "ok", &mut self.topics, now());
+                        .answered(rejoin, status == words::OK, &mut self.topics, now());
                     return Next::Stay;
                 }
                 if let Some(at) = self.joining.iter().position(|(r, _)| *r == reference) {
                     let (_, topic) = self.joining.remove(at);
-                    if status != "ok" {
+                    if status != words::OK {
                         self.topics.retain(|(joined, _)| *joined != topic);
                     }
                 }
@@ -576,7 +577,7 @@ impl LiveSocket {
                     if waiting {
                         let _ = self.events.send(GamendEvent::Replied {
                             request,
-                            status: "ok".into(),
+                            status: words::OK.into(),
                             response: Json::Null,
                         });
                     } else {
@@ -594,7 +595,8 @@ impl LiveSocket {
             } => {
                 let payload = json!({ "plugin": plugin, "fn": function, "args": args });
                 let Ok((reference, frame)) =
-                    link.protocol.push(&self.user_topic, "call_hook", &payload)
+                    link.protocol
+                        .push(&self.user_topic, words::functions::CALL_HOOK, &payload)
                 else {
                     let topic = self.user_topic.clone();
                     self.refuse(request, &format!("not joined to {topic}"));

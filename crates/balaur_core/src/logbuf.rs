@@ -82,7 +82,7 @@ struct FieldVisitor {
 
 impl Visit for FieldVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        if field.name() == "message" {
+        if field.name() == words::MESSAGE {
             let _ = write!(self.message, "{value:?}");
         } else {
             self.fields
@@ -91,7 +91,7 @@ impl Visit for FieldVisitor {
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
-        if field.name() == "message" {
+        if field.name() == words::MESSAGE {
             self.message.push_str(value);
         } else {
             self.fields
@@ -108,7 +108,11 @@ impl<S: Subscriber> Layer<S> for CaptureLayer {
         let mut visitor = FieldVisitor::default();
         event.record(&mut visitor);
         let meta = event.metadata();
-        let first = meta.target().split("::").next().unwrap_or("log");
+        let first = meta
+            .target()
+            .split("::")
+            .next()
+            .unwrap_or(words::modules::LOG);
         let tag = first.strip_prefix("balaur_").unwrap_or(first).to_string();
 
         let mut guard = lock_buffer();
@@ -421,6 +425,7 @@ pub fn first_time(site: &'static str, key: &str) -> bool {
     })
 }
 
+use crate::vocabulary::words;
 pub use file::{close as close_file, flush as flush_file, open as open_file, path as file_path};
 
 /// The same stream kept in a file, so the run that crashed leaves its lines

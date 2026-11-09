@@ -13,7 +13,13 @@ use balaur_core::App;
 use balaur_core::collections::DetHashMap;
 
 mod solved;
+use crate::vocabulary::words;
 pub use solved::{SolvedMesh, SolvedPolygon};
+
+const INDICES: &str = "indices";
+const NORMALS: &str = "normals";
+const PATH: &str = "path";
+const POSITIONS: &str = "positions";
 
 /// One triangulated mesh, indexed.
 ///
@@ -242,11 +248,11 @@ pub fn parse_part(
         .unwrap_or_default()
         .to_ascii_lowercase();
     match ext.as_str() {
-        "obj" if part.is_some() => {
+        words::mesh_formats::OBJ if part.is_some() => {
             bail!("a mesh names a `part` of '{name}', and only glTF names its materials")
         }
-        "obj" => parse_obj(bytes, name),
-        "glb" | "gltf" => {
+        words::mesh_formats::OBJ => parse_obj(bytes, name),
+        words::mesh_formats::GLB | words::mesh_formats::GLTF => {
             let reader = eng
                 .try_resource::<ModelReader>()
                 .ok_or_else(|| anyhow!("no glTF reader is installed to read '{name}'"))?;
@@ -290,12 +296,12 @@ pub fn parse_obj(bytes: &[u8], name: &str) -> Result<MeshData> {
         let at = || format!("{name}:{}", number + 1);
         match tag {
             "v" => positions.push(vec3(&mut parts, &at())?),
-            "vt" => {
+            words::mesh_formats::VT => {
                 let u = number_at(parts.next(), &at())?;
                 let v = number_at(parts.next(), &at()).unwrap_or(0.0);
                 uvs.push([u, v]);
             }
-            "vn" => normals.push(vec3(&mut parts, &at())?),
+            words::mesh_formats::VN => normals.push(vec3(&mut parts, &at())?),
             "f" => {
                 // A face may be any convex polygon; a fan turns it into
                 // triangles without needing to know how many corners it has.
@@ -465,7 +471,7 @@ pub fn register_mesh_asset(app: &mut App) {
 /// geometry it carries does not hold together.
 pub fn parse_definition(value: &toml::Value) -> Result<MeshData> {
     let source = value.get("source").and_then(toml::Value::as_str);
-    let inline = value.get("positions").is_some() || value.get("indices").is_some();
+    let inline = value.get(POSITIONS).is_some() || value.get(INDICES).is_some();
     let kind = value
         .get(crate::primitive::keys::KIND)
         .and_then(toml::Value::as_str);
@@ -566,7 +572,7 @@ fn parse_path_shape(value: &toml::Value, kind: &str) -> MeshData {
     MeshData {
         path: Some(PathShape {
             kind: kind.to_string(),
-            path: text("path"),
+            path: text(PATH),
             profile: text("profile"),
             depth: number("depth", 1.0) as f32,
             bevel: number("bevel", 0.0).max(0.0) as f32,
@@ -586,7 +592,7 @@ fn parse_path_shape(value: &toml::Value, kind: &str) -> MeshData {
 /// each ear-clipped), or — with neither — from the outline itself: the
 /// positions minus the trailing `internal` ones, as one loop.
 fn parse_inline(value: &toml::Value) -> Result<MeshData> {
-    let positions = points(value, "positions")?;
+    let positions = points(value, POSITIONS)?;
     if positions.is_empty() {
         bail!("a mesh's `positions` is empty, so there is no geometry in it");
     }
@@ -604,7 +610,7 @@ fn parse_inline(value: &toml::Value) -> Result<MeshData> {
             positions.len()
         );
     }
-    let indices = match (value.get("indices"), value.get("polygons")) {
+    let indices = match (value.get(INDICES), value.get("polygons")) {
         (Some(_), Some(_)) => {
             bail!("a mesh names both `indices` and `polygons`; it can carry one or the other")
         }
@@ -649,7 +655,7 @@ fn parse_inline(value: &toml::Value) -> Result<MeshData> {
 
 /// The `indices` a definition wrote, checked against its vertex count.
 fn explicit_faces(value: &toml::Value, vertices: usize) -> Result<Vec<[u32; 3]>> {
-    let indices: Vec<[u32; 3]> = triples(value, "indices")?
+    let indices: Vec<[u32; 3]> = triples(value, INDICES)?
         .into_iter()
         .map(|[a, b, c]| [a as u32, b as u32, c as u32])
         .collect();
@@ -726,7 +732,7 @@ fn parse_skin(value: &toml::Value, vertices: usize) -> Result<Option<MeshSkin>> 
     let mut per_vertex: Vec<Vec<(u32, f32)>> = vec![Vec::new(); vertices];
     for (index, bone) in bones.iter().enumerate() {
         let path = bone
-            .get("path")
+            .get(PATH)
             .and_then(toml::Value::as_str)
             .filter(|p| !p.is_empty())
             .ok_or_else(|| anyhow!("a mesh's `skin.bones[{index}]` needs a `path`"))?;
@@ -819,7 +825,7 @@ fn parse_morphs(value: &toml::Value, vertices: usize) -> Result<Vec<MorphTarget>
             .and_then(toml::Value::as_str)
             .filter(|name| !name.is_empty())
             .ok_or_else(|| anyhow!("a mesh's `morphs[{i}]` has no `name` for a clip to call it"))?;
-        let positions = points(row, "positions")?;
+        let positions = points(row, POSITIONS)?;
         if positions.len() != vertices {
             bail!(
                 "a mesh's morph '{name}' has {} deltas for {vertices} vertices",
@@ -827,8 +833,8 @@ fn parse_morphs(value: &toml::Value, vertices: usize) -> Result<Vec<MorphTarget>
             );
         }
         let normals = row
-            .get("normals")
-            .map(|_| points(row, "normals"))
+            .get(NORMALS)
+            .map(|_| points(row, NORMALS))
             .transpose()?
             .filter(|normals| normals.len() == vertices);
         out.push(MorphTarget {

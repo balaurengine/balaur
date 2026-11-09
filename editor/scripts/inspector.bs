@@ -15,6 +15,27 @@ use shell;
 use signals;
 use style;
 use util;
+use words::asset_kinds;
+use words::datatypes;
+use words::dock_fields;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::log_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::roles;
+use words::schema_fields;
+use words::tabs;
+use words::theme_tokens;
+use words::verbs;
+
+const OPENED: str = "opened";
+const TEXT_FIELD: str = "text_field";
+const KIND: str = "kind";
+const GROUPS: str = "groups";
+const LOOSE: str = "loose";
+const STORE: str = "store";
 
 /// Where a row writes: the component, the property, the steps into its value,
 /// the row's label, and the value as it was walked, for where nothing live
@@ -281,7 +302,7 @@ fn form_width(state: editor::State) -> float {
             return rect_or.unwrap().width;
         }
     }
-    state.layout["right"]["width"].as_float() - 16.0
+    state.layout[dock_fields::RIGHT][layout_fields::WIDTH].as_float() - 16.0
 }
 
 /// Whether a row puts its label above its control rather than beside it.
@@ -352,17 +373,17 @@ pub fn view(state: editor::State) -> View {
     View {
         selected: true,
         icon: icon.glyph,
-        icon_color: if tokens[icon.role] == nil { tokens["primary_text"].as_str() } else { tokens[icon.role].as_str() },
+        icon_color: if tokens[icon.role] == nil { tokens[theme_tokens::PRIMARY_TEXT].as_str() } else { tokens[icon.role].as_str() },
         name: node.name(),
         kind: model::node_type(node),
-        add_icon: icons::ui("add"),
+        add_icon: icons::ui(icons::ADD),
     }
 }
 
 /// Walk the form again for the selection, filtered by `query`, and put what
 /// is on screen on the pool's rows.
 pub fn fill(state: &mut editor::State, query: str) {
-    state.search["inspector"] = query;
+    state.search[panel_keys::INSPECTOR] = query;
     refill(state);
 }
 
@@ -497,8 +518,8 @@ fn rewrite(state: &mut editor::State, index: int, told: bool) {
 // A property a value decides the rows of: a list's entries, a variant's
 // fields, an asset's own properties.
 fn unfolds(spec: any) -> bool {
-    let datatype = spec["type"].as_str();
-    !spec["readonly"].as_bool() && (datatype == "list" || datatype == "map" || datatype == "record" || datatype == "variant" || datatype == "asset")
+    let datatype = spec[fields::TYPE].as_str();
+    !spec[schema_fields::READONLY].as_bool() && (datatype == datatypes::LIST || datatype == datatypes::MAP || datatype == datatypes::RECORD || datatype == datatypes::VARIANT || datatype == datatypes::ASSET)
 }
 
 fn walk(state: &mut editor::State) {
@@ -544,7 +565,7 @@ fn fixed_line(state: &mut editor::State, key: str, row: ui::Row) {
 fn note_line(state: &mut editor::State, height: float, role: str, text: str) {
     fixed_line(state, "", ui::Row {
         height: height,
-        controls: [ui::Control { kind: "label", role: role, grow: 1, truncate: true, text: text, tooltip: text }],
+        controls: [ui::Control { kind: ui::WIDGET_LABEL, role: role, grow: 1, truncate: true, text: text, tooltip: text }],
     });
 }
 
@@ -556,14 +577,14 @@ fn read_marks(state: &mut editor::State, node: Node) {
     let whole: any = {};
     form.warnings = util::list_or_empty(scene::warnings(node));
     for warning in form.warnings {
-        let component = warning["component"].as_str();
-        let key = if warning["property"] == nil { component } else { "{component}.{warning["property"].as_str()}" };
+        let component = warning[inspector_fields::COMPONENT].as_str();
+        let key = if warning[inspector_fields::PROPERTY] == nil { component } else { "{component}.{warning["property"].as_str()}" };
         let into = if warning["property"] == nil { whole } else { by_property };
         if !into.has(key) {
             let none: [any] = [];
             into[key] = none;
         }
-        into[key].push(warning["message"]);
+        into[key].push(warning[log_fields::MESSAGE]);
     }
     form.warned = by_property;
     form.warned_whole = whole;
@@ -579,7 +600,7 @@ fn multi_note(state: &mut editor::State) {
         height: row_height(state) + 4.0,
         controls: [
             ui::Control {
-                kind: "panel",
+                kind: ui::WIDGET_PANEL,
                 role: "note_primary",
                 grow: 1,
                 icon: icons::ui("select-all"),
@@ -609,14 +630,14 @@ fn instance_note(state: &mut editor::State, node: Node) {
                 role: "sheet_prefab",
                 grow: 1,
                 controls: [
-                    ui::Control { kind: "label", role: "text_code_secondary", grow: 1, truncate: true, text: if built { model::prefab_of(node) } else { node.instance().or("") } },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: "text_code_secondary", grow: 1, truncate: true, text: if built { model::prefab_of(node) } else { node.instance().or("") } },
                     ui::Control {
-                        kind: "button",
+                        kind: ui::WIDGET_BUTTON,
                         role: "action_prefab",
                         text: "open",
                         tooltip: "Open the prefab; an edit there reaches every copy of it",
                         on_click: "inspector_edit",
-                        data: { "line": key, "fn": on_prefab_open },
+                        data: { layout_fields::LINE: key, fields::FN: on_prefab_open },
                     },
                 ],
             },
@@ -687,15 +708,15 @@ fn ordered_components(state: &mut editor::State, names: [str]) -> [str] {
 fn component_sections(state: &mut editor::State) {
     let all = node_components(state);
     for warning in state.inspect.warnings {
-        if !util::contains(all, warning["component"].as_str()) {
-            note_line(state, row_height(state), "note_warning", "⚠ " + lint::describe(warning));
+        if !util::contains(all, warning[inspector_fields::COMPONENT].as_str()) {
+            note_line(state, row_height(state), roles::NOTE_WARNING, "⚠ " + lint::describe(warning));
         }
     }
-    let query = search::query(state, "inspector");
+    let query = search::query(state, tabs::INSPECTOR);
     let drew = 0;
     for component in ordered_components(state, all) {
         // Its rows are a table of tables, which the Events view already draws.
-        if component == "bindings" {
+        if component == verbs::BINDINGS {
             drew += 1;
             bindings_section(state);
             continue;
@@ -717,26 +738,26 @@ fn component_sections(state: &mut editor::State) {
 
 // A pointer at the Events view, in place of the rows no drawer can show.
 fn bindings_section(state: &mut editor::State) {
-    head_line(state, "bindings", false);
+    head_line(state, verbs::BINDINGS, false);
     let key = "@bindings";
     fixed_line(state, key, ui::Row {
         height: row_height(state) + 2.0,
         controls: [
             ui::Control {
-                kind: "button",
+                kind: ui::WIDGET_BUTTON,
                 role: "action_note",
                 grow: 1,
                 text: "{events::rows(state).len()} row(s) · open the Bindings view",
-                icon: icons::ui("events"),
+                icon: icons::ui(icons::EVENTS),
                 on_click: "inspector_edit",
-                data: { "line": key, "fn": on_bindings_open },
+                data: { layout_fields::LINE: key, fields::FN: on_bindings_open },
             },
         ],
     });
 }
 
 fn on_bindings_open(state: &mut editor::State, _line: Line, _data: any, _value: any) {
-    shell::open_doc(state, "events");
+    shell::open_doc(state, tabs::EVENTS);
 }
 
 /// A section's rows, worked out once for a schema: the properties with no
@@ -758,7 +779,7 @@ fn lay_out(schema: any) -> any {
     // Groups in the order the schema first names them.
     let order: [str] = [];
     for property in schema.keys() {
-        if property == ENABLED && schema[property]["type"].as_str() == "bool" {
+        if property == ENABLED && schema[property][fields::TYPE].as_str() == datatypes::BOOL {
             continue;
         }
         let group = schema[property]["group"].as_str();
@@ -775,14 +796,14 @@ fn lay_out(schema: any) -> any {
     }
     let groups: [any] = [];
     for group in order {
-        groups.push({ "name": group, "properties": grouped[group] });
+        groups.push({ fields::NAME: group, schema_fields::PROPERTIES: grouped[group] });
     }
-    { "loose": loose, "groups": groups }
+    { LOOSE: loose, GROUPS: groups }
 }
 
 fn section(state: &mut editor::State, name: str, schema: any, laid: any, removable: bool) {
     let form = state.inspect;
-    let enabled: any = if schema[ENABLED] != nil && schema[ENABLED]["type"].as_str() == "bool" { schema[ENABLED] } else { nil };
+    let enabled: any = if schema[ENABLED] != nil && schema[ENABLED][fields::TYPE].as_str() == datatypes::BOOL { schema[ENABLED] } else { nil };
     let open = head_line(state, name, removable, enabled);
     let shown: [str] = [];
     form.properties[name] = shown;
@@ -792,14 +813,14 @@ fn section(state: &mut editor::State, name: str, schema: any, laid: any, removab
     if !open {
         return;
     }
-    for property in util::list_or_empty(laid["loose"]) {
+    for property in util::list_or_empty(laid[LOOSE]) {
         shown.push(property.as_str());
         walk_property(state, name, property.as_str(), schema[property.as_str()]);
     }
-    let searching = search::query(state, "inspector") != "";
-    for group in util::list_or_empty(laid["groups"]) {
-        let properties = util::list_or_empty(group["properties"]);
-        if !fold_line(state, name, group["name"].as_str(), properties.len(), searching) {
+    let searching = search::query(state, tabs::INSPECTOR) != "";
+    for group in util::list_or_empty(laid[GROUPS]) {
+        let properties = util::list_or_empty(group[schema_fields::PROPERTIES]);
+        if !fold_line(state, name, group[fields::NAME].as_str(), properties.len(), searching) {
             continue;
         }
         for property in properties {
@@ -822,7 +843,7 @@ fn head_line(state: &mut editor::State, name: str, removable: bool, enabled: any
         at: at_top(name, ENABLED),
         key: "{name}.{ENABLED}",
         count: if enabled != nil { 1 } else { 0 },
-        spec: { "open": open, "key": store_key, "store": "collapsed", "removable": removable, "enabled": enabled != nil },
+        spec: { project_fields::OPEN: open, fields::KEY: store_key, STORE: "collapsed", "removable": removable, ENABLED: enabled != nil },
         root: enabled,
         height: row_height(state),
         labelled: false,
@@ -862,7 +883,7 @@ fn fold_line(state: &mut editor::State, component: str, group: str, count: int, 
         kind: FOLD,
         at: at_top(component, group),
         key: "{component}#{group}",
-        spec: { "open": open, "key": store_key, "store": "opened", "count": count },
+        spec: { project_fields::OPEN: open, fields::KEY: store_key, STORE: OPENED, fields::COUNT: count },
         height: row_height(state),
         labelled: false,
     });
@@ -897,7 +918,7 @@ fn overrides(form: Form, component: str, property: str) -> bool {
         return false;
     }
     if component == SCRIPT {
-        return property == SCRIPT_SOURCE && changed.has(SCRIPT_SOURCE) || changed["props"] != nil && changed["props"].has(property);
+        return property == SCRIPT_SOURCE && changed.has(SCRIPT_SOURCE) || changed[inspector_fields::PROPS] != nil && changed[inspector_fields::PROPS].has(property);
     }
     changed.has(property)
 }
@@ -913,8 +934,8 @@ fn value_line(state: &mut editor::State, at: AtTop, spec: any, value: any) -> Li
         height: row_height(state),
     };
     if form.removing != nil {
-        line.holder = form.removing["at"];
-        line.step = form.removing["step"];
+        line.holder = form.removing[layout_fields::AT];
+        line.step = form.removing[layout_fields::STEP];
         form.removing = nil;
     }
     push_line(state, line)
@@ -932,18 +953,18 @@ fn key_of(at: AtTop) -> str {
 /// this for what it holds, so a list of colours is a row of colour drawers
 /// and nothing had to know both.
 fn walk_value(state: &mut editor::State, at: AtTop, spec: any, value: any) {
-    let datatype = spec["type"].as_str();
-    if spec["readonly"].as_bool() || state.registry.property_editors.has(datatype) {
+    let datatype = spec[fields::TYPE].as_str();
+    if spec[schema_fields::READONLY].as_bool() || state.registry.property_editors.has(datatype) {
         value_line(state, at, spec, value);
-    } else if datatype == "list" {
+    } else if datatype == datatypes::LIST {
         walk_list(state, at, spec, value);
-    } else if datatype == "map" {
+    } else if datatype == datatypes::MAP {
         walk_map(state, at, spec, value);
-    } else if datatype == "record" {
+    } else if datatype == datatypes::RECORD {
         walk_record(state, at, spec, value);
-    } else if datatype == "variant" {
+    } else if datatype == datatypes::VARIANT {
         walk_variant(state, at, spec, value);
-    } else if datatype == "asset" {
+    } else if datatype == datatypes::ASSET {
         walk_asset(state, at, spec, value);
     } else {
         value_line(state, at, spec, value);
@@ -954,14 +975,14 @@ fn walk_value(state: &mut editor::State, at: AtTop, spec: any, value: any) {
 fn walk_entry(state: &mut editor::State, at: AtTop, step: any, label: str, of: any, value: any) {
     let form = state.inspect;
     let was = form.removing;
-    form.removing = { "at": at, "step": step };
+    form.removing = { layout_fields::AT: at, layout_fields::STEP: step };
     walk_value(state, at_step(at, step, label), of, value);
     form.removing = was;
 }
 
 fn walk_list(state: &mut editor::State, at: AtTop, spec: any, value: any) {
     let held = util::list_or_empty(value);
-    let of = util::map_or_empty(spec["of"]);
+    let of = util::map_or_empty(spec[schema_fields::OF]);
     value_line(state, at, spec, value);
     for index in 0..held.len() {
         walk_entry(state, at, index, "{index}", of, held[index]);
@@ -972,7 +993,7 @@ fn walk_list(state: &mut editor::State, at: AtTop, spec: any, value: any) {
 // keeps the row one control wide.
 fn walk_map(state: &mut editor::State, at: AtTop, spec: any, value: any) {
     let held = util::map_or_empty(value);
-    let of = util::map_or_empty(spec["of"]);
+    let of = util::map_or_empty(spec[schema_fields::OF]);
     value_line(state, at, spec, value);
     for key in util::keys_sorted(held) {
         walk_entry(state, at, key, key, of, held[key]);
@@ -982,11 +1003,11 @@ fn walk_map(state: &mut editor::State, at: AtTop, spec: any, value: any) {
 // The fields are the schema's, so there is nothing to add or take away.
 fn walk_record(state: &mut editor::State, at: AtTop, spec: any, value: any) {
     let held = util::map_or_empty(value);
-    let fields = util::map_or_empty(spec["fields"]);
+    let fields = util::map_or_empty(spec[schema_fields::FIELDS]);
     value_line(state, at, spec, value);
     for field in util::keys_sorted(fields) {
         let of = util::map_or_empty(fields[field]);
-        walk_value(state, at_step(at, field, util::property_label(field)), of, if held.has(field) { held[field] } else { of["default"] });
+        walk_value(state, at_step(at, field, util::property_label(field)), of, if held.has(field) { held[field] } else { of[schema_fields::DEFAULT] });
     }
 }
 
@@ -996,23 +1017,23 @@ fn walk_record(state: &mut editor::State, at: AtTop, spec: any, value: any) {
 fn walk_variant(state: &mut editor::State, at: AtTop, spec: any, value: any) {
     let held = util::map_or_empty(value);
     let variants = util::map_or_empty(spec["variants"]);
-    let kind = if held["kind"] == nil { util::map_or_empty(spec["default"])["kind"].as_str() } else { held["kind"].as_str() };
-    let picker: any = { "type": "enum", "options": util::keys_sorted(variants), "description": spec["description"] };
-    value_line(state, at_step(at, "kind", at.label), picker, kind);
-    let fields = util::map_or_empty(util::map_or_empty(variants[kind])["fields"]);
+    let kind = if held[fields::KIND] == nil { util::map_or_empty(spec[schema_fields::DEFAULT])[fields::KIND].as_str() } else { held[fields::KIND].as_str() };
+    let picker: any = { fields::TYPE: datatypes::ENUM, schema_fields::OPTIONS: util::keys_sorted(variants), fields::DESCRIPTION: spec[fields::DESCRIPTION] };
+    value_line(state, at_step(at, KIND, at.label), picker, kind);
+    let fields = util::map_or_empty(util::map_or_empty(variants[kind])[schema_fields::FIELDS]);
     for field in util::keys_sorted(fields) {
         let of = util::map_or_empty(fields[field]);
-        walk_value(state, at_step(at, field, util::property_label(field)), of, if held.has(field) { held[field] } else { of["default"] });
+        walk_value(state, at_step(at, field, util::property_label(field)), of, if held.has(field) { held[field] } else { of[schema_fields::DEFAULT] });
     }
 }
 
 // The row naming the asset, then the asset's own properties: a record's
 // fields, or the values a material's shader takes, whichever node names it.
 fn walk_asset(state: &mut editor::State, at: AtTop, spec: any, value: any) {
-    let asset_type = spec["asset"].as_str();
+    let asset_type = spec[schema_fields::ASSET].as_str();
     let own = as_text(value);
     value_line(state, at, spec, value);
-    if asset_type == "material" {
+    if asset_type == asset_kinds::MATERIAL {
         let from = if own == "" { inherited_material(state) } else { Inherited { material: "", node: "", here: false } };
         // Not when the node's own `material` component is the source: it
         // draws them.
@@ -1028,7 +1049,7 @@ fn walk_asset(state: &mut editor::State, at: AtTop, spec: any, value: any) {
     let definition: any = if own == "" { {} } else { util::map_or_empty(assets::load(own)) };
     for field in record.keys() {
         let of = util::map_or_empty(record[field]);
-        walk_value(state, at_step(at, field, util::property_label(field)), of, if definition.has(field) { definition[field] } else { of["default"] });
+        walk_value(state, at_step(at, field, util::property_label(field)), of, if definition.has(field) { definition[field] } else { of[schema_fields::DEFAULT] });
     }
 }
 
@@ -1039,12 +1060,12 @@ fn walk_material(state: &mut editor::State, at: AtTop, reference: str) {
         return;
     }
     let definition = assets::load(reference);
-    let shader = if definition.kind() == "map" { definition["shader"].as_str() } else { "" };
+    let shader = if definition.kind() == types::KIND_MAP { definition["shader"].as_str() } else { "" };
     if shader != "" {
-        material_line(state, at, reference, "shader", "@shader", "Shader", shader);
-        let features = util::map_or_empty(definition["features"]);
+        material_line(state, at, reference, datatypes::SHADER, "@shader", "Shader", shader);
+        let features = util::map_or_empty(definition[project_fields::FEATURES]);
         for name in util::keys_sorted(features) {
-            material_line(state, at, reference, "feature", name, "@" + name, features[name]);
+            material_line(state, at, reference, datatypes::FEATURE, name, "@" + name, features[name]);
         }
     }
     for parameter in render::material_params(reference) {
@@ -1056,11 +1077,11 @@ fn walk_material(state: &mut editor::State, at: AtTop, reference: str) {
 // rather than the node.
 fn material_line(state: &mut editor::State, at: AtTop, reference: str, datatype: str, name: str, label: str, value: any) {
     let inner = at_step(at, "@" + name, "  " + label);
-    value_line(state, inner, { "type": "material", "datatype": datatype, "reference": reference, "name": name }, value);
+    value_line(state, inner, { fields::TYPE: asset_kinds::MATERIAL, schema_fields::DATATYPE: datatype, inspector_fields::REFERENCE: reference, fields::NAME: name }, value);
 }
 
 fn script_section(state: &mut editor::State, node: Node) {
-    let query = search::query(state, "inspector");
+    let query = search::query(state, tabs::INSPECTOR);
     let schema = script_schema(state, node);
     if query != "" && !search::matches(query, "{SCRIPT} {util::join(util::keys_sorted(schema), " ")}") {
         return;
@@ -1073,15 +1094,15 @@ fn script_section(state: &mut editor::State, node: Node) {
 /// default is the node's own; everything else is inherited, so a changed
 /// default reaches every node that left it alone.
 fn script_schema(state: &mut editor::State, node: Node) -> any {
-    let schema: any = { SCRIPT_SOURCE: { "type": "script_path", "default": "" } };
+    let schema: any = { SCRIPT_SOURCE: { fields::TYPE: datatypes::SCRIPT_PATH, schema_fields::DEFAULT: "" } };
     let rel = model::script_rel(node);
     if rel == nil {
         return schema;
     }
     for export in util::list_or_empty(model::exports(state, rel.as_str())) {
         let spec = util::copy(export);
-        spec.remove("name");
-        schema[export["name"].as_str()] = spec;
+        spec.remove(fields::NAME);
+        schema[export[fields::NAME].as_str()] = spec;
     }
     schema
 }
@@ -1095,9 +1116,9 @@ fn plugin_sections(state: &mut editor::State, node: Node) {
         if values == nil {
             continue;
         }
-        let name = entry["component"].as_str();
+        let name = entry[inspector_fields::COMPONENT].as_str();
         form.plugin_values[name] = values;
-        section(state, name, entry["schema"], lay_out(entry["schema"]), false);
+        section(state, name, entry[schema_fields::SCHEMA], lay_out(entry[schema_fields::SCHEMA]), false);
     }
 }
 
@@ -1110,17 +1131,17 @@ pub fn read_property(state: editor::State, component: str, property: str, spec: 
             return form.script_rel;
         }
         let properties = model::script_props(form.node);
-        return if properties.has(property) { properties[property] } else { spec["default"] };
+        return if properties.has(property) { properties[property] } else { spec[schema_fields::DEFAULT] };
     }
     let plugin = form.plugin_values[component];
     if plugin != nil {
-        return if plugin.has(property) { plugin[property] } else { spec["default"] };
+        return if plugin.has(property) { plugin[property] } else { spec[schema_fields::DEFAULT] };
     }
     if !form.node.is_valid() {
-        return spec["default"];
+        return spec[schema_fields::DEFAULT];
     }
     let now = form.node.component_property(component, property);
-    if now == nil { spec["default"] } else { now }
+    if now == nil { spec[schema_fields::DEFAULT] } else { now }
 }
 
 // What a line draws from: the property read again, or what the walk found for
@@ -1280,7 +1301,7 @@ fn draw_line(state: &mut editor::State, index: int) {
     line.drawn = true;
     line.shown = value;
     let row = drawers::row_of(state, line, value);
-    if form.slot_keys[slot] == line.key && row.controls.len() > 0 && row.controls[0].kind == "text_field" && typing_slot(state) == slot {
+    if form.slot_keys[slot] == line.key && row.controls.len() > 0 && row.controls[0].kind == TEXT_FIELD && typing_slot(state) == slot {
         return;
     }
     row.y = line.top;
@@ -1293,12 +1314,12 @@ fn draw_line(state: &mut editor::State, index: int) {
 /// A control left saying what the write did not take says what it holds.
 pub fn edited(state: &mut editor::State, data: any, value: any) {
     let form = state.inspect;
-    let at = form.named[data["line"].as_str()];
+    let at = form.named[data[layout_fields::LINE].as_str()];
     if at == nil {
         return;
     }
     let index = at.unwrap();
-    let handler: fn(&mut editor::State, Line, any, any) = data["fn"];
+    let handler: fn(&mut editor::State, Line, any, any) = data[fields::FN];
     let line = form.lines[index];
     let walked = form.walks;
     handler(state, line, data, value);
@@ -1311,10 +1332,10 @@ pub fn edited(state: &mut editor::State, data: any, value: any) {
 /// A section's or a group's fold turned round: its key in `collapsed` where
 /// it is shut, in `opened` where it is open, as `store` names.
 pub fn fold(state: &mut editor::State, line: Line) {
-    let key = line.spec["key"].as_str();
-    let opened = line.spec["store"].as_str() == "opened";
+    let key = line.spec[fields::KEY].as_str();
+    let opened = line.spec[STORE].as_str() == OPENED;
     let held = if opened { state.opened } else { state.collapsed };
-    let open = line.spec["open"].as_bool();
+    let open = line.spec[project_fields::OPEN].as_bool();
     // Shutting writes the key into `collapsed` and out of `opened`.
     if open != opened {
         held[key] = true;
@@ -1325,9 +1346,9 @@ pub fn fold(state: &mut editor::State, line: Line) {
 }
 
 pub fn as_text(value: any) -> str {
-    if value.kind() == "str" {
+    if value.kind() == types::KIND_STRING {
         value.as_str()
-    } else if value == nil || value.kind() == "list" || value.kind() == "map" {
+    } else if value == nil || value.kind() == types::KIND_LIST || value.kind() == types::KIND_MAP {
         // A list has no text form, and a field is not where one is edited.
         ""
     } else {
@@ -1366,7 +1387,7 @@ fn current_whole(state: editor::State, at: AtTop) -> any {
     // A row naming a record asset is edited as the definition it names.
     let reference = as_text(now);
     let definition: any = if reference == "" { {} } else { util::deep(util::map_or_empty(assets::load(reference))) };
-    definition.remove("type");
+    definition.remove(fields::TYPE);
     definition
 }
 
@@ -1380,8 +1401,8 @@ fn record_named(state: editor::State, at: AtTop) -> str {
     let cached = state.schemas[at.component];
     let schema = if cached == nil { scene::component_schema(at.component) } else { cached };
     let spec = util::map_or_empty(util::map_or_empty(schema)[at.property]);
-    let asset_type = spec["asset"].as_str();
-    if spec["type"].as_str() != "asset" || assets::schema(asset_type) == nil {
+    let asset_type = spec[schema_fields::ASSET].as_str();
+    if spec[fields::TYPE].as_str() != datatypes::ASSET || assets::schema(asset_type) == nil {
         return "";
     }
     asset_type
@@ -1397,7 +1418,7 @@ fn write_whole(state: &mut editor::State, at: AtTop, whole: any) {
         write(state, at.component, at.property, whole);
         return;
     }
-    whole["type"] = record;
+    whole[fields::TYPE] = record;
     assets::save(reference, whole);
     rows_moved(state, at.component, [at.property]);
 }
@@ -1415,12 +1436,12 @@ fn inner_at(holder: any, path: [any], depth: int) -> any {
     let found = holder;
     for index in 0..depth {
         let step = path[index];
-        if found.kind() == "list" {
-            if step.kind() != "int" || step.as_int() < 0 || step.as_int() >= found.len() {
+        if found.kind() == types::KIND_LIST {
+            if step.kind() != types::KIND_INT || step.as_int() < 0 || step.as_int() >= found.len() {
                 return nil;
             }
             found = found[step.as_int()];
-        } else if found.kind() == "map" && found.has(step.as_str()) {
+        } else if found.kind() == types::KIND_MAP && found.has(step.as_str()) {
             found = found[step.as_str()];
         } else {
             return nil;
@@ -1442,7 +1463,7 @@ pub fn write_at(state: &mut editor::State, at: AtTop, value: any) {
     if holder == nil {
         return;
     }
-    if step.kind() == "int" {
+    if step.kind() == types::KIND_INT {
         holder[step.as_int()] = value;
     } else {
         holder[step.as_str()] = value;
@@ -1464,13 +1485,13 @@ pub fn drop_entry(state: &mut editor::State, at: AtTop, step: any) {
 /// Add one entry to the list or map the cursor names, at the spec's own
 /// default: `complete_property` wrote one in for every nested spec.
 pub fn add_entry(state: &mut editor::State, at: AtTop, of: any, key: str) {
-    let fresh_value = util::deep(of["default"]);
+    let fresh_value = util::deep(of[schema_fields::DEFAULT]);
     let whole = util::deep(current_whole(state, at));
     let holder = inner_at(whole, at.path, at.path.len());
     if holder == nil {
         return;
     }
-    if holder.kind() == "list" {
+    if holder.kind() == types::KIND_LIST {
         holder.push(fresh_value);
     } else {
         holder[key] = fresh_value;
@@ -1497,7 +1518,7 @@ fn write(state: &mut editor::State, component: str, property: str, value: any) {
     model::set_component_property(state, component, property, value);
     // The clip the Timeline holds was named by the value just written, so the
     // cache goes and the engine is handed the clip again.
-    if component == "animation" {
+    if component == tabs::ANIMATION {
         state.clip = nil;
         signals::inspector(state);
         anim::arm(state);

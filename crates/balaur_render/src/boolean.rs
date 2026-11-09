@@ -21,6 +21,8 @@ use glamx::{Mat4, Vec2, Vec3};
 use crate::{PolygonMesh, Renderable2d, Renderable3d, Shape2d, Shape3d};
 use balaur_core::layers::Layer;
 
+const BUILT_MESH: &str = "built_mesh";
+
 /// How a `boolean3d` combines its children: `balaur_geometry::csg`'s words.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Enum)]
 pub enum Operation3d {
@@ -423,7 +425,7 @@ fn operand_shapes(eng: &Engine, parent: &GlobalTransform, entity: Entity) -> Opt
 /// bake one out to a plain `mesh` asset under `models/`.
 pub(crate) fn install_boolean_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "built_mesh",
+        BUILT_MESH,
         &["boolean3d"],
         "(node: node) -> BuiltMesh?",
         "The triangles the node's boolean settled on, ready to be written out as a `mesh` asset; nil when the node draws no built geometry.",
@@ -433,7 +435,7 @@ pub(crate) fn install_boolean_api(m: &mut Module<Engine>) {
         "{ positions: [Vec3], indices: [[int]] }",
         "A boolean's triangles, under the keys a `mesh` asset spells: its positions, and three corners a triangle.",
     )]);
-    m.function("built_mesh", |eng: &Engine, node: NodeId| {
+    m.function(BUILT_MESH, |eng: &Engine, node: NodeId| {
         let world = eng.world();
         let Ok(renderable) = world.get::<&Renderable3d>(entity_of(node)?) else {
             return Ok(balaur_script::Value::Nil);

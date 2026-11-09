@@ -8,6 +8,13 @@ use world;
 
 const BOX: float = 1.0;
 const PYRAMID_LEVELS: int = 22;
+const BODY3D: str = "body3d";
+const HEIGHT: str = "height";
+const KIND: str = "kind";
+const MESH: str = "mesh";
+const RADIUS: str = "radius";
+const SIZE: str = "size";
+const SPHERE: str = "sphere";
 
 pub fn all() -> [load::Case] {
     [pyramid(), mixed_pile(), joint_grid(), smash(), query_storm(), drop()]
@@ -80,18 +87,18 @@ fn pile_shape(kind: int) -> any {
     if kind == 0 {
         box3(random::range(0.25, 0.45), random::range(0.25, 0.45), random::range(0.25, 0.45))
     } else if kind == 1 {
-        { "kind": "sphere", "radius": random::range(0.25, 0.45) }
+        { KIND: SPHERE, RADIUS: random::range(0.25, 0.45) }
     } else if kind == 2 {
         let radius = random::range(0.2, 0.32);
         {
-            "kind": "capsule",
-            "radius": radius,
-            "height": random::range(0.9, 1.4) + 2.0 * radius,
+            KIND: "capsule",
+            RADIUS: radius,
+            HEIGHT: random::range(0.9, 1.4) + 2.0 * radius,
         }
     } else {
         // One size rather than a random one: a hull is built from a mesh
         // asset, and the collider has no scale to vary it with.
-        { "kind": "convex_hull", "mesh": "#octahedron" }
+        { KIND: physics2d::FIT_CONVEX_HULL, MESH: "#octahedron" }
     }
 }
 
@@ -129,7 +136,7 @@ fn grid_anchor(w: world::World, c: load::Case) {
 }
 
 fn grid_body(w: world::World, c: load::Case, i: int) {
-    world::body(w, lattice_at(i), { "kind": "sphere", "radius": 0.25 });
+    world::body(w, lattice_at(i), { KIND: SPHERE, RADIUS: 0.25 });
 }
 
 fn grid_link(w: world::World, c: load::Case, i: int) {
@@ -194,8 +201,8 @@ fn smash_body(w: world::World, c: load::Case, i: int) {
 fn smash_shot(w: world::World, c: load::Case) {
     let ox = -0.5 * ((SMASH_COLUMNS - 1) as float) * BOX;
     let shot = world::body(w, vec3(ox - 30.0, (SMASH_ROWS as float) * BOX * 0.5, 0.0),
-        { "kind": "sphere", "radius": 1.6 });
-    shot.patch_component("body3d", {
+        { KIND: SPHERE, RADIUS: 1.6 });
+    shot.patch_component(BODY3D, {
         "mass": 800.0,
         "gravity_scale": 0.0,
         "continuous_collision": true,
@@ -279,7 +286,7 @@ fn storm_body(w: world::World, c: load::Case, i: int) {
             random::range(-3.14159, 3.14159),
             random::range(-3.14159, 3.14159));
     } else {
-        let node = world::body(w, scatter(), { "kind": "sphere", "radius": random::range(0.3, 0.8) });
+        let node = world::body(w, scatter(), { KIND: SPHERE, RADIUS: random::range(0.3, 0.8) });
         node.body3d.gravity_scale = 0.0;
         node.body3d.set_linear_velocity(random::range(-2.0, 2.0), random::range(-2.0, 2.0), random::range(-2.0, 2.0));
     }
@@ -313,7 +320,7 @@ fn storm(w: world::World, c: load::Case, tick: int) {
         let y = math::sin(a) * FIELD * 0.4;
         let z = math::sin(a) * FIELD;
         let hit = physics3d::shapecast(physics3d::ShapeQuery {
-            shape: physics3d::Shape { kind: "sphere", radius: 0.8 },
+            shape: physics3d::Shape { kind: SPHERE, radius: 0.8 },
             origin: vec3(x, y, z),
             direction: vec3(-x, -y, -z),
             max_distance: 2.0,
@@ -373,5 +380,5 @@ fn drop_body(w: world::World, c: load::Case, i: int) {
 
 /// A box from its half extents, which is how every case here measures one.
 fn box3(x: float, y: float, z: float) -> any {
-    { "kind": "box", "size": [x * 2.0, y * 2.0, z * 2.0] }
+    { KIND: BOX, SIZE: [x * 2.0, y * 2.0, z * 2.0] }
 }

@@ -2,6 +2,34 @@
 // plugin seam holds: how many nodes carry a script, as a dock tab, a palette
 // command, a floating window and a start-up state that asserts the count.
 
+const BODY: str = "body";
+const COMPONENT: str = "component";
+const CONTROLS: str = "controls";
+const COUNT: str = "count";
+const COUNTER: str = "counter";
+const COUNTER_WINDOW: str = "counter-window";
+const DEFAULT: str = "default";
+const DESCRIPTION: str = "description";
+const DRAW: str = "draw";
+const HOST: str = "host";
+const ICON: str = "icon";
+const ID: str = "id";
+const KIND: str = "kind";
+const NODES: str = "nodes";
+const PANELS: str = "panels";
+const READ: str = "read";
+const READONLY: str = "readonly";
+const ROLE: str = "role";
+const ROWS: str = "rows";
+const RUN: str = "run";
+const SCHEMA: str = "schema";
+const SCRIPTED: str = "scripted";
+const SHORTCUT: str = "shortcut";
+const TEXT: str = "text";
+const TEXT_CAPTION: str = "text_caption";
+const TITLE: str = "title";
+const TYPE: str = "type";
+
 pub class Counter {
     node: Node,
     // What the last count found; -1 before anyone asked.
@@ -31,13 +59,13 @@ impl Counter {
     /// Every list is optional.
     pub fn register() -> any {
         {
-            "panels": [{ "id": "counter", "title": "Counter", "draw": "panel" }],
-            "dialogs": [{ "id": "counter-window", "title": "Counter", "rows": "dialog" }],
-            "commands": [{ "title": "Count scripted nodes", "icon": "Σ", "shortcut": "", "run": "count" }],
+            PANELS: [{ ID: COUNTER, TITLE: "Counter", DRAW: "panel" }],
+            "dialogs": [{ ID: COUNTER_WINDOW, TITLE: "Counter", ROWS: "dialog" }],
+            "commands": [{ TITLE: "Count scripted nodes", ICON: "Σ", SHORTCUT: "", RUN: COUNT }],
             "inspector_sections": [{
-                "component": "counter",
-                "schema": { "scripted": { "type": "int", "readonly": true, "default": 0, "description": "How many nodes named a script at the last count" } },
-                "read": "section",
+                COMPONENT: COUNTER,
+                SCHEMA: { SCRIPTED: { TYPE: "int", READONLY: true, DEFAULT: 0, DESCRIPTION: "How many nodes named a script at the last count" } },
+                READ: "section",
             }],
             "startup_states": { "test:plugin_docks": "selftest" },
         }
@@ -57,16 +85,16 @@ impl Counter {
         if self.shown < 0 {
             specs.push(editor_node.call("kit_empty", ASK));
         } else {
-            specs.push(editor_node.call("kit_field", "nodes", "{self.shown}", { "copy": true }));
+            specs.push(editor_node.call("kit_field", NODES, "{self.shown}", { "copy": true }));
         }
-        editor_node.call("kit_rows", payload["host"], "body", specs);
+        editor_node.call("kit_rows", payload[HOST], BODY, specs);
     }
 
     /// The floating window's rows: the editor makes the window, its title and
     /// its close, and fills it with these when the plugin says it moved.
     pub fn dialog(payload: any) -> any {
         let said = if self.shown < 0 { ASK } else { "{self.shown} scripted nodes" };
-        [{ "controls": [{ "kind": "label", "role": "text_caption", "wrap": true, "text": said }] }]
+        [{ CONTROLS: [{ KIND: ui::WIDGET_LABEL, ROLE: TEXT_CAPTION, "wrap": true, TEXT: said }] }]
     }
 
     /// An inspector section's values: a component of the plugin's own, whose
@@ -75,7 +103,7 @@ impl Counter {
         if self.shown < 0 {
             return nil;
         }
-        { "scripted": self.shown }
+        { SCRIPTED: self.shown }
     }
 
     /// `--state test:plugin_docks`: the plugin seam, asserted the way the
@@ -94,7 +122,7 @@ impl Counter {
         } else {
             log::error("selftest FAILED: the registry lists no plugin");
         }
-        editor().call("kit_open_dialog", "counter-window");
+        editor().call("kit_open_dialog", COUNTER_WINDOW);
         log::info("selftest plugin: done");
     }
 }

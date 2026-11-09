@@ -2,6 +2,7 @@
 // the rows when the machine, the selection or a frame of play moved.
 
 use editor;
+use signals;
 
 pub class Statemachine {
     node: Node,
@@ -12,11 +13,11 @@ impl Statemachine {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "docks_changed", source);
+        events::listen(self.node, signals::DOCKS, source);
         events::listen(self.node, "machine_changed", source);
-        events::listen(self.node, "outline_changed", source);
+        events::listen(self.node, signals::OUTLINE, source);
         // The state a running machine is in moves with play.
-        events::listen(self.node, "play_frame", source);
+        events::listen(self.node, signals::PLAY, source);
     }
 
     pub fn on_machine_changed(_change: any) {

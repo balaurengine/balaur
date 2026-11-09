@@ -16,22 +16,37 @@ use crate::gamepad::{
 use crate::haptics::{field, number, vec3};
 use crate::vocabulary::{keys as k, words as w};
 
+const FEED_GAMEPAD: &str = "feed_gamepad";
+const GAMEPAD_ACCELERATION: &str = "gamepad_acceleration";
+const GAMEPAD_AXIS: &str = "gamepad_axis";
+const GAMEPAD_DOWN: &str = "gamepad_down";
+const GAMEPAD_GYRO: &str = "gamepad_gyro";
+const GAMEPAD_INFO: &str = "gamepad_info";
+const GAMEPAD_JUST_PRESSED: &str = "gamepad_just_pressed";
+const GAMEPAD_JUST_RELEASED: &str = "gamepad_just_released";
+const GAMEPAD_NAME: &str = "gamepad_name";
+const GAMEPAD_POWER: &str = "gamepad_power";
+const GAMEPAD_PRESSURE: &str = "gamepad_pressure";
+const GAMEPAD_REPEATED: &str = "gamepad_repeated";
+const GAMEPAD_TOUCHES: &str = "gamepad_touches";
+const GAMEPADS: &str = "gamepads";
+
 pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("gamepads", &[], "() -> [int]", "The ids of every connected pad: player slots from 0. A pad takes the lowest free slot last held by the same model, else the lowest free slot, and keeps it while connected."),
-        ("gamepad_name", &[], "", "The pad's name: its mapping's when one matched, else the platform's. Empty when no pad has that id."),
-        ("gamepad_down", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button is held down: pressed past `[input] gamepad_press`, and not yet back under `gamepad_release`."),
-        ("gamepad_just_pressed", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button went down this frame; a press and a release between two frames are both seen."),
-        ("gamepad_just_released", &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button came up this frame; true for that one frame only."),
-        ("gamepad_repeated", &[], "", "True the frame the pad's `GAMEPAD_BUTTON_*` button goes down, then every `[input] gamepad_repeat_interval_seconds` once it has been held for `gamepad_repeat_delay_seconds`: for stepping through a menu."),
-        ("gamepad_pressure", &[], "", "How far the pad's `GAMEPAD_BUTTON_*` button is pressed, 0 to 1, before any deadzone: a digital button reads 0 or 1, a trigger or a pressure-sensitive button anything between."),
-        ("gamepad_axis", &[], "", "How far the pad's `GAMEPAD_AXIS_*` stick or trigger is pushed: a stick -1 to 1 with up and right positive, a trigger 0 to 1, after `[input] gamepad_deadzone`; zero at rest and for an absent pad."),
-        ("gamepad_info", &[], "(id: int) -> GamepadInfo?", "Who the pad is; nil for an absent pad."),
-        ("gamepad_power", &[], "(id: int) -> GamepadPower", "The pad's power. Read whenever the pad sends anything."),
-        ("gamepad_gyro", &[], "(id: int) -> Vec3", "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope."),
-        ("gamepad_acceleration", &[], "(id: int) -> Vec3", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer."),
-        ("gamepad_touches", &[], "(id: int) -> [Touch]", "Every finger on the pad's touchpad, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad."),
-        ("feed_gamepad", &[], "(id: int, opts: PadFeed)", "Report a pad as if a backend had, from next frame. A pad fed anything connects; `connected: false` unplugs it."),
+        (GAMEPADS, &[], "() -> [int]", "The ids of every connected pad: player slots from 0. A pad takes the lowest free slot last held by the same model, else the lowest free slot, and keeps it while connected."),
+        (GAMEPAD_NAME, &[], "", "The pad's name: its mapping's when one matched, else the platform's. Empty when no pad has that id."),
+        (GAMEPAD_DOWN, &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button is held down: pressed past `[input] gamepad_press`, and not yet back under `gamepad_release`."),
+        (GAMEPAD_JUST_PRESSED, &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button went down this frame; a press and a release between two frames are both seen."),
+        (GAMEPAD_JUST_RELEASED, &[], "", "Whether the pad's `GAMEPAD_BUTTON_*` button came up this frame; true for that one frame only."),
+        (GAMEPAD_REPEATED, &[], "", "True the frame the pad's `GAMEPAD_BUTTON_*` button goes down, then every `[input] gamepad_repeat_interval_seconds` once it has been held for `gamepad_repeat_delay_seconds`: for stepping through a menu."),
+        (GAMEPAD_PRESSURE, &[], "", "How far the pad's `GAMEPAD_BUTTON_*` button is pressed, 0 to 1, before any deadzone: a digital button reads 0 or 1, a trigger or a pressure-sensitive button anything between."),
+        (GAMEPAD_AXIS, &[], "", "How far the pad's `GAMEPAD_AXIS_*` stick or trigger is pushed: a stick -1 to 1 with up and right positive, a trigger 0 to 1, after `[input] gamepad_deadzone`; zero at rest and for an absent pad."),
+        (GAMEPAD_INFO, &[], "(id: int) -> GamepadInfo?", "Who the pad is; nil for an absent pad."),
+        (GAMEPAD_POWER, &[], "(id: int) -> GamepadPower", "The pad's power. Read whenever the pad sends anything."),
+        (GAMEPAD_GYRO, &[], "(id: int) -> Vec3", "How fast the pad is turning, in radians per second about each axis. Read from PlayStation pads on desktop; zero for a pad with no gyroscope."),
+        (GAMEPAD_ACCELERATION, &[], "(id: int) -> Vec3", "The pad's acceleration in g, gravity included, so a pad at rest reads 1 on one axis. Read from PlayStation pads on desktop; zero for a pad with no accelerometer."),
+        (GAMEPAD_TOUCHES, &[], "(id: int) -> [Touch]", "Every finger on the pad's touchpad, oldest first, with x and y running 0 to 1 across the surface. Read from PlayStation pads on desktop; empty for a pad with no touchpad."),
+        (FEED_GAMEPAD, &[], "(id: int, opts: PadFeed)", "Report a pad as if a backend had, from next frame. A pad fed anything connects; `connected: false` unplugs it."),
     ]);
     install_pad_records(m);
     for name in PAD_BUTTON_NAMES {
@@ -63,7 +78,7 @@ pub(crate) fn install_gamepad_api(m: &mut Module<Engine>) {
 }
 
 fn install_pad_readers(m: &mut Module<Engine>) {
-    m.function("gamepads", |eng: &Engine, ()| {
+    m.function(GAMEPADS, |eng: &Engine, ()| {
         let state = eng.resource::<GamepadState>();
         let ids = state
             .borrow()
@@ -73,7 +88,7 @@ fn install_pad_readers(m: &mut Module<Engine>) {
             .collect();
         Ok(Value::List(ids))
     });
-    m.function("gamepad_name", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_NAME, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let name = state
             .borrow()
@@ -82,13 +97,13 @@ fn install_pad_readers(m: &mut Module<Engine>) {
         Ok(name)
     });
     install_button_readers(m);
-    m.function("gamepad_axis", |eng: &Engine, (id, axis): (i64, String)| {
+    m.function(GAMEPAD_AXIS, |eng: &Engine, (id, axis): (i64, String)| {
         check_pad_axis(&axis);
         let state = eng.resource::<GamepadState>();
         let v = state.borrow().pad(id).map_or(0.0, |p| p.axis(&axis));
         Ok(v)
     });
-    m.function("gamepad_info", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_INFO, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let state = state.borrow();
         let Some(pad) = state.pad(id) else {
@@ -103,7 +118,7 @@ fn install_pad_readers(m: &mut Module<Engine>) {
             (k::MAPPING.to_string(), Value::Str(info.mapping.clone())),
         ]))
     });
-    m.function("gamepad_power", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_POWER, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let power = state
             .borrow()
@@ -118,7 +133,7 @@ fn install_pad_readers(m: &mut Module<Engine>) {
         ]))
     });
     install_sensor_readers(m);
-    m.function("feed_gamepad", |eng: &Engine, (id, opts): (i64, Value)| {
+    m.function(FEED_GAMEPAD, |eng: &Engine, (id, opts): (i64, Value)| {
         feed(&mut eng.resource::<GamepadState>().borrow_mut(), id, &opts)
     });
     crate::haptics::install_haptics_api(m);
@@ -159,10 +174,10 @@ fn install_pad_records(m: &mut Module<Engine>) {
 fn install_button_readers(m: &mut Module<Engine>) {
     type Reader = fn(&crate::Pad, &str) -> bool;
     let readers: [(&str, Reader); 4] = [
-        ("gamepad_down", crate::Pad::is_down),
-        ("gamepad_just_pressed", crate::Pad::just_pressed),
-        ("gamepad_just_released", crate::Pad::just_released),
-        ("gamepad_repeated", crate::Pad::is_repeated),
+        (GAMEPAD_DOWN, crate::Pad::is_down),
+        (GAMEPAD_JUST_PRESSED, crate::Pad::just_pressed),
+        (GAMEPAD_JUST_RELEASED, crate::Pad::just_released),
+        (GAMEPAD_REPEATED, crate::Pad::is_repeated),
     ];
     for (name, read) in readers {
         m.function(name, move |eng: &Engine, (id, button): (i64, String)| {
@@ -173,7 +188,7 @@ fn install_button_readers(m: &mut Module<Engine>) {
         });
     }
     m.function(
-        "gamepad_pressure",
+        GAMEPAD_PRESSURE,
         |eng: &Engine, (id, button): (i64, String)| {
             check_pad_button(&button);
             let state = eng.resource::<GamepadState>();
@@ -185,12 +200,12 @@ fn install_button_readers(m: &mut Module<Engine>) {
 
 /// Motion and the touchpad, which `sensors.rs` or a feed writes after the poll.
 fn install_sensor_readers(m: &mut Module<Engine>) {
-    m.function("gamepad_gyro", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_GYRO, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let v = state.borrow().pad(id).map_or([0.0; 3], |p| p.motion().gyro);
         Ok(Value::Vec3(v))
     });
-    m.function("gamepad_acceleration", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_ACCELERATION, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let v = state
             .borrow()
@@ -199,7 +214,7 @@ fn install_sensor_readers(m: &mut Module<Engine>) {
         Ok(Value::Vec3(v))
     });
     // Shaped like `input.touches`, so a pad's touchpad reads like a screen.
-    m.function("gamepad_touches", |eng: &Engine, id: i64| {
+    m.function(GAMEPAD_TOUCHES, |eng: &Engine, id: i64| {
         let state = eng.resource::<GamepadState>();
         let touches = state.borrow().pad(id).map_or_else(Vec::new, |pad| {
             pad.touches()

@@ -296,7 +296,7 @@ pub struct NodePath(pub String);
 
 impl Property for NodePath {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        spec.entry("type")
+        spec.entry(TYPE)
             .or_insert_with(|| toml::Value::String("node".into()));
     }
 
@@ -317,10 +317,10 @@ pub struct Indices(pub Vec<u32>);
 
 impl Property for Indices {
     fn describe(spec: &mut toml::map::Map<String, toml::Value>) {
-        spec.entry("type")
+        spec.entry(TYPE)
             .or_insert_with(|| toml::Value::String("list".into()));
         let mut of = toml::map::Map::new();
-        of.insert("type".into(), toml::Value::String("int".into()));
+        of.insert(TYPE.into(), toml::Value::String("int".into()));
         spec.entry("of").or_insert(toml::Value::Table(of));
     }
 
@@ -459,3 +459,5 @@ macro_rules! collider_rows {
     )*};
 }
 pub(crate) use collider_rows;
+
+const TYPE: &str = "type";

@@ -9,6 +9,7 @@ use balaur_core::hecs::Entity;
 use egui::{Color32, Sense, Stroke, pos2, vec2};
 use rustc_hash::FxHashMap;
 
+use crate::vocabulary::words as vocab;
 use crate::widget::arrange::{Axis, hold_to, lay_out, padding_of, solved_of};
 use crate::widget::layer::{Edit, Painting};
 use crate::widget::measure::Measure;
@@ -150,7 +151,11 @@ fn title_bar(
             color,
         );
         if ui
-            .interact(arrow, ui.scope_id().with(("fold", entity)), Sense::click())
+            .interact(
+                arrow,
+                ui.scope_id().with((vocab::FOLD, entity)),
+                Sense::click(),
+            )
             .clicked()
         {
             set_folded(entity, !shut);

@@ -4,6 +4,7 @@
 use super::func::{R, err};
 use super::{Gen, Kind};
 use crate::ast::{BinOp, Block, Expr, ExprKind, Pos, Stmt, StmtKind, Ty};
+use crate::vocabulary::words;
 
 #[derive(Clone)]
 pub(crate) enum Term {
@@ -371,7 +372,7 @@ impl<'a> Cfg<'a> {
             pos,
         );
         let len = Expr {
-            kind: ExprKind::Method(Box::new(var(&arr, pos)), "len".into(), vec![]),
+            kind: ExprKind::Method(Box::new(var(&arr, pos)), words::methods::LEN.into(), vec![]),
             pos,
         };
         let cond = Expr {

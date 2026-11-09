@@ -2,7 +2,11 @@
 // the workspace, the tool or the room moved, and the folded left dock's
 // handle over them. A mark runs its tool itself, then the rail fills again.
 
+use center;
 use editor;
+use signals;
+use words::components;
+use words::layout_fields;
 
 pub class Rail {
     node: Node,
@@ -13,8 +17,8 @@ impl Rail {
     pub fn init() {
         let source = scene::get_node("Editor");
         self.editor = source.script;
-        events::listen(self.node, "rail_changed", source);
-        events::listen(self.node, "stage_changed", source);
+        events::listen(self.node, signals::RAIL, source);
+        events::listen(self.node, signals::STAGE, source);
     }
 
     pub fn on_rail_changed(_change: any) {
@@ -26,7 +30,7 @@ impl Rail {
     }
 
     pub fn open_left() {
-        self.editor.unwrap().stage_verb("open_left");
+        self.editor.unwrap().stage_verb(center::OPEN_LEFT);
     }
 
     pub fn refill() {
@@ -37,7 +41,7 @@ impl Rail {
         let view = self.editor.unwrap().stage_view();
         let sheet = self.node.get_node("RailTop/Handle");
         sheet.set_visible(view.rail_handle);
-        sheet.patch_component("widget", { "padding": view.pad });
+        sheet.patch_component(components::WIDGET, { layout_fields::PADDING: view.pad });
         let patched = sheet.get_node("Open");
         patched.widget_button.icon = view.left.icon;
         patched.widget.tooltip = view.left.tooltip;

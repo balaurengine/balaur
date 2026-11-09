@@ -6,7 +6,13 @@
 //! `[img=path width=32 height=32]` stands alone. Anything else in brackets is
 //! text, so a string that was never markup still reads as it was written.
 
+use crate::vocabulary::words as vocab;
 use egui::Color32;
+
+const COLOR: &str = "color";
+const HINT: &str = "hint";
+const URL: &str = "url";
+const WAVE: &str = "wave";
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Span {
@@ -290,37 +296,37 @@ fn tag_of(tag: &str) -> Option<Tag> {
         ("u", on) => Some(Tag::Toggle(Mark::Underline, !on)),
         ("s", on) => Some(Tag::Toggle(Mark::Strikethrough, !on)),
         ("o", on) => Some(Tag::Toggle(Mark::Overline, !on)),
-        ("size", true) => Some(Tag::Size(None)),
-        ("size", false) => args
+        (vocab::markup::SIZE, true) => Some(Tag::Size(None)),
+        (vocab::markup::SIZE, false) => args
             .trim()
             .parse::<f32>()
             .ok()
             .filter(|size| *size > 0.0)
             .map(|size| Tag::Size(Some(size))),
-        ("font", true) => Some(Tag::Font(None)),
-        ("font", false) => {
+        (vocab::markup::FONT, true) => Some(Tag::Font(None)),
+        (vocab::markup::FONT, false) => {
             let font = args.trim();
             (!font.is_empty()).then(|| Tag::Font(Some(font.to_string())))
         }
-        ("color", true) => Some(Tag::Color(None)),
-        ("color", false) => color_of(args.trim()).map(|c| Tag::Color(Some(c))),
-        ("wave", true) => Some(Tag::Wave(None)),
-        ("wave", false) => {
+        (COLOR, true) => Some(Tag::Color(None)),
+        (COLOR, false) => color_of(args.trim()).map(|c| Tag::Color(Some(c))),
+        (WAVE, true) => Some(Tag::Wave(None)),
+        (WAVE, false) => {
             let amp = number_arg(args, "amp").unwrap_or(4.0);
             let freq = number_arg(args, "freq").unwrap_or(2.0);
             Some(Tag::Wave(Some((amp, freq))))
         }
-        ("center" | "right" | "left", true) => Some(Tag::Align(None)),
-        ("center", false) => Some(Tag::Align(Some(Align::Center))),
-        ("right", false) => Some(Tag::Align(Some(Align::Right))),
-        ("left", false) => Some(Tag::Align(Some(Align::Left))),
-        ("url", true) => Some(Tag::Link(None)),
-        ("url", false) => {
+        (vocab::CENTER | vocab::RIGHT | vocab::LEFT, true) => Some(Tag::Align(None)),
+        (vocab::CENTER, false) => Some(Tag::Align(Some(Align::Center))),
+        (vocab::RIGHT, false) => Some(Tag::Align(Some(Align::Right))),
+        (vocab::LEFT, false) => Some(Tag::Align(Some(Align::Left))),
+        (URL, true) => Some(Tag::Link(None)),
+        (URL, false) => {
             let target = args.trim();
             (!target.is_empty()).then(|| Tag::Link(Some(target.to_string())))
         }
-        ("hint", true) => Some(Tag::Hint(None)),
-        ("hint", false) => {
+        (HINT, true) => Some(Tag::Hint(None)),
+        (HINT, false) => {
             let said = args.trim();
             (!said.is_empty()).then(|| Tag::Hint(Some(said.to_string())))
         }

@@ -25,6 +25,17 @@ use balaur_script::Module;
 
 use crate::InputSnapshot;
 use crate::gamepad::GamepadState;
+use crate::vocabulary::words;
+
+const ACTION_DOWN: &str = "action_down";
+const ACTION_JUST_PRESSED: &str = "action_just_pressed";
+const ACTION_JUST_RELEASED: &str = "action_just_released";
+const ACTION_VALUE: &str = "action_value";
+const ACTIONS: &str = "actions";
+const BIND: &str = "bind";
+const BINDINGS: &str = "bindings";
+const FEED_ACTION: &str = "feed_action";
+const RESET_BINDINGS: &str = "reset_bindings";
 
 /// At or past this magnitude an action counts as pressed. Half of full throw:
 /// far enough that a resting stick never trips it, near enough that a player
@@ -82,10 +93,10 @@ impl Chord {
         };
         for part in parts {
             let held = match part {
-                "cmd" => &mut chord.cmd,
-                "ctrl" => &mut chord.ctrl,
-                "alt" => &mut chord.alt,
-                "shift" => &mut chord.shift,
+                words::bindings::CMD => &mut chord.cmd,
+                words::bindings::CTRL => &mut chord.ctrl,
+                words::bindings::ALT => &mut chord.alt,
+                words::bindings::SHIFT => &mut chord.shift,
                 other => {
                     return Err(format!(
                         "'{other}' is not a modifier: cmd, ctrl, alt or shift"
@@ -115,10 +126,10 @@ impl Chord {
     fn text(&self) -> String {
         let mut text = String::new();
         for (on, name) in [
-            (self.cmd, "cmd"),
-            (self.ctrl, "ctrl"),
-            (self.alt, "alt"),
-            (self.shift, "shift"),
+            (self.cmd, words::bindings::CMD),
+            (self.ctrl, words::bindings::CTRL),
+            (self.alt, words::bindings::ALT),
+            (self.shift, words::bindings::SHIFT),
         ] {
             if on {
                 text.push_str(name);
@@ -151,22 +162,22 @@ impl Binding {
             };
         };
         match kind {
-            "mouse" => match rest {
-                "left" => Ok(Self::Mouse(0)),
-                "right" => Ok(Self::Mouse(1)),
-                "middle" => Ok(Self::Mouse(2)),
-                "back" => Ok(Self::Mouse(3)),
-                "forward" => Ok(Self::Mouse(4)),
+            words::bindings::MOUSE => match rest {
+                words::bindings::LEFT => Ok(Self::Mouse(0)),
+                words::bindings::RIGHT => Ok(Self::Mouse(1)),
+                words::bindings::MIDDLE => Ok(Self::Mouse(2)),
+                words::bindings::BACK => Ok(Self::Mouse(3)),
+                words::bindings::FORWARD => Ok(Self::Mouse(4)),
                 other => Err(format!("'{other}' is not a mouse button")),
             },
-            "gamepad" => {
+            words::bindings::GAMEPAD => {
                 if crate::PAD_BUTTON_NAMES.contains(&rest) {
                     Ok(Self::Pad(rest.to_string()))
                 } else {
                     Err(format!("'{rest}' is not a gamepad button"))
                 }
             }
-            "axis" => {
+            words::bindings::AXIS => {
                 let (name, half) = match rest.strip_suffix('+') {
                     Some(name) => (name, Half::Positive),
                     None => match rest.strip_suffix('-') {
@@ -183,7 +194,7 @@ impl Binding {
                     Err(format!("'{name}' is not a gamepad axis"))
                 }
             }
-            "keys" => {
+            words::bindings::KEYS => {
                 let Some((low, high)) = rest.split_once(',') else {
                     return Err(format!("'{rest}' needs two key names, as 'KeyA,KeyD'"));
                 };
@@ -612,58 +623,55 @@ pub(crate) fn install_actions(m: &mut Module<Engine>) {
     use balaur_script::Value;
 
     m.describe(&[
-        ("actions", &[], "() -> [string]", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
-        ("action_value", &[], "", "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:KeyA,KeyD` the whole range."),
-        ("action_down", &[], "", "Whether the action is held down now."),
-        ("action_just_pressed", &[], "", "Whether the action went down this frame."),
-        ("action_just_released", &[], "", "Whether the action came up this frame."),
-        ("bindings", &[], "(action: string) -> [string]", "What the action is bound to now, whether from the project or from the player's own rebinding."),
-        ("bind", &[], "(action: string, bindings: [string])", "Rebind the action to a list of bindings, spelled as `[input.actions]` spells them, replacing what it had and saving to the user data directory."),
-        ("reset_bindings", &[], "", "Drop every saved rebinding and go back to what the project declared."),
-        ("feed_action", &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
+        (ACTIONS, &[], "() -> [string]", "Every action `[input.actions]` declares, so a rebinding screen can list them."),
+        (ACTION_VALUE, &[], "", "How far the action is pushed, -1 to 1; a key answers 0 or 1, a stick or `keys:KeyA,KeyD` the whole range."),
+        (ACTION_DOWN, &[], "", "Whether the action is held down now."),
+        (ACTION_JUST_PRESSED, &[], "", "Whether the action went down this frame."),
+        (ACTION_JUST_RELEASED, &[], "", "Whether the action came up this frame."),
+        (BINDINGS, &[], "(action: string) -> [string]", "What the action is bound to now, whether from the project or from the player's own rebinding."),
+        (BIND, &[], "(action: string, bindings: [string])", "Rebind the action to a list of bindings, spelled as `[input.actions]` spells them, replacing what it had and saving to the user data directory."),
+        (RESET_BINDINGS, &[], "", "Drop every saved rebinding and go back to what the project declared."),
+        (FEED_ACTION, &[], "(name: string, value: float)", "Put a value into an action for one frame without a binding, the way a `touch_button` does; the furthest from rest wins where something else feeds the same action. Takes effect on the next tick, since actions derive at the top of one."),
     ]);
 
     // Godot's `parse_input_event` with an `InputEventAction`, and the seam a
     // `touch_button` goes through: an action gains a source without gaining a
     // binding, so a project that never mentioned touch still answers.
-    m.function(
-        "feed_action",
-        |eng: &Engine, (name, value): (String, f32)| {
-            eng.resource::<InputActions>()
-                .borrow_mut()
-                .feed(&name, value.clamp(-1.0, 1.0));
-            Ok(())
-        },
-    );
+    m.function(FEED_ACTION, |eng: &Engine, (name, value): (String, f32)| {
+        eng.resource::<InputActions>()
+            .borrow_mut()
+            .feed(&name, value.clamp(-1.0, 1.0));
+        Ok(())
+    });
     // Every declared action, so a rebinding screen can list them.
-    m.function("actions", |eng: &Engine, ()| {
+    m.function(ACTIONS, |eng: &Engine, ()| {
         let names = eng.resource::<InputActions>().borrow().names();
         Ok(Value::List(names.into_iter().map(Value::text).collect()))
     });
     // -1..1. A digital binding reads 0 or 1; `keys:KeyA,KeyD` and an axis read the
     // whole range, so one action serves a key, a stick and a d-pad at once.
-    m.function("action_value", |eng: &Engine, name: String| {
+    m.function(ACTION_VALUE, |eng: &Engine, name: String| {
         check_action(eng, &name);
         let v = eng.resource::<InputActions>().borrow().value(&name);
         Ok(v)
     });
-    m.function("action_down", |eng: &Engine, name: String| {
+    m.function(ACTION_DOWN, |eng: &Engine, name: String| {
         check_action(eng, &name);
         let v = eng.resource::<InputActions>().borrow().is_down(&name);
         Ok(v)
     });
-    m.function("action_just_pressed", |eng: &Engine, name: String| {
+    m.function(ACTION_JUST_PRESSED, |eng: &Engine, name: String| {
         check_action(eng, &name);
         let v = eng.resource::<InputActions>().borrow().just_pressed(&name);
         Ok(v)
     });
-    m.function("action_just_released", |eng: &Engine, name: String| {
+    m.function(ACTION_JUST_RELEASED, |eng: &Engine, name: String| {
         check_action(eng, &name);
         let v = eng.resource::<InputActions>().borrow().just_released(&name);
         Ok(v)
     });
     // What the action is bound to now, project declaration or rebinding both.
-    m.function("bindings", |eng: &Engine, name: String| {
+    m.function(BINDINGS, |eng: &Engine, name: String| {
         check_action(eng, &name);
         let list = eng.resource::<InputActions>().borrow().bindings(&name);
         Ok(Value::List(list.into_iter().map(Value::text).collect()))
@@ -682,7 +690,7 @@ pub(crate) fn install_actions(m: &mut Module<Engine>) {
 /// the *editor's* `project.toml`, so without this every action a played game
 /// asks for reads zero.
 pub fn declare_manifest(eng: &Engine, input: &toml::Value) -> anyhow::Result<()> {
-    if let Some(actions) = input.get("actions").and_then(toml::Value::as_table) {
+    if let Some(actions) = input.get(ACTIONS).and_then(toml::Value::as_table) {
         let mut declared = BTreeMap::new();
         for (name, value) in actions {
             let texts: Vec<&str> = match value {
@@ -709,7 +717,7 @@ pub fn declare_manifest(eng: &Engine, input: &toml::Value) -> anyhow::Result<()>
 fn install_rebinding(m: &mut Module<Engine>) {
     use balaur_script::Value;
 
-    m.function("bind", |eng: &Engine, (name, bindings): (String, Value)| {
+    m.function(BIND, |eng: &Engine, (name, bindings): (String, Value)| {
         let Value::List(many) = bindings else {
             anyhow::bail!("bindings are a list, got {}", bindings.type_name());
         };
@@ -732,7 +740,7 @@ fn install_rebinding(m: &mut Module<Engine>) {
         Ok(())
     });
     // Back to what the project declared, and the saved file with it.
-    m.function("reset_bindings", |eng: &Engine, ()| {
+    m.function(RESET_BINDINGS, |eng: &Engine, ()| {
         let actions = eng.resource::<InputActions>();
         actions.borrow_mut().reset(|| load(eng));
         save_rebindings(eng, &actions.borrow());

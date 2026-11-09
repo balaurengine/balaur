@@ -1,0 +1,8 @@
+// The fields of a form control.
+
+internal const ON_CHANGE: str = "on_change";
+internal const ON_SUBMIT: str = "on_submit";
+internal const PLACEHOLDER: str = "placeholder";
+internal const QUERY: str = "query";
+internal const ROWS_H: str = "rows_h";
+internal const SHORTCUT: str = "shortcut";

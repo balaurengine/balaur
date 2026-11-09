@@ -8,7 +8,13 @@ use super::install_runtime;
 use crate::PhysicsState3d;
 use crate::scalar::{self, Real, Vector};
 use crate::shared::softbody::Family;
+use crate::vocabulary::words;
 use crate::vocabulary::{component as c, keys as k};
+
+const SOFTBODY_DIHEDRAL: &str = "softbody_dihedral";
+const SOFTBODY_DIHEDRALS: &str = "softbody_dihedrals";
+const SOFTBODY_REST_VOLUME: &str = "softbody_rest_volume";
+const SOFTBODY_VOLUME: &str = "softbody_volume";
 
 /// What a script may ask a soft body and do to it; the calls on particles,
 /// forces and edges are `install_runtime`.
@@ -19,38 +25,41 @@ pub(crate) fn install_softbody_api(m: &mut Module<Engine>) {
         "Everything one bending hinge holds, angles in radians; `plastic_set` is how far its rest angle has flowed from the one it was built with.",
     )]);
     m.describe(&[
-        ("softbody_volume", &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed."),
-        ("softbody_rest_volume", &[c::SOFTBODY_3D], "", "How much they enclose at rest."),
-        ("softbody_center", &[c::SOFTBODY_3D], "(node: node) -> Vec3", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
-        ("softbody_dihedrals", &[c::SOFTBODY_3D], "(node: node) -> [[int]]", "Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles."),
-        ("softbody_dihedral", &[c::SOFTBODY_3D], "(node: node, index: int) -> SoftDihedral", "Everything one hinge holds."),
+        (SOFTBODY_VOLUME, &[c::SOFTBODY_3D], "", "How much space the body and every piece torn off it enclose right now, against `softbody_rest_volume` for how far it is squeezed."),
+        (SOFTBODY_REST_VOLUME, &[c::SOFTBODY_3D], "", "How much they enclose at rest."),
+        (words::functions::SOFTBODY_CENTER, &[c::SOFTBODY_3D], "(node: node) -> Vec3", "The centre of mass of the body and its pieces, which is where it is when a deformable body has no one position."),
+        (SOFTBODY_DIHEDRALS, &[c::SOFTBODY_3D], "(node: node) -> [[int]]", "Every bending hinge between two surface triangles, as four particle indices: the shared edge, then the two opposite particles."),
+        (SOFTBODY_DIHEDRAL, &[c::SOFTBODY_3D], "(node: node, index: int) -> SoftDihedral", "Everything one hinge holds."),
     ]);
-    m.function("softbody_volume", |eng: &Engine, node: NodeId| {
+    m.function(SOFTBODY_VOLUME, |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {
             Ok(bodies.iter().map(|(b, _)| b.volume()).sum::<f32>())
         })
     });
-    m.function("softbody_rest_volume", |eng: &Engine, node: NodeId| {
+    m.function(SOFTBODY_REST_VOLUME, |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {
             Ok(bodies.iter().map(|(b, _)| b.rest_volume()).sum::<f32>())
         })
     });
-    m.function("softbody_center", |eng: &Engine, node: NodeId| {
-        with_family(eng, node, |bodies| {
-            let mass: Real = bodies.iter().map(|(b, _)| b.mass()).sum();
-            let weighted: Vector = bodies
-                .iter()
-                .map(|(b, _)| b.center_of_mass() * b.mass())
-                .sum();
-            let center = if mass > 0.0 {
-                weighted / mass
-            } else {
-                Vector::ZERO
-            };
-            Ok(balaur_script::Value::Vec3(scalar::a3(center)))
-        })
-    });
-    m.function("softbody_dihedrals", |eng: &Engine, node: NodeId| {
+    m.function(
+        words::functions::SOFTBODY_CENTER,
+        |eng: &Engine, node: NodeId| {
+            with_family(eng, node, |bodies| {
+                let mass: Real = bodies.iter().map(|(b, _)| b.mass()).sum();
+                let weighted: Vector = bodies
+                    .iter()
+                    .map(|(b, _)| b.center_of_mass() * b.mass())
+                    .sum();
+                let center = if mass > 0.0 {
+                    weighted / mass
+                } else {
+                    Vector::ZERO
+                };
+                Ok(balaur_script::Value::Vec3(scalar::a3(center)))
+            })
+        },
+    );
+    m.function(SOFTBODY_DIHEDRALS, |eng: &Engine, node: NodeId| {
         with_family(eng, node, |bodies| {
             let mut out = Vec::new();
             for (body, offset) in bodies {
@@ -67,7 +76,7 @@ pub(crate) fn install_softbody_api(m: &mut Module<Engine>) {
         })
     });
     m.function(
-        "softbody_dihedral",
+        SOFTBODY_DIHEDRAL,
         |eng: &Engine, (node, index): (NodeId, i64)| {
             with_family(eng, node, |bodies| {
                 let mut left = usize::try_from(index)

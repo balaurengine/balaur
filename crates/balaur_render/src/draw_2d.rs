@@ -14,6 +14,13 @@ use balaur_script::{Module, Value};
 
 use crate::vocabulary::keys as k;
 
+const DRAW_ARC_2D: &str = "draw_arc_2d";
+const DRAW_CIRCLE_2D: &str = "draw_circle_2d";
+const DRAW_POLYGON_2D: &str = "draw_polygon_2d";
+const DRAW_POLYLINE_2D: &str = "draw_polyline_2d";
+const DRAW_RECT_2D: &str = "draw_rect_2d";
+const DRAW_TEXTURE_2D: &str = "draw_texture_2d";
+
 /// One shape, in world units, with a colour as channel floats.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Draw2d {
@@ -178,12 +185,12 @@ type TextureArgs = (String, f32, f32, f32, f32, Option<Value>, Option<Value>);
 
 pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("draw_circle_2d", &[], "(x: float, y: float, radius: float, color: Color?, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
-        ("draw_rect_2d", &[], "(x: float, y: float, width: float, height: float, color: Color?, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
-        ("draw_arc_2d", &[], "(x: float, y: float, radius: float, from: float, to: float, width: float?, color: Color?, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_polygon_2d", &[], "(points: [Vec2], color: Color?, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
-        ("draw_polyline_2d", &[], "(points: [Vec2], width: float?, color: Color?, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
-        ("draw_texture_2d", &[], "(path: string, x: float, y: float, width: float, height: float, color: Color?, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
+        (DRAW_CIRCLE_2D, &[], "(x: float, y: float, radius: float, color: Color?, opts: DrawOptions?)", "Fill a circle in world units for this frame, over everything the scene drew; `opts.z_index` places it among the nodes of that index instead."),
+        (DRAW_RECT_2D, &[], "(x: float, y: float, width: float, height: float, color: Color?, opts: DrawOptions?)", "Fill a rectangle centred at a point, in world units, for this frame; `opts` takes `z_index`."),
+        (DRAW_ARC_2D, &[], "(x: float, y: float, radius: float, from: float, to: float, width: float?, color: Color?, opts: DrawOptions?)", "Stroke an arc between two angles in radians, counter-clockwise from the x axis, for this frame; width is in pixels, and `opts` takes `z_index`."),
+        (DRAW_POLYGON_2D, &[], "(points: [Vec2], color: Color?, opts: DrawOptions?)", "Fill a convex outline of world-space points for this frame; `geometry2d` cuts a concave one into triangles first. `opts` takes `z_index`."),
+        (DRAW_POLYLINE_2D, &[], "(points: [Vec2], width: float?, color: Color?, opts: DrawOptions?)", "Stroke a chain of world-space points for this frame; width is in pixels, and `opts` takes `z_index`."),
+        (DRAW_TEXTURE_2D, &[], "(path: string, x: float, y: float, width: float, height: float, color: Color?, opts: TextureOptions?)", "Draw a project image over a rectangle centred at a point, in world units, for this frame; the colour tints it. `opts` takes `z_index`, and `region_origin` and `region_size` in the image's pixels for part of it."),
     ]);
     m.records(&[
         (
@@ -198,7 +205,7 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
         ),
     ]);
     m.function(
-        "draw_circle_2d",
+        DRAW_CIRCLE_2D,
         |eng: &Engine,
          (x, y, radius, color, opts): (f32, f32, f32, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Circle {
@@ -210,7 +217,7 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "draw_rect_2d",
+        DRAW_RECT_2D,
         |eng: &Engine,
          (x, y, w, h, color, opts): (f32, f32, f32, f32, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Rect {
@@ -222,7 +229,7 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "draw_arc_2d",
+        DRAW_ARC_2D,
         |eng: &Engine, (x, y, radius, from, to, width, color, opts): ArcArgs| {
             let shape = Draw2d::Arc {
                 center: [x, y],
@@ -237,7 +244,7 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
     );
     install_outline_api(m);
     m.function(
-        "draw_texture_2d",
+        DRAW_TEXTURE_2D,
         |eng: &Engine, (path, x, y, w, h, color, opts): TextureArgs| {
             let options = options_of(opts, true)?;
             let shape = Draw2d::Texture {
@@ -258,7 +265,7 @@ pub(crate) fn install_draw_2d_api(m: &mut Module<Engine>) {
 /// stroked chain of points.
 fn install_outline_api(m: &mut Module<Engine>) {
     m.function(
-        "draw_polygon_2d",
+        DRAW_POLYGON_2D,
         |eng: &Engine, (points, color, opts): (Value, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Polygon {
                 points: points_of(&points)?,
@@ -268,7 +275,7 @@ fn install_outline_api(m: &mut Module<Engine>) {
         },
     );
     m.function(
-        "draw_polyline_2d",
+        DRAW_POLYLINE_2D,
         |eng: &Engine,
          (points, width, color, opts): (Value, Option<f32>, Option<Value>, Option<Value>)| {
             let shape = Draw2d::Polyline {

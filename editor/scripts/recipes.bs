@@ -9,6 +9,36 @@ use model;
 use newnode;
 use selection;
 use util;
+use words::asset_kinds;
+use words::components;
+use words::fields;
+use words::geometry_fields;
+use words::inspector_fields;
+use words::project_fields;
+use words::roles;
+use words::schema_fields;
+use words::tools;
+
+const COLLIDER2D: str = "collider2d";
+const COLLIDER3D: str = "collider3d";
+const SOFTBODY2D: str = "softbody2d";
+const SOFTBODY3D: str = "softbody3d";
+const CONVEX_DECOMPOSITION2D: str = "convex_decomposition2d";
+const CONVEX_DECOMPOSITION3D: str = "convex_decomposition3d";
+const EXPORT: str = "export";
+const MATERIAL: str = "material";
+const MESH_COLLIDER2D: str = "mesh_collider2d";
+const MESH_COLLIDER3D: str = "mesh_collider3d";
+const POLYGON: str = "polygon";
+const SHAPE: str = "shape";
+const SOFT_CIRCLE2D: str = "soft_circle2d";
+const SOFT_GRID2D: str = "soft_grid2d";
+const SOFT_GRID3D: str = "soft_grid3d";
+const SOFT_SPHERE3D: str = "soft_sphere3d";
+const SOFT_VOLUMETRIC2D: str = "soft_volumetric2d";
+const TARGET: str = "target";
+const CELL_SIZE: str = "cell_size";
+const INDICES: str = "indices";
 
 /// A preset the selected node can be changed to, and what the change makes.
 pub struct Target {
@@ -19,7 +49,7 @@ pub struct Target {
 
 // The keys a recipe reads off the components it converts.
 const TEXTURE: str = "texture";
-const PIXELS_PER_UNIT: str = "pixels_per_unit";
+internal const PIXELS_PER_UNIT: str = "pixels_per_unit";
 const SIZE: str = "size";
 const RADIUS: str = "radius";
 const COLOR: str = "color";
@@ -28,25 +58,25 @@ const MESH: str = "mesh";
 // What a soft body replaces on a node: the rigid body and its shape.
 fn rigid(two_d: bool) -> [str] {
     if two_d {
-        ["body2d", "collider2d", "mesh_collider2d", "convex_decomposition2d", "character2d"]
+        [components::BODY2D, "collider2d", MESH_COLLIDER2D, CONVEX_DECOMPOSITION2D, components::CHARACTER2D]
     } else {
-        ["body3d", "collider3d", "mesh_collider3d", "convex_decomposition3d", "character3d"]
+        [components::BODY3D, "collider3d", MESH_COLLIDER3D, CONVEX_DECOMPOSITION3D, components::CHARACTER3D]
     }
 }
 
 // The components that sit beside `component` and mean nothing without it.
 fn beside_of(component: str) -> [str] {
-    if component == "collider2d" {
-        return ["mesh_collider2d", "convex_decomposition2d"];
+    if component == COLLIDER2D {
+        return [MESH_COLLIDER2D, CONVEX_DECOMPOSITION2D];
     }
-    if component == "collider3d" {
-        return ["mesh_collider3d", "convex_decomposition3d"];
+    if component == COLLIDER3D {
+        return [MESH_COLLIDER3D, CONVEX_DECOMPOSITION3D];
     }
-    if component == "softbody2d" {
-        return ["soft_grid2d", "soft_circle2d", "soft_rope2d", "soft_outline2d", "soft_polyline2d", "soft_volumetric2d", "soft_custom2d"];
+    if component == SOFTBODY2D {
+        return [SOFT_GRID2D, SOFT_CIRCLE2D, "soft_rope2d", "soft_outline2d", "soft_polyline2d", SOFT_VOLUMETRIC2D, "soft_custom2d"];
     }
-    if component == "softbody3d" {
-        return ["soft_grid3d", "soft_sphere3d", "soft_cloth_tube3d", "soft_rope3d", "soft_volumetric3d", "soft_custom3d"];
+    if component == SOFTBODY3D {
+        return [SOFT_GRID3D, SOFT_SPHERE3D, "soft_cloth_tube3d", "soft_rope3d", "soft_volumetric3d", "soft_custom3d"];
     }
     return [];
 }
@@ -62,17 +92,17 @@ fn take_off(node: any, component: str) {
 // is. A new type replaces what the node holds from each group it fills.
 fn groups() -> [[str]] {
     [
-        ["sprite", "shape2d", "line2d", "polygon", "text2d", "tilemap"],
-        ["mesh", "shape3d", "text3d"],
-        ["body2d", "softbody2d", "character2d"],
-        ["body3d", "softbody3d", "character3d", "vehicle3d"],
+        [components::SPRITE, components::SHAPE2D, components::LINE2D, POLYGON, "text2d", components::TILEMAP],
+        ["mesh", components::SHAPE3D, components::TEXT3D],
+        [components::BODY2D, "softbody2d", components::CHARACTER2D],
+        [components::BODY3D, "softbody3d", components::CHARACTER3D, "vehicle3d"],
     ]
 }
 
 // Properties that mean the same on every member of a group, carried from the
 // component a new type replaces when the new one has them.
 fn carried() -> [str] {
-    ["color", "texture", "material"]
+    ["color", "texture", MATERIAL]
 }
 
 // The presets a recipe builds better than their plain parts would.
@@ -84,26 +114,26 @@ const POLYGON_2D: str = "polygon2d";
 /// nil when the node draws nothing a soft body can be made of.
 pub fn soft_body_source(state: editor::State, index: int) -> str? {
     let node = model::row_of(model::node(state, index));
-    let usable = if node.has("sprite") {
-        sprite_convertible(node["sprite"])
-    } else if node.has("shape2d") {
-        shape2d_kind(node["shape2d"]) != ""
-    } else if node.has("shape3d") && mesh_source(node) == nil {
-        shape3d_kind(node["shape3d"]) != ""
+    let usable = if node.has(components::SPRITE) {
+        sprite_convertible(node[components::SPRITE])
+    } else if node.has(components::SHAPE2D) {
+        shape2d_kind(node[components::SHAPE2D]) != ""
+    } else if node.has(components::SHAPE3D) && mesh_source(node) == nil {
+        shape3d_kind(node[components::SHAPE3D]) != ""
     } else {
         true
     };
     if !usable {
         return nil;
     }
-    let word = if node.has("sprite") {
-        "sprite"
-    } else if node.has("polygon") {
-        "polygon"
-    } else if node.has("shape2d") || node.has("shape3d") && mesh_source(node) == nil {
-        "shape"
+    let word = if node.has(components::SPRITE) {
+        components::SPRITE
+    } else if node.has(POLYGON) {
+        tools::POLYGON
+    } else if node.has(components::SHAPE2D) || node.has(components::SHAPE3D) && mesh_source(node) == nil {
+        SHAPE
     } else if mesh_source(node) != nil {
-        "mesh"
+        MESH
     } else {
         ""
     };
@@ -136,7 +166,7 @@ fn soft_parts(state: editor::State, index: int) -> any {
 fn make_soft(state: &mut editor::State, index: int, parts: any) -> bool {
     let found = model::node(state, index);
     let node = model::row_of(found);
-    let source = soft_body_source(state, index).or("shape");
+    let source = soft_body_source(state, index).or(SHAPE);
     replace(node, rigid(is_2d_source(node)), parts);
     model::write_row(found, node);
     selection::only(state, index);
@@ -145,7 +175,7 @@ fn make_soft(state: &mut editor::State, index: int, parts: any) -> bool {
 }
 
 fn is_2d_source(node: any) -> bool {
-    node.has("sprite") || node.has("polygon") || node.has("shape2d")
+    node.has(components::SPRITE) || node.has(POLYGON) || node.has(components::SHAPE2D)
 }
 
 /// What row `index` can be changed to: every preset of its kind (2D, 3D or UI)
@@ -240,19 +270,19 @@ fn switch(node: any, parts: any) {
     }
     // A soft body collides as its own particles; a rigid shape beside it
     // would be a second body in the same place.
-    if parts.has("softbody2d") {
-        take_off(node, "collider2d");
+    if parts.has(SOFTBODY2D) {
+        take_off(node, COLLIDER2D);
     }
-    if parts.has("softbody3d") {
-        take_off(node, "collider3d");
+    if parts.has(SOFTBODY3D) {
+        take_off(node, COLLIDER3D);
     }
 }
 
 // A collider the change added, shaped to what the node draws rather than the
 // unit square a bare one is.
 fn fit_collider(state: editor::State, node: any, component: str, parts: any) {
-    let two_d = component == "collider2d";
-    if !two_d && component != "collider3d" {
+    let two_d = component == COLLIDER2D;
+    if !two_d && component != COLLIDER3D {
         return;
     }
     let shape = if two_d { fitted_2d(state, node) } else { fitted_3d(node, parts) };
@@ -260,40 +290,40 @@ fn fit_collider(state: editor::State, node: any, component: str, parts: any) {
         return;
     }
     let own = util::map_or_empty(node[component]);
-    own["shape"] = shape;
+    own[schema_fields::SHAPE] = shape;
     node[component] = own;
 }
 
 fn fitted_2d(state: editor::State, node: any) -> any {
-    if node.has("shape2d") {
-        let shape = node["shape2d"];
+    if node.has(components::SHAPE2D) {
+        let shape = node[components::SHAPE2D];
         if shape2d_kind(shape) == render::SHAPE_CIRCLE {
-            return { "kind": physics2d::SHAPE_CIRCLE, "radius": or_float(form(shape)[RADIUS], 0.5) };
+            return { fields::KIND: physics2d::SHAPE_CIRCLE, RADIUS: or_float(form(shape)[RADIUS], 0.5) };
         }
-        return { "kind": physics2d::SHAPE_RECTANGLE, "size": util::list2_or(form(shape)[SIZE], [1.0, 1.0]) };
+        return { fields::KIND: physics2d::SHAPE_RECTANGLE, SIZE: util::list2_or(form(shape)[SIZE], [1.0, 1.0]) };
     }
     let mesh = outline_2d(state, node, true);
     if mesh == nil {
         return nil;
     }
-    { "kind": physics2d::SHAPE_CONVEX_DECOMPOSITION, "mesh": mesh }
+    { fields::KIND: physics2d::SHAPE_CONVEX_DECOMPOSITION, MESH: mesh }
 }
 
 fn fitted_3d(node: any, parts: any) -> any {
-    let static_body = util::map_or_empty(parts["body3d"])["kind"].as_str() == physics3d::BODY_STATIC;
+    let static_body = util::map_or_empty(parts[components::BODY3D])[fields::KIND].as_str() == physics3d::BODY_STATIC;
     let source = mesh_source(node);
     if source != nil {
         let kind = if static_body { physics3d::SHAPE_TRIANGLE_MESH } else { physics3d::SHAPE_CONVEX_HULL };
-        return { "kind": kind, "mesh": source };
+        return { fields::KIND: kind, MESH: source };
     }
-    if !node.has("shape3d") {
+    if !node.has(components::SHAPE3D) {
         return nil;
     }
-    let shape = node["shape3d"];
+    let shape = node[components::SHAPE3D];
     if shape3d_kind(shape) == render::SHAPE_SPHERE {
-        return { "kind": physics3d::SHAPE_SPHERE, "radius": or_float(form(shape)[RADIUS], 0.5) };
+        return { fields::KIND: physics3d::SHAPE_SPHERE, RADIUS: or_float(form(shape)[RADIUS], 0.5) };
     }
-    { "kind": physics3d::SHAPE_BOX, "size": util::list3_or(form(shape)[SIZE], [1.0, 1.0, 1.0]) }
+    { fields::KIND: physics3d::SHAPE_BOX, SIZE: util::list3_or(form(shape)[SIZE], [1.0, 1.0, 1.0]) }
 }
 
 // A number a table states, or `fallback` where it states none.
@@ -303,28 +333,28 @@ fn or_float(value: any, fallback: float) -> float {
 
 // A mesh as a polygon or a collider names it: an inline table, or a path.
 fn names_mesh(mesh: any) -> bool {
-    mesh.kind() == "map" || mesh.kind() == "str" && mesh.as_str() != ""
+    mesh.kind() == types::KIND_MAP || mesh.kind() == types::KIND_STRING && mesh.as_str() != ""
 }
 
 // The outline a 2D node draws, as a mesh: its polygon's own, its sprite's
 // traced, or its shape's corners; nil for none. `trace` false only says
 // whether there is one, without tracing an image.
 fn outline_2d(state: editor::State, node: any, trace: bool) -> any {
-    if node.has("polygon") {
-        let mesh = node["polygon"][MESH];
+    if node.has(POLYGON) {
+        let mesh = node[POLYGON][MESH];
         if names_mesh(mesh) {
             return mesh;
         }
     }
-    if node.has("sprite") && sprite_convertible(node["sprite"]) {
+    if node.has(components::SPRITE) && sprite_convertible(node[components::SPRITE]) {
         if !trace {
             return {};
         }
-        let polygon = sprite_polygon(state, node["sprite"]);
-        return if polygon == nil { nil } else { polygon["mesh"] };
+        let polygon = sprite_polygon(state, node[components::SPRITE]);
+        return if polygon == nil { nil } else { polygon[MESH] };
     }
-    if node.has("shape2d") && shape2d_kind(node["shape2d"]) != "" {
-        return { "positions": shape_points(node["shape2d"]) };
+    if node.has(components::SHAPE2D) && shape2d_kind(node[components::SHAPE2D]) != "" {
+        return { geometry_fields::POSITIONS: shape_points(node[components::SHAPE2D]) };
     }
     nil
 }
@@ -353,18 +383,18 @@ fn shape_points(shape: any) -> [[float]] {
 fn to_polygon(state: &mut editor::State, index: int) -> bool {
     let found = model::node(state, index);
     let node = model::row_of(found);
-    if node.has("sprite") {
+    if node.has(components::SPRITE) {
         return sprite_to_polygon(state, index);
     }
-    let shape = node["shape2d"];
+    let shape = node[components::SHAPE2D];
     history::record(state, "make polygon");
     let color = shape[COLOR];
     let polygon: any = {
-        "mesh": { "positions": shape_points(shape) },
-        "color": if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color },
+        MESH: { geometry_fields::POSITIONS: shape_points(shape) },
+        COLOR: if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color },
     };
-    node.remove("shape2d");
-    node["polygon"] = polygon;
+    node.remove(components::SHAPE2D);
+    node[POLYGON] = polygon;
     model::write_row(found, node);
     selection::only(state, index);
     true
@@ -391,11 +421,11 @@ fn already(found: Node, parts: any) -> bool {
 // Equal, with an integer and a float of one value alike: a preset spells
 // `pinned_particles = [0]` where the component reads back `[0.0]`.
 fn same(first: any, second: any) -> bool {
-    let numbers = (first.kind() == "int" || first.kind() == "float") && (second.kind() == "int" || second.kind() == "float");
+    let numbers = (first.kind() == types::KIND_INT || first.kind() == types::KIND_FLOAT) && (second.kind() == types::KIND_INT || second.kind() == types::KIND_FLOAT);
     if numbers {
         return first.as_float() == second.as_float();
     }
-    if first.kind() == "list" && second.kind() == "list" {
+    if first.kind() == types::KIND_LIST && second.kind() == types::KIND_LIST {
         if first.len() != second.len() {
             return false;
         }
@@ -406,7 +436,7 @@ fn same(first: any, second: any) -> bool {
         }
         return true;
     }
-    if first.kind() == "str" && second.kind() == "str" || first.kind() == "bool" && second.kind() == "bool" {
+    if first.kind() == types::KIND_STRING && second.kind() == types::KIND_STRING || first.kind() == types::KIND_BOOL && second.kind() == types::KIND_BOOL {
         return first == second;
     }
     false
@@ -431,8 +461,8 @@ fn recipe_note(state: editor::State, index: int, name: str) -> str? {
         return nil;
     }
     let parts = info.unwrap().parts;
-    let collider = parts.has("collider2d") && !node.has("collider2d") || parts.has("collider3d") && !node.has("collider3d");
-    let drawn = outline_2d(state, node, false) != nil || mesh_source(node) != nil || node.has("shape3d");
+    let collider = parts.has(COLLIDER2D) && !node.has(COLLIDER2D) || parts.has(COLLIDER3D) && !node.has(COLLIDER3D);
+    let drawn = outline_2d(state, node, false) != nil || mesh_source(node) != nil || node.has(components::SHAPE3D);
     if collider && drawn {
         return "{info.unwrap().description}, its collider fitted to what it draws";
     }
@@ -444,17 +474,17 @@ fn recipe_note(state: editor::State, index: int, name: str) -> str? {
 pub fn soft_sources(state: &mut editor::State, two_d: bool) -> [newnode::Entry] {
     let out: [newnode::Entry] = [];
     if two_d {
-        out.push(source_row("Rectangle", "a block of cells", "Jelly", { "shape2d": { "shape": { "kind": render::SHAPE_RECTANGLE } } }));
-        out.push(source_row("Circle", "a ring of particles holding its area", "Blob", { "shape2d": { "shape": { "kind": render::SHAPE_CIRCLE, "radius": 0.5 } } }));
-        for rel in project_files(state, "image") {
-            out.push(source_row(rel, "traced to its opaque outline", dropin::stem_of(rel), { "sprite": { "texture": rel } }));
+        out.push(source_row("Rectangle", "a block of cells", "Jelly", { components::SHAPE2D: { schema_fields::SHAPE: { fields::KIND: render::SHAPE_RECTANGLE } } }));
+        out.push(source_row("Circle", "a ring of particles holding its area", "Blob", { components::SHAPE2D: { schema_fields::SHAPE: { fields::KIND: render::SHAPE_CIRCLE, RADIUS: 0.5 } } }));
+        for rel in project_files(state, asset_kinds::IMAGE) {
+            out.push(source_row(rel, "traced to its opaque outline", dropin::stem_of(rel), { components::SPRITE: { TEXTURE: rel } }));
         }
     } else {
-        out.push(source_row("Box", "a block of cells", "Jelly", { "shape3d": { "shape": { "kind": render::SHAPE_BOX } } }));
-        out.push(source_row("Sphere", "a ball of cells", "Blob", { "shape3d": { "shape": { "kind": render::SHAPE_SPHERE, "radius": 0.5 } } }));
-        out.push(source_row("Plane", "a sheet of cloth", "Cloth", { "shape3d": { "shape": { "kind": render::SHAPE_PLANE, "size": [2.0, 0.0, 2.0] } } }));
-        for rel in project_files(state, "model") {
-            out.push(source_row(rel, "filled with cells that carry it as a skin", dropin::stem_of(rel), { "mesh": { "source": { "source": rel } } }));
+        out.push(source_row("Box", "a block of cells", "Jelly", { components::SHAPE3D: { schema_fields::SHAPE: { fields::KIND: render::SHAPE_BOX } } }));
+        out.push(source_row("Sphere", "a ball of cells", "Blob", { components::SHAPE3D: { schema_fields::SHAPE: { fields::KIND: render::SHAPE_SPHERE, RADIUS: 0.5 } } }));
+        out.push(source_row("Plane", "a sheet of cloth", "Cloth", { components::SHAPE3D: { schema_fields::SHAPE: { fields::KIND: render::SHAPE_PLANE, SIZE: [2.0, 0.0, 2.0] } } }));
+        for rel in project_files(state, asset_kinds::MODEL) {
+            out.push(source_row(rel, "filled with cells that carry it as a skin", dropin::stem_of(rel), { MESH: { inspector_fields::SOURCE: { inspector_fields::SOURCE: rel } } }));
         }
     }
     out
@@ -512,7 +542,7 @@ pub fn is_model(rel: str) -> bool {
 
 // Directories a project keeps no source art in.
 fn skipped() -> [str] {
-    ["target", "export", "build"]
+    [TARGET, EXPORT, "build"]
 }
 
 // Far enough for `art/characters/hero/idle.png`, and a bound on a big tree.
@@ -528,9 +558,9 @@ fn project_files(state: &mut editor::State, kind: str) -> [str] {
         let next: [str] = [];
         for directory in directories {
             for entry in util::list_or_empty(model::list(state, directory)) {
-                let name = entry["name"].as_str();
+                let name = entry[fields::NAME].as_str();
                 let rel = if directory == "" { name } else { directory + "/" + name };
-                if entry["is_dir"].as_bool() {
+                if entry[project_fields::IS_DIR].as_bool() {
                     if !util::contains(skipped(), name) {
                         next.push(rel);
                     }
@@ -546,7 +576,7 @@ fn project_files(state: &mut editor::State, kind: str) -> [str] {
 }
 
 fn wanted(rel: str, kind: str) -> bool {
-    if kind == "model" { is_model(rel) } else { dropin::kind_of(rel) == "image" }
+    if kind == asset_kinds::MODEL { is_model(rel) } else { dropin::kind_of(rel) == asset_kinds::IMAGE }
 }
 
 /// Make a sprite on row `index` a polygon textured with the same image and cut
@@ -554,16 +584,16 @@ fn wanted(rel: str, kind: str) -> bool {
 pub fn sprite_to_polygon(state: &mut editor::State, index: int) -> bool {
     let found = model::node(state, index);
     let node = model::row_of(found);
-    if !node.has("sprite") {
+    if !node.has(components::SPRITE) {
         return false;
     }
-    let polygon = sprite_polygon(state, node["sprite"]);
+    let polygon = sprite_polygon(state, node[components::SPRITE]);
     if polygon == nil {
         return false;
     }
     history::record(state, "trace sprite");
-    replace(node, [], { "polygon": polygon });
-    node.remove("sprite");
+    replace(node, [], { POLYGON: polygon });
+    node.remove(components::SPRITE);
     model::write_row(found, node);
     selection::only(state, index);
     true
@@ -587,40 +617,40 @@ fn replace(node: any, gone: [str], parts: any) {
 // What a 2D node becomes: its own polygon kept and bent by cells, a sprite
 // traced into one, or a shape turned into the generator that matches it.
 fn soft_parts_2d(state: editor::State, node: any) -> any {
-    if node.has("sprite") {
-        let polygon = sprite_polygon(state, node["sprite"]);
+    if node.has(components::SPRITE) {
+        let polygon = sprite_polygon(state, node[components::SPRITE]);
         if polygon == nil {
             return nil;
         }
-        let body: any = { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": util::deep(polygon["mesh"]) };
-        let fill: any = { "cell_size": cell_size(polygon["mesh"]["positions"]) };
-        return { "-sprite": true, "softbody2d": body, "soft_volumetric2d": fill, "polygon": polygon };
+        let body: any = { fields::KIND: physics2d::SOFT_VOLUMETRIC, MESH: util::deep(polygon[MESH]) };
+        let fill: any = { CELL_SIZE: cell_size(polygon[MESH][geometry_fields::POSITIONS]) };
+        return { "-sprite": true, SOFTBODY2D: body, SOFT_VOLUMETRIC2D: fill, POLYGON: polygon };
     }
-    if node.has("polygon") {
-        let mesh = node["polygon"][MESH];
+    if node.has(POLYGON) {
+        let mesh = node[POLYGON][MESH];
         if !names_mesh(mesh) {
             log::warn("{node["name"]}'s polygon has no mesh yet: trace or draw it first");
             return nil;
         }
-        let body: any = { "kind": physics2d::SOFT_VOLUMETRIC, "mesh": util::copy(mesh) };
-        let parts: any = { "softbody2d": body };
-        if mesh.kind() == "map" {
-            parts["soft_volumetric2d"] = { "cell_size": cell_size(mesh["positions"]) };
+        let body: any = { fields::KIND: physics2d::SOFT_VOLUMETRIC, MESH: util::copy(mesh) };
+        let parts: any = { SOFTBODY2D: body };
+        if mesh.kind() == types::KIND_MAP {
+            parts[SOFT_VOLUMETRIC2D] = { CELL_SIZE: cell_size(mesh[geometry_fields::POSITIONS]) };
         }
         return parts;
     }
-    let shape = node["shape2d"];
+    let shape = node[components::SHAPE2D];
     let color = shape[COLOR];
     let tint: any = if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color };
     if shape2d_kind(shape) == render::SHAPE_RECTANGLE {
         let size = util::list2_or(form(shape)[SIZE], [1.0, 1.0]);
-        let body: any = { "kind": physics2d::SOFT_GRID, "color": tint };
-        let grid: any = { "size": size, "cells": cells_2d(size) };
-        return { "-shape2d": true, "softbody2d": body, "soft_grid2d": grid };
+        let body: any = { fields::KIND: physics2d::SOFT_GRID, COLOR: tint };
+        let grid: any = { SIZE: size, geometry_fields::CELLS: cells_2d(size) };
+        return { "-shape2d": true, SOFTBODY2D: body, SOFT_GRID2D: grid };
     }
-    let body: any = { "kind": physics2d::SOFT_CIRCLE, "color": tint };
-    let circle: any = { "radius": or_float(form(shape)[RADIUS], 0.5), "particle_count": 32 };
-    { "-shape2d": true, "softbody2d": body, "soft_circle2d": circle }
+    let body: any = { fields::KIND: physics2d::SOFT_CIRCLE, COLOR: tint };
+    let circle: any = { RADIUS: or_float(form(shape)[RADIUS], 0.5), "particle_count": 32 };
+    { "-shape2d": true, SOFTBODY2D: body, SOFT_CIRCLE2D: circle }
 }
 
 // What a 3D node becomes: a mesh the cells carry as a skin, or a shape turned
@@ -628,32 +658,32 @@ fn soft_parts_2d(state: editor::State, node: any) -> any {
 fn soft_parts_3d(node: any) -> any {
     let source = mesh_source(node);
     if source != nil {
-        return { "softbody3d": { "kind": physics3d::SOFT_VOLUMETRIC, "mesh": source }, "soft_skin3d": { "skin": true } };
+        return { SOFTBODY3D: { fields::KIND: physics3d::SOFT_VOLUMETRIC, MESH: source }, components::SOFT_SKIN3D: { geometry_fields::SKIN: true } };
     }
-    let shape = node["shape3d"];
+    let shape = node[components::SHAPE3D];
     let color = shape[COLOR];
     let tint: any = if color == nil { [0.8, 0.8, 0.8, 1.0] } else { color };
     let kind = shape3d_kind(shape);
     if kind == render::SHAPE_SPHERE {
-        let body: any = { "kind": physics3d::SOFT_SPHERE, "color": tint };
-        let sphere: any = { "radius": or_float(form(shape)[RADIUS], 0.5) };
-        return { "-shape3d": true, "softbody3d": body, "soft_sphere3d": sphere };
+        let body: any = { fields::KIND: physics3d::SOFT_SPHERE, COLOR: tint };
+        let sphere: any = { RADIUS: or_float(form(shape)[RADIUS], 0.5) };
+        return { "-shape3d": true, SOFTBODY3D: body, SOFT_SPHERE3D: sphere };
     }
     let size = util::list3_or(form(shape)[SIZE], [1.0, 1.0, 1.0]);
     if kind == render::SHAPE_PLANE {
-        let body: any = { "kind": physics3d::SOFT_CLOTH, "color": tint };
-        let grid: any = { "size": [size[0], 0.0, size[2]], "cells": [12.0, 12.0, 1.0] };
-        return { "-shape3d": true, "softbody3d": body, "soft_grid3d": grid };
+        let body: any = { fields::KIND: physics3d::SOFT_CLOTH, COLOR: tint };
+        let grid: any = { SIZE: [size[0], 0.0, size[2]], geometry_fields::CELLS: [12.0, 12.0, 1.0] };
+        return { "-shape3d": true, SOFTBODY3D: body, SOFT_GRID3D: grid };
     }
-    let body: any = { "kind": physics3d::SOFT_BOX, "color": tint };
-    let grid: any = { "size": size, "cells": [4.0, 4.0, 4.0] };
-    { "-shape3d": true, "softbody3d": body, "soft_grid3d": grid }
+    let body: any = { fields::KIND: physics3d::SOFT_BOX, COLOR: tint };
+    let grid: any = { SIZE: size, geometry_fields::CELLS: [4.0, 4.0, 4.0] };
+    { "-shape3d": true, SOFTBODY3D: body, SOFT_GRID3D: grid }
 }
 
 // A sprite drawn from one whole image converts; one cut from a sheet or a
 // region is a frame of an image, which a trace of the whole would not match.
 fn sprite_convertible(sprite: any) -> bool {
-    sprite[TEXTURE].as_str() != "" && sprite["sheet"].as_str() == "" && sprite["region_size"] == nil
+    sprite[TEXTURE].as_str() != "" && sprite[roles::SHEET].as_str() == "" && sprite["region_size"] == nil
 }
 
 // The polygon a sprite becomes: the image's opaque outline, traced at the
@@ -667,18 +697,18 @@ fn sprite_polygon(state: editor::State, sprite: any) -> any {
     let texture = sprite[TEXTURE].as_str();
     let pixels_per_unit = drawn_scale(state, sprite, texture);
     // Every loop, so an image of two shapes gives both; `islands` drops the holes.
-    let options: any = { "pixels_per_unit": pixels_per_unit, "threshold": 0.5, "tolerance": 2.0, "holes": true };
+    let options: any = { PIXELS_PER_UNIT: pixels_per_unit, "threshold": 0.5, "tolerance": 2.0, "holes": true };
     let mesh = islands(sprite, render::trace_texture(state.game_root + "/" + texture, options));
-    if mesh["indices"].len() == 0 {
+    if mesh[INDICES].len() == 0 {
         log::warn("{texture} has no opaque pixels to trace");
         return nil;
     }
     let color = sprite[COLOR];
     {
-        "mesh": mesh,
-        "texture": texture,
-        "pixels_per_unit": pixels_per_unit,
-        "color": if color == nil { [1.0, 1.0, 1.0, 1.0] } else { color },
+        MESH: mesh,
+        TEXTURE: texture,
+        PIXELS_PER_UNIT: pixels_per_unit,
+        COLOR: if color == nil { [1.0, 1.0, 1.0, 1.0] } else { color },
     }
 }
 
@@ -706,7 +736,7 @@ fn islands(sprite: any, loops: [[Vec2]]) -> any {
             positions.push(point);
         }
     }
-    { "positions": positions, "indices": indices }
+    { geometry_fields::POSITIONS: positions, INDICES: indices }
 }
 
 // The pixels a world unit holds where the sprite is drawn: its own setting, a
@@ -767,18 +797,18 @@ fn cells_2d(size: [float]) -> [float] {
 
 // A shape component's `shape`: its kind and the dimensions that kind reads.
 fn form(shape: any) -> any {
-    util::map_or_empty(shape["shape"])
+    util::map_or_empty(shape[schema_fields::SHAPE])
 }
 
 // A shape's kind when a recipe converts it, "" when it does not.
 fn shape2d_kind(shape: any) -> str {
-    let held = form(shape)["kind"];
+    let held = form(shape)[fields::KIND];
     let kind = if held == nil { render::SHAPE_RECTANGLE } else { held.as_str() };
     if kind == render::SHAPE_RECTANGLE || kind == render::SHAPE_CIRCLE { kind } else { "" }
 }
 
 fn shape3d_kind(shape: any) -> str {
-    let held = form(shape)["kind"];
+    let held = form(shape)[fields::KIND];
     let kind = if held == nil { render::SHAPE_BOX } else { held.as_str() };
     if kind == render::SHAPE_BOX || kind == render::SHAPE_SPHERE || kind == render::SHAPE_PLANE { kind } else { "" }
 }
@@ -786,6 +816,6 @@ fn shape3d_kind(shape: any) -> str {
 // The mesh asset a 3D node draws, when it draws one from a file; nil if not.
 fn mesh_source(node: any) -> any {
     let mesh = node[MESH];
-    let source = if mesh.kind() == "map" { mesh["source"] } else { mesh };
+    let source = if mesh.kind() == types::KIND_MAP { mesh[inspector_fields::SOURCE] } else { mesh };
     if names_mesh(source) { source } else { nil }
 }

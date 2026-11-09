@@ -13,6 +13,14 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 
 use crate::config::{ExportConfig, WindowsConfig, secret, secret_or};
+use crate::vocabulary::words;
+
+const CODESIGN: &str = "codesign";
+const DITTO: &str = "ditto";
+const OSSLSIGNCODE: &str = "osslsigncode";
+const PRODUCTBUILD: &str = "productbuild";
+const SHA256: &str = "sha256";
+const ZIP: &str = "zip";
 
 /// Run a signing tool, and fail with what it printed rather than a status.
 ///
@@ -83,8 +91,11 @@ fn nested_code(bundle: &Path) -> Vec<PathBuf> {
             .map(|e| e.path())
             .filter(|p| {
                 p.is_dir()
-                    || p.extension()
-                        .is_some_and(|e| e == "dylib" || e == "so" || e == "bundle")
+                    || p.extension().is_some_and(|e| {
+                        e == words::artifacts::DYLIB
+                            || e == words::artifacts::SO
+                            || e == words::artifacts::BUNDLE
+                    })
             })
             .collect();
         // Read order is the filesystem's, and a signed bundle has to come out
@@ -101,7 +112,7 @@ fn sign_one(
     entitlements: Option<&Path>,
     hardened: bool,
 ) -> Result<()> {
-    let mut command = Command::new("codesign");
+    let mut command = Command::new(CODESIGN);
     command.args(["--force", "--sign", identity.unwrap_or("-")]);
     // Notarization refuses anything without them, and both are free on a
     // build that is never submitted.
@@ -111,7 +122,7 @@ fn sign_one(
     if let Some(entitlements) = entitlements {
         command.arg("--entitlements").arg(entitlements);
     }
-    run(command.arg(path), "codesign")?;
+    run(command.arg(path), CODESIGN)?;
     Ok(())
 }
 
@@ -121,7 +132,7 @@ pub(crate) fn verify(bundle: &Path) -> Result<()> {
         return Ok(());
     }
     run(
-        Command::new("codesign")
+        Command::new(CODESIGN)
             .args(["--verify", "--strict", "--deep"])
             .arg(bundle),
         "codesign --verify",
@@ -143,18 +154,18 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
     let issuer = secret("BALAUR_APPLE_NOTARY_ISSUER_ID")?;
     let archive = bundle.with_extension("notarize.zip");
     run(
-        Command::new("ditto")
+        Command::new(DITTO)
             .args(["-c", "-k", "--keepParent"])
             .arg(bundle)
             .arg(&archive),
-        "ditto",
+        DITTO,
     )?;
     tracing::info!(
         "notarizing {} — Apple's queue decides how long",
         bundle.display()
     );
     let said = run(
-        Command::new("xcrun")
+        Command::new(words::native::XCRUN)
             .args(["notarytool", "submit"])
             .arg(&archive)
             .args(["--key", &key, "--key-id", &key_id, "--issuer", &issuer])
@@ -167,7 +178,7 @@ pub(crate) fn notarize(bundle: &Path) -> Result<()> {
         bail!("the notary service did not accept the build:\n{said}");
     }
     run(
-        Command::new("xcrun")
+        Command::new(words::native::XCRUN)
             .args(["stapler", "staple"])
             .arg(bundle),
         "xcrun stapler staple",
@@ -190,14 +201,14 @@ pub(crate) fn build_ipa(app: &Path, output: &Path) -> Result<PathBuf> {
     crate::bundle::copy_dir(app, &payload.join(&name))?;
     let ipa = output.with_extension("ipa");
     let _ = std::fs::remove_file(&ipa);
-    let zip = tool("zip", "it ships with macOS and in every Linux base image")?;
+    let zip = tool(ZIP, "it ships with macOS and in every Linux base image")?;
     run(
         Command::new(zip)
             .current_dir(&staging)
             .args(["-qr", "-X"])
             .arg(absolute(&ipa)?)
             .arg("Payload"),
-        "zip",
+        ZIP,
     )?;
     std::fs::remove_dir_all(&staging)?;
     Ok(ipa)
@@ -210,12 +221,12 @@ pub(crate) fn build_pkg(app: &Path, output: &Path, identity: Option<&str>) -> Re
         bail!("--bundle pkg runs productbuild, which needs macOS");
     }
     let pkg = output.with_extension("pkg");
-    let mut command = Command::new("productbuild");
+    let mut command = Command::new(PRODUCTBUILD);
     command.arg("--component").arg(app).arg("/Applications");
     if let Some(identity) = identity {
         command.arg("--sign").arg(installer_identity(identity));
     }
-    run(command.arg(&pkg), "productbuild")?;
+    run(command.arg(&pkg), PRODUCTBUILD)?;
     Ok(pkg)
 }
 
@@ -237,11 +248,23 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &WindowsConfig) -
     let certificate = ExportConfig::beside(project, &config.certificate);
     if cfg!(windows) {
         let mut command = Command::new(tool("signtool.exe", "it ships in the Windows SDK")?);
-        command.args(["sign", "/fd", "sha256", "/tr", timestamp, "/td", "sha256"]);
+        command.args([
+            words::sign::SIGN,
+            "/fd",
+            SHA256,
+            "/tr",
+            timestamp,
+            "/td",
+            SHA256,
+        ]);
         match &certificate {
             // Azure Trusted Signing keeps the key in an HSM: since 2023 an OV
             // certificate's key cannot be a file, so this is the common path.
-            Some(path) if path.extension().is_some_and(|e| e == "json") => {
+            Some(path)
+                if path
+                    .extension()
+                    .is_some_and(|e| e == words::artifacts::JSON) =>
+            {
                 command.arg("/dlib").arg(dlib()).arg("/dmdf").arg(path);
             }
             Some(path) => {
@@ -258,11 +281,11 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &WindowsConfig) -
             certificate.context("[windows] certificate names no certificate to sign with")?;
         let signed = exe.with_extension("signed.exe");
         let mut command = Command::new(tool(
-            "osslsigncode",
+            OSSLSIGNCODE,
             "it is what signs a Windows build from a Linux or macOS runner \
              (apt install osslsigncode, brew install osslsigncode)",
         )?);
-        command.args(["sign", "-h", "sha256", "-ts", timestamp]);
+        command.args([words::sign::SIGN, "-h", SHA256, "-ts", timestamp]);
         command.arg("-pkcs12").arg(&certificate);
         command.args([
             "-pass",
@@ -270,7 +293,7 @@ pub(crate) fn sign_windows(exe: &Path, project: &Path, config: &WindowsConfig) -
         ]);
         run(
             command.arg("-in").arg(exe).arg("-out").arg(&signed),
-            "osslsigncode",
+            OSSLSIGNCODE,
         )?;
         std::fs::rename(&signed, exe)?;
     }

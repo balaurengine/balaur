@@ -8,16 +8,21 @@
 
 use editor;
 use util;
+use words::fields;
+use words::gizmo_parts;
+use words::project_fields;
+
+const BUTTON: str = "button";
 
 /// `spec`, whose edit `handler` hears with `data` and the edit: what a closure over
 /// the locals in `data` was. The Editor's `handle` makes the call.
 pub fn on(spec: ui::Control, handler: fn(&mut editor::State, any, any), data: any) -> ui::Control {
     let carried = util::copy(util::map_or_empty(data));
-    carried["fn"] = handler;
-    if spec.kind.or("") == "button" {
-        spec.on_click = "handle";
+    carried[fields::FN] = handler;
+    if spec.kind.or("") == BUTTON {
+        spec.on_click = gizmo_parts::HANDLE;
     } else {
-        spec.on_change = "handle";
+        spec.on_change = gizmo_parts::HANDLE;
     }
     spec.data = carried;
     spec
@@ -28,7 +33,7 @@ pub fn on_submit(spec: ui::Control, handler: fn(&mut editor::State, any, any), d
     let held = spec.data;
     let carried = if held == nil { data } else { held };
     let kept = util::copy(util::map_or_empty(carried));
-    kept["submit"] = handler;
+    kept[project_fields::SUBMIT] = handler;
     spec.on_submit = "handle_submit";
     spec.data = kept;
     spec

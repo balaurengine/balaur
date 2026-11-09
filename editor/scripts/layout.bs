@@ -5,9 +5,57 @@
 use center;
 use docks;
 use editor;
+use inspector;
 use signals;
 use style;
 use util;
+use words::components;
+use words::dock_fields;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::panel_keys;
+use words::project_fields;
+use words::sides;
+
+const BODY: str = "body";
+const CANVAS: str = "canvas";
+const CENTRE: str = "centre";
+const CHIPS: str = "chips";
+const HOOKS: str = "hooks";
+const HUD: str = "hud";
+const LEFTSHEET: str = "leftsheet";
+const RAILSLOT: str = "railslot";
+const RAILTOP: str = "railtop";
+const RIGHTSHEET: str = "rightsheet";
+const SHELL_WORD: str = "shell";
+const STACK: str = "stack";
+const STAGE: str = "stage";
+const STATUS: str = "status";
+const UPPER: str = "upper";
+const UPPERROW: str = "upperrow";
+const WORK: str = "work";
+const BOTTOM: str = "bottom";
+const DOCK_HEIGHT: str = "dock_height";
+const GAP: str = "gap";
+const HEAD: str = "head";
+const HEIGHT: str = "height";
+const INSPECTOR_WIDTH: str = "inspector_width";
+const LAYOUT_SHELL: str = "layout_shell";
+const LEFT: str = "left";
+const PADDING: str = "padding";
+const RIGHT: str = "right";
+const TREE_WIDTH: str = "tree_width";
+const WIDTH: str = "width";
+const ASKED: str = "asked";
+const GUTTER: str = "gutter";
+const HOOKS_WIDTH: str = "hooks_width";
+const QUIET: str = "quiet";
+const RAIL: str = "rail";
+const SENT: str = "sent";
+const SPLIT_WIDTH: str = "split_width";
+const STATUS_HEIGHT: str = "status_height";
+const TWEENS: str = "tweens";
 
 pub struct Chrome {
     width: float,
@@ -82,92 +130,92 @@ const SHELL: str = "Editor/Shell";
 const EASE_SECONDS: float = 0.16;
 
 fn rect(origin_x: float, origin_y: float, width: float, height: float) -> any {
-    { "x": origin_x, "y": origin_y, "width": width, "height": height }
+    { "x": origin_x, "y": origin_y, layout_fields::WIDTH: width, layout_fields::HEIGHT: height }
 }
 
 pub fn state() -> any {
     {
-        "bar": rect(0.0, 0.0, 0.0, 0.0),
-        "left": rect(0.0, 0.0, 0.0, 0.0),
-        "rail": rect(0.0, 0.0, 0.0, 0.0),
-        "railtop": rect(0.0, 0.0, 0.0, 0.0),
-        "right": rect(0.0, 0.0, 0.0, 0.0),
-        "bottom": rect(0.0, 0.0, 0.0, 0.0),
-        "stage": rect(0.0, 0.0, 0.0, 0.0),
-        "doc": rect(0.0, 0.0, 0.0, 0.0),
-        "chips": rect(0.0, 0.0, 0.0, 0.0),
-        "hud": rect(0.0, 0.0, 0.0, 0.0),
-        "upper": rect(0.0, 0.0, 0.0, 0.0),
-        "stage_box": rect(0.0, 0.0, 0.0, 0.0),
-        "hooks": rect(0.0, 0.0, 0.0, 0.0),
-        "split_width": 560.0,
-        "rail_room": 400.0,
-        "quiet": 0,
-        "asked": false,
-        "gutter": 0.0,
-        "gap": 0.0,
-        "padding": 0.0,
-        "tree_width": 0.0,
-        "inspector_width": 0.0,
-        "dock_height": 0.0,
-        "hooks_width": 0.0,
-        "status_height": 0.0,
-        "nodes": {},
-        "sent": {},
-        "tweens": {},
+        dock_fields::BAR: rect(0.0, 0.0, 0.0, 0.0),
+        dock_fields::LEFT: rect(0.0, 0.0, 0.0, 0.0),
+        RAIL: rect(0.0, 0.0, 0.0, 0.0),
+        RAILTOP: rect(0.0, 0.0, 0.0, 0.0),
+        dock_fields::RIGHT: rect(0.0, 0.0, 0.0, 0.0),
+        dock_fields::BOTTOM: rect(0.0, 0.0, 0.0, 0.0),
+        STAGE: rect(0.0, 0.0, 0.0, 0.0),
+        fields::DOC: rect(0.0, 0.0, 0.0, 0.0),
+        CHIPS: rect(0.0, 0.0, 0.0, 0.0),
+        HUD: rect(0.0, 0.0, 0.0, 0.0),
+        UPPER: rect(0.0, 0.0, 0.0, 0.0),
+        panel_keys::STAGE_BOX: rect(0.0, 0.0, 0.0, 0.0),
+        HOOKS: rect(0.0, 0.0, 0.0, 0.0),
+        SPLIT_WIDTH: 560.0,
+        dock_fields::RAIL_ROOM: 400.0,
+        QUIET: 0,
+        ASKED: false,
+        GUTTER: 0.0,
+        GAP: 0.0,
+        layout_fields::PADDING: 0.0,
+        TREE_WIDTH: 0.0,
+        INSPECTOR_WIDTH: 0.0,
+        DOCK_HEIGHT: 0.0,
+        HOOKS_WIDTH: 0.0,
+        STATUS_HEIGHT: 0.0,
+        inspector_fields::NODES: {},
+        SENT: {},
+        TWEENS: {},
     }
 }
 
 /// The shell's boxes, by the name `state.layout` publishes them under.
 fn node(state: editor::State, id: any) -> any {
     let layout_state: any = state.layout;
-    let found = layout_state["nodes"][id.as_str()];
+    let found = layout_state[inspector_fields::NODES][id.as_str()];
     if found != nil {
         return found;
     }
-    let path = if id.as_str() == "shell" {
+    let path = if id.as_str() == SHELL_WORD {
         SHELL
-    } else if id.as_str() == "head" {
+    } else if id.as_str() == inspector::HEAD {
         SHELL + "/Head"
-    } else if id.as_str() == "body" {
+    } else if id.as_str() == BODY {
         SHELL + "/Body"
-    } else if id.as_str() == "left" {
+    } else if id.as_str() == sides::LEFT {
         SHELL + "/Body/Left"
-    } else if id.as_str() == "leftsheet" {
+    } else if id.as_str() == LEFTSHEET {
         SHELL + "/Body/Left/LeftSheet"
-    } else if id.as_str() == "right" {
+    } else if id.as_str() == sides::RIGHT {
         SHELL + "/Body/Right"
-    } else if id.as_str() == "rightsheet" {
+    } else if id.as_str() == RIGHTSHEET {
         SHELL + "/Body/Right/RightSheet"
-    } else if id.as_str() == "centre" {
+    } else if id.as_str() == CENTRE {
         SHELL + "/Body/Centre"
-    } else if id.as_str() == "upperrow" {
+    } else if id.as_str() == UPPERROW {
         SHELL + "/Body/Centre/UpperRow"
-    } else if id.as_str() == "stack" {
+    } else if id.as_str() == STACK {
         SHELL + "/Body/Centre/UpperRow/Stack"
-    } else if id.as_str() == "upper" {
+    } else if id.as_str() == UPPER {
         SHELL + "/Body/Centre/UpperRow/Stack/Upper"
-    } else if id.as_str() == "bottom" {
+    } else if id.as_str() == sides::BOTTOM {
         SHELL + "/Body/Centre/Bottom"
-    } else if id.as_str() == "status" {
+    } else if id.as_str() == STATUS {
         SHELL + "/Body/Centre/Bottom/Status"
-    } else if id.as_str() == "railslot" {
+    } else if id.as_str() == RAILSLOT {
         SHELL + "/Body/Centre/UpperRow/RailSlot"
-    } else if id.as_str() == "rail" {
+    } else if id.as_str() == sides::RAIL {
         SHELL + "/Body/Centre/UpperRow/RailSlot/Rail"
-    } else if id.as_str() == "railtop" {
+    } else if id.as_str() == RAILTOP {
         SHELL + "/Body/Centre/UpperRow/RailSlot/RailTop"
-    } else if id.as_str() == "work" {
+    } else if id.as_str() == WORK {
         SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work"
-    } else if id.as_str() == "canvas" {
+    } else if id.as_str() == CANVAS {
         SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas"
-    } else if id.as_str() == "stage" {
+    } else if id.as_str() == STAGE {
         SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage"
-    } else if id.as_str() == "hooks" {
+    } else if id.as_str() == HOOKS {
         SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Hooks"
-    } else if id.as_str() == "chips" {
+    } else if id.as_str() == CHIPS {
         SHELL + "/Body/Centre/UpperRow/Stack/Upper/Work/Canvas/Stage/Chrome/Chips"
-    } else if id.as_str() == "hud" {
+    } else if id.as_str() == HUD {
         SHELL + "/Body/Centre/UpperRow/Hud"
     } else {
         ""
@@ -176,7 +224,7 @@ fn node(state: editor::State, id: any) -> any {
     // A miss is not remembered: one transient failure would leave the box
     // inert for the rest of the session.
     if !util::is_nil(found) {
-        layout_state["nodes"][id.as_str()] = found;
+        layout_state[inspector_fields::NODES][id.as_str()] = found;
     }
     found
 }
@@ -187,18 +235,18 @@ fn widget_of(state: editor::State, id: str) -> any {
     if util::is_nil(found) {
         return {};
     }
-    util::map_or_empty(found.as_node().get_component("widget"))
+    util::map_or_empty(found.as_node().get_component(components::WIDGET))
 }
 
 /// The shell's own gutter: the scene's number, a step tighter in a small
 /// window. Read by whoever needs the body's edge, so no two callers disagree.
 pub fn gutter(state: editor::State) -> any {
-    if state.compact { TIGHT_GUTTER } else { state.layout["gutter"] }
+    if state.compact { TIGHT_GUTTER } else { state.layout[GUTTER] }
 }
 
 /// The seam between two sheets, the gutter's own step.
 pub fn seam(state: editor::State) -> any {
-    if state.compact { TIGHT_GAP } else { state.layout["gap"] }
+    if state.compact { TIGHT_GAP } else { state.layout[GAP] }
 }
 
 /// What the shell spends on itself before a sheet gets anything: the gutter
@@ -207,19 +255,19 @@ pub fn seam(state: editor::State) -> any {
 /// the layout has already spent.
 pub fn chrome(state: editor::State) -> Chrome {
     let edges = 2.0 * gutter(state).as_float() + 2.0 * seam(state).as_float();
-    Chrome { width: edges, height: edges + state.layout["status_height"].as_float() }
+    Chrome { width: edges, height: edges + state.layout[STATUS_HEIGHT].as_float() }
 }
 
 /// What the scene states for one of a box's sizes. A `padding` is four sides
 /// in the component whatever the scene spelled, so take the first.
 fn stated(state: editor::State, id: str, key: str) -> float {
     let value = widget_of(state, id)[key];
-    if value.kind() == "list" { value[0].as_float() } else { value.as_float() }
+    if value.kind() == types::KIND_LIST { value[0].as_float() } else { value.as_float() }
 }
 
 /// One number off a theme role, or `fallback` where the role says nothing.
 fn role_number(state: editor::State, role: str, key: str, fallback: float) -> float {
-    let roles = state.theme["roles"];
+    let roles = state.theme[project_fields::ROLES];
     let found = roles[role];
     if found != nil {
         let entry = found;
@@ -237,24 +285,24 @@ fn role_number(state: editor::State, role: str, key: str, fallback: float) -> fl
 /// Nothing outside `scenes/main.toml` may spell a resting shell size.
 fn adopt(state: editor::State) {
     let layout_state: any = state.layout;
-    if layout_state["asked"].as_bool() {
+    if layout_state[ASKED].as_bool() {
         return;
     }
-    let shell = widget_of(state, "shell");
+    let shell = widget_of(state, SHELL_WORD);
     if shell.len() == 0 {
         return;
     }
     // The shell's gutter and seam are the theme's, so one file holds them and
     // a role a node takes cannot drift from the number this arithmetic uses.
-    layout_state["gutter"] = role_number(state, "layout_shell", "padding", 14.0);
-    layout_state["gap"] = role_number(state, "layout_shell", "gap", 12.0);
-    layout_state["padding"] = stated(state, "leftsheet", "padding");
-    layout_state["tree_width"] = stated(state, "left", "width");
-    layout_state["inspector_width"] = stated(state, "right", "width");
-    layout_state["status_height"] = stated(state, "status", "height");
-    layout_state["dock_height"] = stated(state, "bottom", "height") - layout_state["status_height"].as_float();
-    layout_state["hooks_width"] = stated(state, "hooks", "width");
-    layout_state["asked"] = true;
+    layout_state[GUTTER] = role_number(state, LAYOUT_SHELL, PADDING, 14.0);
+    layout_state[GAP] = role_number(state, LAYOUT_SHELL, GAP, 12.0);
+    layout_state[layout_fields::PADDING] = stated(state, LEFTSHEET, PADDING);
+    layout_state[TREE_WIDTH] = stated(state, sides::LEFT, WIDTH);
+    layout_state[INSPECTOR_WIDTH] = stated(state, sides::RIGHT, WIDTH);
+    layout_state[STATUS_HEIGHT] = stated(state, STATUS, HEIGHT);
+    layout_state[DOCK_HEIGHT] = stated(state, sides::BOTTOM, HEIGHT) - layout_state[STATUS_HEIGHT].as_float();
+    layout_state[HOOKS_WIDTH] = stated(state, HOOKS, WIDTH);
+    layout_state[ASKED] = true;
 }
 
 /// State a box's size, when it has moved. A component write rebuilds the
@@ -279,7 +327,7 @@ fn is_among(mark: str, items: [str]) -> bool {
 /// one quiet layout is the shell at rest.
 pub fn settled(state: editor::State) -> bool {
     let layout_state: any = state.layout;
-    if !layout_state["asked"].as_bool() || layout_state["quiet"].as_int() < 1 {
+    if !layout_state[ASKED].as_bool() || layout_state[QUIET].as_int() < 1 {
         return false;
     }
     !animating(state)
@@ -291,21 +339,21 @@ pub fn settled(state: editor::State) -> bool {
 pub fn watched() -> [str] {
     let out: [str] = [];
     for id in [
-        "shell",
-        "head",
-        "leftsheet",
-        "rightsheet",
-        "bottom",
-        "rail",
-        "railtop",
-        "railslot",
-        "centre",
-        "canvas",
-        "stage",
-        "hooks",
-        "upperrow",
-        "chips",
-        "hud",
+        SHELL_WORD,
+        HEAD,
+        LEFTSHEET,
+        RIGHTSHEET,
+        sides::BOTTOM,
+        sides::RAIL,
+        RAILTOP,
+        RAILSLOT,
+        CENTRE,
+        CANVAS,
+        STAGE,
+        HOOKS,
+        UPPERROW,
+        CHIPS,
+        HUD,
     ] {
         out.push(id);
     }
@@ -320,7 +368,7 @@ pub fn box_node(state: editor::State, id: str) -> any {
 /// Whether an eased box is still travelling. A tween moves the widget from
 /// the animation stage, which no UI pass follows: the shell asks for one.
 pub fn animating(state: editor::State) -> bool {
-    let tweens = state.layout["tweens"];
+    let tweens = state.layout[TWEENS];
     for mark in tweens.keys() {
         if animation::is_tween_running(tweens[mark].as_int()) {
             return true;
@@ -333,16 +381,16 @@ pub fn animating(state: editor::State) -> bool {
 fn dragged(state: editor::State, id: str, key: str, into: str) {
     let layout_state: any = state.layout;
     let mark = id + ":" + key;
-    let running = layout_state["tweens"][mark];
+    let running = layout_state[TWEENS][mark];
     if running != nil {
         if animation::is_tween_running(running.as_int()) {
             return;
         }
     }
     let now = stated(state, id, key);
-    if now > 0.0 && layout_state["sent"][mark] != now {
+    if now > 0.0 && layout_state[SENT][mark] != now {
         layout_state[into] = now;
-        layout_state["sent"][mark] = now;
+        layout_state[SENT][mark] = now;
     }
 }
 
@@ -358,7 +406,7 @@ fn held(state: editor::State, key: str, floor: float, ceiling: float) -> any {
 fn size(state: editor::State, id: str, key: str, value: any) {
     let layout_state: any = state.layout;
     let mark = id + ":" + key;
-    if layout_state["sent"][mark] == value {
+    if layout_state[SENT][mark] == value {
         return;
     }
     let found = node(state, id);
@@ -368,20 +416,20 @@ fn size(state: editor::State, id: str, key: str, value: any) {
     // The first write places the box; a later one moves it. Easing the first
     // would mean watching the shell assemble itself on every start, and so
     // would easing the corrections it takes before the shell is formed.
-    let settled = layout_state["sent"].has(mark) && state.formed;
-    layout_state["sent"][mark] = value;
-    layout_state["quiet"] = 0;
+    let settled = layout_state[SENT].has(mark) && state.formed;
+    layout_state[SENT][mark] = value;
+    layout_state[QUIET] = 0;
     if settled && eased(mark) {
-        let running = layout_state["tweens"][mark];
+        let running = layout_state[TWEENS][mark];
         if running != nil {
             animation::stop_tween(running.as_int());
         }
-        layout_state["tweens"][mark] = animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] });
+        layout_state[TWEENS][mark] = animation::tween(found.as_node(), animation::Tween { steps: [animation::Step { property: "widget/" + key, to: value, duration: EASE_SECONDS, ease: animation::EASE_OUT_CUBIC }] });
         return;
     }
-    let parameters = util::map_or_empty(found.as_node().get_component("widget"));
+    let parameters = util::map_or_empty(found.as_node().get_component(components::WIDGET));
     parameters[key] = value;
-    found.as_node().set_component("widget", parameters);
+    found.as_node().set_component(components::WIDGET, parameters);
 }
 
 /// The space between a box's children, memoised like `size`: a container's,
@@ -390,15 +438,15 @@ fn spaced(state: editor::State, id: str, gap: float) {
     let layout_state: any = state.layout;
     let mark = id + ":gap";
     let value = [gap, gap];
-    if layout_state["sent"][mark] == value {
+    if layout_state[SENT][mark] == value {
         return;
     }
     let found = node(state, id);
     if util::is_nil(found) {
         return;
     }
-    layout_state["sent"][mark] = value;
-    layout_state["quiet"] = 0;
+    layout_state[SENT][mark] = value;
+    layout_state[QUIET] = 0;
     let held = found.as_node();
     held.widget_layout.gap = vec2(gap, gap);
 }
@@ -409,15 +457,15 @@ fn show(state: editor::State, id: str, on: bool) {
     let layout_state: any = state.layout;
     let mark = id + ":visible";
     let want = if on { 1.0 } else { 0.0 };
-    if layout_state["sent"][mark] == want {
+    if layout_state[SENT][mark] == want {
         return;
     }
     let found = node(state, id);
     if util::is_nil(found) {
         return;
     }
-    layout_state["sent"][mark] = want;
-    layout_state["quiet"] = 0;
+    layout_state[SENT][mark] = want;
+    layout_state[QUIET] = 0;
     found.as_node().set_visible(on);
 }
 
@@ -441,19 +489,19 @@ pub fn sheets(state: editor::State) -> [any] {
     let layout_state: any = state.layout;
     // The status strip is inside the bottom dock, not a sheet of its own: the
     // dock already owns that rect and the pointer with it.
-    let all = [layout_state["bar"], layout_state["left"], layout_state["right"], layout_state["bottom"]];
+    let all = [layout_state[dock_fields::BAR], layout_state[dock_fields::LEFT], layout_state[dock_fields::RIGHT], layout_state[dock_fields::BOTTOM]];
     if state.rail_visible {
-        all.push(layout_state["rail"]);
+        all.push(layout_state[RAIL]);
     }
     // Over the stage rather than beside it, and each zero on a frame it did
     // not draw.
-    all.push(layout_state["chips"]);
-    all.push(layout_state["hud"]);
+    all.push(layout_state[CHIPS]);
+    all.push(layout_state[HUD]);
     if state.doc_open {
-        all.push(layout_state["doc"]);
+        all.push(layout_state[fields::DOC]);
     }
     if state.hooks_open {
-        all.push(layout_state["hooks"]);
+        all.push(layout_state[HOOKS]);
     }
     all
 }
@@ -467,129 +515,129 @@ pub fn compute(state: &mut editor::State) {
     adopt(state);
     // Before the shell tree resolves there is no size to state and no rect to
     // read; every surface guards on a zero rect and draws nothing.
-    if !layout_state["asked"].as_bool() {
+    if !layout_state[ASKED].as_bool() {
         return;
     }
     // Counted before the writes below, each of which puts it back to zero.
-    layout_state["quiet"] = layout_state["quiet"].as_float() + 1;
+    layout_state[QUIET] = layout_state[QUIET].as_float() + 1;
     // A seam the pointer moved wrote straight to the node, so the value it
     // left there is the new one to keep. A tween is this module's own doing
     // and is not mistaken for a drag.
-    dragged(state, "left", "width", "tree_width");
-    dragged(state, "right", "width", "inspector_width");
-    dragged(state, "bottom", "height", "dock_height");
+    dragged(state, sides::LEFT, WIDTH, TREE_WIDTH);
+    dragged(state, sides::RIGHT, WIDTH, INSPECTOR_WIDTH);
+    dragged(state, sides::BOTTOM, HEIGHT, DOCK_HEIGHT);
     // A seam resizes and only resizes: a dock is put away by the mark in its
     // own tab row, so a drag that reaches the floor stops there. The ceiling is
     // what the other dock and the stage leave.
-    let tree_width = side_width(state, "left", screen_width, held(state, "tree_width", LEFT_MIN, screen_width - STAGE_MIN - RIGHT_MIN).as_float());
-    let inspector_width = side_width(state, "right", screen_width, held(state, "inspector_width", RIGHT_MIN, screen_width - STAGE_MIN - tree_width).as_float());
+    let tree_width = side_width(state, sides::LEFT, screen_width, held(state, TREE_WIDTH, LEFT_MIN, screen_width - STAGE_MIN - RIGHT_MIN).as_float());
+    let inspector_width = side_width(state, sides::RIGHT, screen_width, held(state, INSPECTOR_WIDTH, RIGHT_MIN, screen_width - STAGE_MIN - tree_width).as_float());
     let tall = if docks::bottom_tall(state).as_bool() { TALL_EXTRA } else { 0.0 };
-    let body_height = held(state, "dock_height", BOTTOM_MIN, state.screen_height - layout_state["bar"]["height"].as_float() - STAGE_MIN - tall - layout_state["status_height"].as_float());
+    let body_height = held(state, DOCK_HEIGHT, BOTTOM_MIN, state.screen_height - layout_state[dock_fields::BAR][layout_fields::HEIGHT].as_float() - STAGE_MIN - tall - layout_state[STATUS_HEIGHT].as_float());
     // Minimised, the dock is gone: its handle sits beside the zoom reading,
     // the way each side dock's sits at the edge it folded towards.
-    let dock_height = if docks::folded(state, "bottom") {
+    let dock_height = if docks::folded(state, sides::BOTTOM) {
         0.0
     } else {
-        body_height.as_float() + tall + layout_state["status_height"].as_float()
+        body_height.as_float() + tall + layout_state[STATUS_HEIGHT].as_float()
     };
-    let grid = center::rail_grid(state, layout_state["rail_room"].as_float());
+    let grid = center::rail_grid(state, layout_state[dock_fields::RAIL_ROOM].as_float());
     let rail_width = if state.rail_visible { center::rail_span(grid, grid.columns) } else { 0.0 };
-    let hooks_width = if state.hooks_open { layout_state["hooks_width"].as_float() } else { 0.0 };
+    let hooks_width = if state.hooks_open { layout_state[HOOKS_WIDTH].as_float() } else { 0.0 };
     // The gutter round the shell and the seams between its sheets: a step
     // tighter in a small window, where they are most of what is on screen.
     let tight = state.compact;
-    size(state, "shell", "padding", gutter(state));
-    let gap = if tight { TIGHT_GAP } else { layout_state["gap"].as_float() };
-    for id in ["body", "centre", "upperrow", "stack", "upper", "shell"] {
+    size(state, SHELL_WORD, PADDING, gutter(state));
+    let gap = if tight { TIGHT_GAP } else { layout_state[GAP].as_float() };
+    for id in ["body", "centre", "upperrow", "stack", "upper", SHELL_WORD] {
         spaced(state, id, gap);
     }
-    size(state, "left", "width", tree_width);
-    size(state, "right", "width", inspector_width);
+    size(state, sides::LEFT, WIDTH, tree_width);
+    size(state, sides::RIGHT, WIDTH, inspector_width);
     // Folded, a side dock's whole column goes. Not the sheet inside it: a
     // box left at zero width still takes the row's gap either side of it,
     // which is what stopped the centre reaching the window's own edge.
-    for side in ["left", "right", "bottom"] {
+    for side in [LEFT, RIGHT, BOTTOM] {
         show(state, side, !docks::folded(state, side));
     }
     // One sheet at a time: a side sheet takes the whole body and the centre
     // goes, since a box left at zero width still takes the row's gap beside it.
-    show(state, "centre", !(docks::one_at_a_time(state) && docks::side_open(state)));
-    size(state, "bottom", "height", dock_height);
-    size(state, "railslot", "width", rail_width);
-    size(state, "rail", "height", center::rail_span(grid, grid.rows));
+    show(state, CENTRE, !(docks::one_at_a_time(state) && docks::side_open(state)));
+    size(state, sides::BOTTOM, HEIGHT, dock_height);
+    size(state, RAILSLOT, WIDTH, rail_width);
+    size(state, sides::RAIL, HEIGHT, center::rail_span(grid, grid.rows));
     // The folded left dock's handle sits above the tools, so the rail starts
     // below it rather than beside it.
-    size(state, "railtop", "height", docks::rail_top_height(state));
-    size(state, "hooks", "width", hooks_width);
+    size(state, RAILTOP, HEIGHT, docks::rail_top_height(state));
+    size(state, HOOKS, WIDTH, hooks_width);
     // The side docks' rule again: a zero-width box still takes its row's gap,
     // so the rail slot and the hooks list go rather than shrink.
-    show(state, "railslot", rail_width > 0.0);
-    show(state, "hooks", hooks_width > 0.0);
+    show(state, RAILSLOT, rail_width > 0.0);
+    show(state, HOOKS, hooks_width > 0.0);
     // Laid out after the frame's scripts, so a frame behind: a size that just
     // changed shows on the next one, the way `bar_fit` has always worked.
     let boxes = ShellBoxes {
-        head: box_of(state, "head"),
-        left: box_of(state, "leftsheet"),
-        right: box_of(state, "rightsheet"),
-        bottom: box_of(state, "bottom"),
-        rail: box_of(state, "rail"),
-        railtop: box_of(state, "railtop"),
-        railslot: box_of(state, "railslot"),
-        centre: box_of(state, "centre"),
-        canvas: box_of(state, "canvas"),
-        stage: box_of(state, "stage"),
-        hooks: box_of(state, "hooks"),
-        upperrow: box_of(state, "upperrow"),
-        chips: box_of(state, "chips"),
-        hud: box_of(state, "hud"),
+        head: box_of(state, HEAD),
+        left: box_of(state, LEFTSHEET),
+        right: box_of(state, RIGHTSHEET),
+        bottom: box_of(state, sides::BOTTOM),
+        rail: box_of(state, sides::RAIL),
+        railtop: box_of(state, RAILTOP),
+        railslot: box_of(state, RAILSLOT),
+        centre: box_of(state, CENTRE),
+        canvas: box_of(state, CANVAS),
+        stage: box_of(state, STAGE),
+        hooks: box_of(state, HOOKS),
+        upperrow: box_of(state, UPPERROW),
+        chips: box_of(state, CHIPS),
+        hud: box_of(state, HUD),
     };
     // The sheet is its own box now, so a folded dock's rect is the square the
     // widget layer placed rather than one this module has to work out.
-    layout_state["left"] = boxes.left;
-    layout_state["right"] = boxes.right;
-    layout_state["bottom"] = boxes.bottom;
-    layout_state["hooks"] = boxes.hooks;
-    layout_state["upper"] = boxes.upperrow;
+    layout_state[dock_fields::LEFT] = boxes.left;
+    layout_state[dock_fields::RIGHT] = boxes.right;
+    layout_state[dock_fields::BOTTOM] = boxes.bottom;
+    layout_state[HOOKS] = boxes.hooks;
+    layout_state[UPPER] = boxes.upperrow;
     // The two strips over the stage, as their nodes were laid out: a box the
     // pointer is over is chrome, not scene.
     let strips = state.viewport_live && state.stage_chrome;
     let foot = strips && !state.chrome_off;
-    layout_state["chips"] = if strips { boxes.chips } else { rect(0.0, 0.0, 0.0, 0.0) };
-    layout_state["hud"] = if foot { boxes.hud } else { rect(0.0, 0.0, 0.0, 0.0) };
-    layout_state["rail"] = boxes.rail;
-    layout_state["railtop"] = boxes.railtop;
+    layout_state[CHIPS] = if strips { boxes.chips } else { rect(0.0, 0.0, 0.0, 0.0) };
+    layout_state[HUD] = if foot { boxes.hud } else { rect(0.0, 0.0, 0.0, 0.0) };
+    layout_state[RAIL] = boxes.rail;
+    layout_state[RAILTOP] = boxes.railtop;
     // The column the rail is in, not the whole centre: the dock below takes
     // its share of the centre, and a rail measured against that overran it.
-    let column: float = if boxes.railslot["height"].as_float() > 0.0 { boxes.railslot["height"].as_float() } else { boxes.centre["height"].as_float() };
+    let column: float = if boxes.railslot[layout_fields::HEIGHT].as_float() > 0.0 { boxes.railslot[layout_fields::HEIGHT].as_float() } else { boxes.centre[layout_fields::HEIGHT].as_float() };
     // Less the folded dock's handle above it and the HUD strip under its foot.
     let hud = if state.stage_chrome && !state.chrome_off { center::hud_height(state) } else { 0.0 };
-    layout_state["rail_room"] = util::max(120.0, column - docks::rail_top_height(state) - hud);
-    layout_state["bar"] = boxes.head;
+    layout_state[dock_fields::RAIL_ROOM] = util::max(120.0, column - docks::rail_top_height(state) - hud);
+    layout_state[dock_fields::BAR] = boxes.head;
     // A document is not full-bleed: text under a sheet is unreadable. Sharing
     // with the scene puts the code on the right and the scene on the left.
     let box: Box = boxes.stage;
-    layout_state["stage_box"] = box;
+    layout_state[panel_keys::STAGE_BOX] = box;
     if state.doc_open && state.viewport_live {
-        let code_width = util::clamp(layout_state["split_width"].as_float(), 260.0, util::max(260.0, box.width - 260.0));
-        layout_state["doc"] = rect(box.x + box.width - code_width, box.y, code_width, box.height);
-        layout_state["stage"] = rect(box.x, box.y, box.width - code_width - layout_state["gap"].as_float(), box.height);
+        let code_width = util::clamp(layout_state[SPLIT_WIDTH].as_float(), 260.0, util::max(260.0, box.width - 260.0));
+        layout_state[fields::DOC] = rect(box.x + box.width - code_width, box.y, code_width, box.height);
+        layout_state[STAGE] = rect(box.x, box.y, box.width - code_width - layout_state[GAP].as_float(), box.height);
     } else if state.doc_open {
-        layout_state["doc"] = box;
-        layout_state["stage"] = box;
+        layout_state[fields::DOC] = box;
+        layout_state[STAGE] = box;
     } else {
         // Nothing to read, so the scene takes the hooks list's width too.
-        layout_state["stage"] = boxes.canvas;
-        layout_state["doc"] = layout_state["stage"];
+        layout_state[STAGE] = boxes.canvas;
+        layout_state[fields::DOC] = layout_state[STAGE];
     }
     // The scene's rect under its old name; `at` is the frame it was set on, so
     // a self-test can tell a headless run from a drawn one. An unplaced stage
     // is not published: a played game's HUD would blink out for that frame.
-    if layout_state["stage"]["width"].as_float() > 0.0 && layout_state["stage"]["height"].as_float() > 0.0 {
+    if layout_state["stage"][layout_fields::WIDTH].as_float() > 0.0 && layout_state["stage"][layout_fields::HEIGHT].as_float() > 0.0 {
         state.viewport = editor::Viewport {
-            x: layout_state["stage"]["x"].as_float(),
-            y: layout_state["stage"]["y"].as_float(),
-            width: layout_state["stage"]["width"].as_float(),
-            height: layout_state["stage"]["height"].as_float(),
+            x: layout_state[STAGE]["x"].as_float(),
+            y: layout_state[STAGE]["y"].as_float(),
+            width: layout_state[STAGE][layout_fields::WIDTH].as_float(),
+            height: layout_state[STAGE][layout_fields::HEIGHT].as_float(),
             at: state.frame,
         };
     }
@@ -637,17 +685,17 @@ const BAR_HEIGHT_GUESS: float = 43.0;
 pub fn stage_room(state: editor::State) -> Room {
     let layout_state: any = state.layout;
     let screen_width = state.screen_width;
-    let tree_width = side_width(state, "left", screen_width, util::max(layout_state["tree_width"].as_float(), LEFT_MIN));
-    let inspector_width = side_width(state, "right", screen_width, util::max(layout_state["inspector_width"].as_float(), RIGHT_MIN));
-    let dock_height = if docks::folded(state, "bottom") {
+    let tree_width = side_width(state, sides::LEFT, screen_width, util::max(layout_state[TREE_WIDTH].as_float(), LEFT_MIN));
+    let inspector_width = side_width(state, sides::RIGHT, screen_width, util::max(layout_state[INSPECTOR_WIDTH].as_float(), RIGHT_MIN));
+    let dock_height = if docks::folded(state, sides::BOTTOM) {
         0.0
     } else {
-        util::max(layout_state["dock_height"].as_float(), BOTTOM_MIN) + layout_state["status_height"].as_float()
+        util::max(layout_state[DOCK_HEIGHT].as_float(), BOTTOM_MIN) + layout_state[STATUS_HEIGHT].as_float()
     };
     // Less what the shell spends on itself: the room a rail or a chip strip
     // is offered is the room it will actually be drawn in.
     let spent = chrome(state);
-    Room { width: screen_width - tree_width - inspector_width - spent.width, height: state.screen_height - layout_state["bar"]["height"].as_float() - dock_height - spent.height }
+    Room { width: screen_width - tree_width - inspector_width - spent.width, height: state.screen_height - layout_state[dock_fields::BAR][layout_fields::HEIGHT].as_float() - dock_height - spent.height }
 }
 
 /// How wide an open side dock is: what the seam was dragged to on a screen
@@ -657,7 +705,7 @@ pub fn stage_room(state: editor::State) -> Room {
 /// 220 px column of it on a phone is a list of truncated words. The stage
 /// keeps a strip, so it is still there to go back to.
 fn side_width(state: editor::State, side: str, room: float, open_width: float) -> float {
-    if state.docks[side]["tabs"].len() == 0 || state.docks[side]["shut"].as_bool() {
+    if state.docks[side][dock_fields::TABS].len() == 0 || state.docks[side][dock_fields::SHUT].as_bool() {
         return 0.0;
     }
     // One sheet at a time takes the whole body: its own fold is the way back,
@@ -677,7 +725,7 @@ fn side_width(state: editor::State, side: str, room: float, open_width: float) -
 
 /// Whether the left and right docks are both showing a panel.
 fn both_sides_open(state: editor::State) -> bool {
-    !docks::folded(state, "left") && !docks::folded(state, "right")
+    !docks::folded(state, sides::LEFT) && !docks::folded(state, sides::RIGHT)
 }
 
 /// What one workspace pill is estimated at, for the showcase's pointer.
@@ -690,7 +738,7 @@ pub fn workspace_width(state: editor::State) -> float {
 /// against a hole in the chrome.
 pub fn over_sheet(state: editor::State, point_x: float, point_y: float) -> bool {
     for sheet in sheets(state) {
-        if sheet["width"].as_float() > 0.0 && sheet["height"].as_float() > 0.0 && point_x >= sheet["x"].as_float() && point_x <= (sheet["x"].as_float() + sheet["width"].as_float()) && point_y >= sheet["y"].as_float() && point_y <= (sheet["y"].as_float() + sheet["height"].as_float()) {
+        if sheet[layout_fields::WIDTH].as_float() > 0.0 && sheet[layout_fields::HEIGHT].as_float() > 0.0 && point_x >= sheet["x"].as_float() && point_x <= (sheet["x"].as_float() + sheet[layout_fields::WIDTH].as_float()) && point_y >= sheet["y"].as_float() && point_y <= (sheet["y"].as_float() + sheet[layout_fields::HEIGHT].as_float()) {
             return true;
         }
     }

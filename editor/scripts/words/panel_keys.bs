@@ -1,0 +1,12 @@
+// The panels and tools the editor keeps state for.
+
+internal const BONE: str = "bone";
+internal const DARK: str = "dark";
+internal const IMPORT: str = "import";
+internal const INSPECTOR: str = "inspector";
+internal const LIBRARY: str = "library";
+internal const SCENE: str = "scene";
+internal const STAGE: str = "stage";
+internal const STAGE_BOX: str = "stage_box";
+internal const TEXTURE: str = "texture";
+internal const TILES: str = "tiles";

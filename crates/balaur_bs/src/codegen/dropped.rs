@@ -3,23 +3,26 @@
 //! the names are spelled here.
 
 /// Why `name`, which the engine no longer has, is gone, and what to write.
+use crate::vocabulary::words;
+
+const RENDER: &str = "render";
 pub(crate) fn function(name: &str) -> Option<String> {
     let (module, function) = name.split_once("::")?;
     Some(match (module, function) {
-        ("export" | "import" | "release" | "forge" | "picture" | "browser" | "apple", "listen") => {
+        (words::droppable::EXPORT | words::droppable::IMPORT | words::droppable::RELEASE | words::droppable::FORGE | words::droppable::PICTURE | words::droppable::BROWSER | words::droppable::APPLE, words::droppable::LISTEN) => {
             format!(
                 "`{name}` is gone: `events::listen(node, \"{module}_event\")`, heard as `on_{module}_event`"
             )
         }
-        ("browser", "stop_listening") => {
+        (words::droppable::BROWSER, words::droppable::STOP_LISTENING) => {
             "`browser::stop_listening` is gone: `events::stop_listening(node, \"browser_event\")`"
                 .to_string()
         }
-        ("render", "set_camera") => {
+        (RENDER, words::droppable::SET_CAMERA) => {
             "`render::set_camera` is gone: a `camera3d` node looks from its position at its `look_at`"
                 .to_string()
         }
-        ("render", "set_camera_2d") => {
+        (RENDER, words::droppable::SET_CAMERA_2D) => {
             "`render::set_camera_2d` is gone: a `camera2d` node looks from its position, at its `pixels_per_unit`"
                 .to_string()
         }
@@ -34,32 +37,35 @@ pub(crate) fn answers_by_await(name: &str) -> bool {
         return false;
     };
     match module {
-        "http" => function == "request",
-        "gamend" => matches!(function, "login" | "register" | "rest"),
-        "platform" => matches!(
+        words::droppable::HTTP => function == words::droppable::REQUEST,
+        words::droppable::GAMEND => matches!(
             function,
-            "sign_in"
-                | "set_presence"
-                | "unlock"
-                | "progress"
-                | "submit_score"
-                | "scores"
-                | "cloud_read"
-                | "cloud_write"
+            words::droppable::LOGIN | words::droppable::REGISTER | words::droppable::REST
         ),
-        "apple" => matches!(
+        words::droppable::PLATFORM => matches!(
             function,
-            "identity"
-                | "sign_in"
-                | "credential_state"
-                | "show_dashboard"
-                | "request_notifications"
-                | "notify"
-                | "products"
-                | "purchase"
-                | "entitlements"
-                | "restore_purchases"
-                | "finish_purchase"
+            words::droppable::SIGN_IN
+                | words::droppable::SET_PRESENCE
+                | words::droppable::UNLOCK
+                | words::droppable::PROGRESS
+                | words::droppable::SUBMIT_SCORE
+                | words::droppable::SCORES
+                | words::droppable::CLOUD_READ
+                | words::droppable::CLOUD_WRITE
+        ),
+        words::droppable::APPLE => matches!(
+            function,
+            words::droppable::IDENTITY
+                | words::droppable::SIGN_IN
+                | words::droppable::CREDENTIAL_STATE
+                | words::droppable::SHOW_DASHBOARD
+                | words::droppable::REQUEST_NOTIFICATIONS
+                | words::droppable::NOTIFY
+                | words::droppable::PRODUCTS
+                | words::droppable::PURCHASE
+                | words::droppable::ENTITLEMENTS
+                | words::droppable::RESTORE_PURCHASES
+                | words::droppable::FINISH_PURCHASE
         ),
         _ => false,
     }

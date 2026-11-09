@@ -15,6 +15,36 @@ use shell;
 use signals;
 use util;
 use viewport;
+use words::asset_kinds;
+use words::changes;
+use words::dock_fields;
+use words::fields;
+use words::general;
+use words::layout_fields;
+use words::log_fields;
+use words::project_fields;
+use words::roles;
+use words::schema_fields;
+use words::statuses;
+use words::tabs;
+use words::theme_tokens;
+use words::verbs;
+
+const ENV: str = "env";
+const INFO: str = "info";
+const INTO: str = "into";
+const OUT: str = "out";
+const OVER: str = "over";
+internal const RENAME_TO: str = "rename_to";
+const SPAN: str = "span";
+const WARN: str = "warn";
+const INLINE: str = "inline";
+const NODE: str = "node";
+const STAGE: str = "stage";
+const WEB: str = "web";
+const WIDGET_RANGE: str = "widget_range";
+const LOCALS: str = "locals";
+const RECORDING: str = "recording";
 
 /// The log as the Output panel last filtered it, and the lines made of it:
 /// kept so a frame that logged nothing redoes none of it.
@@ -143,11 +173,11 @@ fn cost_hint(state: editor::State, room: float) -> str {
 
 // How loud an entry is, so `error` and `warn` stop looking identical.
 fn severity(level: any) -> int {
-    if level.as_str() == "error" {
+    if level.as_str() == statuses::ERROR {
         3
-    } else if level.as_str() == "warn" {
+    } else if level.as_str() == WARN {
         2
-    } else if level.as_str() == "info" {
+    } else if level.as_str() == INFO {
         1
     } else {
         0
@@ -155,9 +185,9 @@ fn severity(level: any) -> int {
 }
 
 fn floor_of(level: str) -> int {
-    if level == "warn" {
+    if level == WARN {
         2
-    } else if level == "error" {
+    } else if level == statuses::ERROR {
         3
     } else {
         0
@@ -183,8 +213,8 @@ fn filtered(state: &mut editor::State) -> Built {
     let rows: [any] = [];
     let hidden = 0;
     for entry in entries {
-        let matches = query == "" || entry["message"].as_str().to_lower().contains(query) || entry["tag"].as_str().to_lower().contains(query);
-        if severity(entry["level"]) < floor || !matches {
+        let matches = query == "" || entry[log_fields::MESSAGE].as_str().to_lower().contains(query) || entry[fields::TAG].as_str().to_lower().contains(query);
+        if severity(entry[log_fields::LEVEL]) < floor || !matches {
             hidden += 1;
             continue;
         }
@@ -228,21 +258,21 @@ pub fn output_clear(state: &mut editor::State) {
 fn log_lines(rows: [any], tokens: any) -> [ui::Item] {
     let items: [ui::Item] = [];
     for entry in rows {
-        let level = entry["level"].as_str();
-        let tag = entry["tag"].as_str();
-        let tint = tokens["text_muted"].as_str();
+        let level = entry[log_fields::LEVEL].as_str();
+        let tag = entry[fields::TAG].as_str();
+        let tint = tokens[theme_tokens::TEXT_MUTED].as_str();
         let marker = " ";
-        if level == "error" {
-            tint = tokens["danger_text"].as_str();
+        if level == statuses::ERROR {
+            tint = tokens[theme_tokens::DANGER_TEXT].as_str();
             marker = "×";
-        } else if level == "warn" {
-            tint = tokens["warning_text"].as_str();
+        } else if level == WARN {
+            tint = tokens[theme_tokens::WARNING_TEXT].as_str();
             marker = "!";
-        } else if tag == "env" {
-            tint = tokens["secondary_text"].as_str();
+        } else if tag == ENV {
+            tint = tokens[theme_tokens::SECONDARY_TEXT].as_str();
         }
         let short = if tag.len() > 9 { tag.slice(0, 9) } else { tag };
-        let time = util::fixed(entry["time"].as_float(), 1);
+        let time = util::fixed(entry[log_fields::TIME].as_float(), 1);
         let line = util::repeat(" ", util::int_max(0, 6 - time.len())) + time;
         items.push(ui::Item { icon: marker, label: "{line}s  {short}  {entry["message"].as_str()}", tint: tint });
     }
@@ -253,18 +283,18 @@ fn log_lines(rows: [any], tokens: any) -> [ui::Item] {
 // tile is one fill for every card; only the mark is typed.
 fn asset_look(name: str, is_directory: bool) -> AssetLook {
     if is_directory {
-        return AssetLook { icon: icons::panel("assets"), ink: "text_muted" };
+        return AssetLook { icon: icons::panel("assets"), ink: theme_tokens::TEXT_MUTED };
     }
     if name.ends_with(".bs") {
-        return AssetLook { icon: icons::ui("scriptfile"), ink: "secondary_text" };
+        return AssetLook { icon: icons::ui(icons::SCRIPTFILE), ink: theme_tokens::SECONDARY_TEXT };
     }
     if name.ends_with(".toml") {
-        return AssetLook { icon: icons::panel("scene"), ink: "primary_text" };
+        return AssetLook { icon: icons::panel(icons::SCENE), ink: theme_tokens::PRIMARY_TEXT };
     }
-    if importer::kind_of(name) == "texture" {
-        return AssetLook { icon: icons::workspace(defs::WORKSPACE_UI), ink: "primary_text" };
+    if importer::kind_of(name) == asset_kinds::TEXTURE {
+        return AssetLook { icon: icons::workspace(defs::WORKSPACE_UI), ink: theme_tokens::PRIMARY_TEXT };
     }
-    return AssetLook { icon: icons::ui("dot"), ink: "text_subtle" };
+    return AssetLook { icon: icons::ui("dot"), ink: theme_tokens::TEXT_SUBTLE };
 }
 
 // Opening a file means the thing the editor can actually do with it: jump to
@@ -316,7 +346,7 @@ pub fn new_folder(state: &mut editor::State) {
     fs::create_directory(asset_path(state, name));
     model::forget(state);
     state.assets.selected = name;
-    signals::changed(state, "assets");
+    signals::changed(state, changes::ASSETS);
     log::info("made res://{name}");
 }
 
@@ -339,7 +369,7 @@ pub fn rename_asset(state: &mut editor::State, name: str) {
     let rewritten = assets::rename(asset_path(state, from), asset_path(state, to));
     model::forget(state);
     state.assets.selected = to;
-    signals::changed(state, "assets");
+    signals::changed(state, changes::ASSETS);
     log::info("renamed res://{from} to res://{to}; {rewritten.len()} file(s) updated");
 }
 
@@ -352,7 +382,7 @@ pub fn delete_asset(state: &mut editor::State) {
     }
     model::forget(state);
     state.assets.selected = "";
-    signals::changed(state, "assets");
+    signals::changed(state, changes::ASSETS);
 }
 
 /// The installed dependency a project-relative path lies in, as
@@ -387,7 +417,7 @@ fn shown_folder(state: editor::State, relative_path: str) -> bool {
 /// The game's first `path` dependency, where Move to project puts files.
 fn shelf(state: editor::State) -> str {
     for dependency_entry in dependency::list() {
-        if dependency_entry.kind == "path" && dependency_entry.game == state.game_root {
+        if dependency_entry.kind == general::PATH && dependency_entry.game == state.game_root {
             return dependency_entry.alias;
         }
     }
@@ -396,7 +426,7 @@ fn shelf(state: editor::State) -> str {
 
 /// What Edit dependency opens for `dependency_entry`: its folder or its page.
 fn source_of(dependency_entry: dependency::Dependency) -> str {
-    if dependency_entry.kind == "path" {
+    if dependency_entry.kind == general::PATH {
         return "Open {dependency_entry.path} in a second editor";
     }
     "Open {dependency_entry.project} on Forge"
@@ -460,10 +490,10 @@ fn edit_dependency(state: editor::State) {
         return;
     }
     let dependency_entry = found.unwrap();
-    if dependency_entry.kind == "path" {
+    if dependency_entry.kind == general::PATH {
         let opened = util::map_or_empty(project::open_beside(state.game_root + "/" + dependency_entry.path));
-        if opened["error"] != nil {
-            log::warn(opened["error"].as_str());
+        if opened[log_fields::ERROR] != nil {
+            log::warn(opened[log_fields::ERROR].as_str());
         }
         return;
     }
@@ -477,7 +507,7 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let directory = state.assets.directory;
     let files: [any] = [];
     for entry in model::list(state, directory) {
-        if search::matches(query, entry["name"].as_str()) {
+        if search::matches(query, entry[fields::NAME].as_str()) {
             files.push(entry);
         }
     }
@@ -487,13 +517,13 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
     let is_folder: [bool] = [];
     let picked = "";
     for entry in files {
-        let name = entry["name"].as_str();
-        let is_directory = entry["is_dir"].as_bool();
+        let name = entry[fields::NAME].as_str();
+        let is_directory = entry[project_fields::IS_DIR].as_bool();
         let relative_path = if directory == "" { name } else { "{directory}/{name}" };
         let look = asset_look(name, is_directory);
         // A dependency's files are one shade quieter, as a prefab's rows are:
         // there to use, not to change.
-        let ink = if relative_path.starts_with("deps/") { "text_subtle" } else { look.ink };
+        let ink = if relative_path.starts_with("deps/") { theme_tokens::TEXT_SUBTLE } else { look.ink };
         if relative_path == state.assets.selected {
             picked = relative_path;
         }
@@ -522,20 +552,20 @@ pub fn assets_view(state: &mut editor::State, query: str) -> AssetsView {
         name: util::last_segment(state.assets.selected),
         count: "{files.len()} items",
         importing: importing,
-        import_text: icons::panel("import") + (if importing { " cancel" } else { " import" }),
+        import_text: icons::panel(icons::IMPORT) + (if importing { " cancel" } else { " import" }),
         import_tip: if importing {
             "Stop the import after the file it is writing"
         } else {
             "Bring in a model, a sprite or a level"
         },
-        folder_text: icons::ui("add") + " folder",
+        folder_text: icons::ui(icons::ADD) + " folder",
         chosen: state.assets.selected != "",
         items: items,
         picked: picked,
         local: here != nil && state.assets.selected != "" && !shown_folder(state, state.assets.selected),
         move_to: if selected_own { shelf(state) } else { "" },
         source_tip: if here == nil { "" } else { source_of(here.unwrap()) },
-        update: here != nil && here.unwrap().kind == "forge",
+        update: here != nil && here.unwrap().kind == tabs::FORGE,
     }
 }
 
@@ -558,7 +588,7 @@ pub fn assets_pick(state: &mut editor::State, row: str) {
             state.assets.selected = relative_path;
             state.assets.renaming = false;
         }
-        signals::changed(state, "assets");
+        signals::changed(state, changes::ASSETS);
         return;
     }
 }
@@ -600,10 +630,10 @@ pub fn assets_verb(state: &mut editor::State, verb: str, value: str) {
         if !refuse_in_dependency(state, state.assets.selected) {
             delete_asset(state);
         }
-    } else if verb == "rename_to" {
+    } else if verb == RENAME_TO {
         rename_asset(state, value);
     }
-    signals::changed(state, "assets");
+    signals::changed(state, changes::ASSETS);
 }
 
 /// A card dragged out of the Assets panel and let go: over the viewport, the
@@ -644,7 +674,7 @@ pub fn timeline_fill(state: &mut editor::State) {
         util::set_text(TIMELINE + "/Missing/Says", missing);
         let filled = scene::get_node(TIMELINE + "/Missing/Create");
         if filled.is_valid() {
-            filled.widget_button.icon = icons::ui("add");
+            filled.widget_button.icon = icons::ui(icons::ADD);
         }
         util::set_visible(TIMELINE + "/Body", false);
         return;
@@ -659,17 +689,17 @@ pub fn timeline_fill(state: &mut editor::State) {
     let name = anim::clip_name(state, node);
     let filled = scene::get_node(TIMELINE + "/Body/Head/AddKey");
     if filled.is_valid() {
-        filled.widget_button.icon = icons::ui("add");
+        filled.widget_button.icon = icons::ui(icons::ADD);
     }
     let library = anim::library_path(state, node);
     let clip = if name == "" { "unnamed" } else { name };
-    let place = if library == nil { "inline" } else { library.unwrap() };
+    let place = if library == nil { INLINE } else { library.unwrap() };
     util::set_text(TIMELINE + "/Body/Head/Clip", "{clip} · {place}");
     util::set_text(TIMELINE + "/Body/Head/Time", "{util::fixed(state.anim.time, 2)} / {util::fixed(anim::length(definition), 2)} s");
     // The engine's own vocabulary, not a boolean: pingpong is a third answer
     // and a toggle cannot say it.
-    let loop_mode = definition["loop_mode"];
-    util::fill_beside(TIMELINE + "/Body/Head/Length", "widget_range", { "value": anim::length(definition) });
+    let loop_mode = definition[schema_fields::LOOP_MODE];
+    util::fill_beside(TIMELINE + "/Body/Head/Length", WIDGET_RANGE, { fields::VALUE: anim::length(definition) });
     let filled = scene::get_node(TIMELINE + "/Body/Head/Loop");
     if filled.is_valid() {
         filled.widget.text = if loop_mode == nil { animation::LOOP_NONE } else { loop_mode.as_str() };
@@ -684,19 +714,19 @@ pub fn timeline_fill(state: &mut editor::State) {
     while seconds <= length + 1e-4 {
         let tick_x = lane_at(lane_x, length, lane_width, seconds);
         ticks.push(ui::Control {
-            kind: "label",
-            role: "text_code_quiet",
+            kind: ui::WIDGET_LABEL,
+            role: roles::TEXT_CODE_QUIET,
             font_size: 11,
             absolute: true,
             inset: ui::sides(tick_x, 2.0, -1.0, -1.0),
             text: util::fixed(seconds, 2),
         });
         rules.push(ui::Control {
-            kind: "row",
+            kind: ui::WIDGET_ROW,
             absolute: true,
             inset: ui::sides(tick_x, 0.0, -1.0, 0.0),
             width: 1,
-            fill: "border_default",
+            fill: theme_tokens::BORDER_DEFAULT,
             interactive: false,
         });
         seconds += step;
@@ -704,20 +734,20 @@ pub fn timeline_fill(state: &mut editor::State) {
     ui::fill_strip(TIMELINE + "/Body/Ruler", ticks);
     ui::fill_strip(TIMELINE + "/Body/Lanes/Rules", rules);
     util::fill(TIMELINE + "/Body/Lanes/Playhead", {
-        "inset": [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
+        dock_fields::INSET: [lane_at(lane_x, length, lane_width, util::min(state.anim.time, length)) - 1.0, 0.0, -1.0, 0.0],
     });
     let rows: [ui::Row] = [];
     for index in 0..tracks.len() {
         let track = tracks[index];
-        let color = (if index % 2 == 0 { tokens["primary_text"] } else { tokens["secondary_text"] }).as_str();
+        let color = (if index % 2 == 0 { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::SECONDARY_TEXT] }).as_str();
         let keys: [ui::Control] = [];
-        for key in util::list_or_empty(track["keys"]) {
-            let when = key["time"].as_float();
+        for key in util::list_or_empty(track[fields::KEYS]) {
+            let when = key[log_fields::TIME].as_float();
             let before = when <= state.anim.time + 1e-4;
             // A key is its mark: filled once the playhead has passed it.
             keys.push(ui::Control {
-                kind: "button",
-                role: "chip_quiet",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::CHIP_QUIET,
                 text: if before { "●" } else { "○" },
                 font_size: 13,
                 padding: ui::all_sides(0),
@@ -726,31 +756,31 @@ pub fn timeline_fill(state: &mut editor::State) {
                 inset: ui::sides((when / length) * lane_width - 6.0, 2.0, -1.0, -1.0),
                 tooltip: "{util::fixed(when, 2)} s",
                 on_click: "handle",
-                data: { "fn": on_key_pressed, "when": when },
+                data: { fields::FN: on_key_pressed, fields::WHEN: when },
             });
         }
         rows.push(ui::Row {
             height: LANE_HEIGHT,
             controls: [
                 ui::Control {
-                    kind: "row",
+                    kind: ui::WIDGET_ROW,
                     width: NAME_WIDTH,
                     gap: vec2(6, 6),
-                    align_items: "center",
+                    align_items: ui::ALIGN_CENTER,
                     padding: ui::sides(8, 0, 0, 0),
                     controls: [
-                        ui::Control { kind: "row", width: 6, height: 6, corner_radius: 3, fill: color },
+                        ui::Control { kind: ui::WIDGET_ROW, width: 6, height: 6, corner_radius: 3, fill: color },
                         ui::Control {
-                            kind: "label",
+                            kind: ui::WIDGET_LABEL,
                             corner_radius: 0,
-                            role: "text_code",
+                            role: roles::TEXT_CODE,
                             font_size: 11,
                             text: anim::track_label(track),
                         },
                     ],
                 },
                 ui::Control {
-                    kind: "row",
+                    kind: ui::WIDGET_ROW,
                     width: lane_width,
                     controls: keys,
                     height: LANE_HEIGHT,
@@ -760,12 +790,12 @@ pub fn timeline_fill(state: &mut editor::State) {
         });
     }
     ui::fill_rows(TIMELINE + "/Body/Lanes/Scroll/Tracks", rows);
-    util::fill(TIMELINE + "/Body/ScrubRow", { "padding": [8.0 + lane_x, 0.0, 0.0, 0.0] });
+    util::fill(TIMELINE + "/Body/ScrubRow", { layout_fields::PADDING: [8.0 + lane_x, 0.0, 0.0, 0.0] });
     let filled = scene::get_node(TIMELINE + "/Body/ScrubRow/Scrub");
     if filled.is_valid() {
         filled.widget.width = lane_width;
     }
-    util::fill_beside(TIMELINE + "/Body/ScrubRow/Scrub", "widget_range", { "value": state.anim.time, "max": anim::length(definition) });
+    util::fill_beside(TIMELINE + "/Body/ScrubRow/Scrub", WIDGET_RANGE, { fields::VALUE: state.anim.time, schema_fields::MAX: anim::length(definition) });
 }
 
 // Where time `seconds` lands across a lane `lane_width` wide that starts at `lane_x`.
@@ -780,7 +810,7 @@ fn width_of(path: str) -> float {
 }
 
 fn on_key_pressed(state: &mut editor::State, data: any, _value: any) {
-    anim::seek(state, data["when"].as_float());
+    anim::seek(state, data[fields::WHEN].as_float());
 }
 
 /// The Timeline tab's verbs, by the name of the button pressed.
@@ -792,7 +822,7 @@ pub fn timeline_verb(state: &mut editor::State, verb: str) {
     } else if verb == "Create" {
         anim::ensure_clip(state);
     }
-    signals::changed(state, "timeline");
+    signals::changed(state, changes::TIMELINE);
 }
 
 /// A clip setting from the Timeline's head, written into the clip as one
@@ -804,9 +834,9 @@ pub fn timeline_clip(state: &mut editor::State, setting: str, value: any) {
     }
     history::record(state, "clip {setting.to_lower()}", "clip:{setting}");
     if setting == "Length" {
-        definition["length"] = util::max(0.1, value.as_float());
+        definition[fields::LENGTH] = util::max(0.1, value.as_float());
     } else {
-        definition["loop_mode"] = value.as_str();
+        definition[schema_fields::LOOP_MODE] = value.as_str();
     }
     anim::touch(state);
 }
@@ -825,10 +855,10 @@ fn tick_step(length: float) -> float {
 
 // A local as one line; a table is its JSON, cut short.
 fn value_text(value: any) -> str {
-    if value.kind() == "map" || value.kind() == "list" {
+    if value.kind() == types::KIND_MAP || value.kind() == types::KIND_LIST {
         let text = json::encode(value);
         if text.len() > 96 { text.slice(0, 93) + "…" } else { text }
-    } else if value.kind() == "str" {
+    } else if value.kind() == types::KIND_STRING {
         value.as_str()
     } else {
         "{value}"
@@ -842,7 +872,7 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
     let tokens = state.theme;
     let paused = state.debug.paused;
     let on = debugger::break_on_error();
-    if paused.kind() != "map" {
+    if paused.kind() != types::KIND_MAP {
         let where = if state.playing {
             "running · click a line number in the script to set a breakpoint"
         } else {
@@ -865,11 +895,11 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
     let frames = util::list_or_empty(paused["frames"]);
     for index in 0..frames.len() {
         let frame = frames[index];
-        let site = "{shell::script_rel(state, frame["path"].as_str())}:{frame["line"]}";
+        let site = "{shell::script_rel(state, frame["path"].as_str())}:{frame[layout_fields::LINE]}";
         // A recursion stacks frames that read alike; the depth keeps them apart.
-        items.push(ui::Item { icon: icons::ui("step-into"), label: frame["function"].as_str(), note: site, tint: tokens["text_default"].as_str(), key: "{index}" });
-        for name in util::keys_sorted(frame["locals"]) {
-            items.push(ui::Item { label: name, note: value_text(frame["locals"][name]), tint: tokens["text_muted"].as_str(), key: "{index}/{name}", depth: 1 });
+        items.push(ui::Item { icon: icons::ui("step-into"), label: frame["function"].as_str(), note: site, tint: tokens[theme_tokens::TEXT_DEFAULT].as_str(), key: "{index}" });
+        for name in util::keys_sorted(frame[LOCALS]) {
+            items.push(ui::Item { label: name, note: value_text(frame[LOCALS][name]), tint: tokens[theme_tokens::TEXT_MUTED].as_str(), key: "{index}/{name}", depth: 1 });
         }
     }
     DebuggerView {
@@ -881,7 +911,7 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
             icons::ui("step-into") + " Into",
             icons::ui("step-out") + " Out",
         ],
-        where: "{paused["reason"].as_str()} · {state.debug.paused_rel}:{paused["line"]}",
+        where: "{paused["reason"].as_str()} · {state.debug.paused_rel}:{paused[layout_fields::LINE]}",
         threw: paused["message"].as_str(),
         break_on_error: on,
         frames: items,
@@ -891,11 +921,11 @@ pub fn debugger_view(state: &mut editor::State) -> DebuggerView {
 
 /// A step pressed, by the name of its button.
 pub fn debugger_step(state: &mut editor::State, step: str) {
-    let mode = if step == "over" {
+    let mode = if step == OVER {
         debugger::STEP_OVER
-    } else if step == "into" {
+    } else if step == INTO {
         debugger::STEP_INTO
-    } else if step == "out" {
+    } else if step == OUT {
         debugger::STEP_OUT
     } else {
         debugger::CONTINUE
@@ -906,7 +936,7 @@ pub fn debugger_step(state: &mut editor::State, step: str) {
 /// A row of the stack picked: the frame it is, or is a local of.
 pub fn debugger_frame(state: &mut editor::State, row: str) {
     state.debug.frame = row.split("/")[0].parse_int();
-    signals::changed(state, "debugger");
+    signals::changed(state, changes::DEBUGGER);
 }
 
 // Problems: every finding the last sweep produced, worst first, each row a
@@ -915,12 +945,12 @@ pub fn debugger_frame(state: &mut editor::State, row: str) {
 fn problem_rows(state: editor::State) -> [any] {
     let rows: [any] = [];
     for finding in state.lint.found {
-        if finding["severity"].as_str() == "error" {
+        if finding[log_fields::SEVERITY].as_str() == statuses::ERROR {
             rows.push(finding);
         }
     }
     for finding in state.lint.found {
-        if finding["severity"].as_str() != "error" {
+        if finding[log_fields::SEVERITY].as_str() != statuses::ERROR {
             rows.push(finding);
         }
     }
@@ -928,14 +958,14 @@ fn problem_rows(state: editor::State) -> [any] {
 }
 
 fn problem_label(finding: any) -> str {
-    let file = finding["file"].as_str();
-    let at = if finding["line"].as_int() > 0 { "{file}:{finding["line"].as_int()}" } else { file };
-    "{at}  {finding["message"].as_str()}"
+    let file = finding[project_fields::FILE].as_str();
+    let at = if finding[layout_fields::LINE].as_int() > 0 { "{file}:{finding["line"].as_int()}" } else { file };
+    "{at}  {finding[log_fields::MESSAGE].as_str()}"
 }
 
 fn problem_line(finding: any, tokens: any) -> ui::Item {
-    let bad = finding["severity"].as_str() == "error";
-    let tint = if bad { tokens["danger_text"] } else { tokens["warning_text"] };
+    let bad = finding["severity"].as_str() == statuses::ERROR;
+    let tint = if bad { tokens[theme_tokens::DANGER_TEXT] } else { tokens[theme_tokens::WARNING_TEXT] };
     ui::Item { icon: if bad { "×" } else { "!" }, label: problem_label(finding), tint: tint.as_str() }
 }
 
@@ -970,13 +1000,13 @@ pub fn problems_pick(state: &mut editor::State, picked: str) {
 // code rather than on a file name.
 fn open_at(state: &mut editor::State, finding: any) {
     for index in 0..state.nodes.len() {
-        if model::script_rel(state.nodes[index]).as_str() == finding["file"].as_str() {
+        if model::script_rel(state.nodes[index]).as_str() == finding[project_fields::FILE].as_str() {
             shell::choose(state, index);
             shell::set_workspace(state, defs::WORKSPACE_SCRIPT);
             return;
         }
     }
-    state.doctab = "scene";
+    state.doctab = tabs::SCENE;
     signals::inspector(state);
 }
 
@@ -1000,7 +1030,7 @@ pub fn lanes_fill(state: editor::State) {
     // Before the first frame is fed the position is one tick short of the
     // session's start, which is off the near end of the ruler.
     let at = util::max(0.0, (replay::position() - first) as float);
-    util::fill_beside(LANES + "/Head/Scrub", "widget_range", { "value": at, "max": span });
+    util::fill_beside(LANES + "/Head/Scrub", WIDGET_RANGE, { fields::VALUE: at, schema_fields::MAX: span });
     util::set_text(LANES + "/Head/At", "{replay::position()} / {last}");
     // A divergence is information, not a failure: the replay ran, and this is
     // the tick at which it stopped reproducing what was recorded.
@@ -1017,32 +1047,32 @@ pub fn lanes_fill(state: editor::State) {
             let tick = mark.tick;
             let mark_x = util::clamp(((tick.as_int() - first) as float) / span, 0.0, 1.0) * (lane_width - 6.0);
             marks.push(ui::Control {
-                kind: "button",
-                role: "chip_quiet",
+                kind: ui::WIDGET_BUTTON,
+                role: roles::CHIP_QUIET,
                 text: "▮",
                 font_size: 9,
                 padding: ui::all_sides(0),
                 absolute: true,
                 inset: ui::sides(mark_x, -1.0, -1.0, -1.0),
-                text_color: if tick.as_int() <= replay::position() { tokens["primary_text"] } else { tokens["border_default"] },
+                text_color: if tick.as_int() <= replay::position() { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::BORDER_DEFAULT] },
                 tooltip: "{tick}: {mark.label}",
                 on_click: "handle",
-                data: { "fn": on_mark_pressed, "tick": tick },
+                data: { fields::FN: on_mark_pressed, log_fields::TICK: tick },
             });
         }
         rows.push(ui::Row {
             height: 20,
             controls: [
                 ui::Control {
-                    kind: "label",
+                    kind: ui::WIDGET_LABEL,
                     width: LANE_NAME_WIDTH - 12.0,
                     padding: ui::sides(8, 0, 0, 0),
-                    role: "text_code_quiet",
+                    role: roles::TEXT_CODE_QUIET,
                     font_size: 11,
                     text: lane.name,
                 },
                 ui::Control {
-                    kind: "row",
+                    kind: ui::WIDGET_ROW,
                     width: lane_width,
                     controls: marks,
                     height: 20,
@@ -1057,21 +1087,21 @@ pub fn lanes_fill(state: editor::State) {
             height: 20,
             controls: [
                 ui::Control {
-                    kind: "label",
+                    kind: ui::WIDGET_LABEL,
                     padding: ui::sides(8, 0, 0, 0),
-                    role: "text_code_quiet",
+                    role: roles::TEXT_CODE_QUIET,
                     font_size: 11,
                     text: "{event.tick}",
                 },
                 ui::Control {
-                    kind: "label",
-                    role: "text_code_quiet",
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CODE_QUIET,
                     font_size: 11,
                     text: event.kind,
                 },
                 ui::Control {
-                    kind: "label",
-                    role: "text_code",
+                    kind: ui::WIDGET_LABEL,
+                    role: roles::TEXT_CODE,
                     font_size: 11,
                     text: event.label,
                 },
@@ -1082,7 +1112,7 @@ pub fn lanes_fill(state: editor::State) {
 }
 
 fn on_mark_pressed(state: &mut editor::State, data: any, _value: any) {
-    session::seek(state, data["tick"].as_int());
+    session::seek(state, data[log_fields::TICK].as_int());
 }
 
 /// The lanes' transport, by the name of the button pressed.
@@ -1094,13 +1124,13 @@ pub fn lanes_verb(state: &mut editor::State, verb: str) {
     } else {
         session::close(state);
     }
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
 }
 
 /// The scrubber, at `ticks` ticks into the recording.
 pub fn lanes_seek(state: &mut editor::State, ticks: float) {
     session::seek(state, state.session.first + (ticks as int));
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
 }
 
 // The Recordings panel's rows, under its own scroll; the dock hides the panel
@@ -1114,7 +1144,7 @@ pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
     let rows = session::listing(state);
     let specs: [ui::Row] = [];
     for recording in rows {
-        specs.push(ui::Row { height: 24, slot_role: "layout_actions", controls: session_row(state, recording) });
+        specs.push(ui::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: session_row(state, recording) });
     }
     ui::fill_rows(RECORDINGS, specs);
     RecordingsFill { verify: state.session.verify, count: rows.len() }
@@ -1123,7 +1153,7 @@ pub fn recordings_fill(state: &mut editor::State) -> RecordingsFill {
 /// The Recordings panel's verify switch.
 pub fn recordings_verify(state: &mut editor::State) {
     state.session.verify = !state.session.verify;
-    signals::changed(state, "recordings");
+    signals::changed(state, changes::RECORDINGS);
 }
 
 // One recording: the verb that plays it, what it is, and the three that keep,
@@ -1131,73 +1161,73 @@ pub fn recordings_verify(state: &mut editor::State) {
 fn session_row(state: editor::State, recording: session::Row) -> [ui::Control] {
     let out: [ui::Control] = [
         ui::Control {
-            kind: "button",
-            role: "action_form_primary",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ACTION_FORM_PRIMARY,
             text: "▶",
             tooltip: "Replay this recording",
             on_click: "handle",
-            data: { "fn": on_replay_pressed, "recording": recording },
+            data: { fields::FN: on_replay_pressed, RECORDING: recording },
         },
-        ui::Control { kind: "label", role: "text_code", text: if recording.started == "" { recording.name } else { recording.started } },
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE, text: if recording.started == "" { recording.name } else { recording.started } },
         ui::Control {
-            kind: "label",
-            role: "text_caption",
+            kind: ui::WIDGET_LABEL,
+            role: roles::TEXT_CAPTION,
             text: "{recording.ticks} ticks · {util::fixed(recording.seconds, 1)}s",
         },
     ];
     // How it ended, and whether its code has moved on since.
-    if recording.reason != "stop" {
-        out.push(ui::Control { kind: "label", role: "note_danger", text: recording.reason });
+    if recording.reason != statuses::STOP {
+        out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_DANGER, text: recording.reason });
     }
     if recording.stale {
-        out.push(ui::Control { kind: "label", role: "note_warning", text: "scripts changed" });
+        out.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, text: "scripts changed" });
     }
-    out.push(ui::Control { kind: "row", grow: 1 });
+    out.push(ui::Control { kind: ui::WIDGET_ROW, grow: 1 });
     out.push(ui::Control {
-        kind: "button",
-        role: "action_form",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ACTION_FORM,
         text: "delete",
         on_click: "handle",
-        data: { "fn": on_delete_pressed, "recording": recording },
+        data: { fields::FN: on_delete_pressed, RECORDING: recording },
     });
     out.push(ui::Control {
-        kind: "button",
-        role: "action_form",
+        kind: ui::WIDGET_BUTTON,
+        role: roles::ACTION_FORM,
         text: "copy to project",
         tooltip: "Copy into the project, for a bug report or `balaur replay`",
         on_click: "handle",
-        data: { "fn": on_copy_pressed, "recording": recording },
+        data: { fields::FN: on_copy_pressed, RECORDING: recording },
     });
     if !recording.name.starts_with("kept-") {
         out.push(ui::Control {
-            kind: "button",
-            role: "action_form",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::ACTION_FORM,
             text: "keep",
             tooltip: "Never prune this one",
             on_click: "handle",
-            data: { "fn": on_keep_pressed, "recording": recording },
+            data: { fields::FN: on_keep_pressed, RECORDING: recording },
         });
     }
     out
 }
 
 fn on_replay_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data["recording"];
+    let recording: session::Row = data[RECORDING];
     session::open(state, recording.name);
 }
 
 fn on_delete_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data["recording"];
+    let recording: session::Row = data[RECORDING];
     session::remove(state, recording.name);
 }
 
 fn on_copy_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data["recording"];
+    let recording: session::Row = data[RECORDING];
     session::export(state, recording.name);
 }
 
 fn on_keep_pressed(state: &mut editor::State, data: any, _value: any) {
-    let recording: session::Row = data["recording"];
+    let recording: session::Row = data[RECORDING];
     session::keep(state, recording.name);
 }
 
@@ -1210,7 +1240,7 @@ const BUDGET_MILLISECONDS: float = 16.667;
 /// its headline, and what to say when there is nothing to measure.
 pub fn meter_view(state: editor::State, what: str) -> MeterView {
     let tokens = state.theme;
-    if what == "cost" {
+    if what == verbs::COST {
         return cost_view(state, tokens);
     }
     let scripts = state.script_profiling;
@@ -1223,13 +1253,13 @@ pub fn meter_view(state: editor::State, what: str) -> MeterView {
     let timings = found.unwrap();
     let items: [ui::Item] = [];
     let stages: any = timings.stages;
-    cost_rows(items, tokens, stages, "stage");
+    cost_rows(items, tokens, stages, STAGE);
     if timings.spans.len() > 0 {
         let spans: any = {};
         for span in timings.spans {
             spans[span.name] = span.seconds;
         }
-        cost_rows(items, tokens, spans, "span");
+        cost_rows(items, tokens, spans, SPAN);
     }
     if scripts {
         script_rows(items, tokens);
@@ -1258,7 +1288,7 @@ fn script_rows(items: [ui::Item], tokens: any) {
     for row in costs {
         let count = row.instructions as float;
         let share = if worst > 0.0 { util::clamp(count / worst, 0.0, 1.0) } else { 0.0 };
-        items.push(ui::Item { cells: [row.path, "{row.instructions} st", bar(share)], tint: tokens["secondary_text"].as_str() });
+        items.push(ui::Item { cells: [row.path, "{row.instructions} st", bar(share)], tint: tokens[theme_tokens::SECONDARY_TEXT].as_str() });
     }
     // Each function's own statements under its file's rows, a handler the
     // pool calls by name among them.
@@ -1269,7 +1299,7 @@ fn script_rows(items: [ui::Item], tokens: any) {
         let share = if top > 0.0 { util::clamp((row.instructions as float) / top, 0.0, 1.0) } else { 0.0 };
         items.push(ui::Item {
             cells: [row.function, "{row.instructions} st · {row.calls} calls", bar(share)],
-            tint: tokens["text_muted"].as_str(),
+            tint: tokens[theme_tokens::TEXT_MUTED].as_str(),
         });
     }
     engine::set_script_profiling(true);
@@ -1314,11 +1344,11 @@ fn by_cost(table: any) -> [Cost] {
 fn cost_rows(items: [ui::Item], tokens: any, table: any, kind: str) {
     for row in by_cost(table) {
         let tint = (if row.milliseconds > BUDGET_MILLISECONDS * 0.5 {
-            tokens["primary_text"]
-        } else if kind == "span" {
-            tokens["secondary_text"]
+            tokens[theme_tokens::PRIMARY_TEXT]
+        } else if kind == SPAN {
+            tokens[theme_tokens::SECONDARY_TEXT]
         } else {
-            tokens["text_muted"]
+            tokens[theme_tokens::TEXT_MUTED]
         }).as_str();
         items.push(ui::Item {
             cells: [row.name, util::fixed(row.milliseconds, 3) + " ms", bar(row.milliseconds / BUDGET_MILLISECONDS)],
@@ -1362,7 +1392,7 @@ fn by_triangles(rows: [render::NodeCost]) -> [render::NodeCost] {
 /// milliseconds. `render.stats` counts it from the scene, so a headless run
 /// reports the same triangles a windowed one does.
 fn cost_view(state: editor::State, tokens: any) -> MeterView {
-    let titles = ["node", "triangles>", "textures>", "copies>", "share of the worst"];
+    let titles = [NODE, "triangles>", "textures>", "copies>", "share of the worst"];
     let widths = ["2", "1", "1", "0.7", "1.6"];
     let nodes = by_triangles(render::stats().nodes);
     let headline = cost_hint(state, 1000.0);
@@ -1381,7 +1411,7 @@ fn cost_view(state: editor::State, tokens: any) -> MeterView {
                 if copies > 1 { "x{copies}" } else { "" },
                 bar(util::clamp(row.triangles / worst, 0.0, 1.0)),
             ],
-            tint: tokens["text_muted"].as_str(),
+            tint: tokens[theme_tokens::TEXT_MUTED].as_str(),
         });
     }
     MeterView { titles: titles, widths: widths, items: items, says: "", headline: headline, scripts: false }
@@ -1390,13 +1420,13 @@ fn cost_view(state: editor::State, tokens: any) -> MeterView {
 /// How big the last export was, or a line saying none has been made. The
 /// pack is what a player downloads, so it belongs beside the frame's cost.
 fn pack_size(state: editor::State) -> str {
-    let out = export::output("web");
+    let out = export::output(WEB);
     if !fs::exists(out) {
         return "not exported yet";
     }
     let total = 0;
     for entry in util::list_or_empty(fs::list(out)) {
-        if !entry["is_dir"].as_bool() {
+        if !entry[project_fields::IS_DIR].as_bool() {
             total += 1;
         }
     }

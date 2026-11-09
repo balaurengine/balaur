@@ -12,6 +12,8 @@
 //! `[join_ref, ref, topic, event, payload]` as a JSON array; `join_ref` and
 //! `ref` are stringified counters or null.
 
+use crate::vocabulary::keys;
+use crate::vocabulary::words;
 use anyhow::{Context as _, Result, anyhow, bail};
 use serde_json::{Value, json};
 
@@ -142,7 +144,7 @@ impl Protocol {
             bail!("the server missed a heartbeat; the connection is dead");
         }
         let reference = self.fresh_ref();
-        let frame = Self::frame(None, &reference, "phoenix", "heartbeat", &json!({}));
+        let frame = Self::frame(None, &reference, words::PHOENIX, "heartbeat", &json!({}));
         self.pending_heartbeat = Some(reference);
         self.last_heartbeat = now;
         Ok(Some(frame))
@@ -163,23 +165,24 @@ impl Protocol {
         let event = parts[3].as_str().unwrap_or_default().to_string();
         let payload = parts[4].clone();
 
-        if topic == "phoenix" || Some(reference.as_str()) == self.pending_heartbeat.as_deref() {
+        if topic == words::PHOENIX || Some(reference.as_str()) == self.pending_heartbeat.as_deref()
+        {
             self.pending_heartbeat = None;
             return Ok(None);
         }
-        if event == "phx_reply" {
+        if event == words::PHX_REPLY {
             return Ok(Some(SocketEvent::Reply {
                 topic,
                 reference,
                 status: payload
-                    .get("status")
+                    .get(keys::STATUS)
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
                 response: payload.get("response").cloned().unwrap_or(Value::Null),
             }));
         }
-        if event == "phx_error" || event == "phx_close" {
+        if event == words::PHX_ERROR || event == words::PHX_CLOSE {
             self.joins.retain(|(t, _)| t != &topic);
         }
         Ok(Some(SocketEvent::Message {

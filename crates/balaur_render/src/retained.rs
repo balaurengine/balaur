@@ -15,6 +15,10 @@ use balaur_script::Module;
 use crate::draw_2d::{DrawBuffer2d, Drawn2d};
 use crate::world_text::{TextDraw, TextDrawBuffer};
 
+const BEGIN_RETAINED: &str = "begin_retained";
+const CLEAR_RETAINED: &str = "clear_retained";
+const END_RETAINED: &str = "end_retained";
+
 /// One key's draws, as the buffers hold them.
 #[derive(Default, Clone)]
 struct Group {
@@ -158,19 +162,19 @@ pub(crate) fn camera_moved_system(eng: &Engine, _dt: f32) {
 
 pub(crate) fn install_retained_api(m: &mut Module<Engine>) {
     m.describe(&[
-        ("begin_retained", &[], "(key: string)", "Keep what is drawn from here to `end_retained` under `key`, drawn every frame until the key is drawn again or cleared: an overlay redrawn when what it shows moves, not each frame."),
-        ("end_retained", &[], "()", "Keep what was drawn since `begin_retained` under its key, in place of what the key held."),
-        ("clear_retained", &[], "(key: string)", "Stop drawing what `key` kept. A script hears the camera a frame was drawn with move, to draw a group sized in pixels again, with `events::listen(this.node, \"camera_moved\")`."),
+        (BEGIN_RETAINED, &[], "(key: string)", "Keep what is drawn from here to `end_retained` under `key`, drawn every frame until the key is drawn again or cleared: an overlay redrawn when what it shows moves, not each frame."),
+        (END_RETAINED, &[], "()", "Keep what was drawn since `begin_retained` under its key, in place of what the key held."),
+        (CLEAR_RETAINED, &[], "(key: string)", "Stop drawing what `key` kept. A script hears the camera a frame was drawn with move, to draw a group sized in pixels again, with `events::listen(this.node, \"camera_moved\")`."),
     ]);
-    m.function("begin_retained", |eng: &Engine, key: String| {
+    m.function(BEGIN_RETAINED, |eng: &Engine, key: String| {
         begin(eng, &key);
         Ok(())
     });
-    m.function("end_retained", |eng: &Engine, ()| {
+    m.function(END_RETAINED, |eng: &Engine, ()| {
         end(eng);
         Ok(())
     });
-    m.function("clear_retained", |eng: &Engine, key: String| {
+    m.function(CLEAR_RETAINED, |eng: &Engine, key: String| {
         clear(eng, &key);
         Ok(())
     });

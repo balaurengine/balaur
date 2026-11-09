@@ -6,10 +6,28 @@
 // with `on_click: "relay"`, `data: { to, method }` gets `method(data, value)`.
 
 use editor;
+use inspector;
 use pool;
 use settings;
 use signals;
 use util;
+use words::changes;
+use words::fields;
+use words::layout_fields;
+use words::project_fields;
+use words::roles;
+use words::verbs;
+
+const FOOT: str = "foot";
+const SIDE: str = "side";
+const EDIT: str = "edit";
+const LABEL: str = "label";
+const ROLE: str = "role";
+const WRITE: str = "write";
+const CHANGED: str = "changed";
+const OUT: str = "out";
+const SPECS: str = "specs";
+const TOML: str = "toml";
 
 /// The deepest a file browser walks below its root.
 const FOLDER_DEPTH: int = 3;
@@ -27,7 +45,7 @@ const LABEL_WIDTH: float = 140.0;
 /// A plugin's word that what its docks and dialogs show moved: they fill
 /// again on it, as the editor's own panels do on theirs.
 pub fn changed(state: &mut editor::State) {
-    signals::changed(state, "plugins");
+    signals::changed(state, changes::PLUGINS);
 }
 
 /// Put a plugin's dialog up, by the id it registered it under.
@@ -39,9 +57,9 @@ pub fn open_dialog(state: &mut editor::State, id: str) {
 /// Hand a plugin control's edit to the method its `data` names on the node
 /// it names: what a control's `"relay"` means.
 pub fn relay(data: any, value: any) {
-    let to = data["to"].as_node();
+    let to = data[layout_fields::TO].as_node();
     if to.is_valid() {
-        to.call(data["method"].as_str(), data, value);
+        to.call(data[fields::METHOD].as_str(), data, value);
     }
 }
 
@@ -69,7 +87,7 @@ fn game_name(state: editor::State) -> str {
     if text == nil {
         return "";
     }
-    toml::parse(text.unwrap())["application"]["name"].as_str()
+    toml::parse(text.unwrap())[project_fields::APPLICATION][fields::NAME].as_str()
 }
 
 /// What a verb remembers between frames: open tabs, open branches, drafts.
@@ -88,13 +106,13 @@ fn option(options: any, key: str, fallback: any) -> any {
 // Where each name a plugin uses sits under its host. A name the table does
 // not know is the body, which is where rows belong.
 fn host_path(host: str, name: str) -> str {
-    if name == "head" {
+    if name == inspector::HEAD {
         return host + "/Head";
     }
-    if name == "foot" {
+    if name == FOOT {
         return host + "/Foot";
     }
-    if name == "side" {
+    if name == SIDE {
         return host + "/Split/Side/SideRows";
     }
     host + "/Split/Body/Rows"
@@ -114,12 +132,12 @@ pub fn rows(host: str, name: str, specs: [ui::Row]) {
 
 // A tab or a page button, which remembers itself picked per `id`.
 fn pick_button(state: &mut editor::State, id: str, name: str, role: str, on: bool) -> ui::Control {
-    let button: ui::Control = ui::Control { kind: "button", text: name, role: role, checked: on };
-    pool::on(button, picked, { "key": "tab:" + id, "name": name })
+    let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, text: name, role: role, checked: on };
+    pool::on(button, picked, { fields::KEY: "tab:" + id, fields::NAME: name })
 }
 
 fn picked(state: &mut editor::State, data: any, _value: any) {
-    memory(state)[data["key"].as_str()] = data["name"];
+    memory(state)[data[fields::KEY].as_str()] = data[fields::NAME];
     changed(state);
 }
 
@@ -127,7 +145,7 @@ fn picked(state: &mut editor::State, data: any, _value: any) {
 // of them otherwise.
 fn current_of(state: &mut editor::State, id: str, names: [str]) -> str {
     let held = memory(state)["tab:" + id];
-    if held.kind() == "str" && util::contains(names, held.as_str()) { held.as_str() } else { names[0] }
+    if held.kind() == types::KIND_STRING && util::contains(names, held.as_str()) { held.as_str() } else { names[0] }
 }
 
 /// A list of pages down the host's sidebar, the way the settings screen is
@@ -137,25 +155,25 @@ fn current_of(state: &mut editor::State, id: str, names: [str]) -> str {
 pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str {
     let names: [str] = [];
     for group in util::list_or_empty(groups) {
-        for name in util::list_or_empty(group["names"]) {
+        for name in util::list_or_empty(group[fields::NAMES]) {
             names.push(name.as_str());
         }
     }
     if names.len() == 0 {
-        util::hide(host_path(host, "side"));
+        util::hide(host_path(host, SIDE));
         return "";
     }
     let current = current_of(state, id, names);
     let controls: [ui::Control] = [];
     for group in util::list_or_empty(groups) {
-        if group["title"].as_str() != "" {
-            controls.push(ui::Control { kind: "label", role: "text_caption", text: group["title"] });
+        if group[fields::TITLE].as_str() != "" {
+            controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: group[fields::TITLE] });
         }
-        for name in util::list_or_empty(group["names"]) {
-            controls.push(pick_button(state, id, name.as_str(), "item_sidebar", name.as_str() == current));
+        for name in util::list_or_empty(group[fields::NAMES]) {
+            controls.push(pick_button(state, id, name.as_str(), roles::ITEM_SIDEBAR, name.as_str() == current));
         }
     }
-    bar(host, "side", controls);
+    bar(host, SIDE, controls);
     util::set_visible(host + "/Split/Side", true);
     memory(state)["tab:" + id] = current;
     current
@@ -165,7 +183,7 @@ pub fn pages(state: &mut editor::State, host: str, id: str, groups: any) -> str 
 pub fn heading(title: str) -> ui::Row {
     ui::Row {
         height: 24,
-        controls: [ui::Control { kind: "label", role: "action_section", text: title }],
+        controls: [ui::Control { kind: ui::WIDGET_LABEL, role: "action_section", text: title }],
     }
 }
 
@@ -175,8 +193,8 @@ pub fn empty(text: str) -> ui::Row {
         height: 0,
         controls: [
             ui::Control {
-                kind: "label",
-                role: "text_caption",
+                kind: ui::WIDGET_LABEL,
+                role: roles::TEXT_CAPTION,
                 grow: 1,
                 wrap: true,
                 text: text,
@@ -207,34 +225,34 @@ pub fn field(state: &mut editor::State, label: str, value: any, options: any) ->
     let revealed = memory(state)[key].as_bool();
     let controls: [ui::Control] = [
         ui::Control {
-            kind: "label",
+            kind: ui::WIDGET_LABEL,
             grow: 1,
             truncate: true,
-            role: option(options, "role", "text_caption"),
+            role: option(options, ROLE, roles::TEXT_CAPTION),
             text: if masked && !revealed { mask(text) } else { text },
         },
     ];
     if masked {
-        let button: ui::Control = ui::Control { kind: "button", role: "chip", text: if revealed { "hide" } else { "show" } };
-        controls.push(pool::on(button, field_toggled, { "key": key }));
+        let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: if revealed { verbs::HIDE } else { "show" } };
+        controls.push(pool::on(button, field_toggled, { fields::KEY: key }));
     }
-    if option(options, "copy", false).as_bool() {
+    if option(options, verbs::COPY, false).as_bool() {
         let whole = option(options, "copy_text", text);
-        let button: ui::Control = ui::Control { kind: "button", role: "chip", text: "copy" };
-        controls.push(pool::on(button, field_copied, { "whole": whole }));
+        let button: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "copy" };
+        controls.push(pool::on(button, field_copied, { layout_fields::WHOLE: whole }));
     }
-    ui::Row { label: label, height: 22, slot_role: "layout_actions", controls: controls }
+    ui::Row { label: label, height: 22, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn field_toggled(state: &mut editor::State, data: any, _value: any) {
-    let key = data["key"].as_str();
+    let key = data[fields::KEY].as_str();
     let remembered = memory(state);
     remembered[key] = !remembered[key].as_bool();
     changed(state);
 }
 
 fn field_copied(state: &mut editor::State, data: any, _value: any) {
-    ui::set_clipboard(data["whole"].as_str());
+    ui::set_clipboard(data[layout_fields::WHOLE].as_str());
 }
 
 fn mask(text: str) -> str {
@@ -267,13 +285,13 @@ fn head_of(text: str, most: int) -> str {
 
 /// A value as text, the way a row shows it.
 fn shown(value: any) -> str {
-    if value.kind() == "str" {
+    if value.kind() == types::KIND_STRING {
         return value.as_str();
     }
     if value == nil {
         return "nil";
     }
-    if value.kind() == "map" || value.kind() == "list" {
+    if value.kind() == types::KIND_MAP || value.kind() == types::KIND_LIST {
         return json::encode(value);
     }
     "{value}"
@@ -286,15 +304,15 @@ fn shown(value: any) -> str {
 /// the caller puts the specs on its host.
 pub fn tree(state: &mut editor::State, id: str, value: any, options: any) -> any {
     let none: [any] = [];
-    let out: any = { "specs": none, "value": value, "changed": false, "write": option(options, "write") };
-    let edit = option(options, "edit", false).as_bool();
-    let label = option(options, "label", "").as_str();
+    let out: any = { SPECS: none, fields::VALUE: value, CHANGED: false, project_fields::WRITE: option(options, WRITE) };
+    let edit = option(options, EDIT, false).as_bool();
+    let label = option(options, LABEL, "").as_str();
     branch(state, out, id, [], label, value, edit, 0);
     out
 }
 
 fn branch(state: &mut editor::State, out: any, path: str, keys: [any], label: str, value: any, edit: bool, depth: int) {
-    if value.kind() == "map" || value.kind() == "list" {
+    if value.kind() == types::KIND_MAP || value.kind() == types::KIND_LIST {
         container(state, out, path, keys, label, value, edit, depth);
     } else {
         leaf(out, keys, label, value, edit, depth);
@@ -305,20 +323,20 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
     let key = "open:" + path;
     let held = memory(state)[key];
     let open = if held == nil { depth == 0 } else { held.as_bool() };
-    let count = if value.kind() == "map" { "{value.len()} keys" } else { "{value.len()} items" };
+    let count = if value.kind() == types::KIND_MAP { "{value.len()} keys" } else { "{value.len()} items" };
     let titled = label != "" || depth > 0;
     if titled {
         let button: ui::Control = ui::Control {
-            kind: "button",
-            role: "chip",
+            kind: ui::WIDGET_BUTTON,
+            role: roles::CHIP,
             text: indent(depth) + (if open { "▾ " } else { "▸ " }) + label,
         };
-        out["specs"].push(ui::Row {
+        out[SPECS].push(ui::Row {
             height: 22,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: [
-                pool::on(button, folded, { "key": key, "open": open }),
-                ui::Control { kind: "label", role: "text_caption", text: count },
+                pool::on(button, folded, { fields::KEY: key, project_fields::OPEN: open }),
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: count },
             ],
         });
     }
@@ -326,7 +344,7 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
         return;
     }
     let inner = if titled { depth + 1 } else { depth };
-    if value.kind() == "map" {
+    if value.kind() == types::KIND_MAP {
         for name in util::keys_sorted(value) {
             branch(state, out, path + "/" + name, with(keys, name), name, value[name], edit, inner);
         }
@@ -338,7 +356,7 @@ fn container(state: &mut editor::State, out: any, path: str, keys: [any], label:
 }
 
 fn folded(state: &mut editor::State, data: any, _value: any) {
-    memory(state)[data["key"].as_str()] = !data["open"].as_bool();
+    memory(state)[data[fields::KEY].as_str()] = !data[project_fields::OPEN].as_bool();
     changed(state);
 }
 
@@ -362,50 +380,50 @@ fn indent(depth: int) -> str {
 fn leaf(out: any, keys: [any], label: str, value: any, edit: bool, depth: int) {
     let text = shown(value);
     let control: ui::Control = if edit {
-        let field: ui::Control = ui::Control { kind: "text_field", role: "input_form", grow: 1, text: text };
+        let field: ui::Control = ui::Control { kind: ui::WIDGET_TEXT_FIELD, role: roles::INPUT_FORM, grow: 1, text: text };
         // The whole value and where it is written, not `out`: its specs hold
         // this control, and a map holding itself crosses to no engine.
-        let whole: any = { "value": out["value"], "write": out["write"] };
-        pool::on_submit(field, typed, { "text": text, "out": whole, "keys": keys, "value": value })
+        let whole: any = { fields::VALUE: out[fields::VALUE], project_fields::WRITE: out[project_fields::WRITE] };
+        pool::on_submit(field, typed, { fields::TEXT: text, OUT: whole, fields::KEYS: keys, fields::VALUE: value })
     } else {
-        ui::Control { kind: "label", role: "text_caption", grow: 1, truncate: true, text: text }
+        ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, truncate: true, text: text }
     };
-    out["specs"].push(ui::Row { height: 22, controls: [control], label: indent(depth) + label });
+    out[SPECS].push(ui::Row { height: 22, controls: [control], label: indent(depth) + label });
 }
 
 fn typed(state: &mut editor::State, data: any, now: any) {
-    if now.as_str() != data["text"].as_str() {
-        let keys: [any] = data["keys"];
-        put(data["out"], keys, parsed(data["value"], now.as_str()));
+    if now.as_str() != data[fields::TEXT].as_str() {
+        let keys: [any] = data[fields::KEYS];
+        put(data[OUT], keys, parsed(data[fields::VALUE], now.as_str()));
     }
 }
 
 // An edited leaf, written into the whole value at its keys and the whole
 // handed to whatever keeps it.
 fn put(out: any, keys: [any], now: any) {
-    out["changed"] = true;
+    out[CHANGED] = true;
     if keys.len() == 0 {
-        out["value"] = now;
+        out[fields::VALUE] = now;
     } else {
-        let at = out["value"];
+        let at = out[fields::VALUE];
         for index in 0..keys.len() - 1 {
-            at = if keys[index].kind() == "int" { at[keys[index].as_int()] } else { at[keys[index].as_str()] };
+            at = if keys[index].kind() == types::KIND_INT { at[keys[index].as_int()] } else { at[keys[index].as_str()] };
         }
         let last = keys[keys.len() - 1];
-        if last.kind() == "int" {
+        if last.kind() == types::KIND_INT {
             at[last.as_int()] = now;
         } else {
             at[last.as_str()] = now;
         }
     }
-    let write = out["write"];
-    if write.has("file") {
-        let path = write["file"].as_str();
-        fs::write(path, if write["toml"].as_bool() { toml::encode(out["value"]) } else { json::encode(out["value"]) });
+    let write = out[project_fields::WRITE];
+    if write.has(project_fields::FILE) {
+        let path = write[project_fields::FILE].as_str();
+        fs::write(path, if write[TOML].as_bool() { toml::encode(out[fields::VALUE]) } else { json::encode(out[fields::VALUE]) });
     } else if write != nil {
-        let to = write["to"].as_node();
+        let to = write[layout_fields::TO].as_node();
         if to.is_valid() {
-            to.call(write["method"].as_str(), out["value"]);
+            to.call(write[fields::METHOD].as_str(), out[fields::VALUE]);
         }
     }
 }
@@ -413,11 +431,11 @@ fn put(out: any, keys: [any], now: any) {
 /// What was typed, as the kind of value it replaces: text stays text, and a
 /// number or a switch is read the way a TOML file would read it.
 fn parsed(was: any, typed: str) -> any {
-    if was.kind() == "str" {
+    if was.kind() == types::KIND_STRING {
         return typed;
     }
     let doc = toml::parse("v = " + typed);
-    if doc.kind() == "map" && doc.has("v") {
+    if doc.kind() == types::KIND_MAP && doc.has("v") {
         return doc["v"];
     }
     typed
@@ -430,21 +448,21 @@ fn parsed(was: any, typed: str) -> any {
 pub fn files(state: &mut editor::State, id: str, options: any) -> [ui::Row] {
     let root = option(options, "root", game_data(state)).as_str();
     let only: [str] = [];
-    for name in util::list_or_empty(options["only"]) {
+    for name in util::list_or_empty(options[fields::ONLY]) {
         only.push(name.as_str());
     }
-    let reveal_root: ui::Control = ui::Control { kind: "button", role: "chip", text: "reveal" };
+    let reveal_root: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "reveal" };
     let out: [ui::Row] = [
         ui::Row {
             height: 24,
-            slot_role: "layout_actions",
+            slot_role: roles::LAYOUT_ACTIONS,
             controls: [
-                ui::Control { kind: "label", role: "text_caption", grow: 1, truncate: true, text: short_path(root) },
-                pool::on(reveal_root, revealed, { "path": root }),
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, truncate: true, text: short_path(root) },
+                pool::on(reveal_root, revealed, { project_fields::PATH: root }),
             ],
         },
     ];
-    let drawn = folder(state, id, root, "", only, option(options, "edit", true).as_bool(), 0, out);
+    let drawn = folder(state, id, root, "", only, option(options, EDIT, true).as_bool(), 0, out);
     if drawn == 0 {
         out.push(empty("nothing kept yet"));
     }
@@ -452,17 +470,17 @@ pub fn files(state: &mut editor::State, id: str, options: any) -> [ui::Row] {
 }
 
 fn revealed(state: &mut editor::State, data: any, _value: any) {
-    engine::reveal(data["path"].as_str());
+    engine::reveal(data[project_fields::PATH].as_str());
 }
 
 /// One directory's entries; answers how many files it put rows on.
 fn folder(state: &mut editor::State, id: str, directory: str, rel: str, only: [str], edit: bool, depth: int, out: [ui::Row]) -> int {
     let drawn = 0;
     for entry in util::list_or_empty(fs::list(directory)) {
-        let name = entry["name"].as_str();
+        let name = entry[fields::NAME].as_str();
         let path = directory + "/" + name;
         let here = if rel == "" { name } else { rel + "/" + name };
-        if entry["is_dir"].as_bool() {
+        if entry[project_fields::IS_DIR].as_bool() {
             if depth < FOLDER_DEPTH {
                 drawn += folder(state, id, path, here, only, edit, depth + 1, out);
             }
@@ -480,15 +498,15 @@ fn folder(state: &mut editor::State, id: str, directory: str, rel: str, only: [s
 fn file_rows(state: &mut editor::State, id: str, path: str, rel: str, edit: bool, out: [ui::Row]) {
     let key = "file:" + id;
     let open = memory(state)[key].as_bool();
-    let toggle: ui::Control = ui::Control { kind: "button", role: "chip", text: (if open { "▾ " } else { "▸ " }) + rel };
-    let controls = [pool::on(toggle, folded, { "key": key, "open": open })];
+    let toggle: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: (if open { "▾ " } else { "▸ " }) + rel };
+    let controls = [pool::on(toggle, folded, { fields::KEY: key, project_fields::OPEN: open })];
     let when = fs::modified_time(path);
     if when != nil {
-        controls.push(ui::Control { kind: "label", role: "text_caption", text: ago(engine::unix_time() - when.unwrap()) });
+        controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: ago(engine::unix_time() - when.unwrap()) });
     }
-    let reveal: ui::Control = ui::Control { kind: "button", role: "chip", text: "reveal" };
-    controls.push(pool::on(reveal, revealed, { "path": path }));
-    out.push(ui::Row { height: 24, controls: controls, slot_role: "layout_actions" });
+    let reveal: ui::Control = ui::Control { kind: ui::WIDGET_BUTTON, role: roles::CHIP, text: "reveal" };
+    controls.push(pool::on(reveal, revealed, { project_fields::PATH: path }));
+    out.push(ui::Row { height: 24, controls: controls, slot_role: roles::LAYOUT_ACTIONS });
     if open {
         document(state, id, path, edit, out);
     }
@@ -511,13 +529,13 @@ fn document(state: &mut editor::State, id: str, path: str, edit: bool, out: [ui:
         out.push(ui::Row {
             height: 22,
             controls: [
-                ui::Control { kind: "label", role: "note_warning", grow: 1, wrap: true, text: "does not parse" },
+                ui::Control { kind: ui::WIDGET_LABEL, role: roles::NOTE_WARNING, grow: 1, wrap: true, text: "does not parse" },
             ],
         });
         return;
     }
-    let keep: any = { "file": path, "toml": as_toml };
-    for spec in util::list_or_empty(tree(state, id, value, { "edit": edit, "write": keep })["specs"]) {
+    let keep: any = { project_fields::FILE: path, TOML: as_toml };
+    for spec in util::list_or_empty(tree(state, id, value, { EDIT: edit, project_fields::WRITE: keep })[SPECS]) {
         out.push(spec);
     }
 }

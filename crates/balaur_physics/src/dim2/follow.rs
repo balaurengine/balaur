@@ -12,6 +12,7 @@ use balaur_script::{Module, NodeId};
 
 use super::PhysicsState2d;
 use crate::vocabulary::component as c;
+use crate::vocabulary::words;
 
 /// Pulls the node's `body2d` towards the pose of `target` every fixed step, with rapier's PD or PID controller. `node.follow2d.reset_follow()` forgets what a PID summed.
 #[derive(Clone, Component)]
@@ -180,17 +181,20 @@ fn register_follow2d_component(reg: &mut Registry<'_>) {
 
 pub(crate) fn install_follow2d_api(m: &mut Module<Engine>) {
     m.describe(&[(
-        "reset_follow",
+        words::functions::RESET_FOLLOW,
         &[c::FOLLOW_2D],
         "",
         "Forget what a `pid` follow summed, so it pulls from now as if it had just started.",
     )]);
-    m.function("reset_follow", |eng: &Engine, node: NodeId| {
-        let entity = entity_of(node)?;
-        let state = eng.resource::<PhysicsState2d>();
-        if let Some(FollowRef2d::Pid(pid)) = state.borrow_mut().follows.get_mut(&entity) {
-            pid.reset_integrals();
-        }
-        Ok(())
-    });
+    m.function(
+        words::functions::RESET_FOLLOW,
+        |eng: &Engine, node: NodeId| {
+            let entity = entity_of(node)?;
+            let state = eng.resource::<PhysicsState2d>();
+            if let Some(FollowRef2d::Pid(pid)) = state.borrow_mut().follows.get_mut(&entity) {
+                pid.reset_integrals();
+            }
+            Ok(())
+        },
+    );
 }

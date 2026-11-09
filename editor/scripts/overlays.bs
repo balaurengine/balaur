@@ -6,6 +6,16 @@ use editor;
 use model;
 use selection;
 use util;
+use words::components;
+use words::fields;
+use words::inspector_fields;
+use words::layout_fields;
+use words::schema_fields;
+use words::theme_tokens;
+
+const FOV: str = "fov";
+const LIGHT2D: str = "light2d";
+const LIGHT3D: str = "light3d";
 
 pub struct Across {
     first_axis: any,
@@ -79,8 +89,8 @@ pub fn motion_path(state: &mut editor::State) {
     }
     let keys: any = nil;
     for track in anim::tracks(clip_definition) {
-        if track["target"].as_str() == "" && track["property"] == animation::PROPERTY_POSITION {
-            let held_keys = track["keys"];
+        if track[inspector_fields::TARGET].as_str() == "" && track[inspector_fields::PROPERTY] == animation::PROPERTY_POSITION {
+            let held_keys = track[fields::KEYS];
             keys = util::list_or_empty(if held_keys == nil { [] } else { held_keys });
         }
     }
@@ -92,11 +102,11 @@ pub fn motion_path(state: &mut editor::State) {
         return;
     }
     let tokens = state.theme;
-    let color = util::rgb(tokens["primary_text"].as_str());
+    let color = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
     let is2d = model::is_2d(state);
     let previous: [float]? = nil;
     for key in keys {
-        let held_value = key["value"];
+        let held_value = key[fields::VALUE];
         let position = util::list3_or(if held_value == nil { nil } else { held_value }.as_float(), [0.0, 0.0, 0.0]);
         let key_x = position[0];
         let key_y = position[1];
@@ -123,19 +133,19 @@ pub fn motion_path(state: &mut editor::State) {
 
 pub fn colliders2d(state: editor::State) {
     let tokens = state.theme;
-    let color = util::rgb(tokens["node_physics"].as_str());
+    let color = util::rgb(tokens[theme_tokens::NODE_PHYSICS].as_str());
     for found in state.nodes {
-        if !found.is_valid() || !found.has_component("collider2d") {
+        if !found.is_valid() || !found.has_component(components::COLLIDER2D) {
             continue;
         }
-        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider2d"))["shape"]);
+        let collider = util::map_or_empty(util::map_or_empty(found.authored(components::COLLIDER2D))[schema_fields::SHAPE]);
         let position = found.transform.global_position();
         let angle = found.transform.global_rotation_euler().z;
         let scale = found.transform.global_scale();
         let cosine = math::cos(angle);
         let sine = math::sin(angle);
-        if collider["kind"].as_str() == physics2d::SHAPE_CIRCLE {
-            let held = collider["radius"];
+        if collider[fields::KIND].as_str() == physics2d::SHAPE_CIRCLE {
+            let held = collider[layout_fields::RADIUS];
             let radius = (if held == nil { 0.5 } else { held.as_float() }) * scale.x;
             let from = turned(position, cosine, sine, radius, 0.0);
             for step in 1..33 {
@@ -145,7 +155,7 @@ pub fn colliders2d(state: editor::State) {
                 from = to;
             }
         } else {
-            let size = util::list2_or(collider["size"], [1.0, 1.0]);
+            let size = util::list2_or(collider[layout_fields::SIZE], [1.0, 1.0]);
             let half_x = size[0] / 2.0 * scale.x;
             let half_y = size[1] / 2.0 * scale.y;
             let first_corner = turned(position, cosine, sine, -half_x, -half_y);
@@ -172,7 +182,7 @@ fn turned(origin: Vec3, cosine: float, sine: float, offset_x: float, offset_y: f
 // A `light2d` or `occluder2d` colour property, which the scene format writes
 // either as `#rrggbb` or as channel floats.
 fn component_rgb(value: any, fallback: [float]) -> [float] {
-    if value.kind() == "str" && value.len() >= 7 {
+    if value.kind() == types::KIND_STRING && value.len() >= 7 {
         return util::rgb(value.as_str());
     }
     util::list3_or(value.as_float(), fallback)
@@ -184,8 +194,8 @@ pub fn lights2d(state: editor::State) {
         if !found.is_valid() {
             continue;
         }
-        if found.has_component("light2d") {
-            light_gizmo(found, found.authored("light2d"));
+        if found.has_component(LIGHT2D) {
+            light_gizmo(found, found.authored(LIGHT2D));
         }
         if found.has_component("occluder2d") {
             occluder_outline(state, found);
@@ -196,7 +206,7 @@ pub fn lights2d(state: editor::State) {
 // One light: a point's reach as a circle, a directional one's aim as a comb
 // of strokes through the node, both in the light's own colour.
 fn light_gizmo(found: Node, light: any) {
-    let held_color = light["color"];
+    let held_color = light[fields::COLOR];
     let color = component_rgb(if held_color == nil { nil } else { held_color }, [1.0, 1.0, 1.0]);
     let position = found.transform.global_position();
     let angle = found.transform.global_rotation_euler().z;
@@ -207,7 +217,7 @@ fn light_gizmo(found: Node, light: any) {
     let direction_y = -cosine;
     render::draw_line_2d(position.x - 0.2, position.y, position.x + 0.2, position.y, color[0], color[1], color[2], 2.0);
     render::draw_line_2d(position.x, position.y - 0.2, position.x, position.y + 0.2, color[0], color[1], color[2], 2.0);
-    let held_kind = light["kind"];
+    let held_kind = light[fields::KIND];
     if if held_kind == nil { render::LIGHT_POINT } else { held_kind.as_str() } == render::LIGHT_DIRECTIONAL {
         for step in -2..3 {
             let offset_x = -direction_y * (step as float) * 0.4;
@@ -216,7 +226,7 @@ fn light_gizmo(found: Node, light: any) {
         }
         return;
     }
-    let held_radius = light["radius"];
+    let held_radius = light[layout_fields::RADIUS];
     let radius = if held_radius == nil { 6.0 } else { held_radius.as_float() };
     let previous_x: any = position.x + radius;
     let previous_y = position.y;
@@ -234,7 +244,7 @@ fn light_gizmo(found: Node, light: any) {
 // derived one (from `collider2d`, or the node's shape) draws too.
 fn occluder_outline(state: editor::State, found: Node) {
     let tokens = state.theme;
-    let color = util::rgb(tokens["primary_text"].as_str());
+    let color = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
     // Flat x, y pairs, already closed when the occluder is.
     let flat = found.occluder2d.outline();
     let count = flat.len() / 2;
@@ -248,24 +258,24 @@ fn occluder_outline(state: editor::State, found: Node) {
 
 pub fn colliders(state: editor::State) {
     let tokens = state.theme;
-    let color = util::rgb(tokens["node_physics"].as_str());
+    let color = util::rgb(tokens[theme_tokens::NODE_PHYSICS].as_str());
     for found in state.nodes {
-        if !found.is_valid() || !found.has_component("collider3d") {
+        if !found.is_valid() || !found.has_component(components::COLLIDER3D) {
             continue;
         }
-        let collider = util::map_or_empty(util::map_or_empty(found.authored("collider3d"))["shape"]);
+        let collider = util::map_or_empty(util::map_or_empty(found.authored(components::COLLIDER3D))[schema_fields::SHAPE]);
         let position = found.transform.global_position();
         let half_x = 0.5;
         let half_y = 0.5;
         let half_z = 0.5;
-        let held_radius = collider["radius"];
+        let held_radius = collider[layout_fields::RADIUS];
         if held_radius != nil {
             let radius = held_radius.as_float();
             half_x = radius;
             half_y = radius;
             half_z = radius;
         } else {
-            let size = collider["size"];
+            let size = collider[layout_fields::SIZE];
             if size != nil {
                 let size: any = util::list3_or(size.as_float(), [1.0, 1.0, 1.0]);
                 half_x = size[0].as_float() / 2.0;
@@ -338,15 +348,15 @@ pub fn lights3d(state: &mut editor::State) {
     let tokens = state.theme;
     // The lines follow from each light's and camera's pose, its table and
     // whether it is selected; a frame where none moved replays the list.
-    let key: [any] = [tokens["primary_text"], tokens["text_muted"]];
+    let key: [any] = [tokens[theme_tokens::PRIMARY_TEXT], tokens[theme_tokens::TEXT_MUTED]];
     let marked: [Marked] = [];
     for index in 0..state.nodes.len() {
         let found = state.nodes[index];
         if !found.is_valid() {
             continue;
         }
-        let light = if found.has_component("light3d") { found.authored("light3d") } else { nil };
-        let camera = found.has_component("camera3d");
+        let light = if found.has_component(LIGHT3D) { found.authored(LIGHT3D) } else { nil };
+        let camera = found.has_component(components::CAMERA3D);
         if light == nil && !camera {
             continue;
         }
@@ -361,7 +371,7 @@ pub fn lights3d(state: &mut editor::State) {
             key.push("{light}");
         }
         if camera {
-            key.push(found.component_property("camera3d", "fov"));
+            key.push(found.component_property(components::CAMERA3D, FOV));
         }
         marked.push(Marked { node: found, light: light, camera: camera, selected: selected });
     }
@@ -385,14 +395,14 @@ pub fn lights3d(state: &mut editor::State) {
 
 fn light3d_gizmo(out: [float], found: Node, light: any, selected: bool, tokens: any) {
     let color = if selected {
-        util::rgb(tokens["primary_text"].as_str())
+        util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str())
     } else {
-        let held_color = light["color"];
+        let held_color = light[fields::COLOR];
         component_rgb(if held_color == nil { nil } else { held_color }, [1.0, 0.9, 0.7])
     };
     let position = util::xyz(found.transform.global_position());
     let direction = forward_of(found);
-    let held_kind = light["kind"];
+    let held_kind = light[fields::KIND];
     let kind = if held_kind == nil { render::LIGHT_DIRECTIONAL } else { held_kind.as_str() };
     let width = if selected { 2.0 } else { 1.0 };
     // The body every kind shares: a small star at the node.
@@ -414,7 +424,7 @@ fn light3d_gizmo(out: [float], found: Node, light: any, selected: bool, tokens: 
         }
         return;
     }
-    let held_radius = light["radius"];
+    let held_radius = light[layout_fields::RADIUS];
     let radius = if held_radius == nil { 30.0 } else { held_radius.as_float() };
     if kind == render::LIGHT_SPOT {
         let held_outer = light["outer"];
@@ -450,9 +460,9 @@ const FRUSTUM_REACH: float = 4.0;
 
 fn camera_gizmo(out: [float], state: editor::State, found: Node, selected: bool, tokens: any) {
     let color = if selected {
-        util::rgb(tokens["primary_text"].as_str())
+        util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str())
     } else {
-        util::rgb(tokens["text_muted"].as_str())
+        util::rgb(tokens[theme_tokens::TEXT_MUTED].as_str())
     };
     let width = if selected { 2.0 } else { 1.0 };
     let position = util::xyz(found.transform.global_position());
@@ -460,8 +470,8 @@ fn camera_gizmo(out: [float], state: editor::State, found: Node, selected: bool,
     let axes = across(direction);
     let first_axis = axes.first_axis;
     let second_axis = axes.second_axis;
-    let camera = util::map_or_empty(found.get_component("camera3d"));
-    let held_fov = camera["fov"];
+    let camera = util::map_or_empty(found.get_component(components::CAMERA3D));
+    let held_fov = camera[FOV];
     let fov = (if held_fov == nil { 60.0 } else { held_fov.as_float() }) * math::PI / 180.0;
     let half = FRUSTUM_REACH * math::tan(fov / 2.0);
     let centre = util::vector_add(position, util::vector_scale(direction, FRUSTUM_REACH));
