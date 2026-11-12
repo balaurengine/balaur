@@ -153,9 +153,7 @@ pub(crate) fn advance_system(eng: &Engine, dt: f32) {
         // first place a `queue_free`d node's leftovers can be dropped.
         state.players.retain(|&entity, _| world.contains(entity));
         state.machines.retain(|&entity, _| world.contains(entity));
-        state
-            .tweens
-            .retain(|_, tween| world.contains(tween.node) && (tween.running || !tween.value));
+        state.tweens.retain(|_, tween| world.contains(tween.node));
         // What ended last step has been told, and a digest should not keep it.
         for playback in state.players.values_mut() {
             playback.finished.clear();

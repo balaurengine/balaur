@@ -195,7 +195,7 @@ impl Scenario {
     fn update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
-            self.node.ragdoll.set_ragdoll_influence(1.0);
+            self.node.ragdoll.influence = 1.0;
         }
     }
 }
@@ -249,7 +249,7 @@ impl Scenario {
     fn update(dt: float) {
         self.ticks += 1;
         if self.ticks == 30 {
-            self.node.ragdoll.set_ragdoll_influence(0.0);
+            self.node.ragdoll.influence = 0.0;
         }
     }
 }

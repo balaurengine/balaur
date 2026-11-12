@@ -91,7 +91,10 @@ impl Row {
             (keys::TAG.into(), Value::Str(r.tag.clone())),
             (keys::ID.into(), Value::Str(r.id.clone())),
             (CHANNEL.into(), Value::Str(r.channel.clone())),
-            (keys::WHEN.into(), Value::Str(ago(&r.published))),
+            (
+                keys::PUBLISHED.into(),
+                Value::Num(unix_of(&r.published).unwrap_or_default() as f64),
+            ),
             ("current".into(), Value::Bool(self.order == words::SAME)),
             ("order".into(), Value::Str(self.order.clone())),
             ("download".into(), Value::Str(self.download.clone())),
@@ -336,22 +339,6 @@ fn off_frame(work: impl FnOnce() + Send + 'static) {
     std::thread::spawn(work);
     #[cfg(target_family = "wasm")]
     work();
-}
-
-/// How long ago, in the words a person uses. The clock is the machine's,
-/// which is what "yesterday" is measured against.
-#[allow(
-    clippy::disallowed_methods,
-    reason = "orders a list a person reads, not simulation"
-)]
-fn ago(published: &str) -> String {
-    let Some(then) = unix_of(published) else {
-        return String::new();
-    };
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs().cast_signed());
-    super::said_ago(now - then)
 }
 
 fn unix_of(stamp: &str) -> Option<i64> {

@@ -37,10 +37,7 @@ use glamx::{Quat, Vec3};
 
 use crate::vocabulary::{Opts, component as c, keys as k, words as w};
 
-const SET_RAGDOLL_INFLUENCE: &str = "set_ragdoll_influence";
-
-/// The `ragdoll` component's weight, which a build's options and
-/// `set_ragdoll_influence` name too.
+/// The `ragdoll` component's weight, which a build's options name too.
 pub(crate) const INFLUENCE: &str = "influence";
 
 /// The component a built ragdoll leaves on the rig root.
@@ -787,32 +784,6 @@ pub(crate) fn install_ragdoll_api(m: &mut Module<Engine>, dim3: bool) {
                     .map(|e| Value::Node(balaur_core::node_id_of(e).0))
                     .collect(),
             ))
-        },
-    );
-}
-
-/// `set_ragdoll_influence`, on `physics` rather than on either dimension: an
-/// influence means the same thing in both, and a verb spelled twice is a verb
-/// a reader has to check twice.
-pub(crate) fn install_blend_api(m: &mut Module<Engine>) {
-    m.describe(&[(
-        SET_RAGDOLL_INFLUENCE,
-        &[RAGDOLL],
-        "(node: node, weight: float)",
-        "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip \
-         in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get \
-         back up.",
-    )]);
-    m.function(
-        SET_RAGDOLL_INFLUENCE,
-        |eng: &Engine, (node, weight): (NodeId, f32)| {
-            let entity = entity_of(node)?;
-            let mut params = toml::map::Map::new();
-            params.insert(
-                INFLUENCE.into(),
-                toml::Value::Float(f64::from(weight.clamp(0.0, 1.0))),
-            );
-            balaur_core::components::patch(eng, entity, RAGDOLL, &toml::Value::Table(params))
         },
     );
 }

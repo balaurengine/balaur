@@ -3,6 +3,8 @@
 internal const BG_CONTROL: str = "bg_control";
 internal const BORDER_DEFAULT: str = "border_default";
 internal const DANGER_TEXT: str = "danger_text";
+internal const GRID_MAJOR: str = "grid_major";
+internal const GRID_MINOR: str = "grid_minor";
 internal const NODE_2D: str = "node_2d";
 internal const NODE_BONE: str = "node_bone";
 internal const NODE_DEFAULT: str = "node_default";

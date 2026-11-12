@@ -34,6 +34,38 @@ pub struct Frame {
 /// Texture pixels to one world unit when a component names none.
 pub const DEFAULT_PIXELS_PER_UNIT: float = 100.0;
 
+/// How long ago a moment `seconds` back was, in the words a person uses.
+pub fn said_ago(seconds: float) -> str {
+    let minutes = math::floor(seconds / 60.0) as int;
+    let hours = minutes / 60;
+    let days = hours / 24;
+    if minutes < 2 {
+        "just now"
+    } else if hours < 1 {
+        "{minutes} minutes ago"
+    } else if hours < 2 {
+        "an hour ago"
+    } else if days < 1 {
+        "{hours} hours ago"
+    } else if days < 2 {
+        "yesterday"
+    } else if days < 30 {
+        "{days} days ago"
+    } else if days < 60 {
+        "last month"
+    } else {
+        "{days / 30} months ago"
+    }
+}
+
+/// How long ago a moment in seconds since 1970 was, empty when unknown.
+pub fn said_ago_since(unix_seconds: any) -> str {
+    if unix_seconds == nil || unix_seconds.as_float() <= 0.0 {
+        return "";
+    }
+    said_ago(engine::unix_time() - unix_seconds.as_float())
+}
+
 pub fn join(parts: [str], separator: str) -> str {
     let out = "";
     for index in 0..parts.len() {

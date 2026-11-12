@@ -2,7 +2,7 @@
 //! distance between them does to it.
 //!
 //! A `listener` node is the ears, else the current camera; a `sound` marked
-//! `positional`, or an `audio.play_cue` given a `position`, is an emitter. Once a frame's transforms
+//! `positional`, or an `audio.play_file` given a `position`, is an emitter. Once a frame's transforms
 //! have settled, every live emitter is re-placed: distance sets its gain, its
 //! offset across the listener's right sets its pan, and the speed the two
 //! close at bends its pitch. All of it multiplies the bus chain rather than

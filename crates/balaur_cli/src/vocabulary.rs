@@ -98,8 +98,9 @@ pub(crate) mod keys {
     pub(crate) const OPENED: &str = "opened";
     pub(crate) const PATH: &str = "path";
     pub(crate) const PROJECT: &str = "project";
+    /// When a release went out, in seconds since 1970; zero when unknown.
+    pub(crate) const PUBLISHED: &str = "published";
     pub(crate) const SOURCE: &str = "source";
     pub(crate) const TAG: &str = "tag";
     pub(crate) const VERSION: &str = "version";
-    pub(crate) const WHEN: &str = "when";
 }

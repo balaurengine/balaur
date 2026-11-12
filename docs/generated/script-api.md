@@ -9,10 +9,10 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 
 | Module | Functions | Constants |
 | --- | ---: | ---: |
-| [`animation`](#animation) | 6 | 80 |
+| [`animation`](#animation) | 5 | 80 |
 | [`apple`](#apple) | 19 | 25 |
 | [`assets`](#assets) | 13 | 0 |
-| [`audio`](#audio) | 19 | 1 |
+| [`audio`](#audio) | 18 | 1 |
 | [`browser`](#browser) | 5 | 0 |
 | [`debugger`](#debugger) | 9 | 4 |
 | [`dependency`](#dependency) | 6 | 0 |
@@ -41,11 +41,11 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`physics3d`](#physics3d) | 17 | 118 |
 | [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
-| [`project`](#project) | 16 | 0 |
+| [`project`](#project) | 15 | 0 |
 | [`random`](#random) | 5 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 44 | 45 |
+| [`render`](#render) | 42 | 45 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
@@ -67,12 +67,11 @@ Clip playback on a node's `animation` component: play, pause, seek and query. `t
 
 | Function | Signature |
 | --- | --- |
+| `ease` | `(str, float) -> float` |
 | `ease_names` | `() -> [str]` |
 | `is_tween_running` | `(int) -> bool` |
 | `stop_tween` | `(int)` |
 | `tween` | `(Node, animation::Tween) -> int` |
-| `tween_float` | `(float, float, float, str?) -> int` |
-| `tween_float_of` | `(int) -> float?` |
 
 Called on a node's component: `animation`, `state_machine`. See [components](components.md).
 
@@ -186,7 +185,7 @@ Asset definitions by reference: a project path, `file#entry` for one entry, `#id
 
 ## `audio`
 
-Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
+Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.
 
 | Function | Signature |
 | --- | --- |
@@ -194,7 +193,6 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `bus_limit` | `(str) -> audio::BusLimit?` |
 | `bus_volume_linear` | `(str) -> float` |
 | `buses` | `() -> [str]` |
-| `cues` | `() -> [str]` |
 | `device_ready` | `() -> bool` |
 | `devices` | `() -> [str]` |
 | `distance_gain` | `(int) -> float?` |
@@ -202,7 +200,7 @@ Sound playback: `play` starts a node's `sound` component and returns a handle th
 | `is_playing` | `(int) -> bool` |
 | `listener_position` | `() -> Vec3` |
 | `pan` | `(int) -> float?` |
-| `play_cue` | `(str, audio::CueOptions?) -> int?` |
+| `play_file` | `(str, audio::PlayFileOptions?) -> int` |
 | `set_bus_volume_linear` | `(str, float)` |
 | `set_emitter_position` | `(int, Vec3)` |
 | `set_pitch_scale` | `(int, float)` |
@@ -776,8 +774,6 @@ What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies a
 | `threads` | `() -> int` |
 | `tuning` | `() -> physics::WorldTunings` |
 
-Called on a node's component: `ragdoll`. See [components](components.md).
-
 ## `physics2d`
 
 The 2D rigid-body world: bodies and colliders on nodes, their velocities, raycasts and overlap queries. `physics` holds what spans both worlds.
@@ -939,7 +935,6 @@ The projects this machine has opened, the templates a new one starts from, and t
 | `copy_example` | `(str, str) -> project::Project` |
 | `copy_system_font` | `(str, str) -> bool` |
 | `create` | `(str, str) -> project::Project` |
-| `editor_data_directory` | `() -> str` |
 | `examples` | `() -> [project::Example]` |
 | `forget` | `(str)` |
 | `home` | `() -> str` |
@@ -1028,8 +1023,6 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `screenshot` | `(str)` |
 | `set_background` | `(float, float, float)` |
 | `set_debug_view` | `(str)` |
-| `set_grid` | `(bool, float?, int?, int?)` |
-| `set_grid_colors` | `(float, float, float, float, float, float)` |
 | `set_shader_preview` | `(str, int)` |
 | `set_shader_probe` | `(float, float)` |
 | `shader_probe` | `() -> Color?` |

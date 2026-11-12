@@ -419,6 +419,8 @@ pub(crate) mod keys {
     pub(crate) const ARROW: &str = "arrow";
     pub(crate) const BODY: &str = "body";
     pub(crate) const COLORS: &str = "colors";
+    pub(crate) const HUES: &str = "hues";
+    pub(crate) const MIXES: &str = "mixes";
     /// The theme document's asset type, the theme it is written over, its
     /// mode flag, and its table of named sizes.
     pub(crate) const TYPE: &str = "type";
@@ -637,11 +639,6 @@ pub(crate) mod tokens {
     pub(crate) const SECONDARY_TEXT: &str = "secondary_text";
     pub(crate) const WARNING_TEXT: &str = "warning_text";
     pub(crate) const DANGER_TEXT: &str = "danger_text";
-    pub(crate) const GRID_MINOR: &str = "grid_minor";
-    pub(crate) const GRID_MAJOR: &str = "grid_major";
-    pub(crate) const NODE_DEFAULT: &str = "node_default";
-    pub(crate) const BRAND_PLATE: &str = "brand_plate";
-    pub(crate) const INPUT_RIPPLE: &str = "input_ripple";
 
     /// The fonts a theme's `[fonts]` names that egui's own text draws in:
     /// the default every text without one takes, the one its headings and

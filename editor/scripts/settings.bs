@@ -20,12 +20,17 @@ use words::layout_fields;
 use words::project_fields;
 use words::roles;
 use words::schema_fields;
+use words::theme_modes;
 use words::verbs;
 
 const EDITOR: str = "editor";
 const PROJECT: str = "project";
 /// The person's UI scale: Settings, ⌘= and ⌘− and the palette all write it.
 pub const UI_SCALE: str = "editor/appearance/ui_scale";
+const COMPACT: str = "editor/appearance/compact";
+/// How many recordings a game keeps before the oldest is pruned.
+pub const RECORDINGS_KEEP: str = "editor/recordings/keep";
+const RECORDINGS_VERIFY: str = "editor/recordings/verify";
 const WINDOW_WIDTH: str = "window/width";
 const WINDOW_HEIGHT: str = "window/height";
 
@@ -85,6 +90,53 @@ pub fn open(state: &mut editor::State) {
     load_files(state);
 }
 
+/// The editor's own settings, the person's. The engine reads none of them, so
+/// the editor declares them, before it reads `editor.toml`.
+pub fn declare() {
+    settings::define(theme::SETTING, {
+        fields::TYPE: datatypes::ENUM,
+        schema_fields::DEFAULT: theme::DEFAULT,
+        schema_fields::OPTIONS: theme::BUNDLED(),
+        fields::ORDER: 1,
+        fields::HELP: "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half.",
+    });
+    settings::define(theme::MODE_SETTING, {
+        fields::TYPE: datatypes::ENUM,
+        schema_fields::DEFAULT: theme_modes::SYSTEM,
+        schema_fields::OPTIONS: [theme_modes::SYSTEM, theme_modes::DARK, theme_modes::LIGHT],
+        fields::ORDER: 2,
+        fields::HELP: "Which half of the theme the editor wears: the one the system is in, or always dark or always light.",
+    });
+    settings::define(UI_SCALE, {
+        fields::TYPE: datatypes::FLOAT,
+        schema_fields::DEFAULT: 1.25,
+        schema_fields::MIN: 0.75,
+        schema_fields::MAX: 2.5,
+        fields::ORDER: 3,
+        fields::HELP: "How large the editor's own text and controls are drawn.",
+    });
+    settings::define(COMPACT, {
+        fields::TYPE: datatypes::BOOL,
+        schema_fields::DEFAULT: false,
+        fields::ORDER: 4,
+        fields::HELP: "Drop labels the icon already says, for a narrow window.",
+    });
+    settings::define(RECORDINGS_KEEP, {
+        fields::TYPE: datatypes::INT,
+        schema_fields::DEFAULT: 10,
+        schema_fields::MIN: 1,
+        schema_fields::MAX: 200,
+        fields::ORDER: 10,
+        fields::HELP: "How many recordings are kept per game before the oldest is pruned.",
+    });
+    settings::define(RECORDINGS_VERIFY, {
+        fields::TYPE: datatypes::BOOL,
+        schema_fields::DEFAULT: false,
+        fields::ORDER: 11,
+        fields::HELP: "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame.",
+    });
+}
+
 /// Read both settings files and apply what the editor acts on. Called at boot
 /// and again when the window opens, so a hand edit between the two is not
 /// silently reverted on the next write.
@@ -106,12 +158,12 @@ pub fn load_files(state: &mut editor::State) {
 
 // The editor's own settings are the person's, in the folder every project shares.
 pub fn preferences_path() -> str {
-    project::editor_data_directory() + "/editor.toml"
+    engine::user_data_directory() + "/editor.toml"
 }
 
 // The size the window last closed at: the person's, as the preferences are.
 fn window_size_path() -> str {
-    project::editor_data_directory() + "/window.toml"
+    engine::user_data_directory() + "/window.toml"
 }
 
 // A run told what to do opens at the stated size, the same on every machine,
@@ -260,6 +312,23 @@ pub fn commit(state: &mut editor::State) {
     commit_project(state);
     commit_preferences(state);
     state.settings.dirty = false;
+}
+
+/// Carry into the game's manifest a project setting a plugin changed in this
+/// run, which `settings::set` alone does not reach. A host setting stays the
+/// editor's, and one with overrides is the screen's to edit.
+pub fn carry_run_changes() {
+    for setting in settings::all() {
+        let spec = util::map_or_empty(setting.spec);
+        let host = spec[schema_fields::HOST];
+        if setting.scope != PROJECT || (host != nil && host.as_bool()) || settings::overrides(setting.path).len() > 0 {
+            continue;
+        }
+        let now = settings::get(setting.path);
+        if now != nil && now != settings::base(setting.path) {
+            settings::edit_set(setting.path, now);
+        }
+    }
 }
 
 /// The game's half alone: what a choice made outside this screen saves.
@@ -693,11 +762,11 @@ pub fn apply(state: &mut editor::State) {
     shell::apply_ui_scale(state);
     // Kept apart from `state.compact`, which the window width also writes: the
     // setting forces compact on, it never forces it off.
-    let compact = settings::get("editor/appearance/compact");
+    let compact = settings::get(COMPACT);
     if compact.kind() == types::KIND_BOOL {
         state.settings.compact = compact.as_bool();
     }
-    let verify = settings::get("editor/recordings/verify");
+    let verify = settings::get(RECORDINGS_VERIFY);
     if verify.kind() == types::KIND_BOOL {
         state.session.verify = verify.as_bool();
         signals::changed(state, changes::RECORDINGS);

@@ -116,7 +116,6 @@ struct TweenFrame {
     played: u32,
     after: Option<TweenId>,
     pending: Option<String>,
-    value: bool,
     clip: ClipFrame,
     step_ends: Vec<f32>,
 }
@@ -252,7 +251,6 @@ fn capture(eng: &Engine) -> Value {
                 played: tween.played,
                 after: tween.after,
                 pending: tween.pending.clone(),
-                value: tween.value,
                 clip: clip_frame(&tween.clip),
                 step_ends: tween.step_ends.clone(),
             })
@@ -334,7 +332,6 @@ fn tweens_of(eng: &Engine, frames: Vec<TweenFrame>) -> Vec<(TweenId, Tween)> {
                     played: tween.played,
                     after: tween.after,
                     pending: tween.pending,
-                    value: tween.value,
                     step_ends: tween.step_ends,
                 },
             ))

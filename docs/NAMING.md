@@ -268,6 +268,7 @@ Every other token derives from seven source colours, a `contrast` step and four 
 | Accents | `primary`, `secondary` | shadcn, daisyUI |
 | Good outcome, caution, error | `success`, `warning`, `danger` | daisyUI, Primer |
 | Lightness step between surfaces | `contrast` | Godot |
+| A theme's own token at a fixed hue, or mixed off the background | `[hues]`, `[mixes]` | none |
 | Body text size | `font_size`, and `font_size_small`, `font_size_large`, `font_size_title` | Godot |
 | Fonts by name, in `[fonts]` | `default`, and `heading`, `mono`, `icon` where egui's own text and a widget's glyphs draw | Godot (`default_font`), Tailwind |
 | Corner rounding | `radius`, and `radius_small`, `radius_large` | shadcn |
@@ -282,11 +283,11 @@ Every other token derives from seven source colours, a `contrast` step and four 
 | A family's ink on any sheet | `X_text` | Primer |
 | A family's tinted surface | `X_bg` | Primer, Material |
 | Text on a family's fill | `text_on_X` | shadcn, Primer |
-| Viewport grid | `grid_minor`, `grid_major` | Godot |
+| Viewport grid, the editor's `[mixes]` | `grid_minor`, `grid_major` | Godot |
 | Code colours | `syntax_keyword`, `syntax_string`, `syntax_number`, `syntax_comment`, `syntax_identifier`, `syntax_type`, `syntax_punctuation` | none |
-| Node kind icons | `node_default`, `node_2d`, `node_3d`, `node_ui`, `node_physics`, `node_bone`, `node_modifier` | Godot |
-| Viewport axes | `axis_x`, `axis_y`, `axis_z` | Godot |
-| The engine mark's disc, touch rings | `brand_plate`, `input_ripple` | none |
+| Node kind icons, the editor's `[hues]` | `node_default`, `node_2d`, `node_3d`, `node_ui`, `node_physics`, `node_bone`, `node_modifier` | Godot |
+| Viewport axes, the editor's `[hues]` | `axis_x`, `axis_y`, `axis_z` | Godot |
+| The engine mark's disc, touch rings, stated in the editor's roles | `brand_plate`, `input_ripple` | none |
 | List rows | `row_selected`, `row_selected_text`, `row_hover`, `row_active`, `row_stripe` | none |
 | Tables and trees | `table_header`, `table_rule`, `tree_guide` | none |
 
@@ -486,7 +487,7 @@ A physics word follows Godot where the importer maps it, and otherwise the word 
 | Soft body solver | `solver_iterations`, `solver_substeps` | Jolt |
 | Soft body shapes | `box`, `sphere`, `triangle_mesh`, `circle`, with `size` | Godot, Unity |
 | Soft body material | `mass`, `edge_*`, `bend_*`, `young_modulus`, `poisson_ratio`, `tear_*`, `shape_matching` (`auto`, `on`, `off`) | Box2D, Jolt, Godot |
-| Ragdoll weight, 0 to 1 | `influence`, `set_ragdoll_influence` | Godot, Unreal |
+| Ragdoll weight, 0 to 1 | `ragdoll` `influence` | Godot, Unreal |
 | Soft body parts | `regions`, `collision_mesh`, `collision_binding` (`nearest`, `particles`, `cells`) | rapier |
 | Pulling a body to a pose | `follow3d`, `follow2d`: `kind` (`pd`, `pid`), `target`, `*_gain`, `translation_axes`, `rotation_axes` (in 2D the one `rotation`, as a 2D joint names it), `reset_follow` | rapier |
 | Ray | `origin`, `direction`, `max_distance`, `hit_from_inside` | Unity, PhysX, Godot |
@@ -525,6 +526,7 @@ Most names match Godot 4. A clip is Unity's word, because `animation` is already
 | Jiggle | `stiffness`, `mass`, `damping`, `use_gravity`, `gravity` | Godot |
 | Retargeting | `bone_map`, `skeleton_profile`, play option `retarget` | Godot |
 | Tween | `animation.tween`, steps `property`, `to`, `from`, `by`, `duration`, `delay`, `parallel`, `interval`, `call`, `loops`, `then` | Godot |
+| A curve applied to a number a script moves itself | `animation.ease(name, t)`, `ease_names` | Godot (`ease`) |
 | Tween rate and state | `speed_scale`, `is_tween_running` | Godot |
 | Easing | `<mode>_<transition>`, as `in_out_sine`; a straight line is `linear` alone | Godot |
 | Timer | `timer`, with `wait_time`, `one_shot`, `autostart`, `time_left`, `running` | Godot |
@@ -545,7 +547,7 @@ A volume names its unit, because Godot reads a bare `volume` as decibels. A cue 
 | Buses | `[audio.buses]`, `master`, `parent`, `buses` | Godot, Unity, FMOD |
 | Bus loudness | `bus_volume_linear`, `set_bus_volume_linear` | Godot |
 | Reserved: mixing | `mute`, `solo`, `snapshot` | Godot, Unity, FMOD |
-| Named sounds | `audio/cues.toml`, `cues`, `play_cue` | Unreal |
+| A sound no node carries | `play_file` | none |
 | A cue | `files`, `volume_linear`, `pitch_scale`, `doppler_level`, `bus`, `loop`, option `position` | Godot |
 | Reserved: variations in turn | `sequential` | Godot |
 

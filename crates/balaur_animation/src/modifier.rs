@@ -717,7 +717,3 @@ fn follow_point(world: &World, node: Entity, goal: Vec3, lag: f32, dim3: bool, s
         transform.position.z = local.z;
     }
 }
-
-// The editor's gizmo asks these two; they read the same walk the solver
-// makes, so they keep the module's public path.
-pub use crate::gizmo::{chain_of_node, target_of};

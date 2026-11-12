@@ -62,7 +62,6 @@ pub(crate) fn set_kept(rows: &js_sys::Array) {
 /// The rows the start screen draws, in the shape a desktop's list has: the
 /// id stands where a path does, because that is what opening one takes.
 pub(crate) fn recent() -> Vec<Value> {
-    let now = js_sys::Date::now() / 1000.0;
     KEPT.with(|kept| {
         kept.borrow()
             .iter()
@@ -71,12 +70,6 @@ pub(crate) fn recent() -> Vec<Value> {
                     (keys::PATH.into(), Value::Str(row.id.clone())),
                     (keys::NAME.into(), Value::Str(row.name.clone())),
                     (keys::OPENED.into(), Value::Num(row.modified)),
-                    (
-                        keys::WHEN.into(),
-                        Value::Str(crate::project_api::said_ago(
-                            (now - row.modified).max(0.0) as i64
-                        )),
-                    ),
                     (keys::VERSION.into(), Value::Str(String::new())),
                     ("exists".into(), Value::Bool(true)),
                 ])

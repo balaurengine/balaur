@@ -297,7 +297,7 @@ in the game; "not planned" is a deliberate no.
 | --- | --- |
 | Buses with volume and mute, declared and at run time | Have: `[audio.buses]`, `audio.set_bus_volume_linear`, which makes a bus it does not know; `define_bus` **not planned** |
 | Effects on a bus: a limiter, reverb | Have: `[audio.buses]` takes a limiter and the filters, distortion, reverb and automatic gain control, built when the device opens; `audio.bus_limit` and `audio.bus_effects` read them back. EQ, a compressor and ducking stay Roadmap 0.9's, "Sound that fills a room" |
-| Duck music under speech | Have: `animation.tween_float` driving `audio.set_bus_volume_linear` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
+| Duck music under speech | Have: `animation.ease` driving `audio.set_bus_volume_linear` from `update`; `audio.duck(bus, to, seconds)` if the pattern recurs |
 | Content downloaded at run time: a manifest, a content pack per language, verified, then played | Have: `http.request` with `save_to` (a path under the user directory, streamed to disk, the `http_progress` event per chunk, the reply's `path`); `hash.sha256(path)`; the content is a directory of files, and `audio.play` on an absolute path does the rest. Mounting a second export pack **not planned**: the roadmap's asset streaming is the general answer, a directory the specific one |
 | Streaming a long file | Roadmap's asset streaming; every play decodes from memory today |
 | Positional audio, pitch | Have |
@@ -403,7 +403,7 @@ the kiss3d fork's `balaur-hooks` branch, which `Cargo.toml` names.
    `progress`, `grid`, `flow`, `fold`, `dialog`, `separator`; nine-patch;
    `anchor = "fill"` with `inset`; the scale floor; the scroll deadzone.
    Then `task.frames`/`task.seconds`; node tags; tween `delay`, `then`,
-   `on_tween_finished`, `tween_float`; `geometry2d`; `hash.sha256`;
+   `on_tween_finished`, `ease`; `geometry2d`; `hash.sha256`;
    `encoding.base64`; `random.uuid`; `http.request` `save_to` with progress;
    `strings.system_locale`; `engine.open_url`, `platform`, `device_id`,
    `unix_time`, `dark_mode`, `focused`, `stats`; `window.safe_area`,

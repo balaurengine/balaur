@@ -38,6 +38,14 @@ fn core_defines_settings_in_both_scopes() {
 #[test]
 fn a_nested_path_reads_and_writes_where_it_says() {
     let app = app();
+    settings::define(
+        &app.engine,
+        SettingDef {
+            path: "editor/appearance/theme".into(),
+            scope: Scope::Editor,
+            spec: toml::Value::Table(toml::value::Table::new()),
+        },
+    );
     settings::set(
         &app.engine,
         "editor/appearance/theme",

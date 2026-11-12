@@ -30,6 +30,26 @@ pub struct Marked {
     selected: bool,
 }
 
+// The ground grid's reach each way in metres, and how often a line is major.
+const GRID_EXTENT: int = 20;
+const GRID_MAJOR_EVERY: int = 5;
+
+/// The ground grid on the XZ plane, the axes wider, its width growing nearer
+/// the camera as a floor's would.
+pub fn grid3d(state: editor::State) {
+    let tokens = state.theme;
+    let minor = util::rgb(tokens[theme_tokens::GRID_MINOR].as_str());
+    let major = util::rgb(tokens[theme_tokens::GRID_MAJOR].as_str());
+    let half = GRID_EXTENT as float;
+    for line in -GRID_EXTENT..GRID_EXTENT + 1 {
+        let color = if line % GRID_MAJOR_EVERY == 0 { major } else { minor };
+        let at = line as float;
+        let width = if line == 0 { 2.0 } else { 1.0 };
+        render::draw_line_3d(at, 0.0, -half, at, 0.0, half, color[0], color[1], color[2], width, true, false);
+        render::draw_line_3d(-half, 0.0, at, half, 0.0, at, color[0], color[1], color[2], width, true, false);
+    }
+}
+
 pub fn grid2d(state: editor::State) {
     let tokens = state.theme;
     let camera = render::camera_2d();
@@ -44,19 +64,19 @@ pub fn grid2d(state: editor::State) {
     if half_width > 200.0 || half_height > 200.0 {
         return;
     }
-    let minor = util::rgb(tokens["grid_minor"].as_str());
-    let major = util::rgb(tokens["grid_major"].as_str());
+    let minor = util::rgb(tokens[theme_tokens::GRID_MINOR].as_str());
+    let major = util::rgb(tokens[theme_tokens::GRID_MAJOR].as_str());
     let first_x = math::floor(center_x - half_width) as int;
     let last_x = math::ceil(center_x + half_width) as int;
     for column in first_x..last_x + 1 {
-        let color = if column % 5 == 0 { major } else { minor };
+        let color = if column % GRID_MAJOR_EVERY == 0 { major } else { minor };
         let column_x = column as float;
         render::draw_line_2d(column_x, center_y - half_height, column_x, center_y + half_height, color[0], color[1], color[2], if column == 0 { 2.0 } else { 1.0 });
     }
     let first_y = math::floor(center_y - half_height) as int;
     let last_y = math::ceil(center_y + half_height) as int;
     for row in first_y..last_y + 1 {
-        let color = if row % 5 == 0 { major } else { minor };
+        let color = if row % GRID_MAJOR_EVERY == 0 { major } else { minor };
         let row_y = row as float;
         render::draw_line_2d(center_x - half_width, row_y, center_x + half_width, row_y, color[0], color[1], color[2], if row == 0 { 2.0 } else { 1.0 });
     }

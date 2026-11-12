@@ -879,34 +879,6 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
         ),
     );
     build_import_settings(eng, &parse);
-    // A prefix may nest, so a subsystem with many settings declares them a
-    // group at a time and the editor shows each group under its own heading.
-    define_group(
-        eng,
-        "editor/appearance",
-        Scope::Editor,
-        &parse(
-            "settings.editor.appearance",
-            r#"
-theme = { type = "enum", default = "balaur", options = ["balaur", "atom-one", "catppuccin", "dracula", "everforest", "github", "gruvbox", "kanagawa", "rose-pine", "solarized", "tokyo-night"], order = 1, help = "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half." }
-mode = { type = "enum", default = "system", options = ["system", "dark", "light"], order = 2, help = "Which half of the theme the editor wears: the one the system is in, or always dark or always light." }
-ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 3, help = "How large the editor's own text and controls are drawn." }
-compact = { type = "bool", default = false, order = 4, help = "Drop labels the icon already says, for a narrow window." }
-"#,
-        ),
-    );
-    define_group(
-        eng,
-        "editor/recordings",
-        Scope::Editor,
-        &parse(
-            "settings.editor.recordings",
-            r#"
-keep = { type = "int", default = 10, min = 1, max = 200, order = 10, help = "How many recordings are kept per game before the oldest is pruned." }
-verify = { type = "bool", default = false, order = 11, help = "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame." }
-"#,
-        ),
-    );
 }
 
 /// `[import.<kind>]`: the defaults every file of a kind is read with, which a

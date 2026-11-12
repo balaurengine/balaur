@@ -936,7 +936,6 @@ fn insert_render_resources(reg: &mut balaur_plugin::Registry<'_>) {
         changed: true,
     });
     reg.insert_resource(WindowConfig::default());
-    reg.insert_resource(GridConfig::default());
     reg.insert_resource(DebugLineBuffer3d::default());
     reg.insert_resource(DebugLineBuffer2d::default());
     reg.insert_resource(DrawBuffer2d::default());

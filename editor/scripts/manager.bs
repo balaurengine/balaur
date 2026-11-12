@@ -508,7 +508,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
             role: roles::TEXT_CODE_QUIET,
             padding: ui::all_sides(0),
             font_size: 11,
-            text: row[fields::WHEN].as_str(),
+            text: util::said_ago_since(row[fields::OPENED]),
         },
     ];
     if built != "" && !narrow(column_width) {
@@ -848,7 +848,7 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
                         text: row[fields::ID].as_str(),
                         text_color: (if current { tokens[theme_tokens::PRIMARY_TEXT] } else { tokens[theme_tokens::TEXT_DEFAULT] }).as_str(),
                     },
-                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: row[fields::WHEN].as_str() },
+                    ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CODE_QUIET, font_size: 11, text: util::said_ago_since(row[fields::PUBLISHED]) },
                 ],
             },
         ];

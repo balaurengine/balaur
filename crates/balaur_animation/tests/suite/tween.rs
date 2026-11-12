@@ -898,33 +898,6 @@ fn then_on_a_tween_already_over_starts_at_once() {
     );
 }
 
-#[test]
-fn a_value_tween_is_read_not_written() {
-    let mut app = app();
-    let id = tween::start_float(&app.engine, 0.0, 100.0, 0.5, Some("linear")).unwrap();
-    assert_eq!(tween::float_of(&app.engine, id), Some(0.0));
-    tick(&mut app, 15);
-    let half = tween::float_of(&app.engine, id).expect("a number");
-    near(half as f32, 50.0, "halfway");
-    tick(&mut app, 15);
-    assert_eq!(
-        tween::float_of(&app.engine, id),
-        Some(100.0),
-        "over, and readable for the tick it landed on"
-    );
-    assert!(!tween::is_running(&app.engine, id));
-    tick(&mut app, 1);
-    assert_eq!(
-        tween::float_of(&app.engine, id),
-        None,
-        "and gone the tick after"
-    );
-    assert!(
-        tween::start_float(&app.engine, 0.0, 1.0, -1.0, None).is_err(),
-        "a length of time is not negative"
-    );
-}
-
 /// A fade-out that hides the node when it lands and puts its alpha back,
 /// Godot's `tween.finished.connect(hide)`: zero-length steps at the end are
 /// where the tween leaves the node.

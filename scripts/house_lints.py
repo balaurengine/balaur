@@ -760,7 +760,7 @@ FAMILIES = ("primary", "secondary", "success", "warning", "danger")
 FAMILY_SUFFIXES = ("", "_fill", "_fill_hover", "_text", "_bg")
 # Theme tables that are not widget styles, and the per-state and per-class
 # sub-tables a style may hold.
-THEME_SECTIONS = {"colors", "sizes", "fonts"}
+THEME_SECTIONS = {"colors", "sizes", "fonts", "hues", "mixes"}
 THEME_STATES = {"hover", "active", "focus", "disabled", "checked", "touch", "pointer",
                 "narrow", "medium", "wide", "short", "tall"}
 # Theme keys with no widget property of the same name: each styles a part

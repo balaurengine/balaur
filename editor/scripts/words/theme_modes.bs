@@ -1,4 +1,5 @@
-// The two halves of a theme.
+// The two halves of a theme, and the mode that follows the system's.
 
 internal const DARK: str = "dark";
 internal const LIGHT: str = "light";
+internal const SYSTEM: str = "system";

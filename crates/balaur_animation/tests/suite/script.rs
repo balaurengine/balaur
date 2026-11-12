@@ -522,7 +522,7 @@ impl Hop {
 /// The finished callback carries the handle, so a script holding several
 /// tweens knows which one ran out; a value tween is read each frame.
 const FINISHED: &str = r#"
-pub class Mover { node: Node, handle: int, finished: int, meter: int, read: float, over: bool }
+pub class Mover { node: Node, handle: int, finished: int, elapsed: float, read: float, quad: float }
 impl Mover {
     fn init() {
         let step = animation::Step {
@@ -532,16 +532,11 @@ impl Mover {
             ease: "linear",
         };
         self.handle = animation::tween(self.node, animation::Tween { steps: [step] });
-        self.meter = animation::tween_float(0.0, 10.0, 0.5, "linear");
+        self.quad = animation::ease(animation::EASE_IN_QUAD, 0.5);
     }
     fn update(dt: float) {
-        // The frame a value tween ends still answers its last value; after
-        // it, `tween_float_of` answers nil.
-        let now = animation::tween_float_of(self.meter);
-        if now != nil {
-            self.read = now.unwrap();
-        }
-        self.over = !animation::is_tween_running(self.meter);
+        self.elapsed += dt;
+        self.read = 10.0 * animation::ease("linear", math::min(self.elapsed / 0.5, 1.0));
     }
     pub fn on_tween_finished(handle: int) {
         if handle == self.handle { self.finished = handle; }
@@ -550,7 +545,7 @@ impl Mover {
 "#;
 
 #[test]
-fn a_script_hears_which_tween_finished_and_reads_a_value_tween() {
+fn a_script_hears_which_tween_finished_and_eases_a_number_itself() {
     let dir = project(("mover.bs", FINISHED));
     let mut app = app_in(dir.path());
     let entity = hero(&app, "mover.bs");
@@ -561,6 +556,10 @@ fn a_script_hears_which_tween_finished_and_reads_a_value_tween() {
         other => panic!("`{name}` is {other:?}"),
     };
     tick(&mut app, 10);
+    assert!(
+        (number(&app, "quad") - 0.25).abs() < 1e-4,
+        "a quadratic ease in is a quarter of the way at half time"
+    );
     assert!(number(&app, "finished") < 0.5, "not over yet");
     let read = number(&app, "read");
     assert!(read > 0.5 && read < 4.0, "the meter climbs: {read}");

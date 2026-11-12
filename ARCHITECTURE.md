@@ -949,11 +949,9 @@ write. It walks widgets in scene order and wraps.
   its own and passed through them once, before its parent; a sound wanting its
   own plays on a bus of its own. They are built when the device opens.
 
-**Cues** are named sounds in `audio/cues.toml`. A script says
-`audio.play_cue("hit")`; which file, level and bus is the sound designer's.
-**Variations are taken in turn, not at random** — a rotation must not repeat,
-and the engine RNG would put what a player hears into the simulation's stream.
-Where the rotation got to is presentation: not snapshotted, not digested.
+**A file no node carries** plays through `audio.play_file(path, options)`,
+under the `sound` component's keys. A named table of sounds, or variations in
+turn, is a game's own script over it.
 
 **Positional.** A `listener` node is the ears, else the current camera, a 3D one
 over a 2D one: distance sets volume, offset across its right sets pan. A sound

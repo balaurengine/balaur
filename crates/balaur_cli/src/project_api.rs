@@ -17,7 +17,6 @@ use balaur_script::{Module, Value};
 const COPY_EXAMPLE: &str = "copy_example";
 const COPY_SYSTEM_FONT: &str = "copy_system_font";
 const CREATE: &str = "create";
-const EDITOR_DATA_DIRECTORY: &str = "editor_data_directory";
 const EXAMPLES: &str = "examples";
 const FORGET: &str = "forget";
 const HOME: &str = "home";
@@ -95,7 +94,7 @@ fn project_records(m: &mut Module<Engine>) {
     m.records(&[
         (
             "Recent",
-            "{ path: string, name: string, opened: float, when: string, version: string, exists: bool }",
+            "{ path: string, name: string, opened: float, version: string, exists: bool }",
             "A project this machine has opened.",
         ),
         (
@@ -170,12 +169,6 @@ fn describe_project_api(m: &mut Module<Engine>) {
             &[],
             "-> string",
             "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
-        ),
-        (
-            EDITOR_DATA_DIRECTORY,
-            &[],
-            "-> string",
-            "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         ),
         (
             IN_TAB,
@@ -312,13 +305,6 @@ fn install_project_verbs(m: &mut Module<Engine>) {
                 .into_owned(),
         ))
     });
-    m.function(EDITOR_DATA_DIRECTORY, |eng: &Engine, ()| {
-        let dir = home_of(eng);
-        balaur_core::files::backend(eng).mkdir(&dir)?;
-        // `fs.*` reaches only declared roots, and this one is the editor's.
-        balaur::file_api::add_root(eng, &dir);
-        Ok(Value::Str(dir.to_string_lossy().into_owned()))
-    });
     m.function(IN_TAB, |_: &Engine, ()| {
         Ok(Value::Bool(cfg!(target_family = "wasm")))
     });
@@ -348,30 +334,6 @@ fn install_project_verbs(m: &mut Module<Engine>) {
         }
         Ok(picked.map_or(Value::Nil, Value::text))
     });
-}
-
-/// The same words for a time this machine wrote down itself.
-pub(crate) fn said_ago(seconds: i64) -> String {
-    let minutes = seconds / 60;
-    let hours = minutes / 60;
-    let days = hours / 24;
-    if minutes < 2 {
-        "just now".to_string()
-    } else if hours < 1 {
-        format!("{minutes} minutes ago")
-    } else if hours < 2 {
-        "an hour ago".to_string()
-    } else if days < 1 {
-        format!("{hours} hours ago")
-    } else if days < 2 {
-        "yesterday".to_string()
-    } else if days < 30 {
-        format!("{days} days ago")
-    } else if days < 60 {
-        "last month".to_string()
-    } else {
-        format!("{} months ago", days / 30)
-    }
 }
 
 /// Where the example projects are, looked for the way the library is: an
@@ -612,20 +574,12 @@ fn write_list(home: &Path, rows: &[Row]) {
     );
 }
 
-#[allow(
-    clippy::disallowed_methods,
-    reason = "orders a list a person reads, not simulation"
-)]
 fn row_value(row: Row) -> Value {
     let exists = Path::new(&row.path).join("project.toml").is_file();
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs().cast_signed());
     Value::Map(vec![
         (keys::PATH.into(), Value::Str(row.path)),
         (keys::NAME.into(), Value::Str(row.name)),
         (keys::OPENED.into(), Value::Num(row.opened as f64)),
-        (keys::WHEN.into(), Value::Str(said_ago(now - row.opened))),
         (keys::VERSION.into(), Value::Str(row.version)),
         ("exists".into(), Value::Bool(exists)),
     ])

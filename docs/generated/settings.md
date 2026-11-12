@@ -88,20 +88,6 @@ question as an old one is a second way to say it.
 </tbody>
 </table>
 
-## editor
-
-<table>
-<thead><tr><th>key</th><th>type</th><th>default</th><th>notes</th><th>what it does</th></tr></thead>
-<tbody>
-<tr><td><code>appearance/theme</code></td><td>enum</td><td><code>&quot;balaur&quot;</code></td><td>editor</td><td>Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half.</td></tr>
-<tr><td><code>appearance/mode</code></td><td>enum</td><td><code>&quot;system&quot;</code></td><td>editor</td><td>Which half of the theme the editor wears: the one the system is in, or always dark or always light.</td></tr>
-<tr><td><code>appearance/ui_scale</code></td><td>float</td><td><code>1.25</code></td><td>editor</td><td>How large the editor&#x27;s own text and controls are drawn.</td></tr>
-<tr><td><code>appearance/compact</code></td><td>bool</td><td><code>false</code></td><td>editor</td><td>Drop labels the icon already says, for a narrow window.</td></tr>
-<tr><td><code>recordings/keep</code></td><td>int</td><td><code>10</code></td><td>editor</td><td>How many recordings are kept per game before the oldest is pruned.</td></tr>
-<tr><td><code>recordings/verify</code></td><td>bool</td><td><code>false</code></td><td>editor</td><td>Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame.</td></tr>
-</tbody>
-</table>
-
 ## export
 
 <table>

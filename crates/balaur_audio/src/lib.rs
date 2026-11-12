@@ -2,10 +2,10 @@
 //!
 //! The `sound` component gives a node a configured sound: `autoplay` starts
 //! it on load, `node.sound.play()` restarts it and `node.sound.stop()` silences
-//! it. `audio.play` and `audio.play_cue(name)` hand back an integer handle;
+//! it. `audio.play` and `audio.play_file(path)` hand back an integer handle;
 //! `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing`
 //! address it. A sound with a place in the world (a `sound` with `positional`
-//! set, or a cue played with a `position`) is heard from the `listener` node:
+//! set, or a file played with a `position`) is heard from the `listener` node:
 //! see [`spatial`].
 //!
 //! Audio is a pure observer of the simulation. If no output device is
@@ -29,8 +29,8 @@ mod backend;
 pub mod bus;
 pub mod cache;
 mod component;
-pub mod cue;
 pub mod output;
+pub mod play_file;
 pub mod playback;
 mod script_api;
 pub mod spatial;
@@ -785,7 +785,7 @@ pub fn devices() -> Vec<String> {
 
 /// The bytes a sound path names, cached between plays so a footstep does not
 /// cost a read per step.
-fn read_sound(eng: &Engine, path: &str) -> Result<playback::SoundBytes> {
+pub(crate) fn read_sound(eng: &Engine, path: &str) -> Result<playback::SoundBytes> {
     cache::read(eng, path)
 }
 
@@ -1097,7 +1097,6 @@ impl balaur_plugin::Plugin for AudioPlugin {
             next_handle: 1,
         });
         reg.insert_resource(bus::Buses::default());
-        reg.insert_resource(cue::Cues::default());
         reg.insert_resource(cache::SoundCache::default());
 
         reg.add_system(Stage::First, open_on_activation_system);

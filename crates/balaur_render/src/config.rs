@@ -108,33 +108,8 @@ pub struct ClearColorConfig {
     pub changed: bool,
 }
 
-/// Ground grid drawn by windowed backends: minor/major line spacing in world
-/// units, extent in lines, colors from the caller (the editor themes it).
-pub struct GridConfig {
-    pub enabled: bool,
-    pub step: f32,
-    pub major_every: u32,
-    pub extent: i32,
-    pub minor_color: [f32; 3],
-    pub major_color: [f32; 3],
-}
-
-impl Default for GridConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            step: 1.0,
-            major_every: 5,
-            extent: 20,
-            minor_color: [0.12, 0.13, 0.15],
-            major_color: [0.17, 0.19, 0.22],
-        }
-    }
-}
-
 /// Where the 2D camera looks (world center) and its zoom in logical pixels
-/// per world unit. Backends apply it when changed and keep their own
-/// interactive pan/zoom in between.
+/// per world unit. Backends apply it when changed; moving it is a script's.
 pub struct CameraConfig2d {
     pub center: [f32; 2],
     pub zoom: f32,

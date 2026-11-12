@@ -1703,6 +1703,10 @@
       "websocket::STATE_OPEN": "open"
     },
     "functions": {
+      "animation::ease": {
+        "least": 2,
+        "signature": "(str, float) -> float"
+      },
       "animation::ease_names": {
         "least": 0,
         "signature": "() -> [str]"
@@ -1718,14 +1722,6 @@
       "animation::tween": {
         "least": 2,
         "signature": "(Node, animation::Tween) -> int"
-      },
-      "animation::tween_float": {
-        "least": 3,
-        "signature": "(float, float, float, str?) -> int"
-      },
-      "animation::tween_float_of": {
-        "least": 1,
-        "signature": "(int) -> float?"
       },
       "apple::access_point": {
         "least": 1,
@@ -1871,10 +1867,6 @@
         "least": 0,
         "signature": "() -> [str]"
       },
-      "audio::cues": {
-        "least": 0,
-        "signature": "() -> [str]"
-      },
       "audio::device_ready": {
         "least": 0,
         "signature": "() -> bool"
@@ -1903,9 +1895,9 @@
         "least": 1,
         "signature": "(int) -> float?"
       },
-      "audio::play_cue": {
+      "audio::play_file": {
         "least": 1,
-        "signature": "(str, audio::CueOptions?) -> int?"
+        "signature": "(str, audio::PlayFileOptions?) -> int"
       },
       "audio::set_bus_volume_linear": {
         "least": 2,
@@ -3695,10 +3687,6 @@
         "least": 1,
         "signature": "(Node)"
       },
-      "node.ragdoll.set_ragdoll_influence": {
-        "least": 2,
-        "signature": "(Node, float)"
-      },
       "node.remove_component": {
         "least": 2,
         "signature": "(Node, str)"
@@ -4503,10 +4491,6 @@
         "least": 2,
         "signature": "(str, str) -> project::Project"
       },
-      "project::editor_data_directory": {
-        "least": 0,
-        "signature": "() -> str"
-      },
       "project::examples": {
         "least": 0,
         "signature": "() -> [project::Example]"
@@ -4746,14 +4730,6 @@
       "render::set_debug_view": {
         "least": 1,
         "signature": "(str)"
-      },
-      "render::set_grid": {
-        "least": 1,
-        "signature": "(bool, float?, int?, int?)"
-      },
-      "render::set_grid_colors": {
-        "least": 6,
-        "signature": "(float, float, float, float, float, float)"
       },
       "render::set_shader_preview": {
         "least": 2,
@@ -5517,8 +5493,15 @@
         "limit_release_time": "float",
         "limit_threshold_db": "float"
       },
-      "audio::CueOptions": {
-        "position": "Vec3?"
+      "audio::PlayFileOptions": {
+        "bus": "str?",
+        "doppler_level": "float?",
+        "loop": "bool?",
+        "max_distance": "float?",
+        "min_distance": "float?",
+        "pitch_scale": "float?",
+        "position": "Vec3?",
+        "volume_linear": "float?"
       },
       "debugger::Frame": {
         "function": "str",
@@ -6613,8 +6596,7 @@
         "name": "str",
         "opened": "float",
         "path": "str",
-        "version": "str",
-        "when": "str"
+        "version": "str"
       },
       "project::SystemFont": {
         "family": "str",
@@ -20554,6 +20536,7 @@
         "add_clip": "Give this node a clip of its own under that name, shaped like a scene file's.",
         "current_clip": "The clip playing or paused on this node, and nil once it has ended, been stopped, or never started.",
         "current_state": "The state the machine is in, or nil before it has entered one.",
+        "ease": "The named curve at `t`, from 0 to 1: what a tween's `ease` does to its progress, for a number a script moves itself.",
         "ease_names": "Every curve an `ease` takes, by name: the bare `linear`, then eleven transitions in four modes each.",
         "is_playing": "Whether a clip is advancing on this node; a paused, stopped, finished or absent one answers false.",
         "is_tween_running": "Whether a handle still names a running tween; one that finished, was stopped, or lost its node answers false. Takes a tween handle, where `is_playing` takes a node and asks about its clip.",
@@ -20568,14 +20551,13 @@
         "stop_tween": "End the tween a handle names, leaving the pose where it is.",
         "time": "Seconds of playback since the current clip started, before wrapping; a stopped clip keeps where it stopped.",
         "travel": "Head for the named state through the cheapest chain of transitions, each costing its priority and fading as it says; a state no transition reaches is cut to directly.",
-        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop_tween` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out.",
-        "tween_float": "A tween over a number that drives no node: read it each frame with `tween_float_of` and write it wherever you like. Returns a handle `stop_tween` takes.",
-        "tween_float_of": "Where a number tween has got to; nil once it is over."
+        "tween": "Generate a clip on the node from a table of steps and run it, returning the handle `stop_tween` and `is_tween_running` take. The table also takes `delay` in seconds, `then = <handle>` to wait for another tween, `loops` and `speed_scale`; a step's `call` names a method; the node's `on_tween_finished(handle)` is called when it runs out."
       },
       "functions": [
         "add_clip",
         "current_clip",
         "current_state",
+        "ease",
         "ease_names",
         "is_playing",
         "is_tween_running",
@@ -20590,15 +20572,14 @@
         "stop_tween",
         "time",
         "travel",
-        "tween",
-        "tween_float",
-        "tween_float_of"
+        "tween"
       ],
       "name": "animation",
       "signatures": {
         "add_clip": "(Node, str, animation::Clip)",
         "current_clip": "(Node) -> str?",
         "current_state": "(Node) -> str?",
+        "ease": "(str, float) -> float",
         "ease_names": "() -> [str]",
         "is_playing": "(Node) -> bool",
         "is_tween_running": "(int) -> bool",
@@ -20613,9 +20594,7 @@
         "stop_tween": "(int)",
         "time": "(Node) -> float",
         "travel": "(Node, str)",
-        "tween": "(Node, animation::Tween) -> int",
-        "tween_float": "(float, float, float, str?) -> int",
-        "tween_float_of": "(int) -> float?"
+        "tween": "(Node, animation::Tween) -> int"
       }
     },
     {
@@ -20865,13 +20844,12 @@
           "value": "\"finished\""
         }
       ],
-      "doc": "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_cue` plays a sound named in `audio/cues.toml`, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
+      "doc": "Sound playback: `play` starts a node's `sound` component and returns a handle that `stop_playback`, `set_volume_linear`, `set_pitch_scale` and `is_playing` take; `seek` and `skip` move it. `play_file` plays a file no node carries, from a `position` heard from the `listener` when given one. A node's `sound` announces `finished` (`EVENT_FINISHED`) with the handle when it plays out. `devices` lists the outputs `[audio] device` can name.",
       "docs": {
         "bus_effects": "One bus's effects as `[audio.buses]` declares them, applied once to everything the bus mixes. Built when the output device opens, as the limiter is. Nil for a bus with none switched on.",
         "bus_limit": "One bus's limiter as `[audio.buses]` declares it. Nil for a bus with none.",
         "bus_volume_linear": "One bus's own gain, without its parents'.",
         "buses": "Every audio bus, declared in `[audio.buses]` or made by setting a volume, in name order.",
-        "cues": "Every sound named in `audio/cues.toml`, in name order.",
         "device_ready": "Whether an output device is open. False on a page until the first gesture, and false for good with no sound card; playing before then hands out handles that make no sound.",
         "devices": "Every output device's name, as `[audio] device` takes it. Empty when the platform lists none.",
         "distance_gain": "The gain the distance to the listener is costing a positional handle right now: 1 up close, 0 out of range.",
@@ -20880,7 +20858,7 @@
         "listener_position": "Where the ears are: the current `listener` node's world position, else the current camera's.",
         "pan": "Where a positional handle sits between the speakers: -1 hard left, 0 centred, 1 hard right.",
         "play": "Start the node's own `sound` from the top, replacing what it had going, and return the new handle.",
-        "play_cue": "Play a named sound: the next of its variations in turn, at its own volume and pitch, through its own bus. A `position` in the options table places it. Nil for a name nothing declared.",
+        "play_file": "Play a sound file no node carries, through `bus` at `volume_linear` and `pitch_scale`, looping when `loop` is true. Returns the handle `stop_playback` takes.",
         "seek": "Jump the node's sound to `seconds` into the file it is playing; `playback_time` reads it back. A node with nothing playing is left alone.",
         "set_bus_volume_linear": "Set one bus's gain and re-apply it to everything already playing on it: which is what a volume slider is.",
         "set_emitter_position": "Move what a handle plays from, so a sound follows something the script is driving; the frame takes its doppler from how far it moved.",
@@ -20896,7 +20874,6 @@
         "bus_limit",
         "bus_volume_linear",
         "buses",
-        "cues",
         "device_ready",
         "devices",
         "distance_gain",
@@ -20905,7 +20882,7 @@
         "listener_position",
         "pan",
         "play",
-        "play_cue",
+        "play_file",
         "seek",
         "set_bus_volume_linear",
         "set_emitter_position",
@@ -20922,7 +20899,6 @@
         "bus_limit": "(str) -> audio::BusLimit?",
         "bus_volume_linear": "(str) -> float",
         "buses": "() -> [str]",
-        "cues": "() -> [str]",
         "device_ready": "() -> bool",
         "devices": "() -> [str]",
         "distance_gain": "(int) -> float?",
@@ -20931,7 +20907,7 @@
         "listener_position": "() -> Vec3",
         "pan": "(int) -> float?",
         "play": "(Node) -> int",
-        "play_cue": "(str, audio::CueOptions?) -> int?",
+        "play_file": "(str, audio::PlayFileOptions?) -> int",
         "seek": "(Node, float)",
         "set_bus_volume_linear": "(str, float)",
         "set_emitter_position": "(int, Vec3)",
@@ -23235,14 +23211,8 @@
       }
     },
     {
-      "acts_on": {
-        "set_ragdoll_influence": [
-          "ragdoll"
-        ]
-      },
-      "components": [
-        "ragdoll"
-      ],
+      "acts_on": {},
+      "components": [],
       "constants": [],
       "doc": "What spans both physics worlds: pausing, sleeping, tuning and clearing. Bodies and colliders live in `physics2d` and `physics3d`.",
       "docs": {
@@ -23254,7 +23224,6 @@
         "quarantined": "What rapier disabled in each world's last step because a position, velocity or shape stopped being a number. Empty lists are the normal answer.",
         "set_debug_draw": "Draw the physics world over the scene, as `modes` names it; `debug_draw_defaults()` is the usual shapes, and `enabled: false` nothing. `[physics.debug]` holds the colours and lengths.",
         "set_paused": "Stop or resume stepping both worlds; nodes keep their poses.",
-        "set_ragdoll_influence": "How much of the ragdoll's simulated pose the rig's bones take, 0 to 1: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get back up.",
         "set_sleeping_allowed": "Allow or forbid resting bodies falling asleep, in both worlds and for bodies added later.",
         "set_tuning": "Change how the solver behaves: `solver_iterations`, `length_unit`, `ccd_substeps`, contact softness, the `soft_*` rows and a `soft_recovery` record, the keys `[physics]` takes. A key at the top reaches both worlds; a `physics3d` or `physics2d` record holds keys for that world alone, which win over the top. Every value here changes results, so a recording only replays against the same numbers: prefer `[physics]`, `[physics.3d]` and `[physics.2d]` in project.toml.",
         "sleeping_allowed": "Whether resting bodies are allowed to fall asleep.",
@@ -23270,7 +23239,6 @@
         "quarantined",
         "set_debug_draw",
         "set_paused",
-        "set_ragdoll_influence",
         "set_sleeping_allowed",
         "set_tuning",
         "sleeping_allowed",
@@ -23287,7 +23255,6 @@
         "quarantined": "() -> physics::Quarantined",
         "set_debug_draw": "(physics::DebugDraw)",
         "set_paused": "(bool)",
-        "set_ragdoll_influence": "(Node, float)",
         "set_sleeping_allowed": "(bool)",
         "set_tuning": "(physics::TuningOptions)",
         "sleeping_allowed": "() -> bool",
@@ -25869,7 +25836,6 @@
         "copy_example": "Copy one example into `into` under its own name, so the shipped one stays as it is. Answers `{ path, name }`, or `{ error }`.",
         "copy_system_font": "Copy an installed face, one `system_fonts` lists, to `to` inside the project. Answers whether it was copied; a path the list does not name is refused.",
         "create": "Write a new project at `path` from a template id, or from nothing when the id is empty. Answers `{ path, name }`, or `{ error }`.",
-        "editor_data_directory": "The editor's per-user folder, `<data>/balaur-editor` beside the games' `<data>/balaur/<name>`: `editor.toml`, `projects.toml`, `sessions/` and `themes/`. Made on first ask.",
         "examples": "The example projects shipped beside the editor: `{ id, name, note, cover, path }` each, where `cover` is a picture the editor's own project holds, or empty.",
         "forget": "Drop one project from the list. The folder is not touched.",
         "home": "Where a new project goes unless the reader says otherwise: the home directory on a desktop, and the app's own writable directory where there is no such thing.",
@@ -25887,7 +25853,6 @@
         "copy_example",
         "copy_system_font",
         "create",
-        "editor_data_directory",
         "examples",
         "forget",
         "home",
@@ -25906,7 +25871,6 @@
         "copy_example": "(str, str) -> project::Project",
         "copy_system_font": "(str, str) -> bool",
         "create": "(str, str) -> project::Project",
-        "editor_data_directory": "() -> str",
         "examples": "() -> [project::Example]",
         "forget": "(str)",
         "home": "() -> str",
@@ -26260,8 +26224,6 @@
         "set_background": "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats.",
         "set_cell": "Put one tile at a column and row; a tile below zero clears the cell, and a cell outside the map grows it in that direction. The mesh rebuilds on the next frame.",
         "set_debug_view": "Draw one channel of the scene (normals, uv, depth or albedo) instead of its colour; an empty name puts the picture back.",
-        "set_grid": "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent.",
-        "set_grid_colors": "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats.",
         "set_shader_preview": "Draw the value a shader's line computes for every pixel that reaches it; line 0 puts the picture back.",
         "set_shader_probe": "Ask what the previewed line computed at one framebuffer pixel; the answer arrives through `shader_probe` a frame later.",
         "set_terrain": "Paint a terrain value at a column and row and let the tileset's rules pick the tiles, for that cell and the ring around it; below zero clears it.",
@@ -26314,8 +26276,6 @@
         "set_background",
         "set_cell",
         "set_debug_view",
-        "set_grid",
-        "set_grid_colors",
         "set_shader_preview",
         "set_shader_probe",
         "set_terrain",
@@ -26369,8 +26329,6 @@
         "set_background": "(float, float, float)",
         "set_cell": "(Node, int, int, int)",
         "set_debug_view": "(str)",
-        "set_grid": "(bool, float?, int?, int?)",
-        "set_grid_colors": "(float, float, float, float, float, float)",
         "set_shader_preview": "(str, int)",
         "set_shader_probe": "(float, float)",
         "set_terrain": "(Node, int, int, int)",
@@ -28117,94 +28075,6 @@
         "min": 0.01,
         "order": 3,
         "type": "float"
-      }
-    },
-    {
-      "host": false,
-      "path": "editor/appearance/theme",
-      "scope": "editor",
-      "spec": {
-        "default": "balaur",
-        "help": "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half.",
-        "options": [
-          "balaur",
-          "atom-one",
-          "catppuccin",
-          "dracula",
-          "everforest",
-          "github",
-          "gruvbox",
-          "kanagawa",
-          "rose-pine",
-          "solarized",
-          "tokyo-night"
-        ],
-        "order": 1,
-        "type": "enum"
-      }
-    },
-    {
-      "host": false,
-      "path": "editor/appearance/mode",
-      "scope": "editor",
-      "spec": {
-        "default": "system",
-        "help": "Which half of the theme the editor wears: the one the system is in, or always dark or always light.",
-        "options": [
-          "system",
-          "dark",
-          "light"
-        ],
-        "order": 2,
-        "type": "enum"
-      }
-    },
-    {
-      "host": false,
-      "path": "editor/appearance/ui_scale",
-      "scope": "editor",
-      "spec": {
-        "default": 1.25,
-        "help": "How large the editor's own text and controls are drawn.",
-        "max": 2.5,
-        "min": 0.75,
-        "order": 3,
-        "type": "float"
-      }
-    },
-    {
-      "host": false,
-      "path": "editor/appearance/compact",
-      "scope": "editor",
-      "spec": {
-        "default": false,
-        "help": "Drop labels the icon already says, for a narrow window.",
-        "order": 4,
-        "type": "bool"
-      }
-    },
-    {
-      "host": false,
-      "path": "editor/recordings/keep",
-      "scope": "editor",
-      "spec": {
-        "default": 10,
-        "help": "How many recordings are kept per game before the oldest is pruned.",
-        "max": 200,
-        "min": 1,
-        "order": 10,
-        "type": "int"
-      }
-    },
-    {
-      "host": false,
-      "path": "editor/recordings/verify",
-      "scope": "editor",
-      "spec": {
-        "default": false,
-        "help": "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame.",
-        "order": 11,
-        "type": "bool"
       }
     },
     {

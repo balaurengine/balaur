@@ -2241,7 +2241,7 @@ On a node carrying `wheel3d`, as `node.wheel3d.<method>`:
 
 ### `ragdoll`
 
-`physics` · 2 properties · 1 method
+`physics` · 2 properties
 
 Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ragdoll` built. `influence` is how much of the simulated pose the bones take, 0 to 1.
 
@@ -2250,15 +2250,6 @@ Drives a rig's bones from the `bodies` that `physics2d.ragdoll` or `physics3d.ra
 <tbody>
 <tr><td><code>bodies</code></td><td>node</td><td>—</td><td>The node holding the bodies, one per bone, named after it</td></tr>
 <tr><td><code>influence</code></td><td>float</td><td><code>1.0</code></td><td>How much of the simulated pose the bones take Range 0.0–1.0.</td></tr>
-</tbody>
-</table>
-
-On a node carrying `ragdoll`, as `node.ragdoll.<method>`:
-
-<table>
-<thead><tr><th>method</th><th>gives</th><th>description</th><th>module</th></tr></thead>
-<tbody>
-<tr><td><code>set_ragdoll_influence(float)</code></td><td>—</td><td>How much of the ragdoll&#x27;s simulated pose the rig&#x27;s bones take, 0 to 1: 0 leaves the clip in charge while the bodies simulate unseen, 1 goes limp. Tween it to fall over and get back up.</td><td><code>physics</code></td></tr>
 </tbody>
 </table>
 

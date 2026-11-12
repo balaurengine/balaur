@@ -12,8 +12,7 @@ use balaur_script::{Module, Value};
 use crate::vocabulary::words as vocab;
 use crate::{
     AppIconConfig, ClearColorConfig, DEFAULT_PIXELS_PER_UNIT, DebugLineBuffer2d, DebugLineBuffer3d,
-    DrawLineArgs, GridConfig, ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d,
-    WindowConfig,
+    DrawLineArgs, ScreenshotRequest, ViewportSnapshot2d, ViewportSnapshot3d, WindowConfig,
 };
 
 const BOUNDS: &str = "bounds";
@@ -40,8 +39,6 @@ const SET_APP_ICON: &str = "set_app_icon";
 const SET_BACKGROUND: &str = "set_background";
 const SET_CURSOR_GRAB: &str = "set_cursor_grab";
 const SET_CURSOR_HIDDEN: &str = "set_cursor_hidden";
-const SET_GRID: &str = "set_grid";
-const SET_GRID_COLORS: &str = "set_grid_colors";
 const SET_KEEP_AWAKE: &str = "set_keep_awake";
 const SET_WINDOW_MODE: &str = "set_window_mode";
 const SNAP_AOV: &str = "snap_aov";
@@ -496,8 +493,6 @@ fn ring(center: [f32; 3], radius: f32, axis: usize, out: &mut Vec<([f32; 3], [f3
 pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
     m.describe(&[
         (SET_BACKGROUND, &[], "", "Set the colour the viewport is cleared to behind everything drawn, as r, g, b channel floats."),
-        (SET_GRID, &[], "", "Turn the ground grid on or off, and optionally set its step in world units, major-line interval and extent."),
-        (SET_GRID_COLORS, &[], "", "Set the ground grid's minor line colour then its major line colour, as r, g, b channel floats."),
         (DRAW_LINE_3D, &[], "", "Draw one 3D world-space line for this frame; the width is in pixels unless perspective scales it with distance."),
         (DRAW_LINE_2D, &[], "(x1: float, y1: float, x2: float, y2: float, r: float, g: float, b: float, width: float?, opts: DrawOptions?)", "Draw one 2D world-space line for this frame; width is in pixels, and `opts.z_index` places it among the nodes of that index."),
         (DRAW_LINES, &[], "(segments: [float])", "Draw many 3D lines in one call: eleven numbers a segment, being both ends, an rgb, a width and an on-top flag."),
@@ -522,45 +517,6 @@ pub(crate) fn install_backdrop_api(m: &mut Module<Engine>) {
             let mut clear = clear.borrow_mut();
             clear.color = [r, g, b];
             clear.changed = true;
-            Ok(())
-        },
-    );
-    // No reader by design (N8): the `GridConfig` entry already holds every
-    // field, and the backend polls it each frame rather than being told;
-    // add `grid` when a caller needs to read it back.
-    m.function(
-        SET_GRID,
-        |eng,
-         (enabled, step, major_every, extent): (
-            bool,
-            Option<f32>,
-            Option<u32>,
-            Option<i32>,
-        )| {
-            let grid = eng.resource::<GridConfig>();
-            let mut grid = grid.borrow_mut();
-            grid.enabled = enabled;
-            if let Some(step) = step {
-                grid.step = step;
-            }
-            if let Some(major) = major_every {
-                grid.major_every = major;
-            }
-            if let Some(extent) = extent {
-                grid.extent = extent;
-            }
-            Ok(())
-        },
-    );
-    // No reader by design (N8): the same `GridConfig` entry holds both
-    // colours; add `grid_colors` when a caller needs to read them back.
-    m.function(
-        SET_GRID_COLORS,
-        |eng: &Engine, (mr, mg, mb, jr, jg, jb): (f32, f32, f32, f32, f32, f32)| {
-            let grid = eng.resource::<GridConfig>();
-            let mut grid = grid.borrow_mut();
-            grid.minor_color = [mr, mg, mb];
-            grid.major_color = [jr, jg, jb];
             Ok(())
         },
     );

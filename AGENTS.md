@@ -68,6 +68,14 @@ These land in the same commit as the code:
   `docs/BENCHMARKS.md` moved, `mix forge.site.sync` in `../forge` copies them
   over and rebuilds the reference and the roadmap page.
 
+## What goes in the engine
+
+Core features only. A behaviour the editor's or a game's scripts can build
+from what the engine exposes goes in those scripts: remembering a window's
+size, an inspector, a list of recent projects. The engine adds a primitive
+where a script cannot reach, and keeps it the smallest general piece.
+`docs/PLAN-engine-core.md` holds what is still to move.
+
 ## Vocabulary
 
 A crate's words and keys live in one `src/vocabulary.rs`: `keys` for the

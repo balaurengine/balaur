@@ -3416,8 +3416,26 @@ fn settings_round_trip(state: &mut editor::State) {
     } else {
         fs::remove(settings::preferences_path());
     }
+    plugin_saves_a_project_setting(state);
     state.settings.dirty = false;
     log::info("selftest settings: done");
+}
+
+// What the Gamend dock does with its server picker: a plain `settings::set`,
+// then the kit's save.
+fn plugin_saves_a_project_setting(state: &mut editor::State) {
+    let manifest = state.game_root + "/project.toml";
+    let kept = fs::read(manifest);
+    let was = settings::base("export/runtime");
+    let pick = if was.as_str() == "2d" { "3d" } else { "2d" };
+    settings::set("export/runtime", pick);
+    kit::save_project(state);
+    check(fs::read(manifest).or("").contains("runtime = \"{pick}\""), "a plugin's set, then the kit's save, reaches project.toml ({pick})");
+    settings::set("export/runtime", was);
+    settings::edit_set("export/runtime", was);
+    if kept != nil {
+        fs::write(manifest, kept.unwrap());
+    }
 }
 
 /// `--state test:export_runtime`: the Export sheet's Runtime choice is the

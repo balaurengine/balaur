@@ -5,7 +5,7 @@ use balaur_core::scene;
 use balaur_core::{App, AppConfig, components};
 use balaur_render::{
     CameraConfig2d, CameraConfig3d, ClearColorConfig, DebugLineBuffer2d, DebugLineBuffer3d,
-    GridConfig, RenderPlugin, Renderable2d, Renderable3d, Shape3d, ViewportSnapshot3d,
+    RenderPlugin, Renderable2d, Renderable3d, Shape3d, ViewportSnapshot3d,
 };
 
 fn app() -> App {
@@ -43,7 +43,6 @@ fn the_plugin_registers_its_components() {
 fn the_plugin_inserts_the_resources_a_frame_reads() {
     let app = app();
     assert!(app.engine.try_resource::<ClearColorConfig>().is_some());
-    assert!(app.engine.try_resource::<GridConfig>().is_some());
     assert!(app.engine.try_resource::<CameraConfig3d>().is_some());
     assert!(app.engine.try_resource::<CameraConfig2d>().is_some());
     assert!(app.engine.try_resource::<DebugLineBuffer3d>().is_some());

@@ -4,7 +4,6 @@
 //! renderables into the kiss3d scene graph.
 
 pub(crate) mod geometry;
-mod grid;
 mod instances;
 mod present;
 mod screenshot;
@@ -307,7 +306,6 @@ impl Frontend {
         );
         self.text
             .flush(app, &mut self.scene_2d, &mut self.scene, &self.layers_2d);
-        grid::draw_grid(app, window);
         crate::debug_lines::flush_debug_lines(app, window);
         crate::debug_lines::flush_debug_lines_2d(app, window);
         balaur_core::timings::record(&app.engine, "scene mirror", sync_started.elapsed());

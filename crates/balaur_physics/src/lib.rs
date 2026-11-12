@@ -273,7 +273,6 @@ threads = { type = "int", default = 0, min = 0, max = 64, applies = "restart", h
             install_world_controls(&mut m);
             debug::install_debug_api(&mut m);
             tuning::install_tuning_api(&mut m);
-            ragdoll::install_blend_api(&mut m);
         }
         balaur_core::events::watch_hearers(reg.engine(), &vocabulary::hook::RAISED_BY_THE_STEP);
         reg.add_system(Stage::FixedUpdate, follow_hearers_system);

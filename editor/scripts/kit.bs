@@ -212,6 +212,7 @@ pub fn save_preferences(state: editor::State) {
 /// Write the game's `project.toml`, after a plugin set a project-scope
 /// setting the person chose: the Gamend dock's server picker.
 pub fn save_project(state: editor::State) {
+    settings::carry_run_changes();
     settings::commit_project(state);
 }
 
