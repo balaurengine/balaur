@@ -705,6 +705,54 @@ def gen_script_types(api):
     return body
 
 
+def gen_settings(settings):
+    """Every setting declared, by category, from the registry `balaur api`
+    reads: the list to check before declaring another."""
+    groups = {}
+    for setting in settings:
+        category = setting["path"].split("/", 1)[0]
+        groups.setdefault(category, []).append(setting)
+    body = (
+        "# Settings\n\n"
+        "Every setting the engine, its plugins and the editor declare, by category:\n"
+        "`physics/solver_iterations` is `[physics] solver_iterations` in `project.toml`.\n"
+        "A project setting ships with the game; an editor setting is the person's, kept\n"
+        "in their `editor.toml`. A host setting describes the running process, its window,\n"
+        "its checker and its own files, so the editor keeps its own when it opens a game\n"
+        "to edit. Read this before declaring a setting: one that answers the same\n"
+        "question as an old one is a second way to say it.\n\n"
+    )
+    for category in sorted(groups):
+        rows = []
+        for setting in sorted(
+            groups[category], key=lambda s: (s["spec"].get("order", 1000), s["path"])
+        ):
+            spec = setting["spec"]
+            key = setting["path"].split("/", 1)[1] if "/" in setting["path"] else setting["path"]
+            default = json.dumps(spec.get("default"))
+            notes = []
+            if setting["scope"] == "editor":
+                notes.append("editor")
+            if setting.get("host"):
+                notes.append("host")
+            if spec.get("applies") == "restart":
+                notes.append("on restart")
+            rows.append(
+                f"<tr><td><code>{html.escape(key)}</code></td>"
+                f"<td>{datatype_of(spec)}</td>"
+                f"<td><code>{mdx_safe(html.escape(default))}</code></td>"
+                f"<td>{', '.join(notes)}</td>"
+                f"<td>{code_spans(spec.get('help', ''))}</td></tr>"
+            )
+        body += (
+            f"## {category}\n\n"
+            "<table>\n<thead><tr><th>key</th><th>type</th><th>default</th>"
+            "<th>notes</th><th>what it does</th></tr></thead>\n"
+            "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n\n"
+        )
+    return body
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if the files on disk are stale")
@@ -736,6 +784,7 @@ def main():
             api.get("components", {}),
         ),
         "features.md": gen_features(crates),
+        "settings.md": gen_settings(api.get("settings", [])),
         # The raw probe, for tools that render their own reference (the
         # website builds its per-component pages from it).
         "api.json": json.dumps(api, indent=2, sort_keys=True) + "\n",

@@ -141,7 +141,7 @@ pub const REFERENCE: &[(&str, &str, &str)] = &[
     ("on_action", "(name)", "A declared input action was pressed, reaching nodes as `on_key_down` does."),
     ("on_action_released", "(name)", "A declared input action was let go, reaching nodes as `on_key_down` does."),
     ("on_scroll", "(dx, dy)", "The wheel turned, over the node or, over nothing, to every node."),
-    ("on_resize", "(width, height)", "The window changed size, told to every node."),
+    ("on_resize", "(width, height)", "The window's size, told to every node once the window first has one and whenever it changes."),
     (ON_VARIABLE_CHANGED, "(name, value)", "A scene variable changed, told to every node at the end of the frame."),
     (ON_STATE_CHANGED, "(was, now)", "The node's `states` moved to another state."),
     (ON_PAUSED_CHANGED, "(paused)", "The game paused or resumed, told to every script, a paused one too."),

@@ -88,6 +88,17 @@ impl SettingDef {
             .and_then(toml::Value::as_str)
             .is_none_or(|when| when == words::NOW)
     }
+
+    /// Whether this describes the process running it rather than the game:
+    /// its window, its checker, its own files. A project opened to be edited
+    /// does not change it here.
+    #[must_use]
+    pub fn host(&self) -> bool {
+        self.spec
+            .get(keys::HOST)
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(false)
+    }
 }
 
 /// Every setting, in definition order.
@@ -102,6 +113,11 @@ pub struct SettingsValues(pub toml::value::Table);
 /// How many times a setting was defined, set, cleared or loaded.
 #[derive(Default)]
 pub struct SettingsRevision(pub u64);
+
+/// The manifest of a project this engine edits rather than runs, as the
+/// editor holds the game's: what the settings screen reads and writes once
+/// [`edit_project`] opens one, apart from what this process runs with.
+pub struct EditedProject(pub toml::value::Table);
 
 fn moved(eng: &Engine) {
     if let Some(revision) = eng.try_resource::<SettingsRevision>() {
@@ -316,44 +332,149 @@ pub fn table(eng: &Engine, path: &str) -> toml::value::Table {
 /// happened to match would write that value back onto the base key.
 #[must_use]
 pub fn base(eng: &Engine, path: &str) -> Option<toml::Value> {
-    stored(eng, path).or_else(|| def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()))
+    screen_stored(eng, path)
+        .or_else(|| def(eng, path).and_then(|d| d.spec.get(keys::DEFAULT).cloned()))
 }
 
 /// One path's value as loaded, with no definition behind it: what an override
 /// has, and what an undeclared table of the game's own has.
 #[must_use]
 fn stored(eng: &Engine, path: &str) -> Option<toml::Value> {
-    if let Some(values) = eng.try_resource::<SettingsValues>()
-        && let Some((tables, key)) = split(path)
-    {
-        let values = values.borrow();
-        let mut at: &toml::value::Table = &values.0;
-        let mut reached = true;
-        for table in tables {
-            if let Some(next) = at.get(table).and_then(toml::Value::as_table) {
-                at = next;
-            } else {
-                reached = false;
-                break;
-            }
-        }
-        if reached && let Some(found) = at.get(key) {
-            return Some(found.clone());
-        }
-    }
-    None
+    let values = eng.try_resource::<SettingsValues>()?;
+    stored_in(&values.borrow().0, path)
 }
 
-/// Change one setting. Not written to disk until a caller asks for the text.
-pub fn set(eng: &Engine, path: &str, value: toml::Value) {
-    let Some(values) = eng.try_resource::<SettingsValues>() else {
-        return;
-    };
+fn stored_in(root: &toml::value::Table, path: &str) -> Option<toml::Value> {
+    let (tables, key) = split(path)?;
+    let mut at = root;
+    for table in tables {
+        at = at.get(table).and_then(toml::Value::as_table)?;
+    }
+    at.get(key).cloned()
+}
+
+/// Where the settings screen reads `path` from: the project open for editing
+/// when there is one and `path` is a project's, else what this run holds.
+fn screen_stored(eng: &Engine, path: &str) -> Option<toml::Value> {
+    match edited(eng) {
+        Some(edited) if project_and_host(eng, path).0 => stored_in(&edited.borrow().0, path),
+        _ => stored(eng, path),
+    }
+}
+
+fn edited(eng: &Engine) -> Option<Rc<RefCell<EditedProject>>> {
+    eng.try_resource::<EditedProject>()
+}
+
+/// Whether `path`, or the setting an override at `path` answers for, is a
+/// project's, and whether it is a host setting. A path nothing declares is in
+/// the game's own table.
+fn project_and_host(eng: &Engine, path: &str) -> (bool, bool) {
+    let path = without_tag(path);
+    eng.try_resource::<SettingsRegistry>()
+        .and_then(|registry| {
+            registry
+                .borrow()
+                .0
+                .iter()
+                .find(|d| d.path == path)
+                .map(|d| (d.scope == Scope::Project, d.host()))
+        })
+        .unwrap_or((true, false))
+}
+
+/// Open `text` as the manifest of a project this engine edits rather than
+/// runs, as the editor does with the game. The settings screen reads and
+/// writes it from then on: [`base`], [`edit_set`], [`edit_clear`],
+/// [`overrides`] and [`to_toml`] for the project's scope. What this process runs with takes
+/// every value in it but a host setting, so playing the game here runs on the
+/// game's physics while the window and the checker stay the editor's.
+///
+/// # Errors
+/// When the text is not valid TOML.
+pub fn edit_project(eng: &Engine, text: &str) -> Result<()> {
+    let parsed: toml::value::Table = toml::from_str(text).context("parsing settings")?;
+    let mut ran_with = parsed.clone();
+    let host: Vec<String> = all(eng)
+        .borrow()
+        .0
+        .iter()
+        .filter(|d| d.host())
+        .map(|d| d.path.clone())
+        .collect();
+    let tags = known_tags(eng);
+    for path in &host {
+        remove_in(&mut ran_with, path);
+        for tag in &tags {
+            remove_in(&mut ran_with, &format!("{OVERRIDE}/{tag}/{path}"));
+        }
+    }
+    if let Some(values) = eng.try_resource::<SettingsValues>() {
+        merge(&mut values.borrow_mut().0, ran_with);
+    }
+    eng.insert_resource(EditedProject(parsed));
+    moved(eng);
+    Ok(())
+}
+
+fn remove_in(root: &mut toml::value::Table, path: &str) {
     let Some((tables, key)) = split(path) else {
         return;
     };
-    table_at(&mut values.borrow_mut().0, &tables).insert(key.to_string(), value);
-    moved(eng);
+    let mut at = root;
+    for table in tables {
+        match at.get_mut(table).and_then(toml::Value::as_table_mut) {
+            Some(next) => at = next,
+            None => return,
+        }
+    }
+    at.remove(key);
+}
+
+/// Change one setting for this run. Not written to disk until a caller asks
+/// for the text.
+pub fn set(eng: &Engine, path: &str, value: toml::Value) {
+    change_live(eng, |root| insert_in(root, path, value));
+}
+
+/// Change one setting as the settings screen does: with a project open for
+/// editing, a project's setting is changed there, and in this run too unless
+/// it is a host setting. A script's own [`set`] only ever reaches this run.
+pub fn edit_set(eng: &Engine, path: &str, value: &toml::Value) {
+    change_screen(eng, path, |root| insert_in(root, path, value.clone()));
+}
+
+/// [`clear`] as the settings screen does it; see [`edit_set`].
+pub fn edit_clear(eng: &Engine, path: &str) {
+    change_screen(eng, path, |root| remove_in(root, path));
+}
+
+fn change_live(eng: &Engine, change: impl FnOnce(&mut toml::value::Table)) {
+    if let Some(values) = eng.try_resource::<SettingsValues>() {
+        change(&mut values.borrow_mut().0);
+        moved(eng);
+    }
+}
+
+fn change_screen(eng: &Engine, path: &str, change: impl Fn(&mut toml::value::Table)) {
+    let (project, host) = project_and_host(eng, path);
+    match edited(eng) {
+        Some(edited) if project => {
+            change(&mut edited.borrow_mut().0);
+            if host {
+                moved(eng);
+            } else {
+                change_live(eng, change);
+            }
+        }
+        _ => change_live(eng, change),
+    }
+}
+
+fn insert_in(root: &mut toml::value::Table, path: &str, value: toml::Value) {
+    if let Some((tables, key)) = split(path) {
+        table_at(root, &tables).insert(key.to_string(), value);
+    }
 }
 
 /// The table `tables` names under `root`, made on the way down; a value
@@ -423,9 +544,16 @@ pub fn answer_to_built_tags(eng: &Engine) {
 /// besides the one in front of you.
 #[must_use]
 pub fn overrides(eng: &Engine, path: &str) -> Vec<String> {
+    let edited = edited(eng).filter(|_| project_and_host(eng, path).0);
     known_tags(eng)
         .into_iter()
-        .filter(|tag| stored(eng, &format!("{OVERRIDE}/{tag}/{path}")).is_some())
+        .filter(|tag| {
+            let at = format!("{OVERRIDE}/{tag}/{path}");
+            match &edited {
+                Some(edited) => stored_in(&edited.borrow().0, &at).is_some(),
+                None => stored(eng, &at).is_some(),
+            }
+        })
         .collect()
 }
 
@@ -530,14 +658,7 @@ fn merge(into: &mut toml::value::Table, from: toml::value::Table) {
 /// What removing an override is: the base value is a row that always exists,
 /// but an override is one the project either holds or does not.
 pub fn clear(eng: &Engine, path: &str) {
-    let Some(values) = eng.try_resource::<SettingsValues>() else {
-        return;
-    };
-    let Some((tables, key)) = split(path) else {
-        return;
-    };
-    table_at(&mut values.borrow_mut().0, &tables).remove(key);
-    moved(eng);
+    change_live(eng, |root| remove_in(root, path));
 }
 
 /// The text one scope's settings would write, starting from `existing` so
@@ -566,7 +687,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         .collect();
     let tags = known_tags(eng);
     for path in paths {
-        if let Some(value) = stored(eng, &path) {
+        if let Some(value) = screen_stored(eng, &path) {
             write_at(&mut doc, &path, &value);
         }
         // An override is a key the project either holds or does not, so a
@@ -576,7 +697,7 @@ pub fn to_toml(eng: &Engine, scope: Scope, existing: &str) -> Result<String> {
         }
         for tag in &tags {
             let at = format!("{OVERRIDE}/{tag}/{path}");
-            match stored(eng, &at) {
+            match screen_stored(eng, &at) {
                 Some(value) => write_at(&mut doc, &at, &value),
                 None => remove_at(&mut doc, &at),
             }
@@ -694,15 +815,15 @@ pub fn build_core_settings(eng: &Engine) {
         &parse(
             "settings.application",
             r#"
-name = { type = "string", default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
-main_scene = { type = "string", default = "", order = 2, help = "The scene a run opens with." }
-asset_source = { type = "enum", default = "embedded", options = ["embedded", "files", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
-splash = { type = "string", default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
-splash_seconds = { type = "float", default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }
+name = { type = "string", host = true, default = "", order = 1, help = "The game's name, used for its window title and its data directory." }
+main_scene = { type = "string", host = true, default = "", order = 2, help = "The scene a run opens with." }
+asset_source = { type = "enum", host = true, default = "embedded", options = ["embedded", "files", "embedded_then_files"], order = 4, applies = "restart", help = "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree." }
+splash = { type = "string", host = true, default = "", order = 5, applies = "restart", help = "A project-relative picture shown over the first frames, on every target. Empty shows none." }
+splash_seconds = { type = "float", host = true, default = 1.5, min = 0.0, max = 60.0, order = 6, applies = "restart", help = "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`." }
 ignore = { type = "list", of = { type = "string" }, default = [], order = 7, applies = "restart", help = "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out." }
-icon = { type = "string", default = "", order = 8, applies = "restart", help = "A project-relative square picture, a PNG or an SVG, that every export writes as that platform's app icon, and the window shows while the game runs. 1024 pixels is what a store asks for." }
-icon_dark = { type = "string", default = "", order = 9, applies = "restart", help = "The icon's form for a dark system: the dark appearance on iOS and macOS, the favicon a dark browser shows, and the window icon while `dark_mode()` is true." }
-icon_monochrome = { type = "string", default = "", order = 10, applies = "restart", help = "A single-colour form, white on transparency, that iOS and macOS tint and Android 13 draws in the themed launcher." }
+icon = { type = "string", host = true, default = "", order = 8, applies = "restart", help = "A project-relative square picture, a PNG or an SVG, that every export writes as that platform's app icon, and the window shows while the game runs. 1024 pixels is what a store asks for." }
+icon_dark = { type = "string", host = true, default = "", order = 9, applies = "restart", help = "The icon's form for a dark system: the dark appearance on iOS and macOS, the favicon a dark browser shows, and the window icon while `dark_mode()` is true." }
+icon_monochrome = { type = "string", host = true, default = "", order = 10, applies = "restart", help = "A single-colour form, white on transparency, that iOS and macOS tint and Android 13 draws in the themed launcher." }
 "#,
         ),
     );
@@ -715,7 +836,7 @@ icon_monochrome = { type = "string", default = "", order = 10, applies = "restar
         &parse(
             "settings.check",
             r#"
-strict = { type = "bool", default = false, applies = "restart", help = "`balaur check` fails on a warning as well as an error, for this project on every run." }
+strict = { type = "bool", host = true, default = false, applies = "restart", help = "`balaur check` fails on a warning as well as an error, for this project on every run." }
 "#,
         ),
     );
@@ -769,7 +890,7 @@ loss = { type = "float", default = 0.05, min = 0.0, max = 1.0, order = 4, help =
             r#"
 theme = { type = "enum", default = "balaur", options = ["balaur", "atom-one", "catppuccin", "dracula", "everforest", "github", "gruvbox", "kanagawa", "rose-pine", "solarized", "tokyo-night"], order = 1, help = "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half." }
 mode = { type = "enum", default = "system", options = ["system", "dark", "light"], order = 2, help = "Which half of the theme the editor wears: the one the system is in, or always dark or always light." }
-ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 3, applies = "restart", help = "How large the editor's own text and controls are drawn." }
+ui_scale = { type = "float", default = 1.25, min = 0.75, max = 2.5, order = 3, help = "How large the editor's own text and controls are drawn." }
 compact = { type = "bool", default = false, order = 4, help = "Drop labels the icon already says, for a narrow window." }
 "#,
         ),
@@ -879,14 +1000,15 @@ fn build_window_settings(eng: &Engine, parse: &impl Fn(&str, &str) -> std::rc::R
         &parse(
             "settings.window",
             r#"
-width = { type = "int", default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
-height = { type = "int", default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
-mode = { type = "enum", default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. window.set_window_mode changes it later through the same state." }
-orientation = { type = "enum", default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
-vsync = { type = "bool", default = true, order = 5, help = "Present in step with the display." }
-msaa = { type = "int", default = 1, min = 1, max = 4, order = 6, help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
-max_fps = { type = "int", default = 0, min = 0, max = 1000, order = 7, applies = "restart", help = "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate." }
-low_processor = { type = "bool", default = false, order = 8, applies = "restart", help = "Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off." }
+width = { type = "int", host = true, default = 1600, min = 1, max = 16384, order = 1, applies = "restart", help = "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from." }
+height = { type = "int", host = true, default = 1000, min = 1, max = 16384, order = 2, applies = "restart", help = "Logical height." }
+mode = { type = "enum", host = true, default = "windowed", options = ["windowed", "maximized", "fullscreen", "exclusive"], order = 3, applies = "restart", help = "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. window.set_window_mode changes it later through the same state." }
+orientation = { type = "enum", host = true, default = "any", options = ["any", "portrait", "landscape"], order = 4, applies = "restart", help = "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs." }
+vsync = { type = "bool", host = true, default = true, order = 5, help = "Present in step with the display." }
+msaa = { type = "int", host = true, default = 1, min = 1, max = 4, order = 6, help = "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each." }
+max_fps = { type = "int", host = true, default = 0, min = 0, max = 1000, order = 7, applies = "restart", help = "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate." }
+low_processor = { type = "bool", host = true, default = false, order = 8, applies = "restart", help = "Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off." }
+remember_size = { type = "bool", host = true, default = false, order = 9, applies = "restart", help = "Open at the size the window had when it last closed, kept for each person beside their saves rather than in the project." }
 "#,
         ),
     );
@@ -902,9 +1024,9 @@ theme = { type = "string", default = "", help = "A project-relative `widget_them
 theme_dark = { type = "string", default = "", help = "The theme's form for a dark system, worn while `dark_mode()` is true. `ui.set_theme` goes over both." }
 scale = { type = "float", default = 1.0, min = 0.25, max = 3.0, applies = "restart", help = "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later." }
 system_text_size = { type = "bool", default = true, applies = "restart", help = "Multiply the scale by the size the reader asked their system for. Off for a game whose layout cannot give text more room." }
-narrow_below_pixels = { type = "float", default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
-wide_from_pixels = { type = "float", default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }
-short_below_pixels = { type = "float", default = 480.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of height a layout reads `short`, which is a phone on its side." }
+narrow_below_pixels = { type = "float", host = true, default = 600.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes." }
+wide_from_pixels = { type = "float", host = true, default = 840.0, min = 1.0, max = 8192.0, applies = "restart", help = "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`." }
+short_below_pixels = { type = "float", host = true, default = 480.0, min = 1.0, max = 8192.0, applies = "restart", help = "Under this many design pixels of height a layout reads `short`, which is a phone on its side." }
 "#,
         ),
     );

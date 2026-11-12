@@ -77,8 +77,8 @@ use crate::vocabulary::words;
 pub use api::{ALIGNS, ANCHORS, CLASSES, FONT_STYLES, ITEM_ALIGNS, MODIFIERS, WIDGET_KINDS};
 
 /// Where this project puts the lines between the screen classes, and whether
-/// the reader's own text size counts. Read once, after the project has
-/// loaded, because the plugin is built before there is a project to read.
+/// the reader's own text size counts. Read on the first ask once the project
+/// has loaded, because the plugin is built before there is a project to read.
 pub(crate) struct UiProject {
     read: bool,
     pub(crate) classes: balaur_core::facts::ClassLines,
@@ -118,20 +118,33 @@ fn apply_long_press(eng: &balaur_core::Engine, ctx: &egui::Context) {
 /// UI. `[ui] system_text_size`, read once with the rest of the table.
 #[must_use]
 pub fn takes_system_text_size(eng: &balaur_core::Engine) -> bool {
+    read_project_settings(eng);
     eng.try_resource::<UiProject>()
         .is_none_or(|held| held.borrow().system_text_size)
 }
 
 /// Where this project puts the lines between the screen classes.
 pub(crate) fn class_lines(eng: &balaur_core::Engine) -> balaur_core::facts::ClassLines {
+    read_project_settings(eng);
     eng.try_resource::<UiProject>()
         .map_or_else(Default::default, |held| held.borrow().classes)
 }
 
-/// Take `[ui]` on the first tick that has a project to take it from: the
-/// scale seeds the zoom, and the rest is held for whoever asks.
-fn read_project_settings_system(eng: &balaur_core::Engine, _dt: f32) {
-    let held = eng.resource::<UiProject>();
+/// The UI scale in force: what a script asked for, else `[ui] scale`.
+#[must_use]
+pub fn scale(eng: &balaur_core::Engine) -> f32 {
+    read_project_settings(eng);
+    eng.try_resource::<UiConfig>()
+        .map_or(1.0, |config| config.borrow().scale)
+}
+
+/// Take `[ui]` on the first ask once there is a project to take it from: the
+/// scale seeds the zoom, and the rest is held for whoever asks. Every reader
+/// comes through here, so a script's `init` and the first frame see it.
+fn read_project_settings(eng: &balaur_core::Engine) {
+    let Some(held) = eng.try_resource::<UiProject>() else {
+        return;
+    };
     if held.borrow().read
         || eng
             .try_resource::<balaur_core::project::ProjectManifest>()
@@ -269,7 +282,6 @@ impl balaur_plugin::Plugin for UiPlugin {
     fn declare(&mut self, reg: &mut balaur_plugin::Registry<'_>) -> Result<()> {
         reg.insert_resource(UiConfig::default());
         reg.insert_resource(UiProject::default());
-        reg.add_system(balaur_core::Stage::First, read_project_settings_system);
         reg.insert_resource(UiState::default());
         reg.insert_resource(Pacing::default());
         reg.insert_resource(WidgetLayerConfig::default());
@@ -334,12 +346,15 @@ pub fn pass_without_window(app: &mut balaur_core::App, width: f32, height: f32) 
     honour_lazy(&app.engine);
     let ctx = egui::Context::default();
     app.add_system(balaur_core::Stage::Render, move |eng, _| {
+        // The screen a pass lays out on is the one a tick asks about too.
+        let scale = scale(eng);
+        balaur_core::facts::update_device(eng, |facts| {
+            facts.screen_size = [width * scale, height * scale];
+            facts.ui_scale = scale;
+        });
         if !wants_pass(eng, &ctx, false) {
             return;
         }
-        let scale = eng
-            .try_resource::<UiConfig>()
-            .map_or(1.0, |config| config.borrow().scale);
         ctx.set_zoom_factor(scale);
         ctx.begin_pass(egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(

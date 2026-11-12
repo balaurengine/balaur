@@ -179,9 +179,7 @@ pub fn view(state: editor::State) -> View {
     let viewport_x = if staged { viewport_rect.x } else { 0.0 };
     let viewport_y = if staged { viewport_rect.y } else { 0.0 };
     let viewport_height = if staged { viewport_rect.height } else { window_height };
-    let pose = render::camera_pose();
-    let dpi = pose[7];
-    View { shown: state.show_input, factor: dpi * state.ui_scale, chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height - 46.0 }
+    View { shown: state.show_input, factor: ui::pixels_per_design(), chips_x: viewport_x + 130.0, chips_y: viewport_y + viewport_height - 46.0 }
 }
 
 /// A key's chip, or "" for a key worth none: the rest of the key list is

@@ -5095,6 +5095,18 @@
         "least": 1,
         "signature": "(str, any)"
       },
+      "settings::edit_clear": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "settings::edit_project": {
+        "least": 1,
+        "signature": "(str)"
+      },
+      "settings::edit_set": {
+        "least": 1,
+        "signature": "(str, any)"
+      },
       "settings::get": {
         "least": 1,
         "signature": "(str) -> any"
@@ -5286,6 +5298,10 @@
       "ui::patch_row": {
         "least": 3,
         "signature": "(Node, int, [ui::Control]) -> bool"
+      },
+      "ui::pixels_per_design": {
+        "least": 0,
+        "signature": "() -> float"
       },
       "ui::request_repaint": {
         "least": 0,
@@ -20078,7 +20094,7 @@
     [
       "on_resize",
       "(width, height)",
-      "The window changed size, told to every node."
+      "The window's size, told to every node once the window first has one and whenever it changes."
     ],
     [
       "on_variable_changed",
@@ -26677,6 +26693,9 @@
         "base": "What the file says, ignoring every override: what a settings screen edits.",
         "clear": "Forget one value, so the next write drops the key: how an override is removed.",
         "define": "Declare a setting of your own: `type`, `default`, and optionally `min`, `max`, `options`, `help`, `order` and `applies`. A path starting `editor/` is kept on this machine; anything else ships with the game.",
+        "edit_clear": "Forget one value as a settings screen does, in the project `edit_project` opened: how an override is removed from it.",
+        "edit_project": "Open another project's manifest to edit, as the editor opens the game's: `base`, `edit_set`, `edit_clear`, `overrides` and `to_toml(\"project\")` work on it from then on, and this run takes every value in it but the host's own, such as `[window]` and `[check]`.",
+        "edit_set": "Change one setting as a settings screen does: in the project `edit_project` opened, and in this run unless it is a host setting. `set` only ever changes this run.",
         "get": "One setting's value here: the narrowest `[override.<tag>]` this platform answers to, else what was set, else what its definition defaults to, else nil.",
         "known_tags": "Every tag a project may write an override for: the engine's, then the project's own from `[export] tags`.",
         "merge_toml": "Read values out of a TOML text, folding them onto what is already loaded.",
@@ -26691,6 +26710,9 @@
         "base",
         "clear",
         "define",
+        "edit_clear",
+        "edit_project",
+        "edit_set",
         "get",
         "known_tags",
         "merge_toml",
@@ -26706,6 +26728,9 @@
         "base": "(str) -> any",
         "clear": "(str)",
         "define": "(str, any)",
+        "edit_clear": "(str)",
+        "edit_project": "(str)",
+        "edit_set": "(str, any)",
         "get": "(str) -> any",
         "known_tags": "() -> [str]",
         "merge_toml": "(str)",
@@ -27146,6 +27171,7 @@
         "height_class": "How much height this screen has, as `ui::SHORT` or `ui::TALL`.",
         "pasted_text": "The text the last UI pass saw pasted, empty when it saw none: the platform clipboard is not readable on demand. The `pasted` event carries text no field took as it arrives.",
         "patch_row": "What moved of a row `fill_row` made: what each of `patches` names written to the control at its place in the row, and remembered, so the next fill compares against it. For a value that follows the node: what a patch leaves out is not asked about. False where the row is not there or nothing moved.",
+        "pixels_per_design": "How many of the window's own pixels a design pixel covers this frame: the UI scale, the display's scale and the reader's text size together. Divide `input::mouse_position()` by it for design pixels.",
         "request_repaint": "Run the frame and its UI pass under `[window] low_processor`; call it every frame something on screen moves without input, such as while the scene plays. `after` seconds asks for one that far ahead instead.",
         "save_pasted_image": "Write the image last pasted where no field took it, which the `pasted_image` event announced with its `{ width, height }`, to `path` as a PNG. Answers false when there is none, or it was written already.",
         "scale": "The global UI scale: how many screen pixels a design pixel is drawn at, on top of the display's own.",
@@ -27162,7 +27188,7 @@
         "wants_pointer": "Whether the UI has the pointer or finger, so the game should leave it alone: what stops a tap on a HUD button also firing the shot behind it. A press is routed once, from the top: an open dialog, then a popup or window, then a widget that is not `interactive = false` or a seam between boxes, and the world last; it keeps that answer until the button comes up. False without a window.",
         "widget_rect": "Where a `widget` node was last drawn, as `{ x, y, width, height }` in design pixels; empty until it has drawn once.",
         "width_class": "How much width this screen has, as `ui::NARROW`, `ui::MEDIUM` or `ui::WIDE`. Read every frame: a rotation changes it. A run with no window answers `ui::WIDE`.",
-        "window_size": "The window's width and height, in design pixels; a headless run answers the `[window]` size the project states."
+        "window_size": "The window's width and height, in design pixels; a headless run, and a script's `init` before the window opens, answer the `[window]` size the project states at the UI scale."
       },
       "functions": [
         "activate_focused",
@@ -27191,6 +27217,7 @@
         "height_class",
         "pasted_text",
         "patch_row",
+        "pixels_per_design",
         "request_repaint",
         "save_pasted_image",
         "scale",
@@ -27237,6 +27264,7 @@
         "height_class": "() -> str",
         "pasted_text": "() -> str",
         "patch_row": "(Node, int, [ui::Control]) -> bool",
+        "pixels_per_design": "() -> float",
         "request_repaint": "(ui::RepaintOptions?)",
         "save_pasted_image": "(str) -> bool",
         "scale": "() -> float",
@@ -27377,6 +27405,4011 @@
       "reparented",
       "the parent it left; `parent()` says the new one"
     ]
+  ],
+  "settings": [
+    {
+      "host": true,
+      "path": "application/name",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The game's name, used for its window title and its data directory.",
+        "host": true,
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/main_scene",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The scene a run opens with.",
+        "host": true,
+        "order": 2,
+        "type": "string"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/asset_source",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "embedded",
+        "help": "Where a shipped game may read its bytes from. Only bites once packed; a dev run always reads the source tree.",
+        "host": true,
+        "options": [
+          "embedded",
+          "files",
+          "embedded_then_files"
+        ],
+        "order": 4,
+        "type": "enum"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/splash",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "",
+        "help": "A project-relative picture shown over the first frames, on every target. Empty shows none.",
+        "host": true,
+        "order": 5,
+        "type": "string"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/splash_seconds",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1.5,
+        "help": "How long the splash stays, in seconds of engine time, and the least it stays when a script is reporting a load through `ui.set_load_progress`.",
+        "host": true,
+        "max": 60.0,
+        "min": 0.0,
+        "order": 6,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "application/ignore",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": [],
+        "help": "Project paths that are not the game's, as globs: `art/wip/**`, `**/*.blend1`. The asset index skips them and a pack leaves them out.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 7,
+        "type": "list"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/icon",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "",
+        "help": "A project-relative square picture, a PNG or an SVG, that every export writes as that platform's app icon, and the window shows while the game runs. 1024 pixels is what a store asks for.",
+        "host": true,
+        "order": 8,
+        "type": "string"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/icon_dark",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "",
+        "help": "The icon's form for a dark system: the dark appearance on iOS and macOS, the favicon a dark browser shows, and the window icon while `dark_mode()` is true.",
+        "host": true,
+        "order": 9,
+        "type": "string"
+      }
+    },
+    {
+      "host": true,
+      "path": "application/icon_monochrome",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "",
+        "help": "A single-colour form, white on transparency, that iOS and macOS tint and Android 13 draws in the themed launcher.",
+        "host": true,
+        "order": 10,
+        "type": "string"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/width",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1600,
+        "help": "Logical width. The backing store is this times the display's scale, which is what the render targets are sized from.",
+        "host": true,
+        "max": 16384,
+        "min": 1,
+        "order": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/height",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1000,
+        "help": "Logical height.",
+        "host": true,
+        "max": 16384,
+        "min": 1,
+        "order": 2,
+        "type": "int"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/mode",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "windowed",
+        "help": "How the window opens: at its size, maximized, borderless over the whole screen, or exclusive, which takes the monitor's largest video mode. window.set_window_mode changes it later through the same state.",
+        "host": true,
+        "options": [
+          "windowed",
+          "maximized",
+          "fullscreen",
+          "exclusive"
+        ],
+        "order": 3,
+        "type": "enum"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/orientation",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "any",
+        "help": "Which way up a phone may hold the game. Written into the export's own manifest, since a device decides this before the game runs.",
+        "host": true,
+        "options": [
+          "any",
+          "portrait",
+          "landscape"
+        ],
+        "order": 4,
+        "type": "enum"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/vsync",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Present in step with the display.",
+        "host": true,
+        "order": 5,
+        "type": "bool"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/msaa",
+      "scope": "project",
+      "spec": {
+        "default": 1,
+        "help": "Samples per pixel. 1 is off and 4 is the only other count the renderer offers; it costs two render targets of four samples each.",
+        "host": true,
+        "max": 4,
+        "min": 1,
+        "order": 6,
+        "type": "int"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/max_fps",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "The most frames a second the loop draws. Zero paces it against the tick instead, which is what vsync already does on a display that runs at the tick rate.",
+        "host": true,
+        "max": 1000,
+        "min": 0,
+        "order": 7,
+        "type": "int"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/low_processor",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "Run a frame only when something asks for one: input, ui.request_repaint, a log line, a changed file or work finished on another thread. What a tool that sits still wants; a game that moves every frame leaves it off.",
+        "host": true,
+        "order": 8,
+        "type": "bool"
+      }
+    },
+    {
+      "host": true,
+      "path": "window/remember_size",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "Open at the size the window had when it last closed, kept for each person beside their saves rather than in the project.",
+        "host": true,
+        "order": 9,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/system_fonts",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Let a character no face of the project has a glyph for draw in the face the operating system picks for it, instead of tofu. A worker reads every font on the machine once, after the first frame, so a game that only draws what it vendors can turn it off.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/theme",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative `widget_theme` every widget and egui's own controls start from, as Godot's project theme is. A widget that names its own `theme` still dresses its subtree with that one.",
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/theme_dark",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The theme's form for a dark system, worn while `dark_mode()` is true. `ui.set_theme` goes over both.",
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/scale",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1.0,
+        "help": "How large the game's own UI is drawn, as egui's zoom factor: every control and every font together, on top of the display's own scale. A phone usually wants more than a desktop, which is what `[override.mobile.ui] scale` is for. `ui.set_scale` changes it later.",
+        "max": 3.0,
+        "min": 0.25,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "ui/system_text_size",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Multiply the scale by the size the reader asked their system for. Off for a game whose layout cannot give text more room.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": true,
+      "path": "ui/narrow_below_pixels",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 600.0,
+        "help": "Under this many design pixels of width a layout reads `narrow`: one column, one panel at a time. Android's own line between its compact and medium window classes.",
+        "host": true,
+        "max": 8192.0,
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": true,
+      "path": "ui/wide_from_pixels",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 840.0,
+        "help": "From this many design pixels of width a layout reads `wide` and may spread out. Between the two lines it reads `medium`.",
+        "host": true,
+        "max": 8192.0,
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": true,
+      "path": "ui/short_below_pixels",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 480.0,
+        "help": "Under this many design pixels of height a layout reads `short`, which is a phone on its side.",
+        "host": true,
+        "max": 8192.0,
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "time/tick_hz",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 60,
+        "help": "How many fixed steps a second the simulation takes. Sixty is the rate the cross-platform digest job runs, and the one every recording made before this setting existed used.",
+        "max": 480,
+        "min": 1,
+        "order": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": true,
+      "path": "check/strict",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "`balaur check` fails on a warning as well as an error, for this project on every run.",
+        "host": true,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "save/version",
+      "scope": "project",
+      "spec": {
+        "default": 1,
+        "help": "The save version this build writes. A lower file is migrated; a higher one is refused.",
+        "max": 9999,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "save/migrate_script",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A script whose migrate_save(version, data) brings a file forward one version per call.",
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "locale/initial",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The locale a fresh run starts in. Empty starts in the system's language where the project ships it, else in `fallback`.",
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "locale/fallback",
+      "scope": "project",
+      "spec": {
+        "default": "en",
+        "help": "Where a key missing from the current locale is looked for next.",
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/simulate_faults",
+      "scope": "editor",
+      "spec": {
+        "default": false,
+        "help": "Put delay, jitter and packet loss on every multiplayer link, to test rollback against a link that misbehaves.",
+        "order": 1,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/delay_ticks",
+      "scope": "editor",
+      "spec": {
+        "default": 9,
+        "help": "Ticks every payload waits before delivery. Nine is about 150 ms at 60 Hz.",
+        "max": 60,
+        "min": 0,
+        "order": 2,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/jitter_ticks",
+      "scope": "editor",
+      "spec": {
+        "default": 3,
+        "help": "Extra ticks drawn per payload. Jitter is what reorders a stream.",
+        "max": 30,
+        "min": 0,
+        "order": 3,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/loss",
+      "scope": "editor",
+      "spec": {
+        "default": 0.05,
+        "help": "The fraction of datagrams dropped. Datagrams only: losing a reliable payload would break the transport's contract.",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 4,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/filter",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "linear",
+        "help": "Between texels. Nearest is what keeps pixel art crisp when it is magnified.",
+        "options": [
+          "linear",
+          "nearest"
+        ],
+        "order": 1,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/repeat",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "clamp",
+        "help": "What a coordinate past the edge reads. Mirror tiles without a seam.",
+        "options": [
+          "clamp",
+          "repeat",
+          "mirror"
+        ],
+        "order": 2,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/mipmaps",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "Build the smaller copies a texture drawn small samples, which stops it shimmering. A picture on a 3D surface builds them unless this says or its filter is nearest.",
+        "order": 3,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/anisotropy",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1,
+        "help": "Samples per fetch on a surface seen edge-on. Needs every filter linear.",
+        "max": 16,
+        "min": 1,
+        "order": 4,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/premultiply",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "Scale colour by alpha at upload, so a soft edge blends with no dark fringe. 2D nodes only.",
+        "order": 5,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/srgb",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Off for a normal map or a mask, which carry data rather than colour.",
+        "order": 6,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/bleed",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Spread the edge colour into fully transparent texels, so a linear filter never samples a dark or white fringe. Colour sampled linearly only.",
+        "order": 7,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/texture/pixels_per_unit",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 100.0,
+        "help": "Texture pixels to one world unit, for every sprite whose own pixels_per_unit is 0. A pixel-art project sets its tile size here once.",
+        "min": 0.01,
+        "order": 8,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/audio/volume_linear",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1.0,
+        "help": "Every sound's own level, multiplied into each play of it. A file's sidecar sets its own.",
+        "max": 4.0,
+        "min": 0.0,
+        "order": 1,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/audio/loop",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "Loop every sound wherever it is played. A music folder usually sets this per file instead.",
+        "order": 2,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/audio/force_mono",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": false,
+        "help": "Mix every WAV to one channel at export, which halves a stereo file. A sound played from a place in the world is heard mono anyway.",
+        "order": 3,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/audio/max_rate_hz",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "The highest sample rate a WAV ships at, in Hz; 0 keeps each file's own. 22050 is plenty for most effects. Set it per target to ship a phone less.",
+        "max": 192000,
+        "min": 0,
+        "order": 4,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/audio/gapless",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Trim the padding an encoder adds to a compressed file, where the file records it, so files queued back to back play without a gap.",
+        "order": 5,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/font/scale",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1.0,
+        "help": "How large a project face's glyphs are drawn and spaced, in the UI and in world text.",
+        "max": 10.0,
+        "min": 0.1,
+        "order": 1,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/font/hinting",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Snap a face's outlines to the pixel grid. Off for a smooth face drawn large.",
+        "order": 2,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/font/antialias",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": true,
+        "help": "Smooth glyph edges. Off draws each pixel fully on or off, for a pixel face at its own size; egui's own text and magnified world text stay smooth.",
+        "order": 3,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/model/scale",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 1.0,
+        "help": "A model file's units to the scene's: 0.01 for files modelled in centimetres. A skinned mesh is left as authored.",
+        "max": 1000.0,
+        "min": 0.0001,
+        "order": 1,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/model/lods",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "How many simpler copies of every rigid model to build at load, each with half the triangles of the one before.",
+        "max": 6,
+        "min": 0,
+        "order": 2,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "import/model/lod_distance",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 20.0,
+        "help": "The camera distance, in world units, at which the first simpler copy takes over; each further one takes over at twice it.",
+        "min": 0.01,
+        "order": 3,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "editor/appearance/theme",
+      "scope": "editor",
+      "spec": {
+        "default": "balaur",
+        "help": "Which theme the editor wears: a bundled one, or a folder in the per-user themes folder, which Settings lists by name. Each has a dark and a light half.",
+        "options": [
+          "balaur",
+          "atom-one",
+          "catppuccin",
+          "dracula",
+          "everforest",
+          "github",
+          "gruvbox",
+          "kanagawa",
+          "rose-pine",
+          "solarized",
+          "tokyo-night"
+        ],
+        "order": 1,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "editor/appearance/mode",
+      "scope": "editor",
+      "spec": {
+        "default": "system",
+        "help": "Which half of the theme the editor wears: the one the system is in, or always dark or always light.",
+        "options": [
+          "system",
+          "dark",
+          "light"
+        ],
+        "order": 2,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "editor/appearance/ui_scale",
+      "scope": "editor",
+      "spec": {
+        "default": 1.25,
+        "help": "How large the editor's own text and controls are drawn.",
+        "max": 2.5,
+        "min": 0.75,
+        "order": 3,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "editor/appearance/compact",
+      "scope": "editor",
+      "spec": {
+        "default": false,
+        "help": "Drop labels the icon already says, for a narrow window.",
+        "order": 4,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "editor/recordings/keep",
+      "scope": "editor",
+      "spec": {
+        "default": 10,
+        "help": "How many recordings are kept per game before the oldest is pruned.",
+        "max": 200,
+        "min": 1,
+        "order": 10,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "editor/recordings/verify",
+      "scope": "editor",
+      "spec": {
+        "default": false,
+        "help": "Hash the world every tick while recording, so a replay can say where it parted. Costs a walk of every node per frame.",
+        "order": 11,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "log/to_file",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Write each run's log to logs/run.log in the user data directory, so a crash leaves its last lines behind.",
+        "order": 1,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "log/keep",
+      "scope": "project",
+      "spec": {
+        "default": 5,
+        "help": "How many earlier runs' logs stay beside it, as run.1.log and on.",
+        "max": 50,
+        "min": 0,
+        "order": 2,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "audio/device",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": "",
+        "help": "The output device, by a name `audio.devices()` lists. Empty, or a device that is not connected, opens the system's default.",
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "audio/channels",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "Output channels. 0 takes the device's own.",
+        "max": 32,
+        "min": 0,
+        "order": 2,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "audio/sample_rate_hz",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "Output sample rate. 0 takes the device's own.",
+        "max": 384000,
+        "min": 0,
+        "order": 3,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "audio/buffer_frames",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "Frames per output buffer. Fewer answers sooner and risks dropouts; 0 takes 50 ms of frames, rodio's default.",
+        "max": 65536,
+        "min": 0,
+        "order": 4,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "audio/dither_bits",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "The bit depth the whole mix is dithered to before the device. 0 is off; a build without the `dither` feature leaves the mix alone.",
+        "max": 32,
+        "min": 0,
+        "order": 5,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "gamend/url",
+      "scope": "project",
+      "spec": {
+        "default": "https://gamend.org",
+        "help": "The Gamend server a shipped game talks to.",
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "gamend/local_url",
+      "scope": "project",
+      "spec": {
+        "default": "http://localhost:4000",
+        "help": "A Gamend running on this machine, as `mix dev.start` serves it.",
+        "order": 2,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "gamend/plugin",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The server plugin a game's hooks are called in.",
+        "order": 3,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "gamend/server",
+      "scope": "editor",
+      "spec": {
+        "default": "local",
+        "help": "Which of the project's two servers a game played from this editor talks to. Kept in the editor's own file, so it never ships.",
+        "options": [
+          "production",
+          "local"
+        ],
+        "order": 4,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "gamend/cloud",
+      "scope": "editor",
+      "spec": {
+        "default": "https://gamend.org",
+        "help": "Where your Gamend Cloud account is: the Gamend dock lists your servers from it.",
+        "order": 5,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "gamend/cloud_token",
+      "scope": "editor",
+      "spec": {
+        "default": "",
+        "help": "What the Gamend dock got when you connected it to your Gamend Cloud account. Kept in the editor's own file; empty disconnects it.",
+        "order": 6,
+        "secret": true,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "http/timeout_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "Seconds for a whole request, when the call names none.",
+        "max": 600.0,
+        "min": 0.1,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "http/max_parallel",
+      "scope": "project",
+      "spec": {
+        "default": 6,
+        "help": "Requests running at once; the rest wait their turn.",
+        "max": 64,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/emulate_mouse_from_touch",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "A finger also moves the mouse, so every widget written against a pointer works on a phone.",
+        "order": 1,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/emulate_touch_from_mouse",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "The mouse also reports a finger, so touch code runs on a desktop. Off by default: a game reading both would see one press twice.",
+        "order": 2,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/swipe_pixels",
+      "scope": "project",
+      "spec": {
+        "default": 48.0,
+        "help": "How far a finger travels before a lift counts as a swipe, in design pixels.",
+        "max": 1000.0,
+        "min": 0.0,
+        "order": 3,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/long_press_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "How long a finger holds before it counts as a long press.",
+        "max": 10.0,
+        "min": 0.0,
+        "order": 4,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/long_press_slop_pixels",
+      "scope": "project",
+      "spec": {
+        "default": 24.0,
+        "help": "How far a held finger may wander and still be holding, in design pixels.",
+        "max": 1000.0,
+        "min": 0.0,
+        "order": 5,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/gamepad_deadzone",
+      "scope": "project",
+      "spec": {
+        "default": 0.15,
+        "help": "Fraction of a stick's or a trigger's travel that reads zero, on every pad; the rest is rescaled so the first live reading is near zero.",
+        "max": 0.95,
+        "min": 0.0,
+        "order": 6,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/gamepad_press",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "Pressure at which a pad button or trigger goes down.",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 7,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/gamepad_release",
+      "scope": "project",
+      "spec": {
+        "default": 0.4,
+        "help": "Pressure below which a down pad button comes up again; at most gamepad_press.",
+        "max": 1.0,
+        "min": 0.0,
+        "order": 8,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/gamepad_repeat_delay_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "Seconds a pad button is held before gamepad_repeated first fires again.",
+        "max": 10.0,
+        "min": 0.0,
+        "order": 9,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/gamepad_repeat_interval_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 0.1,
+        "help": "Seconds between gamepad_repeated firings after the delay.",
+        "max": 10.0,
+        "min": 0.01,
+        "order": 10,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "input/gamepad_mappings",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": [],
+        "help": "Extra pad layouts in SDL's mapping format, one per entry, for a pad SDL's database does not know. Loaded when the process first reads pads.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 11,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/transport",
+      "scope": "project",
+      "spec": {
+        "default": "webtransport",
+        "help": "What a host listens with: QUIC datagrams, or a websocket where UDP is blocked.",
+        "options": [
+          "webtransport",
+          "websocket"
+        ],
+        "order": 10,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/address",
+      "scope": "project",
+      "spec": {
+        "default": "127.0.0.1:0",
+        "help": "Where a host listens. 0.0.0.0 lets other machines in; port 0 takes any free one.",
+        "order": 11,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/players",
+      "scope": "project",
+      "spec": {
+        "default": 2,
+        "help": "How many slots fill before a match starts on its own; 0 waits for the host's `start`.",
+        "max": 64,
+        "min": 0,
+        "order": 12,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/scene",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The scene a match loads on every machine; empty for the main scene.",
+        "order": 13,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/depth",
+      "scope": "project",
+      "spec": {
+        "default": 16,
+        "help": "Snapshots kept for rollback: how many ticks late an input can still be answered.",
+        "max": 120,
+        "min": 4,
+        "order": 14,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "multiplayer/timeout_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 5.0,
+        "help": "Seconds a join may take, and a link may go silent, before it is dropped.",
+        "max": 120.0,
+        "min": 0.5,
+        "order": 15,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/contact_recycle_distance",
+      "scope": "project",
+      "spec": {
+        "default": 0.05,
+        "help": "How far two colliders may drift, scaled by length_unit, before their contacts are worked out again rather than reused.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/friction_model",
+      "scope": "project",
+      "spec": {
+        "default": "simplified",
+        "help": "How the 3D solver treats friction: one cone per four contacts and a twist, or one per contact, slower and closer. A multibody always uses one per contact.",
+        "options": [
+          "simplified",
+          "per_contact"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/gravity_3d",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.0,
+          -9.81,
+          0.0
+        ],
+        "help": "The 3D world's gravity, in units per second squared: the value physics3d.set_gravity writes and physics3d.gravity reads.",
+        "type": "vec3"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/gravity_2d",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.0,
+          -9.81
+        ],
+        "help": "The 2D world's gravity, in units per second squared: the value physics2d.set_gravity writes and physics2d.gravity reads.",
+        "type": "vec2"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/solver_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 4.0,
+        "help": "Solver iterations per step. More is stabler and slower; every value here changes results, so a recording only replays against the same numbers.",
+        "max": 64.0,
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/ccd_substeps",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Substeps for continuous collision detection, which stops a fast body tunnelling through a thin one.",
+        "max": 16.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/length_unit",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "How many of the game's units make a metre. A pixel game sets this rather than scaling every body.",
+        "max": 1000.0,
+        "min": 1e-06,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/contact_clustering",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Group contacts before solving them.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/contact_recycling",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Reuse contact state between steps.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/allowed_linear_error",
+      "scope": "project",
+      "spec": {
+        "default": 0.005,
+        "help": "How far a body may sink into another before the solver pushes back.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/max_corrective_velocity",
+      "scope": "project",
+      "spec": {
+        "default": 3.0,
+        "help": "A cap on how fast the solver may push overlapping bodies apart.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/prediction_distance",
+      "scope": "project",
+      "spec": {
+        "default": 0.02,
+        "help": "How far ahead contacts are predicted.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/internal_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Projected Gauss-Seidel iterations inside one solver iteration.",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/stabilization_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Iterations spent pushing overlapping bodies apart rather than solving velocities.",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/min_ccd_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 0.000167,
+        "help": "The smallest substep continuous collision detection will take.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/warmstart",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "How much of the last step's impulses the solver starts from.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/warmstart_joints",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Warm-start joints as well as contacts.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/friction_in_bias_pass",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Solve friction in the bias pass, which is stabler at the cost of a little drift.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/max_linear_velocity",
+      "scope": "project",
+      "spec": {
+        "default": 400.0,
+        "help": "A cap on how fast a body may travel, in length units per second.",
+        "max": 100000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/contact_frequency_hz",
+      "scope": "project",
+      "spec": {
+        "default": 30.0,
+        "help": "The frequency of the spring a contact is solved as, in hertz.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/contact_damping",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "The damping ratio of that spring.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/static_contact_frequency_hz",
+      "scope": "project",
+      "spec": {
+        "default": 60.0,
+        "help": "The same, for a contact with a body that never moves.",
+        "max": 1000000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/static_contact_damping",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "The damping ratio of a static contact.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/threads",
+      "scope": "project",
+      "spec": {
+        "applies": "restart",
+        "default": 0,
+        "help": "How many threads the solver may take. 0 is the performance cores where the machine has two kinds of core, else every core.",
+        "max": 64,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/subdivisions",
+      "scope": "project",
+      "spec": {
+        "default": 20,
+        "help": "How many segments a curved face is drawn with.",
+        "max": 256,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/border_subdivisions",
+      "scope": "project",
+      "spec": {
+        "default": 5,
+        "help": "How many segments a round border is drawn with.",
+        "max": 256,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/dynamic_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.6,
+          0.0,
+          0.2000001,
+          1.0
+        ],
+        "help": "A collider on a dynamic body.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/static_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.8,
+          0.4,
+          0.0,
+          1.0
+        ],
+        "help": "A collider on a static body.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/kinematic_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.6,
+          0.20000003,
+          0.0,
+          1.0
+        ],
+        "help": "A collider on a kinematic body.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/standalone_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.8,
+          0.4,
+          0.0,
+          1.0
+        ],
+        "help": "A collider on no body.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/joint_anchor_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.2,
+          0.2,
+          0.6,
+          1.0
+        ],
+        "help": "The line from a body's centre of mass to its joint's anchor.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/joint_separation_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.6,
+          0.2,
+          0.2,
+          1.0
+        ],
+        "help": "The line between a joint's two anchors.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/articulation_anchor_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.8,
+          0.0,
+          0.8,
+          1.0
+        ],
+        "help": "The same anchor line for an articulation.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/articulation_separation_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.8,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "help": "The same separation line for an articulation.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/sleeping_tint",
+      "scope": "project",
+      "spec": {
+        "default": [
+          1.0,
+          1.0,
+          0.2,
+          1.0
+        ],
+        "help": "What a sleeping body's lines are multiplied by, as hue, saturation, lightness and alpha factors.",
+        "type": "vec4"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/sleep_ready_tint",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.35,
+          1.0,
+          1.4,
+          1.0
+        ],
+        "help": "The same for an awake body still enough to sleep.",
+        "type": "vec4"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/disabled_tint",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.0,
+          0.0,
+          1.0,
+          1.0
+        ],
+        "help": "The same for a disabled body.",
+        "type": "vec4"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/axes_length",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "How long a body's drawn axes are, in length units.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/contact_depth_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.0,
+          0.8,
+          0.0,
+          1.0
+        ],
+        "help": "The line joining a contact's two points.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/contact_normal_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "help": "A contact's normal.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/contact_normal_length",
+      "scope": "project",
+      "spec": {
+        "default": 0.3,
+        "help": "How long a contact's normal is drawn, in length units.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/soft_body_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.099999994,
+          0.63333344,
+          0.9,
+          1.0
+        ],
+        "help": "A soft body's edges.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/soft_slack_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.099999994,
+          0.36666662,
+          0.9,
+          1.0
+        ],
+        "help": "An unloaded soft-body edge, drawn by load under soft_stress.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/soft_loaded_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          1.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "help": "A soft-body edge at its tear threshold, under soft_stress.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/soft_frame_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.96,
+          0.72,
+          0.24000007,
+          1.0
+        ],
+        "help": "A soft body's region frames.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/aabb_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.0,
+          0.8,
+          0.053333282,
+          1.0
+        ],
+        "help": "A collider's bounding box.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/vertex_normal_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.20000005,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "help": "A mesh or polyline vertex's pseudo-normal.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/edge_normal_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.73333323,
+          0.20000005,
+          1.0,
+          1.0
+        ],
+        "help": "A mesh edge's pseudo-normal, 3D only.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/normal_length",
+      "scope": "project",
+      "spec": {
+        "default": 0.2,
+        "help": "How long a pseudo-normal is drawn, in length units.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/volume_normal_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.66499996,
+          0.034999996,
+          0.034999996,
+          1.0
+        ],
+        "help": "A soft body's volume contact normal.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/debug/volume_gradient_color",
+      "scope": "project",
+      "spec": {
+        "default": [
+          0.3,
+          0.060000002,
+          0.54,
+          1.0
+        ],
+        "help": "The volume gradient at each particle of a volume contact.",
+        "type": "color"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_resweep_strain",
+      "scope": "project",
+      "spec": {
+        "default": 0.75,
+        "help": "The strain past which a soft body's constraint is solved again after the contacts in every substep, so a light body under heavier ones is not torn.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_max_extra_substeps",
+      "scope": "project",
+      "spec": {
+        "default": 4,
+        "help": "The most extra substeps a soft body asks for while it is hit fast; 0 asks for none.",
+        "max": 64,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_contact_stiffening",
+      "scope": "project",
+      "spec": {
+        "default": 4.0,
+        "help": "How many times stiffer than contact_frequency_hz a soft body's contacts are solved, as a contact holds a few particles' mass rather than the body's.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_linear_tolerance",
+      "scope": "project",
+      "spec": {
+        "default": 1e-05,
+        "help": "Where the fem solver's linear solve stops, as a relative residual.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_max_linear_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 20,
+        "help": "The most iterations the fem solver's linear solve takes.",
+        "max": 10000,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_max_dense_dofs",
+      "scope": "project",
+      "spec": {
+        "default": 600,
+        "help": "The largest fem body, in particles times dimensions, solved directly rather than iteratively.",
+        "max": 1000000,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/authored_velocity_margin",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Widen the contact margin for velocities set between steps, so a fast new body does not tunnel.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/edge_speculation",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Let edge contacts reach ahead, so bodies crossing corner first collide; on, pressed 3D piles stay crossed.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/inverted_cell_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for cells turned inside out each step.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/self_crossing_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for a surface crossing itself each step.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/detection_motion_gating",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Skip that look while the surface has not moved far enough to cross itself.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/cross_body_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for two soft surfaces crossing each other.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/self_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of a tangled part's own contacts, so its elasticity undoes the tangle.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/cross_body_expel_gate",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let a contact where two surfaces cross push apart only, never hold.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/edge_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of edge contacts where two surfaces cross.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/crossing_repulsion",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push a crossed part back through instead of letting go of it.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/crossing_repulsion_guide",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push it along the pair's overlap direction rather than the crossed face's normal; closed bodies only.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/crossing_repulsion_self_guide",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Pull a part folded into its own body out along the fold's direction; closed bodies only.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/recovery_pace",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "How fast a tangle is undone, in length units per second scaled by length_unit.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_constraints",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Push two closed surfaces apart by how much they overlap, one constraint a pair; switches the overlap rows below.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_rigid_bodies",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Do the same against rigid colliders.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_skip_self_tangled",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Leave out a body crossing itself, whose overlap points the wrong way.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_edge_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of the 3D edge contacts of a pair an overlap constraint holds.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_constraint_pace",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "The most an overlap constraint may change a side's speed a step, in multiples of recovery_pace.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_patch_constraints",
+      "scope": "project",
+      "spec": {
+        "default": "along_normal",
+        "help": "What the point contacts inside an overlap do: stay, let go, or push along the overlap's normal.",
+        "options": [
+          "keep",
+          "stand_down",
+          "along_normal"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_skin_volume",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Measure the overlap between the surfaces grown by their contact skins, so resting bodies hold apart before the skins meet.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_kept_depth",
+      "scope": "project",
+      "spec": {
+        "default": 0.0,
+        "help": "The overlap kept at rest, as a fraction of the two skins.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_self_regions",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push apart two parts of one closed body that overlap each other.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_normal_push",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Push a whole overlap along one direction rather than each point along its own.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_multi_volume",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Split each overlap into a grid of constraints, so pressure varies across it.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_split",
+      "scope": "project",
+      "spec": {
+        "default": 3,
+        "help": "Cells along each side of that grid.",
+        "max": 16,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_patience_ticks",
+      "scope": "project",
+      "spec": {
+        "default": 240,
+        "help": "Steps an overlap may go without shrinking before it stops being pushed.",
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/soft_recovery/overlap_progress_margin",
+      "scope": "project",
+      "spec": {
+        "default": 0.02,
+        "help": "How much an overlap must shrink, as a fraction, to count as shrinking.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/contact_recycle_distance",
+      "scope": "project",
+      "spec": {
+        "default": 0.05,
+        "help": "How far two colliders may drift, scaled by length_unit, before their contacts are worked out again rather than reused.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/friction_model",
+      "scope": "project",
+      "spec": {
+        "default": "simplified",
+        "help": "How the 3D solver treats friction: one cone per four contacts and a twist, or one per contact, slower and closer. A multibody always uses one per contact.",
+        "options": [
+          "simplified",
+          "per_contact"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/solver_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 4.0,
+        "help": "Solver iterations per step. More is stabler and slower; every value here changes results, so a recording only replays against the same numbers.",
+        "max": 64.0,
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/ccd_substeps",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Substeps for continuous collision detection, which stops a fast body tunnelling through a thin one.",
+        "max": 16.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/length_unit",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "How many of the game's units make a metre. A pixel game sets this rather than scaling every body.",
+        "max": 1000.0,
+        "min": 1e-06,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/contact_clustering",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Group contacts before solving them.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/contact_recycling",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Reuse contact state between steps.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/allowed_linear_error",
+      "scope": "project",
+      "spec": {
+        "default": 0.005,
+        "help": "How far a body may sink into another before the solver pushes back.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/max_corrective_velocity",
+      "scope": "project",
+      "spec": {
+        "default": 3.0,
+        "help": "A cap on how fast the solver may push overlapping bodies apart.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/prediction_distance",
+      "scope": "project",
+      "spec": {
+        "default": 0.02,
+        "help": "How far ahead contacts are predicted.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/internal_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Projected Gauss-Seidel iterations inside one solver iteration.",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/stabilization_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Iterations spent pushing overlapping bodies apart rather than solving velocities.",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/min_ccd_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 0.000167,
+        "help": "The smallest substep continuous collision detection will take.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/warmstart",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "How much of the last step's impulses the solver starts from.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/warmstart_joints",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Warm-start joints as well as contacts.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/friction_in_bias_pass",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Solve friction in the bias pass, which is stabler at the cost of a little drift.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/max_linear_velocity",
+      "scope": "project",
+      "spec": {
+        "default": 400.0,
+        "help": "A cap on how fast a body may travel, in length units per second.",
+        "max": 100000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/contact_frequency_hz",
+      "scope": "project",
+      "spec": {
+        "default": 30.0,
+        "help": "The frequency of the spring a contact is solved as, in hertz.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/contact_damping",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "The damping ratio of that spring.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/static_contact_frequency_hz",
+      "scope": "project",
+      "spec": {
+        "default": 60.0,
+        "help": "The same, for a contact with a body that never moves.",
+        "max": 1000000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/static_contact_damping",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "The damping ratio of a static contact.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_resweep_strain",
+      "scope": "project",
+      "spec": {
+        "default": 0.75,
+        "help": "The strain past which a soft body's constraint is solved again after the contacts in every substep, so a light body under heavier ones is not torn.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_max_extra_substeps",
+      "scope": "project",
+      "spec": {
+        "default": 4,
+        "help": "The most extra substeps a soft body asks for while it is hit fast; 0 asks for none.",
+        "max": 64,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_contact_stiffening",
+      "scope": "project",
+      "spec": {
+        "default": 4.0,
+        "help": "How many times stiffer than contact_frequency_hz a soft body's contacts are solved, as a contact holds a few particles' mass rather than the body's.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_linear_tolerance",
+      "scope": "project",
+      "spec": {
+        "default": 1e-05,
+        "help": "Where the fem solver's linear solve stops, as a relative residual.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_max_linear_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 20,
+        "help": "The most iterations the fem solver's linear solve takes.",
+        "max": 10000,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_max_dense_dofs",
+      "scope": "project",
+      "spec": {
+        "default": 600,
+        "help": "The largest fem body, in particles times dimensions, solved directly rather than iteratively.",
+        "max": 1000000,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/authored_velocity_margin",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Widen the contact margin for velocities set between steps, so a fast new body does not tunnel.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/edge_speculation",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Let edge contacts reach ahead, so bodies crossing corner first collide; on, pressed 3D piles stay crossed.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/inverted_cell_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for cells turned inside out each step.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/self_crossing_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for a surface crossing itself each step.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/detection_motion_gating",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Skip that look while the surface has not moved far enough to cross itself.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/cross_body_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for two soft surfaces crossing each other.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/self_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of a tangled part's own contacts, so its elasticity undoes the tangle.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/cross_body_expel_gate",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let a contact where two surfaces cross push apart only, never hold.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/edge_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of edge contacts where two surfaces cross.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/crossing_repulsion",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push a crossed part back through instead of letting go of it.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/crossing_repulsion_guide",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push it along the pair's overlap direction rather than the crossed face's normal; closed bodies only.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/crossing_repulsion_self_guide",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Pull a part folded into its own body out along the fold's direction; closed bodies only.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/recovery_pace",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "How fast a tangle is undone, in length units per second scaled by length_unit.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_constraints",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Push two closed surfaces apart by how much they overlap, one constraint a pair; switches the overlap rows below.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_rigid_bodies",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Do the same against rigid colliders.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_skip_self_tangled",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Leave out a body crossing itself, whose overlap points the wrong way.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_edge_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of the 3D edge contacts of a pair an overlap constraint holds.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_constraint_pace",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "The most an overlap constraint may change a side's speed a step, in multiples of recovery_pace.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_patch_constraints",
+      "scope": "project",
+      "spec": {
+        "default": "along_normal",
+        "help": "What the point contacts inside an overlap do: stay, let go, or push along the overlap's normal.",
+        "options": [
+          "keep",
+          "stand_down",
+          "along_normal"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_skin_volume",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Measure the overlap between the surfaces grown by their contact skins, so resting bodies hold apart before the skins meet.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_kept_depth",
+      "scope": "project",
+      "spec": {
+        "default": 0.0,
+        "help": "The overlap kept at rest, as a fraction of the two skins.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_self_regions",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push apart two parts of one closed body that overlap each other.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_normal_push",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Push a whole overlap along one direction rather than each point along its own.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_multi_volume",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Split each overlap into a grid of constraints, so pressure varies across it.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_split",
+      "scope": "project",
+      "spec": {
+        "default": 3,
+        "help": "Cells along each side of that grid.",
+        "max": 16,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_patience_ticks",
+      "scope": "project",
+      "spec": {
+        "default": 240,
+        "help": "Steps an overlap may go without shrinking before it stops being pushed.",
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/3d/soft_recovery/overlap_progress_margin",
+      "scope": "project",
+      "spec": {
+        "default": 0.02,
+        "help": "How much an overlap must shrink, as a fraction, to count as shrinking.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/contact_recycle_distance",
+      "scope": "project",
+      "spec": {
+        "default": 0.05,
+        "help": "How far two colliders may drift, scaled by length_unit, before their contacts are worked out again rather than reused.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/solver_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 4.0,
+        "help": "Solver iterations per step. More is stabler and slower; every value here changes results, so a recording only replays against the same numbers.",
+        "max": 64.0,
+        "min": 1.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/ccd_substeps",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Substeps for continuous collision detection, which stops a fast body tunnelling through a thin one.",
+        "max": 16.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/length_unit",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "How many of the game's units make a metre. A pixel game sets this rather than scaling every body.",
+        "max": 1000.0,
+        "min": 1e-06,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/contact_clustering",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Group contacts before solving them.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/contact_recycling",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Reuse contact state between steps.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/allowed_linear_error",
+      "scope": "project",
+      "spec": {
+        "default": 0.005,
+        "help": "How far a body may sink into another before the solver pushes back.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/max_corrective_velocity",
+      "scope": "project",
+      "spec": {
+        "default": 3.0,
+        "help": "A cap on how fast the solver may push overlapping bodies apart.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/prediction_distance",
+      "scope": "project",
+      "spec": {
+        "default": 0.02,
+        "help": "How far ahead contacts are predicted.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/internal_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Projected Gauss-Seidel iterations inside one solver iteration.",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/stabilization_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "Iterations spent pushing overlapping bodies apart rather than solving velocities.",
+        "max": 64.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/min_ccd_seconds",
+      "scope": "project",
+      "spec": {
+        "default": 0.000167,
+        "help": "The smallest substep continuous collision detection will take.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/warmstart",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "How much of the last step's impulses the solver starts from.",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/warmstart_joints",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Warm-start joints as well as contacts.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/friction_in_bias_pass",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Solve friction in the bias pass, which is stabler at the cost of a little drift.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/max_linear_velocity",
+      "scope": "project",
+      "spec": {
+        "default": 400.0,
+        "help": "A cap on how fast a body may travel, in length units per second.",
+        "max": 100000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/contact_frequency_hz",
+      "scope": "project",
+      "spec": {
+        "default": 30.0,
+        "help": "The frequency of the spring a contact is solved as, in hertz.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/contact_damping",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "The damping ratio of that spring.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/static_contact_frequency_hz",
+      "scope": "project",
+      "spec": {
+        "default": 60.0,
+        "help": "The same, for a contact with a body that never moves.",
+        "max": 1000000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/static_contact_damping",
+      "scope": "project",
+      "spec": {
+        "default": 10.0,
+        "help": "The damping ratio of a static contact.",
+        "max": 1000.0,
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_resweep_strain",
+      "scope": "project",
+      "spec": {
+        "default": 0.75,
+        "help": "The strain past which a soft body's constraint is solved again after the contacts in every substep, so a light body under heavier ones is not torn.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_max_extra_substeps",
+      "scope": "project",
+      "spec": {
+        "default": 4,
+        "help": "The most extra substeps a soft body asks for while it is hit fast; 0 asks for none.",
+        "max": 64,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_contact_stiffening",
+      "scope": "project",
+      "spec": {
+        "default": 4.0,
+        "help": "How many times stiffer than contact_frequency_hz a soft body's contacts are solved, as a contact holds a few particles' mass rather than the body's.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_linear_tolerance",
+      "scope": "project",
+      "spec": {
+        "default": 1e-05,
+        "help": "Where the fem solver's linear solve stops, as a relative residual.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_max_linear_iterations",
+      "scope": "project",
+      "spec": {
+        "default": 20,
+        "help": "The most iterations the fem solver's linear solve takes.",
+        "max": 10000,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_max_dense_dofs",
+      "scope": "project",
+      "spec": {
+        "default": 600,
+        "help": "The largest fem body, in particles times dimensions, solved directly rather than iteratively.",
+        "max": 1000000,
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/authored_velocity_margin",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Widen the contact margin for velocities set between steps, so a fast new body does not tunnel.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/edge_speculation",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Let edge contacts reach ahead, so bodies crossing corner first collide; on, pressed 3D piles stay crossed.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/inverted_cell_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for cells turned inside out each step.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/self_crossing_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for a surface crossing itself each step.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/detection_motion_gating",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Skip that look while the surface has not moved far enough to cross itself.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/cross_body_detection",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Look for two soft surfaces crossing each other.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/self_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of a tangled part's own contacts, so its elasticity undoes the tangle.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/cross_body_expel_gate",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let a contact where two surfaces cross push apart only, never hold.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/edge_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of edge contacts where two surfaces cross.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/crossing_repulsion",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push a crossed part back through instead of letting go of it.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/crossing_repulsion_guide",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push it along the pair's overlap direction rather than the crossed face's normal; closed bodies only.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/crossing_repulsion_self_guide",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Pull a part folded into its own body out along the fold's direction; closed bodies only.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/recovery_pace",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "How fast a tangle is undone, in length units per second scaled by length_unit.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_constraints",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Push two closed surfaces apart by how much they overlap, one constraint a pair; switches the overlap rows below.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_rigid_bodies",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Do the same against rigid colliders.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_skip_self_tangled",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Leave out a body crossing itself, whose overlap points the wrong way.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_edge_stand_down",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Let go of the 3D edge contacts of a pair an overlap constraint holds.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_constraint_pace",
+      "scope": "project",
+      "spec": {
+        "default": 1.0,
+        "help": "The most an overlap constraint may change a side's speed a step, in multiples of recovery_pace.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_patch_constraints",
+      "scope": "project",
+      "spec": {
+        "default": "along_normal",
+        "help": "What the point contacts inside an overlap do: stay, let go, or push along the overlap's normal.",
+        "options": [
+          "keep",
+          "stand_down",
+          "along_normal"
+        ],
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_skin_volume",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Measure the overlap between the surfaces grown by their contact skins, so resting bodies hold apart before the skins meet.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_kept_depth",
+      "scope": "project",
+      "spec": {
+        "default": 0.0,
+        "help": "The overlap kept at rest, as a fraction of the two skins.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_self_regions",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Push apart two parts of one closed body that overlap each other.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_normal_push",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Push a whole overlap along one direction rather than each point along its own.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_multi_volume",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Split each overlap into a grid of constraints, so pressure varies across it.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_split",
+      "scope": "project",
+      "spec": {
+        "default": 3,
+        "help": "Cells along each side of that grid.",
+        "max": 16,
+        "min": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_patience_ticks",
+      "scope": "project",
+      "spec": {
+        "default": 240,
+        "help": "Steps an overlap may go without shrinking before it stops being pushed.",
+        "min": 0,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "physics/2d/soft_recovery/overlap_progress_margin",
+      "scope": "project",
+      "spec": {
+        "default": 0.02,
+        "help": "How much an overlap must shrink, as a fraction, to count as shrinking.",
+        "min": 0.0,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "render/shadow_resolution",
+      "scope": "project",
+      "spec": {
+        "default": 2048,
+        "help": "Side of the shadow map, in texels.",
+        "min": 256,
+        "order": 1,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "render/shadow_views",
+      "scope": "project",
+      "spec": {
+        "default": 16,
+        "help": "Shadow-map layers every casting light shares: a spot light takes one, a directional one a layer per cascade and a point one six. A light past the budget lights without a shadow. Each layer costs `shadow_resolution` squared times eight bytes.",
+        "max": 64,
+        "min": 1,
+        "order": 2,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "render/transmission_steps",
+      "scope": "project",
+      "spec": {
+        "default": 1,
+        "help": "How many layers of glass seen through glass are drawn; each costs another snapshot of the scene and another glass pass.",
+        "min": 1,
+        "order": 3,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "render/cluster_grid",
+      "scope": "project",
+      "spec": {
+        "default": [
+          16.0,
+          9.0,
+          24.0
+        ],
+        "help": "Clusters the many-light pass cuts the view into, across x, across y and along depth, each 1 to 128. Finer culls tighter and costs memory. Not drawn on WebGL2, which has no compute.",
+        "order": 4,
+        "type": "vec3"
+      }
+    },
+    {
+      "host": false,
+      "path": "render/cluster_max_lights",
+      "scope": "project",
+      "spec": {
+        "default": 256,
+        "help": "Lights one cluster records; past it a dense cluster drops lights. The renderer lowers it to fit the device's largest storage buffer.",
+        "min": 1,
+        "order": 5,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "render/probe_capture_size_pixels",
+      "scope": "project",
+      "spec": {
+        "default": 256,
+        "help": "Side of each cube face a `reflection_probe` captures, and the width of every probe map, which all probes share. A change clears every map and captures the probes again.",
+        "max": 4096,
+        "min": 2,
+        "order": 6,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "websocket/compression",
+      "scope": "project",
+      "spec": {
+        "default": true,
+        "help": "Offer permessage-deflate on every connection; the server decides whether frames are compressed.",
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/runtime",
+      "scope": "project",
+      "spec": {
+        "default": "auto",
+        "help": "The runtime a game is put on. 2d and 3d carry one physics world each and weigh less, and auto takes the smallest the scenes and scripts fit, or the full one where only that is on hand; name one where a script builds a component's name at run time. A server target keeps its own. Per target through that target's override.",
+        "options": [
+          "auto",
+          "full",
+          "2d",
+          "3d"
+        ],
+        "order": 0,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/output",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative directory; each target gets a subdirectory of it. Empty exports where the command stands.",
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/strip",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Drop an asset no scene, script or include glob names. Off by default: a script may compute a path this cannot see, and losing an asset is worse than shipping one.",
+        "order": 2,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/tags",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "Names this build answers to besides its platform's, such as demo or store. An override or an asset variant may be written for any of them; per target, set it under that target's override.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 11,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/include",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "Globs an export includes whatever else it decides, for the paths a script builds at run time.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 3,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/image_recode",
+      "scope": "project",
+      "spec": {
+        "default": "webp",
+        "help": "How an image is re-encoded on the way into the pack, kept only where it comes out smaller. Every mode keeps the size; quantized is the one that does not keep the pixels.",
+        "options": [
+          "original",
+          "webp",
+          "quantized"
+        ],
+        "order": 4,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/image_quality",
+      "scope": "project",
+      "spec": {
+        "default": 80,
+        "help": "imagequant's quality target, which image_recode = \"quantized\" reads and every other mode ignores.",
+        "max": 100,
+        "min": 0,
+        "order": 5,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/max_size",
+      "scope": "project",
+      "spec": {
+        "default": 0,
+        "help": "The longest side an image ships at, in pixels; 0 keeps every size. Set it per target to ship a phone a smaller art set. Pixel art and bitmap font pages are never capped, and a sprite keeps the size it was drawn at.",
+        "max": 16384,
+        "min": 0,
+        "order": 12,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/font_recode",
+      "scope": "project",
+      "spec": {
+        "default": "original",
+        "help": "Whether a font is cut down to the characters the project's scenes and scripts name.",
+        "options": [
+          "original",
+          "subset"
+        ],
+        "order": 6,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/font_ranges",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "Code points a subset font keeps beyond the ones found in the project, as first-last hex ranges (\"0020-00FF\"), for text from a server or typed by a player.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 7,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/font_original",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "Faces that ship whole however font_recode is set, as globs: the one a text field draws with cannot be subset to the characters this project happens to contain.",
+        "of": {
+          "default": "",
+          "type": "string"
+        },
+        "order": 8,
+        "type": "list"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/audio_recode",
+      "scope": "project",
+      "spec": {
+        "default": "flac",
+        "help": "How uncompressed audio is re-encoded, kept only where it comes out smaller. flac keeps every sample; vorbis does not.",
+        "options": [
+          "original",
+          "flac",
+          "vorbis"
+        ],
+        "order": 9,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/audio_quality",
+      "scope": "project",
+      "spec": {
+        "default": 0.5,
+        "help": "libvorbis's quality, which audio_recode = \"vorbis\" reads and every other mode ignores.",
+        "max": 1.0,
+        "min": -0.1,
+        "order": 10,
+        "type": "float"
+      }
+    },
+    {
+      "host": false,
+      "path": "export/native_scripts",
+      "scope": "project",
+      "spec": {
+        "default": "auto",
+        "help": "Ship the scripts as native code, built from their C with Xcode for an Apple target or clang and lld for any. auto falls back to the target's engine when no compiler is found, on fails the export instead, off never builds it. Per target through that target's override.",
+        "options": [
+          "auto",
+          "on",
+          "off"
+        ],
+        "order": 13,
+        "type": "enum"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/application_id",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The identifier Play resolves an OAuth client, a licence and an update against. Required to export.",
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/display_name",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The name under the icon. Empty means [application] name.",
+        "order": 2,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/version",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "versionName: what a player is shown. Required to export.",
+        "order": 3,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/version_code",
+      "scope": "project",
+      "spec": {
+        "default": 0,
+        "help": "versionCode: what Play orders updates by, and the only one it reads. Required to export; 0 is unset.",
+        "max": 2100000000,
+        "min": 0,
+        "order": 4,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/min_sdk",
+      "scope": "project",
+      "spec": {
+        "default": 0,
+        "help": "The API floor. 0 defers to the template's own, which is what its libraries were built against.",
+        "max": 40,
+        "min": 0,
+        "order": 5,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/target_sdk",
+      "scope": "project",
+      "spec": {
+        "default": 36,
+        "help": "The API this game says it was written for. Google Play takes a new app or an update only at 36 or later.",
+        "max": 40,
+        "min": 21,
+        "order": 6,
+        "type": "int"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/abis",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "Which of the template's ABIs the export keeps. None named means every one it carries, so a game that says nothing ships everywhere.",
+        "options": [
+          "arm64-v8a",
+          "armeabi-v7a",
+          "x86",
+          "x86_64"
+        ],
+        "order": 7,
+        "type": "flags"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/keystore",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative keystore. Without one an export needs --sign debug, which installs on a device and ships nowhere.",
+        "order": 8,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/key",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "Which key in that keystore signs.",
+        "order": 9,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "android/bundletool",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "Where bundletool.jar is. Empty looks at BALAUR_ANDROID_BUNDLETOOL and then beside the SDK; Google ships it on its own, not in the SDK.",
+        "order": 10,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/bundle_id",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The identifier registered in App Store Connect. Required to export.",
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/team_id",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The ten-character team identifier. Nothing expands it, so an entitlement carrying the prefix needs the real value.",
+        "order": 2,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/display_name",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The name under the icon. Empty means [application] name.",
+        "order": 3,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/version",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "CFBundleShortVersionString: what a player is shown. Required to export.",
+        "order": 4,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/build_number",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "CFBundleVersion: what the store orders uploads by. Required to export.",
+        "order": 5,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/min_ios",
+      "scope": "project",
+      "spec": {
+        "default": "15.0",
+        "help": "MinimumOSVersion on iOS. A plist may not claim less than the binary was built for.",
+        "order": 6,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/min_macos",
+      "scope": "project",
+      "spec": {
+        "default": "12.0",
+        "help": "LSMinimumSystemVersion on macOS.",
+        "order": 7,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/category",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "LSApplicationCategoryType, macOS only.",
+        "order": 8,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/capabilities",
+      "scope": "project",
+      "spec": {
+        "default": [],
+        "help": "What the bundle declares it uses. Each writes its own entitlement and its own minimum OS.",
+        "options": [
+          "sign-in-with-apple",
+          "game-center",
+          "icloud-kv",
+          "in-app-purchase"
+        ],
+        "order": 9,
+        "type": "flags"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/macos_identity",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "Developer ID Application: \u2026 for a download, Apple Distribution: \u2026 for the Mac App Store. The password behind it is read from the environment, never from here.",
+        "order": 10,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/notarize",
+      "scope": "project",
+      "spec": {
+        "default": false,
+        "help": "Submit to Apple's notary service after signing, and staple the ticket.",
+        "order": 11,
+        "type": "bool"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/ios_identity",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "The identity an iOS build is signed with.",
+        "order": 12,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "apple/ios_provisioning_profile",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative .mobileprovision, copied into the bundle.",
+        "order": 13,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "windows/certificate",
+      "scope": "project",
+      "spec": {
+        "default": "",
+        "help": "A project-relative .pfx, or an Azure Trusted Signing metadata file when the key lives in a cloud HSM.",
+        "order": 1,
+        "type": "string"
+      }
+    },
+    {
+      "host": false,
+      "path": "windows/timestamp_url",
+      "scope": "project",
+      "spec": {
+        "default": "http://timestamp.digicert.com",
+        "help": "The timestamp authority a Windows signature is countersigned by.",
+        "order": 2,
+        "type": "string"
+      }
+    }
   ],
   "types": [
     {

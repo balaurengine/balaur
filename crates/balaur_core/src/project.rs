@@ -150,6 +150,8 @@ pub struct WindowSettings {
     pub orientation: Orientation,
     /// Run a frame only when something asks for one, and sleep between.
     pub low_processor: bool,
+    /// Open at the size the window last closed at, kept per person.
+    pub remember_size: bool,
 }
 
 impl Default for WindowSettings {
@@ -162,14 +164,20 @@ impl Default for WindowSettings {
             mode: WindowMode::Windowed,
             orientation: Orientation::Any,
             low_processor: false,
+            remember_size: false,
         }
     }
 }
 
 impl WindowSettings {
-    /// `[window]` as this run resolves it, overrides and all.
+    /// `[window]` as this run resolves it, overrides and all, worked out once
+    /// per change of a setting.
     #[must_use]
-    pub fn from_settings(eng: &Engine) -> Self {
+    pub fn of(eng: &Engine) -> std::rc::Rc<Self> {
+        crate::settings::kept(eng, Self::from_settings)
+    }
+
+    fn from_settings(eng: &Engine) -> Self {
         let fallback = Self::default();
         Self {
             width: setting_u32(eng, "window/width", fallback.width),
@@ -179,6 +187,7 @@ impl WindowSettings {
             mode: WindowMode::parse(&setting_string(eng, "window/mode")).unwrap_or(fallback.mode),
             orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
             low_processor: setting_bool(eng, "window/low_processor", fallback.low_processor),
+            remember_size: setting_bool(eng, "window/remember_size", fallback.remember_size),
         }
     }
 }

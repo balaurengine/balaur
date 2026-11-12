@@ -302,7 +302,7 @@ pub fn new_path(state: &mut editor::State) {
 
 /// The control point under the pointer, or -1.
 fn pick(state: editor::State, path: Loaded, node_frame: util::Frame, world_x: float, world_y: float) -> int {
-    let reach = PICK_PIXELS * viewport::world_per_pixel(state);
+    let reach = PICK_PIXELS * viewport::world_per_pixel();
     let best = -1;
     let best_distance = reach;
     for index in 0..path.points.len() {
@@ -398,7 +398,7 @@ pub fn draw(state: &mut editor::State) {
     let tokens = state.theme;
     let accent = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
     let dim = util::rgb(tokens[theme_tokens::TEXT_MUTED].as_str());
-    let mark = MARK_PIXELS * viewport::world_per_pixel(state);
+    let mark = MARK_PIXELS * viewport::world_per_pixel();
     for index in 0..path.points.len() {
         let point = path.points[index];
         let world = util::to_world(node_frame, point[0], point[1]);

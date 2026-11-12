@@ -41,7 +41,7 @@ impl Present {
             return;
         }
         self.revision = Some(revision);
-        let settings = WindowSettings::from_settings(&app.engine);
+        let settings = WindowSettings::of(&app.engine);
         if settings.msaa != self.msaa {
             self.msaa = settings.msaa;
             let samples = samples_of(&settings);

@@ -955,10 +955,10 @@ pub fn camera_check_step(state: &mut editor::State) {
     // The wheel the editor drives itself, fed into the snapshot it reads. A
     // fed event lands next frame, and the pose it moves is published the one after.
     let stage = state.layout["stage"];
-    let dpi = render::camera_pose()[7];
     let centre_x = stage["x"].as_float() + stage["width"].as_float() / 2.0;
     let centre_y = stage["y"].as_float() + stage["height"].as_float() / 2.0;
-    input::feed_mouse(centre_x * state.ui_scale * dpi, centre_y * state.ui_scale * dpi);
+    let per_design = ui::pixels_per_design();
+    input::feed_mouse(centre_x * per_design, centre_y * per_design);
     camera_check.was = closeness(state);
     input::feed_scroll(0.0, flick(viewport::dolly_step()));
 }
@@ -966,7 +966,7 @@ pub fn camera_check_step(state: &mut editor::State) {
 // A right-drag fed a frame at a time: where the pointer lands, the press, the
 // move, the release, and the frame the pose it set is published in.
 fn camera_drag_step(state: &mut editor::State, camera_check: CameraCheck) {
-    let pixels_per_point = state.ui_scale * render::camera_pose()[7];
+    let pixels_per_point = ui::pixels_per_design();
     let right = input::MOUSE_BUTTON_RIGHT;
     let step = camera_check.stage - 3;
     if step == 0 {
@@ -1065,7 +1065,7 @@ fn looked_at(state: editor::State) -> [float] {
 fn drawn_at(state: editor::State, point: [float]) -> gizmo::Project? {
     if state.mode2d {
         let camera_2d = render::camera_2d();
-        let scale = camera_2d.z / state.ui_scale;
+        let scale = camera_2d.z / viewport::logical_per_design();
         return gizmo::Project { x: (point[0] - camera_2d.x) * scale, y: (camera_2d.y - point[1]) * scale };
     }
     let camera = gizmo::Camera {
@@ -2607,9 +2607,10 @@ pub fn gesture_step(state: &mut editor::State) {
     // A fed finger is read by the next tick and acted on later in that frame,
     // so every act takes a frame and every reading the frame after.
     let mid = middle(state.layout["stage"]);
-    let centre_x = mid[0] * state.ui_scale;
-    let centre_y = mid[1] * state.ui_scale;
-    let step = 40.0 * state.ui_scale;
+    let logical = viewport::logical_per_design();
+    let centre_x = mid[0] * logical;
+    let centre_y = mid[1] * logical;
+    let step = 40.0 * logical;
     if frame == 0 {
         let pose = render::camera_pose();
         state.gesture_from = [pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]];
@@ -2778,7 +2779,7 @@ fn check_touch_targets(state: editor::State) {
             if rect == nil || rect.unwrap().height <= 0.0 {
                 continue;
             }
-            let points = rect.unwrap().height * state.ui_scale;
+            let points = rect.unwrap().height * viewport::logical_per_design();
             if points < smallest {
                 smallest = points;
                 where = path;

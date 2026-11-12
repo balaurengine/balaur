@@ -30,6 +30,10 @@ pub struct WindowConfig {
     /// browser for a wake lock, a desktop needs nothing.
     pub keep_awake: bool,
     pub changed: bool,
+    /// The mode last put on the window; it opens windowed. Only a change of
+    /// mode touches maximize and fullscreen, so a cursor grab does not undo a
+    /// window the system maximized to fit its screen.
+    pub applied_mode: balaur_core::project::WindowMode,
 }
 
 /// Screen-space effects the frame is resolved through, from the current

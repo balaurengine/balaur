@@ -1,30 +1,49 @@
 //! What the window and the display say, published to the engine once per
-//! frame as recorded input: focus, dark mode, the safe area and the refresh
-//! rate. Each platform answers what it can; the rest keeps the default.
+//! frame as recorded input: focus, dark mode, the safe area and the display's
+//! refresh rate. Each platform answers what it can; the rest keeps the default.
 
 use std::collections::VecDeque;
 
 use balaur_core::App;
 
-/// Frame intervals the refresh rate is measured over.
+/// Frame intervals the refresh rate is measured over, where the system does
+/// not say it.
 const SAMPLES: usize = 90;
+
+/// The longest frame a display's refresh could be: a frame slower than 20 Hz
+/// is a loop asleep between inputs or one held up, not the display.
+const LONGEST_REFRESH: f32 = 1.0 / 20.0;
 
 /// The measurements one window keeps between frames.
 #[derive(Default)]
 pub(crate) struct Probe {
     intervals: VecDeque<f32>,
+    /// The display's own rate, asked of the system again when the scale
+    /// changes, as a move to another display does, or after `SAMPLES` frames:
+    /// asking is a driver query on macOS and Windows.
+    display_rate: Option<f32>,
+    asked_at_scale: f64,
+    frames_since_asked: usize,
 }
 
 impl Probe {
     /// Fold this frame in and publish every fact the platform can answer.
     pub(crate) fn publish(&mut self, app: &App, window: &kiss3d::window::Window, dt: f32) {
-        if dt > 0.0 {
+        if dt > 0.0 && dt <= LONGEST_REFRESH {
             if self.intervals.len() == SAMPLES {
                 self.intervals.pop_front();
             }
             self.intervals.push_back(dt);
         }
-        let refresh_rate = self.refresh_rate();
+        let scale = window.scale_factor();
+        if (scale - self.asked_at_scale).abs() > f64::EPSILON || self.frames_since_asked >= SAMPLES
+        {
+            self.display_rate = window.refresh_rate();
+            self.asked_at_scale = scale;
+            self.frames_since_asked = 0;
+        }
+        self.frames_since_asked += 1;
+        let refresh_rate = self.display_rate.or_else(|| self.refresh_rate());
         let dark_mode = crate::appearance::is_dark();
         let safe_area = safe_area(window);
         let keyboard = keyboard_height(window);

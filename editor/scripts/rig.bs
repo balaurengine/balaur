@@ -153,7 +153,7 @@ pub fn segment_distance(point: [float], from: [float], to: [float]) -> float {
 // within a screen-space radius.
 pub fn pick(state: editor::State, world_x: any, world_y: any) -> int? {
     let best: int? = nil;
-    let best_distance = PICK_PIXELS * viewport::world_per_pixel(state);
+    let best_distance = PICK_PIXELS * viewport::world_per_pixel();
     for row in 0..state.nodes.len() {
         if is_bone(state.nodes[row]) {
             let spine_or = geometry(state, row);
@@ -216,7 +216,7 @@ fn draw_bone(state: editor::State, spine: Geometry, color: [float]) {
     }
     let normal_x = (-span_y) / length;
     let normal_y = span_x / length;
-    let half = util::min(0.12 * length, 6.0 * viewport::world_per_pixel(state));
+    let half = util::min(0.12 * length, 6.0 * viewport::world_per_pixel());
     let waist_x = spine.origin[0] + span_x * 0.2;
     let waist_y = spine.origin[1] + span_y * 0.2;
     let left = [waist_x + normal_x * half, waist_y + normal_y * half];
@@ -431,7 +431,7 @@ fn along(from: [float], to: [float], fraction: float) -> [float] {
 
 // A ring with a cross through it at the target, big enough to grab.
 fn handle(state: editor::State, point: [float], color: [float]) {
-    let radius = HANDLE_PIXELS * viewport::world_per_pixel(state);
+    let radius = HANDLE_PIXELS * viewport::world_per_pixel();
     let sides = 12;
     for side in 0..sides {
         line_at(state, ring_at(point, radius, side, sides), ring_at(point, radius, side + 1, sides), color, LINE_WIDTH);
@@ -449,7 +449,7 @@ fn ring_at(centre: [float], radius: float, side: int, sides: int) -> [float] {
 // The modifier whose target handle is under the cursor, for dragging it.
 pub fn pick_handle(state: editor::State, world_x: any, world_y: any) -> int? {
     let best: int? = nil;
-    let best_distance = HANDLE_PIXELS * 1.6 * viewport::world_per_pixel(state);
+    let best_distance = HANDLE_PIXELS * 1.6 * viewport::world_per_pixel();
     for row in 0..state.nodes.len() {
         let found_or = modifier_reach(state, row);
         if found_or == nil {

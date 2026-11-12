@@ -816,7 +816,7 @@ pub fn draw(state: editor::State) {
     let tokens = state.theme;
     let faint = util::rgb(tokens[theme_tokens::TEXT_SUBTLE].as_str());
     let accent = util::rgb(tokens[theme_tokens::PRIMARY_TEXT].as_str());
-    let world_per_pixel = viewport::world_per_pixel(state);
+    let world_per_pixel = viewport::world_per_pixel();
     // The grid is a guide, not the drawing: one pixel wide, and skipped
     // entirely when a cell is too small on screen to aim at.
     if map_frame.tile_width / world_per_pixel >= 6.0 {

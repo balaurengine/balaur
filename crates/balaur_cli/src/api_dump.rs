@@ -13,6 +13,29 @@ pub(crate) fn dump_api() -> Result<()> {
     Ok(())
 }
 
+/// Every setting declared, so the docs list them all in one place.
+fn settings_reference(eng: &balaur::Engine) -> Result<serde_json::Value> {
+    let registry = balaur::settings::all(eng);
+    let settings: Vec<serde_json::Value> = registry
+        .borrow()
+        .0
+        .iter()
+        .map(|def| {
+            let scope = match def.scope {
+                balaur::settings::Scope::Project => "project",
+                balaur::settings::Scope::Editor => "editor",
+            };
+            Ok(serde_json::json!({
+                "path": def.path,
+                "scope": scope,
+                "host": def.host(),
+                "spec": serde_json::to_value(&def.spec)?,
+            }))
+        })
+        .collect::<Result<_>>()?;
+    Ok(serde_json::Value::Array(settings))
+}
+
 /// Boot a standard app in a scratch project and ask it what scripts can reach.
 ///
 /// The engine is asked, not the source: constants like `input::KEY_SPACE` are
@@ -102,6 +125,7 @@ pub(crate) fn api_value() -> Result<serde_json::Value> {
     api["component_events"] = serde_json::to_value(component_events)?;
     // Every method the engine calls on a script by name.
     api["hooks"] = serde_json::to_value(balaur::hooks::REFERENCE)?;
+    api["settings"] = settings_reference(&app.engine)?;
     api["node_events"] = serde_json::to_value(balaur::node_api::NODE_EVENTS)?;
     let asset_types: std::collections::BTreeMap<String, serde_json::Value> = app
         .engine

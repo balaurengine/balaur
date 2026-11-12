@@ -239,7 +239,7 @@ fn set_geometry(state: editor::State) -> Geometry? {
     if !found_any {
         return nil;
     }
-    let per_pixel = viewport::world_per_pixel(state);
+    let per_pixel = viewport::world_per_pixel();
     let handle_radius = HANDLE_PIXELS * per_pixel;
     let half_x = (highest[0] - lowest[0]) * 0.5;
     let half_y = (highest[1] - lowest[1]) * 0.5;
@@ -266,7 +266,7 @@ fn selection_geometry(state: editor::State) -> Geometry? {
     let placed = placed_box(found, bare_box()).unwrap();
     let half_x = placed.half[0];
     let half_y = placed.half[1];
-    let per_pixel = viewport::world_per_pixel(state);
+    let per_pixel = viewport::world_per_pixel();
     let handle_radius = HANDLE_PIXELS * per_pixel;
     Geometry {
         center: placed.centre,
@@ -681,7 +681,7 @@ pub fn update(state: &mut editor::State, viewport_rect: editor::Viewport) {
     let delta_x = dragged.unwrap().delta_x;
     let delta_y = dragged.unwrap().delta_y;
     let found = dragged.unwrap().node;
-    let world_per_pixel = viewport::world_per_pixel(state);
+    let world_per_pixel = viewport::world_per_pixel();
     if state.tool == tools::MOVE {
         selection::nudge(state, [delta_x * world_per_pixel, (-delta_y) * world_per_pixel, 0.0], viewport::snapping(state));
     } else if state.tool == tools::ROTATE {

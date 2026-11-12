@@ -27,7 +27,7 @@ in [components.md](./components.md).
 <tr><td><code>on_action(name)</code></td><td>A declared input action was pressed, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_action_released(name)</code></td><td>A declared input action was let go, reaching nodes as <code>on_key_down</code> does.</td></tr>
 <tr><td><code>on_scroll(dx, dy)</code></td><td>The wheel turned, over the node or, over nothing, to every node.</td></tr>
-<tr><td><code>on_resize(width, height)</code></td><td>The window changed size, told to every node.</td></tr>
+<tr><td><code>on_resize(width, height)</code></td><td>The window&#x27;s size, told to every node once the window first has one and whenever it changes.</td></tr>
 <tr><td><code>on_variable_changed(name, value)</code></td><td>A scene variable changed, told to every node at the end of the frame.</td></tr>
 <tr><td><code>on_state_changed(was, now)</code></td><td>The node&#x27;s <code>states</code> moved to another state.</td></tr>
 <tr><td><code>on_paused_changed(paused)</code></td><td>The game paused or resumed, told to every script, a paused one too.</td></tr>

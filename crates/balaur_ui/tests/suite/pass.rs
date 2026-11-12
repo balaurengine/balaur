@@ -24,6 +24,8 @@ pub(crate) struct Script<'a> {
     /// More methods, whole.
     pub(crate) methods: &'a str,
     pub(crate) scene: &'a str,
+    /// More tables for `project.toml`: `[window]\nlow_processor = true\n`.
+    pub(crate) manifest: &'a str,
 }
 
 impl Script<'_> {
@@ -38,6 +40,9 @@ impl Script<'_> {
         )
     }
 }
+
+/// A manifest table that makes the window lazy, read as the window opens.
+pub(crate) const LAZY: &str = "[window]\nlow_processor = true\n";
 
 /// A label under `Root`, so a pass has something to draw.
 const LABEL: &str = "[[nodes]]\nid = \"label\"\nname = \"Label\"\nparent = \"root\"\n\
@@ -64,7 +69,10 @@ pub(crate) fn run(script: &Script<'_>) -> (tempfile::TempDir, App, egui::Context
     std::fs::create_dir_all(dir.path().join("scripts")).unwrap();
     std::fs::write(
         dir.path().join("project.toml"),
-        "[application]\nname = \"ui\"\nmain_scene = \"main.toml\"\n",
+        format!(
+            "[application]\nname = \"ui\"\nmain_scene = \"main.toml\"\n\n{}",
+            script.manifest
+        ),
     )
     .unwrap();
     std::fs::write(
@@ -439,14 +447,10 @@ pub(crate) fn feed(app: &App, ctx: &egui::Context, events: Vec<egui::Event>) -> 
 fn a_lazy_shell_nobody_touched_runs_no_pass_however_long_it_waits() {
     let (_dir, app, ctx, errors) = run(&Script {
         scene: LABEL,
+        manifest: LAZY,
         ..Script::default()
     });
     assert!(errors.is_empty(), "{errors:#?}");
-    balaur_core::settings::set(
-        &app.engine,
-        "window/low_processor",
-        toml::Value::Boolean(true),
-    );
     balaur_ui::honour_lazy(&app.engine);
     feed(&app, &ctx, Vec::new());
     std::thread::sleep(std::time::Duration::from_millis(300));
@@ -488,4 +492,20 @@ fn a_headless_run_answers_the_window_the_project_states() {
         "outside a pass, with no screen"
     );
     assert_eq!(field(&app, "height"), Some(1920.0));
+}
+
+/// `init` runs before the window exists, and still sees the project's UI
+/// scale and the `[window]` size in the design pixels that scale leaves.
+#[test]
+fn init_sees_the_project_s_ui_scale_and_window_in_design_pixels() {
+    let (_dir, app, _, errors) = run(&Script {
+        fields: "scale_seen: float, width_seen: float",
+        methods: "pub fn init() {\nself.scale_seen = ui::scale();\nself.width_seen = ui::window_size().x;\n}",
+        manifest: "[ui]\nscale = 2.0\n\n[window]\nwidth = 1200\nheight = 800\n",
+        ..Script::default()
+    });
+    assert!(errors.is_empty(), "{errors:#?}");
+    assert_eq!(field(&app, "ran"), Some(2.0), "the script ran");
+    assert_eq!(field(&app, "scale_seen"), Some(2.0));
+    assert_eq!(field(&app, "width_seen"), Some(600.0));
 }

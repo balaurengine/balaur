@@ -223,7 +223,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
     let Some(input) = eng.try_resource::<balaur_input::InputSnapshot>() else {
         return;
     };
-    let (buttons, delta, scroll, at, dropped) = {
+    let (buttons, delta, scroll, at, dropped, inside) = {
         let input = input.borrow();
         let buttons: [(bool, bool); hooks::BUTTONS.len()] = std::array::from_fn(|button| {
             (
@@ -237,6 +237,7 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
             input.scroll_delta(),
             input.mouse_pos(),
             input.dropped_files().to_vec(),
+            input.mouse_inside(),
         )
     };
     say_pointer(eng, state, at, &buttons);
@@ -248,7 +249,13 @@ fn pointer_system(eng: &Engine, state: &mut Pointer) {
     // The UI first: what a dialog, a popup, a window or a widget took never
     // reaches a node under it, and a press keeps its answer until it is up.
     let ui = balaur_ui::pointer_is_ui(eng);
-    let over = if ui { None } else { under_pointer(eng) };
+    // A pointer outside the window is over nothing, so what it was over hears
+    // it leave.
+    let over = if ui || !inside {
+        None
+    } else {
+        under_pointer(eng)
+    };
     if over != state.over {
         if let Some(was) = state.over {
             dispatch(eng, was, hooks::POINTER_EXIT, &[]);
@@ -347,8 +354,10 @@ fn input_system(eng: &Engine, state: &mut Pointer) {
             broadcast(eng, hooks::ACTION_RELEASED, &[Value::text(name)], None);
         }
     }
+    // The first real size is announced too: a layout `init` made before the
+    // window existed was made against a guess.
     let size = balaur_render::viewport_size(eng);
-    if size != state.size && state.size != (0, 0) {
+    if size != state.size && size != (0, 0) {
         broadcast(
             eng,
             hooks::RESIZE,

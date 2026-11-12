@@ -104,8 +104,6 @@ pub class State {
     internal chip_state: any,
     internal compact: bool,
     internal screen_key: str,
-    internal ui_scale: float,
-    internal asked_scale: float,
     internal touchscreen: bool,
     platform_read: bool,
     internal release_at: int,
@@ -363,10 +361,8 @@ pub fn fresh_state() -> State {
         // The room's answers the docks were last folded for: a change is a
         // new screen, whatever the class words did.
         screen_key: "",
-        ui_scale: 1.25,
         // What the reader set, kept apart from what the screen makes of it:
         // a touch screen draws larger without moving the setting.
-        asked_scale: 1.25,
         touchscreen: false,
         // Whether the first frame has run: the start-up states apply on it,
         // after the screen's room has folded the docks.
@@ -597,7 +593,7 @@ pub fn boot(state: &mut State, editor: Node, listen: bool) {
     chrome::set_app_icon(engine::dark_mode());
     state.touchscreen = engine::target().touchscreen;
     signals::inspector(state);
-    shell::set_ui_scale(state, shell::scale_for_screen(state));
+    shell::apply_ui_scale(state);
     render::set_grid(true, 1.0, 5, 20);
     shell::apply_camera(state);
     log::info("editing {state.game_name} ({state.nodes.len()} nodes)");
@@ -864,7 +860,7 @@ fn layout_key(state: State) -> any {
     [
         state.workspace, state.doctab, state.split, state.focus, state.settings.compact, state.touchscreen,
         "{state.docks}", state.rail_shut, state.chrome_off, state.script_open, state.events_open,
-        state.selected, state.shader_rel, state.ui_scale, manager::showing(state),
+        state.selected, state.shader_rel, ui::scale(), manager::showing(state),
     ]
 }
 
@@ -898,7 +894,7 @@ fn report_view(state: &mut State) {
         return;
     }
     let rect = state.layout[side.unwrap()];
-    let scale = state.ui_scale;
+    let scale = viewport::logical_per_design();
     let line = "viewrect {state.view_shot} {rect["x"].as_float() * scale} {rect["y"].as_float() * scale} {rect[layout_fields::WIDTH].as_float() * scale} {rect[layout_fields::HEIGHT].as_float() * scale}";
     if line != state.view_logged {
         state.view_logged = line;

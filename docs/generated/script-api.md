@@ -51,13 +51,13 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`save`](#save) | 6 | 0 |
 | [`scene`](#scene) | 32 | 0 |
 | [`script`](#script) | 15 | 0 |
-| [`settings`](#settings) | 12 | 0 |
+| [`settings`](#settings) | 15 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 43 | 65 |
+| [`ui`](#ui) | 44 | 65 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -1199,6 +1199,9 @@ Every setting the engine, its plugins and the game declare, by path: `physics/so
 | `base` | `(str) -> any` |
 | `clear` | `(str)` |
 | `define` | `(str, any)` |
+| `edit_clear` | `(str)` |
+| `edit_project` | `(str)` |
+| `edit_set` | `(str, any)` |
 | `get` | `(str) -> any` |
 | `known_tags` | `() -> [str]` |
 | `merge_toml` | `(str)` |
@@ -1299,6 +1302,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
 | `patch_row` | `(Node, int, [ui::Control]) -> bool` |
+| `pixels_per_design` | `() -> float` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
 | `save_pasted_image` | `(str) -> bool` |
 | `scale` | `() -> float` |

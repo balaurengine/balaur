@@ -213,8 +213,8 @@ fn lerp(from: float, to: float, progress: float) -> float {
 // Design px to the window px the snapshot holds. Where the pointer landed is
 // kept on the sequence, because a glide has to know where it starts from.
 fn feed_pointer(state: &mut editor::State, pointer_x: float, pointer_y: float) {
-    let dpi = render::camera_pose()[7];
-    input::feed_mouse(pointer_x * state.ui_scale * dpi, pointer_y * state.ui_scale * dpi);
+    let per_design = ui::pixels_per_design();
+    input::feed_mouse(pointer_x * per_design, pointer_y * per_design);
     if state.showcase != nil {
         let sequence = state.showcase.unwrap();
         sequence.pointer = [pointer_x, pointer_y];

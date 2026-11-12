@@ -187,6 +187,7 @@ pub(crate) mod keys {
     pub(crate) const DESCRIPTION: &str = "description";
     pub(crate) const FIELDS: &str = "fields";
     pub(crate) const FIRST: &str = "first";
+    pub(crate) const HOST: &str = "host";
     pub(crate) const ID: &str = "id";
     pub(crate) const KIND: &str = "kind";
     pub(crate) const LAST: &str = "last";

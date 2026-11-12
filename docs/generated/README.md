@@ -13,3 +13,4 @@ drift. Do not edit these by hand.
 - [hooks.md](hooks.md)
 - [script-api.md](script-api.md)
 - [script-types.md](script-types.md)
+- [settings.md](settings.md)

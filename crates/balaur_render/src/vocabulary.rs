@@ -338,6 +338,7 @@ pub(crate) mod keys {
     pub(crate) const FONT_STYLE: &str = "font_style";
     pub(crate) const FONT_WEIGHT: &str = "font_weight";
     pub(crate) const HEIGHT: &str = p::HEIGHT;
+    pub(crate) const WIDTH: &str = "width";
     pub(crate) const SPECULAR_STRENGTH: &str = "specular_strength";
     pub(crate) const SHININESS: &str = "shininess";
     pub(crate) const NORMAL_STRENGTH: &str = "normal_strength";

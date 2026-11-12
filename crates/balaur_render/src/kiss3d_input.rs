@@ -20,6 +20,7 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
     // As the last pass left it: a field focused there keeps this frame's keys
     // from firing actions.
     input.set_keyboard_taken(window.is_egui_capturing_keyboard());
+    input.hold_mouse(window.is_cursor_held());
     #[cfg(target_family = "wasm")]
     input.set_command_is_meta(apple_browser());
     let mut seen = heard;
@@ -58,6 +59,8 @@ pub(crate) fn pump_input(app: &App, window: &Window) -> bool {
                 }
             }
             WindowEvent::CursorPos(x, y, _) => input.set_mouse_pos(x as f32, y as f32),
+            WindowEvent::CursorEnter(false) => input.mouse_exited(),
+            WindowEvent::MouseMotion(dx, dy) => input.add_mouse_motion(dx as f32, dy as f32),
             WindowEvent::Scroll(dx, dy, _) => input.add_scroll(dx as f32, dy as f32),
             WindowEvent::Touch(id, x, y, action, _) => {
                 let phase = match action {

@@ -23,6 +23,8 @@ use words::verbs;
 
 const EDITOR: str = "editor";
 const PROJECT: str = "project";
+/// The person's UI scale: Settings, ⌘= and ⌘− and the palette all write it.
+pub const UI_SCALE: str = "editor/appearance/ui_scale";
 
 pub class SettingsState {
     at: str,
@@ -89,7 +91,7 @@ pub fn load_files(state: &mut editor::State) {
     if state.game_root != "" {
         let manifest = fs::read(state.game_root + "/project.toml");
         if manifest != nil {
-            settings::merge_toml(manifest.unwrap());
+            settings::edit_project(manifest.unwrap());
         }
     }
     let preferences = fs::read(preferences_path());
@@ -441,7 +443,7 @@ fn on_theme_edit_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 fn on_override_reset_clicked(state: &mut editor::State, data: any, _value: any) {
-    settings::clear(data[layout_fields::AT].as_str());
+    settings::edit_clear(data[layout_fields::AT].as_str());
     state.settings.dirty = true;
 }
 
@@ -621,7 +623,7 @@ fn split_commas(text: str) -> [str] {
 }
 
 pub fn write(state: &mut editor::State, path: str, value: any) {
-    settings::set(path, value);
+    settings::edit_set(path, value);
     state.settings.dirty = true;
     apply(state);
     window::changed(state);
@@ -634,10 +636,7 @@ pub fn apply(state: &mut editor::State) {
     if theme_name.kind() == types::KIND_STRING {
         theme::use_named(state, theme_name.as_str());
     }
-    let scale = settings::get("editor/appearance/ui_scale");
-    if !(scale == nil) {
-        shell::ask_ui_scale(state, scale.as_float());
-    }
+    shell::apply_ui_scale(state);
     // Kept apart from `state.compact`, which the window width also writes: the
     // setting forces compact on, it never forces it off.
     let compact = settings::get("editor/appearance/compact");

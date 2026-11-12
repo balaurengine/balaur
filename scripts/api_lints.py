@@ -438,6 +438,7 @@ ANY_ALLOWED = {
     "script::stored": ("(str) -> any", CALLERS_OWN),
     "settings::base": ("(str) -> any", BY_NAME),
     "settings::define": ("(str, any)", SPEC),
+    "settings::edit_set": ("(str, any)", BY_NAME),
     "settings::get": ("(str) -> any", BY_NAME),
     "settings::set": ("(str, any)", BY_NAME),
     "strings::tr": ("(str, any) -> str", CALLERS_OWN),

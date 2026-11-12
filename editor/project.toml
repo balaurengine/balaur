@@ -7,9 +7,13 @@ splash = "assets/balaur-logo-dark.png"
 splash_seconds = 0.0
 
 # The editor sits still between edits, so it draws a frame only when input,
-# a log line, a changed file or a scheduled repaint asks for one.
+# a log line, a changed file or a scheduled repaint asks for one. It opens at
+# the size it last closed at, else this one, which a 13-inch laptop holds.
 [window]
 low_processor = true
+width = 1280
+height = 800
+remember_size = true
 
 # The editor holds itself to its own checker: a warning here is a failure,
 # not a line in the output someone might read.

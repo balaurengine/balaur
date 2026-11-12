@@ -676,6 +676,8 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Jobs in flight | `export.running_count`, `import.running_count` | none |
 | The tick rollback cannot pass, the first one a replay missed | `multiplayer.settled_tick`, `replay.divergence_tick` | none |
 | Fold TOML text into the settings, write it back | `settings.merge_toml`, `settings.to_toml` | none |
+| Open another project's manifest to edit apart from this run's, and change it as a settings screen does | `settings.edit_project`, `settings.edit_set`, `settings.edit_clear` | none |
+| A setting of the process rather than the game, kept from an edited project | `host = true` in its spec | none |
 | A scene written back from its nodes | `scene.to_toml`, a node's `authored` table; `instantiate`'s `root` and `to_toml`'s are the project its files are spelled from | none |
 | What a write replaced, kept for an undo | `scene.keep_changes`, `scene.take_changes`; each change's `was` | none |
 | A node's script, named whether or not it runs | `node.set_script`, `node.script_path`, `node.script_props`; `scene.attach_scripts` runs them | none |

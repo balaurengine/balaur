@@ -67,9 +67,9 @@ pub fn run(state: &mut editor::State, name: str) {
     } else if name == verbs::SPLIT {
         shell::toggle_split(state);
     } else if name == verbs::ZOOM_IN {
-        shell::ask_ui_scale(state, state.ui_scale + 0.125);
+        shell::step_ui_scale(state, shell::UI_SCALE_STEP);
     } else if name == verbs::ZOOM_OUT {
-        shell::ask_ui_scale(state, state.ui_scale - 0.125);
+        shell::step_ui_scale(state, -shell::UI_SCALE_STEP);
     } else if name == verbs::SETTINGS {
         settings::open(state);
     } else if name == verbs::EXPORT {

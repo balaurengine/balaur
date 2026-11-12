@@ -6,6 +6,7 @@ use editor;
 use model;
 use selection;
 use util;
+use viewport;
 use words::components;
 use words::fields;
 use words::inspector_fields;
@@ -35,8 +36,9 @@ pub fn grid2d(state: editor::State) {
     let center_x = camera.x;
     let center_y = camera.y;
     let zoom = camera.z;
-    let screen_width = state.screen_width * state.ui_scale;
-    let screen_height = state.screen_height * state.ui_scale;
+    let logical = viewport::logical_per_design();
+    let screen_width = state.screen_width * logical;
+    let screen_height = state.screen_height * logical;
     let half_width = screen_width / zoom / 2.0 + 1.0;
     let half_height = screen_height / zoom / 2.0 + 1.0;
     if half_width > 200.0 || half_height > 200.0 {

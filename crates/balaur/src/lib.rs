@@ -438,6 +438,15 @@ pub fn scene_scripts(project_root: &std::path::Path) -> Vec<String> {
         .collect()
 }
 
+/// What the device says before the project loads, for a script that reads it
+/// in `init`: the first frame that publishes the facts has not run yet. Each
+/// entry point calls it; a test does not, so no test reads the machine's look.
+pub fn seed_device(app: &App) {
+    balaur_core::facts::update_device(&app.engine, |facts| {
+        facts.dark_mode = render::dark_mode();
+    });
+}
+
 pub fn standard_app(mut config: AppConfig) -> Result<App> {
     if config.script_backend.is_none() {
         #[cfg(feature = "bs-backend")]
@@ -765,6 +774,7 @@ pub fn run_offscreen(mut app: App, title: &str, width: u32, height: u32) -> Resu
 /// Dev mode: load a project directory with hot reload enabled and run it.
 pub fn boot_project(project_root: &str) -> Result<()> {
     let mut app = standard_app(AppConfig::dev(project_root))?;
+    seed_device(&app);
     app.load_project()?;
     let title = app
         .manifest()
@@ -779,6 +789,7 @@ pub fn boot_project(project_root: &str) -> Result<()> {
 pub async fn boot_pack_on_canvas(bytes: &[u8], canvas_id: &str) -> Result<()> {
     let pack = Pack::decode(bytes)?;
     let mut app = standard_app(AppConfig::packed(pack))?;
+    seed_device(&app);
     app.load_project()?;
     keep_log(&app);
     let title = app
@@ -828,6 +839,7 @@ pub async fn boot_editor_on_canvas(
         // Forge's sync puts each locked dependency under `deps/<alias>/`.
         balaur_core::dependencies::install(&app.engine, std::path::Path::new(game_root));
     }
+    seed_device(&app);
     app.load_project()?;
     balaur_render::kiss3d_backend::run_windowed_async(app, "balaur editor", Some(canvas_id)).await
 }
@@ -836,6 +848,7 @@ pub async fn boot_editor_on_canvas(
 pub fn boot_pack(bytes: &[u8]) -> Result<()> {
     let pack = Pack::decode(bytes)?;
     let mut app = standard_app(AppConfig::packed(pack))?;
+    seed_device(&app);
     app.load_project()?;
     let title = app
         .manifest()
