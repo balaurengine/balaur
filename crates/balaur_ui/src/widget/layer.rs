@@ -97,9 +97,8 @@ fn draw_roots(
     painting: &mut Painting<'_>,
     roots: &[usize],
     surface_of: &dyn Fn(&Widget) -> Surface,
-) -> crate::widget::toast::Stack {
-    let (eng, placed, screen) = (painting.eng, painting.arena, painting.surface);
-    let mut toasts = crate::widget::toast::Stack::default();
+) {
+    let (placed, screen) = (painting.arena, painting.surface);
     for &root in roots {
         let widget = &placed[root].widget;
         if !widget.visible {
@@ -113,13 +112,8 @@ fn draw_roots(
             Some([x, y, w, h]) => egui::Rect::from_min_size(pos2(x, y), vec2(w, h)),
             None => screen,
         };
-        // A toast is pushed clear of the toasts already at its anchor, and
-        // is drawn thinner as its time runs out.
-        let (area, fade) = toasts.place(eng, &placed[root], area);
-        draw_root(ctx, painting, root, area, fade);
-        toasts.drew(&placed[root]);
+        draw_root(ctx, painting, root, area);
     }
-    toasts
 }
 
 /// Draw every widget entity. Runs inside the frame's egui pass.
@@ -199,7 +193,7 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
         under: Vec::new(),
         shown: Vec::new(),
     };
-    let toasts = draw_roots(ctx, &mut painting, &roots, &surface_of);
+    draw_roots(ctx, &mut painting, &roots, &surface_of);
     settle(eng, ctx);
     crate::access::written(eng, ctx, &placed, &roots, &shown);
     let mut edits = std::mem::take(&mut painting.edits);
@@ -213,8 +207,6 @@ pub(crate) fn draw(eng: &Engine, ctx: &egui::Context) {
     // Dropped before the arena moves: `Painting` borrows it for the draw.
     drop(painting);
     keep(placed, roots, index_of, stamp);
-    // After the pass, never inside it: the arena the draw walked names them.
-    crate::widget::toast::clear(eng, &toasts.expired());
     let arrived = focus_moved(eng, was_focused, taking, &mut edits);
     crate::widget::input::record(eng, &clicked, edits, arrived);
 }
@@ -234,17 +226,10 @@ fn settle(eng: &Engine, ctx: &egui::Context) {
 /// Draw one root into the area its surface gives it, and record where it
 /// landed. Split from [`draw`] under `MAX_FN_LINES`; the seam is one root's
 /// own placement and pass, which needs nothing from the loop around it.
-fn draw_root(
-    ctx: &egui::Context,
-    painting: &mut Painting<'_>,
-    root: usize,
-    area: egui::Rect,
-    fade: f32,
-) {
+fn draw_root(ctx: &egui::Context, painting: &mut Painting<'_>, root: usize, area: egui::Rect) {
     let (eng, placed) = (painting.eng, painting.arena);
     let entity = placed[root].entity;
     let widget = &placed[root].widget;
-    let hits = painting.hits.len();
     // A dialog is shut by the scene, by Escape or by a click on the dim
     // behind it; shut, it is not drawn and nothing is kept out.
     let modal = widget.kind == w::DIALOG;
@@ -292,8 +277,7 @@ fn draw_root(
         .order(order)
         .pivot(align)
         .fixed_pos(pos)
-        // A toast is read, not used: it takes no click from what is under it.
-        .interactable(widget.kind != w::TOAST);
+        .interactable(takes_pointer(&placed[root]));
     if assigned != egui::Vec2::ZERO {
         // Egui's first frame otherwise guesses a size and pushes the corner
         // in to keep the guess on screen, and the cursor keeps it there.
@@ -304,8 +288,6 @@ fn draw_root(
     let root_area = root_area.fade_in(widget.egui.fade_in);
     let dragged_by_box = widget.egui.movable && widget.kind != w::WINDOW;
     let fill = |ui: &mut egui::Ui, painting: &mut Painting<'_>| {
-        // A toast on its way out, drawn over what it covers.
-        ui.multiply_opacity(fade);
         // A root handed a box reserves it before anything draws: its
         // children are placed at absolute rects and report nothing
         // back, so the area would otherwise hug the first of them.
@@ -324,7 +306,6 @@ fn draw_root(
     // A root egui has never shown is handed the box the layout solved, so
     // its first pass draws it; egui's own first pass only measures, and the
     // rerun that then draws it ran every root's pass again.
-    let interactable = widget.kind != w::TOAST;
     let first_pass = ctx
         .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
         .is_none()
@@ -334,7 +315,7 @@ fn draw_root(
                 painting.rects.get(&root),
                 layer,
                 (pos, align),
-                interactable,
+                takes_pointer(&placed[root]),
             ));
     let shown = if modal {
         // egui's own modal: it dims the screen, holds the layer above every
@@ -363,10 +344,12 @@ fn draw_root(
         .memory(|m| m.area_rect(egui::Id::unique((BALAUR_WIDGET, entity))))
         .unwrap_or(shown.rect);
     record_rect(entity, drawn);
-    // A toast is read, not used: nothing in it takes the pointer.
-    if widget.kind == w::TOAST {
-        painting.hits.truncate(hits);
-    }
+}
+
+/// Whether egui hands a root's layer the pointer: not when the root lets it
+/// through and holds nothing that could take it, as a notice drawn on top.
+fn takes_pointer(root: &crate::widget::arena::Placed) -> bool {
+    !(root.widget.pointer_through && root.children.is_empty())
 }
 
 /// Give egui the box the layout solved for a root it has never shown: with a
@@ -906,7 +889,7 @@ fn draw_kind(ui: &mut egui::Ui, at: &mut Painting<'_>, index: usize) {
         w::TEXT_AREA => crate::widget::text::text_area(ui, at, index, &font, color),
         // A dialog is a panel drawn over a dimmed screen; the dimming is the
         // root draw's, so here it is the panel.
-        w::PANEL | w::DIALOG | w::TOAST => panel(ui, at, index, &caption, &font, color),
+        w::PANEL | w::DIALOG => panel(ui, at, index, &caption, &font, color),
         w::WINDOW => crate::widget::window::window(ui, at, index, &caption, &font, color),
         w::CHECKBOX => crate::widget::kinds::check(ui, at, index, &caption, &font, color),
         w::SWITCH => crate::widget::kinds::switch(ui, at, index),

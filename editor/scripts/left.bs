@@ -4,6 +4,7 @@ use anim;
 use arrange;
 use defs;
 use editor;
+use form;
 use icons;
 use lint;
 use model;
@@ -456,8 +457,8 @@ pub fn rename_fill(state: &mut editor::State) {
         form_fields::ON_SUBMIT: hooks::HANDLE_SUBMIT,
         fields::DATA: { fields::FN: on_rename_typed, project_fields::SUBMIT: on_rename_submitted },
     });
-    ui::fill_rows(host, [
-        ui::Row {
+    form::fill(host, [
+        form::Row {
             height: row_height,
             controls: [
                 ui::Control {

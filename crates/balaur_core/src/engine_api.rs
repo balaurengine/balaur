@@ -16,8 +16,9 @@ use crate::batteries_api::{
     assets_invalidate, assets_kind_of, assets_load, assets_path, assets_reload, assets_rename,
     assets_save, assets_schema, dark_mode, device_id, encoding_base64, encoding_base64_text,
     encoding_from_base64, environment, focused, hash_sha256, hash_sha256_text, log_clear,
-    log_error, log_file, log_info, log_print, log_recent, log_since, log_warn, platform, rng_int,
-    rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale, unix_time,
+    log_error, log_file, log_info, log_print, log_recent, log_since, log_warn, platform, rng_at,
+    rng_int, rng_random, rng_range, rng_seed, rng_uuid, scene_tagged, strings_system_locale,
+    unix_time,
 };
 use crate::engine::Engine;
 use crate::file_api::{
@@ -551,6 +552,11 @@ pub const KERNEL_OPS: [&[EngineOp]; 4] = [
             call: rng_uuid,
         },
         EngineOp {
+            module: words::modules::RANDOM,
+            name: "at",
+            call: rng_at,
+        },
+        EngineOp {
             module: words::modules::HASH,
             name: "sha256",
             call: hash_sha256,
@@ -684,7 +690,7 @@ pub fn kernel_api() -> Vec<ApiPart> {
 }
 
 /// The kernel's modules filled by an installer of their own, after its calls.
-pub const KERNEL_MODULES: [ApiPart; 6] = [
+pub const KERNEL_MODULES: [ApiPart; 7] = [
     ApiPart::Module(words::datatypes::NODE, crate::node_api::install_node_api),
     ApiPart::Module(
         "dependency",
@@ -692,6 +698,7 @@ pub const KERNEL_MODULES: [ApiPart; 6] = [
     ),
     ApiPart::Module("replay", crate::replay_api::install_replay_api),
     ApiPart::Module("math", crate::math_api::install_math_api),
+    ApiPart::Module("quat", crate::quat_api::install_quat_api),
     ApiPart::Module("settings", crate::settings_api::install_settings_api),
     ApiPart::Module("events", crate::events::install_events_api),
 ];

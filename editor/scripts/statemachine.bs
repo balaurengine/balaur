@@ -4,6 +4,7 @@
 use anim;
 use docks;
 use editor;
+use form;
 use history;
 use model;
 use selftest;
@@ -303,13 +304,13 @@ pub fn body(state: &mut editor::State) {
     let authored = source(state);
     if authored == nil {
         docks::toolbar(state, PANEL + "Chrome", [offer(state)]);
-        ui::fill_rows(ROWS, [], NAME_WIDTH, false);
+        form::fill(ROWS, [], NAME_WIDTH, false);
         return;
     }
     let found = authored.unwrap();
     let doc = found.doc;
     docks::toolbar(state, PANEL + "Chrome", [header_controls(state, found)]);
-    ui::fill_rows(ROWS, row_specs(state, doc), NAME_WIDTH, false);
+    form::fill(ROWS, row_specs(state, doc), NAME_WIDTH, false);
 }
 
 /// What the strip says when the node runs no machine: why, and the verb that
@@ -387,7 +388,7 @@ fn live_state(state: editor::State) -> str {
 
 /// Every row the dock shows: the states, the new-state row, the transitions,
 /// and the fields of whichever transition is open.
-fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
+fn row_specs(state: &mut editor::State, doc: any) -> [form::Row] {
     let out = [head_spec("STATES", [])];
     let clips = anim::clip_names(state);
     let machine_states = states(doc);
@@ -408,7 +409,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
         } else {
             caption("nested machine")
         };
-        out.push(ui::Row {
+        out.push(form::Row {
             height: ROW_HEIGHT,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -425,7 +426,7 @@ fn row_specs(state: &mut editor::State, doc: any) -> [ui::Row] {
             label: state_name,
         });
     }
-    out.push(ui::Row {
+    out.push(form::Row {
         height: ROW_HEIGHT,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
@@ -484,7 +485,7 @@ fn named(state: &mut editor::State, text: str) {
     state.machine.naming = "";
 }
 
-fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
+fn transition_specs(state: editor::State, doc: any, out: [form::Row]) {
     out.push(head_spec("TRANSITIONS", [
         ui::Control {
             kind: ui::WIDGET_BUTTON,
@@ -508,7 +509,7 @@ fn transition_specs(state: editor::State, doc: any, out: [ui::Row]) {
         let from = if transition[FROM] == nil { "?" } else { transition[FROM].as_str() };
         let to = if transition[layout_fields::TO] == nil { "?" } else { transition[layout_fields::TO].as_str() };
         let mode = if transition[ADVANCE_MODE] == nil { animation::ADVANCE_MODE_ENABLED } else { transition[ADVANCE_MODE].as_str() };
-        out.push(ui::Row {
+        out.push(form::Row {
             height: ROW_HEIGHT,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -554,18 +555,18 @@ fn on_transition_remove_pressed(state: &mut editor::State, data: any, _value: an
 }
 
 /// A heading across the rows, with whatever verbs belong beside it.
-fn head_spec(text: str, verbs: [ui::Control]) -> ui::Row {
+fn head_spec(text: str, verbs: [ui::Control]) -> form::Row {
     let controls = [caption(text)];
     for verb in verbs {
         controls.push(verb);
     }
-    ui::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+    form::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 // The label a transition's own field wears: indented, so the fields read as
 // belonging to the row above them.
-fn field_spec(label: str, control: ui::Control) -> ui::Row {
-    ui::Row { height: ROW_HEIGHT, controls: [control], label: "    " + label }
+fn field_spec(label: str, control: ui::Control) -> form::Row {
+    form::Row { height: ROW_HEIGHT, controls: [control], label: "    " + label }
 }
 
 fn choice(state: editor::State, at: int, key: str, current: str, choices: [str]) -> ui::Control {
@@ -650,7 +651,7 @@ fn on_flag_changed(state: &mut editor::State, data: any, value: any) {
     set_field(state, at, key, value);
 }
 
-fn field_specs(state: editor::State, at: int, transition: any, names: [str], targets: [str], out: [ui::Row]) {
+fn field_specs(state: editor::State, at: int, transition: any, names: [str], targets: [str], out: [form::Row]) {
     let ease = if transition[EASE] == nil { animation::EASE_LINEAR } else { transition[EASE].as_str() };
     let advance = if transition[ADVANCE_MODE] == nil { animation::ADVANCE_MODE_ENABLED } else { transition[ADVANCE_MODE].as_str() };
     let switch = if transition[SWITCH_MODE] == nil { animation::SWITCH_MODE_IMMEDIATE } else { transition[SWITCH_MODE].as_str() };
@@ -761,7 +762,7 @@ pub fn demo_step(state: &mut editor::State) {
     let host = scene::get_node(ROWS);
     let labels: [str] = [];
     for row in host.children() {
-        let label = row.get_node("L");
+        let label = row.get_node("C0");
         if label.is_valid() && label.visible() {
             labels.push(label.widget.text);
         }

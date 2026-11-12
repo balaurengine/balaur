@@ -53,6 +53,7 @@ pub mod presets;
 pub mod process;
 pub mod project;
 mod project_files;
+pub mod quat_api;
 mod regex_api;
 pub mod relationships;
 pub mod replay;

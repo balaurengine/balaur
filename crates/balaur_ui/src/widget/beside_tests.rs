@@ -6,8 +6,8 @@ use balaur_core::components::derived::Fields;
 use crate::vocabulary::words as w;
 use crate::widget::beside::{
     Beside, WidgetCode, WidgetColorPicker, WidgetDropdown, WidgetField, WidgetImage, WidgetList,
-    WidgetMenu, WidgetRange, WidgetScroll, WidgetSeparator, WidgetTable, WidgetToast, WidgetWindow,
-    brought_by, each_beside, owners_of,
+    WidgetMenu, WidgetRange, WidgetScroll, WidgetSeparator, WidgetTable, WidgetWindow, brought_by,
+    each_beside, owners_of,
 };
 use crate::widget::beside_box::{
     WidgetBox, WidgetChild, WidgetFold, WidgetGrid, WidgetLayout, WidgetTabs,

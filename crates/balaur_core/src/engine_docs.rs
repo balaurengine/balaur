@@ -304,6 +304,7 @@ pub(crate) fn document_random(m: &mut balaur_script::Module<Engine>) {
     m.describe(&[
         ("seed", &[], "(seed: int)", "Restart the deterministic engine stream at the given seed, so every draw after it repeats."),
         (words::datatypes::FLOAT, &[], "() -> float", "A float from the deterministic engine stream, uniform in `[0, 1)`."),
+        ("at", &[], "(seed: int, index: int) -> float", "The `index`th number of the stream `seed` names, uniform in `[0, 1)`: the same for the same two on every platform, and apart from the engine stream, so a tool's layout draws nothing a game would."),
         ("uuid", &[], "() -> string", "A version-4 UUID drawn from the deterministic engine stream, so a replay makes the same ids; not for anything that must be unique across machines."),
         ("range", &[], "(low: float, high: float) -> float", "A float from the deterministic engine stream, uniform in `[low, high)`: the two arguments."),
         (words::datatypes::INT, &[], "(low: int, high: int) -> int", "A whole number from the deterministic engine stream, uniform in `[low, high]`, both ends included."),

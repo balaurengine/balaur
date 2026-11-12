@@ -73,8 +73,7 @@ pub(crate) fn root_frame(
         return (pos, align, stated, egui::Order::Foreground);
     }
     let (pos, align) = root_placement(widget, area);
-    // A toast is read over whatever is on screen, so it draws above it.
-    let order = if widget.kind == w::TOAST {
+    let order = if widget.on_top {
         egui::Order::Foreground
     } else {
         egui::Order::Middle

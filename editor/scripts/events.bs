@@ -2,6 +2,7 @@
 // `[[nodes.bindings.rows]]` entry, and the script each row is equivalent to.
 
 use editor;
+use form;
 use history;
 use icons;
 use inspector;
@@ -210,7 +211,7 @@ fn offered(state: editor::State) -> [str] {
 }
 
 /// One binding: what happens, when, and what it does.
-fn row_spec(state: editor::State, at: int, row: any) -> ui::Row {
+fn row_spec(state: editor::State, at: int, row: any) -> form::Row {
     let event = event_of(row);
     let action = action_of(row);
     let target = row[inspector_fields::TARGET].as_str();
@@ -243,7 +244,7 @@ fn row_spec(state: editor::State, at: int, row: any) -> ui::Row {
         on_click: "handle",
         data: { fields::FN: on_remove_clicked, layout_fields::AT: at },
     });
-    ui::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
+    form::Row { height: ROW_HEIGHT, slot_role: roles::LAYOUT_ACTIONS, controls: controls }
 }
 
 fn on_target_picked(state: &mut editor::State, data: any, picked: any) {
@@ -506,7 +507,7 @@ pub fn fill(state: &mut editor::State) {
             data: { fields::FN: on_add_row_clicked },
         },
     ]);
-    let specs: [ui::Row] = [];
+    let specs: [form::Row] = [];
     let held = rows(state);
     if held.len() == 0 {
         specs.push(note("no bindings on this node yet"));
@@ -516,7 +517,7 @@ pub fn fill(state: &mut editor::State) {
     }
     variable_specs(state, specs);
     hook_specs(state, specs);
-    ui::fill_rows(rows_host(), specs);
+    form::fill(rows_host(), specs);
 }
 
 fn on_convert_clicked(state: &mut editor::State, data: any, _value: any) {
@@ -527,8 +528,8 @@ fn on_add_row_clicked(state: &mut editor::State, data: any, _value: any) {
     add_row(state);
 }
 
-fn note(text: str) -> ui::Row {
-    ui::Row {
+fn note(text: str) -> form::Row {
+    form::Row {
         height: 0,
         controls: [
             ui::Control {
@@ -542,8 +543,8 @@ fn note(text: str) -> ui::Row {
     }
 }
 
-fn head(text: str) -> ui::Row {
-    ui::Row {
+fn head(text: str) -> form::Row {
+    form::Row {
         height: 26,
         controls: [
             ui::Control {
@@ -558,7 +559,7 @@ fn head(text: str) -> ui::Row {
 
 /// What the scene declares, so a `when` has something to name. Read-only: a
 /// variable is declared in the scene file's `[variables]`.
-fn variable_specs(state: editor::State, out: [ui::Row]) {
+fn variable_specs(state: editor::State, out: [form::Row]) {
     out.push(head("scene variables"));
     let declared = scene::variables();
     if declared.len() == 0 {
@@ -566,7 +567,7 @@ fn variable_specs(state: editor::State, out: [ui::Row]) {
         return;
     }
     for entry in declared {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 24,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -581,7 +582,7 @@ fn variable_specs(state: editor::State, out: [ui::Row]) {
 
 /// The hooks the node's own script declares, which is what this view used to
 /// be and is still worth showing beside the rows.
-fn hook_specs(state: &mut editor::State, out: [ui::Row]) {
+fn hook_specs(state: &mut editor::State, out: [form::Row]) {
     let node = model::selected_node(state);
     let script_or = model::script_rel(node);
     if script_or == nil {
@@ -592,7 +593,7 @@ fn hook_specs(state: &mut editor::State, out: [ui::Row]) {
     for hook in model::hooks(state, script) {
         let name = hook[fields::NAME].as_str();
         let lifecycle = name == hooks::INIT || name == hooks::UPDATE;
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 28,
             controls: [
                 ui::Control {

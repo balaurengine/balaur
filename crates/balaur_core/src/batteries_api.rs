@@ -217,6 +217,33 @@ pub(crate) fn rng_seed(eng: &Engine, args: &[Value]) -> Result<Value> {
     Ok(Value::Nil)
 }
 
+/// `random.at`: splitmix64 over the seed and the index, so it holds no state
+/// and answers the same two the same way.
+pub(crate) fn rng_at(_: &Engine, args: &[Value]) -> Result<Value> {
+    const GOLDEN: u64 = 0x9E37_79B9_7F4A_7C15;
+    let whole = |at: usize| -> Result<u64> {
+        match args.get(at) {
+            Some(Value::Int(n)) => Ok(n.cast_unsigned()),
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "a seed or an index is whole"
+            )]
+            Some(Value::Num(n)) => Ok((*n as i64).cast_unsigned()),
+            other => Err(anyhow!(
+                "a seed and an index are whole numbers, got {other:?}"
+            )),
+        }
+    };
+    let mut z = whole(0)?
+        .wrapping_add(whole(1)?.wrapping_mul(GOLDEN))
+        .wrapping_add(GOLDEN);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^= z >> 31;
+    #[allow(clippy::cast_precision_loss, reason = "53 bits, exact in an f64")]
+    Ok(Value::Num((z >> 11) as f64 / (1_u64 << 53) as f64))
+}
+
 pub(crate) fn rng_random(eng: &Engine, _: &[Value]) -> Result<Value> {
     let v = crate::rng::with_rng(eng, Pcg32::next_f64);
     Ok(Value::Num(v))

@@ -930,10 +930,10 @@ fn form_control(label: str, at: int) -> [float] {
         return [];
     }
     for row in host.children() {
-        let named = row.get_node("L");
+        let named = row.get_node("C0");
         if row.visible() && named.is_valid()
             && named.widget.text == label {
-            return centre_of("{FORM}/{row.name()}/H/C/C{at}");
+            return centre_of("{FORM}/{row.name()}/C1/C{at}");
         }
     }
     return [];
@@ -941,7 +941,7 @@ fn form_control(label: str, at: int) -> [float] {
 
 // The head row's buttons, by their caption.
 fn head_control(text: str) -> [float] {
-    let slot = FORM + "/R0/H/C";
+    let slot = FORM + "/C0/C1";
     let host = scene::get_node(slot);
     if !host.is_valid() {
         return [];

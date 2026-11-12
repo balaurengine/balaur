@@ -215,6 +215,9 @@ fn id_of(entity: Entity) -> NodeId {
 
 /// What a reader says a kind is.
 fn role_of(widget: &Widget) -> Role {
+    if widget.announce {
+        return Role::Status;
+    }
     match widget.kind.as_str() {
         w::LABEL => Role::Label,
         w::BUTTON if widget.toggle => Role::Switch,
@@ -238,7 +241,6 @@ fn role_of(widget: &Widget) -> Role {
         w::TABS => Role::TabList,
         w::DIALOG => Role::Dialog,
         w::WINDOW => Role::Window,
-        w::TOAST => Role::Status,
         w::SEPARATOR => Role::Splitter,
         w::FOLD => Role::Group,
         _ => Role::GenericContainer,

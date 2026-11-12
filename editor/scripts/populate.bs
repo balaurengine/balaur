@@ -1,9 +1,11 @@
-// Godot's MultiMesh › Populate Surface over the selected multimesh: the
-// handle's `populate` lays the instances out, and this writes them in one step.
+// Godot's MultiMesh › Populate Surface over the selected multimesh: `scatter`
+// lays the instances out, and this writes them in one step.
 
 use editor;
+use form;
 use history;
 use model;
+use scatter;
 use util;
 use window;
 use words::components;
@@ -45,7 +47,7 @@ const NONE: str = "— none —";
 
 pub fn state() -> PopulateState {
     PopulateState {
-        kind: render::POPULATE_SURFACE,
+        kind: scatter::SURFACE,
         surface: "",
         count: 50,
         columns: 4,
@@ -89,36 +91,36 @@ pub fn fill(state: &mut editor::State) {
     if hosts == nil {
         return;
     }
-    ui::fill_rows(hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
+    form::fill(hosts.unwrap().form, specs(state), LABEL_WIDTH, false);
 }
 
-fn specs(state: editor::State) -> [ui::Row] {
+fn specs(state: editor::State) -> [form::Row] {
     let fields = state.populate;
     let node = model::selected_node(state);
     let name = component(node).or(MULTIMESH3D);
-    let out: [ui::Row] = [];
-    out.push(ui::Row {
+    let out: [form::Row] = [];
+    out.push(form::Row {
         height: 24,
         controls: [
             ui::Control {
                 kind: ui::WIDGET_DROPDOWN,
                 grow: 1,
                 text: fields.kind,
-                options: [render::POPULATE_SURFACE, render::POPULATE_ROW, render::POPULATE_RING, render::POPULATE_GRID],
+                options: [scatter::SURFACE, scatter::ROW, scatter::RING, scatter::GRID],
                 on_change: "handle",
                 data: { fields::FN: on_layout_picked },
             },
         ],
         label: "Layout",
     });
-    if fields.kind == render::POPULATE_SURFACE {
+    if fields.kind == scatter::SURFACE {
         let paths = [NONE];
         for other in state.nodes {
             if drawn(other) && other != node {
                 paths.push("/" + model::path_in_scene(state, other));
             }
         }
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 24,
             controls: [
                 ui::Control {
@@ -133,16 +135,16 @@ fn specs(state: editor::State) -> [ui::Row] {
             label: "Surface",
         });
     }
-    if fields.kind == render::POPULATE_GRID {
+    if fields.kind == scatter::GRID {
         out.push(whole(state, "Columns", fields.columns, write_columns));
         out.push(whole(state, "Rows", fields.rows, write_rows));
     } else {
         out.push(whole(state, "Count", fields.count, write_count));
     }
-    if fields.kind == render::POPULATE_ROW || fields.kind == render::POPULATE_GRID {
+    if fields.kind == scatter::ROW || fields.kind == scatter::GRID {
         out.push(number(state, "Step", fields.step, 0.1, write_step));
     }
-    if fields.kind == render::POPULATE_RING {
+    if fields.kind == scatter::RING {
         out.push(number(state, "Radius", fields.radius, 0.1, write_radius));
     }
     out.push(fraction(state, "Rotation", fields.rotation, write_rotation));
@@ -152,7 +154,7 @@ fn specs(state: editor::State) -> [ui::Row] {
     out.push(number(state, "Scale", fields.scale, 0.05, write_scale));
     out.push(fraction(state, "Random scale", fields.random_scale, write_random_scale));
     out.push(whole(state, "Seed", fields.seed, write_seed));
-    out.push(ui::Row {
+    out.push(form::Row {
         height: 24,
         controls: [
             ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, text: target_text(state, node, name) },
@@ -160,7 +162,7 @@ fn specs(state: editor::State) -> [ui::Row] {
         label: "Writes",
     });
     if fields.said != "" {
-        out.push(ui::Row {
+        out.push(form::Row {
             label: " ",
             height: 24,
             controls: [
@@ -168,7 +170,7 @@ fn specs(state: editor::State) -> [ui::Row] {
             ],
         });
     }
-    out.push(ui::Row {
+    out.push(form::Row {
         height: 30,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
@@ -238,8 +240,8 @@ fn on_populate_pressed(state: &mut editor::State, data: any, _value: any) {
     apply(state);
 }
 
-fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> ui::Row {
-    ui::Row {
+fn whole(state: editor::State, label: str, value: int, write: fn(&mut editor::State, int)) -> form::Row {
+    form::Row {
         height: 24,
         controls: [
             ui::Control {
@@ -260,8 +262,8 @@ fn on_whole_changed(state: &mut editor::State, data: any, value: any) {
     write(state, util::max(math::round(value.as_float()), 0.0) as int);
 }
 
-fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> ui::Row {
-    ui::Row {
+fn number(state: editor::State, label: str, value: float, step: float, write: fn(&mut editor::State, float)) -> form::Row {
+    form::Row {
         height: 24,
         controls: [
             ui::Control {
@@ -284,8 +286,8 @@ fn on_number_changed(state: &mut editor::State, data: any, value: any) {
 
 // A share from nothing to all of it: of a half turn for rotation and tilt, of
 // `scale` for its variation.
-fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> ui::Row {
-    ui::Row {
+fn fraction(state: editor::State, label: str, value: float, write: fn(&mut editor::State, float)) -> form::Row {
+    form::Row {
         height: 24,
         controls: [
             ui::Control {
@@ -335,28 +337,28 @@ fn target_text(state: editor::State, node: Node, name: str) -> str {
     "{source}, saved now and outside undo"
 }
 
-/// The options the engine's `populate` reads, from the sheet's fields.
-fn options(state: editor::State, flat: bool) -> any {
+/// What `scatter` lays out, from the sheet's fields.
+fn asked_of(state: editor::State, flat: bool) -> scatter::Asked {
     let fields = state.populate;
-    let step = if fields.kind == render::POPULATE_ROW {
-        [fields.step, 0.0, 0.0]
+    let step = if fields.kind == scatter::ROW {
+        vec3(fields.step, 0.0, 0.0)
     } else if flat {
-        [fields.step, fields.step, 0.0]
+        vec3(fields.step, fields.step, 0.0)
     } else {
-        [fields.step, 0.0, fields.step]
+        vec3(fields.step, 0.0, fields.step)
     };
-    let counts = if flat { [fields.columns, fields.rows, 1] } else { [fields.columns, 1, fields.rows] };
-    {
-        fields::KIND: fields.kind,
-        fields::COUNT: fields.count,
-        layout_fields::RADIUS: fields.radius,
-        "rotation": fields.rotation,
-        "tilt": fields.tilt,
-        inspector_fields::SCALE: fields.scale,
-        "random_scale": fields.random_scale,
-        "seed": fields.seed,
-        layout_fields::STEP: step,
-        "counts": counts,
+    scatter::Asked {
+        layout: fields.kind,
+        count: fields.count,
+        counts: if flat { [fields.columns, fields.rows, 1] } else { [fields.columns, 1, fields.rows] },
+        step: step,
+        radius: fields.radius,
+        rotation: math::clamp(fields.rotation, 0.0, 1.0),
+        tilt: math::clamp(fields.tilt, 0.0, 1.0),
+        scale: fields.scale,
+        random_scale: math::clamp(fields.random_scale, 0.0, 1.0),
+        seed: util::int_max(0, fields.seed),
+        flat: flat,
     }
 }
 
@@ -371,17 +373,18 @@ pub fn apply(state: &mut editor::State) {
     if !found.is_valid() {
         return;
     }
-    let flat = name == MULTIMESH2D;
-    let asked = options(state, flat);
-    if state.populate.kind == render::POPULATE_SURFACE {
+    let asked = asked_of(state, name == MULTIMESH2D);
+    let instances: [any] = [];
+    if state.populate.kind == scatter::SURFACE {
         let surface = surface_node(state);
         if !surface.is_valid() {
             state.populate.said = "Pick the surface to populate.";
             return;
         }
-        asked[SURFACE] = surface;
+        instances = scatter::on_surface(asked, render::triangles_of(surface, found));
+    } else {
+        instances = scatter::laid_out(asked);
     }
-    let instances = if found.has_component(MULTIMESH2D) { found.multimesh2d.populate(asked) } else { found.multimesh3d.populate(asked) };
     let wrote = write(state, node, name, instances);
     state.populate.said = "{instances.len()} instances written to {wrote}.";
 }

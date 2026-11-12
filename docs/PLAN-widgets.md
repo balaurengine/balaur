@@ -2,7 +2,7 @@
 > and `selection` on the three row kinds, a `table` with columns a drag
 > resizes over rows it no longer all builds, and the Profiler and Cost docks
 > moved onto it. Menus and popups:
-> `context`, `placement`, submenus, `shortcut`, `toast` and `dialog` on
+> `context`, `placement`, submenus, `shortcut`, `on_top` and `dialog` on
 > `egui::Modal`. Text a game can edit: `[url]`, `[hint]`, `selectable`,
 > `arrows` and `suffix`. Three crate questions stay settled: `graph` on
 > `egui-snarl`, drag and drop on egui's own payload seam, long press on
@@ -169,7 +169,6 @@ own plan rather than here.
 | `context` | a menu a right click or a long press opens at the pointer | `PopupMenu.popup()` at the mouse | built |
 | `placement` | where a `menu` opens: under its button, above, at the pointer, centred | `PopupPanel`, `popup_at_pointer` | built |
 | `shortcut` | a chord on any widget that clicks it while its menu is shut | `PopupMenu` accelerators | built |
-| `toast` | a message that arrives, stacks in a corner and leaves on a timer | none | built |
 
 There is no `popup` kind and there will not be one. A `menu` whose children
 are ordinary widgets is Godot's `PopupPanel` already: the rows are solved by
@@ -210,14 +209,11 @@ The work, in order:
    fires with its menu shut and a script polling the same chord does not see
    it twice. `trailing` falls back to the chord in the platform's own
    spelling, through `Context::format_shortcut`, so a row says it once.
-5. **`toast`.** Built. A root kind with `duration` in seconds and the usual
-   `anchor`; each toast is a child the scene holds or a script spawns, drawn
-   in a non-interactive `Area` at `Order::Foreground`, stacked along the
-   anchor's axis past the toasts already there, faded over its last half
-   second, and queued for freeing when its time is up, the way a script's
-   own `queue_free` is. Time is the engine's, so a replay shows the same
-   toasts. A `toast` binding action puts one up with no script, and a theme
-   that says nothing about the kind dresses it as a `panel`.
+5. **A notice over the screen.** Built from any root: `on_top` draws it at
+   `Order::Foreground`, `announce` makes a screen reader read it as a status
+   line, and `interactive = false` on a root with nothing in it lets the
+   pointer through. A game's script places, fades and frees it; the engine
+   has no toast kind and no clock for one.
 6. **`dialog` on `egui::Modal`.** Built. The hand-rolled backdrop `Area` is
    gone: egui dims the screen, holds the dialog above every other layer,
    keeps the pointer out of what is behind, and says when Escape or a click

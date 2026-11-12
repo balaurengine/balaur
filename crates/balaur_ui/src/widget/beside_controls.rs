@@ -163,7 +163,6 @@ impl Beside for WidgetText {
                 | w::TABS
                 | w::PANEL
                 | w::DIALOG
-                | w::TOAST
                 | w::PROGRESS_BAR
         )
     }

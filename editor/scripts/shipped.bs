@@ -1,0 +1,110 @@
+//! What ships beside the editor: the example projects and the templates a new
+//! project starts from, read as files. The examples' folder is the install's,
+//! which `project::examples_directory` lets the editor read and not write.
+
+use util;
+use words::fields;
+use words::log_fields;
+use words::project_fields;
+
+// The editor's own library, under its project root, holds the templates, the
+// line under each example's name and each example's picture.
+const TEMPLATES: str = "library/templates";
+const EXAMPLE_NOTES: str = "library/examples.toml";
+const COVERS: str = "library/examples";
+const MANIFEST: str = "project.toml";
+const COVER: str = "cover";
+// A copy is `hello`, then `hello-2` up to this: a second copy of an example is
+// a second project, not an overwrite of the first.
+const COPIES: int = 100;
+
+/// The example projects: `{ id, name, note, cover, path }` each, by id, where
+/// `cover` is a picture the editor's own project holds, or empty.
+pub fn examples() -> [any] {
+    let found = project::examples_directory();
+    if found == nil {
+        return [];
+    }
+    let root = found.unwrap();
+    let notes = util::map_or_empty(toml::parse(fs::read(EXAMPLE_NOTES).or("")));
+    let out: [any] = [];
+    for id in folders(root) {
+        let path = root + "/" + id;
+        let manifest = fs::read(path + "/" + MANIFEST);
+        if manifest == nil {
+            continue;
+        }
+        let note = util::map_or_empty(notes[id])[log_fields::NOTE];
+        let cover = COVERS + "/" + id + ".png";
+        out.push({
+            fields::ID: id,
+            fields::NAME: name_in(manifest.unwrap(), id),
+            log_fields::NOTE: if note == nil { "" } else { note.as_str() },
+            COVER: if fs::exists(cover) { cover } else { "" },
+            project_fields::PATH: path,
+        });
+    }
+    out
+}
+
+/// What a new project may start from: `{ id, note }` each, by id.
+pub fn templates() -> [any] {
+    let out: [any] = [];
+    for id in folders(TEMPLATES) {
+        let manifest = fs::read(TEMPLATES + "/" + id + "/" + MANIFEST).or("");
+        out.push({ fields::ID: id, log_fields::NOTE: name_in(manifest, id) });
+    }
+    out
+}
+
+/// Copy the example `id` into `into`, under its own name or the first
+/// numbered one free, and answer `{ path, name }` or `{ error }`.
+pub fn copy_example(id: str, into: str) -> any {
+    let found = project::examples_directory();
+    if found == nil {
+        return { log_fields::ERROR: "no examples ship beside this build" };
+    }
+    let from = found.unwrap() + "/" + id;
+    if !fs::exists(from + "/" + MANIFEST) {
+        return { log_fields::ERROR: "no example named {id}" };
+    }
+    project::copy(from, free_folder(into, id))
+}
+
+fn free_folder(into: str, id: str) -> str {
+    let first = into + "/" + id;
+    if !project::exists(first) {
+        return first;
+    }
+    for n in 2..COPIES {
+        let next = "{first}-{n}";
+        if !project::exists(next) {
+            return next;
+        }
+    }
+    first
+}
+
+// The folders directly under `root`, by name.
+fn folders(root: str) -> [str] {
+    let out: [str] = [];
+    for entry in util::list_or_empty(fs::list(root)) {
+        if entry[project_fields::IS_DIR].as_bool() {
+            out.push(entry[fields::NAME].as_str());
+        }
+    }
+    let names: any = out;
+    let sorted: [str] = names.sorted();
+    sorted
+}
+
+// A project's own name, which is what its manifest says rather than what its
+// folder is called.
+fn name_in(manifest: str, folder: str) -> str {
+    let doc = toml::parse(manifest);
+    if doc == nil {
+        return folder;
+    }
+    let name = util::map_or_empty(util::map_or_empty(doc)[project_fields::APPLICATION])[fields::NAME];
+    if name == nil || name.as_str() == "" { folder } else { name.as_str() }
+}

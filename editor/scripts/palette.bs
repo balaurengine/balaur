@@ -8,6 +8,7 @@ use docks;
 use editor;
 use events;
 use exporter;
+use form;
 use history;
 use icons;
 use manager;
@@ -505,7 +506,7 @@ pub fn fill(state: &mut editor::State) {
         fields::DATA: { fields::FN: typed, project_fields::SUBMIT: submitted },
     };
     let host = window::picker(state, field);
-    ui::fill_rows(host, row_specs(state, matched, row_height));
+    form::fill(host, row_specs(state, matched, row_height));
 }
 
 fn typed(state: &mut editor::State, data: any, text: any) {
@@ -531,11 +532,11 @@ fn matches(state: &mut editor::State) -> [Command] {
     out
 }
 
-fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [ui::Row] {
-    let out: [ui::Row] = [];
+fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -> [form::Row] {
+    let out: [form::Row] = [];
     if matched.len() == 0 {
         let none: ui::Control = ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, grow: 1, wrap: true, text: "no matches" };
-        out.push(ui::Row { controls: [none] });
+        out.push(form::Row { controls: [none] });
         state.palette_submit = false;
         return out;
     }
@@ -559,7 +560,7 @@ fn row_specs(state: &mut editor::State, matched: [Command], row_height: float) -
             checked: at == 0,
             tooltip: command_entry.key,
         };
-        out.push(ui::Row {
+        out.push(form::Row {
             height: row_height,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [

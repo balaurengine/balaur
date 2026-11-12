@@ -3,6 +3,7 @@
 // the sheet and the start screen say the same thing.
 
 use editor;
+use form;
 use manager;
 use util;
 use window;
@@ -39,15 +40,15 @@ pub fn fill(state: &mut editor::State) {
         return;
     }
     let hosts = hosts.unwrap();
-    ui::fill_rows(hosts.form, specs(state), LABEL_WIDTH, false);
+    form::fill(hosts.form, specs(state), LABEL_WIDTH, false);
 }
 
 /// Every row the sheet shows: which build this is, the line it follows, and
 /// where to read more.
-fn specs(state: editor::State) -> [ui::Row] {
+fn specs(state: editor::State) -> [form::Row] {
     let mine = util::map_or_empty(release::installed());
-    let out: [ui::Row] = [
-        ui::Row {
+    let out: [form::Row] = [
+        form::Row {
             height: 56,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -78,7 +79,7 @@ fn specs(state: editor::State) -> [ui::Row] {
     if !manager::in_tab() {
         update_rows(state, mine, out);
     }
-    out.push(ui::Row {
+    out.push(form::Row {
         height: 30,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
@@ -90,8 +91,8 @@ fn specs(state: editor::State) -> [ui::Row] {
 }
 
 // One label and its value, the value in the monospace a build id reads in.
-fn fact(out: [ui::Row], name: str, value: str) {
-    out.push(ui::Row {
+fn fact(out: [form::Row], name: str, value: str) {
+    out.push(form::Row {
         height: 22,
         controls: [
             ui::Control {
@@ -124,7 +125,7 @@ fn on_link_clicked(state: any, data: any, _value: any) {
 // Where this build's line stands, the press that asks again, and the newest
 // release on it when there is one to move to; then what the check said and
 // how far an install has got.
-fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
+fn update_rows(state: editor::State, mine: any, out: [form::Row]) {
     let tokens = state.theme;
     // A source build follows no line; the nightly is what it is nearest to.
     let line = if mine[log_fields::CHANNEL].as_str() == "" { "nightly" } else { mine[log_fields::CHANNEL].as_str() };
@@ -154,7 +155,7 @@ fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
         on_click: "handle",
         data: { fields::FN: on_check_clicked },
     });
-    out.push(ui::Row { height: 30, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+    out.push(form::Row { height: 30, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
     if mine[inspector_fields::HELD].as_str() != "" {
         out.push(say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
@@ -163,7 +164,7 @@ fn update_rows(state: editor::State, mine: any, out: [ui::Row]) {
         out.push(say(said, (if state.manager.failed != "" { tokens[theme_tokens::WARNING_TEXT] } else { tokens[theme_tokens::TEXT_SUBTLE] }).as_str()));
     }
     if manager::installing(state) {
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 22,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: manager::progress_controls(state),
@@ -175,8 +176,8 @@ fn on_check_clicked(state: &mut editor::State, data: any, _value: any) {
     manager::check(state);
 }
 
-fn say(text: str, ink: str) -> ui::Row {
-    ui::Row {
+fn say(text: str, ink: str) -> form::Row {
+    form::Row {
         height: 0,
         controls: [
             ui::Control {

@@ -1,6 +1,6 @@
 # Menus, popups and what they open: a bar of menus, the rows one of them
 # drops with their shortcuts, a submenu, a context menu any widget can name,
-# and a toast in the corner. Nothing here is placed by hand.
+# and a notice on top in the corner. Nothing here is placed by hand.
 
 [[nodes]]
 id = "n_screen"
@@ -263,40 +263,42 @@ kind = "label"
 text = "context = \"canvas_menu\" on this panel;\na long press does the same on a phone"
 role = "caption"
 
-# A toast: its own root, at its own corner, gone when its duration is up.
+# A notice: its own root at its own corner, drawn over every other root, and
+# read out by a screen reader. A game's script frees it when it is done.
 [[nodes]]
-id = "toast"
-name = "Toast"
+id = "notice"
+name = "Notice"
 parent = "n_screen"
 [nodes.widget]
 theme = "themes/panel.toml"
-kind = "toast"
+kind = "panel"
+role = "notice"
 anchor = "top_right"
 x = 18
 y = 18
 padding = 12
+on_top = true
+announce = true
 [nodes.widget_layout]
 # Hugging: the two lines decide the card's width, not the screen.
 align_items = "start"
 gap = [2, 2]
-[nodes.widget_toast]
-duration = 0
 
 [[nodes]]
-id = "toast_line"
-name = "ToastLine"
-parent = "toast"
+id = "notice_line"
+name = "NoticeLine"
+parent = "notice"
 [nodes.widget]
 kind = "label"
 text = "Scene saved"
 width = 200
 
 [[nodes]]
-id = "toast_note"
-name = "ToastNote"
-parent = "toast"
+id = "notice_note"
+name = "NoticeNote"
+parent = "notice"
 [nodes.widget]
 kind = "label"
-text = "toast · leaves on its own"
+text = "on_top · announce"
 role = "caption"
 width = 200

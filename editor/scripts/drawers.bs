@@ -3,6 +3,7 @@
 
 use editor;
 use fonts;
+use form;
 use icons;
 use inspector;
 use model;
@@ -32,7 +33,7 @@ const SLOT: str = "slot";
 const UNIT: str = "unit";
 
 /// The row `line` draws, holding `value`.
-pub fn row_of(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+pub fn row_of(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     if line.kind == inspector::FIXED {
         return line.row.unwrap();
     }
@@ -166,9 +167,9 @@ fn tip_of(line: inspector::Line) -> str {
 
 // A row of the form: the line's label and these controls, with what the line
 // takes on the end of them.
-fn labelled(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> ui::Row {
+fn labelled(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> form::Row {
     add_tail(state, line, controls);
-    ui::Row {
+    form::Row {
         height: line.height,
         label: label_of(line),
         label_role: label_role_of(line),
@@ -178,7 +179,7 @@ fn labelled(state: &mut editor::State, line: inspector::Line, controls: [ui::Con
 }
 
 // The same for controls that sit apart, as a row of verbs does.
-fn apart(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> ui::Row {
+fn apart(state: &mut editor::State, line: inspector::Line, controls: [ui::Control]) -> form::Row {
     let row = labelled(state, line, controls);
     row.slot_role = roles::LAYOUT_ACTIONS;
     row
@@ -258,7 +259,7 @@ fn on_folded(state: &mut editor::State, line: inspector::Line, _data: any, _valu
 
 // A section's head: what folds it, the component's `enabled`, and the verb that
 // takes the component off. What the engine says of it is a mark on the title.
-fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> ui::Row {
+fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> form::Row {
     let name = line.at.component;
     let mark = icons::component(name);
     let title = if line.mark == inspector::MARK_WARNING { name.to_upper() + "  ⚠" } else { name.to_upper() };
@@ -283,7 +284,7 @@ fn head_row(state: &mut editor::State, line: inspector::Line, enabled: any) -> u
             data: edit_of(line, on_component_removed),
         });
     }
-    ui::Row { height: line.height, slot_role: "layout_section", controls: controls }
+    form::Row { height: line.height, slot_role: "layout_section", controls: controls }
 }
 
 fn on_enabled_toggled(state: &mut editor::State, line: inspector::Line, _data: any, on: any) {
@@ -294,9 +295,9 @@ fn on_component_removed(state: &mut editor::State, line: inspector::Line, _data:
     model::remove_component(state, line.at.component);
 }
 
-fn fold_row(state: &mut editor::State, line: inspector::Line) -> ui::Row {
+fn fold_row(state: &mut editor::State, line: inspector::Line) -> form::Row {
     let text = "{util::property_label(line.at.property)} · {line.spec["count"].as_int()}";
-    ui::Row { height: line.height, slot_role: "layout_subsection", controls: fold_controls(line, "subsection", text, "", "") }
+    form::Row { height: line.height, slot_role: "layout_subsection", controls: fold_controls(line, "subsection", text, "", "") }
 }
 
 /// A property's value as its row draws it. `unit` is display only: the
@@ -334,7 +335,7 @@ fn channel(values: any, index: int, fallback: float) -> float {
     if entry == nil { fallback } else { entry.as_float() }
 }
 
-fn float_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn float_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_NUMBER_FIELD,
@@ -351,7 +352,7 @@ fn on_float_edited(state: &mut editor::State, line: inspector::Line, _data: any,
     inspector::write_at(state, line.at, stored_as(line.spec, clamped(line.spec, value.as_float())));
 }
 
-fn int_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn int_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_NUMBER_FIELD,
@@ -369,7 +370,7 @@ fn on_int_edited(state: &mut editor::State, line: inspector::Line, _data: any, v
 }
 
 // One number a channel, lettered.
-fn vector_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn vector_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     let held = util::list_or_empty(value);
     let datatype = spec[fields::TYPE].as_str();
     let count = if datatype == datatypes::VEC4 { 4 } else if datatype == datatypes::VEC2 { 2 } else { 3 };
@@ -402,7 +403,7 @@ fn on_vector_edited(state: &mut editor::State, line: inspector::Line, data: any,
     inspector::write_at(state, line.at, out);
 }
 
-fn bool_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+fn bool_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_CHECKBOX,
@@ -420,7 +421,7 @@ fn on_value_taken(state: &mut editor::State, line: inspector::Line, _data: any, 
     inspector::write_at(state, line.at, value);
 }
 
-fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_DROPDOWN,
@@ -435,7 +436,7 @@ fn enum_row(state: &mut editor::State, line: inspector::Line, spec: any, value: 
 
 // A swatch that opens the picker, and the channels beside it: a colour is the
 // one vector nobody reads as numbers.
-fn color_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+fn color_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     let held = util::list_or_empty(value);
     labelled(state, line, [
         ui::Control { kind: ui::WIDGET_COLOR_PICKER, width: 34, picked_color: held, on_change: "inspector_edit", data: edit_of(line, on_value_taken) },
@@ -448,7 +449,7 @@ fn color_text(held: any) -> str {
 }
 
 // Anything with no drawer of its own: its text, straight through.
-fn text_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+fn text_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     labelled(state, line, [
         ui::Control {
             kind: ui::WIDGET_TEXT_FIELD,
@@ -464,7 +465,7 @@ fn text_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui:
 
 // A set drawn from the schema's `options`: one pill per option, filled when
 // held. A checkbox grid in everything but the shape of the control.
-fn flags_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn flags_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     let held = util::list_or_empty(value);
     let controls: [ui::Control] = [];
     for option in util::list_or_empty(spec[schema_fields::OPTIONS]) {
@@ -507,7 +508,7 @@ fn on_flag_toggled(state: &mut editor::State, line: inspector::Line, data: any, 
 // Another node, by path. The field takes what a scene file takes; the
 // dropdown lists every node in the document as an absolute path, which is
 // what a leading `/` means to the engine's resolver.
-fn node_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+fn node_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     let paths = ["— none —"];
     for node in state.nodes {
         paths.push("/" + model::path_in_scene(state, node));
@@ -538,13 +539,13 @@ fn on_node_picked(state: &mut editor::State, line: inspector::Line, _data: any, 
 
 // What a list says before its rows, and the chip that adds one at the spec's
 // own default.
-fn list_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn list_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     let of = util::map_or_empty(spec[schema_fields::OF]);
     let what = if of[fields::TYPE] == nil { "?" } else { of[fields::TYPE].as_str() };
     holder_row(state, line, "{what} · {util::list_or_empty(value).len()}", true)
 }
 
-fn map_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn map_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     let of = util::map_or_empty(spec[schema_fields::OF]);
     let what = if of[fields::TYPE] == nil { "?" } else { of[fields::TYPE].as_str() };
     holder_row(state, line, "{what} · {util::map_or_empty(value).len()}", true)
@@ -552,12 +553,12 @@ fn map_row(state: &mut editor::State, line: inspector::Line, spec: any, value: a
 
 // A record naming a class says which: the rows are its fields, and the script
 // is handed that class back.
-fn record_row(state: &mut editor::State, line: inspector::Line, spec: any) -> ui::Row {
+fn record_row(state: &mut editor::State, line: inspector::Line, spec: any) -> form::Row {
     let count = util::map_or_empty(spec[schema_fields::FIELDS]).len();
     holder_row(state, line, if spec["class"] == nil { "{count} fields" } else { "{spec["class"].as_str()} · {count}" }, false)
 }
 
-fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds: bool) -> ui::Row {
+fn holder_row(state: &mut editor::State, line: inspector::Line, note: str, adds: bool) -> form::Row {
     let controls: [ui::Control] = [ui::Control { kind: "label", grow: 1, text: note, role: roles::TEXT_CAPTION }];
     if adds {
         controls.push(ui::Control {
@@ -597,7 +598,7 @@ fn fresh_key(held: any, numbered: bool) -> str {
 // The script a node names: the path is a field, where typing a name moves the
 // file, and the picker beside it names one that already exists. Attaching,
 // opening and detaching are the palette's and the tree menu's.
-fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     apart(state, line, [
         ui::Control {
             kind: ui::WIDGET_TEXT_FIELD,
@@ -621,7 +622,7 @@ fn script_path_row(state: &mut editor::State, line: inspector::Line, value: any)
 
 // A reference, or an inline definition the engine reports as a `#!` digest. A
 // type that declares no directory cannot be promoted, so it gets no button.
-fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn asset_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     let asset_type = spec[schema_fields::ASSET].as_str();
     let own = inspector::as_text(value);
     let reference = model::relative_file(state, own).as_str();
@@ -737,7 +738,7 @@ fn inline_asset(state: &mut editor::State, at: inspector::AtTop, reference: str)
 
 // One row under a material: its shader, a feature the shader declares, or a
 // value it takes.
-fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> ui::Row {
+fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, value: any) -> form::Row {
     let datatype = spec[schema_fields::DATATYPE].as_str();
     if datatype == datatypes::SHADER {
         return shader_row(state, line, value);
@@ -791,7 +792,7 @@ fn material_row(state: &mut editor::State, line: inspector::Line, spec: any, val
 
 // A slot names an image, or nothing: the picker is over what the project has
 // under `art/`, plus the choice of no map at all.
-fn texture_row(state: &mut editor::State, line: inspector::Line, value: any) -> ui::Row {
+fn texture_row(state: &mut editor::State, line: inspector::Line, value: any) -> form::Row {
     let current = if value.kind() == types::KIND_STRING { value.as_str() } else { "" };
     let choices = ["none"];
     for file in model::list(state, "art") {
@@ -813,7 +814,7 @@ fn texture_row(state: &mut editor::State, line: inspector::Line, value: any) -> 
 
 /// Which `.wesl` the material draws with: a picker over the project's own
 /// shaders, and a click on the name opens it in the code pane.
-fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> ui::Row {
+fn shader_row(state: &mut editor::State, line: inspector::Line, shader: any) -> form::Row {
     // By leaf: an inlined material's `shader` is the absolute path the mirror
     // resolved, and what a person picks from is the file's name.
     let choices: [str] = [];
@@ -948,8 +949,8 @@ fn readonly_text(spec: any, value: any) -> str {
 
 // A read-only value is whatever the component reports, a joined list included:
 // it gets the column, and is cut off at its end.
-fn readonly_row(line: inspector::Line, spec: any, value: any) -> ui::Row {
-    ui::Row {
+fn readonly_row(line: inspector::Line, spec: any, value: any) -> form::Row {
+    form::Row {
         height: line.height,
         label: label_of(line),
         label_role: label_role_of(line),

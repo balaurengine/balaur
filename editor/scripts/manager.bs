@@ -3,7 +3,9 @@
 // is installed. Drawn with the shell's own widgets and its own theme.
 
 use editor;
+use form;
 use icons;
+use shipped;
 use signals;
 use style;
 use settings;
@@ -343,7 +345,7 @@ pub fn fill(state: &mut editor::State) {
     } else {
         projects_specs(state, tokens, column_width)
     };
-    ui::fill_rows(PAGE(), specs);
+    form::fill(PAGE(), specs);
 }
 
 // The page's width, as it was laid out: the widest the screen draws, whatever
@@ -415,8 +417,8 @@ fn tools(state: editor::State) {
     }
 }
 
-fn say(text: str, ink: str) -> ui::Row {
-    ui::Row {
+fn say(text: str, ink: str) -> form::Row {
+    form::Row {
         height: 0,
         controls: [
             ui::Control {
@@ -432,14 +434,14 @@ fn say(text: str, ink: str) -> ui::Row {
     }
 }
 
-fn rule() -> ui::Row {
-    ui::Row {
+fn rule() -> form::Row {
+    form::Row {
         height: 1,
         controls: [ui::Control { kind: ui::WIDGET_SEPARATOR, grow: 1 }],
     }
 }
 
-fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [ui::Row] {
+fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [form::Row] {
     let rows: [any] = shown(state);
     if rows.len() == 0 {
         let empty = if in_tab() {
@@ -451,7 +453,7 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [ui
         let none = [say(why, tokens[theme_tokens::TEXT_SUBTLE].as_str())];
         return none;
     }
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     for row in rows {
         out.push(project_spec(state, tokens, column_width, util::map_or_empty(row)));
         out.push(rule());
@@ -462,7 +464,7 @@ fn projects_specs(state: editor::State, tokens: any, column_width: float) -> [ui
 // Two lines: the name a click opens, and the folder under it. What a row says
 // about itself, when and with which engine, sits at the right edge, and a
 // phone shows when it was opened and nothing else.
-fn project_spec(state: editor::State, tokens: any, column_width: float, row: any) -> ui::Row {
+fn project_spec(state: editor::State, tokens: any, column_width: float, row: any) -> form::Row {
     let here = row[project_fields::PATH];
     let exists = row["exists"];
     let gone = if exists == nil { true } else { exists.as_bool() } != true;
@@ -523,7 +525,7 @@ fn project_spec(state: editor::State, tokens: any, column_width: float, row: any
         on_click: "handle",
         data: { fields::FN: on_forget_pressed, HERE: here },
     });
-    ui::Row {
+    form::Row {
         height: util::max(line + 22.0, 56.0),
         slot_role: roles::LAYOUT_ACTIONS,
         controls: controls,
@@ -545,8 +547,8 @@ fn on_forget_pressed(state: &mut editor::State, data: any, _value: any) {
     told(state);
 }
 
-fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui::Row] {
-    let rows = util::list_or_empty(project::examples());
+fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [form::Row] {
+    let rows = util::list_or_empty(shipped::examples());
     if rows.len() == 0 {
         let none = [say("No examples ship beside this build.", tokens[theme_tokens::TEXT_SUBTLE].as_str())];
         return none;
@@ -556,7 +558,7 @@ fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui
     // third of a pixel each puts the last one past its edge.
     let card_width = math::floor((column_width - (across - 1) as float * SEAM) / across as float);
     let cover_height = math::floor(card_width / COVER_ASPECT);
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     let start = 0;
     while start < rows.len() {
         let cards: [ui::Control] = [];
@@ -565,7 +567,7 @@ fn examples_specs(state: editor::State, tokens: any, column_width: float) -> [ui
             cards.push(example_card(state, tokens, card_width, cover_height, util::map_or_empty(rows[start + column])));
             column += 1;
         }
-        out.push(ui::Row {
+        out.push(form::Row {
             height: cover_height + 54.0,
             controls: [
                 ui::Control { kind: ui::WIDGET_ROW, gap: vec2(SEAM, SEAM), controls: cards },
@@ -656,11 +658,11 @@ fn on_example_pressed(state: &mut editor::State, data: any, _value: any) {
 
 // Public projects on Forge, one row each, a click opening a copy in the
 // projects folder as an example does. The first look asks Forge.
-fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [ui::Row] {
+fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [form::Row] {
     if !state.manager.forge_asked {
         state.manager.forge_asked = forge::search("", "");
     }
-    let out: [ui::Row] = [];
+    let out: [form::Row] = [];
     if state.manager.copying != "" {
         out.push(say("Copying {state.manager.copying} into {state.manager.parent}", tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
@@ -675,7 +677,7 @@ fn forge_specs(state: &mut editor::State, tokens: any, column_width: float) -> [
             tags = if tags == "" { tag.as_str() } else { tags + ", " + tag.as_str() };
         }
         let note = row[fields::DESCRIPTION].as_str();
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 52.0,
             controls: [
                 ui::Control {
@@ -741,7 +743,7 @@ pub fn forge_heard(state: &mut editor::State, event: any) {
 
 /// Copy an example into the projects folder and open the copy.
 fn open_example(state: &mut editor::State, id: str) {
-    let made = util::map_or_empty(project::copy_example(id, state.manager.parent));
+    let made = util::map_or_empty(shipped::copy_example(id, state.manager.parent));
     let failed = made[log_fields::ERROR];
     if failed != nil {
         let why = failed;
@@ -755,7 +757,7 @@ fn open_example(state: &mut editor::State, id: str) {
 // What this build is, which line it follows, and every release the project
 // has published. The same code `balaur update` runs, so the screen and the
 // command cannot disagree.
-fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> [ui::Row] {
+fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> [form::Row] {
     if !state.manager.asked {
         check(state);
     }
@@ -790,7 +792,7 @@ fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> 
         on_click: "handle",
         data: { fields::FN: on_check_pressed },
     });
-    let out: [ui::Row] = [ui::Row { height: 44, slot_role: roles::LAYOUT_ACTIONS, controls: head }];
+    let out: [form::Row] = [form::Row { height: 44, slot_role: roles::LAYOUT_ACTIONS, controls: head }];
     if mine[inspector_fields::HELD].as_str() != "" {
         out.push(say(mine[inspector_fields::HELD].as_str(), tokens[theme_tokens::TEXT_SUBTLE].as_str()));
     }
@@ -807,7 +809,7 @@ fn engine_specs(state: &mut editor::State, tokens: any, column_width: float) -> 
             data: { fields::FN: on_line_pressed, layout_fields::LINE: line },
         });
     }
-    out.push(ui::Row { height: row_height + 6.0, slot_role: roles::LAYOUT_ACTIONS, controls: lines });
+    out.push(form::Row { height: row_height + 6.0, slot_role: roles::LAYOUT_ACTIONS, controls: lines });
     release_specs(state, tokens, row_height, mine, out);
     out
 }
@@ -822,7 +824,7 @@ fn on_line_pressed(state: &mut editor::State, data: any, _value: any) {
     told(state);
 }
 
-fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any, out: [ui::Row]) {
+fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any, out: [form::Row]) {
     let rows: [any] = [];
     for entry in state.manager.releases {
         let row = util::map_or_empty(entry);
@@ -856,14 +858,14 @@ fn release_specs(state: editor::State, tokens: any, row_height: float, mine: any
         if press != nil {
             controls.push(press.unwrap());
         }
-        out.push(ui::Row { height: row_height + 14.0, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+        out.push(form::Row { height: row_height + 14.0, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
         out.push(rule());
     }
     // An install that cannot replace itself has nothing to name a release for.
     if mine[inspector_fields::HELD].as_str() != "" || installing(state) {
         return;
     }
-    out.push(ui::Row {
+    out.push(form::Row {
         height: row_height,
         controls: [
             ui::Control {
@@ -1160,15 +1162,15 @@ pub fn new_fill(state: &mut editor::State) {
         state.manager.parent = project::home();
     }
     let ids: [str] = [];
-    for row in util::list_or_empty(project::templates()) {
+    for row in util::list_or_empty(shipped::templates()) {
         ids.push(util::map_or_empty(row)[fields::ID].as_str());
     }
     if ids.len() == 0 {
         ids.push(EMPTY);
     }
     let row_height = util::max(style::row_height(state), 30.0);
-    let specs: [ui::Row] = [
-        ui::Row {
+    let specs: [form::Row] = [
+        form::Row {
             height: row_height,
             controls: [
                 ui::Control {
@@ -1183,7 +1185,7 @@ pub fn new_fill(state: &mut editor::State) {
             ],
             label: "name",
         },
-        ui::Row {
+        form::Row {
             height: row_height,
             controls: [
                 ui::Control {
@@ -1198,7 +1200,7 @@ pub fn new_fill(state: &mut editor::State) {
             ],
             label: "from",
         },
-        ui::Row {
+        form::Row {
             height: row_height,
             controls: [
                 ui::Control {
@@ -1214,7 +1216,7 @@ pub fn new_fill(state: &mut editor::State) {
         },
     ];
     if state.manager.failed != "" {
-        specs.push(ui::Row {
+        specs.push(form::Row {
             height: 0,
             controls: [
                 ui::Control {
@@ -1227,7 +1229,7 @@ pub fn new_fill(state: &mut editor::State) {
             ],
         });
     }
-    specs.push(ui::Row {
+    specs.push(form::Row {
         height: row_height,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
@@ -1242,7 +1244,7 @@ pub fn new_fill(state: &mut editor::State) {
             },
         ],
     });
-    ui::fill_rows(hosts["form"].as_str(), specs, 72.0, false);
+    form::fill(hosts["form"].as_str(), specs, 72.0, false);
 }
 
 fn on_name_typed(state: &mut editor::State, data: any, text: any) {

@@ -63,10 +63,10 @@ mod particles;
 mod particles_3d;
 pub mod pick;
 mod polygon;
-mod populate;
 mod post;
 #[cfg(feature = "compile")]
 pub mod preview;
+mod triangles;
 /// A build with no shader linker previews nothing.
 #[cfg(not(feature = "compile"))]
 mod preview {
@@ -984,7 +984,7 @@ impl balaur_plugin::Plugin for RenderPlugin {
         material::install_material_params(&mut m);
         boolean::install_boolean_api(&mut m);
         multimesh_api::install_multimesh_records(&mut m);
-        populate::install_populate_records(&mut m);
+        triangles::install_triangles_api(&mut m);
         light::install_occluder_api(&mut m);
         stats::install_stats_api(&mut m);
         script_api::install_sprite_api(&mut m);
@@ -1001,7 +1001,6 @@ impl balaur_plugin::Plugin for RenderPlugin {
             multimesh.module_doc(handle.doc);
             multimesh_api::install_multimesh_api(&mut multimesh, handle);
             multimesh_api::install_multimesh_list_api(&mut multimesh, handle);
-            populate::install_populate_api(&mut multimesh, handle);
         }
         shape::register_shape_component(reg);
         shape::register_shape2d_component(reg);

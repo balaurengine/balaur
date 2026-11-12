@@ -3,6 +3,7 @@
 // module, which is the same library `balaur export` runs.
 
 use editor;
+use form;
 use settings;
 use util;
 use window;
@@ -84,21 +85,21 @@ pub fn fill(state: &mut editor::State) {
     }
     // No sidebar: the sheet is one list of targets, and `sheet_form` left it
     // shut for us.
-    ui::fill_rows(hosts["form"].as_str(), specs(state));
+    form::fill(hosts["form"].as_str(), specs(state));
 }
 
 /// Every row the sheet shows: what it builds, the link to the settings it
 /// builds from, and a target with its verb.
-fn specs(state: editor::State) -> [ui::Row] {
+fn specs(state: editor::State) -> [form::Row] {
     if state.exporter.rows.len() == 0 {
         let none = [note("no targets — this build has no exporter", roles::TEXT_CAPTION)];
         return none;
     }
-    let out: [ui::Row] = [
+    let out: [form::Row] = [
         note("Builds the project this editor is editing.", roles::TEXT_CAPTION),
         // The sheet builds; what it builds from is a settings page, so the
         // sentence that used to name the table is the link to it.
-        ui::Row {
+        form::Row {
             height: 24,
             slot_role: roles::LAYOUT_ACTIONS,
             controls: [
@@ -127,7 +128,7 @@ fn on_settings_clicked(state: &mut editor::State, data: any, _value: any) {
 }
 
 /// The `[export] runtime` choice, with the options its schema declares.
-fn runtime_spec(state: editor::State) -> ui::Row? {
+fn runtime_spec(state: editor::State) -> form::Row? {
     let options = util::list_or_empty(nil);
     for setting in settings::all() {
         if setting.path == RUNTIME_SETTING {
@@ -137,8 +138,8 @@ fn runtime_spec(state: editor::State) -> ui::Row? {
     if options.len() == 0 {
         return nil;
     }
-    let now = settings::base(RUNTIME_SETTING);
-    ui::Row {
+    let now = settings::stated(state, RUNTIME_SETTING);
+    form::Row {
         height: 24,
         slot_role: roles::LAYOUT_ACTIONS,
         controls: [
@@ -167,8 +168,8 @@ pub fn pick_runtime(state: &mut editor::State, picked: str) {
     refresh(state);
 }
 
-fn note(text: str, role: str) -> ui::Row {
-    ui::Row {
+fn note(text: str, role: str) -> form::Row {
+    form::Row {
         height: 0,
         controls: [
             ui::Control {
@@ -215,7 +216,7 @@ fn readiness(installed: bool, fetchable: bool) -> str {
     }
 }
 
-fn target_specs(state: editor::State, row: any, out: [ui::Row]) {
+fn target_specs(state: editor::State, row: any, out: [form::Row]) {
     let name = row[fields::NAME].as_str();
     let own_runtime = row["runtime"];
     let runtime = if own_runtime == nil { name } else { own_runtime.as_str() };
@@ -244,7 +245,7 @@ fn target_specs(state: editor::State, row: any, out: [ui::Row]) {
     } else if status == statuses::DONE {
         controls.push(ui::Control { kind: ui::WIDGET_LABEL, role: roles::TEXT_CAPTION, text: "done" });
     }
-    out.push(ui::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
+    out.push(form::Row { height: 24, slot_role: roles::LAYOUT_ACTIONS, controls: controls });
     // The path it wrote, or the reason it did not, under the row that says so.
     if said != "" {
         out.push(note(said, if status == statuses::FAILED { roles::NOTE_DANGER } else { roles::TEXT_CAPTION }));

@@ -258,19 +258,6 @@ pub struct ScrollDrag {
 
 /// Put a message on screen that stacks in the corner and leaves on its own.
 ///
-/// A `toast` node under the scene root, holding nothing but its text: what
-/// the `toast` binding action runs, so a scene shows one with no script.
-///
-/// # Errors
-/// If the widget component refuses the node, which means the plugin that
-/// declares it is not in this build.
-pub fn toast(eng: &Engine, text: &str) -> anyhow::Result<()> {
-    let root = eng.root();
-    let entity = eng.spawn_node("Toast", root);
-    let params = toml::toml! { kind = "toast" text = text anchor = "top_right" x = 16.0 y = 16.0 };
-    balaur_core::components::add(eng, entity, "widget", Some(&params.into()))
-}
-
 #[derive(Default)]
 pub struct UiPlugin;
 

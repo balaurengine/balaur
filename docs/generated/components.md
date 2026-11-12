@@ -554,7 +554,7 @@ Poses 2D bones toward `target` after the clip runs. `kind` is `look_at`, `two_bo
 
 ### `multimesh2d`
 
-`2d` · `render` · 5 properties · 17 methods
+`2d` · `render` · 5 properties · 16 methods
 
 Godot's `MultiMeshInstance2D`: the `multimesh` asset in `source`, its mesh drawn flat once per instance in one call, each instance tinted over `color`. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -581,7 +581,6 @@ On a node carrying `multimesh2d`, as `node.multimesh2d.<method>`:
 <tr><td><code>instance_region(int)</code></td><td><code>render::InstanceRegion?</code></td><td>One instance&#x27;s texture rectangle in pixels, or nil when it draws the whole texture.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instance_transform(int)</code></td><td><code>Transform2d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh2d</code></td></tr>
-<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>[render::MultimeshInstance]</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh2d</code></td></tr>
 <tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh2d</code></td></tr>
@@ -1747,7 +1746,7 @@ Poses `bone3d` nodes toward `target` after the clip runs. `kind` is `look_at`, `
 
 ### `multimesh3d`
 
-`3d` · `render` · 9 properties · 15 methods
+`3d` · `render` · 9 properties · 14 methods
 
 Godot's `MultiMeshInstance3D`: the `multimesh` asset in `source`, its mesh drawn once per instance in one call, each instance's `color` tinted over the node's. The node keeps its own copy of the instances, so a script's edits stay on it; children draw once.
 
@@ -1777,7 +1776,6 @@ On a node carrying `multimesh3d`, as `node.multimesh3d.<method>`:
 <tr><td><code>instance_custom_data(int)</code></td><td><code>Color</code></td><td>One instance&#x27;s four floats of custom data, as a colour.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instance_transform(int)</code></td><td><code>Transform3d</code></td><td>One instance&#x27;s transform.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>instances()</code></td><td><code>[render::MultimeshInstance]</code></td><td>Every instance as the `multimesh` asset spells it, so `assets.save` writes a scripted layout into a file.</td><td><code>multimesh3d</code></td></tr>
-<tr><td><code>populate(render::PopulateOptions)</code></td><td><code>[render::MultimeshInstance]</code></td><td>Godot&#x27;s Populate Surface, and a row, a ring or a grid: the instances a layout would write, worked out from `seed`, returned in the `multimesh` asset&#x27;s shape rather than set. `kind` is `render.POPULATE_SURFACE` with a `surface` node, `POPULATE_ROW` (`count`, `step`), `POPULATE_RING` (`count`, `radius`) or `POPULATE_GRID` (`counts`, `step`); `rotation`, `tilt` and `random_scale` vary each instance, as fractions, around `scale`.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_buffer([float])</code></td><td>—</td><td>Replace every instance from one flat list in the layout `buffer` answers in, for a Godot port that sets `buffer`. Building the list in a script costs more than one `set_instance_transform` per instance.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_color(int, Color)</code></td><td>—</td><td>The colour one instance draws in.</td><td><code>multimesh3d</code></td></tr>
 <tr><td><code>set_instance_count(int)</code></td><td>—</td><td>How many instances the node holds. Those below the count keep where they were; new ones are plain, at the node.</td><td><code>multimesh3d</code></td></tr>
@@ -2499,17 +2497,18 @@ On a node carrying `sound`, as `node.sound.<method>`:
 
 ### `widget`
 
-`ui` · 60 properties
+`ui` · 62 properties
 
 A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and more, `anchor` places it in design pixels. A button calls `on_click`.
 
 <table>
 <thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>toast</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
+<tr><td><code>kind</code></td><td>enum</td><td><code>label</code></td><td>The HUD element the widget layer draws One of <code>label</code>, <code>button</code>, <code>panel</code>, <code>row</code>, <code>column</code>, <code>scroll</code>, <code>tabs</code>, <code>image</code>, <code>text_field</code>, <code>text_area</code>, <code>checkbox</code>, <code>switch</code>, <code>color_picker</code>, <code>dropdown</code>, <code>menu</code>, <code>list</code>, <code>tree</code>, <code>table</code>, <code>slider</code>, <code>number_field</code>, <code>progress_bar</code>, <code>grid</code>, <code>flow</code>, <code>fold</code>, <code>dialog</code>, <code>window</code>, <code>separator</code>, <code>code</code>, <code>stack</code>.</td></tr>
 <tr><td><code>text</code></td><td>string</td><td>—</td><td>Label or button caption</td></tr>
 <tr><td><code>enabled</code></td><td>bool</td><td><code>true</code></td><td>Off, the widget is greyed out and swallows its clicks</td></tr>
 <tr><td><code>anchor</code></td><td>enum</td><td><code>top_left</code></td><td>Corner, edge or middle the offset is measured from: of the surface for a root, of the parent&#x27;s box inside a `stack`; `fill` takes the whole of it less `inset` One of <code>top_left</code>, <code>top_right</code>, <code>bottom_left</code>, <code>bottom_right</code>, <code>center</code>, <code>center_left</code>, <code>center_right</code>, <code>center_top</code>, <code>center_bottom</code>, <code>fill</code>, <code>fill_top</code>, <code>fill_bottom</code>, <code>fill_left</code>, <code>fill_right</code>, <code>fill_across</code>, <code>fill_down</code>.</td></tr>
+<tr><td><code>on_top</code></td><td>bool</td><td><code>false</code></td><td>A root drawn above every root that is not, as a message read over whatever is on screen</td></tr>
 <tr><td><code>x</code></td><td>float</td><td><code>16.0</code></td><td>Horizontal offset from the anchor, in design pixels</td></tr>
 <tr><td><code>y</code></td><td>float</td><td><code>16.0</code></td><td>Vertical offset from the anchor, in design pixels</td></tr>
 <tr><td><code>width</code></td><td>float</td><td><code>0.0</code></td><td>Panel width in design pixels; 0 sizes to content At least 0.0.</td></tr>
@@ -2553,6 +2552,7 @@ A HUD element drawn every frame: `kind` picks `label`, `button`, `panel` and mor
 <tr><td><code>text_style</code></td><td>asset · <code>text_style</code></td><td>—</td><td>How it is dressed past its font: line height and spacing, the lines drawn with the glyphs, an outline and a shadow. Empty draws it plain</td></tr>
 <tr><td><code>text_key</code></td><td>string</td><td>—</td><td>A localization key drawn in place of `text`, re-read every frame so a locale switch shows at once</td></tr>
 <tr><td><code>tooltip</code></td><td>string</td><td>—</td><td>Text shown after the pointer rests on the widget; still shown while `enabled` is off, which is where it says why</td></tr>
+<tr><td><code>announce</code></td><td>bool</td><td><code>false</code></td><td>A screen reader reads its text out as it arrives and as it changes, as a status line</td></tr>
 <tr><td><code>on_click</code></td><td>string</td><td>—</td><td>Script method called when the widget is clicked, on this node or the nearest ancestor whose script declares it. An `image` that names one senses clicks too, which is how a picture becomes a button</td></tr>
 <tr><td><code>on_change</code></td><td>string</td><td>—</td><td>Script method called with a `text_field`&#x27;s text after every edit, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>on_focus</code></td><td>string</td><td>—</td><td>Script method called when focus arrives, on this node or the nearest ancestor whose script declares it</td></tr>
@@ -3021,19 +3021,6 @@ The rows a kind drawing a caption reads: how its lines sit, break and are cut, a
 <tr><td><code>selectable</code></td><td>bool</td><td><code>false</code></td><td>Let a drag over this label select its text, and the platform&#x27;s copy key take it</td></tr>
 <tr><td><code>on_link</code></td><td>string</td><td>—</td><td>Script method called with the target of a `[url=target]` span in `markup` text that was clicked, on this node or the nearest ancestor whose script declares it</td></tr>
 <tr><td><code>text_background</code></td><td>color</td><td><code>[0.0, 0.0, 0.0, 0.0]</code></td><td>A wash behind the text of the kinds egui draws, a `checkbox`, `dropdown`, `menu`, `tabs`, `panel` and the like, where a `label` and a `button` shape their own; alpha 0 is none</td></tr>
-</tbody>
-</table>
-
-### `widget_toast`
-
-`ui` · 1 property
-
-The row a `toast` reads: how long it stays.
-
-<table>
-<thead><tr><th>property</th><th>type</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>duration</code></td><td>float</td><td><code>3.0</code></td><td>How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away At least 0.0.</td></tr>
 </tbody>
 </table>
 

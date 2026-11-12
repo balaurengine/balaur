@@ -23,34 +23,41 @@ determinism. `AGENTS.md` states the rule.
 - The "3 days ago" words in project and release rows: the editor's
   `util::said_ago`, from `opened` and `published` in seconds.
 - `balaur_animation::gizmo`, which nothing called.
+- The `toast` widget kind, its `widget_toast` component and the bindings
+  `toast` action: any root takes `on_top` and `announce`, and a game's
+  script places, fades and frees a notice.
+- `ui::fill_rows`, `fill_row`, `patch_row` and the `ui::Row` record: the
+  editor's `form.bs` builds a row from plain controls, on the generic
+  `ui::fill_slot` and `ui::patch_control`. A row's label is `C<row>/C0` and
+  its controls `C<row>/C1/C<n>`.
+- `project::examples`, `copy_example` and `templates`: the editor's
+  `shipped.bs` reads them as files, through `project::examples_directory`,
+  which `fs` may read and not write, `project::copy` and `project::exists`.
+- `multimesh.populate`: the editor's `scatter.bs`, on the new `quat`
+  module, `random::at` and `render::triangles_of`.
+- `settings::edit_project`, `edit_set` and `edit_clear`: the editor's
+  `settings.bs` holds the game's manifest. `toml::patch` now changes a table
+  key by key, so a saved key keeps the comments around it.
 
 ## Left, in order
 
 Each waits on the primitive named.
 
-1. **`multimesh.populate` and the ragdoll builder** wait on quaternion
-   arithmetic in scripts, a seeded random source apart from the game's
-   `random` stream, and a node mesh's triangles.
-2. **The example and template browser** waits on the install's data folders
-   as a read-only `fs` root.
-3. **The edit-project mode** (`settings::edit_project`, `edit_set`,
-   `edit_clear`) waits on a key-level TOML write that keeps comments.
-   `toml::patch` rewrites a changed table whole.
-4. **The `toast` widget kind** waits on a draw-above order for a root and a
-   status role for screen readers. The scene bindings' `toast` action goes
-   with the bindings decision below.
-5. **`ui::fill_rows`, `fill_row` and `patch_row`** wait on a one-slot fill
-   without the form's label column. The diffing pool stays in Rust.
-6. **The save-game policy** (`save.rs`, `[save]`) waits on an atomic file
+1. **The ragdoll builder** (`physics2d.ragdoll`, `physics3d.ragdoll`) moves to
+   an addon in `editor/library` on `quat`, which `examples/rig` takes as a
+   path dependency; the blend stays native.
+2. **The save-game policy** (`save.rs`, `[save]`) waits on an atomic file
    write. The Gamend addon that calls `save` is generated in the Gamend
    repository.
-7. **The Gamend activity log and `gamend/cloud`** move with the dock, which
+3. **The Gamend activity log and `gamend/cloud`** move with the dock, which
    is copied from the Gamend repository.
-8. **⌘Q on macOS** leaves through AppKit's `terminate:`, which closes the
-   windows without a close request, so `on_quit_requested` never runs. kiss3d's
-   menu has to send it through a window close.
 
 ## Not planned here
+
+⌘Q on macOS leaves through AppKit's `terminate:`, which closes the windows
+without a close request, so `on_quit_requested` does not run. Routing it
+needs AppKit bindings beside winit's own; winit offers only turning its menu
+off, which takes Hide and Quit with it.
 
 Product decisions, each its own: scene `bindings` and `states`, the
 animation `state_machine`, the `code` widget's language tables, the `window`

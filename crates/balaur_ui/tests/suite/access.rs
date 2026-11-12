@@ -64,6 +64,26 @@ fn a_reader_hears_each_widget_s_role_name_value_and_state() {
 }
 
 #[test]
+fn a_widget_that_announces_is_read_as_a_status_line() {
+    let (_dir, app) = app();
+    let notice = add_widget(
+        &app,
+        &toml::toml! { kind = "label" text = "Saved" announce = true }.into(),
+    );
+    balaur_ui::enable_access(&app.engine);
+    let ctx = egui::Context::default();
+    settle(&app, &ctx);
+    let update = balaur_ui::take_access_update(&app.engine).expect("a first update");
+    let node = update
+        .nodes
+        .iter()
+        .find(|(at, _)| *at == id(notice))
+        .map(|(_, node)| node)
+        .expect("the label is a node");
+    assert_eq!(node.role(), Role::Status);
+}
+
+#[test]
 fn only_what_changed_is_handed_over_again() {
     let (_dir, app) = app();
     let widgets = form(&app);

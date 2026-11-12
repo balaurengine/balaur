@@ -1879,38 +1879,6 @@ Source: `crates/balaur_ui/src/widget/arrange.rs` and `crates/balaur_ui/src/widge
 
 Starts as authored. Ends when the component is removed.
 
-### Toast
-
-A `toast` root stacks in a corner and leaves on its own. `BORN` holds when each was first drawn, in engine time, and the phase is derived from that.
-
-Source: `crates/balaur_ui/src/widget/toast.rs`, `BORN`, `Stack`, `fade` and `clear`.
-
-```mermaid
-stateDiagram-v2
-    [*] --> whole: first drawn
-    whole --> fading: last half second
-    fading --> expired: duration reached
-    expired --> [*]: defer_free
-```
-
-| State | What is true |
-|---|---|
-| Whole | Drawn solid, pushed clear of the toasts at its anchor. Takes no pointer. |
-| Fading: under 0.5 seconds of `duration` left | `multiply_opacity` thins it. |
-| Expired: `age >= duration` | Listed by `Stack::expired` and freed at the end of the frame. |
-
-| From | Trigger | To | What it does |
-|---|---|---|---|
-| none | `Stack::place`, first draw | Whole | Stamps `eng.time()`. |
-| Whole | `fade`, as `age` grows | Fading | No event. |
-| Fading | `Stack::place`, `age` reaches `duration` | Expired | `clear` calls `defer_free`. |
-
-Starts in Whole. Ends in Expired.
-
-Refused or ignored: a `duration` of 0 stays until the game frees it. A toast not drawn is dropped from `BORN`, so its clock starts again when it next shows.
-
-Held by a pause, a `process` mode or a parked scene: `eng.time()` runs on through a pause and a freeze, so the clock does too. A paused replay holds it.
-
 ### Splash
 
 The `[application] splash` picture draws over everything while its seconds last or a load holds it. It has no variable and is derived on each pass.

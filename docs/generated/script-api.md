@@ -42,22 +42,23 @@ the `node` module's, called on the node: `self.node.add_tag("hit")`.
 | [`picture`](#picture) | 1 | 0 |
 | [`platform`](#platform) | 11 | 7 |
 | [`project`](#project) | 15 | 0 |
-| [`random`](#random) | 5 | 0 |
+| [`quat`](#quat) | 8 | 0 |
+| [`random`](#random) | 6 | 0 |
 | [`regex`](#regex) | 6 | 0 |
 | [`release`](#release) | 4 | 0 |
-| [`render`](#render) | 42 | 45 |
+| [`render`](#render) | 43 | 41 |
 | [`replay`](#replay) | 17 | 4 |
 | [`rollback`](#rollback) | 2 | 0 |
 | [`save`](#save) | 6 | 0 |
 | [`scene`](#scene) | 32 | 0 |
 | [`script`](#script) | 15 | 0 |
-| [`settings`](#settings) | 15 | 0 |
+| [`settings`](#settings) | 12 | 0 |
 | [`skeleton`](#skeleton) | 3 | 0 |
 | [`strings`](#strings) | 5 | 0 |
 | [`task`](#task) | 3 | 0 |
 | [`toml`](#toml) | 3 | 0 |
 | [`types`](#types) | 0 | 8 |
-| [`ui`](#ui) | 44 | 65 |
+| [`ui`](#ui) | 43 | 64 |
 | [`websocket`](#websocket) | 5 | 9 |
 | [`window`](#window) | 7 | 0 |
 
@@ -932,10 +933,11 @@ The projects this machine has opened, the templates a new one starts from, and t
 
 | Function | Signature |
 | --- | --- |
-| `copy_example` | `(str, str) -> project::Project` |
+| `copy` | `(str, str) -> project::Project` |
 | `copy_system_font` | `(str, str) -> bool` |
 | `create` | `(str, str) -> project::Project` |
-| `examples` | `() -> [project::Example]` |
+| `examples_directory` | `() -> str?` |
+| `exists` | `(str) -> bool` |
 | `forget` | `(str)` |
 | `home` | `() -> str` |
 | `in_tab` | `() -> bool` |
@@ -944,9 +946,23 @@ The projects this machine has opened, the templates a new one starts from, and t
 | `pick_directory` | `() -> str?` |
 | `recent` | `() -> [project::Recent]` |
 | `system_fonts` | `() -> [project::SystemFont]` |
-| `templates` | `() -> [project::Template]` |
 | `use_data` | `(str?) -> str?` |
 | `version` | `() -> str` |
+
+## `quat`
+
+Rotations as quaternions `{ x, y, z, w }`: from an axis and an angle, from one direction to another or from a `rotation_euler`, composed, inverted and applied to a vector. Through `glamx` on `libm`, so every platform turns alike.
+
+| Function | Signature |
+| --- | --- |
+| `from_arc` | `(Vec3, Vec3) -> quat::Quat` |
+| `from_axis_angle` | `(Vec3, float) -> quat::Quat` |
+| `from_euler` | `(Vec3) -> quat::Quat` |
+| `identity` | `() -> quat::Quat` |
+| `inverse` | `(quat::Quat) -> quat::Quat` |
+| `mul` | `(quat::Quat, quat::Quat) -> quat::Quat` |
+| `rotate` | `(quat::Quat, Vec3) -> Vec3` |
+| `to_euler` | `(quat::Quat) -> Vec3` |
 
 ## `random`
 
@@ -954,6 +970,7 @@ The engine's one deterministic PCG32 stream: the same seed draws the same number
 
 | Function | Signature |
 | --- | --- |
+| `at` | `(int, int) -> float` |
 | `float` | `() -> float` |
 | `int` | `(int, int) -> int` |
 | `range` | `(float, float) -> float` |
@@ -1032,10 +1049,11 @@ What a frame is made of: the shape, sprite, mesh or emitter a node draws, the 2D
 | `texture_pixels_per_unit` | `(str) -> float` |
 | `texture_size` | `(str) -> [int]` |
 | `trace_texture` | `(str, render::TraceOptions?) -> [[Vec2]]` |
+| `triangles_of` | `(Node, Node?) -> [Vec3]` |
 
 Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `tilemap`. See [components](components.md).
 
-**Constants** (45):
+**Constants** (41):
 
 | Name | Value |
 | --- | --- |
@@ -1059,12 +1077,12 @@ Called on a node's component: `boolean3d`, `occluder2d`, `screen_notifier2d`, `t
 | `LIGHT_DIRECTIONAL` | `"directional"` |
 | `LIGHT_POINT` | `"point"` |
 | `LIGHT_SPOT` | `"spot"` |
-| `POPULATE_GRID` | `"grid"` |
-| `POPULATE_RING` | `"ring"` |
-| `POPULATE_ROW` | `"row"` |
-| `POPULATE_SURFACE` | `"surface"` |
+| `SHAPE_BOX` | `"box"` |
+| `SHAPE_CAPSULE` | `"capsule"` |
+| `SHAPE_CIRCLE` | `"circle"` |
+| `SHAPE_CONE` | `"cone"` |
 
-…and 21 more.
+…and 17 more.
 
 ## `replay`
 
@@ -1192,9 +1210,6 @@ Every setting the engine, its plugins and the game declare, by path: `physics/so
 | `base` | `(str) -> any` |
 | `clear` | `(str)` |
 | `define` | `(str, any)` |
-| `edit_clear` | `(str)` |
-| `edit_project` | `(str)` |
-| `edit_set` | `(str, any)` |
 | `get` | `(str) -> any` |
 | `known_tags` | `() -> [str]` |
 | `merge_toml` | `(str)` |
@@ -1281,8 +1296,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `edit_color` | `(Node, Color) -> bool` |
 | `edit_number` | `(Node, float) -> bool` |
 | `edit_text` | `(Node, str) -> bool` |
-| `fill_row` | `(Node, int, ui::Row?, float?, bool?) -> bool` |
-| `fill_rows` | `(str, [ui::Row], float?, bool?) -> bool` |
+| `fill_slot` | `(Node, int, ui::Control?) -> bool` |
 | `fill_strip` | `(str, [ui::Control]) -> bool` |
 | `finish_loading` | `()` |
 | `focus_down` | `()` |
@@ -1294,7 +1308,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `focused_widget` | `() -> Node` |
 | `height_class` | `() -> str` |
 | `pasted_text` | `() -> str` |
-| `patch_row` | `(Node, int, [ui::Control]) -> bool` |
+| `patch_control` | `(Node, [int], ui::Control) -> bool` |
 | `pixels_per_design` | `() -> float` |
 | `request_repaint` | `(ui::RepaintOptions?)` |
 | `save_pasted_image` | `(str) -> bool` |
@@ -1314,7 +1328,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `width_class` | `() -> str` |
 | `window_size` | `() -> Vec2` |
 
-**Constants** (65):
+**Constants** (64):
 
 | Name | Value |
 | --- | --- |
@@ -1343,7 +1357,7 @@ What a script asks of the UI and tells it: where a `widget` node drew, focus, th
 | `FONT_STYLE_NORMAL` | `"normal"` |
 | `FONT_STYLE_OBLIQUE` | `"oblique"` |
 
-…and 41 more.
+…and 40 more.
 
 ## `websocket`
 

@@ -100,9 +100,9 @@ corner_radius = "radius"
 [number_field.hover]
 fill = "bg_control_hover"
 
-# A toast is read over the screen, so it sits on a raised plate with the
+# A notice is read over the screen, so it sits on a raised plate with the
 # primary ink down its outline rather than on the sheet's own fill.
-[toast]
+[roles.notice]
 fill = "bg_control_hover"
 text_color = "text_default"
 stroke = "primary_text"

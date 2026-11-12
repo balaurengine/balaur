@@ -3,6 +3,7 @@
 // `animation.play(node, clip, { retarget = ... })` to read.
 
 use editor;
+use form;
 use model;
 use rig;
 use signals;
@@ -213,13 +214,13 @@ pub fn fill(state: editor::State) {
         }
     }
     util::set_text(PANEL + "/Body/Verbs/Count", "{filled} of {HUMANOID().len()} mapped · {paths.len()} bones in the rig");
-    let rows: [ui::Row] = [];
+    let rows: [form::Row] = [];
     for name in HUMANOID() {
         for spec in row(state, paths, name) {
             rows.push(spec);
         }
     }
-    ui::fill_rows(PANEL + "/Body/Scroll/Rows", rows);
+    form::fill(PANEL + "/Body/Scroll/Rows", rows);
 }
 
 /// A verb by the name of its button.
@@ -236,7 +237,7 @@ pub fn verb(state: &mut editor::State, name: str) {
 // A canonical bone's row, and the rig's bones under it while it is the one
 // being picked for: a dock this narrow has nowhere to put a floating list,
 // and the row it belongs to is the one thing a reader has to keep track of.
-fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
+fn row(state: editor::State, paths: [str], name: str) -> [form::Row] {
     let picked = state.bonemap.bones[name].as_str();
     let open = state.bonemap.picking == name;
     let controls: [ui::Control] = [
@@ -270,14 +271,14 @@ fn row(state: editor::State, paths: [str], name: str) -> [ui::Row] {
             data: { fields::FN: leave_row_empty, fields::NAME: name },
         });
     }
-    let out: [ui::Row] = [ui::Row { height: 24, controls: controls }];
+    let out: [form::Row] = [form::Row { height: 24, controls: controls }];
     if !open {
         return out;
     }
     for bone_path in paths {
         // Bound afresh: a closure made in a loop captures the binding.
         let path = bone_path;
-        out.push(ui::Row {
+        out.push(form::Row {
             height: 20,
             controls: [
                 ui::Control { kind: ui::WIDGET_LABEL, width: NAME_WIDTH, text: "" },

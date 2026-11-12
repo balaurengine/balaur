@@ -158,9 +158,6 @@ pub struct Widget {
     /// Where a menu opens: under its button, above it, at the pointer, or
     /// centred on the screen.
     pub placement: SmolStr,
-    /// How long a `toast` stays, in seconds; zero or less stays until the
-    /// game takes it away.
-    pub duration: f32,
 
     /// Where text sits in the width the widget was given.
     pub text_align: SmolStr,
@@ -275,6 +272,10 @@ pub struct Widget {
     /// Whether the pointer passes through this widget to the scene: it is
     /// drawn, and `ui.wants_pointer()` stays false over it.
     pub pointer_through: bool,
+    /// A root drawn above every root that is not.
+    pub on_top: bool,
+    /// Read out by a screen reader as it arrives and as it changes.
+    pub announce: bool,
     /// A glyph from the theme's icon family, drawn before `text`.
     pub icon: SmolStr,
     /// The ink that glyph is tinted with, as `#rrggbb` or a name from the
@@ -458,7 +459,6 @@ pub(crate) fn lays_out(kind: &str) -> bool {
             | w::DIALOG
             | w::WINDOW
             | w::MENU
-            | w::TOAST
     )
 }
 

@@ -222,25 +222,6 @@ impl Beside for WidgetWindow {
     }
 }
 
-/// The row a `toast` reads: how long it stays.
-#[derive(Clone, PartialEq, Component)]
-#[component(name = "widget_toast")]
-pub(crate) struct WidgetToast {
-    /// How long a `toast` stays, in seconds, counting the half second it fades over; zero leaves it up until the game takes it away
-    #[property(default = 3.0, min = 0.0)]
-    pub(crate) duration: f32,
-}
-
-impl Beside for WidgetToast {
-    fn reads(kind: &str) -> bool {
-        kind == w::TOAST
-    }
-
-    puts! { held, widget;
-        duration => widget.duration = held.duration;
-    }
-}
-
 /// The rows a `separator` reads: the room it takes and how far its line runs.
 #[derive(Clone, PartialEq, Component)]
 #[component(name = "widget_separator")]
@@ -729,7 +710,6 @@ macro_rules! each_beside {
             WidgetCode,
             WidgetTable,
             WidgetWindow,
-            WidgetToast,
             WidgetSeparator,
             WidgetMenu,
             WidgetColorPicker,

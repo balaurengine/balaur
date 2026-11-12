@@ -243,7 +243,8 @@ A widget kind and the `ui::*` function that draws it share one word.
 | Collapsible section | `fold` | Godot, Unity |
 | Modal form and OS window | `dialog`, `window` | ARIA, Godot |
 | Data views | `list`, `tree`, `table` | ARIA, Godot |
-| Menu, rule, brief message | `menu`, `separator`, `toast` | ARIA, Radix |
+| Menu, rule | `menu`, `separator` | ARIA, Radix |
+| A root drawn above the others, a widget a screen reader reads as it changes | `on_top`, `announce` | ARIA (`status`) |
 | Picture, code, free drawing | `image`, `code`, `draw` | none |
 
 | Concept | Balaur name | Follows |
@@ -527,6 +528,7 @@ Most names match Godot 4. A clip is Unity's word, because `animation` is already
 | Retargeting | `bone_map`, `skeleton_profile`, play option `retarget` | Godot |
 | Tween | `animation.tween`, steps `property`, `to`, `from`, `by`, `duration`, `delay`, `parallel`, `interval`, `call`, `loops`, `then` | Godot |
 | A curve applied to a number a script moves itself | `animation.ease(name, t)`, `ease_names` | Godot (`ease`) |
+| A rotation a script composes; a number apart from the game's stream; what a node draws | `quat` (`from_axis_angle`, `from_arc`, `from_euler`, `to_euler`, `mul`, `inverse`, `rotate`), `random.at`, `render.triangles_of` | Godot (`Quaternion`) |
 | Tween rate and state | `speed_scale`, `is_tween_running` | Godot |
 | Easing | `<mode>_<transition>`, as `in_out_sine`; a straight line is `linear` alone | Godot |
 | Timer | `timer`, with `wait_time`, `one_shot`, `autostart`, `time_left`, `running` | Godot |
@@ -678,7 +680,6 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Jobs in flight | `export.running_count`, `import.running_count` | none |
 | The tick rollback cannot pass, the first one a replay missed | `multiplayer.settled_tick`, `replay.divergence_tick` | none |
 | Fold TOML text into the settings, write it back | `settings.merge_toml`, `settings.to_toml` | none |
-| Open another project's manifest to edit apart from this run's, and change it as a settings screen does | `settings.edit_project`, `settings.edit_set`, `settings.edit_clear` | none |
 | A setting of the process rather than the game, kept from an edited project | `host = true` in its spec | none |
 | A scene written back from its nodes | `scene.to_toml`, a node's `authored` table; `instantiate`'s `root` and `to_toml`'s are the project its files are spelled from | none |
 | What a write replaced, kept for an undo | `scene.keep_changes`, `scene.take_changes`; each change's `was` | none |
@@ -686,13 +687,15 @@ A reader that answers a count, a tick or a place says so in its name, and a sett
 | Free a node now, not at the frame's end | `node.free`, beside `queue_free` | Godot |
 | Cameras that drive no view while held | `render.hold_cameras` | none |
 | Directories | `fs.create_directory`, `fs.modified_time`, `engine.user_data_directory`, `save.directory`, `project.pick_directory` | none |
+| What ships beside the editor, read and not written; a project copied, a path taken | `project.examples_directory`, `project.copy`, `project.exists` | none |
 | The seeded stream | `random.seed`, `random.float`, `random.range`, `random.int`, `random.uuid` | Godot, Unity |
 | Angle units and infinity | `math.to_degrees`, `math.to_radians`, `math.INFINITY` | Rust |
 | A view other than colour | `render.debug_view`, `render.set_debug_view`, `render.debug_views` | Godot |
 | A node's named look | `node.states.set_state` | none |
-| Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible`, `toast` | none |
+| Binding actions | `set_state`, `set_variable`, `add_variable`, `play`, `play_sound`, `instantiate`, `free`, `switch`, `open_url`, `emit`, `call`, `visible` | none |
 | A boolean beside the value | an options key: `set_z_index(z, #{ z_as_relative: false })`, `release.install(channel, tag, #{ allow_downgrade: true })` | N9 |
-| A function's options table, as a script's struct | a record named for the function, `<Function>Options`, in its module: `ui::ClickOptions`, `ui::RepaintOptions`; a pooled control `ui::Control`, a form's row `ui::Row` | none |
+| A function's options table, as a script's struct | a record named for the function, `<Function>Options`, in its module: `ui::ClickOptions`, `ui::RepaintOptions`; a pooled control `ui::Control` | none |
+| Fill one child of a pooled host; patch one pooled control in place | `ui::fill_slot`, `ui::patch_control` | none |
 
 ### Lifecycle and events
 

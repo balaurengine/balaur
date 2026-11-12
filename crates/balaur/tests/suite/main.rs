@@ -24,6 +24,7 @@ mod interactivity;
 mod parked_scenes;
 mod presets;
 mod replay;
+mod rotations;
 mod screenshot_events;
 mod script_check;
 mod script_pause;

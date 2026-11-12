@@ -174,6 +174,7 @@ pub fn builtins() -> Builtins {
             ApiPart::Module("rollback", balaur_net::rollback_api::install_rollback_api),
             KERNEL_MODULES[4],
             KERNEL_MODULES[5],
+            KERNEL_MODULES[6],
             ApiPart::Module(
                 "geometry2d",
                 balaur_geometry::geometry2d::install_geometry2d_api,
