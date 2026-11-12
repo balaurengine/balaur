@@ -610,6 +610,7 @@ impl Editor {
         // frame, after the screen's class has folded the docks.
         let arguments = engine::args();
         self.state.start_states = if arguments.len() > 1 { arguments[1] } else { "" };
+        settings::recall_window_size(self.state);
         disk::follow(self.state);
     }
 
@@ -652,6 +653,11 @@ impl Editor {
     // Every import reports here: what is coming, each file, then the end.
     pub fn on_import_event(event: any) {
         dropin::report(self.state, event);
+    }
+
+    // The window is closing: the next run opens at its size.
+    pub fn on_quit_requested() {
+        settings::keep_window_size(self.state);
     }
 
     /// The window changed size.

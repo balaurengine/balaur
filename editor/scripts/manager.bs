@@ -6,6 +6,7 @@ use editor;
 use icons;
 use signals;
 use style;
+use settings;
 use themewin;
 use util;
 use window;
@@ -1297,6 +1298,8 @@ pub fn go(state: &mut editor::State, path: str) {
         told(state);
         return;
     }
+    // Before the next editor starts, so it opens at this one's size.
+    settings::keep_window_size(state);
     let answer = util::map_or_empty(project::open(path));
     let failed = answer[log_fields::ERROR];
     if failed != nil {

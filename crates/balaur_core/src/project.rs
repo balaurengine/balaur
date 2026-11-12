@@ -150,8 +150,6 @@ pub struct WindowSettings {
     pub orientation: Orientation,
     /// Run a frame only when something asks for one, and sleep between.
     pub low_processor: bool,
-    /// Open at the size the window last closed at, kept per person.
-    pub remember_size: bool,
 }
 
 impl Default for WindowSettings {
@@ -164,7 +162,6 @@ impl Default for WindowSettings {
             mode: WindowMode::Windowed,
             orientation: Orientation::Any,
             low_processor: false,
-            remember_size: false,
         }
     }
 }
@@ -187,7 +184,6 @@ impl WindowSettings {
             mode: WindowMode::parse(&setting_string(eng, "window/mode")).unwrap_or(fallback.mode),
             orientation: Orientation::parse(&setting_string(eng, "window/orientation")),
             low_processor: setting_bool(eng, "window/low_processor", fallback.low_processor),
-            remember_size: setting_bool(eng, "window/remember_size", fallback.remember_size),
         }
     }
 }

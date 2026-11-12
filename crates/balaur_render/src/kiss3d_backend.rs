@@ -7,7 +7,6 @@ pub(crate) mod geometry;
 mod grid;
 mod instances;
 mod present;
-mod remembered;
 mod screenshot;
 
 use balaur_core::time::Instant;
@@ -435,10 +434,7 @@ pub async fn run_windowed_async(
     // `[window]` as this platform resolves it, or its defaults when a project
     // says nothing. Read before the window exists, so it cannot come from a
     // resource the first frame inserts.
-    let window_settings = remembered::recall(
-        &app,
-        (*balaur_core::project::WindowSettings::of(&app.engine)).clone(),
-    );
+    let window_settings = balaur_core::project::WindowSettings::of(&app.engine);
     let setup = CanvasSetup {
         canvas_id: canvas_id.unwrap_or("canvas").to_string(),
         vsync: window_settings.vsync,
@@ -529,7 +525,6 @@ pub async fn run_windowed_async(
         }
         cap_frame_rate(budget, last);
     }
-    remembered::keep(&app, &window, &window_settings);
     Ok(())
 }
 

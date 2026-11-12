@@ -205,5 +205,8 @@ it reconfigures; the method takes `&mut self` for that.
 
 ## 19. The editor remembers its window (built)
 
-`[window] remember_size = true` keeps the window's size per person beside their
-saves when it closes, and the next run opens at it. The editor turns it on.
+The editor's scripts keep its size in `window.toml` in the editor's data folder
+when the window closes, or before the manager opens another project. `init` sets
+`window/width` and `window/height` from it, and that runs before the window
+opens. A run started with `--state`, a page and a phone keep nothing. The engine
+has no setting for it: a game that wants the same does it in its own scripts.

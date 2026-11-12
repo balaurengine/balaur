@@ -27654,19 +27654,6 @@
       }
     },
     {
-      "host": true,
-      "path": "window/remember_size",
-      "scope": "project",
-      "spec": {
-        "applies": "restart",
-        "default": false,
-        "help": "Open at the size the window had when it last closed, kept for each person beside their saves rather than in the project.",
-        "host": true,
-        "order": 9,
-        "type": "bool"
-      }
-    },
-    {
       "host": false,
       "path": "ui/system_fonts",
       "scope": "project",
